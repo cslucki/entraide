@@ -21,7 +21,9 @@ return [
     'landing_expires_on' => 'Expires on',
     'landing_revoked' => 'This invitation link has been revoked.',
     'landing_expired' => 'This invitation link has expired.',
-    'landing_already_accepted' => 'This invitation has already been accepted.',
+    'landing_already_accepted' => 'This invitation has already been used. Your account exists: sign in with your email address.',
+    'landing_cta_sign_in' => 'Sign in',
+    'landing_forgot_password_hint' => 'Haven\'t chosen a password yet? Use "Forgot password" on the sign-in page.',
     'landing_body' => 'Click the button below to create your access to :organization.',
     'landing_cta_join' => 'Join :organization',
     'landing_cta_enter' => 'Go to my account',
@@ -37,6 +39,7 @@ return [
 
     // Redirects after an accept attempt
     'welcome' => 'Welcome to :organization.',
+    'flash_already_accepted' => 'This invitation has already been used. Sign in with your email address.',
     'flash_expired' => 'This invitation link has expired.',
     'flash_revoked' => 'This invitation link has been revoked.',
     'flash_sandbox_forbidden' => 'This organization does not accept direct invitations.',

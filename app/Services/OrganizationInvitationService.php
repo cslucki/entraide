@@ -169,12 +169,22 @@ class OrganizationInvitationService
             }
 
             if ($invitation->isAccepted()) {
-                // Same person clicking their own link again: send them back
-                // in rather than erroring.
+                // DEFAUT DE SECURITE corrige (Cyril, 30/09) : ce chemin
+                // rendait `acceptedBy`, et l'appelant y ouvrait une session.
+                // Le jeton — envoye par courriel, donc recopie dans une boite
+                // mail, un historique de navigation, une capture d'ecran —
+                // devenait alors un mot de passe PERMANENT pour ce compte :
+                // n'importe qui le detenant se connectait, indefiniment.
+                //
+                // Un jeton a usage unique est CONSOMME : il n'authentifie
+                // plus personne une fois accepte. La personne se reconnecte
+                // par le formulaire, ou passe par « mot de passe oublie »
+                // si elle n'en a jamais pose — son adresse est verifiee, ce
+                // chemin lui est ouvert.
                 return [
                     'result' => self::RESULT_ALREADY_ACCEPTED,
                     'invitation' => $invitation,
-                    'user' => $invitation->acceptedBy,
+                    'user' => null,
                 ];
             }
 

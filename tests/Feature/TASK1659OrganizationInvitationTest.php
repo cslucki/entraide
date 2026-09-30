@@ -56,6 +56,22 @@ class TASK1659OrganizationInvitationTest extends TestCase
         return (string) $this->lastEmail()->getHtmlBody();
     }
 
+    /**
+     * The full opening `<button ...>` tag of a sidebar group header. Located
+     * by its localStorage key rather than its label: the label text also
+     * appears elsewhere on the page, the key does not.
+     */
+    private function navGroupButton(string $html, string $storageKey): string
+    {
+        $pos = strpos($html, "setItem('{$storageKey}'");
+        $this->assertIsInt($pos, "No nav group button toggling {$storageKey}");
+
+        $tagStart = strrpos(substr($html, 0, $pos), '<button ');
+        $tagEnd = strpos($html, '>', $pos);
+
+        return substr($html, $tagStart, $tagEnd - $tagStart + 1);
+    }
+
     /** The full opening `<a ...>` tag whose href is exactly $url, wherever the class attribute falls relative to href. */
     private function navAnchorTag(string $html, string $url): string
     {
@@ -95,8 +111,12 @@ class TASK1659OrganizationInvitationTest extends TestCase
      * 'admin.users.' prefix (route name chosen by MASTER), so the sidebar's
      * generic wildcard active-match (route.'.*') lit up BOTH "Utilisateurs"
      * and "Création de comptes en masse" at once. Caught visually by Cyril,
-     * fixed in resources/views/layouts/admin.blade.php with a narrow
-     * exclusion scoped to that one nav item.
+     * fixed in resources/views/layouts/admin.blade.php.
+     *
+     * The same collision reaches the GROUP header: once the item moved to
+     * the "Outils" section, "Organisations" would still have lit up through
+     * its own 'admin.users' entry. Both levels are asserted here, because
+     * the item-level fix alone left the group wrong.
      */
     public function test_sidebar_highlights_only_the_bulk_create_item_not_also_users(): void
     {
@@ -111,6 +131,13 @@ class TASK1659OrganizationInvitationTest extends TestCase
 
         $this->assertStringNotContainsString('bg-indigo-600', $usersTag, '"Utilisateurs" must not be highlighted on the bulk-create page.');
         $this->assertStringContainsString('bg-indigo-600', $bulkCreateTag, '"Création de comptes en masse" must be highlighted on its own page.');
+
+        // Group headers: "Outils" carries the entry now, "Organisations"
+        // must not claim it. `text-indigo-400` is the active group colour.
+        $outilsHeader = $this->navGroupButton($content, 'sidebar_outils_open');
+        $organisationsHeader = $this->navGroupButton($content, 'sidebar_org_open');
+        $this->assertStringContainsString('text-indigo-400', $outilsHeader, 'The "Outils" group must be marked active.');
+        $this->assertStringNotContainsString('text-indigo-400', $organisationsHeader, 'The "Organisations" group must not be marked active.');
     }
 
     public function test_standard_user_is_refused(): void
@@ -286,6 +313,69 @@ class TASK1659OrganizationInvitationTest extends TestCase
         ]);
         $log = \App\Models\EmailLog::where('to_email', 'template@example.test')->firstOrFail();
         $this->assertSame('system_email_template', $log->data['template_used']);
+    }
+
+    // ── Suivi : filtrer par etat ──────────────────────────────────────────
+
+    /**
+     * "Expiree" ne se lit pas dans la seule colonne `status` : une ligne
+     * reste `pending` en base jusqu'a ce qu'un passage la perime. Le filtre
+     * doit donc voir la meme chose que le badge du tableau, sinon l'onglet
+     * « Expirées » afficherait vide alors que la liste montre « Expirée ».
+     */
+    public function test_the_status_tabs_filter_on_the_same_definition_the_table_displays(): void
+    {
+        $org = $this->org();
+        $enAttente = OrganizationInvitation::factory()->create(['organization_id' => $org->id, 'recipient_email' => 'attente@example.test']);
+        $perimee = OrganizationInvitation::factory()->expired()->create(['organization_id' => $org->id, 'recipient_email' => 'perimee@example.test']);
+        $revoquee = OrganizationInvitation::factory()->revoked()->create(['organization_id' => $org->id, 'recipient_email' => 'revoquee@example.test']);
+        $activee = OrganizationInvitation::factory()->accepted()->create(['organization_id' => $org->id, 'recipient_email' => 'activee@example.test']);
+
+        $admin = $this->superAdmin();
+
+        $pending = $this->actingAs($admin)->get(route('admin.users.bulk-create', ['status' => 'pending']));
+        $pending->assertSee('attente@example.test');
+        $pending->assertDontSee('perimee@example.test');
+        $pending->assertDontSee('activee@example.test');
+
+        // La ligne perimee est encore `pending` en base : c'est la date qui
+        // la classe, et c'est tout l'interet de ce test.
+        $this->assertSame(OrganizationInvitation::STATUS_PENDING, $perimee->fresh()->status);
+        $expired = $this->actingAs($admin)->get(route('admin.users.bulk-create', ['status' => 'expired']));
+        $expired->assertSee('perimee@example.test');
+        $expired->assertDontSee('attente@example.test');
+
+        $accepted = $this->actingAs($admin)->get(route('admin.users.bulk-create', ['status' => 'accepted']));
+        $accepted->assertSee('activee@example.test');
+        $accepted->assertDontSee('revoquee@example.test');
+
+        $revoked = $this->actingAs($admin)->get(route('admin.users.bulk-create', ['status' => 'revoked']));
+        $revoked->assertSee('revoquee@example.test');
+        $revoked->assertDontSee('activee@example.test');
+    }
+
+    public function test_an_activated_invitation_offers_login_as_on_the_account_it_created(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'recipient_email' => 'connecte@example.test',
+        ]);
+        $this->post(route('organization-invitations.accept', $invitation->token));
+        $created = User::where('email', 'connecte@example.test')->firstOrFail();
+
+        auth()->logout();
+        $admin = $this->superAdmin();
+
+        $this->actingAs($admin)
+            ->get(route('admin.users.bulk-create'))
+            ->assertSee(route('admin.users.login-as', $created), false);
+
+        // Et le mecanisme existant fonctionne bien depuis cet ecran.
+        $this->actingAs($admin)
+            ->post(route('admin.users.login-as', $created))
+            ->assertRedirect();
+        $this->assertAuthenticatedAs($created);
     }
 
     // ── Liens sortants : arriver sur le bon perimetre ────────────────────
@@ -555,23 +645,51 @@ class TASK1659OrganizationInvitationTest extends TestCase
         $this->actingAs($user)->get(route('invitation.password.create'))->assertRedirect();
     }
 
-    public function test_reclicking_an_already_accepted_link_is_idempotent(): void
+    /**
+     * DEFAUT DE SECURITE trouve par Cyril en recette, le 30/09.
+     *
+     * Ce test affirmait l'inverse : il exigeait qu'un second clic RECONNECTE
+     * la personne, et il etait vert. Il encodait donc la faille comme
+     * comportement attendu — un jeton envoye par courriel (donc recopie dans
+     * une boite mail, un historique, une capture d'ecran) devenait un mot de
+     * passe PERMANENT pour ce compte.
+     *
+     * Un jeton a usage unique est consomme : il n'authentifie plus personne.
+     */
+    public function test_a_consumed_invitation_link_never_authenticates_again(): void
     {
         $org = $this->org();
         $invitation = OrganizationInvitation::factory()->create([
             'organization_id' => $org->id,
-            'recipient_email' => 'idempotent@example.test',
+            'recipient_email' => 'consomme@example.test',
         ]);
 
         $this->post(route('organization-invitations.accept', $invitation->token));
-        $firstUserId = User::where('email', 'idempotent@example.test')->first()?->id;
+        $this->assertAuthenticated();
 
         auth()->logout();
 
-        $this->post(route('organization-invitations.accept', $invitation->token))->assertRedirect();
+        // Quiconque detient le lien le rejoue : il ne doit rien ouvrir.
+        $this->post(route('organization-invitations.accept', $invitation->token))
+            ->assertRedirect(route('organization-invitations.show', $invitation->token));
 
-        $this->assertSame(1, User::where('email', 'idempotent@example.test')->count(), 'A reclick must never create a second account.');
-        $this->assertAuthenticatedAs(User::find($firstUserId));
+        $this->assertGuest();
+        $this->assertSame(1, User::where('email', 'consomme@example.test')->count(), 'A reclick must never create a second account either.');
+    }
+
+    public function test_the_landing_page_of_a_consumed_invitation_offers_sign_in_not_a_session(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create(['organization_id' => $org->id]);
+        $this->post(route('organization-invitations.accept', $invitation->token));
+        auth()->logout();
+
+        $response = $this->get(route('organization-invitations.show', $invitation->token));
+
+        $response->assertOk();
+        // Plus aucun formulaire qui rejoue l'acceptation depuis cet ecran.
+        $response->assertDontSee(route('organization-invitations.accept', $invitation->token), false);
+        $this->assertGuest();
     }
 
     public function test_no_secret_is_exposed_after_account_creation(): void

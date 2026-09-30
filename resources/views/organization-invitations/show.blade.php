@@ -45,16 +45,25 @@
                             {{ __('organization_invitations.landing_expired') }}
                         </p>
                     @elseif ($isAccepted)
+                        {{--
+                            Aucun bouton qui reconnecte ici, et c'est deliberе : un
+                            jeton deja consomme ne doit plus ouvrir de session, sinon
+                            le lien recu par courriel resterait un mot de passe
+                            permanent pour ce compte. On renvoie vers la connexion
+                            normale (ou « mot de passe oublie »).
+                        --}}
                         <p class="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:bg-gray-900/40 dark:text-gray-300">
                             {{ __('organization_invitations.landing_already_accepted') }}
                         </p>
-                        <form method="POST" action="{{ route('organization-invitations.accept', $invitation->token) }}" class="mt-4">
-                            @csrf
-                            <button type="submit"
-                                    class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-indigo-700">
-                                {{ __('organization_invitations.landing_cta_enter') }}
-                            </button>
-                        </form>
+                        <a href="{{ $organization && \Illuminate\Support\Facades\Route::has('organization.login')
+                                        ? route('organization.login', ['organization' => $organization->slug])
+                                        : route('login') }}"
+                           class="mt-4 block w-full rounded-xl bg-indigo-600 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-indigo-700">
+                            {{ __('organization_invitations.landing_cta_sign_in') }}
+                        </a>
+                        <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">
+                            {{ __('organization_invitations.landing_forgot_password_hint') }}
+                        </p>
                     @else
                         <p class="mb-4 text-sm text-gray-600 dark:text-gray-300">
                             {{ __('organization_invitations.landing_body', ['organization' => $organization?->name ?? '']) }}

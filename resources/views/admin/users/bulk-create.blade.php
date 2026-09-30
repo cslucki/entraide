@@ -143,6 +143,9 @@
                         Suivi des invitations
                     </h3>
                     <form method="GET" class="flex gap-2">
+                        @if ($selectedStatus)
+                            <input type="hidden" name="status" value="{{ $selectedStatus }}">
+                        @endif
                         <select name="organization_id" onchange="this.form.submit()"
                                 class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
                             <option value="">Toutes les organisations</option>
@@ -153,6 +156,31 @@
                             @endforeach
                         </select>
                     </form>
+                </div>
+
+                @php
+                    $statusTabs = [
+                        null => 'Toutes',
+                        \App\Models\OrganizationInvitation::STATUS_PENDING => 'En attente',
+                        \App\Models\OrganizationInvitation::STATUS_ACCEPTED => 'Activées',
+                        \App\Models\OrganizationInvitation::STATUS_EXPIRED => 'Expirées',
+                        \App\Models\OrganizationInvitation::STATUS_REVOKED => 'Révoquées',
+                    ];
+                @endphp
+                <div class="px-6 pt-4 flex flex-wrap gap-2">
+                    @foreach ($statusTabs as $value => $label)
+                        @php
+                            $active = $selectedStatus === $value;
+                            $count = $statusCounts[$value ?? 'all'] ?? 0;
+                        @endphp
+                        <a href="{{ route('admin.users.bulk-create', array_filter(['organization_id' => $selectedOrganizationId, 'status' => $value])) }}"
+                           class="px-3 py-1.5 rounded-full text-xs font-medium transition
+                                  {{ $active
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' }}">
+                            {{ $label }} <span class="opacity-70">({{ $count }})</span>
+                        </a>
+                    @endforeach
                 </div>
 
                 <div class="overflow-x-auto mt-4">
@@ -205,6 +233,15 @@
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                                         <a href="{{ route('admin.users.bulk-create.invitations.show', $invitation) }}"
                                            class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300">Voir</a>
+                                        {{-- Reutilise la route d'emprunt d'identite existante
+                                             (admin.users.login-as), inchangee : un seul mecanisme
+                                             d'impersonation dans le produit. --}}
+                                        @if ($invitation->acceptedBy && ! $invitation->acceptedBy->is_admin && ! $invitation->acceptedBy->banned_at)
+                                            <form method="POST" action="{{ route('admin.users.login-as', $invitation->acceptedBy) }}" class="inline">
+                                                @csrf
+                                                <button type="submit" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">Se connecter sous</button>
+                                            </form>
+                                        @endif
                                         @if ($invitation->isPending())
                                             <form method="POST" action="{{ route('admin.users.bulk-create.invitations.resend', $invitation) }}" class="inline">
                                                 @csrf

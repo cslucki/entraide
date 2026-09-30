@@ -42,8 +42,10 @@ class OrganizationInvitationController extends Controller
     {
         $outcome = $this->invitations->accept($token);
 
-        if ($outcome['result'] === OrganizationInvitationService::RESULT_ACCEPTED
-            || $outcome['result'] === OrganizationInvitationService::RESULT_ALREADY_ACCEPTED) {
+        // Seule une PREMIERE acceptation ouvre une session. Un jeton deja
+        // consomme n'authentifie plus personne (defaut corrige le 30/09) :
+        // sinon le lien du courriel serait un mot de passe permanent.
+        if ($outcome['result'] === OrganizationInvitationService::RESULT_ACCEPTED) {
             $user = $outcome['user'];
             $organization = $outcome['invitation']?->organization;
 
@@ -63,6 +65,7 @@ class OrganizationInvitationController extends Controller
         }
 
         $message = match ($outcome['result']) {
+            OrganizationInvitationService::RESULT_ALREADY_ACCEPTED => __('organization_invitations.flash_already_accepted'),
             OrganizationInvitationService::RESULT_EXPIRED => __('organization_invitations.flash_expired'),
             OrganizationInvitationService::RESULT_REVOKED => __('organization_invitations.flash_revoked'),
             OrganizationInvitationService::RESULT_SANDBOX_FORBIDDEN => __('organization_invitations.flash_sandbox_forbidden'),

@@ -34,8 +34,25 @@ class AdminUserBulkCreationController extends Controller
             ->orderBy('name')
             ->get();
 
+        $status = $request->input('status');
+
         $invitations = OrganizationInvitation::with(['organization', 'createdBy', 'acceptedBy'])
             ->when($request->filled('organization_id'), fn ($q) => $q->where('organization_id', $request->input('organization_id')))
+            // « Expirée » ne se lit pas dans la seule colonne `status` : une
+            // ligne reste `pending` en base jusqu'a ce qu'un passage la
+            // perime. La date fait donc foi, exactement comme
+            // OrganizationInvitation::isPending() et le badge du tableau —
+            // sinon le filtre et l'affichage se contrediraient.
+            ->when($status === OrganizationInvitation::STATUS_PENDING, fn ($q) => $q
+                ->where('status', OrganizationInvitation::STATUS_PENDING)
+                ->where(fn ($sub) => $sub->whereNull('expires_at')->orWhere('expires_at', '>', now())))
+            ->when($status === OrganizationInvitation::STATUS_EXPIRED, fn ($q) => $q
+                ->where(fn ($sub) => $sub->where('status', OrganizationInvitation::STATUS_EXPIRED)
+                    ->orWhere(fn ($stale) => $stale->where('status', OrganizationInvitation::STATUS_PENDING)
+                        ->whereNotNull('expires_at')
+                        ->where('expires_at', '<=', now()))))
+            ->when(in_array($status, [OrganizationInvitation::STATUS_ACCEPTED, OrganizationInvitation::STATUS_REVOKED], true),
+                fn ($q) => $q->where('status', $status))
             ->orderByDesc('created_at')
             ->paginate(30)
             ->withQueryString();
@@ -44,7 +61,39 @@ class AdminUserBulkCreationController extends Controller
             'organizations' => $organizations,
             'invitations' => $invitations,
             'selectedOrganizationId' => $request->input('organization_id'),
+            'selectedStatus' => $status,
+            'statusCounts' => $this->statusCounts($request->input('organization_id')),
         ]);
+    }
+
+    /**
+     * Combien d'invitations dans chaque etat, pour les onglets du suivi.
+     *
+     * Meme definition de « expiree » que le filtre et que le badge du
+     * tableau : la date fait foi, pas seulement la colonne `status`.
+     *
+     * @return array<string, int>
+     */
+    private function statusCounts(?string $organizationId): array
+    {
+        $base = fn () => OrganizationInvitation::query()
+            ->when($organizationId, fn ($q) => $q->where('organization_id', $organizationId));
+
+        $expired = fn ($q) => $q->where(fn ($sub) => $sub->where('status', OrganizationInvitation::STATUS_EXPIRED)
+            ->orWhere(fn ($stale) => $stale->where('status', OrganizationInvitation::STATUS_PENDING)
+                ->whereNotNull('expires_at')
+                ->where('expires_at', '<=', now())));
+
+        return [
+            'all' => $base()->count(),
+            OrganizationInvitation::STATUS_PENDING => $base()
+                ->where('status', OrganizationInvitation::STATUS_PENDING)
+                ->where(fn ($sub) => $sub->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                ->count(),
+            OrganizationInvitation::STATUS_ACCEPTED => $base()->where('status', OrganizationInvitation::STATUS_ACCEPTED)->count(),
+            OrganizationInvitation::STATUS_EXPIRED => $expired($base())->count(),
+            OrganizationInvitation::STATUS_REVOKED => $base()->where('status', OrganizationInvitation::STATUS_REVOKED)->count(),
+        ];
     }
 
     public function store(Request $request): RedirectResponse
