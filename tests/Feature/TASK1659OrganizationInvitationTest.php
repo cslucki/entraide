@@ -360,6 +360,34 @@ class TASK1659OrganizationInvitationTest extends TestCase
         $this->assertSame('system_email_template', $log->data['template_used']);
     }
 
+    /**
+     * Regression trouvee par Cyril le 01/10 dans MailHog : les courriels
+     * partaient SANS mise en forme.
+     *
+     * Cause : le gabarit `organization_invitation` seme en base prend le pas
+     * sur le repli Blade, et je l'avais ecrit en HTML nu. J'avais verifie
+     * `template_used = system_email_template` et conclu au succes — le
+     * MECANISME, jamais le RESULTAT.
+     *
+     * Ce test regarde ce qui part vraiment : le gabarit administrable doit
+     * produire un CTA stylé, comme le repli qu'il remplace. Les styles sont
+     * INLINE a dessein, les clients de messagerie ignorant `<style>`.
+     */
+    public function test_the_seeded_template_produces_a_styled_email_not_bare_html(): void
+    {
+        $org = $this->org();
+        $this->seed(\Database\Seeders\SystemEmailTemplateSeeder::class);
+
+        $this->inviteWithHost($org, null, 'miseenforme@example.test')->assertRedirect();
+
+        $log = \App\Models\EmailLog::where('to_email', 'miseenforme@example.test')->firstOrFail();
+        $this->assertSame('system_email_template', $log->data['template_used'], 'Ce test doit porter sur le gabarit administrable, pas sur le repli.');
+
+        $html = $this->sentHtml();
+        $this->assertStringContainsString('background: #4f46e5', $html, 'Le CTA doit etre un bouton, pas un lien nu.');
+        $this->assertStringContainsString('font-family', $html);
+    }
+
     // ── « Host de test » (local/testing uniquement) ───────────────────────
 
     /** L'exemple fourni par MASTER, tunnel Cloudflare. */

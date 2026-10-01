@@ -144,18 +144,27 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Direct Organization invitation',
             'subject_fr' => 'Votre accès à {{ organization_name }}',
             'subject_en' => 'Your access to {{ organization_name }}',
-            'content_html_fr' => '<h1>Vous êtes invité·e à rejoindre {{ organization_name }}</h1>
-<p>Bonjour {{ recipient_name }},</p>
-<p><strong>{{ sender_name }}</strong> vous invite à rejoindre <strong>{{ organization_name }}</strong> sur {{ app_name }}.</p>
-<p><a href="{{ invitation_url }}">Rejoindre {{ organization_name }}</a></p>
-<p>Ce lien expire le {{ expires_at }}.</p>
-<p>— {{ app_name }}</p>',
-            'content_html_en' => '<h1>You are invited to join {{ organization_name }}</h1>
-<p>Hi {{ recipient_name }},</p>
-<p><strong>{{ sender_name }}</strong> invites you to join <strong>{{ organization_name }}</strong> on {{ app_name }}.</p>
-<p><a href="{{ invitation_url }}">Join {{ organization_name }}</a></p>
-<p>This link expires on {{ expires_at }}.</p>
-<p>— {{ app_name }}</p>',
+            // Styles INLINE a dessein : les clients de messagerie ignorent
+            // une balise <style>. Ce gabarit a d'abord ete seme en HTML nu, et
+            // comme il prend le pas sur le repli Blade, les courriels sont
+            // partis sans mise en forme — regression vue par Cyril le 01/10.
+            // La forme reprend donc celle du repli `emails/organization-invitation`.
+            'content_html_fr' => '<div style="font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+<h1 style="font-size: 20px; font-weight: 700; margin: 0 0 16px;">Vous êtes invité·e à rejoindre {{ organization_name }}</h1>
+<p style="margin: 0 0 12px;">Bonjour {{ recipient_name }},</p>
+<p style="margin: 0 0 12px;"><strong>{{ sender_name }}</strong> vous invite à rejoindre <strong>{{ organization_name }}</strong> sur {{ app_name }}.</p>
+<p style="margin: 0 0 20px;"><a href="{{ invitation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Rejoindre {{ organization_name }}</a></p>
+<p style="margin: 0 0 8px; font-size: 13px; color: #6b7280;">Ce lien expire le {{ expires_at }}.</p>
+<p style="margin: 0; font-size: 13px; color: #9ca3af;">— {{ app_name }}</p>
+</div>',
+            'content_html_en' => '<div style="font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+<h1 style="font-size: 20px; font-weight: 700; margin: 0 0 16px;">You are invited to join {{ organization_name }}</h1>
+<p style="margin: 0 0 12px;">Hi {{ recipient_name }},</p>
+<p style="margin: 0 0 12px;"><strong>{{ sender_name }}</strong> invites you to join <strong>{{ organization_name }}</strong> on {{ app_name }}.</p>
+<p style="margin: 0 0 20px;"><a href="{{ invitation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Join {{ organization_name }}</a></p>
+<p style="margin: 0 0 8px; font-size: 13px; color: #6b7280;">This link expires on {{ expires_at }}.</p>
+<p style="margin: 0; font-size: 13px; color: #9ca3af;">— {{ app_name }}</p>
+</div>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
                 'invitation_url', 'expires_at', 'app_name',
