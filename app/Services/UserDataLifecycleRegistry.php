@@ -288,6 +288,15 @@ class UserDataLifecycleRegistry
             ['key' => 'loop_join_requests_decided_by', 'type' => 'sql', 'table' => 'loop_join_requests', 'column' => 'decided_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Decision audit can be detached.'],
             ['key' => 'loop_invitations_sender_id', 'type' => 'sql', 'table' => 'loop_invitations', 'column' => 'sender_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Invitation sender is audit/history, as for blog invitations.'],
             ['key' => 'loop_invitations_accepted_by_user_id', 'type' => 'sql', 'table' => 'loop_invitations', 'column' => 'accepted_by_user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Invitation acceptance is audit/history.'],
+            // TASK-1659 : l'invitation DIRECTE a une Organization. Meme
+            // classement que ses deux soeurs ci-dessus — une invitation est
+            // un fait d'HISTOIRE de l'Organization : qui a ouvert l'acces, et
+            // qui l'a utilise. Elle doit survivre au depart de l'un comme de
+            // l'autre, sinon on perd la trace de la facon dont un compte est
+            // entre. Les deux FK sont `nullOnDelete` : la ligne reste, la
+            // personne est detachee.
+            ['key' => 'organization_invitations_created_by_user_id', 'type' => 'sql', 'table' => 'organization_invitations', 'column' => 'created_by_user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Who opened an access is Organization audit/history, as for loop and blog invitations.'],
+            ['key' => 'organization_invitations_accepted_by_user_id', 'type' => 'sql', 'table' => 'organization_invitations', 'column' => 'accepted_by_user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Invitation acceptance is audit/history: it records how an account came to exist.'],
             // TASK-1413 (CRM-1) : le Contact CRM est la fiche de RELATION de
             // l'Organization, pas le magasin personnel du membre. Il existe
             // AVANT tout compte et doit survivre au depart du membre : la FK

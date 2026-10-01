@@ -319,8 +319,11 @@ class TASK1632DataIntegrityToolTest extends TestCase
 
         $this->assertSame(IntegrityStatus::Ok, $check->status);
         $this->assertSame(0, $check->count);
-        // 24 tables portent `loop_id`, aucune sans contrainte.
-        $this->assertSame(24, $check->replacements['tables']);
+        // 25 tables portent `loop_id`, aucune sans contrainte.
+        // TASK-1659 ajoute `organization_invitations.loop_id` (Boucle cible
+        // d'une invitation), avec sa FK `nullOnDelete` — d'ou 24 -> 25, et
+        // `unprotected` qui reste a 0.
+        $this->assertSame(25, $check->replacements['tables']);
         $this->assertSame(0, $check->replacements['unprotected']);
     }
 
