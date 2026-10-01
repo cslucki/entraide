@@ -194,6 +194,23 @@ class OrganizationInvitationService
             return;
         }
 
+        // Symetrique de la re-verification faite sur l'Organization juste
+        // au-dessus (sandbox / desactivation) : la Boucle a pu etre archivee
+        // dans les 48 h qui separent l'envoi du clic. Sans cette garde, la
+        // personne etait ajoutee comme membre ACTIF d'une Boucle archivee —
+        // l'asymetrie entre les deux gardes etait le defaut, pas le cas
+        // particulier (revue 2, 01/10). `LoopService::addMemberByUserId()` ne
+        // regarde que le statut du MEMBRE, jamais celui de la Boucle.
+        if ($loop->status !== 'active') {
+            Log::warning('organization_invitation: Boucle cible non active a l\'acceptation', [
+                'invitation_id' => $invitation->id,
+                'loop_id' => $loop->id,
+                'loop_status' => $loop->status,
+            ]);
+
+            return;
+        }
+
         $dejaMembre = LoopMember::where('loop_id', $loop->id)
             ->where('user_id', $user->id)
             ->where('status', 'active')

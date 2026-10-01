@@ -635,6 +635,57 @@ class TASK1659OrganizationInvitationTest extends TestCase
         $this->assertNull(OrganizationInvitation::normalizeHostOverride('https://tunnel.example\\'));
     }
 
+
+    /**
+     * Constat 2 de la revue 2 : la garde sur l'Organization etait
+     * re-verifiee a l'acceptation, celle sur la Boucle non. Une Boucle
+     * archivee dans les 48 h entre l'envoi et le clic faisait quand meme
+     * entrer la personne — et l'y redirigeait.
+     */
+    public function test_an_archived_target_loop_no_longer_takes_the_person_in(): void
+    {
+        $org = $this->org();
+        $loop = Loop::factory()->create(['organization_id' => $org->id, 'status' => 'active']);
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'loop_id' => $loop->id,
+            'recipient_email' => 'archivee@example.test',
+        ]);
+
+        // La Boucle est archivee APRES l'envoi, avant le clic.
+        $loop->update(['status' => 'archived']);
+
+        $this->post(route('organization-invitations.accept', $invitation->token));
+
+        $user = User::where('email', 'archivee@example.test')->firstOrFail();
+        // Le compte existe — on ne perd pas une identite pour une Boucle.
+        $this->assertDatabaseMissing('loop_members', ['loop_id' => $loop->id, 'user_id' => $user->id]);
+
+        // Et la destination se replie sur l'Organization, jamais sur la Boucle.
+        $this->post(route('invitation.password.store'), [
+            'password' => 'un-mot-de-passe-solide-42',
+            'password_confirmation' => 'un-mot-de-passe-solide-42',
+        ])->assertRedirect($user->fresh()->getLoginRedirectTarget());
+    }
+
+    /**
+     * Constat 4 de la revue 2 : l'exception `logout` du middleware n'etait
+     * jamais exercee par HTTP — les autres tests appellent `auth()->logout()`
+     * en PHP, ce qui CONTOURNE la garde. Si la route changeait de nom, rien
+     * ne le verrait, et la personne serait enfermee : impossible de se
+     * deconnecter tant que le mot de passe n'est pas pose.
+     */
+    public function test_a_person_owing_a_password_can_still_log_out_through_the_real_route(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create(['organization_id' => $org->id]);
+        $this->post(route('organization-invitations.accept', $invitation->token));
+        $this->assertTrue(auth()->user()->must_set_password);
+
+        $this->post(route('logout'))->assertRedirect();
+        $this->assertGuest();
+    }
+
     // ── Boucle cible ──────────────────────────────────────────────────────
 
     /**
