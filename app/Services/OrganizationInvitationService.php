@@ -1,0 +1,397 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Loop;
+use App\Models\LoopMember;
+use App\Models\Organization;
+use App\Models\OrganizationInvitation;
+use App\Models\PointLedger;
+use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Direct-to-Organization invitations (TASK-1659): a SuperAdmin names a
+ * person, an e-mail goes out, and clicking it creates the account — no
+ * registration form, no password ever transmitted.
+ *
+ * Every state transition lives here rather than in a controller, exactly as
+ * LoopInvitationService does for Loops, so the admin surface (create/resend)
+ * and the public accept path cannot drift apart on the same rules.
+ */
+class OrganizationInvitationService
+{
+    /** Outcome of invite(): which case applied. */
+    public const CASE_CREATED = 'created';
+
+    public const CASE_RESENT = 'resent';
+
+    public const CASE_ALREADY_MEMBER = 'already_member';
+
+    public const CASE_EMAIL_USED_ELSEWHERE = 'email_used_elsewhere';
+
+    public const CASE_SANDBOX_FORBIDDEN = 'sandbox_forbidden';
+
+    /** Outcome of accept(). */
+    public const RESULT_ACCEPTED = 'accepted';
+
+    public const RESULT_ALREADY_ACCEPTED = 'already_accepted';
+
+    public const RESULT_EXPIRED = 'expired';
+
+    public const RESULT_REVOKED = 'revoked';
+
+    public const RESULT_SANDBOX_FORBIDDEN = 'sandbox_forbidden';
+
+    public const RESULT_EMAIL_USED_ELSEWHERE = 'email_used_elsewhere';
+
+    public const RESULT_NOT_FOUND = 'not_found';
+
+    /** Un compte existe deja pour cette adresse : on consomme, on n'authentifie pas. */
+    public const RESULT_ACCOUNT_ALREADY_EXISTS = 'account_already_exists';
+
+    /**
+     * Create — or refresh — the single pending invitation for this
+     * recipient, in this Organization.
+     *
+     * The three business cases (§16-18 of the MASTER brief) are all decided
+     * HERE, under one transaction with lockForUpdate, so a SuperAdmin
+     * submitting several people in one operation and a resend from the
+     * tracking table share exactly the same rules and cannot race each
+     * other into two live tokens for the same address.
+     *
+     * @return array{case: string, invitation: ?OrganizationInvitation, user: ?User}
+     */
+    public function invite(Organization $organization, User $admin, string $email, ?string $firstName, ?string $lastName, ?string $locale = null, ?string $loopId = null, ?string $hostOverride = null): array
+    {
+        $email = OrganizationInvitation::normalizeEmail($email);
+        $locale = in_array($locale, OrganizationInvitation::LOCALES, true)
+            ? $locale
+            : OrganizationInvitation::DEFAULT_LOCALE;
+
+        // Meme discipline que pour `loopId` juste en dessous : la relance
+        // rentre par cette methode sans repasser par la validation de la
+        // requete, donc l'environnement et la forme se reverifient ICI. Un
+        // override hors local/testing est simplement abandonne.
+        $hostOverride = OrganizationInvitation::hostOverrideAllowed()
+            ? OrganizationInvitation::normalizeHostOverride($hostOverride)
+            : null;
+
+        // Une Boucle d'un AUTRE tenant n'est pas une cible : la frontiere se
+        // verifie ici, et pas seulement dans la validation du formulaire, car
+        // la relance rentre par cette meme methode sans repasser par elle.
+        if ($loopId !== null && ! Loop::where('id', $loopId)->where('organization_id', $organization->id)->exists()) {
+            $loopId = null;
+        }
+
+        return DB::transaction(function () use ($organization, $admin, $email, $firstName, $lastName, $locale, $loopId, $hostOverride) {
+            // TASK-1650, third expression of the same guard: no real account
+            // is ever provisioned into a Scenario Manager sandbox. Checked
+            // here, not only at the form's server-side validation, because
+            // resend() re-enters this same method without re-validating the
+            // request.
+            if ($organization->scenario_sandbox_created_at !== null) {
+                return ['case' => self::CASE_SANDBOX_FORBIDDEN, 'invitation' => null, 'user' => null];
+            }
+
+            // Recherche INSENSIBLE A LA CASSE. `users.email` est unique
+            // globalement mais sensible a la casse sur PostgreSQL, et
+            // `/admin/users` enregistre une adresse SANS regle `lowercase` :
+            // une comparaison exacte laissait donc passer `Alice@x.com` quand
+            // on invitait `alice@x.com`, et le Cas C etait contourne — deux
+            // comptes pour une seule boite. Meme clause que
+            // LoopInvitationService, dont ce service reprend le patron.
+            $existingUser = User::whereRaw('LOWER(email) = ?', [$email])->lockForUpdate()->first();
+
+            if ($existingUser) {
+                if ($existingUser->organization_id === $organization->id) {
+                    return ['case' => self::CASE_ALREADY_MEMBER, 'invitation' => null, 'user' => $existingUser];
+                }
+
+                // Cas C — the schema makes a second User for this e-mail
+                // impossible (users.email is a GLOBAL unique index), and
+                // moving the existing account would silently relocate its
+                // content without it (the exact defect measured ahead of
+                // TASK-1639). So: no invitation, no e-mail, no mutation.
+                return ['case' => self::CASE_EMAIL_USED_ELSEWHERE, 'invitation' => null, 'user' => $existingUser];
+            }
+
+            $existing = OrganizationInvitation::where('organization_id', $organization->id)
+                ->where('recipient_email', $email)
+                ->lockForUpdate()
+                ->get();
+
+            $pending = $existing->first(fn (OrganizationInvitation $i) => $i->isPending());
+
+            if ($pending) {
+                // Refresh the human-facing fields and PUSH the expiry back
+                // out to a fresh 48h window (Cyril, 30/09) — "Relancer"
+                // must extend the deadline, not just resend the same link
+                // with its original clock still running. The token itself
+                // is kept: the link already in the recipient's mailbox
+                // stays valid, it just lives longer.
+                $pending->update(array_merge(
+                    array_filter([
+                        'recipient_first_name' => $firstName,
+                        'recipient_name' => $lastName,
+                    ], fn ($v) => $v !== null),
+                    array_filter(['loop_id' => $loopId], fn ($v) => $v !== null),
+                    // `host_override` est ecrit MEME a null — mais ce n'est
+                    // jamais un retour SILENCIEUX au lien canonique :
+                    // le bouton « Relancer » repasse la valeur DEJA stockee
+                    // (cf. AdminUserBulkCreationController::resend), et le
+                    // formulaire repasse ce que l'admin vient de saisir.
+                    // Dans les deux cas la valeur ecrite est un choix
+                    // explicite, pas un oubli.
+                    ['locale' => $locale, 'host_override' => $hostOverride, 'expires_at' => now()->addHours(48)],
+                ));
+
+                return ['case' => self::CASE_RESENT, 'invitation' => $pending->fresh(), 'user' => null];
+            }
+
+            // A stale row flagged pending but past its window would
+            // otherwise block a fresh invitation for ever.
+            $existing->filter(fn (OrganizationInvitation $i) => $i->status === OrganizationInvitation::STATUS_PENDING && $i->isExpired())
+                ->each(fn (OrganizationInvitation $i) => $i->update(['status' => OrganizationInvitation::STATUS_EXPIRED]));
+
+            $invitation = OrganizationInvitation::create([
+                'organization_id' => $organization->id,
+                'loop_id' => $loopId,
+                'created_by_user_id' => $admin->id,
+                'recipient_first_name' => $firstName,
+                'recipient_name' => $lastName,
+                'recipient_email' => $email,
+                'locale' => $locale,
+                'host_override' => $hostOverride,
+                'status' => OrganizationInvitation::STATUS_PENDING,
+            ]);
+
+            return ['case' => self::CASE_CREATED, 'invitation' => $invitation, 'user' => null];
+        });
+    }
+
+    /**
+     * Faire entrer la personne dans la Boucle CIBLE, quand il y en a une.
+     *
+     * C'est ici que l'invitation « vaut autorisation » : un SuperAdmin a
+     * designe la Boucle, donc une Boucle privee ou sur invitation s'ouvre
+     * sans demande d'adhesion separee.
+     *
+     * Un echec n'annule PAS l'acceptation : le compte vient d'etre cree, il
+     * est valide, et l'ancrer a la reussite d'une adhesion ferait perdre
+     * l'identite pour un probleme d'appartenance. L'echec est journalise —
+     * jamais avale en silence — et la personne atterrit simplement sur son
+     * Organization au lieu de la Boucle.
+     */
+    private function joinTargetLoop(OrganizationInvitation $invitation, User $user): void
+    {
+        $loop = $invitation->loop;
+
+        if (! $loop || $loop->organization_id !== $user->organization_id) {
+            return;
+        }
+
+        // Symetrique de la re-verification faite sur l'Organization juste
+        // au-dessus (sandbox / desactivation) : la Boucle a pu etre archivee
+        // dans les 48 h qui separent l'envoi du clic. Sans cette garde, la
+        // personne etait ajoutee comme membre ACTIF d'une Boucle archivee —
+        // l'asymetrie entre les deux gardes etait le defaut, pas le cas
+        // particulier (revue 2, 01/10). `LoopService::addMemberByUserId()` ne
+        // regarde que le statut du MEMBRE, jamais celui de la Boucle.
+        if ($loop->status !== 'active') {
+            Log::warning('organization_invitation: Boucle cible non active a l\'acceptation', [
+                'invitation_id' => $invitation->id,
+                'loop_id' => $loop->id,
+                'loop_status' => $loop->status,
+            ]);
+
+            return;
+        }
+
+        $dejaMembre = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if ($dejaMembre) {
+            return;
+        }
+
+        try {
+            app(LoopService::class)->addMemberByUserId($loop, $user->id);
+        } catch (\RuntimeException|ModelNotFoundException $e) {
+            Log::warning('organization_invitation: adhesion a la Boucle cible refusee', [
+                'invitation_id' => $invitation->id,
+                'loop_id' => $loop->id,
+                'user_id' => $user->id,
+                'reason' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function revoke(OrganizationInvitation $invitation): void
+    {
+        // Transaction + verrou : sans eux, une revocation qui avait lu la
+        // ligne « pending » pouvait ecraser en `revoked` une acceptation
+        // commitee entre-temps — compte cree et session ouverte, mais suivi
+        // annoncant « revoquee » (revue 1, 01/10).
+        DB::transaction(function () use ($invitation) {
+            $verrouillee = OrganizationInvitation::whereKey($invitation->getKey())->lockForUpdate()->first();
+
+            if (! $verrouillee || $verrouillee->status !== OrganizationInvitation::STATUS_PENDING) {
+                throw new \RuntimeException('Only a pending invitation can be revoked.');
+            }
+
+            $verrouillee->update(['status' => OrganizationInvitation::STATUS_REVOKED]);
+            $invitation->setAttribute('status', OrganizationInvitation::STATUS_REVOKED);
+        });
+    }
+
+    /**
+     * Accept an invitation by token — public, unauthenticated. Creates the
+     * User (minimal fields only, random unusable password) and verifies its
+     * e-mail, because clicking a token sent to that exact address IS the
+     * proof of possession. Never throws for an expected refusal: callers
+     * render a message, they do not catch exceptions.
+     *
+     * @return array{result: string, invitation: ?OrganizationInvitation, user: ?User}
+     */
+    public function accept(string $token): array
+    {
+        return DB::transaction(function () use ($token) {
+            $invitation = OrganizationInvitation::where('token', $token)->lockForUpdate()->first();
+
+            if (! $invitation) {
+                return ['result' => self::RESULT_NOT_FOUND, 'invitation' => null, 'user' => null];
+            }
+
+            if ($invitation->isRevoked()) {
+                return ['result' => self::RESULT_REVOKED, 'invitation' => $invitation, 'user' => null];
+            }
+
+            if ($invitation->isAccepted()) {
+                // DEFAUT DE SECURITE corrige (Cyril, 30/09) : ce chemin
+                // rendait `acceptedBy`, et l'appelant y ouvrait une session.
+                // Le jeton — envoye par courriel, donc recopie dans une boite
+                // mail, un historique de navigation, une capture d'ecran —
+                // devenait alors un mot de passe PERMANENT pour ce compte :
+                // n'importe qui le detenant se connectait, indefiniment.
+                //
+                // Un jeton a usage unique est CONSOMME : il n'authentifie
+                // plus personne une fois accepte. La personne se reconnecte
+                // par le formulaire, ou passe par « mot de passe oublie »
+                // si elle n'en a jamais pose — son adresse est verifiee, ce
+                // chemin lui est ouvert.
+                return [
+                    'result' => self::RESULT_ALREADY_ACCEPTED,
+                    'invitation' => $invitation,
+                    'user' => null,
+                ];
+            }
+
+            if ($invitation->isExpired()) {
+                $invitation->update(['status' => OrganizationInvitation::STATUS_EXPIRED]);
+
+                return ['result' => self::RESULT_EXPIRED, 'invitation' => $invitation, 'user' => null];
+            }
+
+            $organization = $invitation->organization;
+
+            // Defensive re-check: the Organization could have become a
+            // sandbox, or been deactivated, after the invitation was sent.
+            // `is_active` est verifie ICI aussi : le commentaire promettait
+            // « ou desactivee » alors que la condition ne regardait que la
+            // sandbox (revue 1, 01/10). Un commentaire qui ment est pire que
+            // pas de commentaire.
+            if (! $organization || $organization->scenario_sandbox_created_at !== null || ! $organization->is_active) {
+                return ['result' => self::RESULT_SANDBOX_FORBIDDEN, 'invitation' => $invitation, 'user' => null];
+            }
+
+            $existingUser = User::whereRaw('LOWER(email) = ?', [OrganizationInvitation::normalizeEmail($invitation->recipient_email)])
+                ->lockForUpdate()
+                ->first();
+
+            if ($existingUser) {
+                if ($existingUser->organization_id !== $organization->id) {
+                    // The address was claimed elsewhere between send and
+                    // click (e.g. a manual admin action). Never move it.
+                    return ['result' => self::RESULT_EMAIL_USED_ELSEWHERE, 'invitation' => $invitation, 'user' => null];
+                }
+
+                // DEFAUT DE SECURITE corrige (revue 1, 01/10) : ce chemin
+                // rendait l'utilisateur, et l'appelant ouvrait une session.
+                // Un jeton envoye par courriel devenait donc un moyen de se
+                // connecter a un compte DEJA EXISTANT — y compris un compte
+                // dont la personne avait entre-temps pose son propre mot de
+                // passe en s'inscrivant normalement.
+                //
+                // Le jeton ne prouve que la possession de l'ADRESSE, ce qui
+                // suffit a CREER un compte, jamais a entrer dans un compte
+                // existant. L'invitation est donc consommee — elle a bien
+                // atteint sa personne — mais sans session, et sans toucher
+                // aux appartenances : une requete non authentifiee ne doit
+                // produire aucune mutation.
+                //
+                // Consequence assumee : l'adhesion a la Boucle cible n'est
+                // PAS posee dans ce cas ; elle redevient un geste
+                // d'administration.
+                $invitation->update([
+                    'status' => OrganizationInvitation::STATUS_ACCEPTED,
+                    'accepted_at' => now(),
+                    'accepted_by_user_id' => $existingUser->id,
+                ]);
+
+                return ['result' => self::RESULT_ACCOUNT_ALREADY_EXISTS, 'invitation' => $invitation->fresh(), 'user' => null];
+            }
+
+            $user = User::create([
+                'name' => $invitation->recipientFullName(),
+                'first_name' => $invitation->recipient_first_name,
+                'email' => $invitation->recipient_email,
+                // Random, hashed, and never transmitted anywhere — the
+                // person sets their own password later through the
+                // existing "forgot password" primitive if they want one.
+                'password' => Hash::make(bin2hex(random_bytes(16))),
+                'points_balance' => 100,
+                'organization_id' => $organization->id,
+            ]);
+
+            // Both flags are deliberately NOT in User::$fillable —
+            // mass-assigning them would let any other form flip them by
+            // accident. This is the one place allowed to set them.
+            //
+            // email_verified_at: clicking a token sent to this exact
+            // address IS the proof of possession (MASTER,
+            // INVITATION_CLICK_VERIFIES_EMAIL = YES).
+            //
+            // must_set_password: the account was born with a random secret
+            // nobody knows, so the person must choose one before going
+            // anywhere (Cyril, 30/09) — otherwise they never would.
+            $user->forceFill([
+                'email_verified_at' => now(),
+                'must_set_password' => true,
+            ])->save();
+
+            PointLedger::create([
+                'user_id' => $user->id,
+                'transaction_id' => null,
+                'delta' => 100,
+                'organization_id' => $user->organization_id,
+                'reason' => 'welcome_bonus',
+            ]);
+
+            $invitation->update([
+                'status' => OrganizationInvitation::STATUS_ACCEPTED,
+                'accepted_at' => now(),
+                'accepted_by_user_id' => $user->id,
+            ]);
+
+            $this->joinTargetLoop($invitation, $user);
+
+            return ['result' => self::RESULT_ACCEPTED, 'invitation' => $invitation->fresh(), 'user' => $user];
+        });
+    }
+}
