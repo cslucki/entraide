@@ -21,6 +21,7 @@ use App\Support\Ai\AiEconomicGuard;
 use App\Support\GuestShell\GuestShellState;
 use Illuminate\Cookie\CookieValuePrefix;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -55,6 +56,16 @@ class TASK1460ActivationSafetyTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // TASK-1660 — horloge figee, a la convention des 13 autres tests de
+        // cette famille. Les fixtures d'atelier portent des dates ABSOLUES
+        // (ici une session au 01/10/2026 18h30) dont le sens depend de
+        // « maintenant » : passe cette heure la session est revolue, la route
+        // d'interet rend 404 et le test perd le 429 du throttle qu'il verifie.
+        // Ce fichier etait le SEUL de la famille sans ce gel : la CI est donc
+        // devenue rouge d'elle-meme le 01/10/2026 a 18h30, sans qu'une ligne
+        // de code produit ne change.
+        Carbon::setTestNow('2026-09-08 10:00:00');
 
         config(['ai.guest_shell.platform_monthly_ceiling_usd' => 5.0, 'ai.guest_shell.economic_guard.monthly_budget_usd' => 2.0, 'ai.guest_shell.identity_rate_limit_per_minute' => 3]);
         $policies = app(GuestShellPolicyService::class);
