@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Mime\Email;
 use Tests\TestCase;
 
@@ -357,6 +358,182 @@ class TASK1659OrganizationInvitationTest extends TestCase
         ]);
         $log = \App\Models\EmailLog::where('to_email', 'template@example.test')->firstOrFail();
         $this->assertSame('system_email_template', $log->data['template_used']);
+    }
+
+    // ── « Host de test » (local/testing uniquement) ───────────────────────
+
+    /** L'exemple fourni par MASTER, tunnel Cloudflare. */
+    private const HOST_TUNNEL = 'https://mariah-voted-groups-pst.trycloudflare.com/';
+
+    private function inviteWithHost(Organization $org, ?string $host, string $email): \Illuminate\Testing\TestResponse
+    {
+        return $this->actingAs($this->superAdmin())
+            ->post(route('admin.users.bulk-create.invitations.store'), array_filter([
+                'organization_id' => $org->id,
+                'host_override' => $host,
+                'people' => [
+                    ['first_name' => 'Jean', 'last_name' => 'Dupont', 'email' => $email],
+                ],
+            ], fn ($v) => $v !== null));
+    }
+
+    public function test_without_a_test_host_the_invitation_url_is_unchanged(): void
+    {
+        $org = $this->org();
+        $this->inviteWithHost($org, null, 'canonique@example.test')->assertRedirect();
+
+        $invitation = OrganizationInvitation::where('recipient_email', 'canonique@example.test')->firstOrFail();
+        $this->assertNull($invitation->host_override);
+        $this->assertStringContainsString(
+            route('organization-invitations.show', $invitation->token),
+            $this->sentHtml(),
+        );
+    }
+
+    public function test_a_valid_https_host_replaces_only_the_base_of_the_url(): void
+    {
+        $org = $this->org();
+        $this->inviteWithHost($org, self::HOST_TUNNEL, 'tunnel@example.test')->assertRedirect();
+
+        $invitation = OrganizationInvitation::where('recipient_email', 'tunnel@example.test')->firstOrFail();
+
+        // Slash final normalise a l'enregistrement.
+        $this->assertSame('https://mariah-voted-groups-pst.trycloudflare.com', $invitation->host_override);
+
+        $attendue = 'https://mariah-voted-groups-pst.trycloudflare.com/organization-invitations/'.$invitation->token;
+        $html = $this->sentHtml();
+
+        $this->assertStringContainsString($attendue, $html);
+        // Pas de double slash, et l'origin canonique a disparu du CTA.
+        $this->assertStringNotContainsString('trycloudflare.com//', $html);
+        $this->assertStringNotContainsString(route('organization-invitations.show', $invitation->token), $html);
+    }
+
+    /**
+     * Le chemin et le jeton restent ceux de BouclePro : seule la base bouge.
+     * C'est la garantie que le host ne fabrique jamais le jeton.
+     */
+    public function test_the_path_and_token_still_come_from_the_application(): void
+    {
+        $org = $this->org();
+        $this->inviteWithHost($org, self::HOST_TUNNEL, 'chemin@example.test')->assertRedirect();
+
+        $invitation = OrganizationInvitation::where('recipient_email', 'chemin@example.test')->firstOrFail();
+        $cheminCanonique = route('organization-invitations.show', $invitation->token, absolute: false);
+
+        $this->assertSame('/organization-invitations/'.$invitation->token, $cheminCanonique);
+        $this->assertStringContainsString($invitation->host_override.$cheminCanonique, $this->sentHtml());
+        $this->assertSame(64, strlen($invitation->token));
+    }
+
+    public function test_resending_keeps_the_test_host_instead_of_falling_back(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'recipient_email' => 'relance-host@example.test',
+            'host_override' => 'https://mariah-voted-groups-pst.trycloudflare.com',
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.users.bulk-create.invitations.resend', $invitation))
+            ->assertRedirect();
+
+        $fresh = $invitation->fresh();
+        $this->assertSame('https://mariah-voted-groups-pst.trycloudflare.com', $fresh->host_override);
+        $this->assertStringContainsString(
+            'https://mariah-voted-groups-pst.trycloudflare.com/organization-invitations/'.$fresh->token,
+            $this->sentHtml(),
+        );
+    }
+
+    #[DataProvider('hostsRefuses')]
+    public function test_a_malformed_test_host_is_refused(string $host, string $pourquoi): void
+    {
+        $org = $this->org();
+
+        $this->inviteWithHost($org, $host, 'refuse@example.test')
+            ->assertSessionHasErrors('host_override');
+
+        $this->assertDatabaseMissing('organization_invitations', ['recipient_email' => 'refuse@example.test']);
+        $this->assertNull(OrganizationInvitation::normalizeHostOverride($host), $pourquoi);
+    }
+
+    public static function hostsRefuses(): array
+    {
+        return [
+            'pas une URL absolue' => ['mariah-voted-groups-pst.trycloudflare.com', 'sans schema'],
+            'schema inconnu' => ['ftp://exemple.test', 'ni http ni https'],
+            'identifiants dans l URL' => ['https://user:secret@exemple.test', 'partiraient dans chaque courriel'],
+            'query string' => ['https://exemple.test?a=b', 'casserait l URL finale'],
+            'fragment' => ['https://exemple.test#ancre', 'casserait l URL finale'],
+            'path applicatif' => ['https://exemple.test/une/app', 'le chemin appartient a BouclePro'],
+            'http hors machine locale' => ['http://exemple.test', 'un jeton ne voyage pas en clair'],
+        ];
+    }
+
+    public function test_http_is_tolerated_on_the_local_machine_only(): void
+    {
+        $this->assertSame('http://localhost:8000', OrganizationInvitation::normalizeHostOverride('http://localhost:8000/'));
+        $this->assertSame('http://127.0.0.1', OrganizationInvitation::normalizeHostOverride('http://127.0.0.1'));
+        $this->assertNull(OrganizationInvitation::normalizeHostOverride('http://exemple.test'));
+    }
+
+    /**
+     * La garde de fond : en production le champ n'existe pas, mais un POST
+     * direct l'ignorerait. Le refus est donc cote SERVEUR.
+     */
+    public function test_in_production_the_test_host_is_refused_server_side_and_hidden(): void
+    {
+        $org = $this->org();
+        app()->detectEnvironment(fn () => 'production');
+
+        $this->assertFalse(OrganizationInvitation::hostOverrideAllowed());
+
+        $this->inviteWithHost($org, self::HOST_TUNNEL, 'prod@example.test')
+            ->assertSessionHasErrors('host_override');
+
+        $this->assertDatabaseMissing('organization_invitations', ['recipient_email' => 'prod@example.test']);
+
+        // Et le champ n'est pas rendu.
+        $this->actingAs($this->superAdmin())
+            ->get(route('admin.users.bulk-create'))
+            ->assertDontSee('name="host_override"', false);
+    }
+
+    /**
+     * Meme une ligne DEJA en base ne doit pas produire un lien de tunnel si
+     * l'environnement ne l'autorise plus.
+     */
+    public function test_a_stored_host_is_ignored_when_the_environment_no_longer_allows_it(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'recipient_email' => 'stocke@example.test',
+            'host_override' => 'https://mariah-voted-groups-pst.trycloudflare.com',
+        ]);
+
+        app()->detectEnvironment(fn () => 'production');
+        app(\App\Services\OrganizationInvitationMailer::class)->send($invitation);
+
+        $html = $this->sentHtml();
+        $this->assertStringNotContainsString('trycloudflare.com', $html);
+        $this->assertStringContainsString(route('organization-invitations.show', $invitation->token), $html);
+    }
+
+    public function test_the_test_host_never_mutates_global_configuration(): void
+    {
+        $org = $this->org();
+        $appUrlAvant = config('app.url');
+        $rootAvant = url('/');
+
+        $this->inviteWithHost($org, self::HOST_TUNNEL, 'global@example.test')->assertRedirect();
+
+        $this->assertSame($appUrlAvant, config('app.url'), 'APP_URL ne doit pas bouger.');
+        $this->assertSame($rootAvant, url('/'), 'La racine des URL ne doit pas bouger.');
+        // Une URL generee APRES l'envoi reste canonique.
+        $this->assertStringStartsWith($rootAvant, route('admin.users.bulk-create'));
     }
 
     // ── Boucle cible ──────────────────────────────────────────────────────

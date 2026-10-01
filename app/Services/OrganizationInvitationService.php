@@ -62,12 +62,20 @@ class OrganizationInvitationService
      *
      * @return array{case: string, invitation: ?OrganizationInvitation, user: ?User}
      */
-    public function invite(Organization $organization, User $admin, string $email, ?string $firstName, ?string $lastName, ?string $locale = null, ?string $loopId = null): array
+    public function invite(Organization $organization, User $admin, string $email, ?string $firstName, ?string $lastName, ?string $locale = null, ?string $loopId = null, ?string $hostOverride = null): array
     {
         $email = OrganizationInvitation::normalizeEmail($email);
         $locale = in_array($locale, OrganizationInvitation::LOCALES, true)
             ? $locale
             : OrganizationInvitation::DEFAULT_LOCALE;
+
+        // Meme discipline que pour `loopId` juste en dessous : la relance
+        // rentre par cette methode sans repasser par la validation de la
+        // requete, donc l'environnement et la forme se reverifient ICI. Un
+        // override hors local/testing est simplement abandonne.
+        $hostOverride = OrganizationInvitation::hostOverrideAllowed()
+            ? OrganizationInvitation::normalizeHostOverride($hostOverride)
+            : null;
 
         // Une Boucle d'un AUTRE tenant n'est pas une cible : la frontiere se
         // verifie ici, et pas seulement dans la validation du formulaire, car
@@ -76,7 +84,7 @@ class OrganizationInvitationService
             $loopId = null;
         }
 
-        return DB::transaction(function () use ($organization, $admin, $email, $firstName, $lastName, $locale, $loopId) {
+        return DB::transaction(function () use ($organization, $admin, $email, $firstName, $lastName, $locale, $loopId, $hostOverride) {
             // TASK-1650, third expression of the same guard: no real account
             // is ever provisioned into a Scenario Manager sandbox. Checked
             // here, not only at the form's server-side validation, because
@@ -121,7 +129,14 @@ class OrganizationInvitationService
                         'recipient_name' => $lastName,
                     ], fn ($v) => $v !== null),
                     array_filter(['loop_id' => $loopId], fn ($v) => $v !== null),
-                    ['locale' => $locale, 'expires_at' => now()->addHours(48)],
+                    // `host_override` est ecrit MEME a null — mais ce n'est
+                    // jamais un retour SILENCIEUX au lien canonique :
+                    // le bouton « Relancer » repasse la valeur DEJA stockee
+                    // (cf. AdminUserBulkCreationController::resend), et le
+                    // formulaire repasse ce que l'admin vient de saisir.
+                    // Dans les deux cas la valeur ecrite est un choix
+                    // explicite, pas un oubli.
+                    ['locale' => $locale, 'host_override' => $hostOverride, 'expires_at' => now()->addHours(48)],
                 ));
 
                 return ['case' => self::CASE_RESENT, 'invitation' => $pending->fresh(), 'user' => null];
@@ -140,6 +155,7 @@ class OrganizationInvitationService
                 'recipient_name' => $lastName,
                 'recipient_email' => $email,
                 'locale' => $locale,
+                'host_override' => $hostOverride,
                 'status' => OrganizationInvitation::STATUS_PENDING,
             ]);
 

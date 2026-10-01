@@ -46,6 +46,14 @@ return [
     'flash_email_used_elsewhere' => 'Cette adresse est déjà associée à un autre compte BouclePro.',
     'flash_invalid' => 'Ce lien d\'invitation n\'est pas valide.',
 
+    // « Host de test » (local/testing uniquement)
+    'host_label' => 'Host de test',
+    'host_help' => 'Optionnel — permet de générer les liens d\'invitation vers un tunnel local de test.',
+    'host_placeholder' => 'https://exemple.trycloudflare.com',
+    'host_invalid' => 'Indiquez seulement une base d\'URL (https://hôte), sans chemin, paramètre, ancre ni identifiants.',
+    'host_not_allowed_here' => 'Le host de test n\'est pas disponible dans cet environnement.',
+    'host_badge' => 'Host test',
+
     // Surface SuperAdmin
     'admin_sandbox_forbidden' => 'Cette organisation est un monde de démonstration : aucune invitation réelle n\'y est envoyée.',
     'admin_resent' => 'Invitation relancée.',

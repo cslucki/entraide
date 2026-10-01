@@ -17,11 +17,44 @@ use Illuminate\Support\Facades\Mail;
  */
 class OrganizationInvitationMailer
 {
+    /**
+     * L'URL d'atterrissage mise dans le courriel.
+     *
+     * Par defaut l'URL canonique du depot. Avec un « Host de test »
+     * (local/testing seulement), seule la BASE change : le chemin et le
+     * jeton restent generes par Laravel, puis sont prefixes par l'origin
+     * valide. Le jeton ne vient donc jamais du host saisi.
+     *
+     * Aucun `URL::forceRootUrl()`, aucune ecriture dans la configuration :
+     * la substitution est locale a cet appel, et ne peut pas fuir sur une
+     * autre URL de la meme requete.
+     *
+     * L'override stocke est RE-VERIFIE ici — environnement et forme. Une
+     * ligne ecrite en testing, ou un environnement bascule depuis, ne doit
+     * pas pouvoir envoyer un vrai courriel vers un tunnel.
+     */
+    private function landingUrlFor(OrganizationInvitation $invitation): string
+    {
+        $canonique = route('organization-invitations.show', $invitation->token);
+
+        if (! OrganizationInvitation::hostOverrideAllowed()) {
+            return $canonique;
+        }
+
+        $origin = OrganizationInvitation::normalizeHostOverride($invitation->host_override);
+
+        if ($origin === null) {
+            return $canonique;
+        }
+
+        return $origin.route('organization-invitations.show', $invitation->token, absolute: false);
+    }
+
     public function send(OrganizationInvitation $invitation): void
     {
         $organization = $invitation->organization;
         $sender = $invitation->createdBy;
-        $landingUrl = route('organization-invitations.show', $invitation->token);
+        $landingUrl = $this->landingUrlFor($invitation);
 
         // The language the SuperAdmin chose for THIS invitation (French by
         // default). Deliberately NOT app()->getLocale(): that is the

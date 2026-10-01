@@ -37,6 +37,93 @@ class OrganizationInvitation extends Model
 
     public const DEFAULT_LOCALE = 'fr';
 
+    /**
+     * Les seuls environnements ou un « Host de test » existe.
+     *
+     * La liste vit ICI et pas dans un controleur : le formulaire s'en sert
+     * pour masquer le champ, la validation pour refuser une soumission
+     * malgre le masquage, et le mailer pour ignorer un override deja en base
+     * — trois endroits qui doivent dire la meme chose.
+     */
+    public const HOST_OVERRIDE_ENVIRONMENTS = ['local', 'testing'];
+
+    public static function hostOverrideAllowed(): bool
+    {
+        return app()->environment(self::HOST_OVERRIDE_ENVIRONMENTS);
+    }
+
+    /**
+     * Normalise un « Host de test », ou rend `null` si ce n'en est pas un.
+     *
+     * N'accepte qu'un ORIGIN : schema + hote + port eventuel. Tout le reste
+     * est refuse plutot que rogne — accepter en nettoyant ferait croire que
+     * l'entree etait bonne, et masquerait une faute de saisie qui enverrait
+     * de vrais courriels vers une mauvaise adresse.
+     *
+     * Refus explicites :
+     * - identifiants dans l'URL (`https://user:pass@host`) : ils partiraient
+     *   dans chaque courriel ;
+     * - query ou fragment : un lien d'invitation porte deja son jeton, et
+     *   coller un `?a=b` devant produirait une URL cassee ;
+     * - path applicatif : le chemin appartient a BouclePro, jamais au host ;
+     * - `http://` ailleurs que sur la machine locale : un jeton d'invitation
+     *   ne voyage pas en clair.
+     */
+    public static function normalizeHostOverride(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        $parts = parse_url($value);
+
+        if ($parts === false || ! isset($parts['scheme'], $parts['host'])) {
+            return null;
+        }
+
+        $scheme = mb_strtolower($parts['scheme']);
+        $host = mb_strtolower($parts['host']);
+
+        if (isset($parts['user']) || isset($parts['pass'])) {
+            return null;
+        }
+
+        if (isset($parts['query']) || isset($parts['fragment'])) {
+            return null;
+        }
+
+        // Un path vide ou « / » est le seul tolere : c'est l'origin nu.
+        if (isset($parts['path']) && trim($parts['path'], '/') !== '') {
+            return null;
+        }
+
+        $surMachineLocale = in_array($host, ['localhost', '127.0.0.1', '[::1]', '::1'], true);
+
+        if ($scheme === 'http' && ! $surMachineLocale) {
+            return null;
+        }
+
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+
+        if (isset($parts['port']) && ($parts['port'] < 1 || $parts['port'] > 65535)) {
+            return null;
+        }
+
+        $origin = $scheme.'://'.$host;
+
+        if (isset($parts['port'])) {
+            $origin .= ':'.$parts['port'];
+        }
+
+        // Slash final normalise : l'URL finale est origin + path, et le path
+        // genere par Laravel commence deja par « / ».
+        return rtrim($origin, '/');
+    }
+
     protected $fillable = [
         'organization_id',
         'loop_id',
@@ -45,6 +132,7 @@ class OrganizationInvitation extends Model
         'recipient_name',
         'recipient_email',
         'locale',
+        'host_override',
         'token',
         'status',
         'expires_at',

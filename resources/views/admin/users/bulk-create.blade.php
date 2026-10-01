@@ -124,6 +124,27 @@
                         </p>
                     </div>
 
+                    @if ($hostOverrideAllowed)
+                        {{-- Le champ n'est rendu qu'en local/testing. Le masquage
+                             n'est PAS la garde : le serveur refuse de toute facon
+                             un host_override soumis ailleurs. --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ __('organization_invitations.host_label') }}
+                                <span class="text-gray-400 font-normal">(facultatif)</span>
+                            </label>
+                            <input type="text" name="host_override" value="{{ old('host_override') }}"
+                                   placeholder="{{ __('organization_invitations.host_placeholder') }}"
+                                   class="w-full max-w-md rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                            @error('host_override')
+                                <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                            @enderror
+                            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                {{ __('organization_invitations.host_help') }}
+                            </p>
+                        </div>
+                    @endif
+
                     <div class="space-y-3">
                         <template x-for="(person, index) in people" :key="index">
                             <div class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1.5fr_auto] gap-3 items-start">
@@ -240,6 +261,10 @@
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                                         {{ $invitation->recipient_email }}
                                         <span class="ml-1 text-xs uppercase text-gray-400 dark:text-gray-500">{{ $invitation->locale }}</span>
+                                        @if ($invitation->host_override)
+                                            <span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                                                  title="{{ $invitation->host_override }}">{{ __('organization_invitations.host_badge') }}</span>
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                         {{ $invitation->organization?->name }}

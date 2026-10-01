@@ -75,6 +75,7 @@ class AdminUserBulkCreationController extends Controller
             'invitations' => $invitations,
             'selectedOrganizationId' => $request->input('organization_id'),
             'selectedStatus' => $status,
+            'hostOverrideAllowed' => OrganizationInvitation::hostOverrideAllowed(),
             'statusCounts' => $this->statusCounts($request->input('organization_id')),
         ]);
     }
@@ -118,6 +119,25 @@ class AdminUserBulkCreationController extends Controller
             // frontiere de tenant se verifie dans la requete elle-meme, pas
             // seulement plus loin.
             'loop_id' => ['nullable', 'uuid', Rule::exists('loops', 'id')->where('organization_id', $request->input('organization_id'))],
+            // « Host de test » : refuse cote SERVEUR hors local/testing, et
+            // pas seulement masque dans la vue. Le masquage d'une UI n'est
+            // pas une garde — un POST direct l'ignore.
+            'host_override' => [
+                'nullable', 'string', 'max:255',
+                function (string $attribute, $value, \Closure $fail) {
+                    if (blank($value)) {
+                        return;
+                    }
+                    if (! OrganizationInvitation::hostOverrideAllowed()) {
+                        $fail(__('organization_invitations.host_not_allowed_here'));
+
+                        return;
+                    }
+                    if (OrganizationInvitation::normalizeHostOverride($value) === null) {
+                        $fail(__('organization_invitations.host_invalid'));
+                    }
+                },
+            ],
             'people' => ['required', 'array', 'min:1'],
             'people.*.first_name' => ['required', 'string', 'max:255'],
             'people.*.last_name' => ['required', 'string', 'max:255'],
@@ -146,6 +166,7 @@ class AdminUserBulkCreationController extends Controller
                 $person['last_name'],
                 $validated['locale'] ?? OrganizationInvitation::DEFAULT_LOCALE,
                 $validated['loop_id'] ?? null,
+                $validated['host_override'] ?? null,
             );
 
             if ($outcome['case'] === OrganizationInvitationService::CASE_CREATED) {
@@ -181,6 +202,9 @@ class AdminUserBulkCreationController extends Controller
             $invitation->recipient_name,
             $invitation->locale,
             $invitation->loop_id,
+            // Exigence MASTER : une relance ne revient jamais silencieusement
+            // au lien canonique — on repasse l'override deja enregistre.
+            $invitation->host_override,
         );
 
         if (in_array($outcome['case'], [OrganizationInvitationService::CASE_CREATED, OrganizationInvitationService::CASE_RESENT], true)) {

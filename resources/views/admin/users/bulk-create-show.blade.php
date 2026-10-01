@@ -47,6 +47,12 @@
                             @endif
                         </dd>
                     </div>
+                    @if ($invitation->host_override)
+                        <div>
+                            <dt class="text-gray-500 dark:text-gray-400">{{ __('organization_invitations.host_label') }}</dt>
+                            <dd class="mt-1 text-gray-900 dark:text-gray-100 break-all">{{ $invitation->host_override }}</dd>
+                        </div>
+                    @endif
                     <div>
                         <dt class="text-gray-500 dark:text-gray-400">Langue de l'email</dt>
                         <dd class="mt-1 text-gray-900 dark:text-gray-100">{{ $invitation->locale === 'en' ? 'English' : 'Français' }}</dd>

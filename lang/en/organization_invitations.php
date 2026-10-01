@@ -46,6 +46,14 @@ return [
     'flash_email_used_elsewhere' => 'This address is already associated with another BouclePro account.',
     'flash_invalid' => 'This invitation link is not valid.',
 
+    // "Test host" (local/testing only)
+    'host_label' => 'Test host',
+    'host_help' => 'Optional — generates invitation links pointing at a local test tunnel.',
+    'host_placeholder' => 'https://example.trycloudflare.com',
+    'host_invalid' => 'Provide a base URL only (https://host), with no path, query, fragment or credentials.',
+    'host_not_allowed_here' => 'The test host is not available in this environment.',
+    'host_badge' => 'Test host',
+
     // SuperAdmin surface
     'admin_sandbox_forbidden' => 'This organization is a demonstration world: no real invitation is sent to it.',
     'admin_resent' => 'Invitation resent.',
