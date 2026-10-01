@@ -48,19 +48,6 @@
 
                 <nav @click="if ($event.target.closest('a')) { pinned || (sidebarOpen = false) }" class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
                     @php
-                        $isActive = fn($route) => request()->routeIs($route, $route.'.*');
-
-                        // TASK-1659 : « Création de comptes en masse » est une entree a part
-                        // entiere (section Outils), mais son nom de route — voulu par MASTER —
-                        // est imbrique sous le prefixe 'admin.users.'. Le joker `.*` ci-dessus
-                        // allumerait donc AUSSI « Utilisateurs » et, par ricochet, tout le
-                        // groupe « Organisations ». L'exclusion vit ICI, en un seul endroit,
-                        // plutot que recopiee dans chaque boucle de rendu.
-                        $isNavActive = fn($route) => $isActive($route)
-                            && ! ($route === 'admin.users' && request()->routeIs('admin.users.bulk-create', 'admin.users.bulk-create.*'));
-
-                        $isGroupActive = fn($items) => collect($items)->contains(fn($i) => $isNavActive($i['route']));
-
                         $emailItems = [
                             ['route' => 'admin.email-templates', 'label' => __('admin.emailer_templates'), 'icon' => 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'],
                             ['route' => 'admin.notifications-cockpit', 'label' => __('admin.notifications_cockpit'), 'icon' => 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'],
@@ -119,10 +106,144 @@
                             ['route' => 'admin.organization-requests', 'label' => 'Demandes plateforme', 'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z'],
                             ['route' => 'admin.translations', 'label' => 'Traductions', 'icon' => 'M3 5h12M9 3v2m0 4h.01M9 11h.01M9 15h.01M9 17h.01M12 3v3m0 4v11m-7-3a7 7 0 0114 0'],
                         ];
+
+                        // --- Listes hoistees (TASK-1659, arbitrage MASTER 01/10) ---
+                        // Elles vivaient juste avant leur propre groupe. Les monter ici
+                        // ne change ni leur contenu, ni leur ordre, ni leur groupe : c'est
+                        // la seule facon pour le predicat ci-dessous de connaitre TOUTES
+                        // les entrees avant que le premier groupe ne soit rendu.
+
+                        $outilsItems = [
+                            // TASK-1659 — outil SuperAdmin dedie : invitation par e-mail,
+                            // sans mot de passe transmis. Distinct de `admin.users.create`
+                            // (creation manuelle avec mot de passe saisi), qui reste dans
+                            // « Organisations » avec le reste de la gestion des comptes.
+                            ['route' => 'admin.users.bulk-create', 'label' => 'Création de comptes en masse', 'icon' => 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z'],
+                            ['route' => 'admin.outils.assign-data', 'label' => __('admin.assign_data.nav_label'), 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'],
+                            ['route' => 'admin.outils.fix-categories', 'label' => 'Fix catégories', 'icon' => 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'],
+                            // TASK-1630 — diagnostic et purge des arborescences legacy.
+                            ['route' => 'admin.outils.dossiers', 'label' => __('admin.dossiers_cleanup.nav_label'), 'icon' => 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z'],
+                            // TASK-1632 — cockpit d'integrite, en lecture seule.
+                            ['route' => 'admin.outils.integrite', 'label' => __('admin.integrity.nav_label'), 'icon' => 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'],
+                            // TASK-1646 — Scenario Manager. Entree canonique du produit
+                            // (CDC 5.1 : « Outils -> Scenarios », et non « IA »).
+                            ['route' => 'admin.outils.scenarios', 'label' => __('admin.scenario_manager.nav_label'), 'icon' => 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'],
+                            // TASK-1646 — le moteur historique (TASK-1240/1241) descend de
+                            // « IA » vers « Outils » avec le reste du chantier. Il reste
+                            // accessible et fonctionnel : le CDC l'autorise explicitement
+                            // (6.4 « rester accessibles temporairement dans une section
+                            // Legacy », 32.1 « restent fonctionnels tant qu'ils sont
+                            // utiles »). Le libelle porte « legacy » pour qu'on ne le
+                            // confonde pas avec l'entree ci-dessus.
+                            ['route' => 'admin.scenario-packs', 'label' => __('admin.scenario_manager.legacy_nav_label'), 'icon' => 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
+                        ];
+
+                        $statsItems = [
+                            ['route' => 'admin.stats.login-history', 'label' => 'Connexions', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
+                            // TASK-1500 : ce qui MESURE rejoint « Stats, Logs et compta ». Ces cinq
+                            // ecrans ne reglent rien — ils rendent compte : consommation par
+                            // utilisateur, consommation globale, couts/performances, historique des
+                            // interactions, et l'observabilite Shell Welcome toutes organisations.
+                            // Ils vivaient dans « IA » parce qu'ils parlent d'IA, pas parce qu'on
+                            // s'en sert pour la configurer.
+                            ['route' => 'admin.ia-usage-by-user', 'label' => 'Utilisation par user', 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
+                            ['route' => 'admin.ia-usage', 'label' => 'Utilisation IA', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
+                            ['route' => 'admin.ai-benchmark', 'label' => 'Benchmark IA', 'icon' => 'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6'],
+                            ['route' => 'admin.ai-interactions', 'label' => 'Historique IA', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
+                            // TASK-1581 : la vue lecteur d'un tour IA (Inspector V0, read-only).
+                            ['route' => 'admin.ai-turns', 'label' => 'Inspector IA', 'icon' => 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z'],
+                            ['route' => 'admin.guest-shell', 'label' => __('admin.guest_shell_observability_nav'), 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'],
+                        ];
+
+                        $iaItems = [];
+                        // TASK-1270/TASK-1305 : point d'entree transverse — chaque Organization,
+                        // y compris `main`, avec un lien vers sa surface canonique.
+                        $iaItems[] = ['route' => 'admin.ai-organizations', 'label' => 'Organizations & IA', 'icon' => 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z'];
+                        $iaItems[] = ['route' => 'admin.ai-config', 'label' => __('admin.ai_config_title'), 'icon' => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z'];
+                        // TASK-1500 : la configuration Shell Welcome par Organization, page dediee (icone a coordonnees entieres, cf. T1450/T1228).
+                        $iaItems[] = ['route' => 'admin.shell-welcome-config', 'label' => __('admin.guest_shell_config_nav'), 'icon' => 'M8 10h1M12 10h1M16 10h1M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z'];
+                        $iaItems[] = ['route' => 'admin.usage-references', 'label' => __('admin.usage_reference_nav'), 'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'];
+                        $iaItems[] = ['route' => 'admin.shortcuts', 'label' => __('admin.shortcut_nav'), 'icon' => 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1'];
+                        // TASK-1229 : credit IA par utilisateur (plateforme).
+                        $iaItems[] = ['route' => 'admin.ai-monetization', 'label' => __('admin.ai_monetization_nav'), 'icon' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z'];
+                        // TASK-1487 : « Qualite IA » cote plateforme. Sans cette
+                        // entree la console n'etait atteignable que par son URL.
+                        $iaItems[] = ['route' => 'admin.ai-quality', 'label' => __('ai.quality_title'), 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'];
+                        $iaItems[] = ['route' => 'admin.ai-prompts', 'label' => 'Prompts IA', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'];
+                        $iaItems[] = ['route' => 'admin.ai-review-queue', 'label' => 'File modération', 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4'];
+                        // Autres outils IA existants.
+                        $iaItems[] = ['route' => 'admin.member-ai-profiles', 'label' => 'Agents profil IA', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'];
+                        $iaItems[] = ['route' => 'admin.ai-supervision', 'label' => 'Supervision IA', 'icon' => 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'];
+                        // TASK-1646 : « Scenario packs » a QUITTE cette section pour
+                        // « Outils ». Un scenario est un outil de simulation, de QA, de
+                        // demonstration et de formation : l'IA peut en produire, mais les
+                        // scenarios ne sont pas une sous-fonction de l'IA (CDC Scenario
+                        // Manager 5.1). Meme mouvement que TASK-1500 pour les Ateliers.
+                        // Ne pas readditionner ici.
+                        if (!app()->isProduction()) {
+                            $iaItems[] = ['route' => 'admin.ia-design-lab', 'label' => 'Lab IA', 'icon' => 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z'];
+                        }
+
+                        // =====================================================================
+                        // TASK-1659 (arbitrage MASTER 01/10) — LE predicat de navigation.
+                        //
+                        // Un nom de route en nommant un autre : `admin.users` est le PREFIXE
+                        // de `admin.users.bulk-create`, et un joker `.*` naif allumait donc
+                        // « Utilisateurs » — puis tout son groupe — alors qu'on etait sur
+                        // une entree a part entiere. Defaut rencontre deux fois.
+                        //
+                        // La regle generique qui le ferme : LE PLUS SPECIFIQUE GAGNE. Une
+                        // entree ne revendique une route plus profonde que si AUCUNE autre
+                        // entree de la navigation ne la nomme plus precisement. Une entree
+                        // parente garde donc ses descendants ordinaires (« Utilisateurs »
+                        // reste allume sur `admin.users.create`, qui n'a pas d'entree), et
+                        // lache ceux qui ont la leur.
+                        //
+                        // Rien n'est code en dur : deplacer une entree d'une section a
+                        // l'autre, ou en imbriquer une nouvelle, ne reveille pas le defaut.
+                        // C'est pour cela que les listes sont hoistees plus haut — le
+                        // predicat doit toutes les connaitre avant le premier rendu.
+                        // =====================================================================
+                        $designItems = [
+                            ['route' => 'admin.homepages', 'label' => 'Homepage', 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'],
+                            ['route' => 'admin.themes', 'label' => 'Thèmes', 'icon' => 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828L10.828 18.83'],
+                        ];
+
+                        $navRoutes = collect([$designItems, $emailItems, $echangesItems, $orgItems, $outilsItems, $statsItems, $iaItems])
+                            ->flatten(1)
+                            ->pluck('route')
+                            ->push('admin.dashboard')   // l'entree autonome compte aussi
+                            ->unique()
+                            ->all();
+
+                        $isNavActive = function (string $route) use ($navRoutes) {
+                            if (! request()->routeIs($route, $route.'.*')) {
+                                return false;
+                            }
+
+                            // Exact : personne ne peut etre plus specifique.
+                            if (request()->routeIs($route)) {
+                                return true;
+                            }
+
+                            // Match par descendance : on ne la revendique que si aucune
+                            // autre entree, strictement plus profonde, ne la nomme.
+                            foreach ($navRoutes as $autre) {
+                                if ($autre !== $route
+                                    && str_starts_with($autre, $route.'.')
+                                    && request()->routeIs($autre, $autre.'.*')) {
+                                    return false;
+                                }
+                            }
+
+                            return true;
+                        };
+
+                        $isGroupActive = fn($items) => collect($items)->contains(fn($i) => $isNavActive($i['route']));
                     @endphp
 
                     <!-- Tableau de bord (standalone) -->
-                    @php $active = $isActive('admin.dashboard'); @endphp
+                    @php $active = $isNavActive('admin.dashboard'); @endphp
                     <a href="{{ route('admin.dashboard') }}"
                        class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition mb-2
                                {{ $active ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
@@ -133,12 +254,6 @@
                     </a>
 
                     <!-- Design group -->
-                    @php
-                        $designItems = [
-                            ['route' => 'admin.homepages', 'label' => 'Homepage', 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'],
-                            ['route' => 'admin.themes', 'label' => 'Thèmes', 'icon' => 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828L10.828 18.83'],
-                        ];
-                    @endphp
                     @php $groupActive = $isGroupActive($designItems); @endphp
                     <div x-data="{ open: {{ $groupActive ? 'true' : "localStorage.getItem('sidebar_design_open') !== 'false'" }} }">
                         <button @click.stop="open = !open; localStorage.setItem('sidebar_design_open', open)"
@@ -160,7 +275,7 @@
                              x-transition:leave-end="opacity-0 scale-y-95"
                              class="origin-top">
                             @foreach($designItems as $item)
-                            @php $itemActive = $isActive($item['route']); @endphp
+                            @php $itemActive = $isNavActive($item['route']); @endphp
                             <a href="{{ route($item['route']) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
                                       {{ $itemActive ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
@@ -195,7 +310,7 @@
                              x-transition:leave-end="opacity-0 scale-y-95"
                              class="origin-top">
                             @foreach($emailItems as $item)
-                            @php $itemActive = $isActive($item['route']); @endphp
+                            @php $itemActive = $isNavActive($item['route']); @endphp
                             <a href="{{ route($item['route']) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
                                       {{ $itemActive ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
@@ -230,7 +345,7 @@
                              x-transition:leave-end="opacity-0 scale-y-95"
                              class="origin-top">
                             @foreach($echangesItems as $item)
-                            @php $itemActive = $isActive($item['route']); @endphp
+                            @php $itemActive = $isNavActive($item['route']); @endphp
                             <a href="{{ route($item['route']) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
                                       {{ $itemActive ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
@@ -289,30 +404,6 @@
 
                     <!-- Outils group -->
                     @php
-                        $outilsItems = [
-                            // TASK-1659 — outil SuperAdmin dedie : invitation par e-mail,
-                            // sans mot de passe transmis. Distinct de `admin.users.create`
-                            // (creation manuelle avec mot de passe saisi), qui reste dans
-                            // « Organisations » avec le reste de la gestion des comptes.
-                            ['route' => 'admin.users.bulk-create', 'label' => 'Création de comptes en masse', 'icon' => 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z'],
-                            ['route' => 'admin.outils.assign-data', 'label' => __('admin.assign_data.nav_label'), 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'],
-                            ['route' => 'admin.outils.fix-categories', 'label' => 'Fix catégories', 'icon' => 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'],
-                            // TASK-1630 — diagnostic et purge des arborescences legacy.
-                            ['route' => 'admin.outils.dossiers', 'label' => __('admin.dossiers_cleanup.nav_label'), 'icon' => 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z'],
-                            // TASK-1632 — cockpit d'integrite, en lecture seule.
-                            ['route' => 'admin.outils.integrite', 'label' => __('admin.integrity.nav_label'), 'icon' => 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'],
-                            // TASK-1646 — Scenario Manager. Entree canonique du produit
-                            // (CDC 5.1 : « Outils -> Scenarios », et non « IA »).
-                            ['route' => 'admin.outils.scenarios', 'label' => __('admin.scenario_manager.nav_label'), 'icon' => 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'],
-                            // TASK-1646 — le moteur historique (TASK-1240/1241) descend de
-                            // « IA » vers « Outils » avec le reste du chantier. Il reste
-                            // accessible et fonctionnel : le CDC l'autorise explicitement
-                            // (6.4 « rester accessibles temporairement dans une section
-                            // Legacy », 32.1 « restent fonctionnels tant qu'ils sont
-                            // utiles »). Le libelle porte « legacy » pour qu'on ne le
-                            // confonde pas avec l'entree ci-dessus.
-                            ['route' => 'admin.scenario-packs', 'label' => __('admin.scenario_manager.legacy_nav_label'), 'icon' => 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
-                        ];
                         $outilsGroupActive = $isGroupActive($outilsItems);
                     @endphp
                     <div x-data="{ open: {{ $outilsGroupActive ? 'true' : "localStorage.getItem('sidebar_outils_open') !== 'false'" }} }">
@@ -335,7 +426,7 @@
                              x-transition:leave-end="opacity-0 scale-y-95"
                              class="origin-top">
                             @foreach($outilsItems as $item)
-                            @php $itemActive = $isActive($item['route']); @endphp
+                            @php $itemActive = $isNavActive($item['route']); @endphp
                             <a href="{{ route($item['route']) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
                                       {{ $itemActive ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
@@ -350,22 +441,6 @@
 
                     <!-- Stats group -->
                     @php
-                        $statsItems = [
-                            ['route' => 'admin.stats.login-history', 'label' => 'Connexions', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
-                            // TASK-1500 : ce qui MESURE rejoint « Stats, Logs et compta ». Ces cinq
-                            // ecrans ne reglent rien — ils rendent compte : consommation par
-                            // utilisateur, consommation globale, couts/performances, historique des
-                            // interactions, et l'observabilite Shell Welcome toutes organisations.
-                            // Ils vivaient dans « IA » parce qu'ils parlent d'IA, pas parce qu'on
-                            // s'en sert pour la configurer.
-                            ['route' => 'admin.ia-usage-by-user', 'label' => 'Utilisation par user', 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
-                            ['route' => 'admin.ia-usage', 'label' => 'Utilisation IA', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
-                            ['route' => 'admin.ai-benchmark', 'label' => 'Benchmark IA', 'icon' => 'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6'],
-                            ['route' => 'admin.ai-interactions', 'label' => 'Historique IA', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
-                            // TASK-1581 : la vue lecteur d'un tour IA (Inspector V0, read-only).
-                            ['route' => 'admin.ai-turns', 'label' => 'Inspector IA', 'icon' => 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z'],
-                            ['route' => 'admin.guest-shell', 'label' => __('admin.guest_shell_observability_nav'), 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'],
-                        ];
                         $statsGroupActive = $isGroupActive($statsItems);
                     @endphp
                     <div x-data="{ open: {{ $statsGroupActive ? 'true' : "localStorage.getItem('sidebar_stats_open') !== 'false'" }} }">
@@ -388,7 +463,7 @@
                              x-transition:leave-end="opacity-0 scale-y-95"
                              class="origin-top">
                             @foreach($statsItems as $item)
-                            @php $itemActive = $isActive($item['route']); @endphp
+                            @php $itemActive = $isNavActive($item['route']); @endphp
                             <a href="{{ route($item['route']) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
                                       {{ $itemActive ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
@@ -404,34 +479,6 @@
                     <!-- IA group (TASK-1305 : ordre = parcours SuperAdmin, point d'entree
                          cross-org Organizations & IA en tete, reglages plateforme juste apres) -->
                     @php
-                        $iaItems = [];
-                        // TASK-1270/TASK-1305 : point d'entree transverse — chaque Organization,
-                        // y compris `main`, avec un lien vers sa surface canonique.
-                        $iaItems[] = ['route' => 'admin.ai-organizations', 'label' => 'Organizations & IA', 'icon' => 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z'];
-                        $iaItems[] = ['route' => 'admin.ai-config', 'label' => __('admin.ai_config_title'), 'icon' => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z'];
-                        // TASK-1500 : la configuration Shell Welcome par Organization, page dediee (icone a coordonnees entieres, cf. T1450/T1228).
-                        $iaItems[] = ['route' => 'admin.shell-welcome-config', 'label' => __('admin.guest_shell_config_nav'), 'icon' => 'M8 10h1M12 10h1M16 10h1M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z'];
-                        $iaItems[] = ['route' => 'admin.usage-references', 'label' => __('admin.usage_reference_nav'), 'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'];
-                        $iaItems[] = ['route' => 'admin.shortcuts', 'label' => __('admin.shortcut_nav'), 'icon' => 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1'];
-                        // TASK-1229 : credit IA par utilisateur (plateforme).
-                        $iaItems[] = ['route' => 'admin.ai-monetization', 'label' => __('admin.ai_monetization_nav'), 'icon' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z'];
-                        // TASK-1487 : « Qualite IA » cote plateforme. Sans cette
-                        // entree la console n'etait atteignable que par son URL.
-                        $iaItems[] = ['route' => 'admin.ai-quality', 'label' => __('ai.quality_title'), 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'];
-                        $iaItems[] = ['route' => 'admin.ai-prompts', 'label' => 'Prompts IA', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'];
-                        $iaItems[] = ['route' => 'admin.ai-review-queue', 'label' => 'File modération', 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4'];
-                        // Autres outils IA existants.
-                        $iaItems[] = ['route' => 'admin.member-ai-profiles', 'label' => 'Agents profil IA', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'];
-                        $iaItems[] = ['route' => 'admin.ai-supervision', 'label' => 'Supervision IA', 'icon' => 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'];
-                        // TASK-1646 : « Scenario packs » a QUITTE cette section pour
-                        // « Outils ». Un scenario est un outil de simulation, de QA, de
-                        // demonstration et de formation : l'IA peut en produire, mais les
-                        // scenarios ne sont pas une sous-fonction de l'IA (CDC Scenario
-                        // Manager 5.1). Meme mouvement que TASK-1500 pour les Ateliers.
-                        // Ne pas readditionner ici.
-                        if (!app()->isProduction()) {
-                            $iaItems[] = ['route' => 'admin.ia-design-lab', 'label' => 'Lab IA', 'icon' => 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z'];
-                        }
                         $iaGroupActive = $isGroupActive($iaItems);
                     @endphp
                     <div x-data="{ open: {{ $iaGroupActive ? 'true' : "localStorage.getItem('sidebar_ia_open') !== 'false'" }} }">
@@ -454,7 +501,7 @@
                              x-transition:leave-end="opacity-0 scale-y-95"
                              class="origin-top">
                             @foreach($iaItems as $item)
-                            @php $itemActive = $isActive($item['route']); @endphp
+                            @php $itemActive = $isNavActive($item['route']); @endphp
                             <a href="{{ route($item['route']) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
                                       {{ $itemActive ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">

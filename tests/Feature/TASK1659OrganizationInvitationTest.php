@@ -141,6 +141,49 @@ class TASK1659OrganizationInvitationTest extends TestCase
         $this->assertStringNotContainsString('text-indigo-400', $organisationsHeader, 'The "Organisations" group must not be marked active.');
     }
 
+    /**
+     * Le sens INVERSE du test precedent : sur « Utilisateurs », c'est lui et
+     * son groupe qui s'allument, et surtout PAS l'entree imbriquee ni la
+     * section « Outils ».
+     *
+     * Sans ce miroir, une correction qui eteindrait `admin.users` partout
+     * resterait verte — on ne prouverait que la moitie de la regle.
+     */
+    public function test_sidebar_highlights_users_and_its_group_on_the_users_page(): void
+    {
+        $content = $this->actingAs($this->superAdmin())
+            ->get(route('admin.users'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('bg-indigo-600', $this->navAnchorTag($content, route('admin.users')));
+        $this->assertStringNotContainsString('bg-indigo-600', $this->navAnchorTag($content, route('admin.users.bulk-create')));
+
+        $this->assertStringContainsString('text-indigo-400', $this->navGroupButton($content, 'sidebar_org_open'));
+        $this->assertStringNotContainsString('text-indigo-400', $this->navGroupButton($content, 'sidebar_outils_open'));
+    }
+
+    /**
+     * La garantie de NON-REGRESSION du predicat « le plus specifique gagne ».
+     *
+     * `admin.users.create` est bien un descendant de `admin.users` mais n'a
+     * aucune entree de nav a lui : « Utilisateurs » doit donc continuer a
+     * s'allumer dessus, exactement comme avant l'harmonisation. C'est ce qui
+     * distingue la regle d'une simple correspondance exacte, qui aurait
+     * eteint le parent sur toutes ses pages filles.
+     */
+    public function test_a_parent_entry_still_claims_descendants_that_have_no_entry_of_their_own(): void
+    {
+        $content = $this->actingAs($this->superAdmin())
+            ->get(route('admin.users.create'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('bg-indigo-600', $this->navAnchorTag($content, route('admin.users')));
+        $this->assertStringContainsString('text-indigo-400', $this->navGroupButton($content, 'sidebar_org_open'));
+        $this->assertStringNotContainsString('bg-indigo-600', $this->navAnchorTag($content, route('admin.users.bulk-create')));
+    }
+
     public function test_standard_user_is_refused(): void
     {
         $org = $this->org();
