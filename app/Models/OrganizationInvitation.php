@@ -77,6 +77,14 @@ class OrganizationInvitation extends Model
             return null;
         }
 
+        // L'antislash AVANT `parse_url` : PHP le range dans l'hote, alors
+        // qu'un navigateur le lit comme « / ». `https://tunnel.test\\collect`
+        // passait donc la garde « origin seulement » puis devenait un chemin
+        // a l'ouverture (revue 1, 01/10).
+        if (str_contains($value, '\\')) {
+            return null;
+        }
+
         $parts = parse_url($value);
 
         if ($parts === false || ! isset($parts['scheme'], $parts['host'])) {

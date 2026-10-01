@@ -40,6 +40,7 @@ return [
     // Redirects after an accept attempt
     'welcome' => 'Welcome to :organization.',
     'flash_already_accepted' => 'This invitation has already been used. Sign in with your email address.',
+    'flash_account_already_exists' => 'An account already exists for this address. Sign in with your email address.',
     'flash_expired' => 'This invitation link has expired.',
     'flash_revoked' => 'This invitation link has been revoked.',
     'flash_sandbox_forbidden' => 'This organization does not accept direct invitations.',

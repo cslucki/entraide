@@ -50,6 +50,9 @@ class OrganizationInvitationService
 
     public const RESULT_NOT_FOUND = 'not_found';
 
+    /** Un compte existe deja pour cette adresse : on consomme, on n'authentifie pas. */
+    public const RESULT_ACCOUNT_ALREADY_EXISTS = 'account_already_exists';
+
     /**
      * Create — or refresh — the single pending invitation for this
      * recipient, in this Organization.
@@ -94,7 +97,14 @@ class OrganizationInvitationService
                 return ['case' => self::CASE_SANDBOX_FORBIDDEN, 'invitation' => null, 'user' => null];
             }
 
-            $existingUser = User::where('email', $email)->lockForUpdate()->first();
+            // Recherche INSENSIBLE A LA CASSE. `users.email` est unique
+            // globalement mais sensible a la casse sur PostgreSQL, et
+            // `/admin/users` enregistre une adresse SANS regle `lowercase` :
+            // une comparaison exacte laissait donc passer `Alice@x.com` quand
+            // on invitait `alice@x.com`, et le Cas C etait contourne — deux
+            // comptes pour une seule boite. Meme clause que
+            // LoopInvitationService, dont ce service reprend le patron.
+            $existingUser = User::whereRaw('LOWER(email) = ?', [$email])->lockForUpdate()->first();
 
             if ($existingUser) {
                 if ($existingUser->organization_id === $organization->id) {
@@ -207,14 +217,20 @@ class OrganizationInvitationService
 
     public function revoke(OrganizationInvitation $invitation): void
     {
-        if ($invitation->status !== OrganizationInvitation::STATUS_PENDING) {
-            // Never retroactively revoke an accepted invitation, and treat
-            // an already expired/revoked one as a no-op rather than an
-            // error.
-            throw new \RuntimeException('Only a pending invitation can be revoked.');
-        }
+        // Transaction + verrou : sans eux, une revocation qui avait lu la
+        // ligne « pending » pouvait ecraser en `revoked` une acceptation
+        // commitee entre-temps — compte cree et session ouverte, mais suivi
+        // annoncant « revoquee » (revue 1, 01/10).
+        DB::transaction(function () use ($invitation) {
+            $verrouillee = OrganizationInvitation::whereKey($invitation->getKey())->lockForUpdate()->first();
 
-        $invitation->update(['status' => OrganizationInvitation::STATUS_REVOKED]);
+            if (! $verrouillee || $verrouillee->status !== OrganizationInvitation::STATUS_PENDING) {
+                throw new \RuntimeException('Only a pending invitation can be revoked.');
+            }
+
+            $verrouillee->update(['status' => OrganizationInvitation::STATUS_REVOKED]);
+            $invitation->setAttribute('status', OrganizationInvitation::STATUS_REVOKED);
+        });
     }
 
     /**
@@ -269,11 +285,17 @@ class OrganizationInvitationService
 
             // Defensive re-check: the Organization could have become a
             // sandbox, or been deactivated, after the invitation was sent.
-            if (! $organization || $organization->scenario_sandbox_created_at !== null) {
+            // `is_active` est verifie ICI aussi : le commentaire promettait
+            // « ou desactivee » alors que la condition ne regardait que la
+            // sandbox (revue 1, 01/10). Un commentaire qui ment est pire que
+            // pas de commentaire.
+            if (! $organization || $organization->scenario_sandbox_created_at !== null || ! $organization->is_active) {
                 return ['result' => self::RESULT_SANDBOX_FORBIDDEN, 'invitation' => $invitation, 'user' => null];
             }
 
-            $existingUser = User::where('email', $invitation->recipient_email)->lockForUpdate()->first();
+            $existingUser = User::whereRaw('LOWER(email) = ?', [OrganizationInvitation::normalizeEmail($invitation->recipient_email)])
+                ->lockForUpdate()
+                ->first();
 
             if ($existingUser) {
                 if ($existingUser->organization_id !== $organization->id) {
@@ -282,17 +304,30 @@ class OrganizationInvitationService
                     return ['result' => self::RESULT_EMAIL_USED_ELSEWHERE, 'invitation' => $invitation, 'user' => null];
                 }
 
-                // Already a member by the time the link was clicked: honour
-                // the invitation without creating a second account.
+                // DEFAUT DE SECURITE corrige (revue 1, 01/10) : ce chemin
+                // rendait l'utilisateur, et l'appelant ouvrait une session.
+                // Un jeton envoye par courriel devenait donc un moyen de se
+                // connecter a un compte DEJA EXISTANT — y compris un compte
+                // dont la personne avait entre-temps pose son propre mot de
+                // passe en s'inscrivant normalement.
+                //
+                // Le jeton ne prouve que la possession de l'ADRESSE, ce qui
+                // suffit a CREER un compte, jamais a entrer dans un compte
+                // existant. L'invitation est donc consommee — elle a bien
+                // atteint sa personne — mais sans session, et sans toucher
+                // aux appartenances : une requete non authentifiee ne doit
+                // produire aucune mutation.
+                //
+                // Consequence assumee : l'adhesion a la Boucle cible n'est
+                // PAS posee dans ce cas ; elle redevient un geste
+                // d'administration.
                 $invitation->update([
                     'status' => OrganizationInvitation::STATUS_ACCEPTED,
                     'accepted_at' => now(),
                     'accepted_by_user_id' => $existingUser->id,
                 ]);
 
-                $this->joinTargetLoop($invitation, $existingUser);
-
-                return ['result' => self::RESULT_ACCEPTED, 'invitation' => $invitation->fresh(), 'user' => $existingUser];
+                return ['result' => self::RESULT_ACCOUNT_ALREADY_EXISTS, 'invitation' => $invitation->fresh(), 'user' => null];
             }
 
             $user = User::create([

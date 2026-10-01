@@ -66,6 +66,9 @@ class OrganizationInvitationController extends Controller
 
         $message = match ($outcome['result']) {
             OrganizationInvitationService::RESULT_ALREADY_ACCEPTED => __('organization_invitations.flash_already_accepted'),
+            // Un compte existe deja : on ne l'ouvre pas avec un jeton, on
+            // renvoie la personne vers la connexion normale.
+            OrganizationInvitationService::RESULT_ACCOUNT_ALREADY_EXISTS => __('organization_invitations.flash_account_already_exists'),
             OrganizationInvitationService::RESULT_EXPIRED => __('organization_invitations.flash_expired'),
             OrganizationInvitationService::RESULT_REVOKED => __('organization_invitations.flash_revoked'),
             OrganizationInvitationService::RESULT_SANDBOX_FORBIDDEN => __('organization_invitations.flash_sandbox_forbidden'),

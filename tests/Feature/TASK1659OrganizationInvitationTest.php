@@ -564,6 +564,77 @@ class TASK1659OrganizationInvitationTest extends TestCase
         $this->assertStringStartsWith($rootAvant, route('admin.users.bulk-create'));
     }
 
+    public function test_a_token_never_authenticates_a_pre_existing_account(): void
+    {
+        $org = $this->org();
+        // 1. Une invitation part vers une adresse encore inconnue.
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'recipient_email' => 'alice@example.test',
+        ]);
+
+        // 2. Avant de cliquer, Alice s'inscrit normalement et pose SON mot de passe.
+        $alice = User::factory()->create([
+            'organization_id' => $org->id,
+            'email' => 'alice@example.test',
+            'password' => Hash::make('le-mot-de-passe-prive-d-alice'),
+        ]);
+
+        // 3. Quiconque detient le courriel clique.
+        $this->post(route('organization-invitations.accept', $invitation->token));
+
+        // Le jeton ne doit PAS ouvrir la session du compte d'Alice.
+        // `assertGuest()` attend un nom de GUARD, pas un message : on verifie
+        // l'absence de session explicitement.
+        $this->assertFalse(auth()->check(), 'Un jeton d\'invitation ne doit pas authentifier un compte preexistant.');
+        // Et le mot de passe prive d'Alice reste le sien.
+        $this->assertTrue(Hash::check('le-mot-de-passe-prive-d-alice', $alice->fresh()->password));
+    }
+
+    public function test_case_c_is_not_bypassable_by_email_casing(): void
+    {
+        $orgA = $this->org();
+        $orgB = $this->org();
+        // Compte existant enregistre avec une majuscule (possible : /admin/users n'impose pas `lowercase`).
+        User::factory()->create(['organization_id' => $orgB->id, 'email' => 'Bob@example.test']);
+
+        $this->actingAs($this->superAdmin())->post(route('admin.users.bulk-create.invitations.store'), [
+            'organization_id' => $orgA->id,
+            'people' => [['first_name' => 'Bob', 'last_name' => 'X', 'email' => 'bob@example.test']],
+        ]);
+
+        $this->assertDatabaseMissing('organization_invitations', ['recipient_email' => 'bob@example.test']);
+    }
+
+
+    /** Constat 4 de la revue 1 : une Organization DESACTIVEE n'accepte plus. */
+    public function test_a_deactivated_organization_no_longer_accepts_an_invitation(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'recipient_email' => 'inactive@example.test',
+        ]);
+        $org->update(['is_active' => false]);
+
+        $this->post(route('organization-invitations.accept', $invitation->token))
+            ->assertRedirect(route('organization-invitations.show', $invitation->token));
+
+        $this->assertFalse(auth()->check());
+        $this->assertDatabaseMissing('users', ['email' => 'inactive@example.test']);
+    }
+
+    /**
+     * Constat 5 de la revue 1 : PHP range l'antislash dans l'hote, un
+     * navigateur le lit comme « / ». La promesse « origin seulement » doit
+     * tenir pour les deux.
+     */
+    public function test_a_backslash_cannot_smuggle_a_path_into_the_test_host(): void
+    {
+        $this->assertNull(OrganizationInvitation::normalizeHostOverride('https://tunnel.example\\collect'));
+        $this->assertNull(OrganizationInvitation::normalizeHostOverride('https://tunnel.example\\'));
+    }
+
     // ── Boucle cible ──────────────────────────────────────────────────────
 
     /**
