@@ -101,7 +101,14 @@ final class GuestPageContextResolver
                 kind: $kind,
                 publicId: null,
                 publicLabel: (string) $organization->name,
-                publicCta: ['label' => __('guest_shell.page.cta_signup'), 'url' => route('organization.register', ['organization' => $organization->slug])],
+                publicCta: ['label' => __('guest_shell.page.cta_signup'),
+                    // TASK-1662 — URL RELATIVE : un CTA ne doit dependre ni de
+                    // `APP_URL` ni du host courant. L'application est servie sur
+                    // plusieurs hosts legitimes (domaine public, domaine vanity
+                    // Laravel Cloud, tunnel de developpement) ; une URL absolue
+                    // batie sur le host de la requete ne correspondait plus au
+                    // prefixe `APP_URL` et faisait jeter la garde.
+                    'url' => route('organization.register', ['organization' => $organization->slug], absolute: false)],
                 routeName: $name,
             ),
             GuestPageContext::KIND_SIGNUP => new GuestPageContext(

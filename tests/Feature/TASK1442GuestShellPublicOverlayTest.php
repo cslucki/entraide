@@ -210,7 +210,10 @@ class TASK1442GuestShellPublicOverlayTest extends TestCase
         $this->assertTrue($json['display']['visible']);
         $this->assertSame('overlay', $json['display']['mode']);
         $this->assertNull($json['conversation']);
-        $this->assertSame(route('organization.register', ['organization' => $this->ready->slug]), $json['cta']['url']);
+        // TASK-1662 — le CTA du payload JSON est RELATIF : le JS de la page le
+        // resout sur l'origine courante, donc il fonctionne sur tous les hosts
+        // legitimes de la plateforme.
+        $this->assertSame(route('organization.register', ['organization' => $this->ready->slug], absolute: false), $json['cta']['url']);
         $this->assertNothingCreated('un GET ne cree rien');
 
         // Un visiteur d'une AUTRE Organization, avec sa conversation.

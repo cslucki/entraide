@@ -82,7 +82,10 @@ class TASK1440GuestPageContextTest extends TestCase
         $this->assertNull($page->publicId);
         $this->assertSame('Alpha Guild', $page->publicLabel);
         $this->assertSame('organization.home', $page->routeName);
-        $this->assertSame(route('organization.register', ['organization' => 'org-a-14xx']), $page->publicCta['url'], 'CTA interne genere cote serveur');
+        // TASK-1662 — le CTA est desormais RELATIF : il ne depend plus ni de
+        // `APP_URL` ni du host courant.
+        $this->assertSame(route('organization.register', ['organization' => 'org-a-14xx'], absolute: false), $page->publicCta['url'], 'CTA interne genere cote serveur, en chemin relatif');
+        $this->assertStringStartsWith('/', $page->publicCta['url']);
         $this->assertSame(['label', 'url'], array_keys($page->publicCta));
         $this->assertTrue(GuestPageContext::isInternalUrl($page->publicCta['url']));
 
@@ -178,7 +181,8 @@ class TASK1440GuestPageContextTest extends TestCase
         ], $context->sources);
         $block = $context->blocks[2];
         $this->assertStringContainsString('Alpha Guild', $block['text']);
-        $this->assertStringContainsString(route('organization.register', ['organization' => 'org-a-14xx']), $block['text']);
+        // TASK-1662 — le CTA etant relatif, c'est le chemin qui apparait dans le contexte.
+        $this->assertStringContainsString(route('organization.register', ['organization' => 'org-a-14xx'], absolute: false), $block['text']);
         $this->assertStringContainsString('organization.home', $block['text'], 'provenance de route');
 
         $without = app(GuestPublicContextBuilder::class)->build($this->org->fresh(), 'shell_welcome');
@@ -242,7 +246,8 @@ class TASK1440GuestPageContextTest extends TestCase
         $turn = app(GuestShellResponder::class)->respond($this->org->fresh(), $visitor->fresh(), $conversation->fresh(), 'Bonjour', $page);
         $this->assertTrue($turn->isAnswered(), (string) $turn->reason);
 
-        $register = route('organization.register', ['organization' => 'org-a-14xx']);
+        // TASK-1662 — chemin relatif, cf. GuestPageContext::isInternalUrl().
+        $register = route('organization.register', ['organization' => 'org-a-14xx'], absolute: false);
         GuestShellAgent::assertPrompted(function (AgentPrompt $prompt) use ($register) {
             // SW-7 : prompt DB verbatim, PUIS le contexte public (dont le bloc page), PUIS la langue — dans les instructions de l'agent.
             $instructions = (string) $prompt->agent->instructions();
