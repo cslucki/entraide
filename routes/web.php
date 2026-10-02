@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\AdminEmailController;
 use App\Http\Controllers\Admin\AdminEmailLogsController;
 use App\Http\Controllers\Admin\AdminEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminGuestShellController;
+use App\Http\Controllers\Admin\AdminUserBulkCreationController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
@@ -39,6 +40,8 @@ use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminAssignDataController;
 use App\Http\Controllers\Admin\AdminDataIntegrityController;
 use App\Http\Controllers\Admin\AdminDossierCleanupController;
+use App\Http\Controllers\Admin\AdminScenarioManagerController;
+use App\Http\Controllers\Admin\AdminScenarioPersonaController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminRootDestinationController;
@@ -95,7 +98,9 @@ use App\Http\Controllers\LoopCatchUpController;
 use App\Http\Controllers\LoopController;
 use App\Http\Controllers\LoopDossierArticleController;
 use App\Http\Controllers\LoopEventAgendaController;
+use App\Http\Controllers\InvitationPasswordController;
 use App\Http\Controllers\LoopInvitationController;
+use App\Http\Controllers\OrganizationInvitationController;
 use App\Http\Controllers\LoopToolsController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
@@ -282,6 +287,21 @@ Route::post('/blog-invitations/{token}/prepare', [BlogInvitationController::clas
 Route::get('/loop-invitations/{token}', [LoopInvitationController::class, 'show'])->name('loop-invitations.show');
 Route::post('/loop-invitations/{token}/prepare', [LoopInvitationController::class, 'prepare'])->middleware('throttle:20,1')->name('loop-invitations.prepare');
 
+// TASK-1659 — flat and public, same shape as loop-invitations above: the
+// token is already globally unique and the landing page needs no auth. GET
+// is read-only; accept() is the only route that mutates (creates the
+// account, verifies the e-mail, logs in).
+Route::get('/organization-invitations/{token}', [OrganizationInvitationController::class, 'show'])->name('organization-invitations.show');
+Route::post('/organization-invitations/{token}/accept', [OrganizationInvitationController::class, 'accept'])->middleware('throttle:10,1')->name('organization-invitations.accept');
+
+// TASK-1659 — deuxieme etape : le compte vient d'etre cree et connecte, la
+// personne pose son mot de passe avant d'atteindre son Organization.
+// EnsureInvitationPasswordIsSet (groupe web) y renvoie tant que c'est du.
+Route::middleware('auth')->group(function () {
+    Route::get('/invitation/mot-de-passe', [InvitationPasswordController::class, 'create'])->name('invitation.password.create');
+    Route::post('/invitation/mot-de-passe', [InvitationPasswordController::class, 'store'])->name('invitation.password.store');
+});
+
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 // TASK-1488 (P0 privacy) — /search etait un CONTOURNEMENT vivant du correctif
 // deja merge par TASK-1479. Mesure : un anonyme obtenait 200 avec le nom
@@ -430,10 +450,20 @@ Route::middleware('auth')->group(function () {
         Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
         Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
         Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
-        // L'agenda de l'Organization : lecture seule, il agrege ce qui a ete
-        // organise dans les Boucles. Declare avant /loops/{loop} n'est pas
-        // necessaire — le segment differe — mais reste groupe avec elles.
+        // L'agenda de l'Organization : il agrege ce qui a ete organise dans les
+        // Boucles. Declare avant /loops/{loop} n'est pas necessaire — le segment
+        // differe — mais reste groupe avec elles.
+        //
+        // TASK-1656 — il n'est plus en LECTURE SEULE : repondre a une invitation
+        // s'y fait. Organiser reste dans la Boucle ; repondre n'est pas
+        // organiser, et `LoopEventService::canRespondTo()` autorisait deja tout
+        // membre actif de l'Organization a repondre a un evenement remonte,
+        // sans appartenance a la Boucle. Aucune interface ne l'offrait : c'est
+        // la dette `ORG_WIDE_EVENT_HAS_NO_RSVP_SURFACE_FOR_NON_MEMBERS` de T1655.
         Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
+        Route::post('/agenda/{event}/repondre', [LoopEventAgendaController::class, 'respond'])
+            ->whereUuid('event')
+            ->name('events.agenda.respond');
         Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
         Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
         Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
@@ -540,6 +570,33 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users/{user}/login-as', [AdminController::class, 'loginAsUser'])->name('users.login-as');
     Route::get('/users/{user}/delete-preview', [AdminController::class, 'deletePreview'])->name('users.delete-preview');
     Route::post('/users/{user}/delete', [AdminController::class, 'deleteUser'])->name('users.delete');
+    // TASK-1640 — ce que la modal de la liste demande au serveur, et rien de plus.
+    //
+    // En GET, en lecture seule, pour UN SEUL compte : celui sur lequel l'admin
+    // vient de cliquer. La route de simulation juste au-dessus n'a pas ete
+    // detournee pour cet usage — elle est en POST, elle EXIGE la recopie du nom
+    // (que cette TASK supprime), et elle calcule `registry->preview()`, soit les
+    // 134 entrees du registre la ou la modal n'a besoin que du `precheck()`.
+    Route::get('/users/{user}/delete-precheck', [AdminController::class, 'userDeletePrecheck'])->name('users.delete-precheck');
+    // TASK-1640 — la fiche complete d'un membre, pour le pop-up de la liste.
+    // Lecture seule, un seul compte, des COMPTAGES et jamais le contenu lui-meme.
+    Route::get('/users/{user}/profile-summary', [AdminController::class, 'userProfileSummary'])->name('users.profile-summary');
+    // TASK-1636 — la suppression REELLE, et elle seule. La route de simulation
+    // reste une simulation : la detourner aurait transforme un clic d'analyse
+    // deja dans les habitudes en destruction definitive. SuperAdmin uniquement ;
+    // aucun equivalent OrgAdmin n'existe.
+    Route::delete('/users/{user}/destroy', [AdminController::class, 'destroyUser'])->name('users.destroy');
+
+    // TASK-1659 — "Creation de comptes en masse". Outil SuperAdmin dedie,
+    // distinct de users.create ci-dessus (qui saisit un mot de passe en
+    // clair choisi par l'admin) : ici, une invitation par e-mail, jamais de
+    // mot de passe transmis. /users/bulk-create est un segment statique a 2
+    // niveaux, donc jamais capture par un /users/{user}/... a 3 niveaux.
+    Route::get('/users/bulk-create', [AdminUserBulkCreationController::class, 'index'])->name('users.bulk-create');
+    Route::post('/users/bulk-create/invitations', [AdminUserBulkCreationController::class, 'store'])->name('users.bulk-create.invitations.store');
+    Route::get('/users/bulk-create/invitations/{invitation}', [AdminUserBulkCreationController::class, 'show'])->name('users.bulk-create.invitations.show');
+    Route::post('/users/bulk-create/invitations/{invitation}/resend', [AdminUserBulkCreationController::class, 'resend'])->name('users.bulk-create.invitations.resend');
+    Route::post('/users/bulk-create/invitations/{invitation}/revoke', [AdminUserBulkCreationController::class, 'revoke'])->name('users.bulk-create.invitations.revoke');
 
     // Services
     Route::get('/services', [AdminController::class, 'services'])->name('services');
@@ -899,6 +956,127 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/outils/dossiers/preview', [AdminDossierCleanupController::class, 'preview'])->name('outils.dossiers.preview');
     Route::post('/outils/dossiers/purge', [AdminDossierCleanupController::class, 'purge'])->name('outils.dossiers.purge');
 
+    // TASK-1646, T1648, T1649 puis T1650 — Scenario Manager.
+    //
+    // La bibliotheque et le Preview LISENT, et un test le prouve encore. Ce
+    // qui a change en T1649, c'est qu'il existe desormais des routes qui
+    // ECRIVENT : elles sont listees une par une, et le test verifie que
+    // l'ensemble des routes mutantes est EXACTEMENT celui-la. T1650 en ajoute
+    // quatre — approbation, chargement, reinitialisation, retrait — et porte
+    // le total a neuf. La Capture arrive plus tard.
+    //
+    // `nouveau` est declaree avant `{version}` par lisibilite ; la contrainte
+    // `whereUuid` suffirait a les distinguer.
+    Route::get('/outils/scenarios', [AdminScenarioManagerController::class, 'index'])->name('outils.scenarios');
+    // Comprendre un scenario AVANT qu'une Organization n'existe (CDC 11.1) ne
+    // doit rien ecrire : le Preview lit le document, il ne le charge pas.
+    // `whereUuid` dit au ROUTEUR ce que le modele sait deja : `HasUuids`
+    // refuse une valeur non-UUID dans `resolveRouteBindingQuery()` et leve un
+    // `ModelNotFoundException` AVANT toute requete SQL. Mesure faite dans les
+    // deux moteurs : sans cette contrainte, `/scenarios/pas-un-uuid` rend
+    // deja 404, pas le SQLSTATE 22P02 qu'une colonne `uuid` native donnerait
+    // a un binding non garde. La contrainte est donc une redondance ASSUMEE —
+    // elle rend le refus lisible a l'endroit ou l'URL est declaree, et elle
+    // tiendrait encore si le modele perdait `HasUuids`.
+    Route::get('/outils/scenarios/nouveau', [AdminScenarioManagerController::class, 'create'])->name('outils.scenarios.create');
+    Route::post('/outils/scenarios', [AdminScenarioManagerController::class, 'store'])->name('outils.scenarios.store');
+    Route::get('/outils/scenarios/{version}', [AdminScenarioManagerController::class, 'show'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.show');
+    Route::get('/outils/scenarios/{version}/editer', [AdminScenarioManagerController::class, 'edit'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.edit');
+    Route::get('/outils/scenarios/{version}/export', [AdminScenarioManagerController::class, 'export'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.export');
+    Route::put('/outils/scenarios/{version}', [AdminScenarioManagerController::class, 'update'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.update');
+    Route::post('/outils/scenarios/{version}/dupliquer', [AdminScenarioManagerController::class, 'duplicate'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.duplicate');
+    Route::post('/outils/scenarios/{version}/valider', [AdminScenarioManagerController::class, 'validateDocument'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.validate');
+    Route::delete('/outils/scenarios/{version}', [AdminScenarioManagerController::class, 'destroy'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.destroy');
+
+    // TASK-1650 — le cycle de vie. `approuver` est l'ETAPE HUMAINE du CDC 12.2,
+    // seule porte vers un Load ; `retirer` detruit une sandbox et non la
+    // definition, ce qui en fait un geste distinct de `destroy` (CDC 14.3).
+    // TASK-1651 — l'editeur VISUEL borne : General, Personnes, Boucles,
+    // Membres. Neuf gestes, tous passant par le meme chemin d'ecriture du
+    // controleur, donc par `ScenarioVersionWriter` puis par le Validator
+    // complet. Le mode JSON de T1649 reste disponible et edite le MEME
+    // document.
+    Route::get('/outils/scenarios/{version}/visuel', [AdminScenarioManagerController::class, 'visual'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual');
+    Route::put('/outils/scenarios/{version}/visuel/general', [AdminScenarioManagerController::class, 'updateGeneral'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.general');
+    Route::post('/outils/scenarios/{version}/visuel/personnes', [AdminScenarioManagerController::class, 'storePerson'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.person.store');
+    Route::put('/outils/scenarios/{version}/visuel/personnes/{cle}', [AdminScenarioManagerController::class, 'updatePerson'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.person.update');
+    Route::delete('/outils/scenarios/{version}/visuel/personnes/{cle}', [AdminScenarioManagerController::class, 'destroyPerson'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.person.destroy');
+    Route::post('/outils/scenarios/{version}/visuel/boucles', [AdminScenarioManagerController::class, 'storeLoop'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.loop.store');
+    Route::put('/outils/scenarios/{version}/visuel/boucles/{cle}', [AdminScenarioManagerController::class, 'updateLoop'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.loop.update');
+    Route::delete('/outils/scenarios/{version}/visuel/boucles/{cle}', [AdminScenarioManagerController::class, 'destroyLoop'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.loop.destroy');
+    Route::put('/outils/scenarios/{version}/visuel/membres', [AdminScenarioManagerController::class, 'updateMembership'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.membership');
+
+    Route::get('/outils/scenarios/{version}/approbation', [AdminScenarioManagerController::class, 'approval'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.approval');
+    Route::post('/outils/scenarios/{version}/approuver', [AdminScenarioManagerController::class, 'approve'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.approve');
+    Route::post('/outils/scenarios/{version}/charger', [AdminScenarioManagerController::class, 'load'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.load');
+    Route::post('/outils/scenarios/{version}/reinitialiser', [AdminScenarioManagerController::class, 'reset'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.reset');
+    Route::post('/outils/scenarios/{version}/retirer', [AdminScenarioManagerController::class, 'removeSandbox'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.remove');
+
+    // TASK-1653 — capturer l'etat actuel d'une sandbox.
+    //
+    // DEUX routes, et la separation est le contrat : le GET ouvre l'ecran et
+    // n'ecrit rien ; le POST cree la version, et seulement sur un geste humain
+    // explicite. Une seule route qui ferait les deux transformerait « ouvrir
+    // pour comprendre » en « creer sans avoir lu ».
+    Route::get('/outils/scenarios/{version}/capturer', [AdminScenarioManagerController::class, 'capturePreview'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.capture');
+    Route::post('/outils/scenarios/{version}/capturer', [AdminScenarioManagerController::class, 'captureStore'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.capture.store');
+
+    // TASK-1654 — « Voir en tant que persona ». La SORTIE est declaree hors de
+    // ce groupe : pendant le mode, `Auth::user()` est le persona, et
+    // `AdminMiddleware` enfermerait l'operateur dans le mode.
+    Route::get('/outils/scenarios/{version}/personas', [AdminScenarioPersonaController::class, 'index'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.personas');
+    Route::post('/outils/scenarios/{version}/personas', [AdminScenarioPersonaController::class, 'enter'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.personas.enter');
+
     // Stats
     Route::get('/stats/login-history', [AdminController::class, 'loginHistory'])->name('stats.login-history');
     Route::get('/stats/login-history/user/{user}', [AdminController::class, 'loginHistoryUser'])->name('stats.login-history.user');
@@ -907,6 +1085,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 Route::get('/admin/back-to-admin', [AdminController::class, 'backToAdmin'])
     ->middleware('auth')
     ->name('admin.back-to-admin');
+
+// TASK-1654 — quitter le mode persona. POST + CSRF : c'est une bascule
+// d'identite, pas une navigation. Hors du groupe `admin` pour la meme raison
+// que `back-to-admin` ci-dessus — pendant le mode, le compte connecte N'EST PAS
+// administrateur, et le middleware `admin` rendrait la sortie inatteignable.
+// L'autorisation ne vient donc pas du privilege courant mais de l'existence
+// d'un mode persona valide, que le service revalide.
+Route::post('/admin/outils/scenarios/persona/sortir', [AdminScenarioPersonaController::class, 'exit'])
+    ->middleware('auth')
+    ->name('admin.outils.scenarios.personas.exit');
 
 // Organization route constraint
 $organizationConstraint = '(?!login|register|admin|api|sitemap|search|explorer|profile|password|membres|echanges|partenaires|partners|boucles|loops)[a-z0-9][a-z0-9\-]*';
@@ -1104,10 +1292,12 @@ Route::prefix('/org/{organization}')
                 Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
-                // L'agenda de l'Organization : lecture seule, il agrege ce qui a ete
-                // organise dans les Boucles. Declare avant /loops/{loop} n'est pas
-                // necessaire — le segment differe — mais reste groupe avec elles.
+                // L'agenda de l'Organization. Voir la note sur la route courte :
+                // depuis TASK-1656 il porte le geste de REPONSE a une invitation.
                 Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
+                Route::post('/agenda/{event}/repondre', [LoopEventAgendaController::class, 'respond'])
+                    ->whereUuid('event')
+                    ->name('events.agenda.respond');
                 Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
                 Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
                 Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');

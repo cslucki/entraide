@@ -31,18 +31,43 @@ class ScenarioPackLoad extends Model
         'organization_created_by_pack',
     ];
 
+    /**
+     * TASK-1642 — identite d'idempotence d'un chargement de manifeste.
+     *
+     * DELIBEREMENT absente de `$fillable` : c'est le digest APPROUVE par un
+     * humain, ecrit par le seul service qui charge un manifeste. Un mass
+     * assignment qui pourrait le poser permettrait de faire passer un
+     * chargement pour un autre.
+     */
+    public const MANIFEST_DIGEST = 'manifest_digest';
+
     protected function casts(): array
     {
         return [
             'loaded_at' => 'datetime',
+            'world_anchored_at' => 'datetime',
             'reset_at' => 'datetime',
             'organization_created_by_pack' => 'boolean',
         ];
     }
 
+    /**
+     * La sandbox de ce chargement, MEME en corbeille.
+     *
+     * TASK-1650, trouve en revue : `Organization` est en SoftDeletes. Sans
+     * `withTrashed()`, une sandbox mise a la corbeille rendait cette relation
+     * nulle, l'ecran de la version perdait son panneau — donc Reset et Remove
+     * — et proposait « Approuver » a la place. La sandbox et ses comptes
+     * redevenaient irretirables PAR L'ECRAN, ce que cette TASK repare
+     * justement cote service.
+     *
+     * Un chargement designe sa sandbox : que quelqu'un l'ait mise a la
+     * corbeille ne la fait pas cesser d'exister, et c'est precisement l'etat
+     * ou il faut pouvoir agir.
+     */
     public function organization(): BelongsTo
     {
-        return $this->belongsTo(Organization::class);
+        return $this->belongsTo(Organization::class)->withTrashed();
     }
 
     public function entities(): HasMany

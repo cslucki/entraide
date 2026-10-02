@@ -32,12 +32,46 @@ class ScenarioPackResetter
 {
     public function __construct(private readonly ScenarioPackEntityPurger $purger = new ScenarioPackEntityPurger) {}
 
-    public function reset(ScenarioPackDefinition $pack, Organization $organization): ScenarioPackLoadResult
+    /**
+     * TASK-1650 — `$exact` restaure aussi les ATTRIBUTS, et il est OPTIONNEL.
+     *
+     * Le reset historique reapplique le pack de maniere idempotente : il
+     * recree ce qui MANQUE, puis retire les orphelins. Il ne defait donc pas
+     * ce qui a ete MODIFIE. Mesure : renommer une Boucle dans une sandbox, la
+     * reinitialiser, et elle garde son nouveau nom.
+     *
+     * Le CDC 14.1 du Scenario Manager promet pourtant de « restaurer le monde
+     * au contenu du digest effectivement charge ». D'ou ce mode, qui PURGE
+     * d'abord les entites que le pack a creees, puis reapplique : la
+     * restauration est alors exacte par construction, dans la MEME sandbox.
+     *
+     * Pourquoi un parametre plutot qu'un changement de comportement : ce
+     * Resetter sert aussi `scenario-pack:reset`, la commande des packs
+     * historiques, qui vise de VRAIES Organizations de l'allowlist. Changer sa
+     * semantique par defaut aurait modifie ce que fait cette commande sur des
+     * donnees reelles — bien au-dela du perimetre autorise. Les appelants
+     * existants gardent donc exactement leur comportement.
+     */
+    public function reset(ScenarioPackDefinition $pack, Organization $organization, bool $exact = false): ScenarioPackLoadResult
     {
         ScenarioPackOrganizationGuard::assertAllowed($organization);
 
-        return DB::transaction(function () use ($pack, $organization) {
-            Organization::query()->whereKey($organization->id)->lockForUpdate()->first();
+        return DB::transaction(function () use ($pack, $organization, $exact) {
+            // Verrou pose AUSSI sur une sandbox en corbeille. Voir la raison
+            // detaillee dans ScenarioPackRemover::verrouiller() : sous la
+            // portee par defaut, un modele SoftDeletes mis a la corbeille ne
+            // verrouille RIEN et le retour jete le cachait.
+            $verrouillee = Organization::query()
+                ->withTrashed()
+                ->whereKey($organization->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($verrouillee === null) {
+                throw new \LogicException(
+                    'Organization introuvable au moment de verrouiller : '.$organization->id
+                );
+            }
 
             $load = ScenarioPackLoad::query()
                 ->where('organization_id', $organization->id)
@@ -51,6 +85,38 @@ class ScenarioPackResetter
             $before = ScenarioPackEntity::query()
                 ->where('scenario_pack_load_id', $load->id)
                 ->get();
+
+            if ($exact) {
+                // Purge AVANT reapplication, dans l'ordre inverse d'inscription
+                // — le meme ordre que le Remover, pour les memes raisons de
+                // dependances.
+                //
+                // Une propriete INCONNUE fait refuser AVANT toute suppression :
+                // on ne detruit pas ce dont on ignore a qui il appartient.
+                $inconnus = $before->filter(fn (ScenarioPackEntity $e) => $e->hasUnknownOwnership());
+
+                if ($inconnus->isNotEmpty()) {
+                    throw ScenarioPackOwnershipUnknownException::forLoad(
+                        $pack->packId(),
+                        $organization->slug,
+                        'reset exact (purge prealable)',
+                        $inconnus->countBy('entity_type')->all(),
+                    );
+                }
+
+                foreach ($before->sortByDesc('sequence') as $entite) {
+                    if ($entite->isOwnedByPack()) {
+                        $this->purger->purge($entite, $organization);
+                    }
+
+                    $entite->delete();
+                }
+
+                // Le registre de CE chargement est vide : la reapplication qui
+                // suit recree tout, et la boucle d'orphelins ci-dessous n'a
+                // plus rien a balayer.
+                $before = $before->take(0);
+            }
 
             $registrar = new ScenarioPackEntityRegistrar($load);
             try {
@@ -90,6 +156,36 @@ class ScenarioPackResetter
 
             $load->pack_version = $pack->packVersion();
             $load->reset_at = now();
+
+            // TASK-1653 — Reset RECONSTRUIT le monde : son ancre est REMPLACEE.
+            //
+            // C'est le point qui manquait. `reset_at` dit quand on a reinitialise ;
+            // `world_anchored_at` doit dire a partir de quel instant le NOUVEAU
+            // monde compte ses offsets. Les laisser diverger rendait la Capture
+            // impossible apres un Reset (T1652 refusait, faute de savoir), ou —
+            // pire — l'aurait rendue silencieusement fausse.
+            //
+            // Un Reset avec le code actuel suffit donc a rendre capturable une
+            // sandbox dont l'ancre etait inconnue.
+            // SEULEMENT en mode EXACT, et la condition n'est pas decorative.
+            //
+            // En mode non-exact, `apply()` est idempotent : les messages et les
+            // articles DEJA presents sont rendus tels quels, leurs `created_at`
+            // et `published_at` ne sont pas reecrits. Remplacer l'ancre sans
+            // avoir reconstruit le monde ferait glisser TOUS les offsets du
+            // delai ecoule depuis le chargement — uniformement, donc sans
+            // rendre le document invalide.
+            //
+            // Aujourd'hui aucun appelant ne passe un `ManifestScenarioPack` en
+            // non-exact (le catalogue ne sait pas les produire), mais c'est un
+            // accident de routage, pas un invariant : le premier qui le fera ne
+            // doit rien casser. Trouve en relecture adverse.
+            $ancre = $registrar->ancreDuMonde();
+
+            if ($exact && $ancre !== null) {
+                $load->world_anchored_at = $ancre;
+            }
+
             $load->save();
 
             $counts = ScenarioPackEntity::query()

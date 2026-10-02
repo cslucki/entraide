@@ -16,6 +16,13 @@
 
                 <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
                     <form method="GET" class="flex flex-wrap gap-4 items-end">
+                        {{-- TASK-1659 : un filtre par slug arrive par l'URL (lien
+                             « Gérer le modèle d'email »). Il doit survivre a une
+                             soumission du formulaire, sinon filtrer par langue
+                             ramenerait toute la liste. --}}
+                        @if(request('slug'))
+                            <input type="hidden" name="slug" value="{{ request('slug') }}">
+                        @endif
                         <div>
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.organization') }}</label>
                             <select name="organization_id" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 text-sm">
@@ -37,7 +44,7 @@
                             {{ __('admin.filter') }}
                         </button>
                         @if(request('organization_id') || request('locale'))
-                            <a href="{{ route('admin.system-email-templates') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <a href="{{ route('admin.system-email-templates', array_filter(['slug' => request('slug')])) }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                                 {{ __('admin.clear') }}
                             </a>
                         @endif

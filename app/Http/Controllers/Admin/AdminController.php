@@ -18,14 +18,21 @@ use App\Models\Skill;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\Admin\PlatformDashboardMetrics;
 use App\Services\UserDataLifecycleRegistry;
+use App\Services\Users\Exceptions\UserDeletionBlockedException;
+use App\Services\Users\UserDeletionExecutor;
+use App\Support\ScenarioManifest\ManifestAvatarBank;
 use App\Support\Tenancy\DefaultOrganizationResolver;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -41,7 +48,7 @@ class AdminController extends Controller
      * plus, interactions IA) viennent d'un service unique, miroir plateforme
      * de `OrganizationDashboardMetrics` (TASK-1504).
      */
-    public function dashboard(\App\Services\Admin\PlatformDashboardMetrics $metrics): View
+    public function dashboard(PlatformDashboardMetrics $metrics): View
     {
         $recentUsers = User::with('organization')->latest()->limit(5)->get();
         $pendingReports = Report::with('reporter')->where('status', 'pending')->latest('created_at')->limit(10)->get();
@@ -103,7 +110,50 @@ class AdminController extends Controller
         $users = $query->paginate(20)->withQueryString();
         $organizations = Organization::where('is_active', true)->orderBy('name')->get();
 
-        return view('admin.users', compact('users', 'organizations'));
+        return view('admin.users', compact('users', 'organizations') + [
+            'stats' => $this->userListStats(),
+        ]);
+    }
+
+    /**
+     * TASK-1640 — les compteurs du bandeau de la liste, en UNE requete.
+     *
+     * Des agregats conditionnels plutot que cinq `count()` : la page est un
+     * cockpit, pas un rapport, et le test de cout de `/admin/users` mesure
+     * justement que cette page ne grandit pas en requetes quand le nombre de
+     * comptes augmente.
+     *
+     * Les compteurs portent sur la POPULATION ENTIERE, pas sur le filtre courant.
+     * Un compteur qui bougerait avec les filtres ne dirait plus « combien de
+     * comptes bannis existe-t-il » mais « combien en vois-je », ce qui n'est pas
+     * la question posee par un cockpit. Le total filtre, lui, est rendu par le
+     * paginateur a cote du tableau.
+     *
+     * @return array<string, int>
+     */
+    private function userListStats(): array
+    {
+        // Deux pieges de moteur evites ici, tous deux deja payes sur ce depot :
+        //  - `count(*) FILTER (...)` est du PostgreSQL pur ;
+        //  - `is_admin = 1` passe en SQLite (entier) et ECHOUE en PostgreSQL, ou
+        //    la colonne est un vrai `boolean`.
+        // Le predicat NU (`case when is_admin then ...`) est valide dans les deux.
+        $row = User::query()->toBase()->selectRaw(
+            'count(*) as total,'
+            .' sum(case when banned_at is null and is_available then 1 else 0 end) as disponibles,'
+            .' sum(case when banned_at is not null then 1 else 0 end) as bannis,'
+            .' sum(case when is_admin then 1 else 0 end) as admins,'
+            .' sum(case when created_at >= ? then 1 else 0 end) as nouveaux',
+            [now()->startOfMonth()]
+        )->first();
+
+        return [
+            'total' => (int) $row->total,
+            'disponibles' => (int) $row->disponibles,
+            'bannis' => (int) $row->bannis,
+            'admins' => (int) $row->admins,
+            'nouveaux' => (int) $row->nouveaux,
+        ];
     }
 
     public function editUser(User $user): View
@@ -131,6 +181,10 @@ class AdminController extends Controller
     public function updateUser(Request $request, User $user): RedirectResponse
     {
         $organization = $this->resolveOrganizationFromInput($request->input('organization_id'));
+
+        if ($refus = $this->refuserSiSandboxScenarioManager($user, $organization)) {
+            return $refus;
+        }
 
         $data = $request->validate([
             'first_name' => 'nullable|string|max:255',
@@ -177,9 +231,20 @@ class AdminController extends Controller
         }
 
         if ($request->hasFile('avatar')) {
-            if ($user->avatar) {
+            // TASK-1654 — l'ancien fichier ne se supprime que s'il appartient a
+            // CE compte. Un avatar de banque Scenario est publie a un chemin
+            // PARTAGE, sans discriminant d'Organization : le supprimer ici
+            // privait de son image tout persona, dans toute sandbox, qui
+            // declare la meme cle. La banque est seule a repondre de cette
+            // question ; ce controleur ne la redevine pas.
+            //
+            // Et l'inverse reste vrai : un upload individuel remplace DOIT
+            // toujours etre supprime, sans quoi on echangerait une casse
+            // globale contre une fuite de stockage.
+            if ($user->avatar && ! ManifestAvatarBank::isPublishedAsset($user->avatar)) {
                 Storage::disk('public')->delete($user->avatar);
             }
+
             $update['avatar'] = $request->file('avatar')->store('avatars', 'public');
         }
 
@@ -337,6 +402,10 @@ class AdminController extends Controller
 
         $organization = $this->resolveOrganizationFromInput($data['organization_id'] ?? null);
 
+        if ($refus = $this->refuserSiSandboxScenarioManager($user, $organization)) {
+            return $refus;
+        }
+
         $user->update([
             'organization_id' => $organization->id,
         ]);
@@ -401,6 +470,71 @@ class AdminController extends Controller
         throw ValidationException::withMessages([
             'organization_id' => 'Aucune organisation par défaut active n\'est disponible.',
         ]);
+    }
+
+    /**
+     * TASK-1650 — une sandbox Scenario Manager n'est pas une Organization
+     * comme les autres, et cette surface generique ne doit pas y toucher.
+     *
+     * ## Le sinistre, mesure par deux relecteurs independants
+     *
+     * Rien a forcer, rien a deviner : cet ecran accepte n'importe quelle
+     * Organization. On place un vrai prospect dans une sandbox, il ecrit dans
+     * un ChatLoop, on le remet ensuite dans sa vraie Organization — puis le
+     * Scenario Manager reinitialise ou retire la sandbox, et les Boucles
+     * partent avec `loop_messages` en CASCADE. Ses messages sont detruits, et
+     * plus personne ne sait qu'ils ont existe.
+     *
+     * Le preflight du Scenario Manager DETECTE cette contamination avant de
+     * detruire. Mais detecter n'est pas empecher : verdict MASTER du 27/09,
+     * « tant qu'une surface PROD existante permet d'injecter un vrai
+     * utilisateur dans leur cible, leur securite n'est pas fermee ».
+     *
+     * ## Les deux sens, pas un seul
+     *
+     * Interdire l'entree laisserait la SORTIE ouverte, et c'est exactement le
+     * chemin qui rend le contenu orphelin : la personne s'en va, son contenu
+     * reste dans la sandbox et meurt avec elle. Source OU destination sandbox
+     * : refus.
+     *
+     * ## Ce que ce refus n'est PAS
+     *
+     * Ni un systeme de roles, ni une refonte de cet ecran, ni une migration.
+     * Les personas d'une sandbox appartiennent au Scenario Manager, qui les
+     * cree et les detruit ; les comptes reels appartiennent aux vraies
+     * Organizations. Le refus ne fait que dire ou passe la frontiere.
+     */
+    private function refuserSiSandboxScenarioManager(User $user, Organization $destination): ?RedirectResponse
+    {
+        // Rien ne BOUGE : il n'y a rien a interdire.
+        //
+        // Sans cette sortie, corriger le nom d'un persona depuis sa fiche
+        // devenait impossible — la fiche renvoie l'Organization courante, et
+        // la garde la lisait comme une affectation vers une sandbox. Une
+        // garde qui gele ce qu'elle protege finit par etre retiree.
+        if ($user->organization_id !== null && $destination->getKey() === $user->organization_id) {
+            return null;
+        }
+
+        if ($destination->scenario_sandbox_created_at !== null) {
+            return back()->with('error', sprintf(
+                "« %s » est une sandbox de scenario : on n'y affecte pas de compte depuis cet ecran. Les personas d'une sandbox sont geres par le Scenario Manager.",
+                $destination->name
+            ));
+        }
+
+        $origine = $user->organization_id === null
+            ? null
+            : Organization::withTrashed()->find($user->organization_id);
+
+        if ($origine !== null && $origine->scenario_sandbox_created_at !== null) {
+            return back()->with('error', sprintf(
+                "Ce compte est rattache a la sandbox de scenario « %s » : il ne se deplace pas depuis cet ecran. Son contenu resterait dans la sandbox et serait detruit avec elle.",
+                $origine->name
+            ));
+        }
+
+        return null;
     }
 
     private function adminOrganizations(): Collection
@@ -862,7 +996,237 @@ class AdminController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('admin.users.delete-preview', compact('user', 'counts', 'sameOrgUsers'));
+        // TASK-1636 : ce que l'executeur refuserait, dit AVANT de proposer le
+        // bouton definitif.
+        $precheck = app(UserDeletionExecutor::class)->precheck($user);
+        $previewFingerprint = $this->deletePreviewFingerprint($precheck);
+
+        return view('admin.users.delete-preview', compact(
+            'user', 'counts', 'sameOrgUsers', 'precheck', 'previewFingerprint'
+        ));
+    }
+
+    /**
+     * TASK-1636 — la suppression REELLE. SuperAdmin uniquement.
+     *
+     * Tout est revalide ici : le compte, la cible de transfert, et les refus.
+     * L'executeur recontrole ensuite lui-meme sous verrou — ce controleur ne lui
+     * fait pas gagner un raccourci.
+     *
+     * ## TASK-1640 — la recopie du nom a ete RETIREE
+     *
+     * Elle donnait l'illusion d'une garde : elle ne prouvait ni l'identite de
+     * l'admin, ni la fraicheur de ce qu'il avait lu, ni que l'etat du compte
+     * permettait la suppression. Elle coutait une frappe et ne protegeait rien
+     * que les quatre gardes reelles ne couvrent deja :
+     *
+     *  1. l'authentification SuperAdmin (`AdminMiddleware`) ;
+     *  2. une modal de confirmation explicite ;
+     *  3. `preview_fingerprint`, qui refuse une decision prise sur un etat perime ;
+     *  4. le recontrole autoritatif sous `lockForUpdate()` dans l'executeur.
+     *
+     * Le champ n'est pas seulement cache a l'ecran : l'exigence est retiree de la
+     * validation. Cacher le champ en laissant la regle cote serveur aurait produit
+     * un formulaire que le serveur refuse — le defaut symetrique de celui mesure
+     * en TASK-1636, ou l'ecran demandait `fullName` et le serveur comparait `name`.
+     */
+    public function destroyUser(Request $request, User $user): RedirectResponse
+    {
+        $data = $request->validate([
+            'preview_fingerprint' => 'required|string',
+            'transfer_to' => [
+                'nullable',
+                'uuid',
+                Rule::exists('users', 'id')
+                    ->where('organization_id', $user->organization_id)
+                    ->whereNull('banned_at'),
+            ],
+        ]);
+
+        $executor = app(UserDeletionExecutor::class);
+
+        // Fraicheur : on ne lit AUCUN compteur venu du navigateur. On recalcule
+        // l'etat et on compare deux empreintes. Si la situation a bouge depuis
+        // l'ecran, l'admin doit revoir ce qu'il signe.
+        if ($this->deletePreviewFingerprint($executor->precheck($user)) !== $data['preview_fingerprint']) {
+            return redirect()
+                ->route('admin.users.delete-preview', $user)
+                ->with('error', __('admin.user_delete.stale'));
+        }
+
+        $name = $user->fullName;
+
+        try {
+            $report = $executor->execute($user, $data['transfer_to'] ?? null);
+        } catch (UserDeletionBlockedException $blocked) {
+            return redirect()
+                ->route('admin.users.delete-preview', $user)
+                ->with('error', implode(' ', array_column($blocked->blocks, 'message')));
+        }
+
+        $message = [__('admin.user_delete.done', ['name' => $name])];
+
+        if (($transferred = array_sum($report['transferred'])) > 0) {
+            $target = User::find($data['transfer_to']);
+            $message[] = __('admin.user_delete.done_transferred', [
+                'count' => $transferred,
+                'target' => $target?->name ?? '',
+            ]);
+        }
+
+        if (($purged = $report['dossiers']['dossiers'] ?? 0) > 0) {
+            $message[] = __('admin.user_delete.done_dossiers', ['count' => $purged]);
+        }
+
+        if (($deleted = array_sum($report['deleted'])) > 0) {
+            $message[] = __('admin.user_delete.done_deleted', ['count' => $deleted]);
+        }
+
+        return redirect()->route('admin.users')->with('success', implode(' ', $message));
+    }
+
+    /**
+     * Empreinte de l'etat presente a l'admin.
+     *
+     * Elle ne transporte aucun compteur : le navigateur la rend telle quelle et
+     * le serveur la RECALCULE pour comparer. Un simple hash suffit — il n'y a
+     * rien a signer, puisque rien de ce qui revient n'est cru sur parole.
+     *
+     * @param  array{blocks: list<array{key: string, count: int, message: string}>, transferable: array<string, int>, requires_transfer: bool}  $precheck
+     */
+    /**
+     * TASK-1640 — la fiche complete d'un membre, demandee AU CLIC.
+     *
+     * Lecture seule, bornee a UN compte, et volontairement composee de comptages
+     * plutot que de listes : la question posee par cet ecran est « qu'est-ce que
+     * cette personne FAIT sur la plateforme », pas « donne-moi ses contenus ».
+     * Rendre les lignes elles-memes aurait fait passer du contenu personnel
+     * (messages, prompts IA) dans une reponse d'administration.
+     *
+     * Les tables absentes du schema sont ignorees plutot que de faire echouer la
+     * fiche : ce depot a des tables qui apparaissent par TASK, et une fiche qui
+     * jette parce qu'une table n'existe pas encore serait un faux defaut.
+     */
+    public function userProfileSummary(User $user): JsonResponse
+    {
+        $compte = function (string $table, string $column) use ($user): int {
+            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
+                return 0;
+            }
+
+            return DB::table($table)->where($column, $user->id)->count();
+        };
+
+        $ledgerIA = Schema::hasTable('ai_provider_invocations')
+            ? DB::table('ai_provider_invocations')->where('user_id', $user->id)->selectRaw(
+                'count(*) as appels, coalesce(sum(total_tokens), 0) as tokens, coalesce(sum(provider_cost), 0) as cout'
+            )->first()
+            : null;
+
+        $derniereConnexion = Schema::hasTable('login_logs')
+            ? DB::table('login_logs')->where('user_id', $user->id)->max('created_at')
+            : null;
+
+        return response()->json([
+            'identite' => [
+                'name' => $user->fullName,
+                'email' => $user->email,
+                'organization' => $user->organization?->name,
+                'statut' => $user->banned_at !== null
+                    ? __('admin.users_status_banned')
+                    : ($user->is_available ? __('admin.users_status_available') : __('admin.users_status_unavailable')),
+                'is_admin' => (bool) $user->is_admin,
+                'points' => (int) $user->points_balance,
+                'inscrit_le' => $user->created_at?->format('d/m/Y'),
+                'derniere_connexion' => $derniereConnexion ? Carbon::parse($derniereConnexion)->format('d/m/Y H:i') : null,
+                'note' => $user->rating ? number_format((float) $user->rating, 1).'/5' : null,
+            ],
+            'contributions' => [
+                __('admin.users_profile_services') => $compte('services', 'user_id'),
+                __('admin.users_profile_requests') => $compte('service_requests', 'user_id'),
+                __('admin.users_profile_articles') => $compte('blog_posts', 'user_id'),
+                __('admin.users_profile_feed') => $compte('feed_posts', 'user_id'),
+                __('admin.users_profile_loops_created') => $compte('loops', 'created_by'),
+                __('admin.users_profile_loop_messages') => $compte('loop_messages', 'sender_id'),
+            ],
+            'interactions' => [
+                __('admin.users_profile_purchases') => $compte('transactions', 'buyer_id'),
+                __('admin.users_profile_sales') => $compte('transactions', 'seller_id'),
+                __('admin.users_profile_reviews_given') => $compte('reviews', 'reviewer_id'),
+                __('admin.users_profile_reviews_received') => $compte('reviews', 'reviewed_id'),
+                __('admin.users_profile_comments') => $compte('blog_comments', 'user_id') + $compte('feed_post_comments', 'user_id'),
+                __('admin.users_profile_memberships') => $compte('loop_members', 'user_id'),
+                __('admin.users_profile_votes') => $compte('loop_poll_votes', 'user_id'),
+            ],
+            'ia' => [
+                'appels' => (int) ($ledgerIA->appels ?? 0),
+                'tokens' => (int) ($ledgerIA->tokens ?? 0),
+                // Le cout est un fait economique : on le rend tel quel, arrondi a
+                // 4 decimales, sans le transformer en jugement.
+                'cout' => round((float) ($ledgerIA->cout ?? 0), 4),
+                'interactions' => $compte('ai_interactions', 'user_id'),
+                'shell' => $compte('ai_shell_messages', 'user_id'),
+                'retours' => $compte('ai_interaction_feedbacks', 'user_id'),
+                'profil_ia' => $compte('member_ai_profiles', 'user_id') > 0,
+            ],
+        ]);
+    }
+
+    /**
+     * TASK-1640 — ce que la modal de `/admin/users` demande AU CLIC.
+     *
+     * Lecture seule et bornee a UN compte. Rien n'est recalcule ici : ce sont
+     * `UserDeletionExecutor::precheck()` et `deletePreviewFingerprint()`, deja
+     * l'autorite, qui repondent. Aucune regle metier ne vit dans cette methode.
+     *
+     * Pourquoi une route dediee plutot que la liste : `precheck()` fait une
+     * quinzaine de comptages par compte. Les calculer pour les 20 lignes d'une
+     * page aurait ajoute ~300 requetes au rendu de `/admin/users` pour un clic
+     * qui n'aura lieu qu'une fois.
+     */
+    public function userDeletePrecheck(User $user): JsonResponse
+    {
+        $precheck = app(UserDeletionExecutor::class)->precheck($user);
+
+        // Les repreneurs possibles, dans la MEME Organization : c'est la borne
+        // que `destroyUser()` revalide de son cote. L'ecran ne propose donc
+        // jamais un choix que le serveur refusera.
+        $candidats = User::query()
+            ->where('organization_id', $user->organization_id)
+            ->assignable()
+            ->whereKeyNot($user->id)
+            ->orderBy('first_name')
+            ->orderBy('name')
+            ->get(['id', 'first_name', 'name'])
+            ->map(fn (User $candidat) => ['id' => $candidat->id, 'name' => $candidat->fullName])
+            ->values();
+
+        return response()->json([
+            'user' => ['id' => $user->id, 'name' => $user->fullName],
+            // Seuls le libelle et le compte sortent : la cle technique du blocage
+            // reste cote serveur, l'ecran n'a rien a en faire.
+            'blocks' => collect($precheck['blocks'])
+                ->map(fn (array $block) => ['message' => $block['message'], 'count' => $block['count']])
+                ->values(),
+            'requires_transfer' => $precheck['requires_transfer'],
+            'transfer_total' => array_sum($precheck['transferable']),
+            'transfer_candidates' => $candidats,
+            'preview_fingerprint' => $this->deletePreviewFingerprint($precheck),
+        ]);
+    }
+
+    private function deletePreviewFingerprint(array $precheck): string
+    {
+        $blocks = collect($precheck['blocks'])
+            ->map(fn (array $block) => $block['key'].':'.$block['count'])
+            ->sort()
+            ->values()
+            ->all();
+
+        $transferable = $precheck['transferable'];
+        ksort($transferable);
+
+        return hash('sha256', json_encode(['blocks' => $blocks, 'transferable' => $transferable]));
     }
 
     public function deleteUser(Request $request, User $user): View
@@ -878,7 +1242,10 @@ class AdminController extends Controller
             ],
         ]);
 
-        if ($data['confirmation'] !== $user->name) {
+        // La vue demande le nom COMPLET (`fullName`) : comparer a `name` seul
+        // rendait tout compte portant un prenom impossible a confirmer en
+        // suivant l'instruction affichee.
+        if ($data['confirmation'] !== $user->fullName) {
             return $this->deletePreview($user);
         }
 
@@ -896,7 +1263,15 @@ class AdminController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('admin.users.delete-preview', compact('user', 'counts', 'sameOrgUsers'));
+        // TASK-1636 : la simulation prepare l'etape definitive — ce qui
+        // bloquerait, et l'empreinte de l'etat sur lequel l'admin se prononce.
+        $precheck = app(UserDeletionExecutor::class)->precheck($user);
+        $previewFingerprint = $this->deletePreviewFingerprint($precheck);
+        $transferTo = $data['transfer_to'] ?? null;
+
+        return view('admin.users.delete-preview', compact(
+            'user', 'counts', 'sameOrgUsers', 'precheck', 'previewFingerprint', 'transferTo'
+        ));
     }
 
     private function countUserRelations(User $user): array

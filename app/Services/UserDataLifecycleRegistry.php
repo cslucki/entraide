@@ -55,6 +55,13 @@ class UserDataLifecycleRegistry
             ['key' => 'loop_ai_assistants_updated_by', 'type' => 'sql', 'table' => 'loop_ai_assistants', 'column' => 'updated_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'An assistant posture is Loop configuration written for the group, not personal data: it must outlive its author, who is simply detached. The FK is nullOnDelete (TASK-1616).'],
             ['key' => 'loop_plugin_ai_models_updated_by', 'type' => 'sql', 'table' => 'loop_plugin_ai_models', 'column' => 'updated_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'none', 'justification' => 'Which OpenRouter model serves an assistant is PLATFORM infrastructure, not personal data and not tenant data: the table carries no organization_id. It must outlive whoever picked the model, who is simply detached. The FK is nullOnDelete (TASK-1617).'],
             ['key' => 'loop_plugin_ai_models_approved_by', 'type' => 'sql', 'table' => 'loop_plugin_ai_models', 'column' => 'approved_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'none', 'justification' => 'The approval of a PAID model for an assistant is a super-admin platform decision, not personal data: it must outlive its author, who is simply detached. The FK is nullOnDelete (TASK-1622).'],
+            // TASK-1646 : une version de scenario est une definition administrative
+            // de PLATEFORME (la table ne porte pas d'organization_id), pas une
+            // donnee personnelle. Elle doit survivre a son auteur comme a son
+            // approbateur : les deux FK sont nullOnDelete, la version reste
+            // complete et rejouable sans eux.
+            ['key' => 'scenario_manifest_versions_created_by', 'type' => 'sql', 'table' => 'scenario_manifest_versions', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'none', 'justification' => 'A scenario version is a PLATFORM administrative definition, not personal data and not tenant data: the table carries no organization_id. The definition must outlive whoever drafted it, who is simply detached. The FK is nullOnDelete (TASK-1646).'],
+            ['key' => 'scenario_manifest_versions_approved_by', 'type' => 'sql', 'table' => 'scenario_manifest_versions', 'column' => 'approved_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'none', 'justification' => 'The human approval of a scenario digest is a super-admin platform decision, not personal data: the approved digest keeps its meaning without the approver, who is simply detached. The FK is nullOnDelete (TASK-1646).'],
             // TASK-1227 : la doctrine IA est une configuration editoriale de l'Organization ; l'auteur d'une version est un audit detachable (FK nullOnDelete).
             ['key' => 'organization_ai_doctrines_created_by', 'type' => 'sql', 'table' => 'organization_ai_doctrines', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'An AI doctrine version is organization configuration, not personal data: it must outlive its author, who is simply detached.'],
             // TASK-1348 : memes natures, meme politique que la doctrine juste
@@ -98,13 +105,29 @@ class UserDataLifecycleRegistry
             ['key' => 'feed_posts', 'type' => 'sql', 'table' => 'feed_posts', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run considered feed posts transferable.'],
             ['key' => 'likes', 'type' => 'sql', 'table' => 'likes', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'Likes are user-specific signals.'],
             ['key' => 'login_logs', 'type' => 'sql', 'table' => 'login_logs', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Login history is security audit data.'],
-            ['key' => 'loop_memberships', 'type' => 'sql', 'table' => 'loop_members', 'column' => 'user_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Loop membership can be detached.'],
+            // TASK-1635 : DETACH -> DELETE. « Detacher » une adhesion voudrait dire
+            // garder une ligne `loop_members` sans membre : une Boucle compterait un
+            // participant que personne n'incarne. Le schema le disait deja —
+            // `user_id` NOT NULL + ON DELETE CASCADE + unique(loop_id, user_id) — et
+            // il reste inchange : c'est le registre qui avait tort.
+            // Le cas « dernier owner/facilitator d'une Boucle » est une precondition
+            // APPLICATIVE de TASK-1636, pas une contrainte de base : aucun trigger.
+            ['key' => 'loop_memberships', 'type' => 'sql', 'table' => 'loop_members', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'through_loop', 'justification' => 'A membership without a member is meaningless: the row goes with the user.'],
             ['key' => 'loop_messages_pinned_by_id', 'type' => 'sql', 'table' => 'loop_messages', 'column' => 'pinned_by_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Pin attribution can be detached.'],
             ['key' => 'loop_messages_sent', 'type' => 'sql', 'table' => 'loop_messages', 'column' => 'sender_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'Conversation sender can be anonymized.'],
             ['key' => 'loops_created', 'type' => 'sql', 'table' => 'loops', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Loop creator attribution can be detached.'],
             ['key' => 'member_ai_profile_interactions_owner', 'type' => 'sql', 'table' => 'member_ai_profile_interactions', 'column' => 'profile_owner_user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'AI profile interaction content may include personal data.'],
             ['key' => 'member_ai_profile_interactions_visitor', 'type' => 'sql', 'table' => 'member_ai_profile_interactions', 'column' => 'visitor_user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'Visitor AI profile interaction content may include personal data.'],
-            ['key' => 'member_ai_profile', 'type' => 'sql', 'table' => 'member_ai_profiles', 'column' => 'user_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'Structured personal profile needs explicit product decision.'],
+            // TASK-1635 : BLOCK -> DELETE (decision MASTER du 24/09).
+            // L'ancienne justification disait « needs explicit product decision » :
+            // c'etait un BLOCK d'ATTENTE, pas un BLOCK de principe. La decision est
+            // desormais prise — un profil IA structure est une donnee PERSONNELLE
+            // propre au membre, qui n'a aucun sens sans lui et que personne d'autre
+            // ne peut reprendre : elle part avec lui.
+            // Sa FK reste volontairement `ON DELETE CASCADE` — filet coherent avec
+            // DELETE — et n'est PAS convertie en RESTRICT par la migration M2.
+            // TASK-1636 la supprimera explicitement, pour pouvoir la compter.
+            ['key' => 'member_ai_profile', 'type' => 'sql', 'table' => 'member_ai_profiles', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'A structured AI profile is personal data belonging to the member: nobody else can take it over, so it goes with them.'],
             // TASK-1372 — les deux FK de `member_notifications`. Le registre dit
             // ce que le schema FAIT, et les deux colonnes ne font pas la meme
             // chose :
@@ -131,7 +154,30 @@ class UserDataLifecycleRegistry
             ['key' => 'messages_sent', 'type' => 'sql', 'table' => 'messages', 'column' => 'sender_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_transaction', 'justification' => 'Conversation sender can be anonymized.'],
             ['key' => 'organization_requests', 'type' => 'sql', 'table' => 'organization_requests', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Organization request history is retained.'],
             ['key' => 'orgs_as_admin', 'type' => 'sql', 'table' => 'organizations', 'column' => 'admin_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'self', 'justification' => 'Organization admin ownership must be reassigned before deletion.'],
-            ['key' => 'point_ledger', 'type' => 'sql', 'table' => 'point_ledger', 'column' => 'user_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'Point ledger is historical accounting data and blocks deletion until a dedicated decision exists.'],
+            /**
+             * TASK-1638 — le ledger reste BLOCK, mais UN sous-cas se resout.
+             *
+             * `point_ledger` est un historique comptable, et TASK-1254 avait
+             * deja tranche que sa durabilite ne se sacrifie pas : la policy
+             * NE CHANGE PAS. Ce qui change, c'est qu'on nomme le seul type de
+             * ligne qui ne documente AUCUN echange entre deux membres.
+             *
+             * Le bonus de bienvenue est ecrit par la plateforme a l'inscription,
+             * sans `transaction_id`. Mesure du 25/09/2026 sur un jumeau de la
+             * PROD reelle : 46 lignes `point_ledger` pour 46 comptes, **toutes**
+             * `welcome_bonus`, chacune posee dans les 5 s de la creation du
+             * compte. Consequence : sous 1.636, un compte devenait non
+             * supprimable des la seconde de son inscription, avant toute action
+             * de son proprietaire.
+             *
+             * `resolvable_rows` declare ce sous-cas **une seule fois**. Le
+             * comptage (`countEntry()`) l'exclut, et `UserDeletionExecutor` le
+             * purge dans la transaction de suppression en lisant CETTE
+             * declaration — jamais une seconde copie de la regle. Toute autre
+             * raison (`adjustment`, `referral_reward`, `exchange_earned`,
+             * `exchange_spent`) continue de bloquer franchement.
+             */
+            ['key' => 'point_ledger', 'type' => 'sql', 'table' => 'point_ledger', 'column' => 'user_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'resolvable_rows' => ['column' => 'reason', 'value' => 'welcome_bonus'], 'justification' => 'Point ledger is historical accounting data and keeps blocking deletion. The single exception is the platform-written signup bonus (reason welcome_bonus, no transaction_id): it documents no exchange between two members, so it is purged with the account instead of blocking it (TASK-1638).'],
             ['key' => 'profile_agent_conversations_owner', 'type' => 'sql', 'table' => 'profile_agent_conversations', 'column' => 'profile_owner_user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'Profile agent conversation content may include personal data.'],
             ['key' => 'profile_agent_conversations_visitor', 'type' => 'sql', 'table' => 'profile_agent_conversations', 'column' => 'visitor_user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'Visitor profile agent content may include personal data.'],
             // TASK-1433 — SW-3 : le visiteur pseudonyme du Shell Welcome ; la liaison au compte (SW-11) se detache, la ligne suit sa propre retention.
@@ -164,8 +210,18 @@ class UserDataLifecycleRegistry
             ['key' => 'reviews_given', 'type' => 'sql', 'table' => 'reviews', 'column' => 'reviewer_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'user_organization', 'justification' => 'Reviews may need retained content with anonymized author.'],
             ['key' => 'service_requests', 'type' => 'sql', 'table' => 'service_requests', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run considered service requests transferable.'],
             ['key' => 'services', 'type' => 'sql', 'table' => 'services', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run considered services transferable.'],
-            ['key' => 'transactions_as_buyer', 'type' => 'sql', 'table' => 'transactions', 'column' => 'buyer_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run grouped buyer transactions as owned data.'],
-            ['key' => 'transactions_as_seller', 'type' => 'sql', 'table' => 'transactions', 'column' => 'seller_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run grouped seller transactions as owned data.'],
+            // TASK-1635 : TRANSFER -> BLOCK, sur les deux cotes.
+            // Une transaction n'est pas un bien que l'on possede : c'est l'archive
+            // d'un echange BILATERAL entre deux personnes nommees. Reattribuer
+            // `buyer_id` ou `seller_id` a un autre User ne transfere rien — cela
+            // reecrit qui a achete a qui, et falsifie l'historique economique des
+            // DEUX parties, dont celle qui n'a rien demande.
+            // L'ancienne justification (« l'ancien dry-run les groupait comme des
+            // donnees possedees ») etait circulaire : elle decrivait un comportement
+            // existant au lieu de le fonder. Le schema porte desormais RESTRICT
+            // (migration M2) : la base refuse la suppression au lieu de la subir.
+            ['key' => 'transactions_as_buyer', 'type' => 'sql', 'table' => 'transactions', 'column' => 'buyer_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'A transaction is a bilateral economic record; reattributing a side would rewrite both parties history.'],
+            ['key' => 'transactions_as_seller', 'type' => 'sql', 'table' => 'transactions', 'column' => 'seller_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'A transaction is a bilateral economic record; reattributing a side would rewrite both parties history.'],
             ['key' => 'translation_overrides_created_by', 'type' => 'sql', 'table' => 'translation_overrides', 'column' => 'created_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Translation admin audit is retained.'],
             ['key' => 'translation_overrides_updated_by', 'type' => 'sql', 'table' => 'translation_overrides', 'column' => 'updated_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Translation admin audit is retained.'],
             ['key' => 'sessions', 'type' => 'non_sql', 'surface' => 'sessions.user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'count' => ['table' => 'sessions', 'column' => 'user_id'], 'justification' => 'Sessions are active user runtime state and have no FK.'],
@@ -232,6 +288,15 @@ class UserDataLifecycleRegistry
             ['key' => 'loop_join_requests_decided_by', 'type' => 'sql', 'table' => 'loop_join_requests', 'column' => 'decided_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Decision audit can be detached.'],
             ['key' => 'loop_invitations_sender_id', 'type' => 'sql', 'table' => 'loop_invitations', 'column' => 'sender_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Invitation sender is audit/history, as for blog invitations.'],
             ['key' => 'loop_invitations_accepted_by_user_id', 'type' => 'sql', 'table' => 'loop_invitations', 'column' => 'accepted_by_user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Invitation acceptance is audit/history.'],
+            // TASK-1659 : l'invitation DIRECTE a une Organization. Meme
+            // classement que ses deux soeurs ci-dessus — une invitation est
+            // un fait d'HISTOIRE de l'Organization : qui a ouvert l'acces, et
+            // qui l'a utilise. Elle doit survivre au depart de l'un comme de
+            // l'autre, sinon on perd la trace de la facon dont un compte est
+            // entre. Les deux FK sont `nullOnDelete` : la ligne reste, la
+            // personne est detachee.
+            ['key' => 'organization_invitations_created_by_user_id', 'type' => 'sql', 'table' => 'organization_invitations', 'column' => 'created_by_user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Who opened an access is Organization audit/history, as for loop and blog invitations.'],
+            ['key' => 'organization_invitations_accepted_by_user_id', 'type' => 'sql', 'table' => 'organization_invitations', 'column' => 'accepted_by_user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Invitation acceptance is audit/history: it records how an account came to exist.'],
             // TASK-1413 (CRM-1) : le Contact CRM est la fiche de RELATION de
             // l'Organization, pas le magasin personnel du membre. Il existe
             // AVANT tout compte et doit survivre au depart du membre : la FK
@@ -299,6 +364,55 @@ class UserDataLifecycleRegistry
             ->where('type', 'non_sql')
             ->values()
             ->all();
+    }
+
+    /**
+     * TASK-1638 — les lignes d'une entree BLOCK que la suppression sait RESOUDRE.
+     *
+     * Declarees UNE SEULE FOIS, au registre. `countEntry()` les retire du
+     * comptage et `UserDeletionExecutor` les purge : les deux lisent CETTE
+     * methode, aucun service ne reecrit la valeur.
+     *
+     * @return array{column: string, value: string}|null
+     */
+    public static function resolvableRows(string $key): ?array
+    {
+        foreach (self::entries() as $entry) {
+            if ($entry['key'] === $key) {
+                return $entry['resolvable_rows'] ?? null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Retire du comptage les lignes resolvables d'une entree.
+     *
+     * La regle est un TOUT OU RIEN par compte : ce qui reste apres exclusion
+     * est le nombre de lignes qui bloquent VRAIMENT. Zero => plus de blocage ;
+     * une seule ligne d'une autre raison => l'entree bloque, avec ce compte.
+     */
+    public static function excludeResolvableRows(Builder $query, array $entry, ?string $table = null): void
+    {
+        $resolvable = $entry['resolvable_rows'] ?? null;
+
+        if ($resolvable === null) {
+            return;
+        }
+
+        $table ??= $entry['table'] ?? null;
+
+        // Colonne declaree mais absente du schema : on n'exclut RIEN, donc
+        // l'entree continue de bloquer. Le defaut se voit (garde de coherence),
+        // il ne se traduit jamais par une suppression qu'on n'avait pas voulue.
+        if ($table === null || ! Schema::hasColumn($table, $resolvable['column'])) {
+            return;
+        }
+
+        // `point_ledger.reason` est NOT NULL : `!=` couvre donc toutes les
+        // lignes qui ne sont pas exactement la raison declaree.
+        $query->where($table.'.'.$resolvable['column'], '!=', $resolvable['value']);
     }
 
     public function preview(User $user, ?Organization $organization = null): array
@@ -382,6 +496,12 @@ class UserDataLifecycleRegistry
         }
 
         $this->applyOrganizationScope($query, $table, $entry['org_scope'] ?? 'none', $organization);
+
+        // TASK-1638 — ce que la suppression sait resoudre ne compte pas comme un
+        // blocage. `preview()` (SuperAdmin ET OrgAdmin) et le precheck de
+        // l'executor passent tous les deux par ici : la regle ne peut pas
+        // diverger entre l'ecran et l'execution.
+        self::excludeResolvableRows($query, $entry, $table);
 
         return $query->count();
     }

@@ -23,6 +23,13 @@ class AdminSystemEmailTemplatesController extends Controller
             $query->where('locale', $request->locale);
         }
 
+        // TASK-1659 : permet d'arriver directement sur les gabarits d'UNE
+        // fonctionnalite (ex. « Gérer le modèle d'email » depuis
+        // /admin/users/bulk-create), plutot que sur la liste entiere.
+        if ($request->filled('slug')) {
+            $query->where('slug', $request->slug);
+        }
+
         $templates = $query->get();
         $organizations = Organization::orderBy('name')->get();
 

@@ -183,6 +183,12 @@
         </style>
     </head>
     <body class="font-sans antialiased">
+        {{-- TASK-1654 — le bandeau du mode persona, en UN seul endroit.
+             Voir `components/persona-banner.blade.php` : il est aussi inclus par
+             le layout org-admin, qu'un persona administrateur de SA sandbox
+             peut atteindre. --}}
+        <x-persona-banner />
+
         {{-- Admin impersonation banner --}}
         @if(session('admin_original_id'))
         <div class="bg-amber-500 text-amber-950 px-4 py-2 text-sm font-medium flex items-center justify-center gap-3">

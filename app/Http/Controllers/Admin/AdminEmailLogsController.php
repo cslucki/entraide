@@ -13,13 +13,21 @@ class AdminEmailLogsController extends Controller
     {
         $status = $request->input('status');
         $search = $request->input('search');
+        // TASK-1659 : arriver directement sur les emails d'UNE fonctionnalite
+        // (ex. « Voir l'historique des emails » depuis /admin/users/bulk-create).
+        // `data->source` est pose par chaque mailer du depot.
+        $source = $request->input('source');
 
         $logs = EmailLog::with(['template:id,slug,name', 'user:id,name,email'])
             ->when($status, fn ($q) => $q->where('status', $status))
-            ->when($search, fn ($q) => $q->where('to_email', 'like', "%{$search}%")
-                ->orWhere('subject', 'like', "%{$search}%"))
+            ->when($source, fn ($q) => $q->where('data->source', $source))
+            // Groupe a dessein : sans parentheses, le `orWhere` s'evaderait
+            // des filtres ci-dessus et ramenerait des lignes hors perimetre.
+            ->when($search, fn ($q) => $q->where(fn ($sub) => $sub->where('to_email', 'like', "%{$search}%")
+                ->orWhere('subject', 'like', "%{$search}%")))
             ->orderBy('created_at', 'desc')
-            ->paginate(30);
+            ->paginate(30)
+            ->withQueryString();
 
         $stats = [
             'total' => EmailLog::count(),
@@ -27,7 +35,7 @@ class AdminEmailLogsController extends Controller
             'failed' => EmailLog::where('status', 'failed')->count(),
         ];
 
-        return view('admin.email-logs.index', compact('logs', 'stats', 'status', 'search'));
+        return view('admin.email-logs.index', compact('logs', 'stats', 'status', 'search', 'source'));
     }
 
     public function show(EmailLog $emailLog): View

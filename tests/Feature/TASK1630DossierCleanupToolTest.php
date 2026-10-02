@@ -81,8 +81,15 @@ class TASK1630DossierCleanupToolTest extends TestCase
             $this->assertStringContainsString($nom, $html);
         }
 
-        $this->assertStringContainsString($this->orgA->name, $html);
-        $this->assertStringContainsString($this->orgB->name, $html);
+        // TASK-1635 : comparer au nom ECHAPPE, pas au nom brut. Les noms
+        // d'Organization viennent de Faker ; des qu'il en tire un qui porte une
+        // apostrophe — « Gulgowski-D'Amore », frequent — Blade rend `&#039;` et
+        // l'assertion sur la chaine brute echoue. Le test passait ou echouait
+        // selon le tirage, et la redistribution des shards de cette branche l'a
+        // fait tomber du mauvais cote. Les noms de Dossiers ci-dessus sont
+        // litteraux, donc non concernes.
+        $this->assertStringContainsString(e($this->orgA->name), $html);
+        $this->assertStringContainsString(e($this->orgB->name), $html);
 
         // Et la classification, lue par la primitive que le serveur utilise.
         $eligibility = app(DossierPurgeEligibility::class);

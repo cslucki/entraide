@@ -80,6 +80,21 @@ class LoopController extends Controller
         return $user->organization;
     }
 
+    /**
+     * APPARTENANCE au tenant. Inchangee.
+     *
+     * Appelee vingt-trois fois dans ce controleur, sur des gestes qui supposent
+     * d'ETRE de la maison : creer une Boucle, la modifier, inviter, rejoindre,
+     * quitter, ecrire, archiver. Un SuperAdmin plateforme n'y est PAS exempte —
+     * inspecter un tenant n'est pas y participer.
+     *
+     * TASK-1658 avait d'abord branche cette methode sur
+     * `canAccessOrganization()`. C'etait trop large : l'exemption se propageait
+     * aux vingt-trois sites, dont `create`, `store`, `join` et `leave`. Cinq
+     * tests existants l'ont refuse, dont un sans ambiguite —
+     * « loops create returns 404 for admin without organization ». Voir
+     * {@see assertUserCanInspectOrganization()} pour la lecture.
+     */
     private function assertUserBelongsToOrganization(Organization $organization): void
     {
         $user = auth()->user();
@@ -88,6 +103,23 @@ class LoopController extends Controller
         if ($orgId !== $organization->id) {
             abort(404);
         }
+    }
+
+    /**
+     * TASK-1658 — INSPECTION du tenant : appartenance OU SuperAdmin plateforme.
+     *
+     * Reservee aux surfaces de LECTURE que le SuperAdmin doit pouvoir consulter
+     * sans etre membre. Elle porte un nom different de
+     * {@see assertUserBelongsToOrganization()} a dessein : la difference entre
+     * les deux est la frontiere entre consulter et agir, et un nom unique pour
+     * les deux l'aurait effacee.
+     *
+     * Employee au seul `index()` — le catalogue des Boucles, l'une des deux
+     * surfaces que la recette humaine a trouvees en 404.
+     */
+    private function assertUserCanInspectOrganization(Organization $organization): void
+    {
+        abort_unless(auth()->user()?->canAccessOrganization($organization), 404);
     }
 
     private function resolveOrganizationId(): string
@@ -228,7 +260,7 @@ class LoopController extends Controller
     {
         $organizationId = $this->resolveOrganizationId();
         $organization = $this->resolveOrganization();
-        $this->assertUserBelongsToOrganization($organization);
+        $this->assertUserCanInspectOrganization($organization);
 
         $user = auth()->user();
 

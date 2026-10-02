@@ -9,6 +9,7 @@ use App\Support\AssignData\DatasetClassification;
 use App\Support\AssignData\DatasetRegistry;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\RedirectResponse;
+use App\Support\ScenarioManager\SandboxGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -182,6 +183,24 @@ class AdminAssignDataController extends Controller
         }
 
         $organization = Organization::query()->findOrFail($data['organization_id']);
+
+        // TASK-1650 — jamais vers une sandbox de scenario.
+        //
+        // Trouve a la TROISIEME relecture, et c'est le plus grave des trois :
+        // cet ecran affecte EN MASSE toutes les lignes sans Organization.
+        // Sur `users`, cela versait d'un coup dans la sandbox tous les comptes
+        // reels orphelins — la population que la suppression d'Organization
+        // fabrique justement.
+        //
+        // Et depuis que T1650 a ferme les SORTIES, l'effet n'est plus une
+        // fuite mais un PIEGE : ces comptes ne peuvent plus ressortir par
+        // `/admin/users`, la sandbox ne peut plus etre supprimee par l'ecran
+        // generique, et le preflight refuse Reset comme Remove parce qu'elle
+        // contient desormais du contenu etranger. Fermer les sorties sans
+        // fermer les entrees enferme les gens.
+        if (SandboxGuard::estUneSandbox($organization)) {
+            return back()->with('error', SandboxGuard::messageDestination($organization));
+        }
 
         $updated = DB::transaction(
             // `whereNull` : on ne touche QUE les lignes sans Organization.

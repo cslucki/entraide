@@ -4,7 +4,9 @@ use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\CheckAiProfilesEnabled;
 use App\Http\Middleware\CheckLoopsEnabled;
 use App\Http\Middleware\ConsumeOrgParams;
+use App\Http\Middleware\EnsureInvitationPasswordIsSet;
 use App\Http\Middleware\EnsureProfileComplete;
+use App\Http\Middleware\EnsureScenarioPersonaContextIsValid;
 use App\Http\Middleware\EnsureOrganizationMember;
 use App\Http\Middleware\EnsureUserIsNotBanned;
 use App\Http\Middleware\ResolveApiOrganization;
@@ -34,6 +36,20 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // TASK-1649 — le document d'un scenario n'est PAS rogne.
+        //
+        // `TrimStrings` coupe les extremites de toute chaine recue. C'est le
+        // bon reflexe pour un nom ou une cle. C'en est un mauvais pour le
+        // texte d'un Manifest : le CDC 9.2 promet que le document est conserve
+        // TEL QUEL, meme invalide, et le digest se calcule sur ce qui est
+        // stocke. Un octet rogne en silence, et le texte exporte cesse d'etre
+        // celui qui a ete colle.
+        //
+        // Mesure du 27/09/2026 : un document colle se terminant par un espace
+        // etait enregistre sans lui. L'exemption est volontairement NOMMEE et
+        // etroite — `json` seulement, les autres champs restent rognes.
+        $middleware->trimStrings(except: ['json']);
+
         // TASK-1602 — un parcours commence DANS une Organization y reste.
         //
         // Le repli par defaut de Laravel envoie tout invite sur `route('login')`,
@@ -104,11 +120,28 @@ return Application::configure(basePath: dirname(__DIR__))
             StartSession::class,
             ShareErrorsFromSession::class,
             PreventRequestForgery::class,
+            // TASK-1654 — le mode persona se reverifie a chaque requete et se
+            // ferme seul quand une condition tombe.
+            //
+            // Place ICI, et l'ordre compte deux fois. APRES `PreventRequestForgery`,
+            // pour qu'une requete sans jeton valide ne declenche aucune bascule
+            // d'identite. Et AVANT `EnsureUserIsNotBanned`, parce qu'un persona
+            // banni pendant la session serait sinon renvoye au login par cette
+            // garde-la — et l'administrateur d'origine serait perdu au lieu
+            // d'etre restaure.
+            //
+            // Hors mode persona : une lecture de session, aucune requete SQL.
+            EnsureScenarioPersonaContextIsValid::class,
             EnsureUserIsNotBanned::class,
             ResolveUrlOrganization::class,
             ResolveOrganization::class,
             SetLocale::class,
             SubstituteBindings::class,
+            // TASK-1659 — un compte cree par invitation doit poser son mot de
+            // passe avant d'aller ou que ce soit. APRES SubstituteBindings :
+            // la garde s'exprime en noms de routes, qui doivent etre resolus.
+            // Ne coute qu'une lecture d'attribut deja charge pour tout le monde.
+            EnsureInvitationPasswordIsSet::class,
         ]);
         $middleware->appendToGroup('api', [
             ResolveApiOrganization::class,

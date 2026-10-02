@@ -58,6 +58,45 @@ class ScenarioPackEntityRegistrar
     public function __construct(private readonly ScenarioPackLoad $load) {}
 
     /**
+     * TASK-1653 — l'instant EXACT a partir duquel ce passage materialise les
+     * offsets du Manifest.
+     */
+    private ?\DateTimeImmutable $ancreDuMonde = null;
+
+    /**
+     * Le pack DECLARE l'ancre qu'il utilise, et l'appelant la persiste.
+     *
+     * ## Pourquoi ici, et pas par la signature d'`apply()`
+     *
+     * `ScenarioPackDefinition::apply()` est un contrat partage par tous les
+     * packs : y ajouter un parametre les toucherait tous pour un besoin qui
+     * n'appartient qu'au Manifest. Le registrar, lui, appartient DEJA a ce
+     * chargement precis — il est construit a partir de la ligne
+     * `scenario_pack_loads` et n'existe que le temps du passage. C'est donc le
+     * porteur naturel des faits sur CE chargement.
+     *
+     * Et il couvre les deux chemins sans rien dupliquer : `ScenarioPackLoader`
+     * comme `ScenarioPackResetter` appellent le meme `apply()` avec un
+     * registrar.
+     */
+    public function declarerLAncreDuMonde(\DateTimeImmutable $ancre): void
+    {
+        $this->ancreDuMonde = $ancre;
+    }
+
+    /**
+     * L'ancre declaree par le pack, ou `null` s'il n'en declare pas.
+     *
+     * `null` est un etat legitime : les packs qui ne materialisent aucun
+     * offset temporel n'ont pas d'ancre a declarer, et il ne faut surtout pas
+     * leur en inventer une.
+     */
+    public function ancreDuMonde(): ?\DateTimeImmutable
+    {
+        return $this->ancreDuMonde;
+    }
+
+    /**
      * Declare qu'une entite du pack correspond a `$entity`. Idempotent :
      * rejouer avec la meme (`entityType`, `internalKey`) retrouve et met a
      * jour la meme ligne de registre plutot que d'en creer une seconde.

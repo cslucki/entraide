@@ -7,6 +7,7 @@ use App\Models\PointLedger;
 use App\Models\User;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\JsonResponse;
+use App\Support\ScenarioManager\SandboxGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -26,6 +27,17 @@ class AuthController extends Controller
         ]);
 
         $organization = currentOrganization() ?? DefaultOrganizationResolver::resolve();
+
+        // TASK-1650 — le MEME refus que la route web, par le MEME predicat.
+        //
+        // Ce controleur est une copie ligne pour ligne de l'inscription web.
+        // La garde n'avait ete posee que sur l'une des deux : un predicat de
+        // securite recopie est un predicat qui diverge.
+        if (SandboxGuard::estUneSandbox($organization)) {
+            return response()->json([
+                'message' => "Cette organisation est un monde de demonstration : on ne peut pas s'y inscrire.",
+            ], 422);
+        }
 
         if (! $organization) {
             throw ValidationException::withMessages([

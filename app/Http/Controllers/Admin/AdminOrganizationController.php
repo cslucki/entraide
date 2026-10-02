@@ -9,7 +9,9 @@ use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\AiRerankSettings;
 use Illuminate\Http\RedirectResponse;
+use App\Support\ScenarioManager\SandboxGuard;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -109,6 +111,40 @@ class AdminOrganizationController extends Controller
 
     public function update(Request $request, Organization $organization): RedirectResponse
     {
+        // TASK-1650 — deux refus qui protegent la frontiere des sandboxes.
+        //
+        // 1. Un PERSONA ne devient pas responsable d'une vraie Organization.
+        //    `admin_id` n'exige aucune appartenance, et la liste proposee
+        //    montre tous les comptes non bannis : les personas d'une sandbox
+        //    y figurent, indiscernables de vrais membres. Or `admin_id`
+        //    confere OrgAdmin sur tout `/org/{slug}/admin`. C'est T1650 qui
+        //    donne un `admin_id` aux personas pour la premiere fois, donc
+        //    c'est ici que la frontiere se pose. Effet de bord mesure en
+        //    revue : la colonne etant en RESTRICT, le persona devenait en plus
+        //    insupprimable, et sa sandbox irretirable POUR TOUJOURS.
+        //
+        // 2. Le SLUG d'une sandbox ne se modifie pas. L'identite des personas
+        //    en derive (`prenom@slug.domaine`) : liberer un slug permettait a
+        //    une sandbox suivante de le reprendre et de capturer, par
+        //    `updateOrCreate`, les comptes de la premiere.
+        $designe = $request->input('admin_id');
+
+        if (is_string($designe) && $designe !== '') {
+            $futurResponsable = User::query()->find($designe);
+
+            if (SandboxGuard::appartientAUneSandbox($futurResponsable)
+                && ! SandboxGuard::estUneSandbox($organization)) {
+                return back()->with('error', "Ce compte est un persona de sandbox de scenario : il ne peut pas devenir responsable d'une Organization reelle.");
+            }
+        }
+
+        $slugDemande = $request->input('slug');
+
+        if (SandboxGuard::estUneSandbox($organization)
+            && is_string($slugDemande) && $slugDemande !== '' && $slugDemande !== $organization->slug) {
+            return back()->with('error', "Le slug d'une sandbox de scenario ne se modifie pas : l'identite de ses personas en derive.");
+        }
+
         $data = $request->validate([
             'name' => 'required|string|max:100|unique:organizations,name,'.$organization->id,
             'slug' => 'nullable|string|max:100|unique:organizations,slug,'.$organization->id.'|regex:/^[a-z0-9\-]+$/',
@@ -327,14 +363,52 @@ class AdminOrganizationController extends Controller
             && parse_url($url, PHP_URL_SCHEME) === 'https';
     }
 
+    /**
+     * TASK-1634 — detacher puis supprimer est UNE seule operation.
+     *
+     * Les quatre UPDATE ne sont pas redondants avec le `ON DELETE SET NULL`
+     * du schema : ces contraintes sont ajoutees par `Schema::table()` sur des
+     * tables existantes, ce que SQLite n'applique pas. Ils restent donc le
+     * seul mecanisme de detachement sur ce moteur.
+     *
+     * Hors transaction, ces cinq ecritures etaient cinq autocommits : une
+     * panne avant le DELETE laissait l'Organization en place avec ses donnees
+     * deja detachees. La transaction ferme cette fenetre.
+     */
     public function destroy(Organization $organization): RedirectResponse
     {
-        $organization->users()->update(['organization_id' => null]);
-        $organization->services()->update(['organization_id' => null]);
-        $organization->serviceRequests()->update(['organization_id' => null]);
-        $organization->transactions()->update(['organization_id' => null]);
+        // TASK-1650 — une sandbox de scenario ne se supprime PAS ici.
+        //
+        // Mesure faite en revue : la suppression ci-dessous DETACHE les
+        // comptes (`organization_id` a NULL) avant de supprimer
+        // l'Organization. Sur une sandbox, cela laissait ses personas en base
+        // comme des comptes sans Organization, indiscernables de vrais
+        // comptes, pendant que le registre partait en cascade — donc plus rien
+        // ne disait d'ou ils venaient, et la version repassait VALID en
+        // silence. Aucun preflight n'etait consulte : le contenu qu'une
+        // personne reelle aurait produit dans la sandbox partait sans un mot.
+        //
+        // Le Scenario Manager, lui, sait faire les deux : verifier ce que la
+        // sandbox contient, et supprimer REELLEMENT les personas plutot que
+        // de les detacher. On renvoie donc vers lui au lieu de refaire ici un
+        // second chemin de destruction qui divergerait du premier.
+        //
+        // La suppression d'une Organization ORDINAIRE est inchangee.
+        if ($organization->scenario_sandbox_created_at !== null) {
+            return back()->with('error', sprintf(
+                "« %s » est une sandbox de scenario : elle se retire depuis Outils -> Scenarios, par le bouton Retirer de sa version. Supprimer une Organization ici detacherait ses personas au lieu de les supprimer.",
+                $organization->name
+            ));
+        }
 
-        $organization->forceDelete();
+        DB::transaction(function () use ($organization) {
+            $organization->users()->update(['organization_id' => null]);
+            $organization->services()->update(['organization_id' => null]);
+            $organization->serviceRequests()->update(['organization_id' => null]);
+            $organization->transactions()->update(['organization_id' => null]);
+
+            $organization->forceDelete();
+        });
 
         return back()->with('success', "Organisation « {$organization->name} » supprimée définitivement.");
     }

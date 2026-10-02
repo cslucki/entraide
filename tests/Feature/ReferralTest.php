@@ -526,7 +526,21 @@ class ReferralTest extends TestCase
     // Cascading deletes
     // -------------------------------------------------------------------------
 
-    public function test_deleting_user_cascades_to_referrals(): void
+    /**
+     * TASK-1635 — ce test disait l'inverse jusqu'ici.
+     *
+     * Il affirmait que supprimer un parrain DETRUISAIT le parrainage.
+     * `UserDataLifecycleRegistry` classe pourtant `referrals.referrer_user_id`
+     * en RETAIN depuis longtemps : un historique de parrainage doit survivre a
+     * ses acteurs. Le schema disait CASCADE, et c'est lui qui gagnait.
+     *
+     * La migration M1 pose `nullable` + `ON DELETE SET NULL` : l'historique
+     * reste, l'attribution disparait. Aucun compte sentinelle n'est cree.
+     *
+     * Le tenant, lui, ne bouge pas : `organization_id` reste intact
+     * (TASK-1633 est close).
+     */
+    public function test_deleting_user_detaches_referral_but_keeps_the_history(): void
     {
         $referrer = User::factory()->create();
         $referred = User::factory()->create();
@@ -538,7 +552,12 @@ class ReferralTest extends TestCase
 
         $referrer->delete();
 
-        $this->assertDatabaseMissing('referrals', ['id' => $referral->id]);
+        $this->assertDatabaseHas('referrals', [
+            'id' => $referral->id,
+            'referrer_user_id' => null,
+            'referred_user_id' => $referred->id,
+            'organization_id' => $this->org->id,
+        ]);
     }
 
     public function test_deleting_referral_cascades_to_rewards(): void

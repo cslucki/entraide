@@ -105,6 +105,10 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_available' => 'boolean',
+            // TASK-1659 — deliberement HORS `$fillable`, comme
+            // `email_verified_at` : seul le parcours d'invitation le pose,
+            // et seul l'ecran de definition du mot de passe le retire.
+            'must_set_password' => 'boolean',
             'is_admin' => 'boolean',
             'show_email' => 'boolean',
             'show_phone' => 'boolean',
@@ -168,6 +172,52 @@ class User extends Authenticatable implements MustVerifyEmail
     public function getIsDeactivatedAttribute(): bool
     {
         return $this->banned_at !== null;
+    }
+
+    /**
+     * TASK-1658 — cette personne peut-elle ACCEDER a cette Organization ?
+     *
+     * L'autorite unique de l'acces au tenant. Elle repond a « as-tu le droit
+     * d'entrer ici », et a rien d'autre.
+     *
+     * ## Pourquoi elle existe
+     *
+     * Le depot posait cette question A LA MAIN, huit fois, par
+     * `$user->organization_id !== $organization->id` — plus vingt-trois appels
+     * a un helper prive de `LoopController`. Aucune n'exemptait le SuperAdmin
+     * plateforme : il recevait donc un 404 sur les surfaces d'une Organization
+     * dont il n'est pas membre, alors qu'il doit pouvoir inspecter n'importe
+     * quel tenant.
+     *
+     * ## Ce qu'elle N'accorde PAS
+     *
+     * Aucun membership, ni d'Organization ni de Boucle. Le SuperAdmin garde son
+     * `organization_id`, son identite et ses droits ; il n'acquiert aucun role
+     * de participant. Entrer n'est pas participer : repondre a un evenement,
+     * transiger ou posseder restent gardes ailleurs, et T1658 n'y touche pas.
+     *
+     * ## Ce qu'elle ne remplace pas
+     *
+     * Les cent trente-cinq gardes qui comparent un OBJET a l'Organization
+     * courante — « ce Dossier appartient-il bien a ce tenant ? ». Celles-la SONT
+     * l'isolation de tenant : les contourner ferait fuiter des donnees d'une
+     * Organization vers l'URL d'une autre. Elles restent intactes.
+     */
+    public function canAccessOrganization(Organization|string|null $organization): bool
+    {
+        if ($organization === null) {
+            return false;
+        }
+
+        $identifiant = $organization instanceof Organization ? $organization->id : $organization;
+
+        // Le SuperAdmin plateforme passe. C'est la SEULE exemption, et elle est
+        // explicite plutot que disseminee.
+        if ($this->is_admin) {
+            return true;
+        }
+
+        return $this->organization_id !== null && $this->organization_id === $identifiant;
     }
 
     public function isDeactivated(): bool

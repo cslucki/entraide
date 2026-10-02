@@ -99,6 +99,30 @@ class RegisteredUserController extends Controller
             ]);
         }
 
+        // TASK-1650 — on ne s'INSCRIT pas dans une sandbox de scenario.
+        //
+        // Mesure faite en revue, et le contournement etait total : `/register`
+        // vit sous `/org/{organization}`, et la resolution par slug n'exige
+        // que `is_active`, jamais `is_public`. Une sandbox nait active. Donc
+        // `POST /org/<slug-sandbox>/register` inscrivait n'importe qui dans la
+        // sandbox, SANS authentification — et le slug est affiche sur l'ecran
+        // du Scenario Manager.
+        //
+        // La consequence etait l'inverse exact du but recherche : le preflight
+        // voyait ensuite un compte etranger et refusait Reset ET Remove, et la
+        // garde de `/admin/users` interdisait de sortir ce compte. La sandbox
+        // devenait irretirable par tout geste produit.
+        //
+        // Le refus est pose ICI, apres la resolution et AVANT toute creation
+        // de compte. La sandbox reste parfaitement NAVIGABLE : c'est un monde
+        // de demonstration, et la fermer entierement lui oterait sa raison
+        // d'etre. Seule l'inscription est fermee.
+        if ($organization->scenario_sandbox_created_at !== null) {
+            throw ValidationException::withMessages([
+                'email' => "Cette organisation est un monde de demonstration : on ne peut pas s'y inscrire.",
+            ]);
+        }
+
         $user = User::create([
             'name' => $request->name,
             'first_name' => $request->first_name,
