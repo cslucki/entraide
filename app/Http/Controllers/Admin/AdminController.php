@@ -1249,9 +1249,65 @@ class AdminController extends Controller
                 ->values(),
             'requires_transfer' => $precheck['requires_transfer'],
             'transfer_total' => array_sum($precheck['transferable']),
+            // TASK-1667 — « 3 contenus a confier » ne disait pas LESQUELS. Le
+            // detail par famille etait deja calcule par `precheck()` ; seul
+            // `array_sum()` ci-dessus le jetait. On l'expose, sans une seule
+            // requete de plus.
+            'transfers' => $this->transferDetails($user, $precheck['transferable']),
             'transfer_candidates' => $candidats,
             'preview_fingerprint' => $this->deletePreviewFingerprint($precheck),
         ]);
+    }
+
+    /**
+     * Le detail, famille par famille, de ce qu'une suppression ferait changer
+     * de main.
+     *
+     * TASK-1667 — on demandait a l'admin de choisir un destinataire pour des
+     * contenus qu'il n'avait pas vus. Chaque famille non vide sort donc avec
+     * son compte et, quand un ecran d'administration existe, un lien vers ce
+     * qu'elle contient.
+     *
+     * `feed_posts` n'a AUCUN ecran d'administration dans ce depot : son compte
+     * sort donc sans `url`. Mieux vaut un nombre sans lien qu'un lien vers une
+     * page qui n'existe pas.
+     *
+     * @param  array<string, int>  $transferable
+     * @return list<array{key: string, label: string, count: int, url?: string}>
+     */
+    private function transferDetails(User $user, array $transferable): array
+    {
+        $ecrans = [
+            'blog_posts' => 'admin.blog',
+            'services' => 'admin.services',
+            'service_requests' => 'admin.requests',
+            // 'feed_posts' — volontairement absent : aucun ecran n'existe.
+        ];
+
+        $details = [];
+
+        foreach ($transferable as $cle => $nombre) {
+            if ($nombre < 1) {
+                continue;
+            }
+
+            $detail = [
+                'key' => $cle,
+                'label' => __('admin.user_delete_transfer_family_'.$cle),
+                'count' => $nombre,
+            ];
+
+            if (isset($ecrans[$cle])) {
+                $detail['url'] = route($ecrans[$cle], array_filter([
+                    'organization_id' => $user->organization_id,
+                    'user_id' => $user->id,
+                ]));
+            }
+
+            $details[] = $detail;
+        }
+
+        return $details;
     }
 
     /**
