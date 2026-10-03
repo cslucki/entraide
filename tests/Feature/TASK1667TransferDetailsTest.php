@@ -389,6 +389,17 @@ class TASK1667TransferDetailsTest extends TestCase
             ->assertOk();
     }
 
+    public function test_le_grand_livre_est_atteignable_depuis_le_rail_gauche(): void
+    {
+        // Rappel T1656 : une capacite non exposee est une capacite ABSENTE.
+        // L'ecran peut etre livre et teste sans qu'aucune poignee n'y mene.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee(route('admin.points'), false)
+            ->assertSee(__('admin.points_nav'), false);
+    }
+
     // ───────────────────── la modal ─────────────────────
 
     public function test_la_modal_sait_rendre_le_detail(): void

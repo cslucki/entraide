@@ -1628,6 +1628,7 @@ return [
     'contents_filtered_on_user' => "Contenus de :name.",
     'contents_filtered_clear' => 'Voir tous les contenus',
     // TASK-1667 — grand livre des points et liens de blocage.
+    'points_nav' => 'Grand livre des points',
     'points_intro' => "Historique comptable des points, en lecture seule. Une ecriture ne se supprime pas : c'est pourquoi elle empeche la suppression d'un compte.",
     'points_reason_placeholder' => 'Motif…',
     'points_filtered_on_user' => 'Ecritures de :name — solde :solde.',

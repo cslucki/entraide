@@ -1616,6 +1616,7 @@ return [
     'contents_filtered_on_user' => 'Contents of :name.',
     'contents_filtered_clear' => 'View all contents',
     // TASK-1667 — grand livre des points et liens de blocage.
+    'points_nav' => 'Points ledger',
     'points_intro' => 'Points ledger, read only. An entry cannot be deleted: that is why it blocks account deletion.',
     'points_reason_placeholder' => 'Reason…',
     'points_filtered_on_user' => 'Entries for :name — balance :solde.',
