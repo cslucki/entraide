@@ -1,6 +1,12 @@
 <x-admin-layout title="Transactions">
     <!-- Filters -->
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
+        {{-- TASK-1665 — un echange cible par la modal de suppression d'un membre
+             reste cible si on affine ensuite par statut. Sans ce champ, filtrer
+             effacerait la cible EN SILENCE et elargirait la liste. --}}
+        @if(request()->filled('transaction_id'))
+        <input type="hidden" name="transaction_id" value="{{ request('transaction_id') }}">
+        @endif
         <input type="text" name="search" value="{{ request('search') }}" placeholder="Nom acheteur ou vendeur..."
             class="flex-1 min-w-48 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
         <select name="status" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
@@ -19,10 +25,20 @@
             @endforeach
         </select>
         <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Filtrer</button>
-        @if(request()->hasAny(['search', 'status', 'organization_id']))
+        @if(request()->hasAny(['search', 'status', 'organization_id', 'transaction_id']))
         <a href="{{ route('admin.transactions') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">Effacer</a>
         @endif
     </form>
+
+    {{-- TASK-1665 — un filtrage sur un echange unique doit se VOIR : sinon une
+         liste a une ligne se lit comme « il n'y a qu'un echange ». --}}
+    @if(request()->filled('transaction_id'))
+    <div class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300">
+        <span>{{ __('admin.transactions_filtered_on_one', ['short' => strtoupper(substr((string) request('transaction_id'), 0, 8))]) }}</span>
+        <a href="{{ route('admin.transactions', array_filter(['organization_id' => request('organization_id')])) }}"
+           class="font-medium underline">{{ __('admin.transactions_filtered_clear') }}</a>
+    </div>
+    @endif
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <table class="w-full text-sm">

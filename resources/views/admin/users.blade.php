@@ -511,7 +511,23 @@
                     <ul class="space-y-2 mb-6">
                         <template x-for="block in blocks" :key="block.message">
                             <li class="text-sm text-gray-600 dark:text-gray-400 flex gap-2">
-                                <span class="text-red-500">&bull;</span><span x-text="block.message"></span>
+                                <span class="text-red-500">&bull;</span>
+                                <span>
+                                    <span x-text="block.message"></span>
+                                    {{-- TASK-1665 — quand le serveur sait OU aller pour lever le
+                                         blocage, il le dit. Rien ne s'affiche sinon : pas de puce
+                                         vide, pas de marge orpheline. --}}
+                                    <template x-if="block.links && block.links.length > 0">
+                                        <span class="mt-1 flex flex-col gap-0.5">
+                                            <template x-for="lien in block.links" :key="lien.url">
+                                                <a :href="lien.url"
+                                                   class="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+                                                    <span x-text="lien.label"></span> &rarr;
+                                                </a>
+                                            </template>
+                                        </span>
+                                    </template>
+                                </span>
                             </li>
                         </template>
                     </ul>
