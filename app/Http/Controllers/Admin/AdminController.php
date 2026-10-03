@@ -693,7 +693,19 @@ class AdminController extends Controller
 
     public function transactions(Request $request): View
     {
-        $query = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->with(['buyer', 'seller', 'service', 'serviceRequest', 'organization']);
+        // TASK-1666 — `withCount` plutot qu'un comptage par ligne dans la vue :
+        // un compteur par ligne couterait une requete par echange affiche, et
+        // c'est exactement le defaut mesure en T1640 (421 requetes pour 9 lignes).
+        $query = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->withCount([
+                'messages',
+                // Un echange porte toujours un message SYSTEME d'ouverture
+                // (« Conversation directe démarrée. », `sender_id` nul). Compter
+                // separement les messages humains evite de promettre une
+                // discussion la ou il n'y a qu'un marqueur technique.
+                'messages as human_messages_count' => fn ($q) => $q->whereNotNull('sender_id'),
+            ])
+            ->with(['buyer', 'seller', 'service', 'serviceRequest', 'organization']);
         $organizations = $this->adminOrganizations();
         $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
 

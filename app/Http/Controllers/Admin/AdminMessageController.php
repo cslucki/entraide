@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class AdminMessageController extends Controller
@@ -25,6 +26,19 @@ class AdminMessageController extends Controller
         $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
         $perPage = 25;
 
+        // TASK-1666 — une conversation d'echange ne vit que dans les messages
+        // d'echange. Un `transaction_id` impose donc l'onglet `exchanges` :
+        // sans cela le lien tomberait sur l'onglet ChatLoop par defaut et
+        // paraitrait vide alors que la conversation existe. Un faux « il n'y a
+        // rien » est pire qu'une erreur : il se croit informatif.
+        $transactionId = $request->filled('transaction_id')
+            ? (string) $request->input('transaction_id')
+            : null;
+
+        if ($transactionId !== null) {
+            $filter = 'exchanges';
+        }
+
         $messages = match ($filter) {
             'chatloop' => $this->applyOrganizationFilter(LoopMessage::query(), $selectedOrganizationId)
                 ->with(['sender:id,name,email', 'loop:id,name'])
@@ -32,7 +46,10 @@ class AdminMessageController extends Controller
                 ->paginate($perPage)
                 ->withQueryString(),
 
-            'exchanges' => $this->applyOrganizationFilter(Message::query(), $selectedOrganizationId)
+            'exchanges' => $this->applyTransactionFilter(
+                $this->applyOrganizationFilter(Message::query(), $selectedOrganizationId),
+                $transactionId
+            )
                 ->with(['sender:id,name,email', 'transaction.buyer:id,name', 'transaction.seller:id,name'])
                 ->latest()
                 ->paginate($perPage)
@@ -41,7 +58,7 @@ class AdminMessageController extends Controller
             default => $this->unifiedFeed($selectedOrganizationId, $perPage),
         };
 
-        return view('admin.messages.index', compact('filter', 'messages', 'organizations', 'selectedOrganizationId'));
+        return view('admin.messages.index', compact('filter', 'messages', 'organizations', 'selectedOrganizationId', 'transactionId'));
     }
 
     private function unifiedFeed(string $organizationId, int $perPage): LengthAwarePaginator
@@ -74,6 +91,27 @@ class AdminMessageController extends Controller
             $page,
             ['path' => Paginator::resolveCurrentPath()]
         )->withQueryString();
+    }
+
+    /**
+     * TASK-1666 — borne une liste de messages a UNE conversation d'echange.
+     *
+     * La validation de forme est obligatoire AVANT la comparaison : PostgreSQL
+     * leve SQLSTATE 22P02 sur un texte qui n'est pas un UUID, la ou SQLite
+     * l'accepte sans broncher. Une forme invalide ne doit donc rien ramener,
+     * jamais produire une 500.
+     */
+    private function applyTransactionFilter($query, ?string $transactionId)
+    {
+        if ($transactionId === null) {
+            return $query;
+        }
+
+        if (! Str::isUuid($transactionId)) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where('transaction_id', $transactionId);
     }
 
     private function adminOrganizations(): Collection
