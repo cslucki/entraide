@@ -304,7 +304,11 @@ class AdminController extends Controller
                 'user_id' => $user->id,
                 'delta' => $data['delta'],
                 'organization_id' => $user->organization_id,
-                'reason' => 'adjustment',
+                // TASK-1667 — le motif etait VALIDE puis ignore : toute correction
+                // s'ecrivait « adjustment », y compris une remise a zero. Le
+                // defaut par defaut reste `adjustment`, donc rien ne change pour
+                // les appels qui n'en fournissent pas.
+                'reason' => $data['reason'] ?? 'adjustment',
             ]);
             $user->increment('points_balance', $data['delta']);
         });
@@ -721,12 +725,21 @@ class AdminController extends Controller
 
         $filteredUser = $this->applyAdminUserFilter($query, $request);
 
-        $entries = $query->latest('created_at')->paginate(25)->withQueryString();
+        // TASK-1667 — tri sur les colonnes, par liste BLANCHE.
+        // Passer `sort` directement a `orderBy()` laisserait choisir n'importe
+        // quelle colonne, y compris une qui n'est pas affichee.
+        $triables = ['created_at', 'delta', 'reason'];
+        $tri = in_array($request->input('sort'), $triables, true)
+            ? (string) $request->input('sort')
+            : 'created_at';
+        $sens = $request->input('direction') === 'asc' ? 'asc' : 'desc';
+
+        $entries = $query->orderBy($tri, $sens)->paginate(25)->withQueryString();
 
         $solde = (clone $query)->sum('delta');
 
         return view('admin.points', compact(
-            'organizations', 'selectedOrganizationId', 'entries', 'filteredUser', 'solde'
+            'organizations', 'selectedOrganizationId', 'entries', 'filteredUser', 'solde', 'tri', 'sens'
         ));
     }
 

@@ -1629,6 +1629,11 @@ return [
     'contents_filtered_clear' => 'Voir tous les contenus',
     // TASK-1667 — grand livre des points et liens de blocage.
     'points_nav' => 'Grand livre des points',
+    'points_adjust_title' => 'Corriger le solde de :name (actuellement :balance pts)',
+    'points_adjust_delta' => 'Mouvement',
+    'points_adjust_reason' => 'Motif (facultatif)',
+    'points_adjust_submit' => 'Appliquer',
+    'points_reset' => 'Remettre a zero (:balance pts)',
     'points_intro' => "Historique comptable des points, en lecture seule. Une ecriture ne se supprime pas : c'est pourquoi elle empeche la suppression d'un compte.",
     'points_reason_placeholder' => 'Motif…',
     'points_filtered_on_user' => 'Ecritures de :name — solde :solde.',

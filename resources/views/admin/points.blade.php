@@ -39,15 +39,84 @@
     </div>
     @endif
 
+    {{-- TASK-1667 — corriger le solde d'une personne, SANS toucher a l'historique.
+         Un grand livre est append-only : on n'edite pas une ecriture passee, on
+         en AJOUTE une qui corrige. Le solde bouge, la tracabilite reste — et
+         c'est precisement cette immuabilite qui fait qu'un solde bloque la
+         suppression d'un compte.
+         La primitive existe deja : `admin.users.adjust-points`. --}}
+    @if($filteredUser)
+    <div class="mb-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            {{ __('admin.points_adjust_title', ['name' => $filteredUser->full_name, 'balance' => $filteredUser->points_balance]) }}
+        </p>
+
+        <div class="flex flex-wrap items-end gap-4">
+            <form method="POST" action="{{ route('admin.users.adjust-points', $filteredUser) }}" class="flex flex-wrap items-end gap-2">
+                @csrf
+                <div>
+                    <label for="delta" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.points_adjust_delta') }}</label>
+                    <input id="delta" type="number" name="delta" step="1" required
+                           class="w-28 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+                </div>
+                <div>
+                    <label for="reason" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.points_adjust_reason') }}</label>
+                    <input id="reason" type="text" name="reason" maxlength="255"
+                           class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+                </div>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+                    {{ __('admin.points_adjust_submit') }}
+                </button>
+            </form>
+
+            {{-- Remise a zero : une ecriture de correction egale a l'oppose du
+                 solde. Masquee quand le solde est deja nul — un `delta` de 0 est
+                 refuse par la validation, et un bouton qui ne peut qu'echouer est
+                 pire que pas de bouton. --}}
+            @if($filteredUser->points_balance != 0)
+            {{-- Pas de `confirm()` natif : non gere par Playwright, il annule la
+                 soumission SANS erreur ni log (T1655). Le libelle nomme le montant
+                 exact, et l'action reste reversible par une autre ecriture. --}}
+            <form method="POST" action="{{ route('admin.users.adjust-points', $filteredUser) }}">
+                @csrf
+                <input type="hidden" name="delta" value="{{ -$filteredUser->points_balance }}">
+                <input type="hidden" name="reason" value="admin_reset">
+                <button type="submit" class="text-sm text-red-600 hover:underline">
+                    {{ __('admin.points_reset', ['balance' => $filteredUser->points_balance]) }}
+                </button>
+            </form>
+            @endif
+        </div>
+    </div>
+    @endif
+
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.points_col_date') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'created_at', 'direction' => ($tri === 'created_at' && $sens === 'asc') ? 'desc' : 'asc']) }}"
+                               class="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
+                                {{ __('admin.points_col_date') }}
+                                @if($tri === 'created_at')<span>{{ $sens === 'asc' ? '&uarr;' : '&darr;' }}</span>@endif
+                            </a>
+                        </th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.points_col_member') }}</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.points_col_delta') }}</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.points_col_reason') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'delta', 'direction' => ($tri === 'delta' && $sens === 'asc') ? 'desc' : 'asc']) }}"
+                               class="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
+                                {{ __('admin.points_col_delta') }}
+                                @if($tri === 'delta')<span>{{ $sens === 'asc' ? '&uarr;' : '&darr;' }}</span>@endif
+                            </a>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'reason', 'direction' => ($tri === 'reason' && $sens === 'asc') ? 'desc' : 'asc']) }}"
+                               class="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
+                                {{ __('admin.points_col_reason') }}
+                                @if($tri === 'reason')<span>{{ $sens === 'asc' ? '&uarr;' : '&darr;' }}</span>@endif
+                            </a>
+                        </th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.points_col_organization') }}</th>
                     </tr>
                 </thead>
