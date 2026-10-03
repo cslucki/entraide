@@ -64,8 +64,13 @@
          Pas de `confirm()` natif : non gere par Playwright, il annule la
          soumission SANS erreur ni log (T1655). La confirmation est une etape
          visible, qui nomme le nombre exact. --}}
-    <form method="POST" action="{{ route('admin.messages.bulk-destroy') }}"
-          x-data="{ choisis: [], confirme: false }">
+    {{-- Le formulaire groupe est pose A COTE du tableau, jamais autour : chaque
+         ligne porte deja son propre formulaire de suppression unitaire, et des
+         formulaires IMBRIQUES sont invalides en HTML — le navigateur supprime
+         les internes, ce qui casserait la suppression ligne a ligne.
+         Les cases s'y rattachent par l'attribut `form`. --}}
+    <div x-data="{ choisis: [], confirme: false }">
+    <form id="bulk-messages" method="POST" action="{{ route('admin.messages.bulk-destroy') }}">
         @csrf
         @method('DELETE')
         <input type="hidden" name="filter" value="{{ $filter }}">
@@ -73,6 +78,7 @@
         @if($transactionId)
         <input type="hidden" name="transaction_id" value="{{ $transactionId }}">
         @endif
+    </form>
 
         @if($filter !== 'all')
         <div class="mb-3 flex flex-wrap items-center gap-3" x-show="choisis.length > 0" x-cloak>
@@ -90,7 +96,7 @@
                 <span class="flex flex-wrap items-center gap-2">
                     <span class="text-sm font-medium text-red-600 dark:text-red-400"
                           x-text="'{{ __('admin.messages_bulk_confirm') }}'.replace(':count', choisis.length)"></span>
-                    <button type="submit" class="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
+                    <button type="submit" form="bulk-messages" class="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
                         {{ __('admin.messages_bulk_confirm_yes') }}
                     </button>
                     <button type="button" @click="confirme = false"
@@ -132,7 +138,7 @@
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
                     @if($filter !== 'all')
                     <td class="px-4 py-3">
-                        <input type="checkbox" name="ids[]" value="{{ $message->id }}" x-model="choisis"
+                        <input type="checkbox" name="ids[]" form="bulk-messages" value="{{ $message->id }}" x-model="choisis"
                                class="rounded border-gray-300 dark:border-gray-600">
                     </td>
                     @endif
@@ -204,7 +210,7 @@
             </tbody>
         </table>
     </div>
-    </form>
+    </div>
 
     @if($messages->hasPages())
     <div class="mt-4">{{ $messages->links() }}</div>
