@@ -511,15 +511,46 @@ class TASK1667TransferDetailsTest extends TestCase
         $this->assertLessThan(strpos($desc, 'petit'), strpos($desc, 'grand'));
     }
 
-    public function test_une_colonne_de_tri_inconnue_est_ignoree(): void
+    public function test_une_colonne_hors_liste_blanche_retombe_sur_la_date(): void
     {
-        $this->ecritureDePoints();
+        // Le premier jet de ce test n'assertait qu'un code 200 sur une valeur
+        // absurde (`'user_id; drop table'`). Il etait VERT avec ou sans la liste
+        // blanche : SQLite accepte l'identifiant cite sans broncher, donc le
+        // test ne prouvait rien.
+        //
+        // On prend donc une colonne qui EXISTE mais n'est pas proposee a
+        // l'ecran : c'est le risque reel. Avec la liste blanche, le tri retombe
+        // sur la date ; sans elle, il obeirait.
+        // Les identifiants sont ordonnes dans le temps (UUID v7). On fait donc
+        // DIVERGER les deux ordres : le compte cree en PREMIER (id le plus petit)
+        // porte l'ecriture la plus RECENTE. Sans cela, trier par `user_id`
+        // donnerait le meme resultat que trier par date, et le test serait vert
+        // par coincidence.
+        $premierCree = User::factory()->for($this->organization)->create();
+        $secondCree = User::factory()->for($this->organization)->create();
 
-        // Liste BLANCHE : passer `sort` directement a `orderBy()` laisserait
-        // choisir n'importe quelle colonne, y compris non affichee.
-        $this->actingAs($this->superAdmin)
-            ->get(route('admin.points', ['organization_id' => $this->organization->id, 'sort' => 'user_id; drop table', 'direction' => 'asc']))
-            ->assertOk();
+        DB::table('point_ledger')->insert([
+            ['id' => (string) Str::uuid(), 'user_id' => $premierCree->id, 'organization_id' => $this->organization->id, 'delta' => 5, 'reason' => 'recente', 'created_at' => now()],
+            ['id' => (string) Str::uuid(), 'user_id' => $secondCree->id, 'organization_id' => $this->organization->id, 'delta' => 5, 'reason' => 'ancienne', 'created_at' => now()->subDay()],
+        ]);
+
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', [
+                'organization_id' => $this->organization->id,
+                'sort' => 'user_id',
+                'direction' => 'desc',
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        // Avec la liste blanche : repli sur `created_at` descendant -> la plus
+        // RECENTE d'abord. Sans elle : `user_id` descendant -> le second compte
+        // cree d'abord, donc la plus ANCIENNE. Les deux ordres s'opposent.
+        $this->assertLessThan(
+            strpos($html, 'ancienne'),
+            strpos($html, 'recente'),
+            'une colonne hors liste blanche doit etre ignoree au profit de la date'
+        );
     }
 
     // ───────────────────── la modal ─────────────────────
