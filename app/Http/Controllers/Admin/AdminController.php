@@ -1287,6 +1287,35 @@ class AdminController extends Controller
      */
     public function userDeletePrecheck(User $user): JsonResponse
     {
+        return response()->json($this->userDeletePayload($user));
+    }
+
+    /**
+     * La page de suppression d'un compte.
+     *
+     * TASK-1668 — la modal avait grossi a chaque TASK : blocages avec un lien
+     * par element, contenus a confier par famille avec les leurs, choix du
+     * repreneur, et le caractere definitif a dire clairement. Une fenetre
+     * surgissante n'est plus le bon contenant.
+     *
+     * La page consomme EXACTEMENT le meme payload, calcule cote serveur : rien
+     * du travail des TASK precedentes n'est reecrit.
+     */
+    public function userDeletePage(User $user): View
+    {
+        return view('admin.users.delete', [
+            'cible' => $user,
+            'donnees' => $this->userDeletePayload($user),
+        ]);
+    }
+
+    /**
+     * Ce que l'ecran doit savoir pour proposer — ou refuser — une suppression.
+     *
+     * @return array<string, mixed>
+     */
+    private function userDeletePayload(User $user): array
+    {
         $precheck = app(UserDeletionExecutor::class)->precheck($user);
 
         // Les repreneurs possibles, dans la MEME Organization : c'est la borne
@@ -1302,7 +1331,7 @@ class AdminController extends Controller
             ->map(fn (User $candidat) => ['id' => $candidat->id, 'name' => $candidat->fullName])
             ->values();
 
-        return response()->json([
+        return [
             'user' => ['id' => $user->id, 'name' => $user->fullName],
             // Seuls le libelle, le compte et d'eventuels liens de navigation
             // sortent : la cle technique du blocage reste cote serveur, l'ecran
@@ -1323,7 +1352,7 @@ class AdminController extends Controller
             'transfers' => $this->transferDetails($user, $precheck['transferable']),
             'transfer_candidates' => $candidats,
             'preview_fingerprint' => $this->deletePreviewFingerprint($precheck),
-        ]);
+        ];
     }
 
     /**

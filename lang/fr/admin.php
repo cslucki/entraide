@@ -1623,6 +1623,7 @@ return [
     'user_delete_transfer_family_services' => 'Services proposés',
     'user_delete_transfer_family_service_requests' => 'Demandes publiées',
     'user_delete_transfer_blocked_title' => 'Ce qui serait a confier a quelqu\'un',
+    'user_delete_back_to_list' => 'Retour a la liste des membres',
     'user_delete_transfer_see' => 'Voir',
     'user_delete_transfer_no_screen' => 'Aucun écran de consultation',
     'contents_filtered_on_user' => "Contenus de :name.",

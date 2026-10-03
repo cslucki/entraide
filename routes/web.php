@@ -577,6 +577,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // detournee pour cet usage — elle est en POST, elle EXIGE la recopie du nom
     // (que cette TASK supprime), et elle calcule `registry->preview()`, soit les
     // 134 entrees du registre la ou la modal n'a besoin que du `precheck()`.
+    // TASK-1668 — la suppression d'un compte devient une PAGE.
+    // Meme URI que le POST existant : seule la methode change.
+    Route::get('/users/{user}/delete', [AdminController::class, 'userDeletePage'])->name('users.delete-page');
     Route::get('/users/{user}/delete-precheck', [AdminController::class, 'userDeletePrecheck'])->name('users.delete-precheck');
     // TASK-1640 — la fiche complete d'un membre, pour le pop-up de la liste.
     // Lecture seule, un seul compte, des COMPTAGES et jamais le contenu lui-meme.
