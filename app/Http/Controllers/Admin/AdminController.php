@@ -587,9 +587,11 @@ class AdminController extends Controller
             };
         }
 
+        $filteredUser = $this->applyAdminUserFilter($query, $request);
+
         $services = $query->latest()->paginate(25)->withQueryString();
 
-        return view('admin.services', compact('organizations', 'selectedOrganizationId', 'services'));
+        return view('admin.services', compact('organizations', 'selectedOrganizationId', 'services', 'filteredUser'));
     }
 
     public function editService(string $service): View
@@ -767,9 +769,11 @@ class AdminController extends Controller
             $query->where('title', 'like', '%'.$request->search.'%');
         }
 
+        $filteredUser = $this->applyAdminUserFilter($query, $request);
+
         $requests = $query->latest()->paginate(25)->withQueryString();
 
-        return view('admin.requests', compact('organizations', 'selectedOrganizationId', 'requests'));
+        return view('admin.requests', compact('organizations', 'selectedOrganizationId', 'requests', 'filteredUser'));
     }
 
     public function editRequest(string $serviceRequest): View
@@ -1257,6 +1261,42 @@ class AdminController extends Controller
             'transfer_candidates' => $candidats,
             'preview_fingerprint' => $this->deletePreviewFingerprint($precheck),
         ]);
+    }
+
+    /**
+     * TASK-1667 — borne une liste de contenus a UN auteur.
+     *
+     * Pose sur `user_id`, jamais sur `search` : ce dernier cherche un TITRE sur
+     * ces ecrans, et le detourner en pseudo-filtre d'identite rendrait les deux
+     * usages impossibles a distinguer.
+     *
+     * La forme est validee AVANT d'atteindre PostgreSQL : une valeur libre
+     * arrivant sur une colonne `uuid` y leve SQLSTATE 22P02 et rendrait un 500,
+     * la ou un filtre sans correspondance doit simplement ne rien rendre.
+     * SQLite ne reproduit pas ce defaut.
+     *
+     * Rend l'auteur quand il existe, pour que l'ecran puisse le NOMMER : une
+     * liste bornee qui ne dit pas sur qui elle l'est se lit comme une liste
+     * complete.
+     */
+    private function applyAdminUserFilter($query, Request $request): ?User
+    {
+        if (! $request->filled('user_id')) {
+            return null;
+        }
+
+        $userId = (string) $request->input('user_id');
+
+        if (! Str::isUuid($userId)) {
+            $query->whereRaw('1 = 0');
+
+            return null;
+        }
+
+        $query->where('user_id', $userId);
+
+        return User::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->find($userId);
     }
 
     /**
