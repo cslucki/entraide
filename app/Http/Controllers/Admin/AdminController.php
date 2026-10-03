@@ -710,6 +710,28 @@ class AdminController extends Controller
             });
         }
 
+        // TASK-1665 — ciblage EXACT d'un echange, pour le lien pose par la modal
+        // de suppression d'un membre.
+        //
+        // `search` n'est pas detourne : il cherche des PERSONNES
+        // (`buyer.name`, `seller.name`) et doit continuer a le faire.
+        //
+        // La forme est validee AVANT d'atteindre PostgreSQL. Sans cela, une
+        // valeur libre arrivant dans une comparaison sur une colonne `uuid`
+        // leverait une erreur de cast (SQLSTATE 22P02) et rendrait un 500 la ou
+        // un filtre qui ne correspond a rien doit simplement ne rien rendre.
+        if ($request->filled('transaction_id')) {
+            $transactionId = (string) $request->input('transaction_id');
+
+            if (Str::isUuid($transactionId)) {
+                $query->whereKey($transactionId);
+            } else {
+                // Forme invalide : aucun echange ne peut y correspondre. On le dit
+                // en SQL plutot que de laisser la valeur atteindre la colonne.
+                $query->whereRaw('1 = 0');
+            }
+        }
+
         $transactions = $query->latest()->paginate(25)->withQueryString();
 
         return view('admin.transactions', compact('organizations', 'selectedOrganizationId', 'transactions'));
@@ -1203,16 +1225,91 @@ class AdminController extends Controller
 
         return response()->json([
             'user' => ['id' => $user->id, 'name' => $user->fullName],
-            // Seuls le libelle et le compte sortent : la cle technique du blocage
-            // reste cote serveur, l'ecran n'a rien a en faire.
+            // Seuls le libelle, le compte et d'eventuels liens de navigation
+            // sortent : la cle technique du blocage reste cote serveur, l'ecran
+            // n'a rien a en faire.
             'blocks' => collect($precheck['blocks'])
-                ->map(fn (array $block) => ['message' => $block['message'], 'count' => $block['count']])
+                ->map(fn (array $block) => array_filter([
+                    'message' => $block['message'],
+                    'count' => $block['count'],
+                    'links' => $this->blockNavigationLinks($user, $block) ?: null,
+                ], fn ($valeur) => $valeur !== null))
                 ->values(),
             'requires_transfer' => $precheck['requires_transfer'],
             'transfer_total' => array_sum($precheck['transferable']),
             'transfer_candidates' => $candidats,
             'preview_fingerprint' => $this->deletePreviewFingerprint($precheck),
         ]);
+    }
+
+    /**
+     * Les liens de navigation d'un blocage, quand le SuperAdmin a quelque part
+     * ou aller pour le lever.
+     *
+     * TASK-1665 — un blocage « ce membre est vendeur dans 1 echange » laissait
+     * l'ecran sans moyen d'identifier l'echange. On rend donc un lien par
+     * transaction bloquante, vers l'administration des transactions filtree sur
+     * celle-la. La suppression, elle, reste au workflow existant : cette modal
+     * ne detruit aucune transaction.
+     *
+     * Seuls les blocages a cle `transactions_as_*` produisent des liens. Les
+     * autres n'en ont pas, et ne doivent pas en inventer.
+     *
+     * @param  array{key: string, count: int, message: string}  $block
+     * @return list<array{label: string, url: string}>
+     */
+    private function blockNavigationLinks(User $user, array $block): array
+    {
+        if (! in_array($block['key'], ['transactions_as_buyer', 'transactions_as_seller'], true)) {
+            return [];
+        }
+
+        return $this->blockingRowIds($user, $block['key'])
+            ->map(fn (string $id, int $rang) => [
+                'label' => __('admin.user_delete_block_link_transaction', [
+                    'rank' => $rang + 1,
+                    'short' => strtoupper(substr($id, 0, 8)),
+                ]),
+                'url' => route('admin.transactions', array_filter([
+                    'organization_id' => $user->organization_id,
+                    'transaction_id' => $id,
+                ])),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Les identifiants des lignes qui bloquent, pour une cle du registre.
+     *
+     * Le predicat n'est PAS reecrit ici : il est relu au registre, exactement
+     * comme `UserDeletionExecutor::countBlockingRows()` le fait. Un
+     * `where('seller_id', ...)` ecrit a la main aurait fabrique une seconde
+     * copie de la politique, libre de deriver du compte affiche — la modal
+     * aurait pu annoncer « 1 echange » et montrer zero lien, sans que rien ne le
+     * signale. La politique ne vit qu'au registre.
+     *
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    private function blockingRowIds(User $user, string $key): Collection
+    {
+        $entry = collect(UserDataLifecycleRegistry::entries())
+            ->firstWhere('key', $key);
+
+        if ($entry === null || ! isset($entry['table'], $entry['column']) || ! Schema::hasTable($entry['table'])) {
+            return collect();
+        }
+
+        $query = DB::table($entry['table'])->where($entry['column'], $user->id);
+
+        UserDataLifecycleRegistry::excludeResolvableRows($query, $entry, $entry['table']);
+
+        return $query->orderBy('created_at')->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            // Une meme ligne ne peut pas apparaitre deux fois, mais un blocage
+            // qui en montrerait deux serait plus deroutant qu'utile.
+            ->unique()
+            ->values();
     }
 
     private function deletePreviewFingerprint(array $precheck): string
