@@ -10,6 +10,7 @@ use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -304,6 +305,88 @@ class TASK1667TransferDetailsTest extends TestCase
             ->get(route('admin.blog', ['organization_id' => $this->organization->id]))
             ->assertOk()
             ->assertDontSee('name="user_id"', false);
+    }
+
+    // ──────────── les liens des blocages (points, Boucles) ────────────
+
+    private function ecritureDePoints(?User $sur = null, string $raison = 'exchange_earned'): void
+    {
+        DB::table('point_ledger')->insert([
+            'id' => (string) Str::uuid(),
+            'user_id' => ($sur ?? $this->auteur)->id,
+            'organization_id' => $this->organization->id,
+            'delta' => 10,
+            // Surtout pas `welcome_bonus` : T1638 l'a rendu RESOLVABLE.
+            'reason' => $raison,
+            'created_at' => now(),
+        ]);
+    }
+
+    public function test_le_blocage_des_points_mene_au_grand_livre(): void
+    {
+        $this->ecritureDePoints();
+
+        $blocs = collect($this->actingAs($this->superAdmin)
+            ->getJson(route('admin.users.delete-precheck', $this->auteur))
+            ->assertOk()
+            ->json('blocks'));
+
+        $bloc = $blocs->first(fn (array $b) => str_contains($b['message'], 'point')
+            || str_contains($b['message'], 'grand livre'));
+
+        $this->assertNotNull($bloc, 'premisse : le grand livre bloque bien');
+        $this->assertCount(1, $bloc['links'], 'une seule destination suffit');
+        $this->assertStringContainsString('user_id='.$this->auteur->id, $bloc['links'][0]['url']);
+        $this->assertStringStartsWith(route('admin.points'), $bloc['links'][0]['url']);
+    }
+
+    public function test_le_grand_livre_est_borne_sur_la_personne(): void
+    {
+        $this->ecritureDePoints();
+        $autre = User::factory()->for($this->organization)->create();
+        $this->ecritureDePoints($autre, 'exchange_spent');
+
+        $reponse = $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['organization_id' => $this->organization->id, 'user_id' => $this->auteur->id]))
+            ->assertOk();
+
+        $reponse->assertSee($this->auteur->full_name, false);
+        $reponse->assertDontSee($autre->full_name, false);
+    }
+
+    public function test_le_grand_livre_ne_leve_pas_d_erreur_sur_un_uuid_malforme(): void
+    {
+        $this->ecritureDePoints();
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['organization_id' => $this->organization->id, 'user_id' => 'pas-un-uuid']))
+            ->assertOk()
+            ->assertDontSee($this->auteur->full_name, false);
+    }
+
+    public function test_le_grand_livre_est_refuse_a_un_membre_ordinaire(): void
+    {
+        $this->actingAs($this->auteur)->get(route('admin.points'))->assertForbidden();
+    }
+
+    public function test_le_grand_livre_ne_propose_aucune_suppression(): void
+    {
+        $this->ecritureDePoints();
+
+        // Lecture seule a dessein : un historique comptable ne se supprime pas,
+        // et c'est precisement pour cela qu'il bloque.
+        //
+        // La garantie est verifiee au niveau du ROUTAGE, pas du HTML : le
+        // gabarit d'administration contient de toute facon des formulaires POST
+        // (deconnexion), et chercher « method=POST » dans la page rendait le
+        // test faux sans rien prouver.
+        $this->assertFalse(Route::has('admin.points.destroy'));
+        $this->assertFalse(Route::has('admin.points.update'));
+        $this->assertFalse(Route::has('admin.points.store'));
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['organization_id' => $this->organization->id]))
+            ->assertOk();
     }
 
     // ───────────────────── la modal ─────────────────────

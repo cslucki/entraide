@@ -1405,6 +1405,34 @@ class AdminController extends Controller
      */
     private function blockNavigationLinks(User $user, array $block): array
     {
+        // TASK-1667 — le grand livre des points. Une seule destination suffit :
+        // l'ecran est deja borne sur la personne, et aligner N liens vers la
+        // meme page n'apprendrait rien de plus.
+        if ($block['key'] === 'point_ledger') {
+            return [[
+                'label' => __('admin.user_delete_block_link_points'),
+                'url' => route('admin.points', array_filter([
+                    'organization_id' => $user->organization_id,
+                    'user_id' => $user->id,
+                ])),
+            ]];
+        }
+
+        // TASK-1667 — les Boucles dont ce membre est le dernier responsable.
+        // Les identifiants viennent de l'executeur, qui DERIVE son compte de
+        // cette meme liste : annoncer « 1 Boucle » en montrant zero lien est
+        // donc structurellement impossible.
+        if ($block['key'] === 'loop_last_owner') {
+            return app(UserDeletionExecutor::class)
+                ->loopIdsWhereLastActiveOwner($user)
+                ->map(fn (string $loopId, int $rang) => [
+                    'label' => __('admin.user_delete_block_link_loop', ['rank' => $rang + 1]),
+                    'url' => route('admin.loops.show', ['loop' => $loopId]),
+                ])
+                ->values()
+                ->all();
+        }
+
         if (! in_array($block['key'], ['transactions_as_buyer', 'transactions_as_seller'], true)) {
             return [];
         }
