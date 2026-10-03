@@ -288,8 +288,21 @@ class TASK1668DeletePageAndBulkMessagesTest extends TestCase
 
         $this->assertSame(1, $maximum, 'aucun formulaire ne doit en contenir un autre');
 
-        // Et les cases se rattachent bien au formulaire groupe par son id.
-        $this->assertStringContainsString('form="bulk-messages"', $html);
+        // Et le rattachement TIENT : l'identifiant que les cases designent doit
+        // exister comme formulaire dans la page. Asserter seulement la presence
+        // de `form="..."` laisserait passer un identifiant qui ne pointe sur
+        // rien — les cases ne seraient alors jamais envoyees.
+        $this->assertSame(
+            1,
+            preg_match('/<input[^>]+name="ids\[\]"[^>]+form="([^"]+)"/', $html, $rattachement),
+            'les cases doivent designer un formulaire'
+        );
+
+        $this->assertStringContainsString(
+            'id="'.$rattachement[1].'"',
+            $html,
+            "les cases designent le formulaire « {$rattachement[1]} », qui n'existe pas dans la page"
+        );
     }
 
     public function test_l_ecran_offre_la_selection_sur_une_conversation(): void
