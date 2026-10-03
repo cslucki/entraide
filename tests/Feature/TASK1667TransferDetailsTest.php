@@ -380,6 +380,9 @@ class TASK1667TransferDetailsTest extends TestCase
         // gabarit d'administration contient de toute facon des formulaires POST
         // (deconnexion), et chercher « method=POST » dans la page rendait le
         // test faux sans rien prouver.
+        // Les ECRITURES restent immuables : aucune route ne les edite ni ne les
+        // supprime. Corriger un solde se fait en AJOUTANT une ecriture, via la
+        // primitive existante — l'historique n'est jamais reecrit.
         $this->assertFalse(Route::has('admin.points.destroy'));
         $this->assertFalse(Route::has('admin.points.update'));
         $this->assertFalse(Route::has('admin.points.store'));
@@ -398,6 +401,125 @@ class TASK1667TransferDetailsTest extends TestCase
             ->assertOk()
             ->assertSee(route('admin.points'), false)
             ->assertSee(__('admin.points_nav'), false);
+    }
+
+    // ──────────── corriger un solde SANS reecrire l'historique ────────────
+
+    public function test_la_correction_ajoute_une_ecriture_et_ne_detruit_rien(): void
+    {
+        $this->auteur->update(['points_balance' => 100]);
+        $this->ecritureDePoints();
+        $avant = DB::table('point_ledger')->where('user_id', $this->auteur->id)->count();
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.users.adjust-points', $this->auteur), [
+                'delta' => -40,
+                'reason' => 'correction_test',
+            ])->assertRedirect();
+
+        // Une ecriture de PLUS, aucune de moins : le passe n'est pas reecrit.
+        $this->assertSame($avant + 1, DB::table('point_ledger')->where('user_id', $this->auteur->id)->count());
+        $this->assertDatabaseHas('point_ledger', [
+            'user_id' => $this->auteur->id,
+            'delta' => -40,
+            'reason' => 'correction_test',
+        ]);
+        $this->assertSame(60, $this->auteur->fresh()->points_balance);
+    }
+
+    public function test_le_motif_par_defaut_reste_adjustment(): void
+    {
+        $this->auteur->update(['points_balance' => 10]);
+
+        // Les appels existants ne fournissent pas de motif : leur comportement
+        // ne doit pas changer.
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.users.adjust-points', $this->auteur), ['delta' => 5]);
+
+        $this->assertDatabaseHas('point_ledger', [
+            'user_id' => $this->auteur->id,
+            'delta' => 5,
+            'reason' => 'adjustment',
+        ]);
+    }
+
+    public function test_la_remise_a_zero_est_une_ecriture_opposee_au_solde(): void
+    {
+        $this->auteur->update(['points_balance' => 110]);
+
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['organization_id' => $this->organization->id, 'user_id' => $this->auteur->id]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('value="-110"', $html);
+        $this->assertStringContainsString('value="admin_reset"', $html);
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.users.adjust-points', $this->auteur), ['delta' => -110, 'reason' => 'admin_reset']);
+
+        $this->assertSame(0, $this->auteur->fresh()->points_balance);
+        $this->assertDatabaseHas('point_ledger', ['user_id' => $this->auteur->id, 'reason' => 'admin_reset']);
+    }
+
+    public function test_aucune_remise_a_zero_quand_le_solde_est_deja_nul(): void
+    {
+        $this->auteur->update(['points_balance' => 0]);
+
+        // Un `delta` de 0 est refuse par la validation : un bouton qui ne peut
+        // qu'echouer est pire que pas de bouton.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['organization_id' => $this->organization->id, 'user_id' => $this->auteur->id]))
+            ->assertOk()
+            ->assertDontSee('value="admin_reset"', false);
+    }
+
+    public function test_aucun_panneau_de_correction_sans_personne_ciblee(): void
+    {
+        $this->ecritureDePoints();
+
+        // Sans destinataire designe, « corriger le solde » n'a pas de sens.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['organization_id' => $this->organization->id]))
+            ->assertOk()
+            ->assertDontSee('name="delta"', false);
+    }
+
+    // ──────────── le tri ────────────
+
+    public function test_le_tri_sur_le_mouvement_ordonne_les_ecritures(): void
+    {
+        DB::table('point_ledger')->insert([
+            ['id' => (string) Str::uuid(), 'user_id' => $this->auteur->id, 'organization_id' => $this->organization->id, 'delta' => 5, 'reason' => 'petit', 'created_at' => now()->subDay()],
+            ['id' => (string) Str::uuid(), 'user_id' => $this->auteur->id, 'organization_id' => $this->organization->id, 'delta' => 90, 'reason' => 'grand', 'created_at' => now()],
+        ]);
+
+        $asc = $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['organization_id' => $this->organization->id, 'sort' => 'delta', 'direction' => 'asc']))
+            ->assertOk()->getContent();
+
+        $this->assertLessThan(
+            strpos($asc, 'grand'),
+            strpos($asc, 'petit'),
+            'en ordre croissant, le plus petit mouvement vient en premier'
+        );
+
+        $desc = $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['organization_id' => $this->organization->id, 'sort' => 'delta', 'direction' => 'desc']))
+            ->assertOk()->getContent();
+
+        $this->assertLessThan(strpos($desc, 'petit'), strpos($desc, 'grand'));
+    }
+
+    public function test_une_colonne_de_tri_inconnue_est_ignoree(): void
+    {
+        $this->ecritureDePoints();
+
+        // Liste BLANCHE : passer `sort` directement a `orderBy()` laisserait
+        // choisir n'importe quelle colonne, y compris non affichee.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['organization_id' => $this->organization->id, 'sort' => 'user_id; drop table', 'direction' => 'asc']))
+            ->assertOk();
     }
 
     // ───────────────────── la modal ─────────────────────
