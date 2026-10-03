@@ -304,7 +304,11 @@ class AdminController extends Controller
                 'user_id' => $user->id,
                 'delta' => $data['delta'],
                 'organization_id' => $user->organization_id,
-                'reason' => 'adjustment',
+                // TASK-1667 — le motif etait VALIDE puis ignore : toute correction
+                // s'ecrivait « adjustment », y compris une remise a zero. Le
+                // defaut par defaut reste `adjustment`, donc rien ne change pour
+                // les appels qui n'en fournissent pas.
+                'reason' => $data['reason'] ?? 'adjustment',
             ]);
             $user->increment('points_balance', $data['delta']);
         });
@@ -587,9 +591,11 @@ class AdminController extends Controller
             };
         }
 
+        $filteredUser = $this->applyAdminUserFilter($query, $request);
+
         $services = $query->latest()->paginate(25)->withQueryString();
 
-        return view('admin.services', compact('organizations', 'selectedOrganizationId', 'services'));
+        return view('admin.services', compact('organizations', 'selectedOrganizationId', 'services', 'filteredUser'));
     }
 
     public function editService(string $service): View
@@ -691,6 +697,65 @@ class AdminController extends Controller
 
     // ── Transactions ──────────────────────────────────────────────────────────
 
+    /**
+     * Le grand livre des points, en LECTURE SEULE.
+     *
+     * TASK-1667 — « Ce membre a N ecriture(s) au grand livre des points »
+     * bloquait la suppression sans que rien ne permette d'aller voir ces
+     * ecritures : aucun ecran n'existait. Il en fallait donc un.
+     *
+     * Lecture seule et sans action, a dessein : un historique comptable ne se
+     * supprime pas, et c'est precisement pour cela qu'il bloque. Cet ecran
+     * explique le blocage, il ne le leve pas.
+     */
+    public function points(Request $request): View
+    {
+        $query = PointLedger::query()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->with(['user', 'organization']);
+
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
+
+        if ($request->filled('reason')) {
+            $query->where('reason', $request->input('reason'));
+        }
+
+        $filteredUser = $this->applyAdminUserFilter($query, $request);
+
+        // TASK-1667 — tri sur les colonnes, par liste BLANCHE.
+        // Passer `sort` directement a `orderBy()` laisserait choisir n'importe
+        // quelle colonne, y compris une qui n'est pas affichee.
+        $triables = ['created_at', 'delta', 'reason'];
+        $tri = in_array($request->input('sort'), $triables, true)
+            ? (string) $request->input('sort')
+            : 'created_at';
+        $sens = $request->input('direction') === 'asc' ? 'asc' : 'desc';
+
+        $entries = $query->orderBy($tri, $sens)->paginate(25)->withQueryString();
+
+        // TASK-1667 — de QUI corriger le solde, choisi a l'ecran.
+        //
+        // Le panneau de correction ne s'affiche que sur une personne designee.
+        // Sans ce choix, il fallait fabriquer l'URL `?user_id=...` a la main :
+        // la capacite existait sans aucune poignee pour l'atteindre.
+        //
+        // Le solde est porte par l'option, pour qu'il soit lu AVANT de choisir.
+        $membres = User::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->when($selectedOrganizationId !== 'all',
+                fn ($q) => $q->where('organization_id', $selectedOrganizationId))
+            ->orderBy('name')
+            ->get(['id', 'name', 'first_name', 'points_balance']);
+
+        $solde = (clone $query)->sum('delta');
+
+        return view('admin.points', compact(
+            'organizations', 'selectedOrganizationId', 'entries', 'filteredUser', 'solde', 'tri', 'sens', 'membres'
+        ));
+    }
+
     public function transactions(Request $request): View
     {
         // TASK-1666 — `withCount` plutot qu'un comptage par ligne dans la vue :
@@ -767,9 +832,11 @@ class AdminController extends Controller
             $query->where('title', 'like', '%'.$request->search.'%');
         }
 
+        $filteredUser = $this->applyAdminUserFilter($query, $request);
+
         $requests = $query->latest()->paginate(25)->withQueryString();
 
-        return view('admin.requests', compact('organizations', 'selectedOrganizationId', 'requests'));
+        return view('admin.requests', compact('organizations', 'selectedOrganizationId', 'requests', 'filteredUser'));
     }
 
     public function editRequest(string $serviceRequest): View
@@ -1249,9 +1316,101 @@ class AdminController extends Controller
                 ->values(),
             'requires_transfer' => $precheck['requires_transfer'],
             'transfer_total' => array_sum($precheck['transferable']),
+            // TASK-1667 — « 3 contenus a confier » ne disait pas LESQUELS. Le
+            // detail par famille etait deja calcule par `precheck()` ; seul
+            // `array_sum()` ci-dessus le jetait. On l'expose, sans une seule
+            // requete de plus.
+            'transfers' => $this->transferDetails($user, $precheck['transferable']),
             'transfer_candidates' => $candidats,
             'preview_fingerprint' => $this->deletePreviewFingerprint($precheck),
         ]);
+    }
+
+    /**
+     * TASK-1667 — borne une liste de contenus a UN auteur.
+     *
+     * Pose sur `user_id`, jamais sur `search` : ce dernier cherche un TITRE sur
+     * ces ecrans, et le detourner en pseudo-filtre d'identite rendrait les deux
+     * usages impossibles a distinguer.
+     *
+     * La forme est validee AVANT d'atteindre PostgreSQL : une valeur libre
+     * arrivant sur une colonne `uuid` y leve SQLSTATE 22P02 et rendrait un 500,
+     * la ou un filtre sans correspondance doit simplement ne rien rendre.
+     * SQLite ne reproduit pas ce defaut.
+     *
+     * Rend l'auteur quand il existe, pour que l'ecran puisse le NOMMER : une
+     * liste bornee qui ne dit pas sur qui elle l'est se lit comme une liste
+     * complete.
+     */
+    private function applyAdminUserFilter($query, Request $request): ?User
+    {
+        if (! $request->filled('user_id')) {
+            return null;
+        }
+
+        $userId = (string) $request->input('user_id');
+
+        if (! Str::isUuid($userId)) {
+            $query->whereRaw('1 = 0');
+
+            return null;
+        }
+
+        $query->where('user_id', $userId);
+
+        return User::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->find($userId);
+    }
+
+    /**
+     * Le detail, famille par famille, de ce qu'une suppression ferait changer
+     * de main.
+     *
+     * TASK-1667 — on demandait a l'admin de choisir un destinataire pour des
+     * contenus qu'il n'avait pas vus. Chaque famille non vide sort donc avec
+     * son compte et, quand un ecran d'administration existe, un lien vers ce
+     * qu'elle contient.
+     *
+     * `feed_posts` n'a AUCUN ecran d'administration dans ce depot : son compte
+     * sort donc sans `url`. Mieux vaut un nombre sans lien qu'un lien vers une
+     * page qui n'existe pas.
+     *
+     * @param  array<string, int>  $transferable
+     * @return list<array{key: string, label: string, count: int, url?: string}>
+     */
+    private function transferDetails(User $user, array $transferable): array
+    {
+        $ecrans = [
+            'blog_posts' => 'admin.blog',
+            'services' => 'admin.services',
+            'service_requests' => 'admin.requests',
+            // 'feed_posts' — volontairement absent : aucun ecran n'existe.
+        ];
+
+        $details = [];
+
+        foreach ($transferable as $cle => $nombre) {
+            if ($nombre < 1) {
+                continue;
+            }
+
+            $detail = [
+                'key' => $cle,
+                'label' => __('admin.user_delete_transfer_family_'.$cle),
+                'count' => $nombre,
+            ];
+
+            if (isset($ecrans[$cle])) {
+                $detail['url'] = route($ecrans[$cle], array_filter([
+                    'organization_id' => $user->organization_id,
+                    'user_id' => $user->id,
+                ]));
+            }
+
+            $details[] = $detail;
+        }
+
+        return $details;
     }
 
     /**
@@ -1272,6 +1431,34 @@ class AdminController extends Controller
      */
     private function blockNavigationLinks(User $user, array $block): array
     {
+        // TASK-1667 — le grand livre des points. Une seule destination suffit :
+        // l'ecran est deja borne sur la personne, et aligner N liens vers la
+        // meme page n'apprendrait rien de plus.
+        if ($block['key'] === 'point_ledger') {
+            return [[
+                'label' => __('admin.user_delete_block_link_points'),
+                'url' => route('admin.points', array_filter([
+                    'organization_id' => $user->organization_id,
+                    'user_id' => $user->id,
+                ])),
+            ]];
+        }
+
+        // TASK-1667 — les Boucles dont ce membre est le dernier responsable.
+        // Les identifiants viennent de l'executeur, qui DERIVE son compte de
+        // cette meme liste : annoncer « 1 Boucle » en montrant zero lien est
+        // donc structurellement impossible.
+        if ($block['key'] === 'loop_last_owner') {
+            return app(UserDeletionExecutor::class)
+                ->loopIdsWhereLastActiveOwner($user)
+                ->map(fn (string $loopId, int $rang) => [
+                    'label' => __('admin.user_delete_block_link_loop', ['rank' => $rang + 1]),
+                    'url' => route('admin.loops.show', ['loop' => $loopId]),
+                ])
+                ->values()
+                ->all();
+        }
+
         if (! in_array($block['key'], ['transactions_as_buyer', 'transactions_as_seller'], true)) {
             return [];
         }

@@ -68,7 +68,19 @@ class TASK1487AiQualityCockpitTest extends TestCase
 
         $this->superAdmin = User::factory()->complete()->create(['organization_id' => $this->a->id, 'is_admin' => true]);
 
-        $this->to = CarbonImmutable::now();
+        // TASK-1667 — la borne HAUTE doit depasser l'instant d'insertion.
+        //
+        // `setUp()` s'execute AVANT le corps du test : avec `now()` tout court,
+        // toute interaction creee ensuite porte un `created_at` posterieur a
+        // `$to`, et `whereBetween('created_at', [$from, $to])` l'exclut. Le test
+        // passait tant que l'insertion restait dans la meme seconde, et rougissait
+        // des qu'elle franchissait la suivante — ce qui est arrive en CI
+        // (« Failed asserting that 0 is identical to 2 »), de facon intermittente.
+        //
+        // L'horloge n'est volontairement PAS figee : la ligne « une instrumentation
+        // future n'existe pas » compare a `now()` reel et deviendrait fausse si
+        // tout etait gele au meme instant.
+        $this->to = CarbonImmutable::now()->addMinute();
         $this->from = $this->to->subDays(30);
 
         Http::preventStrayRequests();
