@@ -446,7 +446,15 @@ class TASK1640UserDeleteFromListTest extends TestCase
         $html = $this->actingAs($this->superAdmin)->get(route('admin.users'))->assertOk()->getContent();
 
         $this->assertStringContainsString(__('admin.users_profile_button'), $html);
-        $this->assertStringContainsString("openProfile('{$this->target->id}'", $html);
+        // TASK-1666 — la Fiche a quitte `adminUserDelete()` pour un partiel
+        // partage avec `/admin/transactions`. Un appel direct ne franchit pas la
+        // frontiere d'un composant Alpine : elle s'ouvre desormais par
+        // evenement. Ce que ce test protege est inchange — chaque ligne porte
+        // bien de quoi ouvrir la Fiche DE CE compte-la.
+        $this->assertStringContainsString(
+            "\$dispatch('open-user-profile', { id: '{$this->target->id}'",
+            $html
+        );
     }
 
     /**

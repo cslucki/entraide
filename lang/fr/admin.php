@@ -1611,6 +1611,12 @@ return [
     'user_delete_modal_confirm_transfer' => 'Transférer et supprimer',
     'user_delete_modal_cancel' => 'Annuler',
     'user_delete_modal_error' => 'Impossible de vérifier ce compte pour l’instant. Réessayez.',
+    // TASK-1666 — acces a la conversation d'un echange et a la Fiche.
+    'transactions_conversation_link' => ':count message échangé|:count messages échangés',
+    'transactions_conversation_empty' => 'Aucun message échangé',
+    'messages_filtered_on_transaction' => "Conversation de l'echange #:short.",
+    'messages_filtered_back_to_exchange' => "Revenir a l'echange",
+    'messages_filtered_clear' => 'Voir tous les messages',
     'transactions_filtered_on_one' => "Liste bornee a l'echange #:short.",
     'transactions_filtered_clear' => 'Voir tous les echanges',
     'user_delete_block_link_transaction' => "Voir l'echange :rank (#:short)",

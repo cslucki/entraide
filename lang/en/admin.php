@@ -1599,6 +1599,12 @@ return [
     'user_delete_modal_confirm_transfer' => 'Transfer and delete',
     'user_delete_modal_cancel' => 'Cancel',
     'user_delete_modal_error' => 'This account cannot be checked right now. Please try again.',
+    // TASK-1666 — acces a la conversation d'un echange et a la Fiche.
+    'transactions_conversation_link' => ':count message exchanged|:count messages exchanged',
+    'transactions_conversation_empty' => 'No message exchanged',
+    'messages_filtered_on_transaction' => 'Conversation of exchange #:short.',
+    'messages_filtered_back_to_exchange' => 'Back to the exchange',
+    'messages_filtered_clear' => 'View all messages',
     'transactions_filtered_on_one' => 'List limited to exchange #:short.',
     'transactions_filtered_clear' => 'View all exchanges',
     'user_delete_block_link_transaction' => 'View exchange :rank (#:short)',

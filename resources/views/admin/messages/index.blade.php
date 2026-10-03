@@ -5,6 +5,11 @@
 
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
         <input type="hidden" name="filter" value="{{ $filter }}">
+        {{-- TASK-1666 — sans ce report, changer d'organisation ELARGIT la liste
+             en silence : on croit regarder une conversation et on regarde tout. --}}
+        @if($transactionId)
+        <input type="hidden" name="transaction_id" value="{{ $transactionId }}">
+        @endif
         <select name="organization_id" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
             <option value="all" {{ $selectedOrganizationId === 'all' ? 'selected' : '' }}>Toutes les organisations</option>
             @foreach($organizations as $org)
@@ -16,6 +21,18 @@
         <a href="{{ route('admin.messages', ['filter' => $filter]) }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">Effacer</a>
         @endif
     </form>
+
+    {{-- TASK-1666 — une liste bornee a une seule conversation doit se VOIR :
+         sinon deux messages se lisent comme « il n'y a que deux messages ». --}}
+    @if($transactionId)
+    <div class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300">
+        <span>{{ __('admin.messages_filtered_on_transaction', ['short' => strtoupper(substr($transactionId, 0, 8))]) }}</span>
+        <a href="{{ route('admin.transactions', array_filter(['organization_id' => $selectedOrganizationId === 'all' ? null : $selectedOrganizationId, 'transaction_id' => $transactionId])) }}"
+           class="font-medium underline">{{ __('admin.messages_filtered_back_to_exchange') }}</a>
+        <a href="{{ route('admin.messages', ['filter' => 'exchanges', 'organization_id' => $selectedOrganizationId]) }}"
+           class="font-medium underline">{{ __('admin.messages_filtered_clear') }}</a>
+    </div>
+    @endif
 
     <div class="mb-5 flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
         <a href="{{ route('admin.messages', ['filter' => 'chatloop', 'organization_id' => $selectedOrganizationId]) }}"
