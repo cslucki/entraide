@@ -1599,6 +1599,15 @@ return [
     'user_delete_modal_confirm_transfer' => 'Transfer and delete',
     'user_delete_modal_cancel' => 'Cancel',
     'user_delete_modal_error' => 'This account cannot be checked right now. Please try again.',
+    // TASK-1668 — selection multiple et suppression groupee.
+    'messages_bulk_selected' => ':count message(s) selected',
+    'messages_bulk_delete' => 'Delete selection',
+    'messages_bulk_confirm' => 'Permanently delete :count message(s)?',
+    'messages_bulk_confirm_yes' => 'Yes, delete',
+    'messages_bulk_confirm_no' => 'Cancel',
+    'messages_bulk_select_page' => 'Select all on this page',
+    'messages_bulk_done' => ':count message(s) deleted.',
+    'messages_bulk_none' => 'No selected message belongs to the displayed list.',
     // TASK-1666 — acces a la conversation d'un echange et a la Fiche.
     'transactions_conversation_link' => ':count message exchanged|:count messages exchanged',
     'transactions_conversation_empty' => 'No message exchanged',
@@ -1611,6 +1620,7 @@ return [
     'user_delete_transfer_family_services' => 'Offered services',
     'user_delete_transfer_family_service_requests' => 'Published requests',
     'user_delete_transfer_blocked_title' => 'What would need to be handed over',
+    'user_delete_back_to_list' => 'Back to the member list',
     'user_delete_transfer_see' => 'View',
     'user_delete_transfer_no_screen' => 'No listing screen',
     'contents_filtered_on_user' => 'Contents of :name.',

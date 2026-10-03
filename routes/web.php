@@ -577,6 +577,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // detournee pour cet usage — elle est en POST, elle EXIGE la recopie du nom
     // (que cette TASK supprime), et elle calcule `registry->preview()`, soit les
     // 134 entrees du registre la ou la modal n'a besoin que du `precheck()`.
+    // TASK-1668 — la suppression d'un compte devient une PAGE.
+    // Meme URI que le POST existant : seule la methode change.
+    Route::get('/users/{user}/delete', [AdminController::class, 'userDeletePage'])->name('users.delete-page');
     Route::get('/users/{user}/delete-precheck', [AdminController::class, 'userDeletePrecheck'])->name('users.delete-precheck');
     // TASK-1640 — la fiche complete d'un membre, pour le pop-up de la liste.
     // Lecture seule, un seul compte, des COMPTAGES et jamais le contenu lui-meme.
@@ -691,6 +694,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Messages moderation
     Route::get('/messages', [AdminMessageController::class, 'index'])->name('messages');
     Route::get('/messages/{message}', [AdminMessageController::class, 'show'])->name('messages.show');
+    // TASK-1668 — suppression GROUPEE. Declaree AVANT la route unitaire :
+    // sinon `/messages/bulk` serait capture par `/messages/{message}`.
+    Route::delete('/messages/bulk', [AdminMessageController::class, 'bulkDestroy'])->name('messages.bulk-destroy');
     Route::delete('/messages/{message}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
     Route::delete('/loop-messages/{loopMessage}', [AdminMessageController::class, 'destroyLoopMessage'])->name('loop-messages.destroy');
 

@@ -52,10 +52,76 @@
         </a>
     </div>
 
+    {{-- TASK-1668 — selection multiple et suppression groupee.
+
+         Le mode `all` melange deux modeles (LoopMessage et Message) : un
+         identifiant ne dirait pas auquel il appartient. La selection n'y est
+         donc pas proposee, plutot que d'etre proposee et refusee.
+
+         « Tout cocher » est borne a la PAGE AFFICHEE : cocher « tout le filtre »
+         supprimerait des lignes que personne n'a vues.
+
+         Pas de `confirm()` natif : non gere par Playwright, il annule la
+         soumission SANS erreur ni log (T1655). La confirmation est une etape
+         visible, qui nomme le nombre exact. --}}
+    {{-- Le formulaire groupe est pose A COTE du tableau, jamais autour : chaque
+         ligne porte deja son propre formulaire de suppression unitaire, et des
+         formulaires IMBRIQUES sont invalides en HTML — le navigateur supprime
+         les internes, ce qui casserait la suppression ligne a ligne.
+         Les cases s'y rattachent par l'attribut `form`. --}}
+    <div x-data="{ choisis: [], confirme: false }">
+    <form id="bulk-messages" method="POST" action="{{ route('admin.messages.bulk-destroy') }}">
+        @csrf
+        @method('DELETE')
+        <input type="hidden" name="filter" value="{{ $filter }}">
+        <input type="hidden" name="organization_id" value="{{ $selectedOrganizationId }}">
+        @if($transactionId)
+        <input type="hidden" name="transaction_id" value="{{ $transactionId }}">
+        @endif
+    </form>
+
+        @if($filter !== 'all')
+        <div class="mb-3 flex flex-wrap items-center gap-3" x-show="choisis.length > 0" x-cloak>
+            <span class="text-sm text-gray-600 dark:text-gray-400"
+                  x-text="'{{ __('admin.messages_bulk_selected') }}'.replace(':count', choisis.length)"></span>
+
+            <template x-if="! confirme">
+                <button type="button" @click="confirme = true"
+                        class="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
+                    {{ __('admin.messages_bulk_delete') }}
+                </button>
+            </template>
+
+            <template x-if="confirme">
+                <span class="flex flex-wrap items-center gap-2">
+                    <span class="text-sm font-medium text-red-600 dark:text-red-400"
+                          x-text="'{{ __('admin.messages_bulk_confirm') }}'.replace(':count', choisis.length)"></span>
+                    <button type="submit" form="bulk-messages" class="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
+                        {{ __('admin.messages_bulk_confirm_yes') }}
+                    </button>
+                    <button type="button" @click="confirme = false"
+                            class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300">
+                        {{ __('admin.messages_bulk_confirm_no') }}
+                    </button>
+                </span>
+            </template>
+        </div>
+        @endif
+
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <table class="w-full text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
+                    @if($filter !== 'all')
+                    <th class="px-4 py-3 w-10">
+                        {{-- Borne a la PAGE affichee, jamais a tout le filtre. --}}
+                        <input type="checkbox" aria-label="{{ __('admin.messages_bulk_select_page') }}"
+                               @change="choisis = $event.target.checked
+                                   ? Array.from($root.querySelectorAll('input[name=\'ids[]\']')).map(c => { c.checked = true; return c.value; })
+                                   : (Array.from($root.querySelectorAll('input[name=\'ids[]\']')).forEach(c => c.checked = false), [])"
+                               class="rounded border-gray-300 dark:border-gray-600">
+                    </th>
+                    @endif
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Date</th>
                     @if($filter === 'all')
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Type</th>
@@ -70,6 +136,12 @@
                 @forelse($messages as $message)
                 @php $isLoop = $filter === 'chatloop' || (($message->message_type ?? null) === 'chatloop'); @endphp
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
+                    @if($filter !== 'all')
+                    <td class="px-4 py-3">
+                        <input type="checkbox" name="ids[]" form="bulk-messages" value="{{ $message->id }}" x-model="choisis"
+                               class="rounded border-gray-300 dark:border-gray-600">
+                    </td>
+                    @endif
                     <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                         {{ $message->created_at->format('d/m/Y H:i') }}
                     </td>
@@ -122,7 +194,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="{{ $filter === 'all' ? 6 : 5 }}" class="px-4 py-12 text-center">
+                    <td colspan="{{ $filter === 'all' ? 6 : 6 }}" class="px-4 py-12 text-center">
                         @if($filter === 'chatloop')
                         <p class="text-sm text-gray-500 dark:text-gray-400">Aucun message ChatLoop</p>
                         <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Les messages de vos boucles apparaîtront ici.</p>
@@ -137,6 +209,7 @@
                 @endforelse
             </tbody>
         </table>
+    </div>
     </div>
 
     @if($messages->hasPages())

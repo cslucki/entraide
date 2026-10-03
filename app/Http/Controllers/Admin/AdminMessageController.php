@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -170,6 +171,57 @@ class AdminMessageController extends Controller
             ->get();
 
         return view('admin.messages.show', compact('message', 'before', 'after'));
+    }
+
+    /**
+     * Supprimer PLUSIEURS messages d'un coup.
+     *
+     * TASK-1668 — les supprimer un par un etait le seul geste possible. Rejouer
+     * N fois la route unitaire depuis le navigateur serait N requetes, non
+     * atomique, et laisserait un etat partiel si l'une echouait au milieu.
+     *
+     * Trois gardes, dans cet ordre :
+     *
+     * 1. **Le perimetre est RECALCULE cote serveur**, jamais deduit des seuls
+     *    identifiants postes : on repart de la meme requete que l'ecran
+     *    (organisation, et le cas echeant la conversation), et on ne supprime
+     *    que l'intersection. Un identifiant hors perimetre est **ignore**, pas
+     *    refuse en bloc — sinon une ligne perimee ferait echouer tout le geste.
+     * 2. **Une transaction** : tout ou rien.
+     * 3. **Le mode `all` est refuse** : le flux unifie melange deux modeles, et
+     *    un identifiant ne dit pas auquel il appartient.
+     */
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'required|uuid',
+            'filter' => 'required|in:chatloop,exchanges',
+        ]);
+
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        $query = $data['filter'] === 'chatloop'
+            ? $this->applyOrganizationFilter(LoopMessage::query(), $selectedOrganizationId)
+            : $this->applyTransactionFilter(
+                $this->applyOrganizationFilter(Message::query(), $selectedOrganizationId),
+                $request->filled('transaction_id') ? (string) $request->input('transaction_id') : null
+            );
+
+        $cibles = (clone $query)->whereIn('id', $data['ids'])->get();
+
+        if ($cibles->isEmpty()) {
+            return back()->with('error', __('admin.messages_bulk_none'));
+        }
+
+        DB::transaction(function () use ($cibles) {
+            foreach ($cibles as $message) {
+                $message->reactions()->delete();
+                $message->delete();
+            }
+        });
+
+        return back()->with('success', __('admin.messages_bulk_done', ['count' => $cibles->count()]));
     }
 
     public function destroy(Message $message): RedirectResponse
