@@ -693,6 +693,43 @@ class AdminController extends Controller
 
     // ── Transactions ──────────────────────────────────────────────────────────
 
+    /**
+     * Le grand livre des points, en LECTURE SEULE.
+     *
+     * TASK-1667 — « Ce membre a N ecriture(s) au grand livre des points »
+     * bloquait la suppression sans que rien ne permette d'aller voir ces
+     * ecritures : aucun ecran n'existait. Il en fallait donc un.
+     *
+     * Lecture seule et sans action, a dessein : un historique comptable ne se
+     * supprime pas, et c'est precisement pour cela qu'il bloque. Cet ecran
+     * explique le blocage, il ne le leve pas.
+     */
+    public function points(Request $request): View
+    {
+        $query = PointLedger::query()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->with(['user', 'organization']);
+
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
+
+        if ($request->filled('reason')) {
+            $query->where('reason', $request->input('reason'));
+        }
+
+        $filteredUser = $this->applyAdminUserFilter($query, $request);
+
+        $entries = $query->latest('created_at')->paginate(25)->withQueryString();
+
+        $solde = (clone $query)->sum('delta');
+
+        return view('admin.points', compact(
+            'organizations', 'selectedOrganizationId', 'entries', 'filteredUser', 'solde'
+        ));
+    }
+
     public function transactions(Request $request): View
     {
         // TASK-1666 — `withCount` plutot qu'un comptage par ligne dans la vue :

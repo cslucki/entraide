@@ -605,6 +605,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/services/{id}/force', [AdminController::class, 'forceDeleteService'])->name('services.force-delete');
     Route::patch('/services/{id}/restore', [AdminController::class, 'restoreService'])->name('services.restore');
 
+    // Grand livre des points — TASK-1667.
+    // Lecture seule : un historique comptable ne se supprime pas, c'est
+    // d'ailleurs la raison pour laquelle il BLOQUE la suppression d'un compte.
+    Route::get('/points', [AdminController::class, 'points'])->name('points');
+
     // Transactions
     Route::get('/transactions', [AdminController::class, 'transactions'])->name('transactions');
     Route::delete('/transactions/{transactionId}', [AdminController::class, 'destroyTransaction'])->name('transactions.destroy');
