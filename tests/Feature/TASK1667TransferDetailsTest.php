@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -313,5 +314,51 @@ class TASK1667TransferDetailsTest extends TestCase
             ->assertSee('transfers', false)
             ->assertSee('famille in transfers', false)
             ->assertSee('famille.url', false);
+    }
+
+    public function test_le_detail_est_rendu_meme_quand_la_suppression_est_bloquee(): void
+    {
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.users'))->assertOk()->getContent();
+
+        // Le detail ne doit pas vivre UNIQUEMENT dans la branche « suppression
+        // possible » : un compte bloque peut avoir des contenus, et c'est avant
+        // de lever les blocages que l'admin a besoin de le savoir.
+        $brancheBloquee = substr(
+            $html,
+            strpos($html, 'blocks.length > 0'),
+            strpos($html, 'blocks.length === 0') - strpos($html, 'blocks.length > 0')
+        );
+
+        // Asserter la presence du balisage ne suffit PAS : neutraliser la
+        // condition (`x-if="false"`) laisse le balisage en place et le test
+        // resterait vert. C'est la GARDE qu'il faut exiger.
+        $this->assertStringContainsString('x-if="transfers.length > 0"', $brancheBloquee);
+        $this->assertStringContainsString('famille in transfers', $brancheBloquee);
+        $this->assertStringContainsString(__('admin.user_delete_transfer_blocked_title'), $brancheBloquee);
+    }
+
+    public function test_le_detail_reste_calcule_meme_quand_un_blocage_existe(): void
+    {
+        $this->article();
+
+        // Un blocage dur : ecriture au grand livre des points.
+        DB::table('point_ledger')->insert([
+            'id' => (string) Str::uuid(),
+            'user_id' => $this->auteur->id,
+            'organization_id' => $this->organization->id,
+            'delta' => 10,
+            // Surtout pas `welcome_bonus` : T1638 l'a rendu RESOLVABLE, donc il
+            // ne bloque plus rien. Une ecriture d'echange, elle, bloque.
+            'reason' => 'exchange_earned',
+            'created_at' => now(),
+        ]);
+
+        $payload = $this->actingAs($this->superAdmin)
+            ->getJson(route('admin.users.delete-precheck', $this->auteur))
+            ->assertOk()
+            ->json();
+
+        $this->assertNotEmpty($payload['blocks'], 'premisse : le compte est bien bloque');
+        $this->assertSame(1, collect($payload['transfers'])->firstWhere('key', 'blog_posts')['count']);
     }
 }

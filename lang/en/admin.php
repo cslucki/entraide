@@ -1610,6 +1610,7 @@ return [
     'user_delete_transfer_family_feed_posts' => 'Feed posts',
     'user_delete_transfer_family_services' => 'Offered services',
     'user_delete_transfer_family_service_requests' => 'Published requests',
+    'user_delete_transfer_blocked_title' => 'What would need to be handed over',
     'user_delete_transfer_see' => 'View',
     'user_delete_transfer_no_screen' => 'No listing screen',
     'contents_filtered_on_user' => 'Contents of :name.',

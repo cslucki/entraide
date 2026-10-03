@@ -413,6 +413,37 @@
                             </li>
                         </template>
                     </ul>
+
+                    {{-- TASK-1667 — ce que la suppression ferait changer de main, visible
+                         MEME quand elle est bloquee.
+                         Le detail ne vivait que dans la branche « suppression possible » :
+                         un compte bloque pouvait avoir sept articles sans que l'ecran en
+                         dise un mot. Or c'est precisement avant de lever les blocages que
+                         l'admin a besoin de savoir ce qui l'attend. Ici c'est une
+                         INFORMATION, pas une action : aucun choix de repreneur, la
+                         suppression reste impossible. --}}
+                    <template x-if="transfers.length > 0">
+                        <div class="mb-6">
+                            <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('admin.user_delete_transfer_blocked_title') }}</p>
+                            <ul class="space-y-1">
+                                <template x-for="famille in transfers" :key="famille.key">
+                                    <li class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                                        <span class="font-medium text-gray-800 dark:text-gray-200" x-text="famille.count"></span>
+                                        <span x-text="famille.label"></span>
+                                        <template x-if="famille.url">
+                                            <a :href="famille.url" class="text-indigo-600 hover:underline">
+                                                {{ __('admin.user_delete_transfer_see') }} &rarr;
+                                            </a>
+                                        </template>
+                                        <template x-if="! famille.url">
+                                            <span class="text-gray-400">({{ __('admin.user_delete_transfer_no_screen') }})</span>
+                                        </template>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </template>
+
                     <div class="flex justify-end">
                         <button type="button" @click="close()"
                             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
