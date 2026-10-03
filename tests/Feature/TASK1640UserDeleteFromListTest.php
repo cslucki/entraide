@@ -57,25 +57,37 @@ class TASK1640UserDeleteFromListTest extends TestCase
 
         $this->assertStringContainsString(__('admin.user_delete_row_button'), $html);
 
-        // Le bouton nomme le compte de la ligne : c'est ce qui permet a UNE modal
-        // partagee de savoir qui elle supprime.
-        $this->assertStringContainsString("openDelete('{$this->target->id}'", $html);
+        // TASK-1668 — la modal partagee a laisse place a une PAGE. La garantie
+        // protegee est la meme : chaque ligne porte de quoi supprimer CE
+        // compte-la, et la liste ne calcule aucun precheck au rendu.
+        $this->assertStringContainsString(
+            route('admin.users.delete-page', $this->target),
+            $html
+        );
     }
 
     public function test_la_liste_n_impose_plus_de_passer_par_edit_ni_par_la_preview(): void
     {
         $html = $this->actingAs($this->superAdmin)->get(route('admin.users'))->assertOk()->getContent();
 
-        // La modal poste directement sur la route destructive.
-        $this->assertStringContainsString(route('admin.users.destroy', ['user' => '__ID__']), $html);
+        // TASK-1668 — la liste mene a la page de suppression, qui poste ensuite
+        // sur la route destructive. Ce que ce test protege reste inchange : on
+        // ne repasse NI par l'ecran d'edition, NI par celui de simulation.
+        $this->assertStringContainsString(route('admin.users.delete-page', $this->target), $html);
 
-        // Et elle interroge la route de lecture, pas l'ecran de simulation.
-        $this->assertStringContainsString(route('admin.users.delete-precheck', ['user' => '__ID__']), $html);
         $this->assertStringNotContainsString(
             route('admin.users.delete-preview', $this->target),
             $html,
             "La liste ne doit plus renvoyer vers l'ecran de simulation pour supprimer."
         );
+
+        // Et la page, elle, poste bien sur la route destructive.
+        $page = $this->actingAs($this->superAdmin)
+            ->get(route('admin.users.delete-page', $this->target))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(route('admin.users.destroy', $this->target), $page);
     }
 
     public function test_aucun_champ_de_recopie_du_nom_sur_le_chemin_destructif(): void

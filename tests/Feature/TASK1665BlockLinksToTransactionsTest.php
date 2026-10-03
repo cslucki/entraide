@@ -285,14 +285,21 @@ class TASK1665BlockLinksToTransactionsTest extends TestCase
 
     // ── La modal rend-elle vraiment les liens ? ────────────────────────────
 
-    public function test_the_modal_markup_knows_how_to_render_the_links(): void
+    public function test_la_page_de_suppression_rend_les_liens_du_blocage(): void
     {
-        $html = $this->actingAs($this->superAdmin)->get(route('admin.users'))->assertOk()->getContent();
+        // TASK-1668 — le rendu etait fait par Alpine dans une modal, et seule la
+        // PRESENCE du gabarit etait verifiable. La page rend cote serveur : on
+        // peut desormais exiger le lien LUI-MEME, ce qui est strictement plus
+        // fort que ce que ce test prouvait avant.
+        $transaction = Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            'seller_id' => $this->target->id,
+            'buyer_id' => User::factory()->for($this->organization)->create()->id,
+        ]);
 
-        // Le rendu est fait par Alpine : ce qui est verifiable au serveur, c'est
-        // que le gabarit sait boucler sur `block.links` et n'affiche rien sinon.
-        $this->assertStringContainsString('block.links', $html);
-        $this->assertStringContainsString('lien.url', $html);
-        $this->assertStringContainsString('lien.label', $html);
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.users.delete-page', $this->target))
+            ->assertOk()
+            ->assertSee('transaction_id='.$transaction->id, false);
     }
 }

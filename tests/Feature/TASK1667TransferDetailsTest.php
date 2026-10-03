@@ -602,33 +602,41 @@ class TASK1667TransferDetailsTest extends TestCase
 
     // ───────────────────── la modal ─────────────────────
 
-    public function test_la_modal_sait_rendre_le_detail(): void
+    public function test_la_page_de_suppression_rend_le_detail(): void
     {
-        $this->actingAs($this->superAdmin)->get(route('admin.users'))->assertOk()
-            ->assertSee('transfers', false)
-            ->assertSee('famille in transfers', false)
-            ->assertSee('famille.url', false);
+        // TASK-1668 — la modal rendait le detail par Alpine : seule la presence
+        // du gabarit etait verifiable. La page rend cote serveur, donc on exige
+        // le CONTENU — strictement plus fort.
+        $this->article();
+        Service::factory()->create([
+            'user_id' => $this->auteur->id,
+            'organization_id' => $this->organization->id,
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.users.delete-page', $this->auteur))
+            ->assertOk()
+            ->assertSee(__('admin.user_delete_transfer_family_blog_posts'), false)
+            ->assertSee(__('admin.user_delete_transfer_family_services'), false)
+            ->assertSee('user_id='.$this->auteur->id, false);
     }
 
     public function test_le_detail_est_rendu_meme_quand_la_suppression_est_bloquee(): void
     {
-        $html = $this->actingAs($this->superAdmin)->get(route('admin.users'))->assertOk()->getContent();
+        $this->article();
+        $this->ecritureDePoints();
 
-        // Le detail ne doit pas vivre UNIQUEMENT dans la branche « suppression
-        // possible » : un compte bloque peut avoir des contenus, et c'est avant
-        // de lever les blocages que l'admin a besoin de le savoir.
-        $brancheBloquee = substr(
-            $html,
-            strpos($html, 'blocks.length > 0'),
-            strpos($html, 'blocks.length === 0') - strpos($html, 'blocks.length > 0')
-        );
+        // Un compte bloque peut avoir des contenus, et c'est AVANT de lever les
+        // blocages que l'admin a besoin de le savoir. TASK-1668 : la page rendant
+        // cote serveur, ce test observe desormais le resultat et non le gabarit —
+        // il ne peut plus etre vert sur une condition neutralisee.
+        $page = $this->actingAs($this->superAdmin)
+            ->get(route('admin.users.delete-page', $this->auteur))
+            ->assertOk();
 
-        // Asserter la presence du balisage ne suffit PAS : neutraliser la
-        // condition (`x-if="false"`) laisse le balisage en place et le test
-        // resterait vert. C'est la GARDE qu'il faut exiger.
-        $this->assertStringContainsString('x-if="transfers.length > 0"', $brancheBloquee);
-        $this->assertStringContainsString('famille in transfers', $brancheBloquee);
-        $this->assertStringContainsString(__('admin.user_delete_transfer_blocked_title'), $brancheBloquee);
+        $page->assertSee(__('admin.user_delete_blocked_title'), false);
+        $page->assertSee(__('admin.user_delete_transfer_blocked_title'), false);
+        $page->assertSee(__('admin.user_delete_transfer_family_blog_posts'), false);
     }
 
     public function test_le_detail_reste_calcule_meme_quand_un_blocage_existe(): void
