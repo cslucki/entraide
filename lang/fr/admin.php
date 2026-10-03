@@ -1611,6 +1611,15 @@ return [
     'user_delete_modal_confirm_transfer' => 'Transférer et supprimer',
     'user_delete_modal_cancel' => 'Annuler',
     'user_delete_modal_error' => 'Impossible de vérifier ce compte pour l’instant. Réessayez.',
+    // TASK-1668 — selection multiple et suppression groupee.
+    'messages_bulk_selected' => ':count message(s) selectionne(s)',
+    'messages_bulk_delete' => 'Supprimer la selection',
+    'messages_bulk_confirm' => 'Supprimer definitivement :count message(s) ?',
+    'messages_bulk_confirm_yes' => 'Oui, supprimer',
+    'messages_bulk_confirm_no' => 'Annuler',
+    'messages_bulk_select_page' => 'Tout cocher sur cette page',
+    'messages_bulk_done' => ':count message(s) supprime(s).',
+    'messages_bulk_none' => 'Aucun message selectionne ne fait partie de la liste affichee.',
     // TASK-1666 — acces a la conversation d'un echange et a la Fiche.
     'transactions_conversation_link' => ':count message échangé|:count messages échangés',
     'transactions_conversation_empty' => 'Aucun message échangé',

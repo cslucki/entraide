@@ -694,6 +694,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Messages moderation
     Route::get('/messages', [AdminMessageController::class, 'index'])->name('messages');
     Route::get('/messages/{message}', [AdminMessageController::class, 'show'])->name('messages.show');
+    // TASK-1668 — suppression GROUPEE. Declaree AVANT la route unitaire :
+    // sinon `/messages/bulk` serait capture par `/messages/{message}`.
+    Route::delete('/messages/bulk', [AdminMessageController::class, 'bulkDestroy'])->name('messages.bulk-destroy');
     Route::delete('/messages/{message}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
     Route::delete('/loop-messages/{loopMessage}', [AdminMessageController::class, 'destroyLoopMessage'])->name('loop-messages.destroy');
 
