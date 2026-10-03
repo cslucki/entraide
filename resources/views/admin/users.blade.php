@@ -446,6 +446,29 @@
                         <div class="mb-6">
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
                                    x-text="'{{ __('admin.user_delete_modal_transfer_label') }}'.replace(':count', transferTotal)"></label>
+
+                            {{-- TASK-1667 — « 3 contenus » ne disait pas LESQUELS : on
+                                 demandait de choisir un repreneur pour des contenus jamais
+                                 vus. Le detail par famille sort du precheck, qui le
+                                 calculait deja. `feed_posts` n'ayant aucun ecran dans ce
+                                 depot, sa ligne est rendue SANS lien : un nombre sans lien
+                                 vaut mieux qu'un lien vers une page absente. --}}
+                            <ul class="mb-3 space-y-1">
+                                <template x-for="famille in transfers" :key="famille.key">
+                                    <li class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                                        <span class="font-medium text-gray-800 dark:text-gray-200" x-text="famille.count"></span>
+                                        <span x-text="famille.label"></span>
+                                        <template x-if="famille.url">
+                                            <a :href="famille.url" class="text-indigo-600 hover:underline">
+                                                {{ __('admin.user_delete_transfer_see') }} →
+                                            </a>
+                                        </template>
+                                        <template x-if="! famille.url">
+                                            <span class="text-gray-400">({{ __('admin.user_delete_transfer_no_screen') }})</span>
+                                        </template>
+                                    </li>
+                                </template>
+                            </ul>
                             <select name="transfer_to" required
                                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
                                 <option value="">{{ __('admin.user_delete_modal_transfer_placeholder') }}</option>
@@ -487,6 +510,7 @@
             blocks: [],
             requiresTransfer: false,
             transferTotal: 0,
+            transfers: [],
             candidates: [],
             fingerprint: '',
 
@@ -503,6 +527,7 @@
                 this.blocks = [];
                 this.requiresTransfer = false;
                 this.transferTotal = 0;
+                this.transfers = [];
                 this.candidates = [];
                 this.fingerprint = '';
                 this.destroyUrl = '{{ route('admin.users.destroy', ['user' => '__ID__']) }}'.replace('__ID__', id);
@@ -520,6 +545,7 @@
                     this.blocks = data.blocks;
                     this.requiresTransfer = data.requires_transfer;
                     this.transferTotal = data.transfer_total;
+                    this.transfers = data.transfers ?? [];
                     this.candidates = data.transfer_candidates;
                     // L'empreinte vient du serveur, calculee AU CLIC : c'est elle
                     // qui rend une decision perimee refusable.
