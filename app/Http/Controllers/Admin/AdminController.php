@@ -736,10 +736,23 @@ class AdminController extends Controller
 
         $entries = $query->orderBy($tri, $sens)->paginate(25)->withQueryString();
 
+        // TASK-1667 — de QUI corriger le solde, choisi a l'ecran.
+        //
+        // Le panneau de correction ne s'affiche que sur une personne designee.
+        // Sans ce choix, il fallait fabriquer l'URL `?user_id=...` a la main :
+        // la capacite existait sans aucune poignee pour l'atteindre.
+        //
+        // Le solde est porte par l'option, pour qu'il soit lu AVANT de choisir.
+        $membres = User::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->when($selectedOrganizationId !== 'all',
+                fn ($q) => $q->where('organization_id', $selectedOrganizationId))
+            ->orderBy('name')
+            ->get(['id', 'name', 'first_name', 'points_balance']);
+
         $solde = (clone $query)->sum('delta');
 
         return view('admin.points', compact(
-            'organizations', 'selectedOrganizationId', 'entries', 'filteredUser', 'solde', 'tri', 'sens'
+            'organizations', 'selectedOrganizationId', 'entries', 'filteredUser', 'solde', 'tri', 'sens', 'membres'
         ));
     }
 

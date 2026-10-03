@@ -11,10 +11,20 @@
     </p>
 
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
-        {{-- Sans ce report, changer d'organisation ELARGIT la liste en silence. --}}
-        @if($filteredUser)
-        <input type="hidden" name="user_id" value="{{ request('user_id') }}">
-        @endif
+        {{-- TASK-1667 — choisir la personne ICI, et non en fabriquant l'URL a la
+             main. Ce `select` fait deux choses d'un coup : il borne la liste, et
+             il fait apparaitre le panneau de correction. Il porte aussi le
+             report du filtre — sans lui, changer d'organisation ELARGIRAIT la
+             liste en silence.
+             Le solde est affiche dans l'option : on le lit AVANT de choisir. --}}
+        <select name="user_id" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm max-w-xs">
+            <option value="">{{ __('admin.points_member_any') }}</option>
+            @foreach($membres as $membre)
+            <option value="{{ $membre->id }}" {{ request('user_id') === $membre->id ? 'selected' : '' }}>
+                {{ $membre->full_name }} — {{ $membre->points_balance }} pts
+            </option>
+            @endforeach
+        </select>
         <select name="organization_id" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
             <option value="all" {{ $selectedOrganizationId === 'all' ? 'selected' : '' }}>{{ __('admin.all_organizations') }}</option>
             @foreach($organizations as $org)
@@ -131,6 +141,12 @@
                             <button type="button"
                                 @click="$dispatch('open-user-profile', { id: '{{ $entry->user->id }}', name: @js($entry->user->full_name) })"
                                 class="text-indigo-600 hover:underline text-xs text-left">{{ $entry->user->full_name }}</button>
+                            {{-- TASK-1667 — un pas de plus vers la correction : la Fiche
+                                 dit QUI c'est, ce lien amene a ses ecritures et au
+                                 panneau de correction. --}}
+                            <a href="{{ request()->fullUrlWithQuery(['user_id' => $entry->user->id]) }}"
+                               class="ml-1 text-xs text-gray-400 hover:text-indigo-600 hover:underline"
+                               title="{{ __('admin.points_focus_member') }}">&rarr;</a>
                             @else <span class="text-xs text-gray-400">—</span>
                             @endif
                         </td>

@@ -322,6 +322,24 @@ class TASK1667TransferDetailsTest extends TestCase
         ]);
     }
 
+    /**
+     * Le corps du tableau du grand livre, isole du reste de la page.
+     *
+     * Le `select` de choix du membre liste TOUS les membres : une assertion
+     * `assertDontSee($autre->full_name)` sur la page entiere echouerait donc
+     * meme avec un filtre parfaitement correct. Ce qu'il faut regarder, ce sont
+     * les LIGNES.
+     */
+    private function corpsDuTableau(string $html): string
+    {
+        $debut = strpos($html, '<tbody');
+        $fin = strpos($html, '</tbody>', $debut ?: 0);
+
+        return $debut === false || $fin === false
+            ? $html
+            : substr($html, $debut, $fin - $debut);
+    }
+
     public function test_le_blocage_des_points_mene_au_grand_livre(): void
     {
         $this->ecritureDePoints();
@@ -346,22 +364,25 @@ class TASK1667TransferDetailsTest extends TestCase
         $autre = User::factory()->for($this->organization)->create();
         $this->ecritureDePoints($autre, 'exchange_spent');
 
-        $reponse = $this->actingAs($this->superAdmin)
+        $corps = $this->corpsDuTableau($this->actingAs($this->superAdmin)
             ->get(route('admin.points', ['organization_id' => $this->organization->id, 'user_id' => $this->auteur->id]))
-            ->assertOk();
+            ->assertOk()
+            ->getContent());
 
-        $reponse->assertSee($this->auteur->full_name, false);
-        $reponse->assertDontSee($autre->full_name, false);
+        $this->assertStringContainsString($this->auteur->full_name, $corps);
+        $this->assertStringNotContainsString($autre->full_name, $corps);
     }
 
     public function test_le_grand_livre_ne_leve_pas_d_erreur_sur_un_uuid_malforme(): void
     {
         $this->ecritureDePoints();
 
-        $this->actingAs($this->superAdmin)
+        $corps = $this->corpsDuTableau($this->actingAs($this->superAdmin)
             ->get(route('admin.points', ['organization_id' => $this->organization->id, 'user_id' => 'pas-un-uuid']))
             ->assertOk()
-            ->assertDontSee($this->auteur->full_name, false);
+            ->getContent());
+
+        $this->assertStringNotContainsString($this->auteur->full_name, $corps);
     }
 
     public function test_le_grand_livre_est_refuse_a_un_membre_ordinaire(): void
@@ -401,6 +422,32 @@ class TASK1667TransferDetailsTest extends TestCase
             ->assertOk()
             ->assertSee(route('admin.points'), false)
             ->assertSee(__('admin.points_nav'), false);
+    }
+
+    public function test_le_choix_du_membre_est_offert_a_l_ecran(): void
+    {
+        $this->ecritureDePoints();
+
+        // Sans ce choix, corriger un solde exigeait de fabriquer l'URL
+        // `?user_id=...` a la main : la capacite existait sans poignee.
+        // Rappel T1656 : une capacite non exposee est une capacite ABSENTE.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['organization_id' => $this->organization->id]))
+            ->assertOk()
+            ->assertSee('name="user_id"', false)
+            ->assertSee($this->auteur->full_name, false);
+    }
+
+    public function test_le_choix_du_membre_conserve_la_personne_selectionnee(): void
+    {
+        $this->ecritureDePoints();
+
+        // Le `select` remplace l'ancien champ cache : il doit porter le report
+        // du filtre, sinon un changement d'organisation ELARGIT la liste.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['organization_id' => $this->organization->id, 'user_id' => $this->auteur->id]))
+            ->assertOk()
+            ->assertSee('value="'.$this->auteur->id.'" selected', false);
     }
 
     // ──────────── corriger un solde SANS reecrire l'historique ────────────

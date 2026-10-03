@@ -1634,6 +1634,8 @@ return [
     'points_adjust_reason' => 'Motif (facultatif)',
     'points_adjust_submit' => 'Appliquer',
     'points_reset' => 'Remettre a zero (:balance pts)',
+    'points_member_any' => '— Tous les membres —',
+    'points_focus_member' => 'Voir et corriger ses points',
     'points_intro' => "Historique comptable des points, en lecture seule. Une ecriture ne se supprime pas : c'est pourquoi elle empeche la suppression d'un compte.",
     'points_reason_placeholder' => 'Motif…',
     'points_filtered_on_user' => 'Ecritures de :name — solde :solde.',

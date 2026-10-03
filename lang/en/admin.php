@@ -1622,6 +1622,8 @@ return [
     'points_adjust_reason' => 'Reason (optional)',
     'points_adjust_submit' => 'Apply',
     'points_reset' => 'Reset to zero (:balance pts)',
+    'points_member_any' => '— All members —',
+    'points_focus_member' => 'View and adjust their points',
     'points_intro' => 'Points ledger, read only. An entry cannot be deleted: that is why it blocks account deletion.',
     'points_reason_placeholder' => 'Reason…',
     'points_filtered_on_user' => 'Entries for :name — balance :solde.',
