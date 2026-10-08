@@ -192,16 +192,28 @@ class BelongsToOrganizationScope implements Scope
     }
 
     /**
-     * Le nom de la commande en cours, quand il est lisible simplement.
+     * Le nom de la commande Artisan en cours, quand il y en a une.
      *
-     * Le depot n'a AUCUNE infrastructure de capture du contexte console
-     * (aucun ecouteur `CommandStarting`, aucune lecture d'`argv`), et le
-     * mandat de TASK-1670 interdit d'en creer une. On lit donc `argv`
-     * directement, et on s'arrete au premier jeton qui n'est pas une option.
+     * Le depot n'a AUCUNE infrastructure de capture du contexte console (aucun
+     * ecouteur `CommandStarting`, aucune lecture d'`argv`), et le mandat de
+     * TASK-1670 interdit d'en creer une. On lit donc `argv` directement.
      *
-     * Les options sont ECARTEES, pas seulement ignorees : `--password=…` ou
-     * `--token=…` n'ont rien a faire dans un log. Seul le nom de commande est
-     * retenu.
+     * MAIS ON NE LE DEVINE PAS. Un premier jet parcourait `argv` jusqu'au
+     * premier jeton qui n'etait pas une option. La recette locale du
+     * 08/10/2026 l'a pris la main dans le sac : sous
+     * `phpunit -c phpunit.pgsql.xml`, il journalisait
+     * `"command":"phpunit.pgsql.xml"` — la VALEUR de l'option `-c` presentee
+     * comme un nom de commande. Un champ nomme `command` qui contient autre
+     * chose qu'une commande envoie l'investigation exactement ou cette TASK
+     * promet de ne plus l'envoyer.
+     *
+     * La regle est donc etroite et verifiable : la commande n'est lue que si
+     * l'entree est bien `artisan`, et seulement a la position ou Artisan la
+     * met — le PREMIER argument. Toute autre entree (phpunit, un script, une
+     * session tinker) rend `null`, qui est la reponse honnete.
+     *
+     * Les options ne sont jamais retenues : `--password=…` ou `--token=…`
+     * n'ont rien a faire dans un log.
      *
      * @return array<string, mixed>
      */
@@ -209,16 +221,20 @@ class BelongsToOrganizationScope implements Scope
     {
         $argv = $_SERVER['argv'] ?? null;
 
-        if (! is_array($argv)) {
+        if (! is_array($argv) || ! isset($argv[0], $argv[1])) {
             return ['command' => null];
         }
 
-        foreach (array_slice($argv, 1) as $argument) {
-            if (is_string($argument) && $argument !== '' && ! str_starts_with($argument, '-')) {
-                return ['command' => $argument];
-            }
+        if (! is_string($argv[0]) || basename($argv[0]) !== 'artisan') {
+            return ['command' => null];
         }
 
-        return ['command' => null];
+        $commande = $argv[1];
+
+        if (! is_string($commande) || $commande === '' || str_starts_with($commande, '-')) {
+            return ['command' => null];
+        }
+
+        return ['command' => $commande];
     }
 }

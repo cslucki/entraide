@@ -151,6 +151,75 @@ class TASK1670ScopeWarningAttributionTest extends TestCase
         )->atLeast()->once();
     }
 
+    public function test_le_nom_de_commande_artisan_est_reporte(): void
+    {
+        $origine = $_SERVER['argv'] ?? null;
+        $_SERVER['argv'] = ['artisan', 'sitemap:generate', '--force'];
+
+        try {
+            Log::spy();
+
+            Service::all();
+
+            Log::shouldHaveReceived('warning')->withArgs(
+                fn ($message, $contexte = null) => $message === self::MESSAGE
+                    && is_array($contexte)
+                    && $contexte['execution_context'] === 'console'
+                    && $contexte['command'] === 'sitemap:generate'
+            )->atLeast()->once();
+        } finally {
+            $_SERVER['argv'] = $origine;
+        }
+    }
+
+    public function test_une_valeur_d_option_n_est_jamais_prise_pour_un_nom_de_commande(): void
+    {
+        // LE DEFAUT MESURE EN RECETTE LE 08/10/2026. Un premier jet parcourait
+        // argv jusqu'au premier jeton non-option et journalisait
+        // `"command":"phpunit.pgsql.xml"` — la valeur de l'option `-c`.
+        $origine = $_SERVER['argv'] ?? null;
+        $_SERVER['argv'] = ['vendor/bin/phpunit', '-c', 'phpunit.pgsql.xml', '--filter', 'Foo'];
+
+        try {
+            Log::spy();
+
+            Service::all();
+
+            Log::shouldHaveReceived('warning')->withArgs(
+                fn ($message, $contexte = null) => $message === self::MESSAGE
+                    && is_array($contexte)
+                    && $contexte['command'] === null
+            )->atLeast()->once();
+        } finally {
+            $_SERVER['argv'] = $origine;
+        }
+    }
+
+    public function test_une_option_a_la_place_de_la_commande_ne_laisse_rien_passer(): void
+    {
+        $origine = $_SERVER['argv'] ?? null;
+        $_SERVER['argv'] = ['artisan', '--token=secret-a-ne-pas-journaliser'];
+
+        try {
+            Log::spy();
+
+            Service::all();
+
+            Log::shouldHaveReceived('warning')->withArgs(
+                function ($message, $contexte = null) {
+                    if ($message !== self::MESSAGE || ! is_array($contexte)) {
+                        return false;
+                    }
+
+                    return $contexte['command'] === null
+                        && ! str_contains(json_encode($contexte), 'secret-a-ne-pas-journaliser');
+                }
+            )->atLeast()->once();
+        } finally {
+            $_SERVER['argv'] = $origine;
+        }
+    }
+
     // -------------------------------------------------------------------------
     // 4. Le contexte HTTP — route et URI identifiables
     // -------------------------------------------------------------------------
