@@ -54,7 +54,21 @@ class TASK1667TransferDetailsTest extends TestCase
 
         $this->organization = Organization::factory()->create();
         $this->superAdmin = User::factory()->for($this->organization)->create(['is_admin' => true]);
-        $this->auteur = User::factory()->for($this->organization)->create();
+        // TASK-1672 — des noms FIXES, et choisis HOSTILES.
+        //
+        // Ces fixtures etaient tirees au hasard par faker. Le 09/10/2026 la CI
+        // a tire « Julien O'Hara » et trois assertions de ce fichier sont
+        // passees au rouge : Blade echappe l'apostrophe en `&#039;`, donc le
+        // nom BRUT n'etait plus dans le HTML. La suite etait verte depuis des
+        // semaines par chance, pas par construction.
+        //
+        // On fige donc les noms, et on les choisit avec une apostrophe : le
+        // cas hostile est desormais joue A CHAQUE PASSAGE, au lieu d'attendre
+        // que le hasard le propose.
+        $this->auteur = User::factory()->for($this->organization)->create([
+            'first_name' => 'Julien',
+            'name' => "O'Hara",
+        ]);
     }
 
     private function article(?User $de = null, string $titre = 'Un article'): BlogPost
@@ -294,7 +308,7 @@ class TASK1667TransferDetailsTest extends TestCase
         $this->actingAs($this->superAdmin)
             ->get(route('admin.blog', ['organization_id' => $this->organization->id, 'user_id' => $this->auteur->id]))
             ->assertOk()
-            ->assertSee($this->auteur->full_name, false);
+            ->assertSee($this->auteur->full_name);
     }
 
     public function test_sans_filtre_aucun_champ_cache_ni_banniere(): void
@@ -361,7 +375,10 @@ class TASK1667TransferDetailsTest extends TestCase
     public function test_le_grand_livre_est_borne_sur_la_personne(): void
     {
         $this->ecritureDePoints();
-        $autre = User::factory()->for($this->organization)->create();
+        $autre = User::factory()->for($this->organization)->create([
+            'first_name' => 'Aude',
+            'name' => "D'Ambre",
+        ]);
         $this->ecritureDePoints($autre, 'exchange_spent');
 
         $corps = $this->corpsDuTableau($this->actingAs($this->superAdmin)
@@ -369,8 +386,8 @@ class TASK1667TransferDetailsTest extends TestCase
             ->assertOk()
             ->getContent());
 
-        $this->assertStringContainsString($this->auteur->full_name, $corps);
-        $this->assertStringNotContainsString($autre->full_name, $corps);
+        $this->assertStringContainsString(e($this->auteur->full_name), $corps);
+        $this->assertStringNotContainsString(e($autre->full_name), $corps);
     }
 
     public function test_le_grand_livre_ne_leve_pas_d_erreur_sur_un_uuid_malforme(): void
@@ -382,7 +399,7 @@ class TASK1667TransferDetailsTest extends TestCase
             ->assertOk()
             ->getContent());
 
-        $this->assertStringNotContainsString($this->auteur->full_name, $corps);
+        $this->assertStringNotContainsString(e($this->auteur->full_name), $corps);
     }
 
     public function test_le_grand_livre_est_refuse_a_un_membre_ordinaire(): void
@@ -435,7 +452,7 @@ class TASK1667TransferDetailsTest extends TestCase
             ->get(route('admin.points', ['organization_id' => $this->organization->id]))
             ->assertOk()
             ->assertSee('name="user_id"', false)
-            ->assertSee($this->auteur->full_name, false);
+            ->assertSee($this->auteur->full_name);
     }
 
     public function test_le_choix_du_membre_conserve_la_personne_selectionnee(): void
@@ -536,26 +553,46 @@ class TASK1667TransferDetailsTest extends TestCase
 
     public function test_le_tri_sur_le_mouvement_ordonne_les_ecritures(): void
     {
+        // TASK-1672 — DEUX corrections, pour le meme defaut de fond.
+        //
+        // Ce test cherchait les litteraux `'petit'` et `'grand'` par `strpos`
+        // dans la page ENTIERE. Or faker tire des patronymes francais : un
+        // membre nomme **Legrand** ou **Lepetit** place le mot cherche AILLEURS
+        // dans le HTML — dans le `select` des membres, par exemple — et
+        // l'ordre mesure n'est plus celui des ecritures. Prouve par FORCAGE le
+        // 09/10/2026 : `name = 'Legrand'` -> rouge (`75773 is not less than
+        // 70958`) ; `name = 'Lepetit'` -> rouge. Un simple rejeu ne l'aurait
+        // pas montre, puisque le tirage suivant est presque toujours innocent.
+        //
+        // 1. des motifs DISTINCTIFS, qui ne peuvent pas apparaitre par hasard ;
+        // 2. la recherche bornee au CORPS DU TABLEAU, pas a la page — la lecon
+        //    de T1667 elle-meme, appliquee ici a un test de TRI et non de
+        //    filtrage.
+        $petit = 'T1672-MOUVEMENT-BAS';
+        $grand = 'T1672-MOUVEMENT-HAUT';
+
         DB::table('point_ledger')->insert([
-            ['id' => (string) Str::uuid(), 'user_id' => $this->auteur->id, 'organization_id' => $this->organization->id, 'delta' => 5, 'reason' => 'petit', 'created_at' => now()->subDay()],
-            ['id' => (string) Str::uuid(), 'user_id' => $this->auteur->id, 'organization_id' => $this->organization->id, 'delta' => 90, 'reason' => 'grand', 'created_at' => now()],
+            ['id' => (string) Str::uuid(), 'user_id' => $this->auteur->id, 'organization_id' => $this->organization->id, 'delta' => 5, 'reason' => $petit, 'created_at' => now()->subDay()],
+            ['id' => (string) Str::uuid(), 'user_id' => $this->auteur->id, 'organization_id' => $this->organization->id, 'delta' => 90, 'reason' => $grand, 'created_at' => now()],
         ]);
 
-        $asc = $this->actingAs($this->superAdmin)
+        $asc = $this->corpsDuTableau($this->actingAs($this->superAdmin)
             ->get(route('admin.points', ['organization_id' => $this->organization->id, 'sort' => 'delta', 'direction' => 'asc']))
-            ->assertOk()->getContent();
+            ->assertOk()->getContent());
 
+        $this->assertStringContainsString($petit, $asc);
+        $this->assertStringContainsString($grand, $asc);
         $this->assertLessThan(
-            strpos($asc, 'grand'),
-            strpos($asc, 'petit'),
+            strpos($asc, $grand),
+            strpos($asc, $petit),
             'en ordre croissant, le plus petit mouvement vient en premier'
         );
 
-        $desc = $this->actingAs($this->superAdmin)
+        $desc = $this->corpsDuTableau($this->actingAs($this->superAdmin)
             ->get(route('admin.points', ['organization_id' => $this->organization->id, 'sort' => 'delta', 'direction' => 'desc']))
-            ->assertOk()->getContent();
+            ->assertOk()->getContent());
 
-        $this->assertLessThan(strpos($desc, 'petit'), strpos($desc, 'grand'));
+        $this->assertLessThan(strpos($desc, $petit), strpos($desc, $grand));
     }
 
     public function test_une_colonne_hors_liste_blanche_retombe_sur_la_date(): void
