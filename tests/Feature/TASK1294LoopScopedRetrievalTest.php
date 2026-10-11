@@ -76,6 +76,14 @@ class TASK1294LoopScopedRetrievalTest extends TestCase
 
         // Le cas reproduit : un membre ACTIF de plusieurs Boucles.
         $service = new LoopService;
+        // TASK-1679 : le document racine ne nait plus a la creation que si le
+        // preset du type active `core.manifesto`. Ces tests dependent du
+        // document racine lui-meme : on le remet au socle des types employes.
+        $settings = app(\App\Services\LoopTypeSettingsService::class);
+        foreach (['general', 'project'] as $type) {
+            $settings->save($type, array_merge($settings->cardsFor($type), ['core.manifesto']), $settings->isAvailable($type));
+        }
+
         $this->loopA = $service->createLoop($this->member, 'Boucle A');
         $this->loopB = $service->createLoop($this->member, 'Boucle B');
 
