@@ -22,8 +22,30 @@ use Ramsey\Uuid\Uuid;
 
 class LoopService
 {
-    public function createLoopForOrg(User $user, string $organizationId, string $name, ?string $description = null, string $visibility = 'private', ?string $tagline = null, string $accessMode = Loop::ACCESS_REQUEST, ?string $type = null): Loop
+    /**
+     * TASK-1679 — un seul parametre confondait deux roles : le responsable
+     * metier (membre `owner` de la Boucle) et le createur administratif
+     * (`loops.created_by`). Un SuperAdmin provisionne desormais une Boucle
+     * AVANT que son responsable n'existe comme compte : `$owner` null, aucune
+     * ligne `loop_members` a la naissance. L'attribution ulterieure passe par
+     * les surfaces existantes (addMember / addMemberByUserId), dont la garde
+     * same-org reste seule autorite — rien n'est relache ici.
+     *
+     * Le document racine garde un auteur REEL meme sans owner :
+     * `blog_posts.user_id` est NOT NULL (invariant T1534, « l'auteur est
+     * l'humain qui valide »), un auteur null serait refuse par le schema.
+     * Sans owner, l'auteur est donc le createur administratif.
+     */
+    public function createLoopForOrg(?User $owner, string $organizationId, string $name, ?string $description = null, string $visibility = 'private', ?string $tagline = null, string $accessMode = Loop::ACCESS_REQUEST, ?string $type = null, ?User $creator = null): Loop
     {
+        // Les appelants historiques ne passent que l'owner : il reste alors le
+        // createur, et `created_by` ne change pas d'une virgule.
+        $creator ??= $owner;
+
+        if ($creator === null) {
+            throw new \InvalidArgumentException('A Loop without an owner still needs an administrative creator.');
+        }
+
         $slug = $this->generateUniqueSlug($organizationId, $name);
         $registry = app(LoopTypeRegistry::class);
 
@@ -37,16 +59,18 @@ class LoopService
             'status' => 'active',
             'visibility' => $visibility,
             'access_mode' => Loop::isValidAccessMode($accessMode) ? $accessMode : Loop::ACCESS_REQUEST,
-            'created_by' => $user->id,
+            'created_by' => ($owner ?? $creator)->id,
         ]);
 
-        $this->addMember($loop, $user, 'owner');
+        if ($owner !== null) {
+            $this->addMember($loop, $owner, 'owner');
+        }
 
         // Was missing here while createLoop() had it: a Loop created from the
         // admin came out with no cards at all and relied on the fallback.
         $registry->applyPreset($loop);
 
-        app(LoopRootDocumentService::class)->ensureRootDocument($loop, $user);
+        app(LoopRootDocumentService::class)->ensureRootDocument($loop, $owner ?? $creator);
 
         return $loop;
     }

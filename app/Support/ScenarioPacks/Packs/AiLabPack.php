@@ -343,7 +343,7 @@ final class AiLabPack implements ProvisionsItsOrganization, ScenarioPackDefiniti
 
             if ($loop === null) {
                 $loop = $this->loops->createLoopForOrg(
-                    user: $owner,
+                    owner: $owner,
                     organizationId: $organization->id,
                     name: $definition['name'],
                     description: $definition['description'],

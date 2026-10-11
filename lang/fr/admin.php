@@ -73,6 +73,12 @@ return [
     'owner_select_placeholder' => '— Sélectionner un propriétaire —',
     'org_select_label' => 'Organisation',
     'org_select_placeholder' => '— Sélectionner une organisation —',
+    // TASK-1679 — ecran de creation admin seul : le vocabulaire tenant dit
+    // « responsable » (cf. loops.php), l'ecran d'edition garde « Propriétaire ».
+    'loop_owner_label' => 'Responsable de la Boucle',
+    'loop_owner_placeholder' => '— Sélectionner un responsable —',
+    'loop_owner_none' => "Aucun responsable pour l'instant",
+    'loop_view_front' => 'Voir la Boucle',
 
     'organization_identity' => 'Identité',
     'organization_identity_description' => 'Gérez le logo et l\'identité visuelle de votre organisation.',

@@ -73,6 +73,11 @@ return [
     'owner_select_placeholder' => '— Select an owner —',
     'org_select_label' => 'Organization',
     'org_select_placeholder' => '— Select an organization —',
+    // TASK-1679 — admin creation screen only; the edit screen keeps "Owner".
+    'loop_owner_label' => 'Loop owner',
+    'loop_owner_placeholder' => '— Select an owner —',
+    'loop_owner_none' => 'No owner for now',
+    'loop_view_front' => 'View the Loop',
 
     'organization_identity' => 'Identity',
     'organization_identity_description' => 'Manage your organization logo and brand identity.',
