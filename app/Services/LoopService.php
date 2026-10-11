@@ -70,9 +70,43 @@ class LoopService
         // admin came out with no cards at all and relied on the fallback.
         $registry->applyPreset($loop);
 
-        app(LoopRootDocumentService::class)->ensureRootDocument($loop, $owner ?? $creator);
+        $this->provisionRootContent($loop, $owner ?? $creator);
 
         return $loop;
+    }
+
+    /**
+     * TASK-1679 (recette) — le document racine EST le Manifeste visible, et
+     * depuis TASK-1332 le Manifeste a quitte le socle de TOUS les presets :
+     * le creer a chaque naissance contredisait ce retrait — une Boucle
+     * « Communaute » affichait un Manifeste que son type n'active pas, en
+     * doublon de sa description. Decision produit MASTER : pas de Card
+     * Manifeste active, pas de Manifeste.
+     *
+     * Le Dossier racine, lui, est STRUCTUREL (Dossiers, fichiers, series) et
+     * nait toujours. Une Card Manifeste activee plus tard retombe sur ses
+     * pieds : `LoopManifestoCard::createManifesto()` appelle le meme
+     * `ensureRootDocument()`, idempotent.
+     *
+     * Appele apres `applyPreset()` obligatoirement : c'est le preset qui dit
+     * si `core.manifesto` est actif a la naissance.
+     */
+    private function provisionRootContent(Loop $loop, User $author): void
+    {
+        $service = app(LoopRootDocumentService::class);
+
+        $manifesteActif = $loop->cards()
+            ->where('card_key', 'core.manifesto')
+            ->where('enabled', true)
+            ->exists();
+
+        if ($manifesteActif) {
+            $service->ensureRootDocument($loop, $author);
+
+            return;
+        }
+
+        $service->ensureRootDossier($loop);
     }
 
     /**
@@ -118,10 +152,9 @@ class LoopService
         // (TASK-1079). Additive and idempotent — see LoopTypeRegistry.
         app(LoopTypeRegistry::class)->applyPreset($loop);
 
-        // Root Dossier and root document (TASK-1082). A Loop is never created
-        // without them: the whole creation fails rather than leaving a Loop
-        // whose card would show "no document".
-        app(LoopRootDocumentService::class)->ensureRootDocument($loop, $user);
+        // Root Dossier toujours (TASK-1082) ; root document seulement si le
+        // preset active le Manifeste — voir provisionRootContent().
+        $this->provisionRootContent($loop, $user);
 
         return $loop;
     }

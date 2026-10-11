@@ -51,6 +51,12 @@ class TASK1121ManifestoCoherenceTest extends TestCase
 
         app()->instance('current_organization', $this->orgA);
 
+        // TASK-1679 : le document racine ne nait plus a la creation que si le
+        // preset du type active `core.manifesto`. Ces tests mesurent la
+        // coherence du lien Manifeste <-> Boucle : on le remet au socle.
+        $settings = app(\App\Services\LoopTypeSettingsService::class);
+        $settings->save('general', array_merge($settings->cardsFor('general'), ['core.manifesto']), $settings->isAvailable('general'));
+
         $this->boucle = (new LoopService)->createLoop($this->proprietaire, 'Boucle Manifeste QA')->fresh();
         $this->racine = Dossier::where('loop_id', $this->boucle->id)->firstOrFail();
     }

@@ -167,7 +167,7 @@ class ManifestCoreApplier
                 $loop = $loops[$rootDossierKeys[$key]] ?? null;
 
                 if ($loop !== null) {
-                    $dossiers[$key] = $this->appliquerLeDossierRacine($loop, $declared, $users);
+                    $dossiers[$key] = $this->appliquerLeDossierRacine($loop, $declared, $users, $registrar, $rootDossierKeys[$key]);
                 }
 
                 continue;
@@ -218,9 +218,16 @@ class ManifestCoreApplier
      * `ensureRootDossier()` rend LE Dossier racine de la Boucle, donc
      * `parent_id` reste nul et la visibilite reste celle de la Boucle.
      *
+     * TASK-1679 : le document racine ne nait plus avec la Boucle (il suit la
+     * Card Manifeste) — c'est donc ICI, ou `ensureRootDocument()` le cree
+     * desormais reellement, qu'il doit s'inscrire au registre. L'inscription
+     * de la phase loops (`ManifestScenarioPack::trackRootDossier()`) ne le
+     * voit plus au premier passage ; sans celle-ci, le document etait
+     * invisible au retrait et le recensement divergeait entre deux passages.
+     *
      * @param  array<string, User>  $users
      */
-    private function appliquerLeDossierRacine(Loop $loop, mixed $declared, array $users): Dossier
+    private function appliquerLeDossierRacine(Loop $loop, mixed $declared, array $users, ScenarioPackEntityRegistrar $registrar, string $loopKey): Dossier
     {
         $service = app(LoopRootDocumentService::class);
         $dossier = $service->ensureRootDossier($loop);
@@ -271,6 +278,8 @@ class ManifestCoreApplier
         // `ensureRootDocument()` est IDEMPOTENTE : elle rend le document
         // existant s'il y en a un, et n'en cree un second sous aucun pretexte.
         $post = $service->ensureRootDocument($loop, $auteur);
+
+        $registrar->track('manifest_root_document', $loopKey, $post);
 
         $champs = [];
 
