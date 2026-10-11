@@ -80,6 +80,14 @@ class TASK1391HonestRagProvenanceTest extends TestCase
         $this->organization = Organization::factory()->create();
         $this->member = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->otherMember = User::factory()->create(['organization_id' => $this->organization->id]);
+        // TASK-1679 : le document racine ne nait plus a la creation que si le
+        // preset du type active `core.manifesto`. Ces tests dependent du
+        // document racine lui-meme : on le remet au socle des types employes.
+        $settings = app(\App\Services\LoopTypeSettingsService::class);
+        foreach (['general', 'project'] as $type) {
+            $settings->save($type, array_merge($settings->cardsFor($type), ['core.manifesto']), $settings->isAvailable($type));
+        }
+
         $this->loop = (new LoopService)->createLoop($this->member, 'Boucle provenance');
 
         app()->instance('current_organization', $this->organization);

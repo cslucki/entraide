@@ -67,6 +67,12 @@ class TASK1297UnifiedAiPersistenceTest extends TestCase
         $this->secondMember = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->stranger = User::factory()->create(['organization_id' => $this->otherOrganization->id]);
 
+        // TASK-1679 : le document racine ne nait plus a la creation que si le
+        // preset du type active `core.manifesto`. Ces tests mesurent la source
+        // structurelle `dossier.manifest`, qui en depend : on le remet au socle.
+        $settings = app(\App\Services\LoopTypeSettingsService::class);
+        $settings->save('general', array_merge($settings->cardsFor('general'), ['core.manifesto']), $settings->isAvailable('general'));
+
         $loopService = new LoopService;
         $this->loop = $loopService->createLoop($this->member, 'Boucle persistance');
         $loopService->addMember($this->loop, $this->secondMember, 'member');

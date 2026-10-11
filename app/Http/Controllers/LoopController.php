@@ -608,7 +608,14 @@ class LoopController extends Controller
     {
         $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
         $organization = $this->resolveOrganization();
-        $this->assertUserBelongsToOrganization($organization);
+
+        // TASK-1679 — INSPECTION, pas appartenance : le SuperAdmin plateforme
+        // doit pouvoir VOIR une Boucle qu'il vient de creer dans un tenant
+        // etranger (le bouton « Voir la Boucle » de l'admin rendait 404).
+        // Doctrine T1658 : cette garde-ci ne s'emploie que sur des surfaces de
+        // LECTURE — toutes les ecritures de ce controleur (storeMessage,
+        // join-requests, invitations…) gardent assertUserBelongsToOrganization.
+        $this->assertUserCanInspectOrganization($organization);
 
         if ($loop->organization_id !== $organization->id) {
             abort(404);
@@ -621,7 +628,12 @@ class LoopController extends Controller
             ->where('status', 'active')
             ->exists();
 
-        $isPrimaryLoop = $organization->primary_loop_id === $loop->id;
+        // La Boucle primaire ouvre son workspace aux membres de SON
+        // Organization sans membership. Le SuperAdmin hors tenant n'en herite
+        // pas : inspecter n'est pas participer (T1658) — il voit la page de
+        // presentation, comme tout non-membre.
+        $isPrimaryLoop = $organization->primary_loop_id === $loop->id
+            && $user->organization_id === $organization->id;
 
         if (! $isMember && ! $isPrimaryLoop) {
             // TASK-1075: "privée" no longer means hidden from non-members —

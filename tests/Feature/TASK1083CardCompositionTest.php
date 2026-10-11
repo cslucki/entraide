@@ -50,6 +50,14 @@ class TASK1083CardCompositionTest extends TestCase
 
         app()->instance('current_organization', $this->org);
 
+        // TASK-1679 : le document racine ne nait plus a la creation que si le
+        // preset du type active `core.manifesto`. Ces tests dependent du
+        // document racine lui-meme : on le remet au socle des types employes.
+        $settings = app(\App\Services\LoopTypeSettingsService::class);
+        foreach (['general', 'project'] as $type) {
+            $settings->save($type, array_merge($settings->cardsFor($type), ['core.manifesto']), $settings->isAvailable($type));
+        }
+
         $this->loop = app(LoopService::class)->createLoop($this->superAdmin, 'Groupe de travail', null, 'private', null, Loop::ACCESS_REQUEST, null, 'project');
     }
 

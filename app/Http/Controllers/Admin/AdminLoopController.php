@@ -419,18 +419,26 @@ class AdminLoopController extends Controller
                 'name' => 'required|string|max:255',
                 'description' => 'nullable|string|max:5000',
                 'visibility' => 'required|in:public,private',
+                // TASK-1679 — responsable optionnel pour le SuperAdmin seul :
+                // une Boucle se provisionne avant que son responsable metier
+                // n'existe comme compte (cas OFSH). S'il est fourni, les
+                // gardes existantes restent entieres.
                 'owner_id' => [
-                    'required',
+                    'nullable',
                     Rule::exists('users', 'id')->whereNull('banned_at'),
                 ],
                 'organization_id' => 'required|exists:organizations,id',
                 'type' => ['nullable', Rule::in(app(LoopTypeRegistry::class)->availableKeys())],
             ]);
 
-            $owner = User::assignable()->findOrFail($data['owner_id']);
+            $owner = null;
 
-            if ($owner->organization_id !== $data['organization_id']) {
-                abort(403, __('admin.owner_must_belong_to_org'));
+            if (! empty($data['owner_id'])) {
+                $owner = User::assignable()->findOrFail($data['owner_id']);
+
+                if ($owner->organization_id !== $data['organization_id']) {
+                    abort(403, __('admin.owner_must_belong_to_org'));
+                }
             }
 
             $loop = $this->loopService->createLoopForOrg(
@@ -442,6 +450,7 @@ class AdminLoopController extends Controller
                 null,
                 Loop::ACCESS_REQUEST,
                 $data['type'] ?? null,
+                creator: $user,
             );
 
             return redirect()->route('admin.loops.edit', $loop)

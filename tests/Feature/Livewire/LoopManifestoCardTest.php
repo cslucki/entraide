@@ -58,6 +58,14 @@ class LoopManifestoCardTest extends TestCase
         // by any type's default preset — enabled explicitly here so
         // `manifesto.*` permissions (gated on the card being active,
         // `LoopPermissionResolver::cardIsAvailable()`) actually apply.
+        // TASK-1679 : le document racine ne nait plus a la creation que si le
+        // preset du type active `core.manifesto`. Ces tests dependent du
+        // document racine lui-meme : on le remet au socle des types employes.
+        $settings = app(\App\Services\LoopTypeSettingsService::class);
+        foreach (['general', 'project'] as $type) {
+            $settings->save($type, array_merge($settings->cardsFor($type), ['core.manifesto']), $settings->isAvailable($type));
+        }
+
         $this->loop = $this->service->createLoop($this->owner, 'Manifesto Loop', type: 'project');
         app(LoopCardCompositionService::class)->enable($this->loop, 'core.manifesto');
         $this->service->addMember($this->loop, $this->member, 'member');
