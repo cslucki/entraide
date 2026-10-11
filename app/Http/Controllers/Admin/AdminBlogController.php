@@ -42,9 +42,28 @@ class AdminBlogController extends Controller
             $query->where('status', $request->status);
         }
 
+        // TASK-1667 — borner la liste a UN auteur, pour que la modal de
+        // suppression puisse montrer CE qu'elle propose de transferer.
+        // Pose sur `user_id`, jamais sur `search` : ici `search` cherche un
+        // titre ou un contenu.
+        $filteredUser = null;
+
+        if ($request->filled('user_id')) {
+            $userId = (string) $request->input('user_id');
+
+            if (Str::isUuid($userId)) {
+                $query->where('user_id', $userId);
+                $filteredUser = User::find($userId);
+            } else {
+                // Forme invalide : aucun article ne peut y correspondre.
+                // Comparer directement leverait SQLSTATE 22P02 sous PostgreSQL.
+                $query->whereRaw('1 = 0');
+            }
+        }
+
         $posts = $query->latest()->paginate(20)->withQueryString();
 
-        return view('admin.blog.index', compact('organizations', 'posts', 'selectedOrganizationId'));
+        return view('admin.blog.index', compact('organizations', 'posts', 'selectedOrganizationId', 'filteredUser'));
     }
 
     private function adminOrganizations(): Collection

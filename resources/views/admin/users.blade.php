@@ -4,9 +4,13 @@
      Une directive Alpine sans racine `x-data` sur un ancetre est inerte ET
      silencieuse : rien ne casse, le clic ne fait simplement rien. La racine est
      donc portee ici, autour de la table ET de la modal, et pas sur la modal
-     seule — sinon `openDelete()` appele depuis une ligne ne trouverait pas
+     seule — sinon une directive Alpine appelee depuis une ligne ne trouverait pas
      l'etat. --}}
-<div x-data="adminUserDelete()">
+{{-- TASK-1668 — plus de composant Alpine de suppression ici : la page
+     `admin/users/delete.blade.php` a pris le relais. Cette racine reste
+     parce que des directives Alpine subsistent plus bas (menus replies)
+     et qu'une directive sans racine est inerte ET silencieuse. --}}
+<div x-data="{}">
     {{-- TASK-1640 — bandeau de compteurs.
          Ils portent sur la POPULATION ENTIERE, pas sur le filtre courant : un
          compteur qui bougerait avec les filtres repondrait « combien en vois-je »
@@ -210,25 +214,36 @@
                             </form>
                             @endif
                             <a href="{{ route('admin.users.edit', $u) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
+                            {{-- TASK-1666 — `profile.show` est une route FRONT, bornee au tenant
+                                 courant : elle fait `abort(404)` des que `organization_id`
+                                 differe, et aussi sur un compte banni. Un SuperAdmin n'y
+                                 echappe pas, et c'est VOULU — la garde de tenant n'est pas a
+                                 percer. On n'affiche donc le lien que la ou il MENE quelque
+                                 part ; ailleurs la Fiche, elle, marche toujours. --}}
+                            @if($u->organization_id !== null
+                                && optional(currentOrganization())->id === $u->organization_id
+                                && $u->banned_at === null)
                             <a href="{{ route('profile.show', $u) }}" class="text-xs text-gray-500 hover:underline">Profil</a>
+                            @endif
 
                             {{-- TASK-1640 — la fiche complete, en pop-up. Aucun precheck ni
                                  comptage n'est calcule au rendu : le bouton ne porte que l'id. --}}
                             <button type="button"
-                                @click="openProfile('{{ $u->id }}', @js($u->full_name))"
+                                @click="$dispatch('open-user-profile', { id: '{{ $u->id }}', name: @js($u->full_name) })"
                                 class="text-xs font-medium text-sky-600 hover:underline">
                                 {{ __('admin.users_profile_button') }}
                             </button>
 
-                            {{-- TASK-1640 — la suppression part d'ICI, plus d'un detour par Modifier.
-                                 Le bouton ne porte aucun etat : il nomme le compte et laisse la modal
-                                 partagee interroger le serveur. Aucun precheck n'est calcule au rendu. --}}
+                            {{-- TASK-1640 — la suppression part d'ICI, plus d'un detour par
+                                 Modifier. TASK-1668 — elle mene desormais a une PAGE : la modal
+                                 avait grossi a chaque TASK et debordait. Le lien ne porte
+                                 toujours AUCUN etat, et aucun precheck n'est calcule au rendu de
+                                 la liste. --}}
                             @if($u->id !== auth()->id())
-                            <button type="button"
-                                @click="openDelete('{{ $u->id }}', @js($u->fullName))"
-                                class="text-xs font-medium text-red-600 hover:underline">
+                            <a href="{{ route('admin.users.delete-page', $u) }}"
+                               class="text-xs font-medium text-red-600 hover:underline">
                                 {{ __('admin.user_delete_row_button') }}
-                            </button>
+                            </a>
                             @endif
 
                             <form method="POST" action="{{ route('admin.users.toggle-availability', $u) }}">
@@ -346,325 +361,17 @@
     <div class="mt-4">{{ $users->withQueryString()->links() }}</div>
     @endif
 
-    {{-- ================================================================
-         TASK-1640 — FICHE MEMBRE, une seule modal pour toute la page.
-         Elle rend des COMPTAGES, jamais le contenu lui-meme : un ecran
-         d'administration n'a pas a faire passer les messages ni les prompts IA
-         d'une personne sous les yeux de l'admin pour repondre a « que fait-elle
-         sur la plateforme ». C'est une decision, pas une limite technique.
-         ================================================================ --}}
-    <div x-show="profileOpen" x-cloak
-         class="fixed inset-0 z-50 flex items-center justify-center p-4"
-         @keydown.escape.window="profileOpen = false">
-        <div class="absolute inset-0 bg-black/50" @click="profileOpen = false"></div>
+    {{-- TASK-1666 — la Fiche a quitte ce fichier pour
+         `admin/partials/user-profile-modal.blade.php` : /admin/transactions
+         en a besoin aussi. Elle porte sa propre racine Alpine et s'ouvre
+         par evenement, d'ou le `$dispatch` sur le bouton plus haut. --}}
+    @include('admin.partials.user-profile-modal')
 
-        <div class="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div class="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-5 sm:px-6 py-4 flex items-start justify-between gap-4">
-                <div class="min-w-0">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 truncate"
-                        x-text="'{{ __('admin.users_profile_title') }}'.replace(':name', profileName)"></h3>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate" x-text="profile?.identite?.email ?? ''"></p>
-                </div>
-                <button type="button" @click="profileOpen = false"
-                    class="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-sm">
-                    {{ __('admin.users_profile_close') }}
-                </button>
-            </div>
-
-            <div class="px-5 sm:px-6 py-5">
-                <template x-if="profileLoading">
-                    <p class="text-sm text-gray-500 dark:text-gray-400 py-6">{{ __('admin.users_profile_loading') }}</p>
-                </template>
-
-                <template x-if="! profileLoading && profileError">
-                    <p class="text-sm text-red-600 py-6">{{ __('admin.users_profile_error') }}</p>
-                </template>
-
-                <template x-if="! profileLoading && ! profileError && profile">
-                    <div class="space-y-6">
-                        {{-- Identite --}}
-                        <div>
-                            <h4 class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">{{ __('admin.users_profile_section_identity') }}</h4>
-                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
-                                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('admin.users_profile_org') }}</p>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
-                                       x-text="profile.identite.organization ?? '{{ __('admin.users_profile_org_none') }}'"></p>
-                                </div>
-                                <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
-                                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('admin.users_status_label') }}</p>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="profile.identite.statut"></p>
-                                </div>
-                                <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
-                                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('admin.users_profile_points') }}</p>
-                                    <p class="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100" x-text="profile.identite.points"></p>
-                                </div>
-                                <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
-                                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('admin.users_profile_registered') }}</p>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="profile.identite.inscrit_le"></p>
-                                </div>
-                                <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
-                                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('admin.users_profile_last_login') }}</p>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100"
-                                       x-text="profile.identite.derniere_connexion ?? '{{ __('admin.users_profile_never') }}'"></p>
-                                </div>
-                                <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
-                                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('admin.users_profile_rating') }}</p>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="profile.identite.note ?? '—'"></p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {{-- Contributions et interactions : meme forme, deux sources. --}}
-                        <template x-for="section in [
-                            { titre: '{{ __('admin.users_profile_section_contributions') }}', data: profile.contributions },
-                            { titre: '{{ __('admin.users_profile_section_interactions') }}', data: profile.interactions }
-                        ]" :key="section.titre">
-                            <div>
-                                <h4 class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2" x-text="section.titre"></h4>
-                                <div class="rounded-xl border border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
-                                    <template x-for="[libelle, valeur] in Object.entries(section.data)" :key="libelle">
-                                        <div class="flex items-center justify-between px-3 py-2">
-                                            <span class="text-sm text-gray-600 dark:text-gray-300" x-text="libelle"></span>
-                                            <span class="text-sm font-semibold tabular-nums"
-                                                  :class="valeur > 0 ? 'text-gray-900 dark:text-gray-100' : 'text-gray-300 dark:text-gray-600'"
-                                                  x-text="valeur"></span>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-                        </template>
-
-                        {{-- IA --}}
-                        <div>
-                            <h4 class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">{{ __('admin.users_profile_section_ai') }}</h4>
-                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-                                <div class="rounded-lg border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/60 dark:bg-indigo-900/20 px-3 py-2">
-                                    <p class="text-[11px] text-indigo-700 dark:text-indigo-300">{{ __('admin.users_profile_ai_calls') }}</p>
-                                    <p class="text-lg font-bold tabular-nums text-indigo-700 dark:text-indigo-300" x-text="profile.ia.appels"></p>
-                                </div>
-                                <div class="rounded-lg border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/60 dark:bg-indigo-900/20 px-3 py-2">
-                                    <p class="text-[11px] text-indigo-700 dark:text-indigo-300">{{ __('admin.users_profile_ai_tokens') }}</p>
-                                    <p class="text-lg font-bold tabular-nums text-indigo-700 dark:text-indigo-300"
-                                       x-text="new Intl.NumberFormat('{{ app()->getLocale() }}').format(profile.ia.tokens)"></p>
-                                </div>
-                                <div class="rounded-lg border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/60 dark:bg-indigo-900/20 px-3 py-2">
-                                    <p class="text-[11px] text-indigo-700 dark:text-indigo-300">{{ __('admin.users_profile_ai_cost') }}</p>
-                                    <p class="text-lg font-bold tabular-nums text-indigo-700 dark:text-indigo-300" x-text="profile.ia.cout"></p>
-                                </div>
-                            </div>
-                            <div class="rounded-xl border border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
-                                <template x-for="[libelle, valeur] in [
-                                    ['{{ __('admin.users_profile_ai_interactions') }}', profile.ia.interactions],
-                                    ['{{ __('admin.users_profile_ai_shell') }}', profile.ia.shell],
-                                    ['{{ __('admin.users_profile_ai_feedback') }}', profile.ia.retours]
-                                ]" :key="libelle">
-                                    <div class="flex items-center justify-between px-3 py-2">
-                                        <span class="text-sm text-gray-600 dark:text-gray-300" x-text="libelle"></span>
-                                        <span class="text-sm font-semibold tabular-nums"
-                                              :class="valeur > 0 ? 'text-gray-900 dark:text-gray-100' : 'text-gray-300 dark:text-gray-600'"
-                                              x-text="valeur"></span>
-                                    </div>
-                                </template>
-                                <div class="flex items-center justify-between px-3 py-2">
-                                    <span class="text-sm text-gray-600 dark:text-gray-300">{{ __('admin.users_profile_ai_profile_label') }}</span>
-                                    <span class="text-xs font-medium px-2 py-0.5 rounded-full"
-                                          :class="profile.ia.profil_ia ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'"
-                                          x-text="profile.ia.profil_ia ? '{{ __('admin.users_profile_ai_profile_yes') }}' : '{{ __('admin.users_profile_ai_profile_no') }}'"></span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-            </div>
-        </div>
-    </div>
-
-    {{-- ================================================================
-         TASK-1640 — UNE seule modal pour toute la page.
-         Une modal par ligne aurait duplique 20 fois le meme balisage et
-         20 fois le meme etat Alpine.
-         ================================================================ --}}
-    <div x-show="open" x-cloak
-         class="fixed inset-0 z-50 flex items-center justify-center p-4"
-         @keydown.escape.window="close()">
-        <div class="absolute inset-0 bg-black/50" @click="close()"></div>
-
-        <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full p-5 sm:p-6 max-h-[90vh] overflow-y-auto">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2"
-                x-text="'{{ __('admin.user_delete_modal_title') }}'.replace(':name', name)"></h3>
-
-            {{-- Etat 0 : on interroge le serveur. --}}
-            <template x-if="loading">
-                <p class="text-sm text-gray-500 dark:text-gray-400 py-4">{{ __('admin.user_delete_modal_checking') }}</p>
-            </template>
-
-            <template x-if="! loading && error">
-                <p class="text-sm text-red-600 py-4" x-text="error"></p>
-            </template>
-
-            {{-- Etat C : BLOCK. Les messages metier du serveur, et AUCUN bouton
-                 de suppression : un bouton qu'on sait impossible est un piege. --}}
-            <template x-if="! loading && ! error && blocks.length > 0">
-                <div>
-                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('admin.user_delete_blocked_title') }}</p>
-                    <ul class="space-y-2 mb-6">
-                        <template x-for="block in blocks" :key="block.message">
-                            <li class="text-sm text-gray-600 dark:text-gray-400 flex gap-2">
-                                <span class="text-red-500">&bull;</span><span x-text="block.message"></span>
-                            </li>
-                        </template>
-                    </ul>
-                    <div class="flex justify-end">
-                        <button type="button" @click="close()"
-                            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                            {{ __('admin.user_delete_modal_cancel') }}
-                        </button>
-                    </div>
-                </div>
-            </template>
-
-            {{-- Etats A et B : la suppression est possible. --}}
-            <template x-if="! loading && ! error && blocks.length === 0">
-                <form method="POST" :action="destroyUrl">
-                    @csrf
-                    @method('DELETE')
-                    <input type="hidden" name="preview_fingerprint" :value="fingerprint">
-
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">{{ __('admin.user_delete_modal_body') }}</p>
-
-                    {{-- Le caractere DEFINITIF est dit a part et mis en avant : noye
-                         dans le paragraphe precedent, il se lit comme une precision
-                         alors que c'est la seule information qu'on ne peut pas
-                         rattraper apres coup. --}}
-                    <p class="flex items-start gap-2 text-sm font-medium text-red-600 dark:text-red-400 mb-4">
-                        <span aria-hidden="true">&#9888;</span>
-                        <span>{{ __('admin.user_delete_modal_irreversible') }}</span>
-                    </p>
-
-                    {{-- B : transfert necessaire. UNIQUEMENT le choix du repreneur :
-                         aucune mention de table, de contrainte ni d'organisation technique. --}}
-                    <template x-if="requiresTransfer">
-                        <div class="mb-6">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                                   x-text="'{{ __('admin.user_delete_modal_transfer_label') }}'.replace(':count', transferTotal)"></label>
-                            <select name="transfer_to" required
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
-                                <option value="">{{ __('admin.user_delete_modal_transfer_placeholder') }}</option>
-                                <template x-for="c in candidates" :key="c.id">
-                                    <option :value="c.id" x-text="c.name"></option>
-                                </template>
-                            </select>
-                            <template x-if="candidates.length === 0">
-                                <p class="text-xs text-red-600 mt-1">{{ __('admin.user_delete_modal_transfer_none') }}</p>
-                            </template>
-                        </div>
-                    </template>
-
-                    <div class="flex gap-3 justify-end">
-                        <button type="button" @click="close()"
-                            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                            {{ __('admin.user_delete_modal_cancel') }}
-                        </button>
-                        <button type="submit"
-                            :disabled="requiresTransfer && candidates.length === 0"
-                            class="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium"
-                            x-text="requiresTransfer ? '{{ __('admin.user_delete_modal_confirm_transfer') }}' : '{{ __('admin.user_delete_modal_confirm') }}'"></button>
-                    </div>
-                </form>
-            </template>
-        </div>
-    </div>
+    {{-- TASK-1668 — la modal de suppression a laisse place a une PAGE
+         (`admin/users/delete.blade.php`). Elle debordait : blocages avec leurs
+         liens, contenus a confier par famille avec les leurs, choix du repreneur.
+         Les deux ne coexistent pas : garder un raccourci modal doublerait la
+         surface a tester pour la meme garantie. --}}
 </div>
 
-@push('scripts')
-<script>
-    function adminUserDelete() {
-        return {
-            open: false,
-            loading: false,
-            error: null,
-            name: '',
-            destroyUrl: '',
-            blocks: [],
-            requiresTransfer: false,
-            transferTotal: 0,
-            candidates: [],
-            fingerprint: '',
-
-            profileOpen: false,
-            profileLoading: false,
-            profileError: false,
-            profileName: '',
-            profile: null,
-
-            close() { this.open = false; },
-
-            async openProfile(id, name) {
-                this.profileOpen = true;
-                this.profileLoading = true;
-                this.profileError = false;
-                this.profileName = name;
-                // Remis a null a CHAQUE ouverture : sinon la fiche afficherait un
-                // instant les chiffres du membre precedent, ce qui est pire qu'un
-                // ecran vide sur un ecran d'administration.
-                this.profile = null;
-
-                try {
-                    const response = await fetch(
-                        '{{ route('admin.users.profile-summary', ['user' => '__ID__']) }}'.replace('__ID__', id),
-                        { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }
-                    );
-
-                    if (! response.ok) { throw new Error(response.status); }
-
-                    this.profile = await response.json();
-                } catch (e) {
-                    this.profileError = true;
-                } finally {
-                    this.profileLoading = false;
-                }
-            },
-
-            async openDelete(id, name) {
-                // L'etat est remis a zero a CHAQUE ouverture : sans cela, la
-                // modal afficherait un instant les blocages du compte precedent.
-                this.open = true;
-                this.loading = true;
-                this.error = null;
-                this.name = name;
-                this.blocks = [];
-                this.requiresTransfer = false;
-                this.transferTotal = 0;
-                this.candidates = [];
-                this.fingerprint = '';
-                this.destroyUrl = '{{ route('admin.users.destroy', ['user' => '__ID__']) }}'.replace('__ID__', id);
-
-                try {
-                    const response = await fetch(
-                        '{{ route('admin.users.delete-precheck', ['user' => '__ID__']) }}'.replace('__ID__', id),
-                        { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }
-                    );
-
-                    if (! response.ok) { throw new Error(response.status); }
-
-                    const data = await response.json();
-
-                    this.blocks = data.blocks;
-                    this.requiresTransfer = data.requires_transfer;
-                    this.transferTotal = data.transfer_total;
-                    this.candidates = data.transfer_candidates;
-                    // L'empreinte vient du serveur, calculee AU CLIC : c'est elle
-                    // qui rend une decision perimee refusable.
-                    this.fingerprint = data.preview_fingerprint;
-                } catch (e) {
-                    this.error = '{{ __('admin.user_delete_modal_error') }}';
-                } finally {
-                    this.loading = false;
-                }
-            },
-        };
-    }
-</script>
-@endpush
 </x-admin-layout>

@@ -1,6 +1,12 @@
 <x-admin-layout title="Transactions">
     <!-- Filters -->
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
+        {{-- TASK-1665 — un echange cible par la modal de suppression d'un membre
+             reste cible si on affine ensuite par statut. Sans ce champ, filtrer
+             effacerait la cible EN SILENCE et elargirait la liste. --}}
+        @if(request()->filled('transaction_id'))
+        <input type="hidden" name="transaction_id" value="{{ request('transaction_id') }}">
+        @endif
         <input type="text" name="search" value="{{ request('search') }}" placeholder="Nom acheteur ou vendeur..."
             class="flex-1 min-w-48 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
         <select name="status" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
@@ -19,10 +25,20 @@
             @endforeach
         </select>
         <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Filtrer</button>
-        @if(request()->hasAny(['search', 'status', 'organization_id']))
+        @if(request()->hasAny(['search', 'status', 'organization_id', 'transaction_id']))
         <a href="{{ route('admin.transactions') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">Effacer</a>
         @endif
     </form>
+
+    {{-- TASK-1665 — un filtrage sur un echange unique doit se VOIR : sinon une
+         liste a une ligne se lit comme « il n'y a qu'un echange ». --}}
+    @if(request()->filled('transaction_id'))
+    <div class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300">
+        <span>{{ __('admin.transactions_filtered_on_one', ['short' => strtoupper(substr((string) request('transaction_id'), 0, 8))]) }}</span>
+        <a href="{{ route('admin.transactions', array_filter(['organization_id' => request('organization_id')])) }}"
+           class="font-medium underline">{{ __('admin.transactions_filtered_clear') }}</a>
+    </div>
+    @endif
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <table class="w-full text-sm">
@@ -44,16 +60,43 @@
                     <td class="px-4 py-3">
                         <p class="font-medium text-gray-900 dark:text-gray-100 max-w-xs truncate">{{ $tx->subject }}</p>
                         <p class="text-xs text-gray-500 font-mono">{{ substr($tx->id, 0, 8) }}…</p>
+                        {{-- TASK-1666 — acceder a ce que les deux personnes se sont dit,
+                             AVANT de decider d'une suppression. Le compte est affiche :
+                             un echange porte toujours un message systeme d'ouverture, donc
+                             « 1 message » ne veut pas dire « ils ont discute ». On nomme
+                             donc les messages HUMAINS, et on le dit quand il n'y en a pas. --}}
+                        @if($tx->human_messages_count > 0)
+                        <a href="{{ route('admin.messages', ['filter' => 'exchanges', 'organization_id' => $selectedOrganizationId, 'transaction_id' => $tx->id]) }}"
+                           class="mt-1 inline-block text-xs text-indigo-600 hover:underline">
+                            {{ trans_choice('admin.transactions_conversation_link', $tx->human_messages_count, ['count' => $tx->human_messages_count]) }}
+                        </a>
+                        @else
+                        <span class="mt-1 inline-block text-xs text-gray-400">{{ __('admin.transactions_conversation_empty') }}</span>
+                        @endif
                     </td>
                     <td class="px-4 py-3">
                         @if($tx->buyer)
-                        <a href="{{ route('profile.show', $tx->buyer) }}" class="text-indigo-600 hover:underline text-xs">{{ $tx->buyer->full_name }}</a>
+                        {{-- TASK-1666 — le lien pointait vers `profile.show`, route FRONT
+                             bornee au tenant : tout compte hors organisation courante
+                             (`organization_id` nul compris) y donnait un 404, SuperAdmin
+                             ou non. On ouvre la Fiche d'administration, qui ne depend
+                             d'aucun tenant. --}}
+                        <button type="button"
+                            @click="$dispatch('open-user-profile', { id: '{{ $tx->buyer->id }}', name: @js($tx->buyer->full_name) })"
+                            class="text-indigo-600 hover:underline text-xs text-left">{{ $tx->buyer->full_name }}</button>
                         @else <span class="text-xs text-gray-400">—</span>
                         @endif
                     </td>
                     <td class="px-4 py-3">
                         @if($tx->seller)
-                        <a href="{{ route('profile.show', $tx->seller) }}" class="text-indigo-600 hover:underline text-xs">{{ $tx->seller->full_name }}</a>
+                        {{-- TASK-1666 — le lien pointait vers `profile.show`, route FRONT
+                             bornee au tenant : tout compte hors organisation courante
+                             (`organization_id` nul compris) y donnait un 404, SuperAdmin
+                             ou non. On ouvre la Fiche d'administration, qui ne depend
+                             d'aucun tenant. --}}
+                        <button type="button"
+                            @click="$dispatch('open-user-profile', { id: '{{ $tx->seller->id }}', name: @js($tx->seller->full_name) })"
+                            class="text-indigo-600 hover:underline text-xs text-left">{{ $tx->seller->full_name }}</button>
                         @else <span class="text-xs text-gray-400">—</span>
                         @endif
                     </td>
@@ -100,4 +143,5 @@
     @if($transactions->hasPages())
     <div class="mt-4">{{ $transactions->withQueryString()->links() }}</div>
     @endif
+    @include('admin.partials.user-profile-modal')
 </x-admin-layout>

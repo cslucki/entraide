@@ -10,6 +10,7 @@ use App\Services\Dossiers\DossierTreePurger;
 use App\Services\LoopGovernanceService;
 use App\Services\UserDataLifecycleRegistry;
 use App\Services\Users\Exceptions\UserDeletionBlockedException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -278,17 +279,35 @@ class UserDeletionExecutor
      * Un facilitator seul ne compte pas : `LoopGovernanceService` est la seule
      * autorite sur cette question, et elle n'est pas reimplementee ici.
      */
-    private function loopsWhereLastActiveOwner(User $user): int
+    /**
+     * Les Boucles dont cet utilisateur est le DERNIER responsable actif.
+     *
+     * TASK-1667 — l'ecran doit pouvoir pointer vers ces Boucles, pas seulement
+     * en annoncer le nombre. Le compte ci-dessous en est DERIVE : rejouer le
+     * predicat ailleurs ferait courir le risque d'annoncer « 1 Boucle » en
+     * montrant zero lien, ou l'inverse. Ici la divergence est structurellement
+     * impossible.
+     *
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    public function loopIdsWhereLastActiveOwner(User $user): Collection
     {
         if (! Schema::hasTable('loop_members')) {
-            return 0;
+            return collect();
         }
 
         return LoopMember::query()
             ->where('user_id', $user->id)
             ->get()
             ->filter(fn (LoopMember $member) => $this->governance->isLastActiveOwner($member))
-            ->count();
+            ->pluck('loop_id')
+            ->unique()
+            ->values();
+    }
+
+    private function loopsWhereLastActiveOwner(User $user): int
+    {
+        return $this->loopIdsWhereLastActiveOwner($user)->count();
     }
 
     /**

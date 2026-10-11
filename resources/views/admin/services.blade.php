@@ -1,6 +1,12 @@
 <x-admin-layout title="Services">
     <!-- Filters -->
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
+        {{-- TASK-1667 — sans ce report, un clic sur « Filtrer » ELARGIT la liste
+             en silence : on croit regarder les contenus d'une personne et on
+             regarde tout. --}}
+        @if(isset($filteredUser) && request()->filled('user_id'))
+        <input type="hidden" name="user_id" value="{{ request('user_id') }}">
+        @endif
         <input type="text" name="search" value="{{ request('search') }}" placeholder="Titre du service..."
             class="flex-1 min-w-48 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
         <select name="status" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
@@ -20,6 +26,16 @@
         <a href="{{ route('admin.services') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">Effacer</a>
         @endif
     </form>
+
+    {{-- TASK-1667 — une liste bornee a un auteur doit se VOIR : sinon trois
+         lignes se lisent comme « il n'y a que trois contenus ». --}}
+    @if(isset($filteredUser) && $filteredUser)
+    <div class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300">
+        <span>{{ __('admin.contents_filtered_on_user', ['name' => $filteredUser->full_name]) }}</span>
+        <a href="{{ route('admin.services', array_filter(['organization_id' => request('organization_id')])) }}"
+           class="font-medium underline">{{ __('admin.contents_filtered_clear') }}</a>
+    </div>
+    @endif
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <table class="w-full text-sm">

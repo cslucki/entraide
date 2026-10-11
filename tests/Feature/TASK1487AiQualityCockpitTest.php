@@ -68,7 +68,24 @@ class TASK1487AiQualityCockpitTest extends TestCase
 
         $this->superAdmin = User::factory()->complete()->create(['organization_id' => $this->a->id, 'is_admin' => true]);
 
-        $this->to = CarbonImmutable::now();
+        // TASK-1667 — la borne HAUTE doit depasser l'instant d'insertion.
+        //
+        // `setUp()` s'execute AVANT le corps du test : avec `now()` tout court,
+        // toute interaction creee ensuite porte un `created_at` posterieur a
+        // `$to`, et `whereBetween('created_at', [$from, $to])` l'exclut. Le test
+        // passait tant que l'insertion restait dans la meme seconde, et rougissait
+        // des qu'elle franchissait la suivante — ce qui est arrive en CI
+        // (« Failed asserting that 0 is identical to 2 »), de facon intermittente.
+        //
+        // L'horloge n'est volontairement PAS figee ICI : la ligne « une
+        // instrumentation future n'existe pas » compare a `now()` reel et
+        // deviendrait fausse si tout etait gele au meme instant.
+        //
+        // TASK-1675 — les tests qui posent un tour RELATIVEMENT a l'instant
+        // instrumente ne peuvent pas se contenter de cette fenetre : ils
+        // appellent `anchorOnInstrumentation()`, qui ancre l'horloge et
+        // recalcule `from`/`to`. Le pourquoi est au docblock de ce helper.
+        $this->to = CarbonImmutable::now()->addMinute();
         $this->from = $this->to->subDays(30);
 
         Http::preventStrayRequests();
@@ -184,7 +201,7 @@ class TASK1487AiQualityCockpitTest extends TestCase
      */
     public function test_helpful_and_improve_stay_unknown_until_someone_judges(): void
     {
-        $since = AiQualityInstrumentation::since('clarify_help_request');
+        $since = $this->anchorOnInstrumentation('clarify_help_request');
         $this->interaction($this->a, 'clarify_help_request', $since->addSecond());
 
         $html = $this->actingAs($this->adminA)
@@ -243,7 +260,7 @@ class TASK1487AiQualityCockpitTest extends TestCase
      */
     public function test_turns_older_than_the_instrumentation_are_not_yet_measurable(): void
     {
-        $since = AiQualityInstrumentation::since('clarify_help_request');
+        $since = $this->anchorOnInstrumentation('clarify_help_request');
         $this->assertNotNull($since);
 
         $this->interaction($this->a, 'clarify_help_request', $since->subHour());
@@ -267,7 +284,7 @@ class TASK1487AiQualityCockpitTest extends TestCase
      */
     public function test_a_turn_after_the_instrumentation_becomes_measurable(): void
     {
-        $since = AiQualityInstrumentation::since('clarify_help_request');
+        $since = $this->anchorOnInstrumentation('clarify_help_request');
 
         $this->assertTrue($since->lessThan($this->to), 'premisse : l\'instrumentation est dans le passe');
 
@@ -282,7 +299,7 @@ class TASK1487AiQualityCockpitTest extends TestCase
     /** Et un verdict le fait passer a MESURE. */
     public function test_one_verdict_makes_the_function_measured(): void
     {
-        $since = AiQualityInstrumentation::since('clarify_help_request');
+        $since = $this->anchorOnInstrumentation('clarify_help_request');
         $interaction = $this->interaction($this->a, 'clarify_help_request', $since->addSecond());
 
         AiInteractionFeedback::query()->create([
@@ -336,7 +353,7 @@ class TASK1487AiQualityCockpitTest extends TestCase
     /** Aucune conversation, aucun prompt, aucune reponse ne sort du rapport. */
     public function test_no_conversation_content_reaches_the_cockpit(): void
     {
-        $since = AiQualityInstrumentation::since('clarify_help_request');
+        $since = $this->anchorOnInstrumentation('clarify_help_request');
         $this->interaction($this->a, 'clarify_help_request', $since->addSecond(), 'SECRET-PROMPT-1487');
 
         $html = $this->actingAs($this->adminA)
@@ -446,6 +463,52 @@ class TASK1487AiQualityCockpitTest extends TestCase
         $this->assertNotNull($row, "[{$feature}] absente du rapport");
 
         return $row;
+    }
+
+    /**
+     * Ancre l'horloge juste APRES l'instant instrumente, puis recalcule la
+     * fenetre du rapport.
+     *
+     * ## Pourquoi c'est necessaire, et pourquoi au niveau du test
+     *
+     * `AiQualityInstrumentation::SINCE` porte des dates ABSOLUES — ce sont des
+     * faits : l'instant ou chaque fonction a su recueillir un verdict. Les deux
+     * ecrans, eux, regardent une fenetre GLISSANTE de 30 jours
+     * (`OrgAdminController::aiQuality()` et `AdminAiQualityController::index()`
+     * posent tous deux `$to = now()` et `$from = $to->subDays(30)`).
+     *
+     * Un fait fige et une fenetre qui glisse finissent donc TOUJOURS par se
+     * separer. C'est arrive le 2026-10-09 a 14:00:37 Europe/Paris, exactement
+     * 30 jours apres `clarify_help_request` : quatre tests sont passes au rouge
+     * sur toute branche, et un cinquieme — « aucun contenu de conversation
+     * n'atteint le cockpit » — est devenu VERT A VIDE, son assertion negative
+     * ne mesurant plus rien puisque le tour etait hors fenetre.
+     *
+     * Ancrer `now()` sur l'instant instrumente supprime la derive a la racine :
+     * la fenetre des ecrans contient alors forcement cet instant, quelle que
+     * soit la date du jour ou celle de la constante.
+     *
+     * L'ancrage est pose PAR TEST, et non dans `setUp()`, pour une raison
+     * mesuree : `test_the_declaration_matches_the_real_writers` et sa voisine
+     * comparent `since` a `now()` REEL pour verifier qu'aucune instrumentation
+     * n'est datee dans le futur. Geler l'horloge pour tout le monde rendrait
+     * cette verification vide — on remplacerait un faux rouge par un faux vert.
+     */
+    private function anchorOnInstrumentation(string $feature): CarbonImmutable
+    {
+        $since = AiQualityInstrumentation::since($feature);
+
+        $this->assertNotNull($since, "[{$feature}] doit etre instrumentee pour que l'ancrage ait un sens");
+
+        // Quelques minutes apres, et pas l'instant exact : `addSecond()` cote
+        // test doit rester STRICTEMENT dans le passe de `now()`, sinon le tour
+        // tombe dans le futur et sort de la fenetre par l'autre borne.
+        $this->travelTo($since->addMinutes(5));
+
+        $this->to = CarbonImmutable::now()->addMinute();
+        $this->from = $this->to->subDays(30);
+
+        return $since;
     }
 
     private function interaction(Organization $organization, string $feature, ?CarbonImmutable $at = null, string $prompt = 'Une question.'): AiInteraction

@@ -304,7 +304,11 @@ class AdminController extends Controller
                 'user_id' => $user->id,
                 'delta' => $data['delta'],
                 'organization_id' => $user->organization_id,
-                'reason' => 'adjustment',
+                // TASK-1667 — le motif etait VALIDE puis ignore : toute correction
+                // s'ecrivait « adjustment », y compris une remise a zero. Le
+                // defaut par defaut reste `adjustment`, donc rien ne change pour
+                // les appels qui n'en fournissent pas.
+                'reason' => $data['reason'] ?? 'adjustment',
             ]);
             $user->increment('points_balance', $data['delta']);
         });
@@ -587,9 +591,11 @@ class AdminController extends Controller
             };
         }
 
+        $filteredUser = $this->applyAdminUserFilter($query, $request);
+
         $services = $query->latest()->paginate(25)->withQueryString();
 
-        return view('admin.services', compact('organizations', 'selectedOrganizationId', 'services'));
+        return view('admin.services', compact('organizations', 'selectedOrganizationId', 'services', 'filteredUser'));
     }
 
     public function editService(string $service): View
@@ -691,9 +697,80 @@ class AdminController extends Controller
 
     // ── Transactions ──────────────────────────────────────────────────────────
 
+    /**
+     * Le grand livre des points, en LECTURE SEULE.
+     *
+     * TASK-1667 — « Ce membre a N ecriture(s) au grand livre des points »
+     * bloquait la suppression sans que rien ne permette d'aller voir ces
+     * ecritures : aucun ecran n'existait. Il en fallait donc un.
+     *
+     * Lecture seule et sans action, a dessein : un historique comptable ne se
+     * supprime pas, et c'est precisement pour cela qu'il bloque. Cet ecran
+     * explique le blocage, il ne le leve pas.
+     */
+    public function points(Request $request): View
+    {
+        $query = PointLedger::query()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->with(['user', 'organization']);
+
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
+
+        if ($request->filled('reason')) {
+            $query->where('reason', $request->input('reason'));
+        }
+
+        $filteredUser = $this->applyAdminUserFilter($query, $request);
+
+        // TASK-1667 — tri sur les colonnes, par liste BLANCHE.
+        // Passer `sort` directement a `orderBy()` laisserait choisir n'importe
+        // quelle colonne, y compris une qui n'est pas affichee.
+        $triables = ['created_at', 'delta', 'reason'];
+        $tri = in_array($request->input('sort'), $triables, true)
+            ? (string) $request->input('sort')
+            : 'created_at';
+        $sens = $request->input('direction') === 'asc' ? 'asc' : 'desc';
+
+        $entries = $query->orderBy($tri, $sens)->paginate(25)->withQueryString();
+
+        // TASK-1667 — de QUI corriger le solde, choisi a l'ecran.
+        //
+        // Le panneau de correction ne s'affiche que sur une personne designee.
+        // Sans ce choix, il fallait fabriquer l'URL `?user_id=...` a la main :
+        // la capacite existait sans aucune poignee pour l'atteindre.
+        //
+        // Le solde est porte par l'option, pour qu'il soit lu AVANT de choisir.
+        $membres = User::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->when($selectedOrganizationId !== 'all',
+                fn ($q) => $q->where('organization_id', $selectedOrganizationId))
+            ->orderBy('name')
+            ->get(['id', 'name', 'first_name', 'points_balance']);
+
+        $solde = (clone $query)->sum('delta');
+
+        return view('admin.points', compact(
+            'organizations', 'selectedOrganizationId', 'entries', 'filteredUser', 'solde', 'tri', 'sens', 'membres'
+        ));
+    }
+
     public function transactions(Request $request): View
     {
-        $query = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->with(['buyer', 'seller', 'service', 'serviceRequest', 'organization']);
+        // TASK-1666 — `withCount` plutot qu'un comptage par ligne dans la vue :
+        // un compteur par ligne couterait une requete par echange affiche, et
+        // c'est exactement le defaut mesure en T1640 (421 requetes pour 9 lignes).
+        $query = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->withCount([
+                'messages',
+                // Un echange porte toujours un message SYSTEME d'ouverture
+                // (« Conversation directe démarrée. », `sender_id` nul). Compter
+                // separement les messages humains evite de promettre une
+                // discussion la ou il n'y a qu'un marqueur technique.
+                'messages as human_messages_count' => fn ($q) => $q->whereNotNull('sender_id'),
+            ])
+            ->with(['buyer', 'seller', 'service', 'serviceRequest', 'organization']);
         $organizations = $this->adminOrganizations();
         $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
 
@@ -708,6 +785,28 @@ class AdminController extends Controller
                 $q->whereHas('buyer', fn ($u) => $u->where('name', 'like', '%'.$request->search.'%'))
                     ->orWhereHas('seller', fn ($u) => $u->where('name', 'like', '%'.$request->search.'%'));
             });
+        }
+
+        // TASK-1665 — ciblage EXACT d'un echange, pour le lien pose par la modal
+        // de suppression d'un membre.
+        //
+        // `search` n'est pas detourne : il cherche des PERSONNES
+        // (`buyer.name`, `seller.name`) et doit continuer a le faire.
+        //
+        // La forme est validee AVANT d'atteindre PostgreSQL. Sans cela, une
+        // valeur libre arrivant dans une comparaison sur une colonne `uuid`
+        // leverait une erreur de cast (SQLSTATE 22P02) et rendrait un 500 la ou
+        // un filtre qui ne correspond a rien doit simplement ne rien rendre.
+        if ($request->filled('transaction_id')) {
+            $transactionId = (string) $request->input('transaction_id');
+
+            if (Str::isUuid($transactionId)) {
+                $query->whereKey($transactionId);
+            } else {
+                // Forme invalide : aucun echange ne peut y correspondre. On le dit
+                // en SQL plutot que de laisser la valeur atteindre la colonne.
+                $query->whereRaw('1 = 0');
+            }
         }
 
         $transactions = $query->latest()->paginate(25)->withQueryString();
@@ -733,9 +832,11 @@ class AdminController extends Controller
             $query->where('title', 'like', '%'.$request->search.'%');
         }
 
+        $filteredUser = $this->applyAdminUserFilter($query, $request);
+
         $requests = $query->latest()->paginate(25)->withQueryString();
 
-        return view('admin.requests', compact('organizations', 'selectedOrganizationId', 'requests'));
+        return view('admin.requests', compact('organizations', 'selectedOrganizationId', 'requests', 'filteredUser'));
     }
 
     public function editRequest(string $serviceRequest): View
@@ -1186,6 +1287,35 @@ class AdminController extends Controller
      */
     public function userDeletePrecheck(User $user): JsonResponse
     {
+        return response()->json($this->userDeletePayload($user));
+    }
+
+    /**
+     * La page de suppression d'un compte.
+     *
+     * TASK-1668 — la modal avait grossi a chaque TASK : blocages avec un lien
+     * par element, contenus a confier par famille avec les leurs, choix du
+     * repreneur, et le caractere definitif a dire clairement. Une fenetre
+     * surgissante n'est plus le bon contenant.
+     *
+     * La page consomme EXACTEMENT le meme payload, calcule cote serveur : rien
+     * du travail des TASK precedentes n'est reecrit.
+     */
+    public function userDeletePage(User $user): View
+    {
+        return view('admin.users.delete', [
+            'cible' => $user,
+            'donnees' => $this->userDeletePayload($user),
+        ]);
+    }
+
+    /**
+     * Ce que l'ecran doit savoir pour proposer — ou refuser — une suppression.
+     *
+     * @return array<string, mixed>
+     */
+    private function userDeletePayload(User $user): array
+    {
         $precheck = app(UserDeletionExecutor::class)->precheck($user);
 
         // Les repreneurs possibles, dans la MEME Organization : c'est la borne
@@ -1201,18 +1331,213 @@ class AdminController extends Controller
             ->map(fn (User $candidat) => ['id' => $candidat->id, 'name' => $candidat->fullName])
             ->values();
 
-        return response()->json([
+        return [
             'user' => ['id' => $user->id, 'name' => $user->fullName],
-            // Seuls le libelle et le compte sortent : la cle technique du blocage
-            // reste cote serveur, l'ecran n'a rien a en faire.
+            // Seuls le libelle, le compte et d'eventuels liens de navigation
+            // sortent : la cle technique du blocage reste cote serveur, l'ecran
+            // n'a rien a en faire.
             'blocks' => collect($precheck['blocks'])
-                ->map(fn (array $block) => ['message' => $block['message'], 'count' => $block['count']])
+                ->map(fn (array $block) => array_filter([
+                    'message' => $block['message'],
+                    'count' => $block['count'],
+                    'links' => $this->blockNavigationLinks($user, $block) ?: null,
+                ], fn ($valeur) => $valeur !== null))
                 ->values(),
             'requires_transfer' => $precheck['requires_transfer'],
             'transfer_total' => array_sum($precheck['transferable']),
+            // TASK-1667 — « 3 contenus a confier » ne disait pas LESQUELS. Le
+            // detail par famille etait deja calcule par `precheck()` ; seul
+            // `array_sum()` ci-dessus le jetait. On l'expose, sans une seule
+            // requete de plus.
+            'transfers' => $this->transferDetails($user, $precheck['transferable']),
             'transfer_candidates' => $candidats,
             'preview_fingerprint' => $this->deletePreviewFingerprint($precheck),
-        ]);
+        ];
+    }
+
+    /**
+     * TASK-1667 — borne une liste de contenus a UN auteur.
+     *
+     * Pose sur `user_id`, jamais sur `search` : ce dernier cherche un TITRE sur
+     * ces ecrans, et le detourner en pseudo-filtre d'identite rendrait les deux
+     * usages impossibles a distinguer.
+     *
+     * La forme est validee AVANT d'atteindre PostgreSQL : une valeur libre
+     * arrivant sur une colonne `uuid` y leve SQLSTATE 22P02 et rendrait un 500,
+     * la ou un filtre sans correspondance doit simplement ne rien rendre.
+     * SQLite ne reproduit pas ce defaut.
+     *
+     * Rend l'auteur quand il existe, pour que l'ecran puisse le NOMMER : une
+     * liste bornee qui ne dit pas sur qui elle l'est se lit comme une liste
+     * complete.
+     */
+    private function applyAdminUserFilter($query, Request $request): ?User
+    {
+        if (! $request->filled('user_id')) {
+            return null;
+        }
+
+        $userId = (string) $request->input('user_id');
+
+        if (! Str::isUuid($userId)) {
+            $query->whereRaw('1 = 0');
+
+            return null;
+        }
+
+        $query->where('user_id', $userId);
+
+        return User::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->find($userId);
+    }
+
+    /**
+     * Le detail, famille par famille, de ce qu'une suppression ferait changer
+     * de main.
+     *
+     * TASK-1667 — on demandait a l'admin de choisir un destinataire pour des
+     * contenus qu'il n'avait pas vus. Chaque famille non vide sort donc avec
+     * son compte et, quand un ecran d'administration existe, un lien vers ce
+     * qu'elle contient.
+     *
+     * `feed_posts` n'a AUCUN ecran d'administration dans ce depot : son compte
+     * sort donc sans `url`. Mieux vaut un nombre sans lien qu'un lien vers une
+     * page qui n'existe pas.
+     *
+     * @param  array<string, int>  $transferable
+     * @return list<array{key: string, label: string, count: int, url?: string}>
+     */
+    private function transferDetails(User $user, array $transferable): array
+    {
+        $ecrans = [
+            'blog_posts' => 'admin.blog',
+            'services' => 'admin.services',
+            'service_requests' => 'admin.requests',
+            // 'feed_posts' — volontairement absent : aucun ecran n'existe.
+        ];
+
+        $details = [];
+
+        foreach ($transferable as $cle => $nombre) {
+            if ($nombre < 1) {
+                continue;
+            }
+
+            $detail = [
+                'key' => $cle,
+                'label' => __('admin.user_delete_transfer_family_'.$cle),
+                'count' => $nombre,
+            ];
+
+            if (isset($ecrans[$cle])) {
+                $detail['url'] = route($ecrans[$cle], array_filter([
+                    'organization_id' => $user->organization_id,
+                    'user_id' => $user->id,
+                ]));
+            }
+
+            $details[] = $detail;
+        }
+
+        return $details;
+    }
+
+    /**
+     * Les liens de navigation d'un blocage, quand le SuperAdmin a quelque part
+     * ou aller pour le lever.
+     *
+     * TASK-1665 — un blocage « ce membre est vendeur dans 1 echange » laissait
+     * l'ecran sans moyen d'identifier l'echange. On rend donc un lien par
+     * transaction bloquante, vers l'administration des transactions filtree sur
+     * celle-la. La suppression, elle, reste au workflow existant : cette modal
+     * ne detruit aucune transaction.
+     *
+     * Seuls les blocages a cle `transactions_as_*` produisent des liens. Les
+     * autres n'en ont pas, et ne doivent pas en inventer.
+     *
+     * @param  array{key: string, count: int, message: string}  $block
+     * @return list<array{label: string, url: string}>
+     */
+    private function blockNavigationLinks(User $user, array $block): array
+    {
+        // TASK-1667 — le grand livre des points. Une seule destination suffit :
+        // l'ecran est deja borne sur la personne, et aligner N liens vers la
+        // meme page n'apprendrait rien de plus.
+        if ($block['key'] === 'point_ledger') {
+            return [[
+                'label' => __('admin.user_delete_block_link_points'),
+                'url' => route('admin.points', array_filter([
+                    'organization_id' => $user->organization_id,
+                    'user_id' => $user->id,
+                ])),
+            ]];
+        }
+
+        // TASK-1667 — les Boucles dont ce membre est le dernier responsable.
+        // Les identifiants viennent de l'executeur, qui DERIVE son compte de
+        // cette meme liste : annoncer « 1 Boucle » en montrant zero lien est
+        // donc structurellement impossible.
+        if ($block['key'] === 'loop_last_owner') {
+            return app(UserDeletionExecutor::class)
+                ->loopIdsWhereLastActiveOwner($user)
+                ->map(fn (string $loopId, int $rang) => [
+                    'label' => __('admin.user_delete_block_link_loop', ['rank' => $rang + 1]),
+                    'url' => route('admin.loops.show', ['loop' => $loopId]),
+                ])
+                ->values()
+                ->all();
+        }
+
+        if (! in_array($block['key'], ['transactions_as_buyer', 'transactions_as_seller'], true)) {
+            return [];
+        }
+
+        return $this->blockingRowIds($user, $block['key'])
+            ->map(fn (string $id, int $rang) => [
+                'label' => __('admin.user_delete_block_link_transaction', [
+                    'rank' => $rang + 1,
+                    'short' => strtoupper(substr($id, 0, 8)),
+                ]),
+                'url' => route('admin.transactions', array_filter([
+                    'organization_id' => $user->organization_id,
+                    'transaction_id' => $id,
+                ])),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Les identifiants des lignes qui bloquent, pour une cle du registre.
+     *
+     * Le predicat n'est PAS reecrit ici : il est relu au registre, exactement
+     * comme `UserDeletionExecutor::countBlockingRows()` le fait. Un
+     * `where('seller_id', ...)` ecrit a la main aurait fabrique une seconde
+     * copie de la politique, libre de deriver du compte affiche — la modal
+     * aurait pu annoncer « 1 echange » et montrer zero lien, sans que rien ne le
+     * signale. La politique ne vit qu'au registre.
+     *
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    private function blockingRowIds(User $user, string $key): Collection
+    {
+        $entry = collect(UserDataLifecycleRegistry::entries())
+            ->firstWhere('key', $key);
+
+        if ($entry === null || ! isset($entry['table'], $entry['column']) || ! Schema::hasTable($entry['table'])) {
+            return collect();
+        }
+
+        $query = DB::table($entry['table'])->where($entry['column'], $user->id);
+
+        UserDataLifecycleRegistry::excludeResolvableRows($query, $entry, $entry['table']);
+
+        return $query->orderBy('created_at')->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            // Une meme ligne ne peut pas apparaitre deux fois, mais un blocage
+            // qui en montrerait deux serait plus deroutant qu'utile.
+            ->unique()
+            ->values();
     }
 
     private function deletePreviewFingerprint(array $precheck): string
