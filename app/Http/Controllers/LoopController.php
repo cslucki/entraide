@@ -122,6 +122,24 @@ class LoopController extends Controller
         abort_unless(auth()->user()?->canAccessOrganization($organization), 404);
     }
 
+    /**
+     * TASK-1680 — ADMINISTRATION plateforme : appartenance OU SuperAdmin.
+     *
+     * Troisieme geste, troisieme nom (doctrine T1658) : consulter
+     * ({@see assertUserCanInspectOrganization}), agir en membre
+     * ({@see assertUserBelongsToOrganization}), et ici administrer une
+     * decision de gouvernance depuis la plateforme. Meme predicat que
+     * l'inspection, mais reservee aux mutations dont l'autorite REELLE est
+     * le `authorize()` qui suit (policy -> resolveur canonique) : cette
+     * garde ne fait que fermer la porte aux anonymes et aux etrangers
+     * ordinaires AVANT que la policy ne parle. L'employer sans authorize()
+     * en aval serait un contresens.
+     */
+    private function assertUserCanAdministerOrganization(Organization $organization): void
+    {
+        abort_unless(auth()->user()?->canAccessOrganization($organization), 404);
+    }
+
     private function resolveOrganizationId(): string
     {
         $organizationId = CurrentOrganization::id();
@@ -241,6 +259,24 @@ class LoopController extends Controller
             'organization' => $loop->organization,
             'loop' => $loop,
         ]);
+    }
+
+    /**
+     * TASK-1680 — meme idiome que {@see resolveRouteLoop()} : les routes
+     * org-scopees passent {organization} en premier parametre, les routes
+     * courtes passent la demande seule.
+     */
+    private function resolveRouteJoinRequest(LoopJoinRequest|Organization|string $joinRequestOrOrganization, ?LoopJoinRequest $joinRequest = null): LoopJoinRequest
+    {
+        if ($joinRequestOrOrganization instanceof LoopJoinRequest) {
+            return $joinRequestOrOrganization;
+        }
+
+        if ($joinRequest instanceof LoopJoinRequest) {
+            return $joinRequest;
+        }
+
+        abort(404);
     }
 
     private function resolveRouteLoop(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): Loop
@@ -974,10 +1010,17 @@ class LoopController extends Controller
             ->with('info', __('loops.join_request_cancelled'));
     }
 
-    public function acceptJoinRequest(Request $request, LoopJoinRequest $joinRequest): RedirectResponse
+    public function acceptJoinRequest(Request $request, LoopJoinRequest|Organization|string $joinRequestOrOrganization, ?LoopJoinRequest $joinRequest = null): RedirectResponse
     {
+        $joinRequest = $this->resolveRouteJoinRequest($joinRequestOrOrganization, $joinRequest);
         $organization = $this->resolveOrganization();
-        $this->assertUserBelongsToOrganization($organization);
+
+        // TASK-1680 — le SuperAdmin administre les adhesions d'un tenant qui
+        // n'est pas le sien. L'autorite reelle reste le authorize() ci-dessous
+        // (resolveur canonique : etranger ordinaire refuse, membre sans
+        // permission refuse, archive refusee). Le membership cree est celui du
+        // DEMANDEUR, jamais de l'acteur.
+        $this->assertUserCanAdministerOrganization($organization);
 
         if ($joinRequest->organization_id !== $organization->id) {
             abort(404);
@@ -997,10 +1040,14 @@ class LoopController extends Controller
             ->with('success', __('loops.join_request_accepted'));
     }
 
-    public function rejectJoinRequest(Request $request, LoopJoinRequest $joinRequest): RedirectResponse
+    public function rejectJoinRequest(Request $request, LoopJoinRequest|Organization|string $joinRequestOrOrganization, ?LoopJoinRequest $joinRequest = null): RedirectResponse
     {
+        $joinRequest = $this->resolveRouteJoinRequest($joinRequestOrOrganization, $joinRequest);
         $organization = $this->resolveOrganization();
-        $this->assertUserBelongsToOrganization($organization);
+
+        // TASK-1680 — meme ouverture que acceptJoinRequest(), meme autorite
+        // reelle en aval (authorize -> resolveur canonique).
+        $this->assertUserCanAdministerOrganization($organization);
 
         if ($joinRequest->organization_id !== $organization->id) {
             abort(404);

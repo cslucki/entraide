@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
+use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\LoopRoadmapItem;
 use App\Models\Organization;
@@ -548,6 +549,15 @@ class AdminLoopController extends Controller
             ],
             'manifestoSources' => app(LoopManifestoService::class)->sourcesFor($loop),
             'invitations' => $loop->invitations()->with('sender')->latest()->limit(10)->get(),
+            // TASK-1680 — les demandes d'adhesion PENDING de CETTE Boucle.
+            // La page reste en lecture : les boutons POSTent vers les routes
+            // tenant org-scopees, dont l'autorite est la policy
+            // manageJoinRequests (resolveur canonique) — pas cet ecran.
+            'pendingJoinRequests' => LoopJoinRequest::where('loop_id', $loop->id)
+                ->where('status', LoopJoinRequest::STATUS_PENDING)
+                ->with('user')
+                ->oldest()
+                ->get(),
             // The workspace requires an active membership and deliberately has
             // no super-admin bypass (TASK-1073/1074), so the link is offered
             // only when it would actually open — it used to 404.

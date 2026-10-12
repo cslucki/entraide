@@ -117,6 +117,39 @@
             <p class="mt-3 text-xs text-gray-400">Lecture seule — les actions sont sur la page Modifier.</p>
         </section>
 
+        {{-- TASK-1680 — Demandes d'adhésion : le SuperAdmin les administre
+             d'ici, sans entrer dans le workspace du tenant. Les boutons
+             POSTent vers les routes tenant org-scopées ; l'autorité est la
+             policy manageJoinRequests (résolveur canonique), jamais cette
+             page. Le membership créé est celui du demandeur. --}}
+        <section class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+            <h2 class="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('admin.loop_join_requests_title') }}</h2>
+            @forelse($pendingJoinRequests as $demande)
+                <div class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gray-100 px-3 py-2 last:mb-0 dark:border-gray-700">
+                    <span class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ $demande->user?->full_name ?? '—' }}</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ $demande->user?->email }}</span>
+                    <span class="text-xs text-gray-400">{{ $demande->created_at?->isoFormat('L') }}</span>
+                    <span class="min-w-0 flex-1 truncate text-xs italic text-gray-500 dark:text-gray-400">
+                        {{ $demande->message ?: __('loops.join_requests_no_message') }}
+                    </span>
+                    <form method="POST" action="{{ route('organization.loop-join-requests.accept', ['organization' => $boucle->organization->slug, 'joinRequest' => $demande]) }}">
+                        @csrf
+                        <button type="submit" class="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-emerald-700">
+                            {{ __('loops.join_requests_accept') }}
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ route('organization.loop-join-requests.reject', ['organization' => $boucle->organization->slug, 'joinRequest' => $demande]) }}">
+                        @csrf
+                        <button type="submit" class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                            {{ __('loops.join_requests_reject') }}
+                        </button>
+                    </form>
+                </div>
+            @empty
+                <p class="text-xs text-gray-400">{{ __('admin.loop_join_requests_empty') }}</p>
+            @endforelse
+        </section>
+
         {{-- Cards, avec un aperçu de ce qu'elles contiennent --}}
         <section class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
             <h2 class="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.cards_linked') }}</h2>

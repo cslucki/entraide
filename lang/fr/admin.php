@@ -79,6 +79,9 @@ return [
     'loop_owner_placeholder' => '— Sélectionner un responsable —',
     'loop_owner_none' => "Aucun responsable pour l'instant",
     'loop_view_front' => 'Voir la Boucle',
+    // TASK-1680 — panneau des demandes d'adhesion du cockpit admin.
+    'loop_join_requests_title' => "Demandes d'adhésion",
+    'loop_join_requests_empty' => "Aucune demande d'adhésion en attente.",
 
     'organization_identity' => 'Identité',
     'organization_identity_description' => 'Gérez le logo et l\'identité visuelle de votre organisation.',

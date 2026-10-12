@@ -1319,6 +1319,15 @@ Route::prefix('/org/{organization}')
                 Route::post('/loops/{loop}/archive', [LoopController::class, 'archive'])->name('loops.archive');
                 Route::post('/loops/{loop}/reactivate', [LoopController::class, 'reactivate'])->name('loops.reactivate');
                 Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware('throttle:5,1')->name('loops.join-requests.store');
+                // TASK-1680 — versions org-scopees d'accepter/refuser une
+                // demande : le panneau du cockpit admin (/admin/loops/{loop})
+                // doit porter l'Organization de la Boucle dans l'URL, la ou
+                // les routes courtes la resolvent du HOST — poster depuis la
+                // plateforme y rendrait 404 sur la garde d'objet. Aucune
+                // route GET : les demandes s'AFFICHENT dans le workspace et
+                // dans le cockpit admin, jamais sur une page dediee.
+                Route::post('/join-requests/{joinRequest}/accept', [LoopController::class, 'acceptJoinRequest'])->name('loop-join-requests.accept');
+                Route::post('/join-requests/{joinRequest}/reject', [LoopController::class, 'rejectJoinRequest'])->name('loop-join-requests.reject');
                 Route::get('/loops/{loop}/invite', [LoopController::class, 'invite'])->name('loops.invite');
                 Route::post('/loops/{loop}/invite/members', [LoopController::class, 'storeMembers'])->middleware('throttle:10,1')->name('loops.invite.members');
                 Route::post('/loops/{loop}/invitations', [LoopInvitationController::class, 'store'])->middleware('throttle:10,1')->name('loops.invitations.store');
