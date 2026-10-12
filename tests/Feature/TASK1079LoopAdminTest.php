@@ -406,9 +406,11 @@ class TASK1079LoopAdminTest extends TestCase
             ->get(route('admin.loops', ['organization_id' => 'all']))
             ->assertOk()
             ->assertSee(route('admin.loops.show', $foreignLoop), false)
-            // The workspace needs an active membership and has no super-admin
-            // bypass, so offering it from the listing only produced a 404.
-            ->assertDontSee($foreignLoop->workspaceUrl(), false);
+            // TASK-1680 — le lien « Voir la Boucle » est revenu : depuis
+            // T1679 la page tenant rend la PRESENTATION au SuperAdmin non
+            // membre au lieu d'un 404. L'assertion inverse verrouillait la
+            // premisse d'avant T1679.
+            ->assertSee($foreignLoop->workspaceUrl(), false);
     }
 
     public function test_the_overview_offers_the_workspace_only_to_a_member(): void

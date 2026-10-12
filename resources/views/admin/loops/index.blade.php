@@ -135,9 +135,12 @@
                     <td class="px-4 py-3">
                         <div class="flex gap-2 items-center">
                             {{-- The name itself opens the overview; the Actions column
-                                 keeps only what acts. Workspace is gone from here: it
-                                 needs an active membership and 404'd for an admin who
-                                 is not one. --}}
+                                 keeps only what acts. TASK-1680 : « Voir la Boucle »
+                                 revient — depuis T1679 la page tenant rend la
+                                 presentation au SuperAdmin non membre au lieu d'un
+                                 404. workspaceUrl() : URL org-scopee canonique, la
+                                 route courte resoudrait l'Organization de l'admin. --}}
+                            <a href="{{ $orgLoop->workspaceUrl() }}" target="_blank" rel="noopener" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">{{ __('admin.loop_view_front') }}</a>
                             <a href="{{ route('admin.loops.edit', $orgLoop) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
                             <a href="{{ route('admin.loops.files', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Fichiers</a>
                             @if($orgLoop->isActive())

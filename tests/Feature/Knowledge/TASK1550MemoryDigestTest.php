@@ -385,7 +385,12 @@ class TASK1550MemoryDigestTest extends TestCase
 
         // Et la preuve humaine est un message visible de la Boucle.
         $this->assertSame($messagesAvant + 1, LoopMessage::query()->where('loop_id', $this->loop->id)->count());
-        $preuve = LoopMessage::query()->where('loop_id', $this->loop->id)->latest('created_at')->first();
+        // `created_at` est a la seconde : le message source d'unAjout() et la
+        // preuve de correction peuvent s'egaler, et PostgreSQL rend alors
+        // l'ordre qu'il veut (rouge INTERMITTENT en CI, shard-dependant).
+        // L'id UUIDv7 est ordonne dans le temps : il departage sans rien
+        // changer a la chronologie — meme idiome que Loop::owners().
+        $preuve = LoopMessage::query()->where('loop_id', $this->loop->id)->latest('created_at')->latest('id')->first();
         $this->assertSame((string) $this->alice->id, (string) $preuve->sender_id);
         $this->assertSame('En fait c est Charpentier Bernard qui prend le lot.', (string) $preuve->body);
     }
