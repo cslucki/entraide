@@ -110,7 +110,16 @@
                                 @empty
                                     <tr>
                                         <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                                            {{ __('admin.no_system_templates') }}
+                                            {{-- TASK-1681 — arrive filtre par slug (lien de
+                                                 bulk-create), une liste vide est l'etat NORMAL :
+                                                 la surcharge est facultative, l'email part avec
+                                                 le modele par defaut. Le dire, plutot qu'une
+                                                 page vide inquietante. --}}
+                                            @if(request('slug'))
+                                                {{ __('admin.system_email_no_override') }}
+                                            @else
+                                                {{ __('admin.no_system_templates') }}
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforelse

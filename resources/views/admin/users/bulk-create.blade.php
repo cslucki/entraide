@@ -182,7 +182,10 @@
                             Créer les accès et envoyer les invitations
                         </button>
                         <a href="{{ route('admin.system-email-templates', ['slug' => 'organization_invitation']) }}" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
-                            Gérer le modèle d'email
+                            {{-- TASK-1681 : « Personnaliser », pas « Gérer » — la
+                                 surcharge est facultative, et peut n'exister pas
+                                 encore (l'email part alors du modèle par défaut). --}}
+                            Personnaliser le modèle d'email
                         </a>
                         <a href="{{ route('admin.email-logs', ['source' => 'organization-invitation']) }}" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
                             Voir l'historique des emails

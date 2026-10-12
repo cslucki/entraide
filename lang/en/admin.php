@@ -453,7 +453,9 @@ return [
     'org_membership_label_en' => 'Label (English)',
 
     // System email templates
-    'system_email_desc' => 'These templates override system emails (automatic notifications). Leave a template disabled to use the default Blade view.',
+    // TASK-1681 — absence of a row is normal: the mailer falls back to Blade.
+    'system_email_desc' => 'These templates are optional overrides of system emails (automatic notifications). A template missing from this list is not an anomaly: the email is then sent with the application default template. Leave a template disabled to fall back to the default.',
+    'system_email_no_override' => 'No custom override for this template. The default email template is currently in use.',
     'locale' => 'Locale',
     'slug' => 'Slug',
     'status' => 'Status',

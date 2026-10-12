@@ -454,7 +454,11 @@ return [
     'org_membership_label_en' => 'Libellé (anglais)',
 
     // System email templates
-    'system_email_desc' => 'Ces templates surchargent les emails système (notifications automatiques). Laissez un template désactivé pour utiliser la vue Blade par défaut.',
+    // TASK-1681 — dire aussi ce que signifie l'ABSENCE d'une ligne : en
+    // PROD, les surcharges n'ont jamais ete semees pour les slugs recents,
+    // et ce n'est pas une anomalie (le mailer retombe sur le Blade).
+    'system_email_desc' => 'Ces templates sont des surcharges facultatives des emails système (notifications automatiques). Un modèle absent de cette liste n\'est pas une anomalie : l\'email part alors avec le modèle par défaut de l\'application. Laissez un template désactivé pour revenir au modèle par défaut.',
+    'system_email_no_override' => "Aucune surcharge personnalisée pour ce modèle. Le modèle d'email par défaut est actuellement utilisé.",
     'locale' => 'Locale',
     'slug' => 'Slug',
     'status' => 'Statut',

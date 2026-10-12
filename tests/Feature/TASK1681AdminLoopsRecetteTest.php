@@ -137,6 +137,50 @@ class TASK1681AdminLoopsRecetteTest extends TestCase
             ->assertSee(route('admin.users.bulk-create', ['organization_id' => $this->orgB->id]), false);
     }
 
+    public function test_the_template_screen_explains_an_absent_override_instead_of_a_mute_empty_list(): void
+    {
+        // Etat PROD reel : aucune surcharge organization_invitation n'existe
+        // (le mailer retombe sur le Blade — comportement normal, audit T1681).
+        // La page filtree doit le DIRE, pas afficher une liste vide muette.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.system-email-templates', ['slug' => 'organization_invitation']))
+            ->assertOk()
+            ->assertSee(__('admin.system_email_no_override'))
+            ->assertSee(__('admin.system_email_desc'));
+    }
+
+    public function test_the_template_screen_still_lists_existing_overrides(): void
+    {
+        \App\Models\SystemEmailTemplate::create([
+            'organization_id' => $this->orgB->id,
+            'slug' => 'organization_invitation',
+            'locale' => 'fr',
+            'name' => 'Invitation directe',
+            'subject' => 'Votre accès à {{ organization_name }}',
+            'content_html' => '<p>{{ invitation_url }}</p>',
+            'variables' => ['invitation_url'],
+            'enabled' => true,
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.system-email-templates', ['slug' => 'organization_invitation']))
+            ->assertOk()
+            ->assertSee('Invitation directe')
+            ->assertDontSee(__('admin.system_email_no_override'));
+    }
+
+    public function test_bulk_create_links_to_the_filtered_template_screen_with_an_honest_label(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.users.bulk-create', ['organization_id' => $this->orgB->id]))
+            ->assertOk()
+            // Texte ecrit EN DUR dans la vue (hors {{ }}) : l'apostrophe y est
+            // brute, alors qu'assertSee echappe l'aiguille — chercher la forme
+            // brute (reciproque de la lecon T1672 sur les formes echappees).
+            ->assertSee("Personnaliser le modèle d'email", false)
+            ->assertSee(route('admin.system-email-templates', ['slug' => 'organization_invitation']), false);
+    }
+
     public function test_nothing_implicit_happened_to_the_superadmin(): void
     {
         $this->actingAs($this->superAdmin)->get(route('admin.loops.edit', $this->loop))->assertOk();
