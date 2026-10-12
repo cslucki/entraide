@@ -212,6 +212,74 @@ class TASK1680SuperadminJoinRequestsTest extends TestCase
             ->assertSee(__('admin.loop_join_requests_empty'));
     }
 
+    public function test_the_presentation_hides_participation_ctas_from_the_cross_org_superadmin(): void
+    {
+        app()->instance('current_organization', $this->orgB);
+
+        // La page se consulte (T1679), mais aucun geste de participation ne
+        // s'y offre : le backend refuse deja deux fois (garde + policy), on
+        // n'affiche pas une porte qu'on garde fermee.
+        $this->actingAs($this->superAdmin)
+            ->get(route('organization.loops.show', ['organization' => $this->orgB->slug, 'loop' => $this->loop->id]))
+            ->assertOk()
+            ->assertViewIs('loops.presentation')
+            ->assertDontSee(__('loops.cta_request'))
+            ->assertDontSee(__('loops.cta_join'));
+
+        // Le POST direct, lui, reste 404 — non-regression de la garde.
+        $this->actingAs($this->superAdmin)
+            ->post(route('organization.loops.join-requests.store', ['organization' => $this->orgB->slug, 'loop' => $this->loop->id]), [
+                'message' => 'intrusion',
+            ])
+            ->assertNotFound();
+
+        // Boucle en acces OUVERT : meme regle, le CTA « Rejoindre » non plus.
+        $openLoop = app(LoopService::class)->createLoopForOrg(
+            null, $this->orgB->id, 'Boucle ouverte', null, 'public',
+            null, Loop::ACCESS_OPEN, null, $this->superAdmin,
+        );
+        $this->actingAs($this->superAdmin)
+            ->get(route('organization.loops.show', ['organization' => $this->orgB->slug, 'loop' => $openLoop->id]))
+            ->assertOk()
+            ->assertDontSee(__('loops.cta_join'));
+    }
+
+    public function test_a_tenant_member_still_sees_the_cta_and_can_request_to_join(): void
+    {
+        $member = User::factory()->create(['organization_id' => $this->orgB->id]);
+        app()->instance('current_organization', $this->orgB);
+
+        $this->actingAs($member)
+            ->get(route('organization.loops.show', ['organization' => $this->orgB->slug, 'loop' => $this->loop->id]))
+            ->assertOk()
+            ->assertViewIs('loops.presentation')
+            ->assertSee(__('loops.cta_request'));
+
+        $this->actingAs($member)
+            ->post(route('organization.loops.join-requests.store', ['organization' => $this->orgB->slug, 'loop' => $this->loop->id]), [
+                'message' => 'Je veux participer.',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('loop_join_requests', [
+            'loop_id' => $this->loop->id,
+            'user_id' => $member->id,
+            'status' => LoopJoinRequest::STATUS_PENDING,
+        ]);
+    }
+
+    public function test_the_admin_list_links_to_the_loop_front_page(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['organization_id' => $this->orgB->id]))
+            ->assertOk()
+            ->assertSee(__('admin.loop_view_front'))
+            ->assertSee(route('organization.loops.show', [
+                'organization' => $this->orgB->slug,
+                'loop' => $this->loop->id,
+            ]), false);
+    }
+
     public function test_t1679_inspection_remains_read_only_for_the_superadmin(): void
     {
         app()->instance('current_organization', $this->orgB);
