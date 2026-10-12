@@ -82,6 +82,10 @@ return [
     // TASK-1680 — panneau des demandes d'adhesion du cockpit admin.
     'loop_join_requests_title' => "Demandes d'adhésion",
     'loop_join_requests_empty' => "Aucune demande d'adhésion en attente.",
+    // TASK-1681 — recette OFSH, parcours admin/Boucles.
+    'loop_member_must_belong_to_org' => "Cet utilisateur n'appartient pas à l'Organization de cette Boucle.",
+    'loop_no_assignable_users' => 'Aucun utilisateur disponible dans cette Organization.',
+    'loop_invite_users_cta' => 'Inviter des utilisateurs dans cette Organization',
 
     'organization_identity' => 'Identité',
     'organization_identity_description' => 'Gérez le logo et l\'identité visuelle de votre organisation.',

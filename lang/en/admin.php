@@ -81,6 +81,10 @@ return [
     // TASK-1680 — join requests panel of the admin cockpit.
     'loop_join_requests_title' => 'Join requests',
     'loop_join_requests_empty' => 'No pending join request.',
+    // TASK-1681 — OFSH QA pass, admin/Loops journey.
+    'loop_member_must_belong_to_org' => "This user does not belong to this Loop's Organization.",
+    'loop_no_assignable_users' => 'No user available in this Organization.',
+    'loop_invite_users_cta' => 'Invite users into this Organization',
 
     'organization_identity' => 'Identity',
     'organization_identity_description' => 'Manage your organization logo and brand identity.',
