@@ -463,6 +463,8 @@ return [
     'system_email_create_customization_hint' => 'The customization is created disabled: review it, adjust it, then enable it. While disabled, the default template keeps being used.',
     'system_email_customization_created' => 'Customization created, disabled by default. Review it, then enable it.',
     'system_email_customization_exists' => 'A customization already exists for this Organization and locale: here it is.',
+    'html_preview_title' => 'Rendered preview',
+    'html_preview_hint' => 'Indicative preview, updated as you type: {{ ... }} variables stay as-is and the final email layout is not included.',
     'locale' => 'Locale',
     'slug' => 'Slug',
     'status' => 'Status',

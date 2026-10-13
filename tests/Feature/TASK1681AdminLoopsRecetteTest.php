@@ -284,6 +284,29 @@ class TASK1681AdminLoopsRecetteTest extends TestCase
             ->assertSee('Invitation directe');
     }
 
+    public function test_the_template_edit_screen_carries_a_sandboxed_wysiwyg_preview(): void
+    {
+        $template = \App\Models\SystemEmailTemplate::create([
+            'organization_id' => $this->orgB->id,
+            'slug' => 'organization_invitation',
+            'locale' => 'fr',
+            'name' => 'Invitation directe',
+            'subject' => 'Sujet',
+            'content_html' => '<h1>Bonjour</h1>',
+            'variables' => [],
+            'enabled' => false,
+        ]);
+
+        // L'apercu est une iframe SANDBOX sans allow-scripts : rien ne s'y
+        // execute, le HTML brut devient seulement lisible en mise en forme.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.system-email-templates.edit', $template))
+            ->assertOk()
+            ->assertSee(__('admin.html_preview_title'))
+            ->assertSee('data-html-preview', false)
+            ->assertSee('sandbox=""', false);
+    }
+
     public function test_nothing_implicit_happened_to_the_superadmin(): void
     {
         $this->actingAs($this->superAdmin)->get(route('admin.loops.edit', $this->loop))->assertOk();

@@ -466,6 +466,8 @@ return [
     'system_email_create_customization_hint' => 'La personnalisation est créée désactivée : relisez-la, adaptez-la, puis activez-la. Tant qu\'elle est désactivée, le modèle par défaut continue d\'être utilisé.',
     'system_email_customization_created' => 'Personnalisation créée, désactivée par défaut. Relisez-la puis activez-la.',
     'system_email_customization_exists' => 'Une personnalisation existe déjà pour cette Organization et cette langue : la voici.',
+    'html_preview_title' => 'Aperçu du rendu',
+    'html_preview_hint' => 'Aperçu indicatif, mis à jour pendant la saisie : les variables {{ ... }} restent telles quelles et le layout email final n\'est pas inclus.',
     'locale' => 'Locale',
     'slug' => 'Slug',
     'status' => 'Statut',
