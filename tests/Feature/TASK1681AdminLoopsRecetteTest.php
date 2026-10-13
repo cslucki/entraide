@@ -60,11 +60,15 @@ class TASK1681AdminLoopsRecetteTest extends TestCase
 
         // Deux Boucles, deux Organizations : chaque ligne porte SON URL
         // org-scopee — jamais celle d'une voisine, jamais la route courte.
+        // Et le lien « Inviter » part vers bulk-create pre-scope sur
+        // l'Organization de CETTE Boucle.
         $this->actingAs($this->superAdmin)
             ->get(route('admin.loops', ['organization_id' => 'all']))
             ->assertOk()
             ->assertSee(route('organization.loops.show', ['organization' => $this->orgB->slug, 'loop' => $this->loop->id]), false)
-            ->assertSee(route('organization.loops.show', ['organization' => $this->orgA->slug, 'loop' => $loopA->id]), false);
+            ->assertSee(route('organization.loops.show', ['organization' => $this->orgA->slug, 'loop' => $loopA->id]), false)
+            ->assertSee(route('admin.users.bulk-create', ['organization_id' => $this->orgB->id]), false)
+            ->assertSee(route('admin.users.bulk-create', ['organization_id' => $this->orgA->id]), false);
     }
 
     public function test_the_member_selector_shows_the_full_identity(): void

@@ -141,6 +141,10 @@
                                  404. workspaceUrl() : URL org-scopee canonique, la
                                  route courte resoudrait l'Organization de l'admin. --}}
                             <a href="{{ $orgLoop->workspaceUrl() }}" target="_blank" rel="noopener" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">{{ __('admin.loop_view_front') }}</a>
+                            {{-- TASK-1681 — inviter directement dans l'Organization de
+                                 CETTE Boucle : le workflow canonique bulk-create sait
+                                 pre-selectionner l'org par la query string. --}}
+                            <a href="{{ route('admin.users.bulk-create', ['organization_id' => $orgLoop->organization_id]) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Inviter</a>
                             <a href="{{ route('admin.loops.edit', $orgLoop) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
                             <a href="{{ route('admin.loops.files', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Fichiers</a>
                             @if($orgLoop->isActive())
