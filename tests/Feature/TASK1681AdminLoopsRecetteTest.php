@@ -181,6 +181,109 @@ class TASK1681AdminLoopsRecetteTest extends TestCase
             ->assertSee(route('admin.system-email-templates', ['slug' => 'organization_invitation']), false);
     }
 
+    public function test_the_default_system_template_is_visible_and_marked_in_use(): void
+    {
+        // Aucune surcharge DB : l'ecran montre quand meme LE modele (carte
+        // « Modele systeme par defaut », « Utilise actuellement ») — l'admin
+        // ne doit plus croire que le modele n'existe pas.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.system-email-templates', ['slug' => 'organization_invitation']))
+            ->assertOk()
+            ->assertSee(__('admin.system_email_default_badge'))
+            ->assertSee(__('admin.system_email_default_in_use'))
+            ->assertSee(__('admin.system_email_create_customization'));
+    }
+
+    public function test_creating_a_customization_is_safe_disabled_and_prefilled(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.system-email-templates.store'), [
+                'slug' => 'organization_invitation',
+                'organization_id' => $this->orgB->id,
+                'locale' => 'fr',
+            ])
+            ->assertRedirect();
+
+        $row = DB::table('system_email_templates')
+            ->where('slug', 'organization_invitation')
+            ->where('organization_id', $this->orgB->id)
+            ->where('locale', 'fr')
+            ->first();
+
+        $this->assertNotNull($row);
+        // DESACTIVEE par defaut : la regression du 01/10 (HTML nu prenant le
+        // pas d'office sur le Blade style) ne peut pas se reproduire.
+        $this->assertFalse((bool) $row->enabled);
+        // Pre-remplie depuis le catalogue canonique, pas vide.
+        $this->assertStringContainsString('{{ organization_name }}', $row->subject);
+        $this->assertNotSame('', trim($row->content_html));
+    }
+
+    public function test_creating_twice_never_duplicates(): void
+    {
+        $payload = [
+            'slug' => 'organization_invitation',
+            'organization_id' => $this->orgB->id,
+            'locale' => 'fr',
+        ];
+
+        $this->actingAs($this->superAdmin)->post(route('admin.system-email-templates.store'), $payload)
+            ->assertSessionHas('success');
+        $this->actingAs($this->superAdmin)->post(route('admin.system-email-templates.store'), $payload)
+            ->assertSessionHas('info');
+
+        $this->assertSame(1, DB::table('system_email_templates')
+            ->where('slug', 'organization_invitation')
+            ->where('organization_id', $this->orgB->id)
+            ->where('locale', 'fr')
+            ->count());
+    }
+
+    public function test_a_disabled_customization_leaves_the_blade_fallback_in_charge(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        $this->actingAs($this->superAdmin)->post(route('admin.system-email-templates.store'), [
+            'slug' => 'organization_invitation',
+            'organization_id' => $this->orgB->id,
+            'locale' => 'fr',
+        ]);
+
+        // L'invitation part par le circuit reel : tant que la surcharge est
+        // desactivee, le mailer reste sur le Blade — et le dit (email_logs).
+        $this->actingAs($this->superAdmin)->post(route('admin.users.bulk-create.invitations.store'), [
+            'organization_id' => $this->orgB->id,
+            'locale' => 'fr',
+            'people' => [
+                ['first_name' => 'Nadia', 'last_name' => 'Renard', 'email' => 'nadia@example.test'],
+            ],
+        ]);
+
+        $log = \App\Models\EmailLog::where('to_email', 'nadia@example.test')->firstOrFail();
+        $this->assertSame('blade_fallback', $log->data['template_used']);
+        $this->assertSame('template_disabled', $log->data['fallback_reason']);
+    }
+
+    public function test_an_enabled_override_flips_the_badge_and_keeps_the_existing_behavior(): void
+    {
+        \App\Models\SystemEmailTemplate::create([
+            'organization_id' => $this->orgB->id,
+            'slug' => 'organization_invitation',
+            'locale' => 'fr',
+            'name' => 'Invitation directe',
+            'subject' => 'Sujet actif',
+            'content_html' => '<p>{{ invitation_url }}</p>',
+            'variables' => [],
+            'enabled' => true,
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.system-email-templates', ['slug' => 'organization_invitation']))
+            ->assertOk()
+            ->assertSee(__('admin.system_email_default_in_use_partial'))
+            ->assertSee('Invitation directe');
+    }
+
     public function test_nothing_implicit_happened_to_the_superadmin(): void
     {
         $this->actingAs($this->superAdmin)->get(route('admin.loops.edit', $this->loop))->assertOk();

@@ -456,6 +456,13 @@ return [
     // TASK-1681 — absence of a row is normal: the mailer falls back to Blade.
     'system_email_desc' => 'These templates are optional overrides of system emails (automatic notifications). A template missing from this list is not an anomaly: the email is then sent with the application default template. Leave a template disabled to fall back to the default.',
     'system_email_no_override' => 'No custom override for this template. The default email template is currently in use.',
+    'system_email_default_badge' => 'Default system template',
+    'system_email_default_in_use' => 'Currently in use',
+    'system_email_default_in_use_partial' => 'Used for Organizations without an active customization',
+    'system_email_create_customization' => 'Create a customization',
+    'system_email_create_customization_hint' => 'The customization is created disabled: review it, adjust it, then enable it. While disabled, the default template keeps being used.',
+    'system_email_customization_created' => 'Customization created, disabled by default. Review it, then enable it.',
+    'system_email_customization_exists' => 'A customization already exists for this Organization and locale: here it is.',
     'locale' => 'Locale',
     'slug' => 'Slug',
     'status' => 'Status',

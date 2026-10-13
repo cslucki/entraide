@@ -780,6 +780,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         ->middleware('throttle:10,1')->name('loop-plugins.models.refresh');
 
     Route::get('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'index'])->name('system-email-templates');
+    // TASK-1681 — creer UNE personnalisation (surcharge DESACTIVEE par
+    // defaut, pre-remplie du catalogue canonique). Jamais de seed global.
+    Route::post('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'store'])->name('system-email-templates.store');
     Route::get('/system-email-templates/{systemEmailTemplate}/edit', [AdminSystemEmailTemplatesController::class, 'edit'])->name('system-email-templates.edit');
     Route::put('/system-email-templates/{systemEmailTemplate}', [AdminSystemEmailTemplatesController::class, 'update'])->name('system-email-templates.update');
 

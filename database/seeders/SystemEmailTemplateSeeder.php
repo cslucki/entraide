@@ -172,6 +172,37 @@ class SystemEmailTemplateSeeder extends Seeder
         ],
     ];
 
+    /**
+     * TASK-1681 — le catalogue CANONIQUE des modeles systeme, en lecture.
+     *
+     * L'ecran admin s'en sert pour montrer qu'un modele par defaut existe et
+     * pour pre-remplir UNE personnalisation a la demande — sans jamais
+     * rejouer ce seeder ni semer quoi que ce soit en masse.
+     * `database/seeders` est dans l'autoload PRINCIPAL de composer (pas
+     * autoload-dev) : l'appel est sur en production.
+     */
+    public static function definitions(): array
+    {
+        return (new self)->templateDefinitions;
+    }
+
+    /**
+     * Les champs d'une surcharge pre-remplie depuis le catalogue, dans la
+     * MEME correspondance que run() — une seule traduction slug+locale ->
+     * colonnes, jamais deux.
+     */
+    public static function rowFor(string $slug, string $locale): array
+    {
+        $def = self::definitions()[$slug];
+
+        return [
+            'name' => $locale === 'fr' ? ($def['name_fr'] ?? $def['name']) : ($def['name_en'] ?? $def['name']),
+            'subject' => $def["subject_{$locale}"] ?? $def['subject_fr'],
+            'content_html' => $def["content_html_{$locale}"] ?? $def['content_html_fr'],
+            'variables' => $def['variables'],
+        ];
+    }
+
     public function run(): void
     {
         $organizations = Organization::where('is_active', true)->get();
@@ -185,13 +216,7 @@ class SystemEmailTemplateSeeder extends Seeder
                             'locale' => $locale,
                             'slug' => $slug,
                         ],
-                        [
-                            'name' => $locale === 'fr' ? ($def['name_fr'] ?? $def['name']) : ($def['name_en'] ?? $def['name']),
-                            'subject' => $def["subject_{$locale}"] ?? $def['subject_fr'],
-                            'content_html' => $def["content_html_{$locale}"] ?? $def['content_html_fr'],
-                            'variables' => $def['variables'],
-                            'enabled' => true,
-                        ],
+                        self::rowFor($slug, $locale) + ['enabled' => true],
                     );
                 }
             }
