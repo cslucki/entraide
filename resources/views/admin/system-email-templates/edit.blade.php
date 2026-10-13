@@ -1,4 +1,8 @@
 <x-admin-layout>
+    {{-- TASK-1681 — le slot d'en-tete n'etait jamais FERME (ni le <a>, ni le
+         <div>, ni le </x-slot>) : tout le corps de page etait avale par
+         l'en-tete, d'ou le titre flottant et la carte ecrasee a droite
+         constates en recette. Structure realignee sur index.blade.php. --}}
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
@@ -7,6 +11,11 @@
             <a href="{{ request('redirect', route('admin.system-email-templates')) }}"
                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                 {{ __('admin.back_to_list') }}
+            </a>
+        </div>
+    </x-slot>
+
+    <div class="py-6">
         <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg">
                 <div class="p-6">
