@@ -81,6 +81,10 @@ return [
     // TASK-1680 — join requests panel of the admin cockpit.
     'loop_join_requests_title' => 'Join requests',
     'loop_join_requests_empty' => 'No pending join request.',
+    // TASK-1681 — OFSH QA pass, admin/Loops journey.
+    'loop_member_must_belong_to_org' => "This user does not belong to this Loop's Organization.",
+    'loop_no_assignable_users' => 'No user available in this Organization.',
+    'loop_invite_users_cta' => 'Invite users into this Organization',
 
     'organization_identity' => 'Identity',
     'organization_identity_description' => 'Manage your organization logo and brand identity.',
@@ -449,7 +453,18 @@ return [
     'org_membership_label_en' => 'Label (English)',
 
     // System email templates
-    'system_email_desc' => 'These templates override system emails (automatic notifications). Leave a template disabled to use the default Blade view.',
+    // TASK-1681 — absence of a row is normal: the mailer falls back to Blade.
+    'system_email_desc' => 'These templates are optional overrides of system emails (automatic notifications). A template missing from this list is not an anomaly: the email is then sent with the application default template. Leave a template disabled to fall back to the default.',
+    'system_email_no_override' => 'No custom override for this template. The default email template is currently in use.',
+    'system_email_default_badge' => 'Default system template',
+    'system_email_default_in_use' => 'Currently in use',
+    'system_email_default_in_use_partial' => 'Used for Organizations without an active customization',
+    'system_email_create_customization' => 'Create a customization',
+    'system_email_create_customization_hint' => 'The customization is created disabled: review it, adjust it, then enable it. While disabled, the default template keeps being used.',
+    'system_email_customization_created' => 'Customization created, disabled by default. Review it, then enable it.',
+    'system_email_customization_exists' => 'A customization already exists for this Organization and locale: here it is.',
+    'html_preview_title' => 'Rendered preview',
+    'html_preview_hint' => 'Indicative preview, updated as you type: {{ ... }} variables stay as-is and the final email layout is not included.',
     'locale' => 'Locale',
     'slug' => 'Slug',
     'status' => 'Status',

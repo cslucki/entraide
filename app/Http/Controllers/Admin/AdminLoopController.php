@@ -382,10 +382,12 @@ class AdminLoopController extends Controller
         if ($this->isSuperAdmin()) {
             $organizations = Organization::orderBy('name')->get(['id', 'name']);
 
+            // TASK-1681 (BUG 2) : sans `first_name` charge, full_name
+            // retombe sur `name` seul — le prenom manquait au selecteur.
             $users = User::assignable()
                 ->with('organization:id,name')
                 ->orderBy('name')
-                ->get(['id', 'name', 'email', 'organization_id']);
+                ->get(['id', 'name', 'first_name', 'email', 'organization_id']);
 
             return view('admin.loops.create', [
                 'users' => $users,
@@ -403,7 +405,7 @@ class AdminLoopController extends Controller
         $users = User::assignable()
             ->where('organization_id', $orgId)
             ->orderBy('name')
-            ->get(['id', 'name', 'email']);
+            ->get(['id', 'name', 'first_name', 'email']);
 
         return view('admin.loops.create', [
             'users' => $users,
@@ -569,19 +571,19 @@ class AdminLoopController extends Controller
     {
         $this->assertOrgAccess($loop);
 
-        if ($this->isSuperAdmin()) {
-            $users = User::assignable()
-                ->with('organization:id,name')
-                ->orderBy('name')
-                ->get(['id', 'name', 'email', 'organization_id']);
-        } else {
-            $orgId = auth()->user()->organization_id;
-
-            $users = User::assignable()
-                ->where('organization_id', $orgId)
-                ->orderBy('name')
-                ->get(['id', 'name', 'email']);
-        }
+        // TASK-1681 — les candidats d'une Boucle sont les utilisateurs de SON
+        // Organization, jamais le parc entier : la branche SuperAdmin listait
+        // toutes les Organizations et laissait choisir un etranger que le
+        // serveur refusait ensuite (recette OFSH, BUG 3). L'Organization d'une
+        // Boucle etant fixee, une seule requete sert tous les roles.
+        // `first_name` est selectionne EXPLICITEMENT : l'accesseur full_name
+        // retombe en silence sur `name` seul quand la colonne n'est pas
+        // chargee — c'etait le prenom manquant du selecteur (BUG 2).
+        $users = User::assignable()
+            ->where('organization_id', $loop->organization_id)
+            ->with('organization:id,name')
+            ->orderBy('name')
+            ->get(['id', 'name', 'first_name', 'email', 'organization_id']);
 
         $loop->load(['members.user', 'creator', 'organization']);
 
@@ -625,6 +627,11 @@ class AdminLoopController extends Controller
                     ->whereNull('banned_at'),
             ],
             'role' => ['nullable', Rule::in(LoopRoleRegistry::CANONICAL)],
+        ], [
+            // TASK-1681 (BUG 3) — une requete forgee avec un utilisateur d'une
+            // autre Organization recevait « The selected user id is invalid » :
+            // exact mais mutique. La garde ne bouge pas, le message si.
+            'user_id.exists' => __('admin.loop_member_must_belong_to_org'),
         ]);
 
         $userId = $request->input('user_id');

@@ -94,7 +94,26 @@
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
                 <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Membres ({{ $boucle->members->count() }})</h2>
 
-                {{-- Ajouter un membre --}}
+                {{-- Ajouter un membre — TASK-1681 : la liste ne contient plus
+                     que les utilisateurs de l'Organization de la Boucle (le
+                     controller filtre), chacun affiche avec son identite
+                     complete « Prenom NOM — email · Organization ». --}}
+                {{-- L'erreur vit HORS du @if : une requete forgee doit rester
+                     expliquee meme quand l'Organization n'a aucun utilisateur
+                     assignable (le selecteur laisse alors place a l'etat vide). --}}
+                @error('user_id')<p class="text-red-500 text-xs">{{ $message }}</p>@enderror
+                @if($users->isEmpty())
+                <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                    <p>{{ __('admin.loop_no_assignable_users') }}</p>
+                    {{-- Le workflow canonique existant, jamais un second circuit :
+                         les invitations en masse savent deja pre-selectionner
+                         l'Organization via la query string. --}}
+                    <a href="{{ route('admin.users.bulk-create', ['organization_id' => $boucle->organization_id]) }}"
+                       class="mt-1 inline-block font-semibold text-amber-900 underline dark:text-amber-200">
+                        {{ __('admin.loop_invite_users_cta') }}
+                    </a>
+                </div>
+                @else
                 <form method="POST" action="{{ route('admin.loops.members.add', $boucle) }}" class="flex gap-2 items-end">
                     @csrf
                     <div class="flex-1">
@@ -102,22 +121,10 @@
                         <select name="user_id" id="user_id" required
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
                             <option value="">{{ __('admin.owner_select_placeholder') }}</option>
-                            @php
-                                $grouped = $users->groupBy(fn ($u) => $u->organization->name ?? __('admin.organizations'));
-                                $hasMultipleOrgs = $grouped->count() > 1;
-                            @endphp
-                            @foreach($grouped as $orgName => $orgUsers)
-                                @if($hasMultipleOrgs)
-                                <optgroup label="{{ $orgName }}">
-                                @endif
-                                @foreach($orgUsers as $u)
-                                <option value="{{ $u->id }}" @disabled($boucle->members->pluck('user_id')->contains($u->id))>
-                                    {{ $u->full_name }} — {{ $u->email }}@if($hasMultipleOrgs) · {{ $orgName }}@endif
-                                </option>
-                                @endforeach
-                                @if($hasMultipleOrgs)
-                                </optgroup>
-                                @endif
+                            @foreach($users as $u)
+                            <option value="{{ $u->id }}" @disabled($boucle->members->pluck('user_id')->contains($u->id))>
+                                {{ $u->full_name }} — {{ $u->email }} · {{ $u->organization?->name }}
+                            </option>
                             @endforeach
                         </select>
                     </div>
@@ -135,6 +142,7 @@
                         Ajouter
                     </button>
                 </form>
+                @endif
 
                 {{-- Gouvernance : propriétaires, Animateurs, membres --}}
                 <x-loops.governance-roster

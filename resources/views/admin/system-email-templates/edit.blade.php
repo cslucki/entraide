@@ -1,4 +1,8 @@
 <x-admin-layout>
+    {{-- TASK-1681 — le slot d'en-tete n'etait jamais FERME (ni le <a>, ni le
+         <div>, ni le </x-slot>) : tout le corps de page etait avale par
+         l'en-tete, d'ou le titre flottant et la carte ecrasee a droite
+         constates en recette. Structure realignee sur index.blade.php. --}}
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
@@ -7,6 +11,11 @@
             <a href="{{ request('redirect', route('admin.system-email-templates')) }}"
                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                 {{ __('admin.back_to_list') }}
+            </a>
+        </div>
+    </x-slot>
+
+    <div class="py-6">
         <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg">
                 <div class="p-6">
@@ -68,6 +77,46 @@
                                 {{ __('admin.variable_hint') }}
                             </p>
                         </div>
+
+                        {{-- TASK-1681 — apercu WYSIWYG en LECTURE : le HTML brut
+                             seul ne laisse pas constater la mise en forme. Iframe
+                             sandbox SANS allow-scripts (rien ne s'execute), srcdoc
+                             mis a jour en direct depuis le textarea. Les variables
+                             restent telles quelles et le layout email final n'est
+                             pas inclus — c'est un apercu indicatif, pas un bon a
+                             tirer. --}}
+                        <div data-html-preview>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ __('admin.html_preview_title') }}
+                            </label>
+                            <iframe id="content_html_preview" sandbox="" title="{{ __('admin.html_preview_title') }}"
+                                    class="mt-1 block w-full rounded-md border border-gray-300 bg-white dark:border-gray-600"
+                                    style="height: 320px;"></iframe>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                {{ __('admin.html_preview_hint') }}
+                            </p>
+                        </div>
+                        <script>
+                            (function () {
+                                var source = document.getElementById('content_html');
+                                var preview = document.getElementById('content_html_preview');
+
+                                // '\x3C' = '<' : aucune balise lisible dans ce bloc,
+                                // le parseur HTML ne peut pas couper le <script> sur
+                                // un litteral (c'est exactement ce qui cassait la page).
+                                var head = '\x3C!doctype html\x3E\x3Chtml\x3E\x3Chead\x3E\x3Cmeta charset="utf-8"\x3E\x3C/head\x3E'
+                                    + '\x3Cbody style="margin:0;padding:16px;background:#ffffff;color:#111111;'
+                                    + 'font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;"\x3E';
+                                var tail = '\x3C/body\x3E\x3C/html\x3E';
+
+                                var render = function () {
+                                    preview.srcdoc = head + source.value + tail;
+                                };
+
+                                source.addEventListener('input', render);
+                                render();
+                            })();
+                        </script>
 
                         <div class="flex items-center gap-2">
                             <input type="checkbox" name="enabled" id="enabled" value="1"

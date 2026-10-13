@@ -82,6 +82,10 @@ return [
     // TASK-1680 — panneau des demandes d'adhesion du cockpit admin.
     'loop_join_requests_title' => "Demandes d'adhésion",
     'loop_join_requests_empty' => "Aucune demande d'adhésion en attente.",
+    // TASK-1681 — recette OFSH, parcours admin/Boucles.
+    'loop_member_must_belong_to_org' => "Cet utilisateur n'appartient pas à l'Organization de cette Boucle.",
+    'loop_no_assignable_users' => 'Aucun utilisateur disponible dans cette Organization.',
+    'loop_invite_users_cta' => 'Inviter des utilisateurs dans cette Organization',
 
     'organization_identity' => 'Identité',
     'organization_identity_description' => 'Gérez le logo et l\'identité visuelle de votre organisation.',
@@ -450,7 +454,20 @@ return [
     'org_membership_label_en' => 'Libellé (anglais)',
 
     // System email templates
-    'system_email_desc' => 'Ces templates surchargent les emails système (notifications automatiques). Laissez un template désactivé pour utiliser la vue Blade par défaut.',
+    // TASK-1681 — dire aussi ce que signifie l'ABSENCE d'une ligne : en
+    // PROD, les surcharges n'ont jamais ete semees pour les slugs recents,
+    // et ce n'est pas une anomalie (le mailer retombe sur le Blade).
+    'system_email_desc' => 'Ces templates sont des surcharges facultatives des emails système (notifications automatiques). Un modèle absent de cette liste n\'est pas une anomalie : l\'email part alors avec le modèle par défaut de l\'application. Laissez un template désactivé pour revenir au modèle par défaut.',
+    'system_email_no_override' => "Aucune surcharge personnalisée pour ce modèle. Le modèle d'email par défaut est actuellement utilisé.",
+    'system_email_default_badge' => 'Modèle système par défaut',
+    'system_email_default_in_use' => 'Utilisé actuellement',
+    'system_email_default_in_use_partial' => 'Utilisé pour les Organizations sans personnalisation active',
+    'system_email_create_customization' => 'Créer une personnalisation',
+    'system_email_create_customization_hint' => 'La personnalisation est créée désactivée : relisez-la, adaptez-la, puis activez-la. Tant qu\'elle est désactivée, le modèle par défaut continue d\'être utilisé.',
+    'system_email_customization_created' => 'Personnalisation créée, désactivée par défaut. Relisez-la puis activez-la.',
+    'system_email_customization_exists' => 'Une personnalisation existe déjà pour cette Organization et cette langue : la voici.',
+    'html_preview_title' => 'Aperçu du rendu',
+    'html_preview_hint' => 'Aperçu indicatif, mis à jour pendant la saisie : les variables {{ ... }} restent telles quelles et le layout email final n\'est pas inclus.',
     'locale' => 'Locale',
     'slug' => 'Slug',
     'status' => 'Statut',
