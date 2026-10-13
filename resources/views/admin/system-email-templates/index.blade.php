@@ -106,7 +106,6 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.slug') }}</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.common_subject') }}</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.status') }}</th>
-                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.outils.action') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -124,8 +123,14 @@
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">
                                             {{ strtoupper($template->locale ?? '-') }}
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
-                                            {{ $template->name }}
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                            {{-- TASK-1681 — le NOM est le lien d'edition : la
+                                                 colonne Action vivait hors ecran a droite, et
+                                                 la ligne semblait inerte. --}}
+                                            <a href="{{ route('admin.system-email-templates.edit', ['systemEmailTemplate' => $template, 'redirect' => request()->fullUrl()]) }}"
+                                               class="text-indigo-600 dark:text-indigo-400 hover:underline">
+                                                {{ $template->name }}
+                                            </a>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">
                                             {{ $template->slug }}
@@ -144,16 +149,10 @@
                                                 </span>
                                             @endif
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <a href="{{ route('admin.system-email-templates.edit', ['systemEmailTemplate' => $template, 'redirect' => request()->fullUrl()]) }}"
-                                               class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300">
-                                                {{ __('admin.edit') }}
-                                            </a>
-                                        </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                        <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                                             {{-- TASK-1681 — arrive filtre par slug (lien de
                                                  bulk-create), une liste vide est l'etat NORMAL :
                                                  la surcharge est facultative, l'email part avec
