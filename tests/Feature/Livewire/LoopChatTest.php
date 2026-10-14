@@ -1158,6 +1158,37 @@ class LoopChatTest extends TestCase
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
     #[Group('ci-known-red')]
+    /**
+     * TASK-1684 MICRO-01 — ce qui empeche le composeur de bouger.
+     *
+     * Trois regles, et chacune repond a une cause distincte : `svh` contre la
+     * barre d'URL qui se retracte au defilement (c'est elle qui deplacait le
+     * composeur), le document fige pour qu'aucun geste ne la retracte, et
+     * `--bp-vvh` pour le clavier virtuel, qu'aucune unite CSS ne connait.
+     * Un test de rendu ne prouve pas le comportement sur l'appareil — il
+     * prouve que les trois regles sont encore la, ce qu'une refonte de la
+     * feuille de style casserait en silence.
+     */
+    public function test_le_cadre_mobile_fige_la_hauteur_et_le_defilement_du_document(): void
+    {
+        $html = $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('100svh', $html,
+            'La hauteur mobile doit etre STABLE (svh), pas dynamique (dvh seul).');
+        $this->assertStringContainsString('html:has(.loops-show-container)', $html,
+            'Le document lui-meme doit etre fige sur cette page.');
+        $this->assertStringContainsString('overscroll-behavior: none', $html);
+        $this->assertStringContainsString('--bp-vvh', $html,
+            'Le clavier virtuel se mesure par visualViewport, aucune unite CSS ne le connait.');
+
+        // UN seul abonnement : la consigne etait de ne pas multiplier les
+        // ecouteurs, et un second passerait inapercu sans cette mesure.
+        $this->assertSame(1, substr_count($html, "addEventListener('resize', apply)"));
+    }
+
     public function test_loop_owner_sees_workspace_cards_shell_closed_by_default(): void
     {
         $this->actingAs($this->member)

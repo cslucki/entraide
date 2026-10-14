@@ -77,8 +77,37 @@
            TASK-1466 : le FAB ne se rend plus du tout sur une Boucle — l'IA y
            est native. Les trois regles n'ont plus d'objet, et la reserve basse
            laisserait un vide sous le dernier message. Elles partent avec lui. */
+        /* TASK-1684 MICRO-01 — POURQUOI LE COMPOSEUR BOUGEAIT.
+
+           `100dvh` est la hauteur DYNAMIQUE : elle suit l'apparition et le
+           retrait de la barre d'URL du navigateur. Sur Chrome Android, le
+           simple geste de defilement vers le haut retracte cette barre, le
+           viewport grandit, le conteneur grandit avec lui — et le composeur,
+           ancre en bas de ce conteneur, se DEPLACE sous le doigt. Rien
+           n'etait mal ancre : c'est l'unite de hauteur qui bougeait.
+
+           Deux changements, et un seul principe : que plus rien ne bouge.
+           1. Le document ne defile plus du tout sur cette page. Sans
+              defilement de document, Chrome n'a aucune raison de retracter
+              sa barre : le viewport reste constant. C'est aussi ce qui
+              empeche le « defilement parasite » sous le composeur.
+           2. La hauteur passe a `100svh` (SMALL viewport height), la plus
+              petite des hauteurs possibles, celle qui ne varie JAMAIS. Un
+              repli `100dvh` precede la regle pour les navigateurs qui
+              ignorent `svh`.
+
+           `--bp-vvh`, si le script l'a posee, prend le dessus : elle vaut la
+           hauteur du viewport VISUEL, seule mesure juste quand le clavier
+           virtuel est ouvert. */
+        html:has(.loops-show-container),
+        body:has(.loops-show-container) {
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
         body:has(.loops-show-container) .loops-show-container {
             height: calc(100dvh - env(safe-area-inset-bottom, 0px));
+            height: var(--bp-vvh, calc(100svh - env(safe-area-inset-bottom, 0px)));
         }
     }
     @media (min-width: 768px) {
@@ -814,6 +843,34 @@
         </div>
     </div>
     </x-page-container>
+
+    {{-- TASK-1684 MICRO-01 — le clavier virtuel, et lui seul.
+
+         `svh` fige la hauteur contre la barre d'URL (regle CSS ci-dessus),
+         mais AUCUNE unite CSS ne connait le clavier : quand il s'ouvre, le
+         viewport VISUEL retrecit sans que `svh` ni `dvh` ne bougent, et le
+         composeur passerait dessous. `window.visualViewport` est la seule
+         API qui mesure ce retrecissement.
+
+         UN seul abonnement, une seule variable CSS ecrite, aucun calcul de
+         mise en page en JS : le CSS garde la main, le script ne fait que lui
+         dire la hauteur reelle. Sans `visualViewport` (navigateur ancien),
+         rien ne s'execute et le repli `svh` s'applique. --}}
+    @once
+    <script>
+        (function () {
+            var vv = window.visualViewport;
+            if (!vv || !document.querySelector('.loops-show-container')) { return; }
+
+            var apply = function () {
+                document.documentElement.style.setProperty('--bp-vvh', Math.round(vv.height) + 'px');
+            };
+
+            apply();
+            vv.addEventListener('resize', apply);
+        })();
+    </script>
+    @endonce
 
     {{-- ============================================================
          TASK-1684 MICRO-01 — SONDE DE MESURE **TEMPORAIRE**.
