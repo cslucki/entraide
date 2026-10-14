@@ -33,7 +33,8 @@ class StoreDossierFileRequest extends FormRequest
             abort(404);
         }
 
-        return $user->can('manageFiles', $dossier);
+        // TASK-1684 : DEPOSER, pas administrer. Voir DossierPolicy::uploadFiles().
+        return $user->can('uploadFiles', $dossier);
     }
 
     public function rules(): array

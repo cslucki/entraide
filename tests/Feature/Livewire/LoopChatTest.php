@@ -1302,6 +1302,23 @@ class LoopChatTest extends TestCase
             ->assertSee(__('loops.composer_add_file'))
             ->assertSee($url, false);
 
+        // TASK-1684, demande MASTER : la Card Dossiers doit etre AFFECTEE a la
+        // Boucle. Eteinte, la tuile disparait — sans fermer quoi que ce soit
+        // cote serveur : la policy ne consulte deliberement aucune Card.
+        app(LoopCardCompositionService::class)->disable($this->loop, 'core.dossiers');
+        $this->loop->refresh()->unsetRelation('cards');
+
+        $this->assertNull(
+            Livewire::actingAs($this->member)
+                ->test(LoopChat::class, ['loop' => $this->loop])
+                ->instance()
+                ->loopDossierUrl(),
+            'Card Dossiers eteinte : aucune porte vers une piece fermee.'
+        );
+
+        app(LoopCardCompositionService::class)->enable($this->loop, 'core.dossiers');
+        $this->loop->refresh()->unsetRelation('cards');
+
         // Dossier racine retire : plus de destination, donc plus de tuile.
         // Sans cette moitie, la garde du `@if` ne serait jamais exercee.
         $dossier->forceDelete();

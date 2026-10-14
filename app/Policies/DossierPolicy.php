@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Dossier;
 use App\Models\DossierMember;
+use App\Models\LoopMember;
 use App\Models\User;
 use App\Support\Loops\LoopPermissionResolver;
 
@@ -268,6 +269,65 @@ class DossierPolicy
     public function manageFiles(User $user, Dossier $dossier): bool
     {
         return $this->update($user, $dossier);
+    }
+
+    /**
+     * TASK-1684 — DEPOSER un fichier, geste distinct de GERER les fichiers.
+     *
+     * `manageFiles` gouverne quatre ecritures : renommer, deplacer, editer le
+     * markdown, et la projection « puis-je administrer ce dossier » des ecrans.
+     * L'elargir pour ouvrir le simple depot aurait donne tout cela a chaque
+     * membre — et contredit la doctrine T1130 (etre membre ne suffit pas).
+     * Cette ability n'est donc lue QUE par `StoreDossierFileRequest` : elle
+     * ouvre le depot, et rien d'autre.
+     *
+     * Portee volontairement etroite : le Dossier RACINE d'une Boucle, celui
+     * qui porte `loop_id`. Les sous-dossiers gardent la regle proprietaire —
+     * la demande etait « ajouter un fichier dans la Boucle », pas administrer
+     * son arborescence.
+     *
+     * Qui administre deja le Dossier passe par `manageFiles` et n'est pas
+     * affecte ; ce qui s'ajoute, c'est le membre ACTIF d'une Boucle VIVANTE.
+     */
+    public function uploadFiles(User $user, Dossier $dossier): bool
+    {
+        if ($this->manageFiles($user, $dossier)) {
+            return true;
+        }
+
+        // `isLoopDossier()` se lit sur CETTE ligne, pas sur sa racine : un
+        // sous-dossier ne doit pas heriter de l'ouverture.
+        if (! $dossier->isLoopDossier()) {
+            return false;
+        }
+
+        $loop = $dossier->loop;
+
+        if ($loop === null || $user->isDeactivated()) {
+            return false;
+        }
+
+        if ($user->organization_id !== $loop->organization_id) {
+            return false;
+        }
+
+        // Une Boucle archivee est en lecture seule — meme borne que
+        // `LoopPolicy::update`, qui refuse pour la meme raison.
+        if ($loop->isArchived()) {
+            return false;
+        }
+
+        $organization = $loop->organization;
+
+        if (! $organization || ! $organization->loops_enabled) {
+            return false;
+        }
+
+        return LoopMember::query()
+            ->where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
     }
 
     public function viewFiles(User $user, Dossier $dossier): bool

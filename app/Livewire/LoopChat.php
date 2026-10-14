@@ -32,6 +32,7 @@ use App\Support\Ai\AiTurnLock;
 use App\Support\Ai\AiTurnReason;
 use App\Support\Ai\LoopAiTurnSignal;
 use App\Support\Loops\LoopPermissionResolver;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -507,10 +508,14 @@ class LoopChat extends Component
      * Boucle (`dossiers.loop_id`, unique), dont la page porte deja l'upload.
      * Aucun pipeline nouveau : une poignee vers une capacite existante.
      *
-     * L'autorisation mesuree est `manageFiles`, celle que `StoreDossierFileRequest`
+     * L'autorisation mesuree est `uploadFiles`, celle que `StoreDossierFileRequest`
      * exige REELLEMENT — et non `attachArticle` que filtre `defaultDossier()`,
      * qui gouverne l'ajout d'un ARTICLE. Les deux ne coincident pas : s'appuyer
      * sur le second aurait montre la tuile a des membres que le depot refuse.
+     *
+     * TASK-1684, arbitrage MASTER : `uploadFiles` ouvre le DEPOT a tout membre
+     * actif d'une Boucle vivante, la ou `manageFiles` le reservait a l'owner.
+     * La tuile suit cette porte — jamais une porte plus large qu'elle.
      *
      * Rend `null` — donc aucune tuile — si la Boucle n'a pas de Dossier racine
      * ou si le membre n'a pas le droit d'y deposer : jamais de lien mort.
@@ -534,9 +539,23 @@ class LoopChat extends Component
             return $this->dossierUrlMemo = null;
         }
 
+        // TASK-1684, demande MASTER : la Card Dossiers doit etre AFFECTEE a la
+        // Boucle. Proposer d'y deposer un fichier quand son espace documentaire
+        // est eteint offrirait une porte vers une piece fermee.
+        //
+        // La mesure est ici, dans l'INTERFACE, et surtout pas dans la policy :
+        // `DossierPolicy::update` documente explicitement qu'elle ne consulte
+        // AUCUNE Card (T1091 l'avait tente, c'etait trop large — eteindre une
+        // vue ne doit pas eteindre le systeme documentaire qu'elle regarde).
+        // Cacher une poignee n'est pas fermer une porte : le serveur garde sa
+        // propre regle, intacte.
+        if (! in_array('core.dossiers', app(LoopTypeRegistry::class)->activeCardsFor($this->loop), true)) {
+            return $this->dossierUrlMemo = null;
+        }
+
         $dossier = Dossier::query()->where('loop_id', $this->loop->id)->first();
 
-        if ($dossier === null || ! $user->can('manageFiles', $dossier)) {
+        if ($dossier === null || ! $user->can('uploadFiles', $dossier)) {
             return $this->dossierUrlMemo = null;
         }
 
