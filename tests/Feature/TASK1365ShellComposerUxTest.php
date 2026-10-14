@@ -284,18 +284,32 @@ class TASK1365ShellComposerUxTest extends TestCase
     {
         $chatloop = file_get_contents(resource_path('views/components/conversation/composer.blade.php'));
 
-        $this->assertStringContainsString(
-            '@keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }"',
-            $chatloop,
-            'Le contrat de reference a change dans le ChatLoop : ce test doit etre relu, pas contourne.',
-        );
+        // TASK-1684 — le test a rougi, et il demandait d'etre RELU, pas
+        // contourne. Relecture faite : le ChatLoop porte desormais une garde
+        // `uploading` sur ce chemin, parce qu'une image y monte dans une
+        // requete separee et qu'un envoi lance pendant la montee perdait
+        // l'image. Le Shell n'a AUCUNE saisie de fichier — la garde n'y a pas
+        // d'objet, et l'y recopier serait du bruit mort.
+        //
+        // Ce qui doit rester identique est donc l'INVARIANT du contrat :
+        // Entree envoie, Maj+Entree garde la ligne. C'est lui qu'on mesure des
+        // deux cotes, et il n'a pas bouge.
+        $invariant = '@keydown.enter="if (!$event.shiftKey) { $event.preventDefault();';
+
+        $this->assertStringContainsString($invariant, $chatloop,
+            'Le contrat de reference a change dans le ChatLoop : ce test doit etre relu, pas contourne.');
+        $this->assertStringContainsString('$wire.sendMessage() }', $chatloop);
 
         $shell = file_get_contents(resource_path('views/livewire/ai-shell.blade.php'));
 
-        $this->assertStringContainsString(
-            '@keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.send() }"',
-            $shell,
-        );
+        $this->assertStringContainsString($invariant, $shell);
+        $this->assertStringContainsString('$wire.send() }', $shell);
+
+        // La divergence est BORNEE a la garde d'upload : si le Shell recevait
+        // un jour une saisie de fichier, cette assertion tomberait et forcerait
+        // la meme relecture plutot qu'une derive silencieuse.
+        $this->assertStringNotContainsString('type="file"', $shell,
+            'Le Shell a gagne une saisie de fichier : son composeur doit alors porter la meme garde que le ChatLoop.');
     }
 
     /** 10. L'icone d'envoi du Shell est celle du ChatLoop. */
