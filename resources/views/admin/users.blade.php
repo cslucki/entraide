@@ -39,8 +39,16 @@
     </div>
 
     @if($scopedOrganization)
+    {{-- TASK-1683 BUG-07 — la ligne de portee offre les DEUX sorties : elargir
+         a toutes les organisations, et revenir a l'Organization d'ou l'on
+         vient. Le NOM porte ce retour — une seule poignee, pas un second
+         lien qui ferait doublon (lecon BUG-04). Le nom reste interpole par
+         Blade, donc echappe : il vient d'une saisie d'administration. --}}
     <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
-        {{ __('admin.users_stats_scoped_notice', ['organization' => $scopedOrganization->name]) }}
+        {{ __('admin.users_stats_scoped_prefix') }}
+        <a href="{{ route('admin.organizations.edit', $scopedOrganization) }}"
+           class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+            {{ $scopedOrganization->name }}</a>.
         <a href="{{ route('admin.users') }}" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
             {{ __('admin.users_stats_scope_all') }}
         </a>

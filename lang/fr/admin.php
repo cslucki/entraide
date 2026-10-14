@@ -1589,7 +1589,7 @@ return [
     'users_status_banned' => 'Banni',
     'users_profile_button' => 'Fiche',
     'users_title_scoped' => 'Utilisateurs — :organization',
-    'users_stats_scoped_notice' => 'Liste et compteurs limités à :organization.',
+    'users_stats_scoped_prefix' => 'Liste et compteurs limités à',
     'users_stats_scope_all' => 'Voir toutes les organisations',
     'users_profile_title' => 'Fiche de :name',
     'users_profile_loading' => 'Chargement de la fiche…',

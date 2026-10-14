@@ -402,7 +402,11 @@ class TASK1640UserDeleteFromListTest extends TestCase
             ->get(route('admin.users', ['organization_id' => $this->organization->id]))
             ->assertOk()
             ->assertSee(__('admin.users_title_scoped', ['organization' => $this->organization->name]))
-            ->assertSee(__('admin.users_stats_scoped_notice', ['organization' => $this->organization->name]))
+            ->assertSee(__('admin.users_stats_scoped_prefix'))
+            // TASK-1683 BUG-07 — la ligne de portee ramene AUSSI a
+            // l'Organization d'ou l'on vient, pas seulement a toutes.
+            ->assertSee(route('admin.organizations.edit', $this->organization), false)
+            ->assertSee(route('admin.users'), false)
             ->getContent();
 
         // Le total affiche est celui du TENANT, pas de la plateforme.
