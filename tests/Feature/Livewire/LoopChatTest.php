@@ -1282,25 +1282,31 @@ class LoopChatTest extends TestCase
         // ici evite de croire que la tuile depend d'une creation a part.
         $dossier = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
 
-        $url = Livewire::actingAs($this->member)
+        $endpoint = Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
             ->instance()
-            ->loopDossierUrl();
+            ->loopDossierUploadEndpoint();
 
+        // TASK-1684 recette 2 : le geste DEPOSE, il ne navigue plus. La cible
+        // est l'endpoint de depot existant du Dossier racine — la page du
+        // Dossier n'offrait justement aucun depot a qui ne l'administre pas.
         $this->assertSame(
-            route('organization.dossiers.show', [
+            route('organization.dossiers.files.store', [
                 'organization' => $this->organization->slug,
                 'dossier' => $dossier->getKey(),
             ]),
-            $url,
-            'La destination doit etre la page du Dossier racine, qui porte deja l\'upload.'
+            $endpoint
         );
 
         $this->actingAs($this->member)
             ->get(route('loops.show', $this->loop))
             ->assertOk()
             ->assertSee(__('loops.composer_add_file'))
-            ->assertSee($url, false);
+            // Le membre ne doit pas QUITTER sa Boucle : l'endpoint est porte par
+            // le composant de DEPOT, pas par un lien. Mesurer la chaine entiere
+            // plutot que l'URL seule — celle-ci figure legitimement ailleurs
+            // dans la page (la Card Dossiers y mene, c'est son role).
+            ->assertSee("bpDepotFichierBoucle('".$endpoint."')", false);
 
         // TASK-1684, demande MASTER : la Card Dossiers doit etre AFFECTEE a la
         // Boucle. Eteinte, la tuile disparait — sans fermer quoi que ce soit

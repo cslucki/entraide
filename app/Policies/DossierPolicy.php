@@ -323,11 +323,28 @@ class DossierPolicy
             return false;
         }
 
-        return LoopMember::query()
+        $estMembreActif = LoopMember::query()
             ->where('loop_id', $loop->id)
             ->where('user_id', $user->id)
             ->where('status', 'active')
             ->exists();
+
+        if (! $estMembreActif) {
+            return false;
+        }
+
+        // La capacite `dossiers.upload_file` existe DEJA dans le modele de
+        // permissions de la Boucle (`config/loop_permissions.php`) : elle est
+        // configurable par Boucle (`locked => false`) et porte `requires_card
+        // => core.dossiers`, qui ferme le depot quand la Card est eteinte.
+        //
+        // Premiere ecriture de cette ability : j'avais rendu `true` ici sur le
+        // seul fait d'etre membre actif, ce qui CONTOURNAIT ce modele — une
+        // Boucle ayant explicitement referme le depot l'aurait vu rouvert dans
+        // son dos. L'ouverture demandee par le MASTER est posee la ou elle se
+        // configure : le role `member` recoit la capacite par defaut, et cette
+        // porte se contente de la lire.
+        return app(LoopPermissionResolver::class)->can($user, $loop, 'dossiers.upload_file');
     }
 
     public function viewFiles(User $user, Dossier $dossier): bool

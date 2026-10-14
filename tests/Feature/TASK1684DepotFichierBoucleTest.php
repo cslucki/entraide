@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\LoopDossiersCard;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -110,6 +113,79 @@ class TASK1684DepotFichierBoucleTest extends TestCase
 
         $this->assertFalse($this->membre->fresh()->can('uploadFiles', $this->racine->fresh()),
             'Archivee, la Boucle ne recoit plus de fichier.');
+    }
+
+    /**
+     * TASK-1684 recette 3 — la Card Dossiers se remet a jour apres un depot.
+     *
+     * Le depot lance depuis le menu « + » du composeur part en `fetch` direct,
+     * hors du cycle Livewire : la Card, deja montee, gardait son dernier rendu.
+     * Le membre devait quitter la Boucle et y revenir pour voir son fichier.
+     *
+     * Le test mesure le PARCOURS : la Card est montee AVANT que le fichier
+     * n'existe, puis l'evenement arrive. Monter la Card apres la creation
+     * aurait rendu le test vert sans aucun ecouteur.
+     */
+    public function test_la_card_dossiers_affiche_le_fichier_apres_l_evenement_de_depot(): void
+    {
+        $card = Livewire::actingAs($this->owner)
+            ->test(LoopDossiersCard::class, ['loop' => $this->loop])
+            ->assertDontSee('depot-apres-montage.pdf');
+
+        DossierFile::create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $this->racine->id,
+            'uploaded_by' => $this->owner->id,
+            'display_name' => 'depot-apres-montage.pdf',
+            'original_name' => 'depot-apres-montage.pdf',
+            'disk' => 'dossier_files',
+            'path' => 'dossier-files/depot-apres-montage.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 12,
+            'checksum_sha256' => hash('sha256', 'depot-apres-montage'),
+        ]);
+
+        $card->dispatch('bp-dossier-fichier-depose')
+            ->assertSee('depot-apres-montage.pdf');
+    }
+
+    /**
+     * TASK-1684 — la Card ne doit pas cacher un geste que le serveur accepte.
+     *
+     * Son bouton « Deposer un fichier » etait garde par `manageFiles`, donc
+     * invisible au membre simple alors que `StoreDossierFileRequest` accepte
+     * desormais son depot. Meme defaut que la tuile du composeur.
+     */
+    public function test_la_card_propose_le_depot_au_membre_simple(): void
+    {
+        Livewire::actingAs($this->membre)
+            ->test(LoopDossiersCard::class, ['loop' => $this->loop])
+            ->assertSee(__('loops.cards.dossiers.upload_file'));
+    }
+
+    /**
+     * TASK-1684 recette 2 — le panneau « Nouveau » ne doit plus deborder.
+     *
+     * Ancre `left-0` sous 640 px, le panneau (`w-64`, 256 px) partait du bord
+     * gauche d'un bouton deja colle a droite de l'ecran : il depassait le
+     * viewport et rendait le DOCUMENT defilable horizontalement. Un geste vers
+     * la droite decalait alors toute la page, barre du haut comprise.
+     *
+     * Mesure du BALISAGE : un debordement ne se constate qu'a la mise en page,
+     * mais l'ancrage qui le cause, lui, est lisible et verrouillable.
+     */
+    public function test_le_panneau_nouveau_est_ancre_a_droite_des_le_mobile(): void
+    {
+        $html = $this->actingAs($this->owner)
+            ->get(route('organization.dossiers.show', [
+                'organization' => $this->organization->slug,
+                'dossier' => $this->racine->getKey(),
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('left-0 sm:right-0 sm:left-auto', $html,
+            'Sous 640 px, cet ancrage poussait le panneau hors du viewport.');
     }
 
     /**

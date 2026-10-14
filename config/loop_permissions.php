@@ -632,6 +632,18 @@ return [
             'polls.view', 'polls.create', 'polls.vote',
             'events.view', 'events.create', 'events.respond',
             'dossiers.view',
+            // TASK-1684, arbitrage MASTER : **deposer un fichier devient un
+            // geste de membre.** T1313 l'avait reserve a l'owner en jugeant que
+            // « deposer des fichiers dans l'espace documentaire n'est pas le
+            // meme acte » que capitaliser un Article. La recette OFSH a tranche
+            // l'inverse : dans une Boucle vivante, apporter un document EST la
+            // participation ordinaire.
+            //
+            // Ce qui reste ferme n'a PAS bouge : renommer, deplacer, editer le
+            // markdown et supprimer relevent toujours de `manageFiles`, donc de
+            // qui mene la Boucle. Et cette capacite reste `locked => false` :
+            // une Boucle qui veut la refermer le fait dans ses permissions.
+            'dossiers.upload_file',
             // Consulter, pas monter. Suivre une formation, c'est lire son
             // Support ; le construire est le travail de qui l'anime.
             'course_material.view',

@@ -454,7 +454,15 @@
                              aucun second moteur. --}}
                         @if($canManageFiles)
                             <div class="shrink-0 md:hidden max-sm:order-2">
-                                @include('dossiers.partials.nouveau', ['avecRef' => false, 'classesBouton' => '', 'ancrageMenu' => 'left-0 sm:right-0 sm:left-auto'])
+                                {{-- TASK-1684 — ancrage a DROITE des le mobile.
+                                     En `left-0`, le panneau (`w-64`, 256 px) partait du bord
+                                     GAUCHE d'un bouton deja colle a droite de l'ecran : il
+                                     depassait le viewport et rendait le DOCUMENT defilable
+                                     horizontalement. Le geste vers la droite decalait alors
+                                     toute la page, barre du haut comprise — le defaut
+                                     rapporte en recette. Ancre a droite, le panneau s'ouvre
+                                     vers l'interieur et ne deborde plus a aucune largeur. --}}
+                                @include('dossiers.partials.nouveau', ['avecRef' => false, 'classesBouton' => '', 'ancrageMenu' => 'right-0'])
                             </div>
                         @endif
 

@@ -519,6 +519,10 @@ class LoopChat extends Component
      *
      * Rend `null` — donc aucune tuile — si la Boucle n'a pas de Dossier racine
      * ou si le membre n'a pas le droit d'y deposer : jamais de lien mort.
+     *
+     * TASK-1684 recette 2 : ne sert PLUS a naviguer. Le depot se fait sur place
+     * (voir `loopDossierUploadEndpoint()`), le membre reste dans sa Boucle. Cette
+     * adresse reste exposee comme repli de consultation du Dossier.
      */
     public function loopDossierUrl(): ?string
     {
@@ -540,15 +544,19 @@ class LoopChat extends Component
         }
 
         // TASK-1684, demande MASTER : la Card Dossiers doit etre AFFECTEE a la
-        // Boucle. Proposer d'y deposer un fichier quand son espace documentaire
-        // est eteint offrirait une porte vers une piece fermee.
+        // Boucle, sinon pas de tuile.
         //
-        // La mesure est ici, dans l'INTERFACE, et surtout pas dans la policy :
-        // `DossierPolicy::update` documente explicitement qu'elle ne consulte
-        // AUCUNE Card (T1091 l'avait tente, c'etait trop large — eteindre une
-        // vue ne doit pas eteindre le systeme documentaire qu'elle regarde).
-        // Cacher une poignee n'est pas fermer une porte : le serveur garde sa
-        // propre regle, intacte.
+        // Ce test a l'air de doubler `requires_card => core.dossiers`, porte par
+        // la capacite `dossiers.upload_file`. Je l'ai retire pour cette raison —
+        // et MESURE : Card eteinte, `uploadFiles` repond encore OUI au
+        // proprietaire. Le passage par `manageFiles` (owner / admin
+        // d'Organization) court-circuite la capacite, donc son `requires_card`.
+        // La garde est bien PORTANTE pour qui mene la Boucle. Remise.
+        //
+        // Elle vit dans l'INTERFACE, jamais dans la policy :
+        // `DossierPolicy::update` documente qu'elle ne consulte AUCUNE Card
+        // (T1091 l'avait tente, juge trop large). Cacher une poignee n'est pas
+        // fermer une porte.
         if (! in_array('core.dossiers', app(LoopTypeRegistry::class)->activeCardsFor($this->loop), true)) {
             return $this->dossierUrlMemo = null;
         }
@@ -571,6 +579,41 @@ class LoopChat extends Component
         return $this->dossierUrlMemo = route('organization.dossiers.show', [
             'organization' => $organization,
             'dossier' => $dossier->getKey(),
+        ]);
+    }
+
+    /**
+     * TASK-1684 recette 2 — deposer SANS quitter la Boucle.
+     *
+     * La premiere livraison envoyait vers la page du Dossier. Deux defauts
+     * constates par le MASTER : on perd la conversation, et cette page
+     * n'offrait justement AUCUN depot a qui n'administre pas le Dossier —
+     * son bouton « Nouveau » est garde par `manageFiles`, pas par
+     * `uploadFiles`. La poignee menait donc a une piece sans porte.
+     *
+     * Le depot se fait desormais sur place, contre l'endpoint EXISTANT
+     * (`POST .../dossiers/{dossier}/files`, le meme que l'ecran Dossiers
+     * appelle deja). Aucun pipeline nouveau, aucune route nouvelle : seules
+     * l'origine du geste et la page d'ou il part changent.
+     *
+     * Memes gardes que `loopDossierUrl()` — Card active, Dossier racine,
+     * `uploadFiles` — puisque c'est la meme resolution qui les porte.
+     */
+    public function loopDossierUploadEndpoint(): ?string
+    {
+        if ($this->loopDossierUrl() === null) {
+            return null;
+        }
+
+        $organization = request()->route('organization') ?? $this->loop->organization?->slug;
+
+        if (! $organization || ! Route::has('organization.dossiers.files.store')) {
+            return null;
+        }
+
+        return route('organization.dossiers.files.store', [
+            'organization' => $organization,
+            'dossier' => Dossier::query()->where('loop_id', $this->loop->id)->value('id'),
         ]);
     }
 

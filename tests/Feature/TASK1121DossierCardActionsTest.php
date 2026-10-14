@@ -151,12 +151,23 @@ class TASK1121DossierCardActionsTest extends TestCase
             ->assertSee(__('loops.cards.dossiers.open'));
     }
 
-    public function test_the_card_offers_no_write_gesture_to_a_simple_member(): void
+    /**
+     * TASK-1684 — REGLE PARTIELLEMENT INVERSEE sur arbitrage MASTER.
+     *
+     * Le DEPOT est desormais ouvert au membre simple (capacite
+     * `dossiers.upload_file`, accordee au role `member` par defaut et lue par
+     * `DossierPolicy::uploadFiles`). L'ECRITURE D'ARTICLE reste fermee : elle
+     * passe par `update()`, donc par `LoopPolicy::update`.
+     *
+     * La moitie fermee est ce qui donne son sens a l'autre : sans elle, une
+     * ouverture generale de l'ecriture passerait inapercue.
+     */
+    public function test_the_card_offers_the_upload_but_not_the_article_to_a_simple_member(): void
     {
         Livewire::actingAs($this->membre)
             ->test(LoopDossiersCard::class, ['loop' => $this->boucle])
             ->assertDontSee(__('loops.cards.dossiers.article_start'))
-            ->assertDontSee(__('loops.cards.dossiers.uploading'));
+            ->assertSee(__('loops.cards.dossiers.upload_file'));
     }
 
     public function test_an_archived_loop_shows_the_card_read_only(): void
