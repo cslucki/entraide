@@ -814,4 +814,63 @@
         </div>
     </div>
     </x-page-container>
+
+    {{-- ============================================================
+         TASK-1684 MICRO-01 — SONDE DE MESURE **TEMPORAIRE**.
+
+         A RETIRER une fois la cause confirmee (commit dedie, revert
+         cible). Elle n'ecrit RIEN, n'envoie RIEN : elle affiche a
+         l'ecran ce que le navigateur du telephone mesure, parce que
+         ni l'emulation Chrome ni `resize_window` ne reproduisent le
+         clavier virtuel — seul l'appareil reel tranche.
+
+         Double condition : parametre `?probe=1` ET SuperAdmin.
+         ============================================================ --}}
+    @if(request()->boolean('probe') && (auth()->user()?->is_admin ?? false))
+    <div id="bp-probe"
+         style="position:fixed; left:8px; right:8px; top:8px; z-index:2147483647;
+                background:rgba(10,10,15,.92); color:#9ef; font:11px/1.45 ui-monospace,monospace;
+                padding:8px 10px; border-radius:10px; white-space:pre; pointer-events:auto;"
+         onclick="this.style.display='none'">mesure…</div>
+    <script>
+        (function () {
+            var el = document.getElementById('bp-probe');
+            if (!el) { return; }
+
+            var fmt = function (n) { return Math.round(n); };
+
+            var render = function () {
+                var doc = document.documentElement;
+                var vv = window.visualViewport;
+                var container = document.querySelector('.loops-show-container');
+                var composer = document.querySelector('.loops-show-container textarea');
+                var cRect = container ? container.getBoundingClientRect() : null;
+                var mRect = composer ? composer.getBoundingClientRect() : null;
+                var probe = getComputedStyle(document.documentElement).getPropertyValue('--bp-sai-bottom');
+
+                el.textContent = [
+                    'innerHeight      ' + window.innerHeight,
+                    'visualViewport   ' + (vv ? fmt(vv.height) + '  offsetTop ' + fmt(vv.offsetTop) + '  scale ' + vv.scale.toFixed(2) : 'absent'),
+                    'ecart dvh/visual ' + (vv ? fmt(window.innerHeight - vv.height) + ' px  <-- clavier si > 0' : '—'),
+                    'doc scroll/client ' + doc.scrollHeight + ' / ' + doc.clientHeight + (doc.scrollHeight > doc.clientHeight + 2 ? '  <-- DEFILEMENT PARASITE' : '  ok'),
+                    'window.scrollY   ' + fmt(window.scrollY),
+                    'container h/bas  ' + (cRect ? fmt(cRect.height) + ' / ' + fmt(cRect.bottom) : '—'),
+                    'composer bas     ' + (mRect ? fmt(mRect.bottom) : '—') + (vv && mRect ? '   depasse de ' + fmt(mRect.bottom - vv.height) + ' px' : ''),
+                    'safe-area-bottom ' + (probe || 'n/c'),
+                    '(toucher pour masquer)'
+                ].join('\n');
+            };
+
+            render();
+            window.addEventListener('resize', render);
+            window.addEventListener('scroll', render, { passive: true });
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', render);
+                window.visualViewport.addEventListener('scroll', render);
+            }
+            document.addEventListener('focusin', render);
+            document.addEventListener('focusout', function () { setTimeout(render, 250); });
+        })();
+    </script>
+    @endif
 </x-app-layout>
