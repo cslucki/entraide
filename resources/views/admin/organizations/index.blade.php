@@ -68,7 +68,15 @@
                             —
                         @endif
                     </td>
-                    <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ $c->users_count }}</td>
+                    <td class="px-4 py-3">
+                        {{-- TASK-1683 BUG-03 — le compteur EST la poignee : cliquer
+                             le nombre mene a la liste filtree de cette Organization
+                             (meme cible que le lien de la colonne Organisation). --}}
+                        <a href="{{ route('admin.users', ['organization_id' => $c->id]) }}"
+                           class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+                            {{ $c->users_count }}
+                        </a>
+                    </td>
                     <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ $c->services_count }}</td>
                     <td class="px-4 py-3">
                         <div class="flex flex-col gap-1">

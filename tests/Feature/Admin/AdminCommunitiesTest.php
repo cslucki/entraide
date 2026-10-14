@@ -323,12 +323,21 @@ class AdminCommunitiesTest extends TestCase
         $orgB = Organization::factory()->create(['is_active' => true]);
         User::factory()->count(2)->create(['organization_id' => $orgA->id]);
 
-        $this->actingAs($admin)
+        $response = $this->actingAs($admin)
             ->get(route('admin.organizations'))
             ->assertOk()
             ->assertSee(__('admin.organization_members_link'))
             ->assertSee(route('admin.users', ['organization_id' => $orgA->id]), false)
             ->assertSee(route('admin.users', ['organization_id' => $orgB->id]), false);
+
+        // TASK-1683 BUG-03 — le COMPTEUR de la colonne Membres est lui aussi
+        // une poignee vers la meme liste filtree : deux occurrences du lien
+        // par ligne (le libelle sous le nom, et le nombre).
+        $this->assertSame(
+            2,
+            substr_count($response->getContent(), route('admin.users', ['organization_id' => $orgA->id])),
+            'Le nom ET le compteur doivent mener aux membres de cette Organization.',
+        );
 
         // Et la cible rend bien les membres de cette Organization SEULE.
         $membreA = User::factory()->create(['organization_id' => $orgA->id, 'email' => 'dedans@example.test']);
