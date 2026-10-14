@@ -1189,6 +1189,51 @@ class LoopChatTest extends TestCase
         $this->assertSame(1, substr_count($html, "addEventListener('resize', apply)"));
     }
 
+    /**
+     * TASK-1684 — la course entre l'upload d'une image et l'envoi du message.
+     *
+     * Defaut REPRODUIT en recette : une image choisie monte dans une requete
+     * separee ; tant qu'elle n'est pas arrivee, le serveur ne la connait pas.
+     * Un appui sur « envoyer » pendant cette fenetre partait avec `body` vide
+     * ET `photo` null — le serveur repondait « Ajoutez un message ou une
+     * image. » alors que l'image ETAIT choisie, et sa reponse ECRASAIT
+     * l'upload qui venait d'aboutir : l'image etait avalee en silence et
+     * l'appui suivant n'envoyait rien.
+     *
+     * La garde est CLIENT (aucune requete ne doit partir) : elle ne peut donc
+     * se mesurer qu'au balisage rendu. Ce test prouve que les gardes sont
+     * POSEES, pas qu'elles s'executent — la preuve d'execution a ete faite en
+     * navigateur sur les deux chemins (bouton desactive + sablier pendant la
+     * montee, image conservee, envoi reussi ensuite).
+     */
+    public function test_le_composeur_interdit_l_envoi_pendant_la_montee_d_une_image(): void
+    {
+        $html = $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('uploading: false', $html,
+            'Le formulaire doit porter l\'etat de montee.');
+
+        // Les quatre issues de la montee : sans la sortie d'echec ou
+        // d'annulation, le composeur resterait verrouille pour toujours.
+        foreach (['start', 'finish', 'error', 'cancel'] as $issue) {
+            $this->assertStringContainsString('livewire-upload-'.$issue, $html,
+                "L'issue « {$issue} » de la montee doit etre ecoutee.");
+        }
+
+        $this->assertStringContainsString('x-bind:disabled="uploading"', $html,
+            'Le bouton envoyer doit etre inerte pendant la montee.');
+        $this->assertStringContainsString('wire:loading.attr="disabled"', $html,
+            'Le double-appui pendant un envoi en vol produit le MEME message faux.');
+
+        // La touche Entree est un SECOND chemin d'envoi, qui ne passe pas par
+        // le bouton : sans cette garde la course reste ouverte au clavier.
+        $this->assertStringContainsString('if (!uploading) { $wire.sendMessage() }', $html,
+            'Le chemin clavier doit porter la meme garde que le bouton.');
+    }
+
     public function test_loop_owner_sees_workspace_cards_shell_closed_by_default(): void
     {
         $this->actingAs($this->member)
@@ -1426,7 +1471,12 @@ class LoopChatTest extends TestCase
             // bouton envoyer) en plus de l'appel a `resize()` verifie ici.
             ->assertSeeHtml('x-on:input="resize(); hasText = $el.value.trim().length > 0"')
             ->assertSeeHtml('overflow-y-hidden')
-            ->assertSeeHtml('if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }');
+            // TASK-1684 : Entree envoie, Maj+Entree garde la ligne — contrat
+            // INCHANGE. L'envoi est seulement devenu conditionnel a l'absence
+            // de montee d'image en cours (course corrigee en T1684), d'ou la
+            // mesure en deux morceaux plutot qu'en une chaine figee.
+            ->assertSeeHtml('if (!$event.shiftKey) { $event.preventDefault();')
+            ->assertSeeHtml('$wire.sendMessage() }');
     }
 
     public function test_ai_message_without_requested_by_renders_without_subtitle(): void
