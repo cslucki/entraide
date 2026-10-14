@@ -329,14 +329,17 @@ class AdminCommunitiesTest extends TestCase
             ->assertSee(route('admin.users', ['organization_id' => $orgA->id]), false)
             ->assertSee(route('admin.users', ['organization_id' => $orgB->id]), false);
 
-        // TASK-1683 BUG-03 puis BUG-04 — la poignee est le COMPTEUR de la
-        // colonne Membres, et lui seul : le lien jumeau de la colonne
-        // Organisation a ete retire comme doublon. UNE occurrence par ligne.
+        // TASK-1683 BUG-03/04/05 — la poignee est le COMPTEUR de la colonne
+        // Membres ; sous le palier `sm` cette colonne disparait, et le lien
+        // reapparait dans la remontee mobile. Les deux occurrences ne sont
+        // JAMAIS visibles ensemble (`hidden sm:table-cell` contre `sm:hidden`)
+        // — ce n'est pas le doublon retire en BUG-04, qui lui cohabitait.
         $this->assertSame(
-            1,
+            2,
             substr_count($response->getContent(), route('admin.users', ['organization_id' => $orgA->id])),
-            'Le compteur Membres est la seule poignee vers la liste filtree.',
+            'Le lien membres existe une fois par palier : colonne (>= sm) et remontee mobile (< sm).',
         );
+        $this->assertStringContainsString('sm:hidden', $response->getContent());
 
         // Et la cible rend bien les membres de cette Organization SEULE.
         $membreA = User::factory()->create(['organization_id' => $orgA->id, 'email' => 'dedans@example.test']);
