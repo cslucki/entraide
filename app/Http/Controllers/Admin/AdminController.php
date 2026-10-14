@@ -83,7 +83,12 @@ class AdminController extends Controller
             };
         }
 
-        if ($request->filled('organization_id')) {
+        // TASK-1683 BUG-06 — garde de FORME avant comparaison : `organization_id`
+        // est une colonne `uuid`, et PostgreSQL leve `22P02` (500) sur une
+        // chaine forgee, la ou l'ecran doit simplement ne rien filtrer. SQLite
+        // compare comme du texte : sans cette garde, le defaut n'apparaitrait
+        // qu'en production (meme famille que AdminLoopController::index).
+        if ($request->filled('organization_id') && Str::isUuid($request->organization_id)) {
             $query->where('organization_id', $request->organization_id);
         }
 
@@ -110,8 +115,17 @@ class AdminController extends Controller
         $users = $query->paginate(20)->withQueryString();
         $organizations = Organization::where('is_active', true)->orderBy('name')->get();
 
-        return view('admin.users', compact('users', 'organizations') + [
-            'stats' => $this->userListStats(),
+        // TASK-1683 BUG-06 — l'Organization filtree, pour nommer l'ecran et
+        // borner les compteurs. Lue APRES la garde de forme : `organizations.id`
+        // est une colonne `uuid`, et PostgreSQL leve `22P02` (500) sur une
+        // chaine forgee la ou il faut un simple ecran vide. SQLite, lui,
+        // compare comme du texte : le defaut ne se verrait qu'en production.
+        $scopedOrganization = $request->filled('organization_id') && Str::isUuid($request->organization_id)
+            ? Organization::find($request->organization_id)
+            : null;
+
+        return view('admin.users', compact('users', 'organizations', 'scopedOrganization') + [
+            'stats' => $this->userListStats($scopedOrganization?->id),
         ]);
     }
 
@@ -129,16 +143,24 @@ class AdminController extends Controller
      * la question posee par un cockpit. Le total filtre, lui, est rendu par le
      * paginateur a cote du tableau.
      *
+     * TASK-1683 BUG-06 — UNE exception, et une seule : l'Organization. Elle
+     * n'est pas un filtre d'affichage mais le TENANT lui-meme ; a l'interieur
+     * d'OFSH, « combien de comptes bannis existe-t-il » veut dire « chez
+     * OFSH ». Recherche et statut, eux, continuent de ne RIEN changer aux
+     * compteurs — la doctrine ci-dessus tient pour tout le reste.
+     *
      * @return array<string, int>
      */
-    private function userListStats(): array
+    private function userListStats(?string $organizationId = null): array
     {
         // Deux pieges de moteur evites ici, tous deux deja payes sur ce depot :
         //  - `count(*) FILTER (...)` est du PostgreSQL pur ;
         //  - `is_admin = 1` passe en SQLite (entier) et ECHOUE en PostgreSQL, ou
         //    la colonne est un vrai `boolean`.
         // Le predicat NU (`case when is_admin then ...`) est valide dans les deux.
-        $row = User::query()->toBase()->selectRaw(
+        $row = User::query()
+            ->when($organizationId, fn ($q) => $q->where('organization_id', $organizationId))
+            ->toBase()->selectRaw(
             'count(*) as total,'
             .' sum(case when banned_at is null and is_available then 1 else 0 end) as disponibles,'
             .' sum(case when banned_at is not null then 1 else 0 end) as bannis,'

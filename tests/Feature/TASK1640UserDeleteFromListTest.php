@@ -384,6 +384,52 @@ class TASK1640UserDeleteFromListTest extends TestCase
         $this->assertStringContainsString(__('admin.users_results_count', ['count' => 2]), $html);
     }
 
+    /**
+     * TASK-1683 BUG-06 — l'Organization est la SEULE portee qui borne les
+     * compteurs : elle n'est pas un filtre d'affichage mais le tenant.
+     * Recherche et statut, eux, continuent de ne rien y changer (test
+     * ci-dessus), et l'ecran DIT desormais quelle Organization il montre.
+     */
+    public function test_les_compteurs_suivent_l_organization_filtree_et_l_ecran_la_nomme(): void
+    {
+        $autreOrg = Organization::factory()->create(['name' => 'Organisation Voisine']);
+        User::factory()->count(3)->for($autreOrg)->create();
+        User::factory()->for($autreOrg)->create(['banned_at' => now()]);
+
+        $attendusIci = User::where('organization_id', $this->organization->id)->count();
+
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.users', ['organization_id' => $this->organization->id]))
+            ->assertOk()
+            ->assertSee(__('admin.users_title_scoped', ['organization' => $this->organization->name]))
+            ->assertSee(__('admin.users_stats_scoped_notice', ['organization' => $this->organization->name]))
+            ->getContent();
+
+        // Le total affiche est celui du TENANT, pas de la plateforme.
+        $this->assertStringContainsString(number_format($attendusIci, 0, ',', ' '), $html);
+        $this->assertNotSame($attendusIci, User::count(), 'Le scenario doit distinguer les deux populations.');
+
+        // Le banni de l'autre Organization ne doit pas etre compte ici.
+        $this->assertStringContainsString(
+            '<p class="text-2xl font-bold tabular-nums text-red-600 dark:text-red-400">0</p>',
+            $html,
+        );
+    }
+
+    /**
+     * TASK-1683 BUG-06 — un identifiant forge ne doit pas faire une 500 :
+     * `organizations.id` est une colonne `uuid`, et PostgreSQL leve `22P02`
+     * la ou il faut un simple ecran vide (SQLite, lui, comparerait comme du
+     * texte et masquerait le defaut jusqu'en production).
+     */
+    public function test_un_organization_id_forge_ne_casse_pas_l_ecran(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.users', ['organization_id' => 'pas-un-uuid']))
+            ->assertOk()
+            ->assertDontSee(__('admin.users_stats_scope_all'));
+    }
+
     public function test_les_compteurs_ne_coutent_qu_une_requete_de_plus(): void
     {
         // La forme agregee est portable ET bornee : cinq `count()` separes
