@@ -9,6 +9,8 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -186,6 +188,57 @@ class TASK1684DepotFichierBoucleTest extends TestCase
 
         $this->assertStringNotContainsString('left-0 sm:right-0 sm:left-auto', $html,
             'Sous 640 px, cet ancrage poussait le panneau hors du viewport.');
+    }
+
+    /**
+     * TASK-1684 — l'audio et la video sont acceptes par le depot.
+     *
+     * Defaut rapporte : un fichier video etait refuse. La liste blanche de
+     * `StoreDossierFileRequest` ne contenait aucun type audio ni video, alors
+     * que l'ecran Dossiers propose « Filmer une video » — l'interface offrait
+     * un geste que le serveur refusait.
+     *
+     * Les fichiers sont construits avec de VRAIS entetes, pas des `fake()`
+     * portant un type declare : `mimetypes:` lit le type devine par finfo SUR
+     * LE CONTENU, et un faux fichier au type annonce aurait rendu ce test vert
+     * sans rien prouver de la regle reelle.
+     */
+    public function test_le_depot_accepte_une_video_et_un_son(): void
+    {
+        Storage::fake('dossier_files');
+
+        $repertoire = sys_get_temp_dir().'/t1684-'.uniqid();
+        mkdir($repertoire);
+
+        // Boite `ftyp` : ce que libmagic lit pour reconnaitre un MP4.
+        $mp4 = $repertoire.'/clip.mp4';
+        file_put_contents($mp4, pack('N', 32).'ftyp'.'isom'.pack('N', 512).'isomiso2avc1mp41'.str_repeat("\0", 8));
+
+        $webm = $repertoire.'/clip.webm';
+        file_put_contents($webm, "\x1A\x45\xDF\xA3".str_repeat("\0", 4)."\x42\x82\x84webm".str_repeat("\0", 16));
+
+        // WAV reel : entete RIFF + PCM. Detecte `audio/x-wav`, et NON
+        // `audio/wav` — c'est pourquoi la liste blanche porte les deux alias.
+        $donnees = '';
+        for ($i = 0; $i < 400; $i++) {
+            $donnees .= pack('v', (int) (3000 * sin(2 * M_PI * 440 * $i / 8000)));
+        }
+        $wav = $repertoire.'/son.wav';
+        file_put_contents($wav, 'RIFF'.pack('V', 36 + strlen($donnees)).'WAVEfmt '.pack('V', 16)
+            .pack('v', 1).pack('v', 1).pack('V', 8000).pack('V', 16000).pack('v', 2).pack('v', 16)
+            .'data'.pack('V', strlen($donnees)).$donnees);
+
+        foreach ([$mp4, $webm, $wav] as $chemin) {
+            $this->actingAs($this->owner)->post(route('organization.dossiers.files.store', [
+                'organization' => $this->organization->slug, 'dossier' => $this->racine->id,
+            ]), ['files' => [new UploadedFile($chemin, basename($chemin), null, null, true)]])
+                ->assertSuccessful();
+        }
+
+        $this->assertSame(3, $this->racine->files()->count());
+
+        array_map('unlink', [$mp4, $webm, $wav]);
+        rmdir($repertoire);
     }
 
     /**
