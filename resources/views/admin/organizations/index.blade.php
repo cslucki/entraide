@@ -35,6 +35,15 @@
                                 @if($c->hero_title)
                                 <p class="text-xs text-gray-500 truncate">{{ $c->hero_title }}</p>
                                 @endif
+                                {{-- TASK-1683 BUG-01 — la liste des membres de CETTE
+                                     Organization : /admin/users filtre deja par
+                                     organization_id cote serveur (AdminController),
+                                     il ne manquait que la poignee. Aucune route ni
+                                     requete nouvelle. --}}
+                                <a href="{{ route('admin.users', ['organization_id' => $c->id]) }}"
+                                   class="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+                                    {{ __('admin.organization_members_link') }} ({{ $c->users_count }})
+                                </a>
                             </div>
                         </div>
                     </td>

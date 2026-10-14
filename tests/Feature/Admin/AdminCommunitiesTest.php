@@ -308,4 +308,36 @@ class AdminCommunitiesTest extends TestCase
 
         $this->assertNull($organization->fresh()->primary_loop_id);
     }
+
+    /**
+     * TASK-1683 BUG-01 — chaque ligne mene a SES membres.
+     *
+     * /admin/users filtre deja par organization_id : le lien n'ajoute aucune
+     * requete, et doit porter l'identifiant de SA ligne — jamais celui d'une
+     * voisine.
+     */
+    public function test_the_organizations_list_links_each_row_to_its_own_members(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $orgA = Organization::factory()->create(['is_active' => true]);
+        $orgB = Organization::factory()->create(['is_active' => true]);
+        User::factory()->count(2)->create(['organization_id' => $orgA->id]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.organizations'))
+            ->assertOk()
+            ->assertSee(__('admin.organization_members_link'))
+            ->assertSee(route('admin.users', ['organization_id' => $orgA->id]), false)
+            ->assertSee(route('admin.users', ['organization_id' => $orgB->id]), false);
+
+        // Et la cible rend bien les membres de cette Organization SEULE.
+        $membreA = User::factory()->create(['organization_id' => $orgA->id, 'email' => 'dedans@example.test']);
+        $membreB = User::factory()->create(['organization_id' => $orgB->id, 'email' => 'ailleurs@example.test']);
+
+        $this->actingAs($admin)
+            ->get(route('admin.users', ['organization_id' => $orgA->id]))
+            ->assertOk()
+            ->assertSee($membreA->email)
+            ->assertDontSee($membreB->email);
+    }
 }
