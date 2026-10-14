@@ -48,7 +48,26 @@
                         </div>
                     </td>
                     <td class="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">{{ $c->slug }}</td>
-                    <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ $c->admin?->name ?? '—' }}</td>
+                    <td class="px-4 py-3 text-gray-700 dark:text-gray-300">
+                        {{-- TASK-1683 BUG-02 — les infos du responsable sans quitter
+                             l'ecran : la Fiche est un partiel PARTAGE, pilote par un
+                             evenement fenetre (T1666), deja reutilise par
+                             /admin/users, /admin/points et /admin/transactions. On
+                             reprend le meme geste, aucune route ni requete nouvelle. --}}
+                        @if($c->admin)
+                            <button type="button"
+                                    @click="$dispatch('open-user-profile', { id: '{{ $c->admin->id }}', name: @js($c->admin->full_name) })"
+                                    class="text-left text-sky-600 hover:underline dark:text-sky-400">
+                                {{-- `full_name` (Prenom NOM) et non `name`, qui ne
+                                     porte que le patronyme. Le controleur charge le
+                                     modele admin ENTIER (`with('admin')`) : la
+                                     colonne first_name est donc bien la. --}}
+                                {{ $c->admin->full_name }}
+                            </button>
+                        @else
+                            —
+                        @endif
+                    </td>
                     <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ $c->users_count }}</td>
                     <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ $c->services_count }}</td>
                     <td class="px-4 py-3">
@@ -130,4 +149,9 @@
         {{ $organizations->links() }}
     </div>
     @endif
+
+    {{-- TASK-1683 BUG-02 — la Fiche du responsable. Une seule modal pour toute
+         la page, sa propre racine Alpine : sans cet include, le bouton
+         ci-dessus serait inerte ET silencieux. --}}
+    @include('admin.partials.user-profile-modal')
 </x-admin-layout>

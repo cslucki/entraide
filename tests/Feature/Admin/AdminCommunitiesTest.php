@@ -340,4 +340,33 @@ class AdminCommunitiesTest extends TestCase
             ->assertSee($membreA->email)
             ->assertDontSee($membreB->email);
     }
+
+    /**
+     * TASK-1683 BUG-02 — la Fiche du responsable s'ouvre depuis la liste.
+     *
+     * Le bouton dispatche l'evenement du partiel PARTAGE : sans l'include de
+     * la modal, il serait inerte ET silencieux — le test verifie donc les
+     * DEUX (le declencheur porte le bon id, et la modal est bien sur la page).
+     */
+    public function test_the_organizations_list_opens_the_admin_profile_card(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $responsable = User::factory()->create(['name' => 'Responsable Test']);
+        $organization = Organization::factory()->create([
+            'is_active' => true,
+            'admin_id' => $responsable->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.organizations'))
+            ->assertOk()
+            ->assertSee("open-user-profile', { id: '".$responsable->id."'", false)
+            ->assertSee('Responsable Test')
+            // La modal partagee est presente : le declencheur mene quelque part.
+            ->assertSee('adminUserProfileModal()', false);
+
+        // Une Organization sans responsable ne declenche rien.
+        $sansAdmin = Organization::factory()->create(['is_active' => true, 'admin_id' => null]);
+        $this->assertNull($sansAdmin->fresh()->admin_id);
+    }
 }
