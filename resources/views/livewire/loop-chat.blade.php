@@ -989,13 +989,13 @@
                                         <span class="text-[11px] font-medium leading-tight {{ $composerMode === 'ia_dossiers' ? 'text-indigo-800 dark:text-indigo-100' : 'text-gray-700 dark:text-gray-200' }}">{{ __('loops.hybrid_button') }}</span>
                                     </button>
                                     @endif
-                                    <button type="button" x-on:click="window.dispatchEvent(new CustomEvent('bp-open-help-request')); sheetOpen = false"
-                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
-                                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
-                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                                        </span>
-                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.who_can_help') }}</span>
-                                    </button>
+                                    {{-- TASK-1684 — « Qui peut m'aider ? » RETIRE de cette feuille.
+                                         Il y etait en DOUBLE : la rangee de pastilles au-dessus du
+                                         composeur porte le meme geste (meme evenement
+                                         `bp-open-help-request`), et T1621 l'a rendue visible sur
+                                         mobile — elle etait `hidden md:flex` a l'epoque ou cette
+                                         tuile a ete posee, ce qui la justifiait alors. La capacite
+                                         n'est donc pas perdue, seule la seconde poignee disparait. --}}
                                     <button type="button" x-on:click="$refs.uploadInput?.click(); sheetOpen = false"
                                         class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
                                         <span class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">

@@ -1234,6 +1234,35 @@ class LoopChatTest extends TestCase
             'Le chemin clavier doit porter la meme garde que le bouton.');
     }
 
+    /**
+     * TASK-1684 — « Qui peut m'aider ? » ne doit exister qu'UNE fois.
+     *
+     * La tuile de la feuille mobile doublait la pastille posee au-dessus du
+     * composeur. Elle se justifiait quand cette rangee etait `hidden md:flex` ;
+     * T1621 l'a rendue visible sur mobile et le doublon est reste.
+     *
+     * Le test mesure le COMPTE des EMETTEURS du geste, pas la presence du
+     * libelle : une assertion de presence resterait verte avec les deux
+     * poignees, et le libelle lui-meme apparait une seconde fois en toute
+     * legitimite — c'est le titre de la modale (`loops/show.blade.php`).
+     * Compter le libelle aurait donc mesure la modale, pas les poignees.
+     */
+    public function test_le_raccourci_qui_peut_m_aider_n_est_plus_double_dans_la_feuille_mobile(): void
+    {
+        $html = $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertSame(1, substr_count($html, "new CustomEvent('bp-open-help-request')"),
+            'Un seul emetteur du geste : la tuile de la feuille mobile est retiree.');
+
+        // La capacite SURVIT : la poignee restante et la modale qu'elle ouvre.
+        // Sans ces deux mesures, supprimer les DEUX poignees passerait au vert.
+        $this->assertStringContainsString('bp-open-help-request', $html);
+        $this->assertStringContainsString(__('loops.who_can_help'), $html);
+    }
+
     public function test_loop_owner_sees_workspace_cards_shell_closed_by_default(): void
     {
         $this->actingAs($this->member)
