@@ -326,17 +326,16 @@ class AdminCommunitiesTest extends TestCase
         $response = $this->actingAs($admin)
             ->get(route('admin.organizations'))
             ->assertOk()
-            ->assertSee(__('admin.organization_members_link'))
             ->assertSee(route('admin.users', ['organization_id' => $orgA->id]), false)
             ->assertSee(route('admin.users', ['organization_id' => $orgB->id]), false);
 
-        // TASK-1683 BUG-03 — le COMPTEUR de la colonne Membres est lui aussi
-        // une poignee vers la meme liste filtree : deux occurrences du lien
-        // par ligne (le libelle sous le nom, et le nombre).
+        // TASK-1683 BUG-03 puis BUG-04 — la poignee est le COMPTEUR de la
+        // colonne Membres, et lui seul : le lien jumeau de la colonne
+        // Organisation a ete retire comme doublon. UNE occurrence par ligne.
         $this->assertSame(
-            2,
+            1,
             substr_count($response->getContent(), route('admin.users', ['organization_id' => $orgA->id])),
-            'Le nom ET le compteur doivent mener aux membres de cette Organization.',
+            'Le compteur Membres est la seule poignee vers la liste filtree.',
         );
 
         // Et la cible rend bien les membres de cette Organization SEULE.

@@ -78,7 +78,6 @@ return [
     'loop_owner_placeholder' => '— Select an owner —',
     'loop_owner_none' => 'No owner for now',
     'loop_view_front' => 'View the Loop',
-    'organization_members_link' => 'Members',
     // TASK-1680 — join requests panel of the admin cockpit.
     'loop_join_requests_title' => 'Join requests',
     'loop_join_requests_empty' => 'No pending join request.',
