@@ -308,4 +308,76 @@ class AdminCommunitiesTest extends TestCase
 
         $this->assertNull($organization->fresh()->primary_loop_id);
     }
+
+    /**
+     * TASK-1683 BUG-01 — chaque ligne mene a SES membres.
+     *
+     * /admin/users filtre deja par organization_id : le lien n'ajoute aucune
+     * requete, et doit porter l'identifiant de SA ligne — jamais celui d'une
+     * voisine.
+     */
+    public function test_the_organizations_list_links_each_row_to_its_own_members(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $orgA = Organization::factory()->create(['is_active' => true]);
+        $orgB = Organization::factory()->create(['is_active' => true]);
+        User::factory()->count(2)->create(['organization_id' => $orgA->id]);
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.organizations'))
+            ->assertOk()
+            ->assertSee(route('admin.users', ['organization_id' => $orgA->id]), false)
+            ->assertSee(route('admin.users', ['organization_id' => $orgB->id]), false);
+
+        // TASK-1683 BUG-03/04/05 — la poignee est le COMPTEUR de la colonne
+        // Membres ; sous le palier `sm` cette colonne disparait, et le lien
+        // reapparait dans la remontee mobile. Les deux occurrences ne sont
+        // JAMAIS visibles ensemble (`hidden sm:table-cell` contre `sm:hidden`)
+        // — ce n'est pas le doublon retire en BUG-04, qui lui cohabitait.
+        $this->assertSame(
+            2,
+            substr_count($response->getContent(), route('admin.users', ['organization_id' => $orgA->id])),
+            'Le lien membres existe une fois par palier : colonne (>= sm) et remontee mobile (< sm).',
+        );
+        $this->assertStringContainsString('sm:hidden', $response->getContent());
+
+        // Et la cible rend bien les membres de cette Organization SEULE.
+        $membreA = User::factory()->create(['organization_id' => $orgA->id, 'email' => 'dedans@example.test']);
+        $membreB = User::factory()->create(['organization_id' => $orgB->id, 'email' => 'ailleurs@example.test']);
+
+        $this->actingAs($admin)
+            ->get(route('admin.users', ['organization_id' => $orgA->id]))
+            ->assertOk()
+            ->assertSee($membreA->email)
+            ->assertDontSee($membreB->email);
+    }
+
+    /**
+     * TASK-1683 BUG-02 — la Fiche du responsable s'ouvre depuis la liste.
+     *
+     * Le bouton dispatche l'evenement du partiel PARTAGE : sans l'include de
+     * la modal, il serait inerte ET silencieux — le test verifie donc les
+     * DEUX (le declencheur porte le bon id, et la modal est bien sur la page).
+     */
+    public function test_the_organizations_list_opens_the_admin_profile_card(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $responsable = User::factory()->create(['name' => 'Responsable Test']);
+        $organization = Organization::factory()->create([
+            'is_active' => true,
+            'admin_id' => $responsable->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.organizations'))
+            ->assertOk()
+            ->assertSee("open-user-profile', { id: '".$responsable->id."'", false)
+            ->assertSee('Responsable Test')
+            // La modal partagee est presente : le declencheur mene quelque part.
+            ->assertSee('adminUserProfileModal()', false);
+
+        // Une Organization sans responsable ne declenche rien.
+        $sansAdmin = Organization::factory()->create(['is_active' => true, 'admin_id' => null]);
+        $this->assertNull($sansAdmin->fresh()->admin_id);
+    }
 }

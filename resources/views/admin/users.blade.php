@@ -1,4 +1,8 @@
-<x-admin-layout title="Utilisateurs">
+{{-- TASK-1683 BUG-06 — arrive filtre sur une Organization (lien « Membres »
+     de /admin/organizations), l'ecran doit DIRE laquelle : « Utilisateurs »
+     seul laissait croire a la population entiere, alors que la liste ET les
+     compteurs sont bornes a ce tenant. --}}
+<x-admin-layout :title="$scopedOrganization ? __('admin.users_title_scoped', ['organization' => $scopedOrganization->name]) : 'Utilisateurs'">
 
 {{-- TASK-1640 — racine Alpine de la page.
      Une directive Alpine sans racine `x-data` sur un ancetre est inerte ET
@@ -33,6 +37,23 @@
         </div>
         @endforeach
     </div>
+
+    @if($scopedOrganization)
+    {{-- TASK-1683 BUG-07 — la ligne de portee offre les DEUX sorties : elargir
+         a toutes les organisations, et revenir a l'Organization d'ou l'on
+         vient. Le NOM porte ce retour — une seule poignee, pas un second
+         lien qui ferait doublon (lecon BUG-04). Le nom reste interpole par
+         Blade, donc echappe : il vient d'une saisie d'administration. --}}
+    <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
+        {{ __('admin.users_stats_scoped_prefix') }}
+        <a href="{{ route('admin.organizations.edit', $scopedOrganization) }}"
+           class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+            {{ $scopedOrganization->name }}</a>.
+        <a href="{{ route('admin.users') }}" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+            {{ __('admin.users_stats_scope_all') }}
+        </a>
+    </p>
+    @endif
 
     <div class="flex justify-end mb-4">
         <a href="{{ route('admin.users.create') }}"
