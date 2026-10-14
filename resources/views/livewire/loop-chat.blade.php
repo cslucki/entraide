@@ -996,6 +996,22 @@
                                          mobile — elle etait `hidden md:flex` a l'epoque ou cette
                                          tuile a ete posee, ce qui la justifiait alors. La capacite
                                          n'est donc pas perdue, seule la seconde poignee disparait. --}}
+
+                                    {{-- TASK-1684 — « Ajouter un fichier » : le fichier va DANS LA
+                                         BOUCLE, pas dans le message. Un <a>, pas un <button> : c'est
+                                         une navigation vers le Dossier racine de la Boucle, dont la
+                                         page porte deja l'upload. `loopDossierUrl()` rend null — donc
+                                         rien ici — si la Boucle n'a pas de Dossier ou si le membre
+                                         n'a pas le droit d'y deposer : jamais de lien mort. --}}
+                                    @if($this->loopDossierUrl())
+                                    <a href="{{ $this->loopDossierUrl() }}"
+                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                                        </span>
+                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.composer_add_file') }}</span>
+                                    </a>
+                                    @endif
                                     <button type="button" x-on:click="$refs.uploadInput?.click(); sheetOpen = false"
                                         class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
                                         <span class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">

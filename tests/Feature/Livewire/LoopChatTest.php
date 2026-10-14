@@ -3,6 +3,7 @@
 namespace Tests\Feature\Livewire;
 
 use App\Livewire\LoopChat;
+use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
@@ -1261,6 +1262,85 @@ class LoopChatTest extends TestCase
         // Sans ces deux mesures, supprimer les DEUX poignees passerait au vert.
         $this->assertStringContainsString('bp-open-help-request', $html);
         $this->assertStringContainsString(__('loops.who_can_help'), $html);
+    }
+
+    /**
+     * TASK-1684 — « Ajouter un fichier » pointe le Dossier RACINE de la Boucle.
+     *
+     * Le fichier va dans la Boucle, pas dans le message : le composeur ne sait
+     * stocker qu'une `photo` validee `image` et rendue en `<img>`. La tuile est
+     * donc une poignee vers une capacite existante, jamais un pipeline nouveau.
+     *
+     * Les trois etats sont mesures : sans Dossier racine la tuile n'existe pas
+     * (sinon lien mort), avec Dossier elle porte l'URL exacte, et le libelle ne
+     * doit jamais apparaitre sans lien.
+     */
+    public function test_la_feuille_mobile_pointe_le_dossier_racine_de_la_boucle(): void
+    {
+        // La Boucle porte DEJA son Dossier racine : `createLoop()` le pose, et
+        // `dossiers.loop_id` est UNIQUE (il n'y en a jamais deux). Le mesurer
+        // ici evite de croire que la tuile depend d'une creation a part.
+        $dossier = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+
+        $url = Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->instance()
+            ->loopDossierUrl();
+
+        $this->assertSame(
+            route('organization.dossiers.show', [
+                'organization' => $this->organization->slug,
+                'dossier' => $dossier->getKey(),
+            ]),
+            $url,
+            'La destination doit etre la page du Dossier racine, qui porte deja l\'upload.'
+        );
+
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->assertSee(__('loops.composer_add_file'))
+            ->assertSee($url, false);
+
+        // Dossier racine retire : plus de destination, donc plus de tuile.
+        // Sans cette moitie, la garde du `@if` ne serait jamais exercee.
+        $dossier->forceDelete();
+
+        $this->assertNull(
+            Livewire::actingAs($this->member)
+                ->test(LoopChat::class, ['loop' => $this->loop])
+                ->instance()
+                ->loopDossierUrl(),
+            'Sans Dossier racine, aucune destination — jamais de lien mort.'
+        );
+
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->assertDontSee(__('loops.composer_add_file'));
+    }
+
+    /**
+     * TASK-1684 — l'autorisation mesuree est bien celle du DEPOT.
+     *
+     * `StoreDossierFileRequest` exige `manageFiles`. Un membre qui ne l'a pas
+     * ne doit voir aucune tuile : la lui montrer l'enverrait vers une page ou
+     * le depot sera refuse.
+     */
+    public function test_la_tuile_fichier_disparait_sans_le_droit_de_deposer(): void
+    {
+        // Le Dossier racine existe (pose par `createLoop()`) : la tuile ne peut
+        // donc disparaitre que par le DROIT, ce que ce test isole.
+        Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+
+        // `nonMember` appartient a l'Organization mais pas a la Boucle : il
+        // echoue des `canContribute()`, en amont meme de la policy.
+        $this->assertNull(
+            Livewire::actingAs($this->nonMember)
+                ->test(LoopChat::class, ['loop' => $this->loop])
+                ->instance()
+                ->loopDossierUrl()
+        );
     }
 
     public function test_loop_owner_sees_workspace_cards_shell_closed_by_default(): void

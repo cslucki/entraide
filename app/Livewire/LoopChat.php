@@ -498,6 +498,67 @@ class LoopChat extends Component
         return route('loops.ai', $this->loop);
     }
 
+    /**
+     * TASK-1684 — « Ajouter un fichier dans la Boucle » (feuille mobile).
+     *
+     * Le fichier va DANS LA BOUCLE, pas dans le message : l'upload du composeur
+     * est une propriete `photo` validee `image` et rendue en `<img>`, un fichier
+     * quelconque n'y a pas sa place. La cible est le Dossier RACINE de la
+     * Boucle (`dossiers.loop_id`, unique), dont la page porte deja l'upload.
+     * Aucun pipeline nouveau : une poignee vers une capacite existante.
+     *
+     * L'autorisation mesuree est `manageFiles`, celle que `StoreDossierFileRequest`
+     * exige REELLEMENT — et non `attachArticle` que filtre `defaultDossier()`,
+     * qui gouverne l'ajout d'un ARTICLE. Les deux ne coincident pas : s'appuyer
+     * sur le second aurait montre la tuile a des membres que le depot refuse.
+     *
+     * Rend `null` — donc aucune tuile — si la Boucle n'a pas de Dossier racine
+     * ou si le membre n'a pas le droit d'y deposer : jamais de lien mort.
+     */
+    public function loopDossierUrl(): ?string
+    {
+        // Memo de REQUETE : `wire:poll.3s` rend ce composant toutes les trois
+        // secondes, et la resolution coute une requete plus un passage de
+        // policy. Les proprietes privees ne sont pas serialisees par Livewire,
+        // le memo ne survit donc pas d'une requete a l'autre — ce qui est
+        // exactement la duree de validite souhaitee.
+        if ($this->dossierUrlResolved) {
+            return $this->dossierUrlMemo;
+        }
+
+        $this->dossierUrlResolved = true;
+
+        $user = auth()->user();
+
+        if (! $this->canContribute($user)) {
+            return $this->dossierUrlMemo = null;
+        }
+
+        $dossier = Dossier::query()->where('loop_id', $this->loop->id)->first();
+
+        if ($dossier === null || ! $user->can('manageFiles', $dossier)) {
+            return $this->dossierUrlMemo = null;
+        }
+
+        // Meme idiome que `aiRoute()` ci-dessus, et pour la meme raison : sur
+        // un POST Livewire la requete ne porte aucun parametre `organization`,
+        // c'est la Boucle qui doit le fournir.
+        $organization = request()->route('organization') ?? $this->loop->organization?->slug;
+
+        if (! $organization || ! Route::has('organization.dossiers.show')) {
+            return $this->dossierUrlMemo = null;
+        }
+
+        return $this->dossierUrlMemo = route('organization.dossiers.show', [
+            'organization' => $organization,
+            'dossier' => $dossier->getKey(),
+        ]);
+    }
+
+    private ?string $dossierUrlMemo = null;
+
+    private bool $dossierUrlResolved = false;
+
     public function replyTo(string $messageId): void
     {
         $message = LoopMessage::where('id', $messageId)

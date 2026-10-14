@@ -848,6 +848,8 @@ return [
     'composer_mode_clear' => 'Revenir au message normal',
     'composer_more_actions' => 'Plus d\'actions',
     'composer_add_image' => 'Ajouter une image',
+    // TASK-1684 : le fichier va dans le Dossier de la Boucle, pas dans le message.
+    'composer_add_file' => 'Ajouter un fichier',
     'composer_take_photo' => 'Prendre une photo',
     'ai_answer_requested' => 'L\'IA rédige sa réponse...',
     // TASK-1311 : le verrou est desormais scope par membre, plus par Boucle

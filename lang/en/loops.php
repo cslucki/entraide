@@ -846,6 +846,8 @@ return [
     'composer_mode_clear' => 'Back to a normal message',
     'composer_more_actions' => 'More actions',
     'composer_add_image' => 'Add an image',
+    // TASK-1684: the file goes to the Loop Dossier, not to the message.
+    'composer_add_file' => 'Add a file',
     'composer_take_photo' => 'Take a photo',
     'ai_answer_requested' => 'The AI is drafting its answer...',
     // TASK-1311 : the lock is now scoped per member, no longer per whole
