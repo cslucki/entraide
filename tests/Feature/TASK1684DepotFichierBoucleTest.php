@@ -189,6 +189,44 @@ class TASK1684DepotFichierBoucleTest extends TestCase
     }
 
     /**
+     * TASK-1684 — les champs de date ouvrent leur selecteur au toucher.
+     *
+     * Defaut rapporte : sur la Card Roadmap mobile, toucher ECHEANCE n'ouvrait
+     * RIEN. Cause : `@tailwindcss/forms` applique `appearance: none` aux champs
+     * de date, et Chrome Android cesse alors d'ouvrir le selecteur au toucher.
+     * Invisible en desktop, ou le clic continue de l'ouvrir.
+     *
+     * Le correctif est un ecouteur DELEGUE (`resources/js/app.js`) : deux des
+     * trois cartes concernees n'ont aucune portee Alpine, un attribut par champ
+     * n'y serait jamais initialise.
+     *
+     * CE QUE CE TEST PROUVE, ET CE QU'IL NE PROUVE PAS : il mesure que la regle
+     * existe et qu'elle vise bien les champs de date — il ne peut pas prouver
+     * qu'un doigt ouvre un selecteur natif. Cette preuve-la a ete faite dans le
+     * navigateur sur l'application servie : un clic sur un `input[type=date]`
+     * declenche `showPicker()` (espion sur l'API native, 1 appel).
+     */
+    public function test_les_champs_de_date_ouvrent_leur_selecteur_au_clic(): void
+    {
+        $js = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertStringContainsString('showPicker', $js,
+            'Sans appel explicite, un champ de date neutralise par le plugin forms reste muet au toucher.');
+        $this->assertStringContainsString('input[type="date"]', $js);
+
+        // Les trois champs que le defaut concernait. Les nommer ici fait
+        // rougir le test si l'un d'eux disparait ou change de type sans que
+        // la regle ci-dessus soit relue.
+        foreach (['loop-roadmap-card', 'loop-journal-card', 'loop-decisions-card'] as $carte) {
+            $this->assertStringContainsString(
+                'type="date"',
+                file_get_contents(resource_path("views/livewire/{$carte}.blade.php")),
+                "La carte {$carte} ne porte plus de champ de date : la regle deleguee doit etre relue."
+            );
+        }
+    }
+
+    /**
      * Portee etroite assumee : l'ouverture vise le Dossier RACINE, pas
      * l'arborescence. Un sous-dossier garde la regle proprietaire.
      */

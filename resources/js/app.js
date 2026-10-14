@@ -10,6 +10,44 @@ import Sortable from 'sortablejs';
 window.FilePond = FilePond;
 window.createBlogEditor = createEditor;
 
+/**
+ * TASK-1684 — ouvrir le selecteur natif des champs de date au toucher.
+ *
+ * Defaut rapporte en recette mobile : sur la Card Roadmap, toucher le champ
+ * ECHEANCE n'ouvrait RIEN. Le champ est pourtant un `input[type=date]`
+ * ordinaire, et la saisie de texte juste au-dessus fonctionne.
+ *
+ * Cause : `@tailwindcss/forms` applique `appearance: none` aux champs de date.
+ * Sur Chrome Android, un champ de date ainsi neutralise cesse d'ouvrir son
+ * selecteur au toucher — il se comporte comme un champ texte. En desktop, le
+ * clic continue de l'ouvrir : d'ou un defaut invisible hors mobile.
+ *
+ * Ecouteur DELEGUE plutot qu'un `x-on:click` par champ : deux des trois cartes
+ * concernees (Journal, Decisions) n'ont AUCUNE portee Alpine, un attribut
+ * Alpine n'y serait jamais initialise. Delegue, la regle couvre aussi les
+ * champs rendus plus tard par Livewire, et ceux qui n'existent pas encore.
+ *
+ * `showPicker()` exige une activation utilisateur : l'appeler depuis un
+ * gestionnaire de clic la fournit. Le `try` couvre les navigateurs qui le
+ * refusent quand le selecteur est deja ouvert — rien a rattraper, le
+ * comportement natif reste.
+ */
+document.addEventListener('click', (evenement) => {
+    const champ = evenement.target.closest?.(
+        'input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"], input[type="week"]'
+    );
+
+    if (! champ || champ.disabled || champ.readOnly || typeof champ.showPicker !== 'function') {
+        return;
+    }
+
+    try {
+        champ.showPicker();
+    } catch (erreur) {
+        /* Selecteur deja ouvert, ou refus du navigateur : le natif prend le relais. */
+    }
+});
+
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function focusableNodes(container) {
