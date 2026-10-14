@@ -1603,12 +1603,18 @@ class LoopChatTest extends TestCase
             // bouton envoyer) en plus de l'appel a `resize()` verifie ici.
             ->assertSeeHtml('x-on:input="resize(); hasText = $el.value.trim().length > 0"')
             ->assertSeeHtml('overflow-y-hidden')
-            // TASK-1684 : Entree envoie, Maj+Entree garde la ligne — contrat
-            // INCHANGE. L'envoi est seulement devenu conditionnel a l'absence
-            // de montee d'image en cours (course corrigee en T1684), d'ou la
-            // mesure en deux morceaux plutot qu'en une chaine figee.
-            ->assertSeeHtml('if (!$event.shiftKey) { $event.preventDefault();')
-            ->assertSeeHtml('$wire.sendMessage() }');
+            // TASK-1684 : Maj+Entree garde la ligne — contrat INCHANGE sur un
+            // clavier physique. Deux conditions s'y sont ajoutees, chacune pour
+            // un defaut mesure en recette : `enterEnvoie` (sur un clavier
+            // TACTILE il n'existe aucun Maj+Entree, donc Entree ne doit pas
+            // envoyer, sinon le retour a la ligne devient impossible) et
+            // `uploading` (un envoi lance pendant la montee d'une image la
+            // perdait). D'ou la mesure en morceaux plutot qu'en chaine figee.
+            ->assertSeeHtml('if (enterEnvoie && !$event.shiftKey) { $event.preventDefault();')
+            ->assertSeeHtml('$wire.sendMessage() }')
+            // Le discriminant est le POINTEUR, jamais la largeur : une fenetre
+            // etroite sur un portable garde son clavier et garde donc l'envoi.
+            ->assertSeeHtml('(hover: none) and (pointer: coarse)');
     }
 
     public function test_ai_message_without_requested_by_renders_without_subtitle(): void

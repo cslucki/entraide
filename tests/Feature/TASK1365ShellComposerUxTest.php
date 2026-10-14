@@ -294,7 +294,12 @@ class TASK1365ShellComposerUxTest extends TestCase
         // Ce qui doit rester identique est donc l'INVARIANT du contrat :
         // Entree envoie, Maj+Entree garde la ligne. C'est lui qu'on mesure des
         // deux cotes, et il n'a pas bouge.
-        $invariant = '@keydown.enter="if (!$event.shiftKey) { $event.preventDefault();';
+        // TASK-1684 (2e relecture) : la garde `enterEnvoie` rejoint l'invariant.
+        // Sur un clavier tactile il n'existe aucun Maj+Entree : intercepter
+        // Entree y supprimait le retour a la ligne. Contrairement a la garde
+        // d'upload, celle-ci vaut pour LES DEUX composeurs — elle est donc dans
+        // l'invariant, pas dans la divergence.
+        $invariant = '@keydown.enter="if (enterEnvoie && !$event.shiftKey) { $event.preventDefault();';
 
         $this->assertStringContainsString($invariant, $chatloop,
             'Le contrat de reference a change dans le ChatLoop : ce test doit etre relu, pas contourne.');

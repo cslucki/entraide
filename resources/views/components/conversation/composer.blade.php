@@ -99,7 +99,15 @@
          poser sur le `<form>` couvre les DEUX saisies de fichier (galerie et
          appareil photo) sans ecouteur par input. --}}
     <form wire:submit="sendMessage" class="flex items-end {{ isset($leading) ? 'gap-2 md:gap-3' : 'gap-3' }}"
-        x-data="{ hasText: false, uploading: false }"
+        {{-- TASK-1684 — `enterEnvoie` : Entree n'envoie que sur un clavier
+             PHYSIQUE. Sur un clavier tactile il n'existe aucun Maj+Entree, donc
+             intercepter Entree retirait purement et simplement le retour a la
+             ligne — rapporte en recette mobile. Le discriminant est le POINTEUR
+             (`hover: none` + `pointer: coarse`), pas la largeur : une fenetre
+             etroite sur un portable garde son clavier et doit garder l'envoi
+             par Entree. Evalue une fois au montage ; sur mobile l'envoi passe
+             par le bouton, qui est a cote du pouce. --}}
+        x-data="{ hasText: false, uploading: false, enterEnvoie: ! window.matchMedia('(hover: none) and (pointer: coarse)').matches }"
         x-on:livewire-upload-start="uploading = true"
         x-on:livewire-upload-finish="uploading = false"
         x-on:livewire-upload-error="uploading = false"
@@ -163,7 +171,7 @@
                 {{-- TASK-1684 — la touche Entree est un SECOND chemin d'envoi, qui
                      ne passe pas par le bouton : la garde `uploading` doit y etre
                      aussi, sinon la course reste ouverte au clavier. --}}
-                @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); if (!uploading) { $wire.sendMessage() } }"
+                @keydown.enter="if (enterEnvoie && !$event.shiftKey) { $event.preventDefault(); if (!uploading) { $wire.sendMessage() } }"
                 class="block max-h-44 min-h-11 w-full resize-none overflow-y-hidden rounded-2xl border border-gray-300 bg-white px-4 py-3 {{ isset($leading) ? 'pl-11 md:pl-4' : '' }} text-sm text-gray-900 placeholder-gray-400 shadow-sm transition [scrollbar-width:none] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 [&::-webkit-scrollbar]:hidden"
                 placeholder="{{ $placeholder }}"
                 @if($disabled || $loading) disabled @endif
