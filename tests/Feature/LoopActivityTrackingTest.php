@@ -221,13 +221,85 @@ class LoopActivityTrackingTest extends TestCase
     // Edge cases
     // -------------------------------------------------------------------------
 
-    public function test_loop_without_messages_shows_dash_instead_of_time(): void
+    /**
+     * TASK-1686 — ce test s'appelait
+     * `test_loop_without_messages_shows_dash_instead_of_time` et affirmait
+     * `assertSee('—')`. Il est devenu ROUGE, et le diagnostic a montre qu'il
+     * ne mesurait pas ce que son nom annoncait.
+     *
+     * ## Ce qui a ete mesure
+     *
+     * Le SEUL em-dash de la carte de catalogue
+     * (`loops/partials/catalog-card.blade.php:65`) vit dans l'`aria-label` du
+     * bouton « Modifier », rendu sous `@can('update', $item)`. Ce test agit en
+     * MEMBRE simple : le bouton n'est pas rendu, et **aucun em-dash n'existe
+     * sur la page**. L'assertion passait donc par COINCIDENCE, grace a un
+     * libelle d'accessibilite sans rapport avec l'activite d'une Boucle ; elle
+     * s'est eteinte le jour ou ce bouton a cesse d'etre rendu a ce profil.
+     *
+     * ## Le produit est CORRECT — rien n'a ete ajoute pour verdir ce test
+     *
+     * Le catalogue n'affiche NI horodatage NI tiret pour l'activite. Depuis le
+     * catalogue premium (T1075/T1076), le seul signal est une pastille
+     * « Actif recemment », conditionnee a `last_message_at` de moins de 7 jours
+     * (`catalog-card.blade.php:25,121`). `VisibleLoops::query()` calcule bien
+     * cette valeur (`withMax('messages as last_message_at', 'created_at')`).
+     *
+     * Mesure du contrat reel, Boucle sans message contre Boucle avec message :
+     * **0 pastille** puis **1 pastille**. C'est ce que ce test affirme
+     * desormais — l'ABSENCE de signal d'activite sur une Boucle muette, et sa
+     * PRESENCE des qu'un message existe. Sans la seconde moitie, un test qui
+     * n'affirme qu'une absence resterait vert si la pastille disparaissait du
+     * produit.
+     *
+     * ## Le piege de langue
+     *
+     * La suite tourne en locale `en` : la page rend « Recently active » quand
+     * `__()` appele depuis le test peut rendre « Actif recemment ». Le libelle
+     * attendu est donc resolu dans la locale que la REPONSE declare, jamais
+     * dans celle du contexte de test — sans quoi l'assertion passerait ou
+     * echouerait par coincidence de langue, exactement le defaut qu'on corrige.
+     */
+    public function test_loop_without_messages_shows_no_recent_activity_badge(): void
     {
-        $response = $this->actingAs($this->member)
-            ->get(route('loops.index'));
-
+        $response = $this->actingAs($this->member)->get(route('loops.index'));
         $response->assertStatus(200);
-        $response->assertSee('—');
+
+        $badge = $this->badgeLabelFor($response->getContent());
+
+        $this->assertStringNotContainsString(
+            $badge,
+            $response->getContent(),
+            'une Boucle sans message ne doit porter aucun signal d\'activite'
+        );
+
+        // La contre-epreuve : la pastille existe bel et bien des qu'un message
+        // est publie. Elle prouve que l'absence ci-dessus mesure le produit, et
+        // non un libelle introuvable.
+        $this->messageService->sendUserMessage($this->loop, $this->member, 'Un message');
+
+        $after = $this->actingAs($this->member)->get(route('loops.index'));
+        $after->assertStatus(200);
+
+        $this->assertSame(
+            1,
+            substr_count($after->getContent(), $badge),
+            'la Boucle qui vient de recevoir un message doit porter la pastille, et elle seule'
+        );
+    }
+
+    /**
+     * Le libelle de la pastille, resolu dans la locale que la REPONSE declare.
+     *
+     * La suite tourne en `en` et la page rend `lang="en"`, alors que `__()`
+     * appele depuis le contexte de test peut rendre le francais. Lire la locale
+     * sur la reponse elle-meme supprime cette dependance.
+     */
+    private function badgeLabelFor(string $html): string
+    {
+        preg_match('/<html[^>]*\blang="([a-z]{2})/i', $html, $m);
+
+        return __('loops.card_recently_active', [], $m[1] ?? app()->getLocale());
     }
 
     public function test_guest_cannot_access_index(): void
