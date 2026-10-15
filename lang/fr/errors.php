@@ -1,6 +1,14 @@
 <?php
 
 return [
+    // TASK-1685 — la page 403 du produit. Il n'en existait AUCUNE : Laravel
+    // rendait la page nue du framework (« Forbidden », sans un mot de
+    // francais, sans marque, sans sortie). Ces textes servent le cas GENERAL ;
+    // le refus d'appartenance (T1483) et le Dossier non partage (T1145) gardent
+    // leurs pages dediees.
+    '403_title' => 'Vous n\'avez pas accès à cette page',
+    '403_message' => 'Votre compte ne dispose pas des droits nécessaires pour cette page.',
+    '403_back' => 'Retour',
     '404_title' => 'Page introuvable',
     '404_message' => 'Hmm, cette boucle semble partie en vacances…',
     // TASK-1685 (Q3 + UX MASTER) — le refus inter-tenant DEMONTRE.

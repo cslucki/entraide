@@ -1,6 +1,12 @@
 <?php
 
 return [
+    // TASK-1685 — the product's 403 page. There was none: Laravel rendered the
+    // framework's bare « Forbidden ». These texts serve the GENERAL case; the
+    // membership refusal (T1483) and the unshared Dossier (T1145) keep theirs.
+    '403_title' => 'You do not have access to this page',
+    '403_message' => 'Your account does not have the rights needed for this page.',
+    '403_back' => 'Back',
     '404_title' => 'Page not found',
     '404_message' => 'Hmm, this loop seems to be on vacation…',
     // TASK-1685 (Q3 + MASTER UX) — the DEMONSTRATED cross-tenant refusal.

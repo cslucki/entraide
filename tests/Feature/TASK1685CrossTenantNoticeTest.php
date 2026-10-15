@@ -351,4 +351,71 @@ class TASK1685CrossTenantNoticeTest extends TestCase
             $this->assertStringNotContainsString($this->other->slug, $text);
         }
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // La page 403 du produit (elle n'existait pas)
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Relevé en recette : `/org/ofsh/dossiers`, `/org/ofsh/blog/rediger/nouveau`
+     * et `/org/ofsh/flux/creer` rendaient la page NUE du framework — titre
+     * « Forbidden », pas un mot de francais, aucune sortie. Ces trois-la
+     * refusent par une POLICY (`authorize()`), la ou l'agenda refuse par un
+     * controleur : le statut differe, le vecu ne doit pas.
+     */
+    public function test_a_policy_refusal_on_a_foreign_space_shows_the_same_panel(): void
+    {
+        $response = $this->actingAs($this->member)
+            ->get("/org/{$this->other->slug}/dossiers");
+
+        $response->assertStatus(403);
+        $response->assertSee('data-error-page="cross-tenant"', false);
+        $response->assertSee(e(__('errors.404_cross_tenant_title')), false);
+        $response->assertSee('data-error-icon="lock"', false);
+
+        // La page nue du framework a disparu.
+        $response->assertDontSee('Forbidden', false);
+    }
+
+    /** Et elle ne porte rien du tenant refuse. */
+    public function test_the_403_page_carries_nothing_of_the_targeted_tenant(): void
+    {
+        $this->other->update(['header_javascript' => '<script>window.__LEAK403__=1;</script>']);
+
+        $response = $this->actingAs($this->member)
+            ->get("/org/{$this->other->slug}/dossiers");
+
+        $response->assertDontSee('__LEAK403__', false);
+        $response->assertDontSee($this->other->name, false);
+        $response->assertSee('noindex, nofollow', false);
+    }
+
+    /**
+     * Un 403 DANS son propre espace n'est pas un refus de tenant : il garde le
+     * visage sobre, pas le panneau « espace etranger ».
+     */
+    public function test_a_403_in_the_members_own_space_uses_the_plain_forbidden_page(): void
+    {
+        $response = $this->actingAs($this->member)
+            ->get("/org/{$this->mine->slug}/dossiers");
+
+        if ($response->status() !== 403) {
+            $this->markTestSkipped('Ce membre a le droit `viewAny` dans son espace : rien a mesurer ici.');
+        }
+
+        $response->assertSee('data-error-page="forbidden"', false);
+        $response->assertDontSee(e(__('errors.404_cross_tenant_title')), false);
+    }
+
+    /** La decision est partagee : un seul predicat pour le 404 et le 403. */
+    public function test_both_error_pages_read_the_same_authority(): void
+    {
+        foreach (['404', '403'] as $page) {
+            $this->assertStringContainsString(
+                'CrossTenantRefusal::detect()',
+                file_get_contents(resource_path("views/errors/{$page}.blade.php")),
+                "errors/{$page} doit consulter l'autorite partagee."
+            );
+        }
+    }
 }
