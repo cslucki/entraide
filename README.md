@@ -139,16 +139,6 @@ php artisan db:seed --class=UserSeeder --env=prodwork
 
 **9. Tester les connexions et l'isolation tenant** : un membre d'une Organization ne doit atteindre aucune surface d'une autre.
 
-### Restaurer un snapshot existant
-
-Si l'objectif est seulement de revenir à un snapshot PROD déjà capturé,
-NE PAS refaire de dump PROD.
-
-Réutiliser la baseline scellée correspondante.
-
-Ne refaire un `pg_dump` PROD que si l'on souhaite créer un nouveau jumeau
-représentant l'état actuel de la production.
-
 ### Garde-fous
 
 - Ne jamais lancer `reset-prod-work.sh` **sans `BASE=`** : son défaut historique pointe encore vers une baseline ancienne, et le jumeau obtenu passerait pour un jumeau courant.
