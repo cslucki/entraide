@@ -844,6 +844,17 @@ return [
     'shell_clear_no' => 'Annuler',
     'shell_no_publication_note' => 'BouclePro IA ne publie rien : vous validez avant toute publication.',
     'shell_turn_in_progress' => 'Une réponse est déjà en cours. Laissez-la se terminer.',
+    // TASK-1685 — le refus de configuration, dit a un MEMBRE.
+    //
+    // `AiShell::send()` posait `$exception->getMessage()` tel quel dans le
+    // bandeau. Mesure : un membre pouvait lire « AI is not configured for
+    // Organization [01a13f74-…] : no enabled provider/model » — de l'anglais
+    // technique, et l'UUID de son Organization. Les DomainException du
+    // resolveur sont des diagnostics d'exploitation, jamais des phrases de
+    // produit : elles sont desormais remplacees par celle-ci. Les
+    // RuntimeException, elles, portent deja un message traduit destine au
+    // membre (`shell_turn_in_progress`) et passent INCHANGEES.
+    'shell_unavailable_notice' => 'BouclePro IA n\'est pas disponible pour le moment. Si cela persiste, prévenez un administrateur de votre organisation.',
     // TASK-1350 : « Organization » etait visible en francais. Le comportement
     // ne change pas — cette phrase reste l'indisponibilite EXPLICITE du cas ou
     // aucun prompt actif n'existe — seul le vocabulaire est corrige.

@@ -674,7 +674,20 @@
         // chaque message — les deux moteurs du composeur unifie restent
         // masques pour ne jamais laisser croire a un choix sans effet
         // (sendMessage() les neutralise deja cote serveur, section 42).
-        $aiEnginesAvailable = ! $viewLoop->isAiAgent();
+        // TASK-1685 : et l'IA doit etre disponible pour l'Organization. Meme
+        // raison, au mot pres, que celle ecrite juste au-dessus pour les
+        // Boucles agent — « ne jamais laisser croire a un choix sans effet ».
+        // Sur une Organization dont les fonctions IA sont desactivees, ces deux
+        // moteurs s'affichaient et `ProviderResolver` refusait au premier clic.
+        // Le predicat vient du composant, qui delegue a l'autorite unique ; ce
+        // gabarit n'en ecrit aucun.
+        //
+        // Portee EXACTE : les deux moteurs du composeur (« Demander a l'IA » et
+        // le moteur « Dossiers », qui produit une reponse IA ancree dans les
+        // Dossiers) et l'indicateur hybride. L'ECRAN Dossiers, le depot de
+        // fichiers et la publication d'un message restent INCHANGES — ils
+        // n'appellent aucun provider.
+        $aiEnginesAvailable = ! $viewLoop->isAiAgent() && $this->organizationAiAvailable();
         // TASK-1309 : les deux actions existantes sont desormais deux
         // INTERRUPTEURS qui se combinent — les quatre etats (aucun / IA /
         // Dossiers / IA + Dossiers) s'atteignent sans troisieme bouton.
