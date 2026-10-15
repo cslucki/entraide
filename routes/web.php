@@ -1302,34 +1302,13 @@ Route::prefix('/org/{organization}')
 
             Route::middleware('loops.enabled')->group(function () {
                 // `no_store` : voir la route courte `loops.index` (TASK-1277).
-                // TASK-1685 (MICRO-02) — `organization.member:explain` sur le
-                // catalogue et sur l'agenda.
-                //
-                // Constat de recette : un membre de `main` authentifie sur
-                // `/org/ofsh/agenda` recevait le 404 GENERIQUE de la plateforme,
-                // dont le message — « Hmm, cette boucle semble partie en
-                // vacances… » — parle d'une Boucle. Ni Boucle, ni page cassee :
-                // un refus de tenant. Le refus venait du controleur
-                // (`assertUserCanInspectOrganization()` / `abort_unless`, T1658).
-                //
-                // La garde d'appartenance ne change pas d'un mot — les
-                // controleurs conservent la leur, et `canAccessOrganization()`
-                // n'est pas touchee. Seule la MANIERE de refuser change, par le
-                // mecanisme canonique que TASK-1483 a deja construit pour le
-                // tableau de bord : la page explique, ne porte aucun habit du
-                // tenant refuse, ne NOMME une Organization que si elle est
-                // publique, et offre un retour vers l'espace du visiteur.
-                //
-                // Le SuperAdmin passe (meme exemption `is_admin` que la garde du
-                // controleur), et les 404 DELIBEREES de TASK-1479 sur l'annuaire
-                // restent intactes : on n'etend ce mode a aucune autre route.
-                Route::get('/loops', [LoopController::class, 'index'])->middleware(['cache.headers:no_store', 'organization.member:explain'])->name('loops.index');
+                Route::get('/loops', [LoopController::class, 'index'])->middleware('cache.headers:no_store')->name('loops.index');
                 Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
                 // L'agenda de l'Organization. Voir la note sur la route courte :
                 // depuis TASK-1656 il porte le geste de REPONSE a une invitation.
-                Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->middleware('organization.member:explain')->name('events.agenda');
+                Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
                 Route::post('/agenda/{event}/repondre', [LoopEventAgendaController::class, 'respond'])
                     ->whereUuid('event')
                     ->name('events.agenda.respond');
