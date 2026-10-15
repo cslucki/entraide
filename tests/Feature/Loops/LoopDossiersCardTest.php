@@ -296,15 +296,25 @@ class LoopDossiersCardTest extends TestCase
             ->assertSee(__('loops.cards.dossiers.upload_file'));
     }
 
-    public function test_a_plain_member_is_offered_neither(): void
+    /**
+     * TASK-1684 — REGLE PARTIELLEMENT INVERSEE sur arbitrage MASTER.
+     *
+     * « Ni l'un ni l'autre » n'est plus vrai : le role `member` recoit
+     * desormais `dossiers.upload_file` par defaut, et `DossierPolicy::uploadFiles`
+     * lit cette capacite. Deposer un document est devenu la participation
+     * ordinaire d'une Boucle vivante.
+     *
+     * L'ECRITURE D'ARTICLE, elle, n'a pas bouge : elle passe toujours par
+     * `update()`, donc par `LoopPolicy::update`. Le test garde donc sa moitie
+     * fermee — c'est elle qui empeche que l'ouverture du depot soit confondue
+     * avec une ouverture generale de l'ecriture.
+     */
+    public function test_a_plain_member_is_offered_the_upload_but_not_the_article(): void
     {
-        // DossierPolicy delegue a LoopPolicy::update pour un Dossier de Boucle :
-        // un membre simple lit, il n'ecrit pas. La Card ne propose donc pas un
-        // geste que le serveur refuserait.
         Livewire::actingAs($this->member)
             ->test(LoopDossiersCard::class, ['loop' => $this->loop])
-            ->assertDontSee(__('loops.cards.dossiers.create_article'))
-            ->assertDontSee(__('loops.cards.dossiers.upload_file'));
+            ->assertSee(__('loops.cards.dossiers.upload_file'))
+            ->assertDontSee(__('loops.cards.dossiers.create_article'));
     }
 
     // ── Card eteinte ────────────────────────────────────────────────────────

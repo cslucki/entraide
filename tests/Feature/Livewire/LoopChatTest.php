@@ -3,6 +3,7 @@
 namespace Tests\Feature\Livewire;
 
 use App\Livewire\LoopChat;
+use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
@@ -1154,6 +1155,213 @@ class LoopChatTest extends TestCase
             ->assertSee('/loops/'.$this->loop->id.'/ask-ai');
     }
 
+    /**
+     * TASK-1684 MICRO-01 — ce qui empeche le composeur de bouger.
+     *
+     * Trois regles, et chacune repond a une cause distincte : `svh` contre la
+     * barre d'URL qui se retracte au defilement (c'est elle qui deplacait le
+     * composeur), le document fige pour qu'aucun geste ne la retracte, et
+     * `--bp-vvh` pour le clavier virtuel, qu'aucune unite CSS ne connait.
+     * Un test de rendu ne prouve pas le comportement sur l'appareil — il
+     * prouve que les trois regles sont encore la, ce qu'une refonte de la
+     * feuille de style casserait en silence.
+     */
+    public function test_le_cadre_mobile_fige_la_hauteur_et_le_defilement_du_document(): void
+    {
+        $html = $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('100svh', $html,
+            'La hauteur mobile doit etre STABLE (svh), pas dynamique (dvh seul).');
+        $this->assertStringContainsString('html:has(.loops-show-container)', $html,
+            'Le document lui-meme doit etre fige sur cette page.');
+        $this->assertStringContainsString('overscroll-behavior: none', $html);
+        $this->assertStringContainsString('--bp-vvh', $html,
+            'Le clavier virtuel se mesure par visualViewport, aucune unite CSS ne le connait.');
+
+        // UN seul abonnement : la consigne etait de ne pas multiplier les
+        // ecouteurs, et un second passerait inapercu sans cette mesure.
+        $this->assertSame(1, substr_count($html, "addEventListener('resize', apply)"));
+    }
+
+    /**
+     * TASK-1684 — la course entre l'upload d'une image et l'envoi du message.
+     *
+     * Defaut REPRODUIT en recette : une image choisie monte dans une requete
+     * separee ; tant qu'elle n'est pas arrivee, le serveur ne la connait pas.
+     * Un appui sur « envoyer » pendant cette fenetre partait avec `body` vide
+     * ET `photo` null — le serveur repondait « Ajoutez un message ou une
+     * image. » alors que l'image ETAIT choisie, et sa reponse ECRASAIT
+     * l'upload qui venait d'aboutir : l'image etait avalee en silence et
+     * l'appui suivant n'envoyait rien.
+     *
+     * La garde est CLIENT (aucune requete ne doit partir) : elle ne peut donc
+     * se mesurer qu'au balisage rendu. Ce test prouve que les gardes sont
+     * POSEES, pas qu'elles s'executent — la preuve d'execution a ete faite en
+     * navigateur sur les deux chemins (bouton desactive + sablier pendant la
+     * montee, image conservee, envoi reussi ensuite).
+     */
+    public function test_le_composeur_interdit_l_envoi_pendant_la_montee_d_une_image(): void
+    {
+        $html = $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('uploading: false', $html,
+            'Le formulaire doit porter l\'etat de montee.');
+
+        // Les quatre issues de la montee : sans la sortie d'echec ou
+        // d'annulation, le composeur resterait verrouille pour toujours.
+        foreach (['start', 'finish', 'error', 'cancel'] as $issue) {
+            $this->assertStringContainsString('livewire-upload-'.$issue, $html,
+                "L'issue « {$issue} » de la montee doit etre ecoutee.");
+        }
+
+        $this->assertStringContainsString('x-bind:disabled="uploading"', $html,
+            'Le bouton envoyer doit etre inerte pendant la montee.');
+        $this->assertStringContainsString('wire:loading.attr="disabled"', $html,
+            'Le double-appui pendant un envoi en vol produit le MEME message faux.');
+
+        // La touche Entree est un SECOND chemin d'envoi, qui ne passe pas par
+        // le bouton : sans cette garde la course reste ouverte au clavier.
+        $this->assertStringContainsString('if (!uploading) { $wire.sendMessage() }', $html,
+            'Le chemin clavier doit porter la meme garde que le bouton.');
+    }
+
+    /**
+     * TASK-1684 — « Qui peut m'aider ? » ne doit exister qu'UNE fois.
+     *
+     * La tuile de la feuille mobile doublait la pastille posee au-dessus du
+     * composeur. Elle se justifiait quand cette rangee etait `hidden md:flex` ;
+     * T1621 l'a rendue visible sur mobile et le doublon est reste.
+     *
+     * Le test mesure le COMPTE des EMETTEURS du geste, pas la presence du
+     * libelle : une assertion de presence resterait verte avec les deux
+     * poignees, et le libelle lui-meme apparait une seconde fois en toute
+     * legitimite — c'est le titre de la modale (`loops/show.blade.php`).
+     * Compter le libelle aurait donc mesure la modale, pas les poignees.
+     */
+    public function test_le_raccourci_qui_peut_m_aider_n_est_plus_double_dans_la_feuille_mobile(): void
+    {
+        $html = $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertSame(1, substr_count($html, "new CustomEvent('bp-open-help-request')"),
+            'Un seul emetteur du geste : la tuile de la feuille mobile est retiree.');
+
+        // La capacite SURVIT : la poignee restante et la modale qu'elle ouvre.
+        // Sans ces deux mesures, supprimer les DEUX poignees passerait au vert.
+        $this->assertStringContainsString('bp-open-help-request', $html);
+        $this->assertStringContainsString(__('loops.who_can_help'), $html);
+    }
+
+    /**
+     * TASK-1684 — « Ajouter un fichier » pointe le Dossier RACINE de la Boucle.
+     *
+     * Le fichier va dans la Boucle, pas dans le message : le composeur ne sait
+     * stocker qu'une `photo` validee `image` et rendue en `<img>`. La tuile est
+     * donc une poignee vers une capacite existante, jamais un pipeline nouveau.
+     *
+     * Les trois etats sont mesures : sans Dossier racine la tuile n'existe pas
+     * (sinon lien mort), avec Dossier elle porte l'URL exacte, et le libelle ne
+     * doit jamais apparaitre sans lien.
+     */
+    public function test_la_feuille_mobile_pointe_le_dossier_racine_de_la_boucle(): void
+    {
+        // La Boucle porte DEJA son Dossier racine : `createLoop()` le pose, et
+        // `dossiers.loop_id` est UNIQUE (il n'y en a jamais deux). Le mesurer
+        // ici evite de croire que la tuile depend d'une creation a part.
+        $dossier = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+
+        $endpoint = Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->instance()
+            ->loopDossierUploadEndpoint();
+
+        // TASK-1684 recette 2 : le geste DEPOSE, il ne navigue plus. La cible
+        // est l'endpoint de depot existant du Dossier racine — la page du
+        // Dossier n'offrait justement aucun depot a qui ne l'administre pas.
+        $this->assertSame(
+            route('organization.dossiers.files.store', [
+                'organization' => $this->organization->slug,
+                'dossier' => $dossier->getKey(),
+            ]),
+            $endpoint
+        );
+
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->assertSee(__('loops.composer_add_file'))
+            // Le membre ne doit pas QUITTER sa Boucle : l'endpoint est porte par
+            // le composant de DEPOT, pas par un lien. Mesurer la chaine entiere
+            // plutot que l'URL seule — celle-ci figure legitimement ailleurs
+            // dans la page (la Card Dossiers y mene, c'est son role).
+            ->assertSee("bpDepotFichierBoucle('".$endpoint."')", false);
+
+        // TASK-1684, demande MASTER : la Card Dossiers doit etre AFFECTEE a la
+        // Boucle. Eteinte, la tuile disparait — sans fermer quoi que ce soit
+        // cote serveur : la policy ne consulte deliberement aucune Card.
+        app(LoopCardCompositionService::class)->disable($this->loop, 'core.dossiers');
+        $this->loop->refresh()->unsetRelation('cards');
+
+        $this->assertNull(
+            Livewire::actingAs($this->member)
+                ->test(LoopChat::class, ['loop' => $this->loop])
+                ->instance()
+                ->loopDossierUrl(),
+            'Card Dossiers eteinte : aucune porte vers une piece fermee.'
+        );
+
+        app(LoopCardCompositionService::class)->enable($this->loop, 'core.dossiers');
+        $this->loop->refresh()->unsetRelation('cards');
+
+        // Dossier racine retire : plus de destination, donc plus de tuile.
+        // Sans cette moitie, la garde du `@if` ne serait jamais exercee.
+        $dossier->forceDelete();
+
+        $this->assertNull(
+            Livewire::actingAs($this->member)
+                ->test(LoopChat::class, ['loop' => $this->loop])
+                ->instance()
+                ->loopDossierUrl(),
+            'Sans Dossier racine, aucune destination — jamais de lien mort.'
+        );
+
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->assertDontSee(__('loops.composer_add_file'));
+    }
+
+    /**
+     * TASK-1684 — l'autorisation mesuree est bien celle du DEPOT.
+     *
+     * `StoreDossierFileRequest` exige `manageFiles`. Un membre qui ne l'a pas
+     * ne doit voir aucune tuile : la lui montrer l'enverrait vers une page ou
+     * le depot sera refuse.
+     */
+    public function test_la_tuile_fichier_disparait_sans_le_droit_de_deposer(): void
+    {
+        // Le Dossier racine existe (pose par `createLoop()`) : la tuile ne peut
+        // donc disparaitre que par le DROIT, ce que ce test isole.
+        Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+
+        // `nonMember` appartient a l'Organization mais pas a la Boucle : il
+        // echoue des `canContribute()`, en amont meme de la policy.
+        $this->assertNull(
+            Livewire::actingAs($this->nonMember)
+                ->test(LoopChat::class, ['loop' => $this->loop])
+                ->instance()
+                ->loopDossierUrl()
+        );
+    }
+
     // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
@@ -1395,7 +1603,18 @@ class LoopChatTest extends TestCase
             // bouton envoyer) en plus de l'appel a `resize()` verifie ici.
             ->assertSeeHtml('x-on:input="resize(); hasText = $el.value.trim().length > 0"')
             ->assertSeeHtml('overflow-y-hidden')
-            ->assertSeeHtml('if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }');
+            // TASK-1684 : Maj+Entree garde la ligne — contrat INCHANGE sur un
+            // clavier physique. Deux conditions s'y sont ajoutees, chacune pour
+            // un defaut mesure en recette : `enterEnvoie` (sur un clavier
+            // TACTILE il n'existe aucun Maj+Entree, donc Entree ne doit pas
+            // envoyer, sinon le retour a la ligne devient impossible) et
+            // `uploading` (un envoi lance pendant la montee d'une image la
+            // perdait). D'ou la mesure en morceaux plutot qu'en chaine figee.
+            ->assertSeeHtml('if (enterEnvoie && !$event.shiftKey) { $event.preventDefault();')
+            ->assertSeeHtml('$wire.sendMessage() }')
+            // Le discriminant est le POINTEUR, jamais la largeur : une fenetre
+            // etroite sur un portable garde son clavier et garde donc l'envoi.
+            ->assertSeeHtml('(hover: none) and (pointer: coarse)');
     }
 
     public function test_ai_message_without_requested_by_renders_without_subtitle(): void

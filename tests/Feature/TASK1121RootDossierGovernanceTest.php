@@ -221,16 +221,34 @@ class TASK1121RootDossierGovernanceTest extends TestCase
         $this->assertSame(1, $this->racine->files()->count());
     }
 
-    public function test_a_simple_member_cannot_upload(): void
+    /**
+     * TASK-1684 — REGLE INVERSEE sur arbitrage MASTER.
+     *
+     * Ce test affirmait « un simple membre ne depose pas » : c'etait la
+     * consequence de `manageFiles -> update -> Boucle`, pas une decision prise
+     * pour le depot lui-meme. Le MASTER a tranche l'inverse — tout membre actif
+     * depose dans la Boucle — et le depot a recu sa propre porte,
+     * `DossierPolicy::uploadFiles`, lue par le SEUL `StoreDossierFileRequest`.
+     *
+     * L'ancienne assertion n'est pas supprimee, elle est DEPLACEE d'un cran :
+     * ce qui reste ferme au membre simple, c'est l'ADMINISTRATION des fichiers
+     * (renommer, deplacer, editer le markdown), mesuree juste en dessous.
+     */
+    public function test_a_simple_member_can_upload_but_not_administer(): void
     {
         Storage::fake('dossier_files');
 
-        // Les droits actuels de la Boucle : update() refuse un simple membre,
-        // le Dossier racine suit.
         $this->actingAs($this->membre)->post(route('organization.dossiers.files.store', [
             'organization' => $this->orgA->slug, 'dossier' => $this->racine->id,
         ]), ['files' => [UploadedFile::fake()->create('document.pdf', 100, 'application/pdf')]])
-            ->assertForbidden();
+            ->assertSuccessful();
+
+        $this->assertSame(1, $this->racine->files()->count());
+
+        // La contre-mesure : sans elle, elargir `manageFiles` aurait fait
+        // passer le test ci-dessus en donnant AUSSI tout le reste.
+        $this->assertFalse($this->membre->can('manageFiles', $this->racine));
+        $this->assertTrue($this->membre->can('uploadFiles', $this->racine));
     }
 
     public function test_an_archived_loop_makes_the_root_dossier_read_only(): void

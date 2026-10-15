@@ -21,6 +21,13 @@
 <div x-data="{
         open: false,
         desktop() { return window.matchMedia('(min-width: 768px)').matches; },
+        // TASK-1684 : voir le composeur partage. Entree n'envoie que sur un
+        // clavier PHYSIQUE — sur un clavier tactile il n'existe aucun
+        // Maj+Entree, et l'intercepter supprimait le retour a la ligne.
+        // Le discriminant est le POINTEUR, pas la largeur : `desktop()`
+        // ci-dessus mesure une LARGEUR, et une fenetre etroite sur un portable
+        // garde son clavier. Les deux ne se confondent pas.
+        enterEnvoie: ! window.matchMedia('(hover: none) and (pointer: coarse)').matches,
         init() {
             try { this.open = this.desktop() && window.localStorage.getItem('bp-ai-shell-open') === '1'; } catch (e) { this.open = false; }
             this.$watch('open', (value) => {
@@ -701,12 +708,14 @@
                               placeholder="{{ __('ai.shell_placeholder') }}"
                               {{-- TASK-1365 : le contrat clavier du ChatLoop, repris MOT POUR MOT
                                    depuis components/conversation/composer.blade.php. Entree envoie,
-                                   Shift+Entree passe a la ligne. Aucune garde desktop : le ChatLoop
-                                   n'en a pas, et en inventer une ici creerait une TROISIEME regle
-                                   alors que cette TASK existe pour en supprimer une.
+                                   Shift+Entree passe a la ligne.
+                                   TASK-1684 : la garde `enterEnvoie` est arrivee dans le ChatLoop et
+                                   est reprise ici — ce n'est PAS une troisieme regle, c'est la meme,
+                                   des deux cotes. Sans elle, le clavier tactile n'a aucun moyen
+                                   d'aller a la ligne, faute de Maj+Entree.
                                    La composition IME n'est geree NULLE PART dans le produit — dette
                                    consignee (COMPOSER_IME_HANDLING_MISSING), pas inventee ici. --}}
-                              @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.send() }"
+                              @keydown.enter="if (enterEnvoie && !$event.shiftKey) { $event.preventDefault(); $wire.send() }"
                               class="min-h-[2.75rem] flex-1 resize-none rounded-xl border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"></textarea>
                     {{-- TASK-1365 : couleur d'action principale prise au THEME (--bp-primary,
                          emise par layouts/app.blade.php en clair et en sombre), plus jamais un

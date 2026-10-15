@@ -10,6 +10,7 @@ use App\Models\Loop;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 /**
@@ -42,6 +43,22 @@ class LoopDossiersCard extends Component
     {
         $this->loop = $loop;
     }
+
+    /**
+     * TASK-1684 — se remettre a jour apres un depot fait depuis la ChatLoop.
+     *
+     * Le depot du menu « + » du composeur passe par l'endpoint Dossiers en
+     * `fetch` direct, hors du cycle Livewire : cette Card, deja montee, n'en
+     * savait rien et continuait d'afficher son dernier rendu. Le membre devait
+     * aller sur l'ecran du Dossier puis revenir pour voir son fichier —
+     * exactement ce qui a ete rapporte en recette.
+     *
+     * Le corps est VIDE a dessein : `render()` recalcule compte et recents a
+     * chaque passage. Ce qui manquait n'etait pas un rechargement de donnees,
+     * c'etait une raison de re-rendre. Rien n'est duplique ici.
+     */
+    #[On('bp-dossier-fichier-depose')]
+    public function rafraichirApresDepot(): void {}
 
     /** Le Dossier racine de cette Boucle, ou null si elle n'en a pas encore. */
     public function dossier(): ?Dossier
@@ -156,9 +173,15 @@ class LoopDossiersCard extends Component
             && $resolver->can($user, $this->loop, 'dossiers.create_article')
             && $user->can('update', $dossier);
 
+        // TASK-1684 : `uploadFiles`, pas `manageFiles`. Le MASTER a ouvert le
+        // DEPOT a tout membre actif ; `manageFiles` gouverne l'ADMINISTRATION
+        // des fichiers (renommer, deplacer, markdown) et serait ici une porte
+        // plus etroite que celle du serveur — la Card cacherait un geste que
+        // `StoreDossierFileRequest` accepte. Meme correction que la tuile du
+        // menu « + » du composeur.
         $canUploadFile = ! $readOnly
             && $resolver->can($user, $this->loop, 'dossiers.upload_file')
-            && $user->can('manageFiles', $dossier);
+            && $user->can('uploadFiles', $dossier);
 
         $articles = $this->recentArticles($dossier);
 

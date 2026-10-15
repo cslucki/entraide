@@ -989,13 +989,42 @@
                                         <span class="text-[11px] font-medium leading-tight {{ $composerMode === 'ia_dossiers' ? 'text-indigo-800 dark:text-indigo-100' : 'text-gray-700 dark:text-gray-200' }}">{{ __('loops.hybrid_button') }}</span>
                                     </button>
                                     @endif
-                                    <button type="button" x-on:click="window.dispatchEvent(new CustomEvent('bp-open-help-request')); sheetOpen = false"
-                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
-                                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
-                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                                        </span>
-                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.who_can_help') }}</span>
-                                    </button>
+                                    {{-- TASK-1684 — « Qui peut m'aider ? » RETIRE de cette feuille.
+                                         Il y etait en DOUBLE : la rangee de pastilles au-dessus du
+                                         composeur porte le meme geste (meme evenement
+                                         `bp-open-help-request`), et T1621 l'a rendue visible sur
+                                         mobile — elle etait `hidden md:flex` a l'epoque ou cette
+                                         tuile a ete posee, ce qui la justifiait alors. La capacite
+                                         n'est donc pas perdue, seule la seconde poignee disparait. --}}
+
+                                    {{-- TASK-1684 — « Ajouter un fichier » : le fichier va DANS LA
+                                         BOUCLE, pas dans le message. Un <a>, pas un <button> : c'est
+                                         une navigation vers le Dossier racine de la Boucle, dont la
+                                         page porte deja l'upload. `loopDossierUrl()` rend null — donc
+                                         rien ici — si la Boucle n'a pas de Dossier ou si le membre
+                                         n'a pas le droit d'y deposer : jamais de lien mort. --}}
+                                    @if($this->loopDossierUploadEndpoint())
+                                    {{-- `contents` : le conteneur Alpine ne doit pas devenir une
+                                         case de la grille a 3 colonnes, sinon la tuile se decale. --}}
+                                    <div class="contents" x-data="bpDepotFichierBoucle('{{ $this->loopDossierUploadEndpoint() }}')">
+                                        <button type="button" x-on:click="$refs.fichierBoucle.click()" x-bind:disabled="envoi"
+                                            class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 disabled:opacity-50 dark:hover:bg-gray-700">
+                                            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                                <svg x-show="!envoi" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                                                <svg x-show="envoi" style="display: none" class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                                </svg>
+                                            </span>
+                                            <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.composer_add_file') }}</span>
+                                        </button>
+                                        {{-- Aucun `accept` : c'est le serveur qui decide des types
+                                             recevables (`StoreDossierFileRequest`), une liste en dur
+                                             ici se perimerait sans que personne ne le voie. --}}
+                                        <input type="file" x-ref="fichierBoucle" multiple class="hidden"
+                                            x-on:change="deposer($event); sheetOpen = false">
+                                    </div>
+                                    @endif
                                     <button type="button" x-on:click="$refs.uploadInput?.click(); sheetOpen = false"
                                         class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
                                         <span class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">
@@ -1317,4 +1346,76 @@
             </p>
         </div>
     @endif
+
+    {{-- TASK-1684 recette 2 — le depot de fichier dans la Boucle, sur place.
+
+         Fonction GLOBALE plutot que `Alpine.data()` : Alpine evalue `x-data`
+         dans la portee globale, et une registration posee apres son demarrage
+         arriverait trop tard pour ce composant rendu par Livewire.
+
+         Le contrat multipart est celui de l'ecran Dossiers (`files[]`, en-tetes
+         Accept/CSRF/XHR) : meme endpoint, meme validation serveur. --}}
+    @once
+        <script>
+            window.bpDepotFichierBoucle = function (endpoint) {
+                return {
+                    endpoint: endpoint,
+                    envoi: false,
+                    async deposer(e) {
+                        const fichiers = Array.from(e.target.files || []);
+                        // Le champ est remis a zero dans tous les cas : sans cela,
+                        // redeposer le MEME fichier n'emet aucun `change`.
+                        e.target.value = '';
+                        if (!fichiers.length) { return; }
+
+                        this.envoi = true;
+                        const corps = new FormData();
+                        fichiers.forEach((f) => corps.append('files[]', f, f.name));
+
+                        let ok = false;
+                        try {
+                            const r = await fetch(this.endpoint, {
+                                method: 'POST',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                                body: corps,
+                            });
+                            ok = r.ok;
+                        } catch (err) {
+                            ok = false;
+                        }
+
+                        this.envoi = false;
+                        window.dispatchEvent(new CustomEvent('bp-depot-fichier', {
+                            detail: { ok: ok, nombre: fichiers.length },
+                        }));
+
+                        // La Card Dossiers est deja montee et ne voit PAS ce
+                        // depot : il part en `fetch` direct, hors du cycle
+                        // Livewire. Sans cet avertissement, le membre devait
+                        // quitter la Boucle et y revenir pour voir son fichier.
+                        if (ok && window.Livewire) {
+                            window.Livewire.dispatch('bp-dossier-fichier-depose');
+                        }
+                    },
+                };
+            };
+        </script>
+    @endonce
+
+    {{-- Retour visible du depot : sans lui, le geste reussit en silence et le
+         membre ne sait pas si son fichier est parti. --}}
+    <div x-data="{ vu: false, ok: false, nombre: 0 }"
+        x-on:bp-depot-fichier.window="ok = $event.detail.ok; nombre = $event.detail.nombre; vu = true; setTimeout(() => vu = false, 4000)"
+        x-show="vu" x-cloak style="display: none"
+        class="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
+        <p class="rounded-full px-4 py-2 text-xs font-medium shadow-lg"
+            x-bind:class="ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'"
+            x-text="ok
+                ? @js(__('loops.composer_file_uploaded'))
+                : @js(__('loops.composer_file_failed'))"></p>
+    </div>
 </div>

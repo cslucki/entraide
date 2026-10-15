@@ -33,7 +33,8 @@ class StoreDossierFileRequest extends FormRequest
             abort(404);
         }
 
-        return $user->can('manageFiles', $dossier);
+        // TASK-1684 : DEPOSER, pas administrer. Voir DossierPolicy::uploadFiles().
+        return $user->can('uploadFiles', $dossier);
     }
 
     public function rules(): array
@@ -52,7 +53,18 @@ class StoreDossierFileRequest extends FormRequest
                 // `application/x-ole-storage` ou en `application/CDFV2` : les
                 // trois designent le meme classeur, les deux derniers manquaient
                 // et faisaient echouer ce seul fichier au milieu d'un import.
-                'mimetypes:image/jpeg,image/png,image/webp,image/gif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/vnd.ms-excel,application/x-ole-storage,application/CDFV2,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,application/x-zip-compressed',
+                // TASK-1684 : l'audio et la VIDEO manquaient, alors que l'ecran
+                // Dossiers propose deja « Filmer une video » et « Prendre une
+                // photo » (`handleMediaFiles`, `accept="video/*"`). L'interface
+                // offrait donc un geste que le serveur refusait — rapporte en
+                // recette sur une video de moins de 10 Mo.
+                //
+                // Les doublons ne sont pas du bruit : `mimetypes:` compare le
+                // type devine par finfo SUR LE CONTENU, et un meme media sort
+                // sous plusieurs noms selon la version de libmagic — un .wav en
+                // `audio/wav` ou `audio/x-wav`, un .m4a en `audio/mp4`, parfois
+                // `audio/x-m4a`. Omettre un alias fait echouer ce seul fichier.
+                'mimetypes:image/jpeg,image/png,image/webp,image/gif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/vnd.ms-excel,application/x-ole-storage,application/CDFV2,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,application/x-zip-compressed,audio/mpeg,audio/mp3,audio/ogg,audio/vorbis,audio/wav,audio/x-wav,audio/vnd.wave,audio/webm,audio/mp4,audio/x-m4a,audio/aac,audio/flac,audio/x-flac,video/mp4,video/quicktime,video/webm,video/ogg,video/x-msvideo,video/x-matroska,video/mpeg,video/3gpp',
             ],
         ];
     }
