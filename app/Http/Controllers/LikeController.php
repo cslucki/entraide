@@ -23,6 +23,46 @@ class LikeController extends Controller
             return response()->json(['error' => 'No organization context'], 400);
         }
 
+        // TASK-1685 (P0-2) — ECRITURE CROSS-TENANT, prouvee puis fermee.
+        //
+        // ## Ce qui a ete mesure, en base isolee
+        //
+        // Un membre de l'Organization A postait sur `/org/B/likes/toggle` avec
+        // l'identifiant d'un article de B : HTTP **200**, table `likes` 0 -> 1
+        // (`organization_id: B`), et reponse `{"liked":true,"count":1}`.
+        // L'article vise portait `audience=loop, listed_in_blog=false` — il
+        // n'etait donc PAS public.
+        //
+        // ## La cause, et pourquoi elle se voyait mal
+        //
+        // Le scope ci-dessous (`where('organization_id', $org->id)`) est
+        // CORRECT — mais il borne l'article a l'Organization de l'URL, pas a
+        // celle de l'utilisateur. Autrement dit : le tenant etait pris de
+        // l'URL et jamais confronte a l'appartenance. Une lecture rapide
+        // voyait un `where` sur `organization_id` et concluait a tort que la
+        // frontiere etait tenue.
+        //
+        // C'est exactement l'incoherence `CurrentOrganization` relevee a
+        // l'audit sur les surfaces de LECTURE — ici sur une ECRITURE.
+        //
+        // ## Pourquoi la garde est posee ICI, avant tout le reste
+        //
+        // Trois choses fuyaient en aval, et seule une garde en AMONT les ferme
+        // toutes : l'ecriture elle-meme ; le COMPTEUR de likes d'un article non
+        // public, renvoye dans le corps de la reponse ; et l'ORACLE
+        // d'enumeration — 200 contre 404 confirmait l'existence d'un
+        // `likeable_id` etranger. Resoudre l'article d'abord, puis refuser,
+        // aurait laisse les deux derniers ouverts.
+        //
+        // Refus en 404, sans corps : rien n'est confirme de l'article vise.
+        //
+        // AUCUNE exemption `is_admin` : doctrine TASK-1658, « inspecter n'est
+        // pas participer ». Aimer un article est un geste de MEMBRE.
+        //
+        // Ce correctif ne touche PAS les regles de visibilite des articles :
+        // au sein de SON Organization, qui pouvait aimer quoi reste inchange.
+        abort_unless(auth()->user()?->organization_id === $org->id, 404);
+
         $modelClass = match ($request->likeable_type) {
             'blog_post' => BlogPost::class,
         };
