@@ -1155,10 +1155,6 @@ class LoopChatTest extends TestCase
             ->assertSee('/loops/'.$this->loop->id.'/ask-ai');
     }
 
-    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
-    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
-    // n'est pas un endroit ou ranger un test qui gene.
-    #[Group('ci-known-red')]
     /**
      * TASK-1684 MICRO-01 — ce qui empeche le composeur de bouger.
      *
@@ -1366,6 +1362,10 @@ class LoopChatTest extends TestCase
         );
     }
 
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[Group('ci-known-red')]
     public function test_loop_owner_sees_workspace_cards_shell_closed_by_default(): void
     {
         $this->actingAs($this->member)
