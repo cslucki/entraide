@@ -225,6 +225,100 @@ class TASK1685OrganizationAiAvailabilityTest extends TestCase
     }
 
     // ────────────────────────────────────────────────────────────────────────
+    // Le SuperAdmin ne CONTOURNE pas la desactivation du tenant
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Consigne MASTER : « preserver les acces SuperAdmin legitimes sans
+     * contourner la desactivation tenant ».
+     *
+     * `isAvailableFor()` ne porte AUCUNE exemption `is_admin`, et c'est
+     * deliberé : la desactivation est une decision de l'Organization sur SES
+     * fonctions IA, pas un controle d'acces. Un SuperAdmin qui verrait le Shell
+     * la ou les membres ne l'ont pas se verrait proposer une action que
+     * `ProviderResolver` refuserait de toute facon — et il lirait l'ecran comme
+     * si l'IA etait active pour ce tenant.
+     *
+     * Ses autres acces, eux, ne bougent pas : la surface reste atteignable.
+     */
+    public function test_a_super_admin_gets_no_shell_on_an_organization_without_ai(): void
+    {
+        $organization = $this->organizationWithSetting('t1685-sa-off', ['is_enabled' => false]);
+        $superAdmin = User::factory()->create([
+            'organization_id' => $organization->id,
+            'is_admin' => true,
+        ]);
+
+        $response = $this->actingAs($superAdmin)->get('/membres');
+
+        $response->assertOk();
+        $response->assertDontSee('ai-shell');
+    }
+
+    public function test_a_super_admin_keeps_the_shell_where_ai_is_available(): void
+    {
+        $organization = $this->organizationWithAi('t1685-sa-on');
+        $superAdmin = User::factory()->create([
+            'organization_id' => $organization->id,
+            'is_admin' => true,
+        ]);
+
+        $this->actingAs($superAdmin)->get('/membres')->assertOk()->assertSee('ai-shell', false);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Le Shell PUBLIC n'a pas bouge
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Le Shell Welcome (invite, public) lisait DEJA `isUsable()` via
+     * `GuestShellPolicyService` — c'est le precedent canonique dont MICRO-01
+     * s'inspire, pas une surface qu'il modifie. On le fige ici : son autorite
+     * reste la sienne, et elle n'est pas passee par `AiFabContext`.
+     */
+    public function test_the_public_guest_shell_keeps_its_own_authority(): void
+    {
+        $source = file_get_contents(app_path('Services/GuestShell/GuestShellPolicyService.php'));
+
+        $this->assertStringContainsString(
+            'isUsable()',
+            $source,
+            'Le Shell public garde sa propre lecture de la configuration.'
+        );
+        $this->assertStringNotContainsString(
+            'AiFabContext',
+            $source,
+            'Le Shell public ne doit pas etre rebranche sur l\'autorite du Shell membre.'
+        );
+    }
+
+    /**
+     * Et une Organization dont l'IA est coupee rend un etat GUEST explicite,
+     * NOMME — pas une page cassee, pas un ACTIVE. On n'affirme pas lequel des
+     * etats fermes sort : il depend de la politique Guest de l'Organization
+     * (`DISABLED`, `MISCONFIGURED`, `NO_CREDENTIAL`…), et figer ici une valeur
+     * dependant d'un defaut de factory serait une assertion fragile qui
+     * casserait au premier changement de ce defaut, sans rien protegeer de
+     * MICRO-01.
+     *
+     * Ce que ce test protege est exact : l'IA coupee n'ouvre JAMAIS le Shell
+     * public, et le motif reste dit.
+     */
+    public function test_the_public_guest_shell_still_refuses_cleanly_without_ai(): void
+    {
+        $organization = $this->organizationWithSetting('t1685-guest', ['is_enabled' => false]);
+
+        $state = app(\App\Services\GuestShell\GuestShellPolicyService::class)->state($organization);
+
+        $this->assertNotSame(
+            \App\Support\GuestShell\GuestShellState::ACTIVE,
+            $state->status,
+            'Une Organization sans IA ne doit jamais rendre un Shell public ACTIF.'
+        );
+        $this->assertNotEmpty($state->reasons, 'Le Shell public nomme son motif au lieu de disparaitre.');
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
     // Le predicat ne mesure pas la SANTE du fournisseur
     // ────────────────────────────────────────────────────────────────────────
 
