@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Laravel\Facades\Image;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -38,6 +39,23 @@ class CreateFeedPost extends Component
 
     public $image = null;
 
+    /**
+     * TASK-1691 (P0) — l'Organization du formulaire n'est plus a la main du
+     * client.
+     *
+     * Mesure faite en T1690 : cette propriete etait publique et SANS `#[Locked]`.
+     * Livewire hydrate les proprietes publiques depuis le snapshot **puis
+     * applique les `updates` envoyes par le client** — un membre de A chargeait
+     * SA page `/org/A/flux/creer` (200), obtenait un snapshot legitimement
+     * signe, puis envoyait `{"updates":{"orgId":"<id de B>"}}`. `mount()` ne
+     * rejoue pas aux updates ; `render()` listait alors les Boucles de B
+     * (`id`, `name`, `slug`, `description`), y compris pour une Organization
+     * PRIVEE et des Boucles privees. Symetrique dans les deux sens. Contre-
+     * epreuve : sans falsification, rien de B n'apparaissait.
+     *
+     * `#[Locked]` ferme cela : Livewire refuse l'ecriture cliente.
+     */
+    #[Locked]
     public ?string $orgId = null;
 
     public function mount(): void
@@ -55,9 +73,32 @@ class CreateFeedPost extends Component
         }
     }
 
+    /**
+     * TASK-1691 — `#[Locked]` protege une VALEUR ; seule une preuve
+     * d'appartenance protege la DONNEE.
+     *
+     * `submit()` portait deja cette preuve ; `render()` n'en portait aucune, et
+     * c'est `render()` qui fuyait. La poser ICI la rend commune aux deux, et a
+     * toute methode future : c'est leur divergence qui a laisse vivre le defaut.
+     *
+     * On ne lit PAS `currentOrganization()` a la place : sur la page NON
+     * prefixee (`/flux/creer`), seul `ResolveOrganization` est persistant chez
+     * Livewire, et le tenant resolu lors d'un update y serait incertain. La
+     * question sure est « cet utilisateur appartient-il a cette Organization ? ».
+     */
     private function org(): ?Organization
     {
-        return $this->orgId ? Organization::find($this->orgId) : null;
+        if ($this->orgId === null) {
+            return null;
+        }
+
+        $organization = Organization::find($this->orgId);
+
+        if ($organization === null || auth()->user()?->organization_id !== $organization->id) {
+            return null;
+        }
+
+        return $organization;
     }
 
     public function submit(LoopMessageService $loopMessageService): void

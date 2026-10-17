@@ -10,6 +10,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Contracts\Mail\Factory as MailFactory;
 use Illuminate\Contracts\Mail\Mailer as MailerContract;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -97,10 +98,23 @@ class MessageThreadTest extends TestCase
     {
         $outsider = User::factory()->create();
 
-        Livewire::actingAs($outsider)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
-            ->set('newMessage', 'Message intrus')
-            ->call('sendMessage');
+        // TASK-1691 — le refus d'un NON-PARTICIPANT est desormais un 404 pose
+        // des le MONTAGE : la preuve de participation vit dans `transaction()`,
+        // donc une seule fois, au lieu d'etre repetee dans quatre methodes et
+        // absente des deux qui fuyaient (`render`, `markRead`). Le no-op
+        // silencieux d'avant laissait aussi un ORACLE D'EXISTENCE ouvert
+        // (200 pour une transaction reelle, 404 pour une inexistante). La
+        // propriete mesuree par ce test — aucune ecriture — est conservee
+        // telle quelle ci-dessous, et desormais renforcee.
+        try {
+            Livewire::actingAs($outsider)
+                ->test(MessageThread::class, ['transaction' => $this->transaction])
+                ->set('newMessage', 'Message intrus')
+                ->call('sendMessage');
+            $this->fail('un intrus a pu monter le fil d\'autrui');
+        } catch (ModelNotFoundException) {
+            // refus attendu
+        }
 
         $this->assertDatabaseMissing('messages', [
             'transaction_id' => $this->transaction->id,
@@ -547,9 +561,22 @@ class MessageThreadTest extends TestCase
             'type' => 'user',
         ]);
 
-        Livewire::actingAs($outsider)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
-            ->call('pinMessage', $msg->id);
+        // TASK-1691 — le refus d'un NON-PARTICIPANT est desormais un 404 pose
+        // des le MONTAGE : la preuve de participation vit dans `transaction()`,
+        // donc une seule fois, au lieu d'etre repetee dans quatre methodes et
+        // absente des deux qui fuyaient (`render`, `markRead`). Le no-op
+        // silencieux d'avant laissait aussi un ORACLE D'EXISTENCE ouvert
+        // (200 pour une transaction reelle, 404 pour une inexistante). La
+        // propriete mesuree par ce test — aucune ecriture — est conservee
+        // telle quelle ci-dessous, et desormais renforcee.
+        try {
+            Livewire::actingAs($outsider)
+                ->test(MessageThread::class, ['transaction' => $this->transaction])
+                ->call('pinMessage', $msg->id);
+            $this->fail('un intrus a pu monter le fil d\'autrui');
+        } catch (ModelNotFoundException) {
+            // refus attendu
+        }
 
         $fresh = $msg->fresh();
         $this->assertNull($fresh->pinned_at);
@@ -689,9 +716,22 @@ class MessageThreadTest extends TestCase
             'type' => 'user',
         ]);
 
-        Livewire::actingAs($outsider)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
-            ->call('toggleReaction', $msg->id, 'thumbs_up');
+        // TASK-1691 — le refus d'un NON-PARTICIPANT est desormais un 404 pose
+        // des le MONTAGE : la preuve de participation vit dans `transaction()`,
+        // donc une seule fois, au lieu d'etre repetee dans quatre methodes et
+        // absente des deux qui fuyaient (`render`, `markRead`). Le no-op
+        // silencieux d'avant laissait aussi un ORACLE D'EXISTENCE ouvert
+        // (200 pour une transaction reelle, 404 pour une inexistante). La
+        // propriete mesuree par ce test — aucune ecriture — est conservee
+        // telle quelle ci-dessous, et desormais renforcee.
+        try {
+            Livewire::actingAs($outsider)
+                ->test(MessageThread::class, ['transaction' => $this->transaction])
+                ->call('toggleReaction', $msg->id, 'thumbs_up');
+            $this->fail('un intrus a pu monter le fil d\'autrui');
+        } catch (ModelNotFoundException) {
+            // refus attendu
+        }
 
         $this->assertDatabaseCount('reactions', 0);
     }
@@ -730,9 +770,22 @@ class MessageThreadTest extends TestCase
             'type' => 'user',
         ]);
 
-        Livewire::actingAs($crossUser)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
-            ->call('toggleReaction', $msg->id, 'thumbs_up');
+        // TASK-1691 — le refus d'un NON-PARTICIPANT est desormais un 404 pose
+        // des le MONTAGE : la preuve de participation vit dans `transaction()`,
+        // donc une seule fois, au lieu d'etre repetee dans quatre methodes et
+        // absente des deux qui fuyaient (`render`, `markRead`). Le no-op
+        // silencieux d'avant laissait aussi un ORACLE D'EXISTENCE ouvert
+        // (200 pour une transaction reelle, 404 pour une inexistante). La
+        // propriete mesuree par ce test — aucune ecriture — est conservee
+        // telle quelle ci-dessous, et desormais renforcee.
+        try {
+            Livewire::actingAs($crossUser)
+                ->test(MessageThread::class, ['transaction' => $this->transaction])
+                ->call('toggleReaction', $msg->id, 'thumbs_up');
+            $this->fail('un membre d\'une autre Organization a pu monter le fil');
+        } catch (ModelNotFoundException) {
+            // refus attendu
+        }
 
         $this->assertDatabaseCount('reactions', 0);
     }
