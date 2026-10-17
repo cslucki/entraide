@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Laravel\Facades\Image;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -20,10 +21,30 @@ class MessageThread extends Component
 {
     use WithFileUploads;
 
+    /**
+     * TASK-1691 (P0) — ces trois proprietes decidaient du TENANT, et le client
+     * les ecrivait.
+     *
+     * Mesure faite en T1690 : un membre de A, depuis un snapshot legitime de SA
+     * conversation, envoyait `{"updates":{"organizationId":"<B>",
+     * "transactionId":"<transaction de B>"}}`. `ensureOrganizationContext()`
+     * re-liait alors `current_organization` sur B ; le scope tenant de
+     * `Transaction` — qui TIENT par ailleurs — ne protegeait plus rien, et
+     * `render()` servait le corps d'une conversation privee de B ainsi que le
+     * nom de son interlocuteur. Pire, `render()` appelle `markRead()`, qui
+     * ECRIT : `messages.read_at` d'un tenant etranger passait a `now()`.
+     *
+     * Le discriminant l'a prouve : en ne falsifiant QUE `transactionId`, sans
+     * deplacer le tenant, la reponse etait **404**. La garde n'etait pas
+     * absente — elle etait desarmee de l'interieur.
+     */
+    #[Locked]
     public string $transactionId;
 
+    #[Locked]
     public string $organizationId;
 
+    #[Locked]
     public string $organizationSlug;
 
     protected ?Transaction $transaction = null;
@@ -315,12 +336,31 @@ class MessageThread extends Component
         return view('livewire.message-thread', compact('transaction', 'messages', 'pinnedMessage', 'unreadCount', 'reactionData', 'myReactions', 'organizationSlug'));
     }
 
+    /**
+     * TASK-1691 — la PREUVE DE PARTICIPATION passe ici, donc une seule fois.
+     *
+     * `sendMessage()`, `pinMessage()`, `unpinMessage()` et `toggleReaction()`
+     * la portaient chacune de leur cote — et elles tenaient. Les deux methodes
+     * qui ne la portaient PAS, `render()` et `markRead()`, sont justement
+     * celles qui fuyaient et celle qui ecrivait. Une garde repetee quatre fois
+     * est une garde qu'une cinquieme methode oubliera.
+     *
+     * `TransactionPolicy::view` exige deja `buyer_id` ou `seller_id` sur la
+     * PAGE : aucun fil legitimement monte ne perd quoi que ce soit. Et le refus
+     * est un **404** indistinguable d'une transaction inexistante — l'oracle
+     * d'existence mesure en T1690 (200 pour un UUID reel, 404 pour un faux) se
+     * referme, ce qui compte d'autant plus que `Transaction` emet des UUIDv7
+     * dont les 48 premiers bits sont un horodatage.
+     */
     private function transaction(bool $fresh = false): Transaction
     {
         $this->ensureOrganizationContext();
 
         if ($fresh || ! $this->transaction) {
+            $userId = auth()->id();
+
             $this->transaction = Transaction::where('organization_id', $this->organizationId)
+                ->where(fn ($query) => $query->where('buyer_id', $userId)->orWhere('seller_id', $userId))
                 ->findOrFail($this->transactionId);
         }
 
