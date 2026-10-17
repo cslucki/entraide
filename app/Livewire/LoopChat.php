@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Ai\MultiAssistant\AssistantOutcome;
+use App\Ai\ProviderResolver;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -621,6 +622,15 @@ class LoopChat extends Component
 
     private bool $dossierUrlResolved = false;
 
+    /**
+     * TASK-1685 — memo de `organizationAiAvailable()`. PRIVE a dessein : une
+     * propriete publique voyagerait dans l'instantane Livewire, et un etat de
+     * garde recalculable n'a rien a faire dans un instantane lisible cote
+     * client. Remis a null a chaque requete, donc relu a chaque requete : si le
+     * SuperAdmin desactive l'IA pendant la session, le rendu suivant le voit.
+     */
+    private ?bool $organizationAiAvailable = null;
+
     public function replyTo(string $messageId): void
     {
         $message = LoopMessage::where('id', $messageId)
@@ -1075,11 +1085,42 @@ class LoopChat extends Component
      * `isEnabled()` reconfronte la disponibilite de l'Organization a CHAQUE
      * lecture (garde TASK-1616) : retirer l'autorisation eteint toutes les
      * Boucles d'un coup, sans qu'aucune vue ait a le savoir.
+     *
+     * TASK-1685 : et l'IA doit etre disponible pour l'Organization. Le plugin
+     * pouvait etre autorise a un tenant dont les fonctions IA sont DESACTIVEES
+     * — deux reglages distincts, dont un seul etait lu ici. Les assistants
+     * s'affichaient alors, et `ProviderResolver` refusait au premier clic.
+     * Meme doctrine que le docblock de `multiAiAssistants()` juste en dessous :
+     * « l'interface doit le refleter plutot que de proposer une action qui
+     * n'aboutira pas. »
      */
     public function multiAiAvailable(): bool
     {
         return $this->isMember
+            && $this->organizationAiAvailable()
             && app(LoopPluginActivation::class)->isEnabled(LoopAiAssistants::PLUGIN, $this->loop);
+    }
+
+    /**
+     * TASK-1685 — l'IA est-elle disponible pour l'Organization de cette Boucle ?
+     *
+     * Delegue a `ProviderResolver::isAvailableFor()`, la MEME autorite que la
+     * garde qui refuse reellement l'appel : ce composant ne reecrit aucun
+     * predicat. Elle commande les moteurs IA du composeur (`aiEnginesAvailable`
+     * dans le gabarit) et les assistants ci-dessus.
+     *
+     * Ce qu'elle ne commande PAS, et c'est deliberé : le depot de fichiers, la
+     * consultation des Dossiers, la publication d'un message, les reactions —
+     * rien de cela n'appelle un provider, et masquer des gestes humains parce
+     * que l'IA est eteinte serait une regression, pas une garde.
+     *
+     * Memoise : le gabarit et les deux rangees de boutons (bureau + feuille
+     * mobile) interrogent la meme reponse, une lecture par rendu.
+     */
+    public function organizationAiAvailable(): bool
+    {
+        return $this->organizationAiAvailable ??= app(ProviderResolver::class)
+            ->isAvailableFor((string) $this->loop->organization_id);
     }
 
     /**

@@ -75,56 +75,118 @@ final class ProviderResolver
             );
         }
 
+        $config = $this->tenantConfiguration($contexte->organizationId);
+
+        if ($config['failure'] !== null) {
+            throw new DomainException($config['failure']);
+        }
+
+        $instance = self::instanceName($contexte->organizationId, $config['provider']);
+
+        $this->registerInstance($instance, $config['base'], $config['key']);
+
+        return new ResolvedModel($config['provider'], $config['model'], $instance);
+    }
+
+    /**
+     * TASK-1685 : l'IA est-elle EFFECTIVEMENT disponible pour cette Organization ?
+     *
+     * Repond EXACTEMENT a la question « `resolve()` aboutirait-il ? », et
+     * s'arrete la : aucun appel, aucun credential pose, aucune instance SDK
+     * enregistree. Elle existe pour que les surfaces membre (Shell, FAB,
+     * raccourcis IA du ChatLoop) cessent de proposer un geste que le serveur
+     * refusera — le defaut constate en recette, ou le Shell s'affichait sur une
+     * Organization dont `is_enabled` etait faux.
+     *
+     * Elle ne porte AUCUNE regle propre : les conditions vivent dans
+     * `tenantConfiguration()`, le meme code que `resolve()` consulte. Ecrire ici
+     * une seconde liste de predicats, meme fidele au depart, aurait fini par
+     * diverger de la garde qui refuse reellement — et une surface visible dont
+     * la garde dit l'inverse est precisement le defaut qu'on corrige.
+     *
+     * ## Ce que cette methode ne mesure PAS
+     *
+     * La SANTE du fournisseur. Le resolveur ne contacte aucun provider, ne
+     * benchmarke rien et ne fait aucun failover (voir le docblock de classe) :
+     * il lit de la CONFIGURATION. Une panne OpenRouter, un 429, un timeout ou
+     * un budget consomme ne rendent donc jamais `false` ici. « Indisponible
+     * aujourd'hui » et « pas configure » restent deux choses distinctes, et
+     * seule la seconde ferme la surface : masquer le Shell a chaque hoquet du
+     * fournisseur serait une regression, pas une garde.
+     *
+     * Le credit utilisateur et le budget d'Organization ne sont pas lus non
+     * plus — ils ont leur propre autorite (`AiEconomicGuard`), qui refuse en
+     * nommant son motif.
+     */
+    public function isAvailableFor(string $organizationId): bool
+    {
+        return $this->tenantConfiguration($organizationId)['failure'] === null;
+    }
+
+    /**
+     * La configuration IA EFFECTIVE d'une Organization — ou la RAISON du refus.
+     *
+     * TASK-1685 : extrait tel quel du corps de `resolve()`, sans qu'un predicat
+     * change d'un mot, pour que `resolve()` (qui refuse) et `isAvailableFor()`
+     * (qui decide d'une visibilite) lisent la MEME liste de conditions. Le
+     * contrat T1212 est conserve : une Organization sans configuration,
+     * desactivee, dont le provider n'est pas offert aux Organizations, ou sans
+     * credential alors que son driver en exige un, n'a pas de provider.
+     *
+     * `failure` non nul = le message de la DomainException que `resolve()` leve.
+     * `key` vaut null pour un driver keyless (ollama local) : c'est une absence
+     * LEGITIME, pas un refus.
+     *
+     * @return array{failure: string, provider: null, model: null, base: null, key: null}|array{failure: null, provider: string, model: string, base: array<string, mixed>, key: ?string}
+     */
+    private function tenantConfiguration(string $organizationId): array
+    {
+        $refuse = static fn (string $message): array => [
+            'failure' => $message,
+            'provider' => null,
+            'model' => null,
+            'base' => null,
+            'key' => null,
+        ];
+
         $setting = OrganizationAiSetting::query()
-            ->where('organization_id', $contexte->organizationId)
+            ->where('organization_id', $organizationId)
             ->first();
 
         if ($setting === null || ! $setting->isUsable()) {
-            throw new DomainException(
-                "AI is not configured for Organization [{$contexte->organizationId}]: no enabled provider/model."
-            );
+            return $refuse("AI is not configured for Organization [{$organizationId}]: no enabled provider/model.");
         }
 
         $provider = trim((string) $setting->provider);
         $model = trim((string) $setting->model);
 
         if (! in_array($provider, self::ALLOWED_PROVIDERS, true)) {
-            throw new DomainException("AI provider [{$provider}] is not available to Organizations.");
+            return $refuse("AI provider [{$provider}] is not available to Organizations.");
         }
 
         $base = config('ai.providers.'.$provider);
 
         if (! is_array($base) || $base === []) {
-            throw new DomainException(
-                "AI provider [{$provider}] has no [ai.providers.{$provider}] configuration."
-            );
+            return $refuse("AI provider [{$provider}] has no [ai.providers.{$provider}] configuration.");
         }
 
         $driver = is_string($base['driver'] ?? null) ? trim($base['driver']) : '';
 
         if ($driver === '') {
-            throw new DomainException("AI provider [{$provider}] has no driver configured.");
+            return $refuse("AI provider [{$provider}] has no driver configured.");
         }
 
-        $instance = self::instanceName($contexte->organizationId, $provider);
-
         if (in_array($driver, self::KEYLESS_DRIVERS, true)) {
-            $this->registerInstance($instance, $base, null);
-
-            return new ResolvedModel($provider, $model, $instance);
+            return ['failure' => null, 'provider' => $provider, 'model' => $model, 'base' => $base, 'key' => null];
         }
 
         $key = trim((string) $setting->api_key);
 
         if ($key === '') {
-            throw new DomainException(
-                "AI provider [{$provider}] has no credential configured for Organization [{$contexte->organizationId}]."
-            );
+            return $refuse("AI provider [{$provider}] has no credential configured for Organization [{$organizationId}].");
         }
 
-        $this->registerInstance($instance, $base, $key);
-
-        return new ResolvedModel($provider, $model, $instance);
+        return ['failure' => null, 'provider' => $provider, 'model' => $model, 'base' => $base, 'key' => $key];
     }
 
     /**

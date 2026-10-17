@@ -297,7 +297,12 @@ class TASK1603NoSearchEngineOn404Test extends TestCase
 
         $reponse->assertNotFound();
         $reponse->assertSee('lang="en"', false);
-        $reponse->assertSee(__('errors.404_message', [], 'en'));
+        // TASK-1685 : un refus INTER-TENANT ne rend plus `404_message` mais les
+        // textes dedies. Ce que ce test mesure — la cascade de locale sur un
+        // 404 cross-tenant — est INCHANGE : on vise simplement le texte que
+        // cette page rend desormais, dans la meme langue.
+        $reponse->assertSee(e(__('errors.404_cross_tenant_title', [], 'en')), false);
+        $reponse->assertSee(e(__('errors.404_cross_tenant_body', [], 'en')), false);
     }
 
     /** Dans les deux langues, toujours aucun moteur de recherche. */

@@ -64,6 +64,17 @@ class TASK1473HomeDashboardCollisionTest extends TestCase
             'name' => 'Org Collision',
         ]);
 
+        // TASK-1685 : le Shell exige desormais que l'IA soit disponible pour
+        // l'Organization (`ProviderResolver::isAvailableFor()`). Cette suite
+        // affirme quelle SURFACE le Shell nomme ; il lui faut donc un Shell.
+        \App\Models\OrganizationAiSetting::factory()->create([
+            'organization_id' => $this->organization->id,
+            'provider' => 'openrouter',
+            'model' => 'openai/gpt-4o-mini',
+            'api_key' => 'sk-test-collision',
+            'is_enabled' => true,
+        ]);
+
         $this->member = User::factory()->complete()->create([
             'organization_id' => $this->organization->id,
             'preferred_locale' => 'fr',

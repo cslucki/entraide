@@ -109,6 +109,20 @@ class TASK1472ThemedTriggersTest extends TestCase
     public function test_the_member_trigger_is_rendered_and_the_page_carries_its_token(): void
     {
         $organization = $this->organization('org-ux2-member');
+
+        // TASK-1685 : le declencheur membre exige desormais que l'IA soit
+        // disponible pour l'Organization (`ProviderResolver::isAvailableFor()`).
+        // Pose ICI et non dans le helper `organization()` : `organizationWithGuestShell()`
+        // l'appelle puis cree sa propre ligne, et `organization_ai_settings.organization_id`
+        // est UNIQUE — la mutualiser casserait l'autre helper.
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $organization->id,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+            'api_key' => 'sk-task1685-ux2',
+            'is_enabled' => true,
+        ]);
+
         $member = User::factory()->complete()->create(['organization_id' => $organization->id]);
 
         $html = $this->actingAs($member)

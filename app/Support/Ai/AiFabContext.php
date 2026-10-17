@@ -2,6 +2,7 @@
 
 namespace App\Support\Ai;
 
+use App\Ai\ProviderResolver;
 use App\Models\AiConfig;
 use App\Models\Dossier;
 use App\Models\Loop;
@@ -94,11 +95,13 @@ final class AiFabContext
         private readonly DossierSemanticSearchGate $dossierSearchGate,
         private readonly LoopLifecycleService $lifecycle,
         private readonly AiShellPageContext $pageContext,
+        private readonly ProviderResolver $providers,
     ) {}
 
     /**
      * Le contexte injecte dans le composant, ou null quand le FAB ne se rend
-     * pas (kill-switch, utilisateur sans Organization).
+     * pas (kill-switch plateforme, utilisateur sans Organization, ou IA non
+     * disponible pour son Organization — TASK-1685).
      *
      * @return array{
      *     credit: array<string, mixed>,
@@ -176,6 +179,46 @@ final class AiFabContext
         $organization = $user->organization ?? currentOrganization();
 
         if (! $organization instanceof Organization) {
+            return null;
+        }
+
+        // TASK-1685 — l'IA est-elle disponible pour CETTE Organization ?
+        //
+        // LE DEFAUT CORRIGE. Mesure de recette : sur une Organization dont le
+        // SuperAdmin avait DECOCHE « Activer les fonctions IA », `/membres`
+        // rendait 200 avec le Shell « BouclePro IA » monte. Le reglage etait
+        // fidelement persiste (`organization_ai_settings.is_enabled = false`) et
+        // la garde serveur refusait bien — `ProviderResolver` leve une
+        // DomainException AVANT tout appel, credential complet ou non. Ce
+        // fichier, lui, ne lisait la configuration du tenant NULLE PART : la
+        // racine etait une ABSENCE, pas une condition fausse.
+        //
+        // Le produit proposait donc un geste que le serveur allait refuser.
+        // Aucune capacite ne fuyait ; c'est une poignee posee sur une porte
+        // muree, et une poignee qui ne mene nulle part est un defaut a part
+        // entiere.
+        //
+        // POURQUOI ICI. `forRequest()` est l'autorite UNIQUE : elle alimente le
+        // FAB (`shouldRenderFab()`) **et** le montage du Shell
+        // (`shouldMountShell()`). Un seul geste eteint donc les deux, et aucune
+        // vue ne peut les faire diverger — la meme raison qui a fait vivre la
+        // garde des surfaces de decouverte ici plutot que dans les gabarits.
+        //
+        // POURQUOI `isAvailableFor()` ET PAS `is_enabled`. Le drapeau seul
+        // laisserait visible le Shell d'une Organization activee mais sans
+        // credential : le premier geste echouerait, soit le meme defaut deplace
+        // d'un cran. `isAvailableFor()` repond « `resolve()` aboutirait-il ? »
+        // en lisant la MEME liste de conditions que la garde qui refuse — pas
+        // une copie. Aucun second drapeau, aucune migration : `is_enabled` reste
+        // le mecanisme canonique pose par TASK-1212.
+        //
+        // CE QUE CETTE GARDE NE FAIT PAS. Elle ne lit aucune sante de
+        // fournisseur : une panne, un 429 ou un timeout ne masquent rien (voir
+        // `ProviderResolver::isAvailableFor()`). Elle ne touche aucune surface
+        // non-IA : les Dossiers, le depot de fichiers et la navigation vivent
+        // hors de ce contexte et restent INCHANGES. Et elle ne lit pas le credit
+        // utilisateur, qui a son autorite propre et refuse en se nommant.
+        if (! $this->providers->isAvailableFor((string) $organization->id)) {
             return null;
         }
 

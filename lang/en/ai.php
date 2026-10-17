@@ -813,6 +813,11 @@ return [
     'shell_clear_no' => 'Cancel',
     'shell_no_publication_note' => 'BouclePro AI publishes nothing: you validate before anything is published.',
     'shell_turn_in_progress' => 'An answer is already being generated. Let it finish.',
+    // TASK-1685 — the configuration refusal, told to a MEMBER. The resolver's
+    // DomainException messages are operations diagnostics (they carry the
+    // Organization UUID): never shown to a member any more. RuntimeException
+    // messages are already translated and user-facing: unchanged.
+    'shell_unavailable_notice' => 'BouclePro AI is not available right now. If this persists, let an administrator of your organization know.',
     // TASK-1350: behaviour unchanged — this stays the EXPLICIT unavailability
     // of the « no active prompt » case. Only the wording is normalised.
     // TASK-1557 / W3F-min — user-facing projection of the boundary states.
