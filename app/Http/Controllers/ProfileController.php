@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BlogPost;
 use App\Models\Country;
 use App\Models\MemberAiProfile;
+use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -100,9 +101,54 @@ class ProfileController extends Controller
         return view('profile.ai-agent-chat', compact('user', 'memberAiProfile'));
     }
 
+    /**
+     * TASK-1689 — l'Organization qui gouverne le PROFIL est celle de
+     * l'utilisateur, jamais celle de l'URL.
+     *
+     * ## Le defaut mesure
+     *
+     * `edit()` et `update()` lisaient toutes deux
+     * `currentOrganization() ?? $request->user()->organization` : l'URL
+     * D'ABORD. Or cette Organization decide si `membership_value` est un champ
+     * ACCEPTE (`update()`) et s'il est RENDU, avec quel libelle (`edit()`).
+     *
+     * `organization.profile.edit` et `organization.profile.update` ne portent
+     * pas `EnsureOrganizationMember` — a la difference de
+     * `organization.profile.show`. N'importe quel membre pouvait donc poser le
+     * slug d'une autre Organization et heriter de SA configuration :
+     *
+     * | contexte | `membership_enabled` de l'org lue | resultat mesure |
+     * |---|---|---|
+     * | son organisation A | false | `membership_value` ignore |
+     * | URL de l'organisation B | true | `membership_value` **ECRIT** |
+     *
+     * Un reglage que son Organization a deliberement DESACTIVE devenait
+     * accessible en changeant un segment d'URL.
+     *
+     * ## Pourquoi AUCUN repli vers l'URL
+     *
+     * `users.organization_id` est NULLABLE (mesure sur le schema, 0 ligne
+     * concernee aujourd'hui). Pour un utilisateur sans Organization, le contrat
+     * EXISTANT est deja le bon : `$organization` vaut `null`, donc
+     * `membership_value` n'entre pas dans les regles et le champ n'est pas
+     * rendu. Ajouter `?? currentOrganization()` rouvrirait precisement le trou
+     * pour ces comptes. On n'en ajoute pas.
+     *
+     * ## Ce que ce correctif NE touche pas
+     *
+     * Ni autorisation, ni middleware, ni `CurrentOrganization` : la resolution
+     * globale du tenant est inchangee. Dans son propre tenant — le parcours
+     * normal — les deux expressions rendent la MEME Organization, et la route
+     * non prefixee reste gouvernee par la redirection canonique de TASK-1601.
+     */
+    private function profileOrganization(Request $request): ?Organization
+    {
+        return $request->user()?->organization;
+    }
+
     public function edit(Request $request): View
     {
-        $organization = currentOrganization() ?? $request->user()->organization;
+        $organization = $this->profileOrganization($request);
         $localeColumn = app()->getLocale() === 'en' ? 'name_en' : 'name_fr';
 
         $priorityCountries = $organization
@@ -124,7 +170,7 @@ class ProfileController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
-        $organization = currentOrganization() ?? $request->user()->organization;
+        $organization = $this->profileOrganization($request);
 
         $rules = [
             'first_name' => ['nullable', 'string', 'max:255'],
