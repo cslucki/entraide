@@ -134,6 +134,18 @@ class TASK1447OrganizationShortcutTest extends TestCase
 
     public function test_the_first_guest_gesture_freezes_the_canonical_attribution_from_the_shortcut_never_from_the_browser(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         // Un `journey` libre dans le payload est REJETE (422, voir test 6) ; ici, seul l'utm_campaign externe tente de primer.
         $this->message($this->a, ['shortcut' => 'demo', 'utm_source' => 'linkedin', 'utm_medium' => 'post', 'utm_campaign' => 'hack']);
         $visitor = GuestVisitor::firstOrFail();
@@ -154,6 +166,18 @@ class TASK1447OrganizationShortcutTest extends TestCase
 
     public function test_a_shortcut_of_another_organization_or_an_inactive_one_gives_no_attribution(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         $foreign = OrganizationShortcut::query()->create(['organization_id' => $this->b->id, 'code' => 'bside', 'destination' => 'organization_home', 'acquisition_journey_key' => 'rentree', 'campaign' => 'b-camp', 'active' => true]);
         $this->message($this->a, ['shortcut' => 'bside', 'utm_source' => 'x']);
         $visitor = GuestVisitor::forOrganization($this->a)->firstOrFail();
@@ -170,6 +194,18 @@ class TASK1447OrganizationShortcutTest extends TestCase
 
     public function test_first_touch_wins_and_a_retired_journey_version_stays_frozen_on_the_visitor(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         $raw = Str::random(64);
         $this->message($this->a, ['shortcut' => 'demo'], $raw);
         $visitor = GuestVisitor::firstOrFail();
@@ -196,6 +232,18 @@ class TASK1447OrganizationShortcutTest extends TestCase
 
     public function test_a_tampered_or_oversized_attribution_payload_is_bounded_or_rejected(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         $this->postJson(route('organization.shell.message', ['organization' => $this->a->slug]), ['message' => 'Bonjour', 'attribution' => ['shortcut' => str_repeat('d', 33)]])->assertUnprocessable();
         $this->postJson(route('organization.shell.message', ['organization' => $this->a->slug]), ['message' => 'Bonjour', 'attribution' => ['journey' => 'x', 'shortcut' => 'demo']])->assertUnprocessable();
         $this->assertSame(0, GuestVisitor::count());

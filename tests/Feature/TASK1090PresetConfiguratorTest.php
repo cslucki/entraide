@@ -556,7 +556,7 @@ class TASK1090PresetConfiguratorTest extends TestCase
             ->get(route('organization.admin.loops.configure', [
                 'organization' => $this->org->slug, 'loop' => $this->loop->id,
             ]))
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     public function test_the_composition_policy_is_saved_by_the_organization_admin(): void

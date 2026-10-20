@@ -217,7 +217,7 @@ class TASK1450WorkshopFoundationTest extends TestCase
         // Routes OrgAdmin : l'atelier de A n'existe pas sous B, meme pour l'admin de B ; l'admin de B ne voit pas A.
         $this->actingAs($this->adminB)->get(route('organization.admin.workshops.edit', [$this->b, $wa]))->assertNotFound();
         $this->actingAs($this->adminB)->post(route('organization.admin.workshops.publish', [$this->b, $wa]))->assertNotFound();
-        $this->actingAs($this->adminB)->get(route('organization.admin.workshops', [$this->a]))->assertForbidden();
+        $this->actingAs($this->adminB)->get(route('organization.admin.workshops', [$this->a]))->assertNotFound();
         $this->actingAs($this->member)->get(route('organization.admin.workshops', [$this->a]))->assertForbidden();
         $listB = $this->actingAs($this->adminB)->get(route('organization.admin.workshops', $this->b))->assertOk()->getContent();
         $this->assertStringContainsString('data-workshop-row="'.$wb->id.'"', $listB);

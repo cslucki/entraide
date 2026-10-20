@@ -118,11 +118,26 @@ final class EnsureOrganizationMember
      */
     private function explain(Organization $organization): Response
     {
-        $isPublic = (bool) $organization->is_public;
+        // TASK-1692 — une Organization PRIVEE ne confirme pas son existence.
+        //
+        // Le mode `explain` de TASK-1483 rendait 403 dans les deux cas et se
+        // contentait de TAIRE le nom quand `is_public` etait faux. Il taisait
+        // donc le nom, pas l'EXISTENCE : un slug inconnu rend 404
+        // (`ResolveOrganization`, qui s'execute avant `auth`), un slug prive
+        // rendait 403 — et le STATUT suffisait a distinguer les deux. Comme
+        // TASK-1692 a aligne tout le reste du produit sur 404, ce tableau de
+        // bord etait devenu le seul point de sonde restant.
+        //
+        // Le refus explique garde tout son sens la ou il a ete decide : une
+        // Organization PUBLIQUE, dont l'existence est deja affichee par sa
+        // landing. Son comportement n'est pas touche.
+        if (! $organization->is_public) {
+            abort(404);
+        }
 
         return response()->view('errors.organization-member-required', [
-            'organizationName' => $isPublic ? $organization->name : null,
-            'publicHomeUrl' => $isPublic && Route::has('organization.home')
+            'organizationName' => $organization->name,
+            'publicHomeUrl' => Route::has('organization.home')
                 ? route('organization.home', ['organization' => $organization->slug])
                 : null,
             'ownSpaceUrl' => $this->ownSpaceUrl(),

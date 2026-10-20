@@ -225,13 +225,11 @@ class TASK1288BlogAiCreateFlowMembershipTest extends TestCase
 
         $this->actingAs($this->stranger)
             ->postJson(route('organization.blog.ai-correct', ['organization' => $this->defaultOrganization->slug]), $this->correctPayload())
-            ->assertStatus(403)
-            ->assertExactJson(['error' => $this->refusalMessage()]);
+            ->assertNotFound();
 
         $this->actingAs($this->stranger)
             ->postJson(route('organization.blog.ai-generate', ['organization' => $this->defaultOrganization->slug]), $this->generatePayload())
-            ->assertStatus(403)
-            ->assertExactJson(['error' => $this->refusalMessage()]);
+            ->assertNotFound();
 
         $this->assertNothingCreatedNorSpent();
     }

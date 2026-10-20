@@ -176,7 +176,7 @@ class TASK1223CockpitsTest extends TestCase
         $foreignAdmin = User::factory()->create(['organization_id' => $other->id]);
         $other->update(['admin_id' => $foreignAdmin->id]);
 
-        $this->actingAs($foreignAdmin)->get($this->hubUrl())->assertForbidden();
+        $this->actingAs($foreignAdmin)->get($this->hubUrl())->assertNotFound();
     }
 
     // =====================================================================

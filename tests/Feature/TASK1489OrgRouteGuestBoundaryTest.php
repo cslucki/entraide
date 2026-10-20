@@ -51,6 +51,19 @@ use Tests\TestCase;
 class TASK1489OrgRouteGuestBoundaryTest extends TestCase
 {
     /**
+     * Les middlewares qui VALENT frontiere declaree. On compare des classes,
+     * jamais des sous-chaines : voir `requiresSession()`.
+     *
+     * @var array<int, class-string>
+     */
+    private const SESSION_BARRIERS = [
+        \Illuminate\Auth\Middleware\Authenticate::class,
+        \Illuminate\Auth\Middleware\RedirectIfAuthenticated::class,
+        \App\Http\Middleware\EnsureOrganizationMember::class,
+        \App\Http\Middleware\OrgAdminMiddleware::class,
+    ];
+
+    /**
      * Les surfaces Organization joignables SANS session, et la decision qui
      * les autorise. Ajouter une ligne ici est un geste deliberе : c'est
      * l'endroit ou la publicite d'une surface est ecrite.
@@ -60,122 +73,85 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
     private const PUBLIC_BY_DECISION = [
         // Vitrine d'une Organization PUBLIQUE. Mesure TASK-1479 : une
         // Organization privee ne rend pas de landing du tout (302).
+        //
+        // TASK-1692 l'a EXPLICITEMENT exceptee de la garde du groupe
+        // (`withoutMiddleware(['auth', 'organization.member'])`) : sa publicite
+        // est donc ecrite a deux endroits qui se confirment, la route et cette
+        // ligne. Mesure MICRO-11.2A : HTTP anonyme 200.
         'organization.home' => 'Accueil public d\'une Organization publique.',
-        'organization.about' => 'Page de presentation publique.',
-        'organization.constitution' => 'Texte fondateur public.',
-        'organization.subscriptions' => 'Grille d\'abonnements, surface commerciale.',
 
         // TASK-1602 — les mentions legales servies DANS le contexte d'une
         // Organization. Publiques par nature : c'est la MEME vue que la route
         // globale `/mentions-legales`, deja publique, et son contenu est unique
         // (aucune duplication par tenant). Seuls la navigation et la charte
         // changent. Rien d'interne n'y transite.
+        //
+        // Meme exception explicite que `organization.home` sous TASK-1692, et
+        // meme mesure : HTTP anonyme 200. TASK-1692 / MICRO-07 a par ailleurs
+        // rendu sa NAVIGATION membre-only — la page reste publique, son rail
+        // ne l'est plus.
         'organization.mentions-legales' => 'Mentions legales, contenu global servi dans le contexte de l\'Organization.',
 
-        // TASK-1604 — Mycelium servi DANS le contexte d'une Organization.
-        // Publique par nature : c'est le MEME controleur et la MEME vue que la
-        // route globale `/mycelium`, deja publique, qui publie la Constitution
-        // IA de la plateforme et la liste des Organizations ayant EXPLICITEMENT
-        // choisi de publier la leur. Aucune donnee nouvelle n'y transite ;
-        // seules l'URL, la navigation et la charte changent. A ne pas confondre
-        // avec `organization.constitution`, qui publie la Constitution de CETTE
-        // Organization et rend 404 tant que personne ne l'a rendue publique.
-        'organization.mycelium' => 'Mycelium, gouvernance IA publique servie dans le contexte de l\'Organization.',
-
-        // TASK-1613 — l'explorateur Open Source servi DANS le contexte d'une
-        // Organization. Publique par nature, et pour la MEME raison que les
-        // mentions legales ci-dessus : c'est le MEME controleur et la MEME vue
-        // que la route globale `/open-source`, deja publique.
+        // ─── TASK-1692 / MICRO-11.2B — DIX-HUIT ENTREES RETIREES ────────────
         //
-        // Ce qu'elle publie, verifie champ par champ : le nom declare du
-        // projet, sa licence, sa pile, et la RACINE du depot GitHub PUBLIC de
-        // BouclePro. Zero donnee d'Organization n'y entre — le contenu est
-        // rigoureusement identique d'un tenant a l'autre, seules l'URL, la
-        // navigation et la charte changent. `OpenSourceSnapshotService` ne lit
-        // aucune table : il n'interroge que l'API publique de GitHub, et
-        // RECONSTRUIT sa reponse champ par champ.
+        // Ces dix-huit surfaces etaient declarees publiques ici et ne le sont
+        // plus : TASK-1692 a pose `auth` + `organization.member` sur le groupe
+        // `/org/{organization}` entier et n'en a excepte que les deux lignes
+        // ci-dessus et le groupe `guest`. Mesure : elles rendent 302 vers le
+        // login a un visiteur anonyme.
         //
-        // Le scope de l'URL est un confort de navigation, pas une frontiere :
-        // il evite d'ejecter a la racine du site un visiteur venu de
-        // `/org/{slug}`. La frontiere de vie privee, elle, n'a rien a garder
-        // ici — il n'y a aucune donnee privee a garder.
-        'organization.open-source' => 'Explorateur Open Source, contenu global (le depot public du produit) servi dans le contexte de l\'Organization.',
-
-        // Blog public. ATTENTION a ce que T123 a reellement decide : cet audit
-        // (2026-05-23) a durci le TENANT SCOPE — quels articles apparaissent —
-        // et ne dit pas un mot de `is_public`, des Organizations privees, ni
-        // des lecteurs anonymes. Verifie ligne a ligne avant d'ecrire ceci.
+        //   about, constitution, subscriptions, mycelium, open-source,
+        //   blog.index, blog.show, blog.category, blog.tag,
+        //   workshop.show, workshop.session.interest,
+        //   workshop.session.interest.withdraw, shell.show, shell.message,
+        //   boucles.index, flowchart, bug-reports.index,
+        //   agent-ia.profile.chat
         //
-        // Mesure TASK-1489 sur `test20260822` (`is_public = false`), article
-        // reellement publie : servi 200 avec son titre a un membre d'une AUTRE
-        // Organization ET a un anonyme complet. `BlogController@index` ne filtre
-        // que sur `organization_id` — ni appartenance, ni publicite.
+        // IL FAUT LE DIRE NET : aucune n'a recu de decision INDIVIDUELLE. Elles
+        // ont ete fermees collateralement, par un middleware de groupe. C'est
+        // l'exact symetrique du defaut que ce fichier existe pour empecher —
+        // « publique sans que personne ne l'ait decide » devient ici « fermee
+        // sans que personne ne l'ait decide ». Le GO MICRO-11.1 a tranche de ne
+        // pas les rouvrir, et le GO MICRO-11.2B de retirer leurs lignes : cette
+        // decision EST l'autorite qui leur manquait, et c'est pourquoi elle est
+        // ecrite ici plutot que simplement executee.
         //
-        // C'est la meme question que TASK-1479 et TASK-1488 ont tranchee
-        // ailleurs — sauf qu'ici l'article porte un opt-in EXPLICITE de son
-        // auteur (`status = published`), ce que ni l'annuaire ni la fiche
-        // Service n'avaient. Cette difference est reelle : elle fait du blog un
-        // arbitrage PRODUIT, pas un defaut evident, et c'est pourquoi il est
-        // escalade a MASTER plutot que decide ici.
-        // -> SECURITY_PRODUCT_DECISION_REQUIRED_BEFORE_STABILIZATION.
-        'organization.blog.index' => 'Blog public — ESCALADE : lisible par un anonyme sur une Organization privee (mesure TASK-1489).',
-        'organization.blog.show' => 'Article public — ESCALADE : opt-in auteur `published`, mais lu par un anonyme sur une Organization privee.',
-        'organization.blog.category' => 'Liste publique par categorie — meme escalade que blog.index.',
-        'organization.blog.tag' => 'Liste publique par tag — meme escalade que blog.index.',
-
-        // Ateliers publics (TASK-1450 -> TASK-1461) : la vitrine ET le premier
-        // geste d'interet, qui doit rester possible avant de creer un compte.
-        'organization.workshop.show' => 'Atelier public (TASK-1461).',
-        'organization.workshop.session.interest' => 'Premier geste d\'interet, avant compte (TASK-1461).',
-        'organization.workshop.session.interest.withdraw' => 'Retrait du meme geste (TASK-1461).',
-
-        // Shell Welcome : surface publique par construction (TASK-1442), bornee
-        // par son propre fail-closed economique (GuestShellGate).
-        'organization.shell.show' => 'Shell Welcome public (TASK-1442).',
-        'organization.shell.message' => 'Premier tour du Shell Welcome (TASK-1442).',
-
-        // Vitrine des Boucles. MESUREE, et pas seulement joignable : sur
-        // `org/main`, qui compte 19 Boucles reelles, la page rendue a un
-        // anonyme est une presentation avec un appel a se connecter — aucun
-        // nom de Boucle, aucun membre. C'est une surface marketing, pas la
-        // liste. Un 200 ne disait pas cela ; il a fallu lire le rendu.
-        'organization.boucles.index' => 'Vitrine publique des Boucles — rendu mesure : presentation + CTA connexion, jamais la liste.',
-
-        // Logigramme (TASK-1608). Publique PAR MANDAT : elle explique le
-        // produit a un visiteur qui n'a pas de compte. Elle n'est pas une
-        // ESCALADE au sens de `blog.index` — le controleur reprend la frontiere
-        // de la landing : Organization inactive -> 404, Organization privee et
-        // visiteur anonyme -> redirection vers le login borne.
+        // DEUX ESCALADES PARTENT AVEC ELLES, ET N'ONT JAMAIS ETE TRANCHEES.
+        // Elles ne sont pas resolues : elles sont rendues SANS OBJET par la
+        // fermeture. Si l'une de ces surfaces etait rouverte un jour, elles
+        // redeviendraient ouvertes le meme jour, et ce bloc est leur seule
+        // trace dans ce fichier :
         //
-        // Ce qu'un anonyme obtient est MESURE, pas espere : la projection
-        // `FlowchartLoops` ne retient que `status=active` + `visibility=public`
-        // + `access_mode IN (open, request)`. Une Boucle sur invitation
-        // n'existe ni dans la requete, ni dans le JSON, ni dans le DOM, ni dans
-        // les compteurs — c'est la garde §7 du mandat, tenue par
-        // `TASK1608FlowchartVisibilityTest`.
-        'organization.flowchart' => 'Logigramme public (TASK-1608) — seules les Boucles publiques a entree libre ou sur demande y figurent.',
-
-        // ─── TOLEREES, explicitement PAS validees ───
-
-        // Page publique de transparence produit — et l'intention est ECRITE,
-        // contrairement au commentaire de TASK-1488 : `bugs.empty` dit « Aucun
-        // bug PUBLIC pour le moment », `bugs.subtitle_org` parle des
-        // « corrections PUBLIEES », et la vue rend un bouton Connexion a
-        // l'invite. Elle le prevoit donc.
+        //   * BLOG (`blog.index`, `blog.show`, `blog.category`, `blog.tag`) —
+        //     mesure TASK-1489 sur une Organization `is_public = false` :
+        //     l'article publie etait servi 200, avec son titre, a un membre
+        //     d'une AUTRE Organization ET a un anonyme complet.
+        //     `BlogController@index` ne filtre que sur `organization_id` — ni
+        //     appartenance, ni publicite. L'article porte un opt-in d'auteur
+        //     (`status = published`), ce qui en faisait un arbitrage PRODUIT et
+        //     non un defaut evident.
+        //     -> SECURITY_PRODUCT_DECISION_REQUIRED_BEFORE_STABILIZATION.
         //
-        // TASK-1489 l'avait inscrite DEFAUT LATENT : elle ne fuyait rien pour la
-        // seule raison que la table etait VIDE. **TASK-1493 a ferme cela** — la
-        // liste d'une Organization privee est desormais reservee a ses membres,
-        // par la meme regle que TASK-1492. La page publique, elle, est
-        // conservee telle quelle.
-        'organization.bug-reports.index' => 'Page publique de suivi des bugs — bornee a la publicite de l\'Organization depuis TASK-1493.',
-
-        // Asymetrie ESCALADEE par TASK-1479 et jamais tranchee : la fiche de
-        // profil humaine est fermee, l'agent IA du meme membre reste joignable
-        // par URL directe. Il porte, lui, un opt-in explicite (STATUS_PUBLISHED)
-        // que le profil humain n'avait pas — c'est ce qui rend l'arbitrage non
-        // evident, et c'est pourquoi il revient a MASTER et pas a ce fichier.
-        'organization.agent-ia.profile.chat' => 'UNCLASSIFIED (TASK-1479, escaladee) — opt-in STATUS_PUBLISHED, sans Authenticate.',
+        //   * AGENT IA (`agent-ia.profile.chat`) — asymetrie escaladee par
+        //     TASK-1479 et jamais tranchee : la fiche de profil HUMAINE est
+        //     fermee, l'agent IA du meme membre restait joignable par URL
+        //     directe, sans `Authenticate`. Il porte, lui, un opt-in explicite
+        //     (STATUS_PUBLISHED) que le profil humain n'avait pas.
+        //     -> UNCLASSIFIED (TASK-1479).
+        //
+        // Trois contrats produits sont par ailleurs CONTREDITS par cette
+        // fermeture, et c'est a MASTER de les reecrire ou de les assumer :
+        // le mandat TASK-1608 (« Logigramme public PAR MANDAT : elle explique
+        // le produit a un visiteur qui n'a pas de compte »), le contrat
+        // TASK-1604 (le Mycelium scope « sert le MEME contenu que le global »,
+        // alors que `/mycelium` global rend toujours 200 en anonyme et le
+        // scope 302), et TASK-1613 pour `open-source`, de meme forme.
+        //
+        // Les SEPT routes d'authentification d'une Organization (login,
+        // register, forgot/reset password…) ne sont PAS concernees et restent
+        // joignables : elles portent `guest` / `RedirectIfAuthenticated`, donc
+        // une frontiere DECLAREE, et le predicat les compte a ce titre comme
+        // « quelqu'un a decide ». Elles n'ont jamais eu a figurer ici.
     ];
 
     /**
@@ -185,19 +161,18 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
      */
     public function test_every_guest_reachable_organization_route_is_declared(): void
     {
-        $undeclared = [];
+        $reachable = $this->guestReachableRoutes();
 
-        foreach ($this->organizationRoutes() as $route) {
-            if ($this->requiresSession($route)) {
-                continue;
-            }
+        // TASK-1692 / MICRO-11.2A — la garde doit d'abord prouver qu'elle
+        // REGARDE quelque chose. Elle a passe, sans rien mesurer, tout le temps
+        // ou le predicat voyait 354 routes sur 354 comme authentifiees : la
+        // boucle ci-dessous tournait a vide et l'assertion finale comparait
+        // deux tableaux vides. Un test qui boucle sur zero element est vert
+        // pour la pire des raisons.
+        $this->assertNotSame([], $this->organizationRoutes(), 'Aucune route /org/{organization} inspectee : la garde ne mesure rien.');
+        $this->assertNotSame([], $reachable, 'Aucune route joignable sans session : le predicat est casse, la garde est VACUE.');
 
-            $name = $route->getName() ?? $route->uri();
-
-            if (! array_key_exists($name, self::PUBLIC_BY_DECISION)) {
-                $undeclared[$name] = $route->uri();
-            }
-        }
+        $undeclared = array_diff_key($reachable, self::PUBLIC_BY_DECISION);
 
         $this->assertSame([], $undeclared, sprintf(
             "Ces routes Organization sont joignables SANS AUCUNE SESSION et personne ne l'a decide :\n%s\n\n".
@@ -224,15 +199,7 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
      */
     public function test_the_allowlist_does_not_keep_stale_entries(): void
     {
-        $guestReachable = [];
-
-        foreach ($this->organizationRoutes() as $route) {
-            if (! $this->requiresSession($route)) {
-                $guestReachable[] = $route->getName() ?? $route->uri();
-            }
-        }
-
-        $stale = array_diff(array_keys(self::PUBLIC_BY_DECISION), $guestReachable);
+        $stale = array_diff(array_keys(self::PUBLIC_BY_DECISION), array_keys($this->guestReachableRoutes()));
 
         $this->assertSame([], array_values($stale), sprintf(
             "PUBLIC_BY_DECISION declare publiques des routes qui ne le sont plus (ou n'existent plus) : %s.\n".
@@ -251,11 +218,23 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
      */
     public function test_a_new_unguarded_organization_route_is_detected(): void
     {
+        // TASK-1692 / MICRO-11.2A — la route fictive vit desormais dans la pile
+        // REELLE du groupe, et s'en excepte comme une vraie surface publique le
+        // ferait.
+        //
+        // Avant, elle etait posee dans un groupe A PART, avec `['web',
+        // 'organization']` recopies a la main. Ce raccourci a coute cher : le
+        // jour ou TASK-1692 a pose `auth` sur le groupe reel et desarme la
+        // garde, ce test est reste VERT — il mesurait une configuration qui
+        // n'existait plus nulle part. Un test de morsure doit mordre sur le
+        // montage reel, sinon il ne prouve que sa propre coherence.
         Route::prefix('/org/{organization}')
-            ->middleware(['web', 'organization'])
+            ->middleware($this->realOrganizationGroupMiddleware())
             ->name('organization.')
             ->group(function () {
-                Route::get('/task1489-fictive-surface', fn () => 'x')->name('task1489.fictive');
+                Route::get('/task1489-fictive-surface', fn () => 'x')
+                    ->withoutMiddleware(['auth', 'organization.member'])
+                    ->name('task1489.fictive');
             });
 
         Route::getRoutes()->refreshNameLookups();
@@ -273,6 +252,127 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
             self::PUBLIC_BY_DECISION,
             'La route fictive ne doit pas etre declaree — c\'est ce qui la rend detectable.'
         );
+
+        // Et la morsure elle-meme : la garde la voit, par le MEME chemin de
+        // code qu'en production de test — `guestReachableRoutes()`.
+        $this->assertArrayHasKey(
+            'organization.task1489.fictive',
+            $this->guestReachableRoutes(),
+            'La surface fictive publique n\'apparait pas dans l\'inventaire : la garde ne la signalerait pas.'
+        );
+    }
+
+    /**
+     * TASK-1692 / MICRO-11.2A — le predicat VOIT `withoutMiddleware()`.
+     *
+     * C'est la non-regression du defaut qui a desarme la garde. Elle nomme les
+     * deux routes concernees plutot qu'un compte, pour qu'un echec dise
+     * LAQUELLE a change de statut.
+     */
+    public function test_the_predicate_sees_routes_excepted_from_the_group_guard(): void
+    {
+        $reachable = $this->guestReachableRoutes();
+
+        foreach (['organization.home', 'organization.mentions-legales'] as $name) {
+            $route = collect($this->organizationRoutes())
+                ->first(fn (RoutingRoute $r) => $r->getName() === $name);
+
+            $this->assertNotNull($route, "$name a disparu du groupe Organization.");
+
+            // La route PORTE bien la garde du groupe — c'est son exception qui
+            // la rend publique. Si cette ligne tombait, le montage aurait
+            // change et la non-regression ne mesurerait plus le bon defaut.
+            $this->assertContains('auth', array_map('strval', $route->gatherMiddleware()), "$name n'herite plus de `auth` : ce test ne mesure plus l'exception.");
+            $this->assertContains('auth', array_map('strval', $route->excludedMiddleware()), "$name n'excepte plus `auth` : le montage a change.");
+
+            $this->assertFalse($this->requiresSession($route), "$name est exceptee de la garde du groupe et doit etre vue PUBLIQUE.");
+            $this->assertArrayHasKey($name, $reachable, "$name doit figurer dans l'inventaire des surfaces sans session.");
+        }
+    }
+
+    /**
+     * Le contre-exemple du meme defaut : une route qui herite la garde du
+     * groupe SANS s'en excepter ne doit jamais etre vue publique. Sinon la
+     * correction du predicat aurait pu ouvrir la vanne dans l'autre sens.
+     */
+    public function test_a_route_inheriting_the_group_guard_is_never_seen_public(): void
+    {
+        $reachable = $this->guestReachableRoutes();
+
+        foreach (['organization.mycelium', 'organization.dashboard', 'organization.members.index'] as $name) {
+            $route = collect($this->organizationRoutes())
+                ->first(fn (RoutingRoute $r) => $r->getName() === $name);
+
+            $this->assertNotNull($route, "$name a disparu du groupe Organization.");
+            $this->assertTrue($this->requiresSession($route), "$name porte la garde du groupe et ne doit JAMAIS etre vue publique.");
+            $this->assertArrayNotHasKey($name, $reachable, "$name ne doit pas figurer dans l'inventaire des surfaces sans session.");
+        }
+    }
+
+    /**
+     * TASK-1692 / MICRO-11.2B — les routes d'authentification ne sont PAS des
+     * surfaces publiques, et ne doivent pas le devenir par confusion.
+     *
+     * Elles sont joignables sans etre connecte — c'est leur raison d'etre — mais
+     * elles portent `guest` / `RedirectIfAuthenticated` : une frontiere
+     * DECLAREE. Le predicat les compte donc dans « quelqu'un a decide », et
+     * elles n'ont jamais eu a figurer dans `PUBLIC_BY_DECISION`.
+     *
+     * Ce test tient les deux bouts : si quelqu'un retirait `guest` a l'une
+     * d'elles, elle basculerait en surface publique NON DECLAREE et la garde
+     * anti-P0 la signalerait — c'est ce qu'on veut. Et tant que `guest` est la,
+     * aucune ne doit etre inscrite a l'inventaire, sous peine de rendre cet
+     * inventaire faux dans l'autre sens.
+     */
+    public function test_the_organization_authentication_routes_are_declared_boundaries_not_public_surfaces(): void
+    {
+        $reachable = $this->guestReachableRoutes();
+        $seen = 0;
+
+        foreach ($this->organizationRoutes() as $route) {
+            $isGuestRoute = false;
+
+            foreach (app('router')->gatherRouteMiddleware($route) as $middleware) {
+                if (is_string($middleware)
+                    && is_a(explode(':', $middleware, 2)[0], \Illuminate\Auth\Middleware\RedirectIfAuthenticated::class, true)) {
+                    $isGuestRoute = true;
+                    break;
+                }
+            }
+
+            if (! $isGuestRoute) {
+                continue;
+            }
+
+            $seen++;
+            $name = $route->getName() ?? $route->uri();
+
+            $this->assertTrue($this->requiresSession($route), "$name porte `guest` : c'est une frontiere DECLAREE, pas une surface publique.");
+            $this->assertArrayNotHasKey($name, $reachable, "$name ne doit pas figurer dans l'inventaire des surfaces sans session.");
+            $this->assertArrayNotHasKey($name, self::PUBLIC_BY_DECISION, "$name n'a pas a etre declaree publique : sa frontiere est `guest`.");
+        }
+
+        // TASK-1692 / MICRO-11.2A : login, register, forgot-password et
+        // reset-password, en GET et en POST. Les compter evite que ce test
+        // devienne vert parce qu'il ne trouve plus aucune route `guest`.
+        $this->assertSame(8, $seen, 'Les huit endpoints d\'authentification d\'une Organization doivent porter `guest`.');
+    }
+
+    /**
+     * TASK-1692 / MICRO-11.2A — l'inventaire n'est jamais vide EN SILENCE.
+     *
+     * C'est le test qui aurait sonne pendant que les deux gardes passaient a
+     * vide. Il mesure les trois nombres qui disent si la garde regarde encore :
+     * les routes inspectees, celles vues authentifiees, celles vues publiques.
+     */
+    public function test_the_inventory_is_never_silently_empty(): void
+    {
+        $routes = $this->organizationRoutes();
+        $reachable = $this->guestReachableRoutes();
+
+        $this->assertGreaterThan(100, count($routes), 'Le groupe Organization compte quelques centaines de routes : en trouver moins signale que le filtre d\'uri ne mord plus.');
+        $this->assertGreaterThanOrEqual(1, count($reachable), 'Aucune surface sans session : la garde serait VACUE, exactement comme avant MICRO-11.2A.');
+        $this->assertLessThan(count($routes), count($reachable), 'TOUTES les routes vues publiques : le predicat ne distingue plus rien.');
     }
 
     /** Le contre-exemple : une route qui PORTE la garde ne doit pas etre signalee. */
@@ -300,11 +400,6 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
     /**
      * « Cette route porte-t-elle une frontiere DECLAREE ? »
      *
-     * Le predicat suit l'idiome deja en place dans
-     * `TASK1473HomeDashboardCollisionTest` : on interroge la chaine COMPLETE
-     * (`gatherMiddleware()`, groupes compris), jamais la declaration locale —
-     * une route herite tres souvent sa garde de son groupe.
-     *
      * `guest` (`RedirectIfAuthenticated`) compte comme une frontiere declaree,
      * et la distinction est le coeur de cette garde : « reserve a qui n'est PAS
      * connecte » est une decision ECRITE dans la route — c'est le cas des sept
@@ -314,22 +409,103 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
      * Service et Demande avant TASK-1488.
      *
      * La garde separe donc « quelqu'un a decide » de « personne n'a decide ».
+     *
+     * ## TASK-1692 / MICRO-11.2A — ce predicat avait DESARME la garde
+     *
+     * Il interrogeait `gatherMiddleware()`, qui rend bien la chaine des groupes
+     * — mais qui **ne soustrait PAS** `withoutMiddleware()` : les exclusions
+     * vivent dans `excludedMiddleware()` et ne sont appliquees qu'au dispatch,
+     * par le Router. Des que TASK-1692 a pose `auth` + `organization.member`
+     * sur le groupe `/org/{organization}` entier, en n'exceptant que `home`,
+     * `mentions-legales` et le groupe `guest`, le predicat a vu **354 routes
+     * sur 354** comme authentifiees.
+     *
+     * Degat visible : `organization.home` et `organization.mentions-legales`
+     * etaient signalees perimees alors qu'elles rendent 200 a un anonyme.
+     * Degat REEL, et silencieux :
+     * `test_every_guest_reachable_organization_route_is_declared` ne parcourait
+     * plus AUCUNE route. La garde ecrite apres deux P0 de vie privee passait
+     * parce qu'elle ne regardait plus rien.
+     *
+     * Deux corrections, et la seconde compte autant que la premiere :
+     *
+     *  1. on demande les middlewares EFFECTIFS a Laravel lui-meme —
+     *     `Router::gatherRouteMiddleware()` resout les alias ET applique les
+     *     exclusions. Reimplementer cette soustraction a la main, c'est se
+     *     donner une seconde occasion de diverger du framework ;
+     *  2. on compare des CLASSES, plus des sous-chaines. `str_contains(…,
+     *     'Authenticate')` est vrai pour n'importe quel middleware dont le nom
+     *     contient ce mot — `EnsureAuthenticatedSomething`, un jour. On coupe
+     *     donc le parametre eventuel (`EnsureOrganizationMember:explain`) et on
+     *     verifie l'heritage avec `is_a()`, ce qui prend aussi les sous-classes.
      */
     private function requiresSession(RoutingRoute $route): bool
     {
-        foreach ($route->gatherMiddleware() as $middleware) {
-            $middleware = (string) $middleware;
+        foreach (app('router')->gatherRouteMiddleware($route) as $middleware) {
+            if (! is_string($middleware)) {
+                continue;
+            }
 
-            if ($middleware === 'auth'
-                || $middleware === 'guest'
-                || str_contains($middleware, 'Authenticate')
-                || str_contains($middleware, 'RedirectIfAuthenticated')
-                || str_contains($middleware, 'EnsureOrganizationMember')
-                || str_contains($middleware, 'OrgAdminMiddleware')) {
-                return true;
+            // `EnsureOrganizationMember:explain` -> `EnsureOrganizationMember`.
+            // Mesure TASK-1692 : exclure `organization.member` du groupe ne
+            // retire PAS la variante parametree posee sur la route, et c'est
+            // bien ce que rend `gatherRouteMiddleware()`.
+            $class = explode(':', $middleware, 2)[0];
+
+            foreach (self::SESSION_BARRIERS as $barrier) {
+                if (is_a($class, $barrier, true)) {
+                    return true;
+                }
             }
         }
 
         return false;
+    }
+
+    /**
+     * Les noms des routes Organization joignables SANS session, calcules UNE
+     * fois et partages par les deux gardes et par le test de morsure. Avant,
+     * chacun refaisait la boucle : le test de morsure pouvait donc rester vert
+     * sur une copie pendant que la garde reelle, elle, ne mesurait rien.
+     *
+     * @return array<string, string> nom de route => uri
+     */
+    private function guestReachableRoutes(): array
+    {
+        $reachable = [];
+
+        foreach ($this->organizationRoutes() as $route) {
+            if ($this->requiresSession($route)) {
+                continue;
+            }
+
+            $reachable[$route->getName() ?? $route->uri()] = $route->uri();
+        }
+
+        return $reachable;
+    }
+
+    /**
+     * La pile de middlewares que le groupe `/org/{organization}` impose
+     * REELLEMENT, lue sur les routes elles-memes : c'est ce que toutes
+     * partagent. On ne la recopie pas en dur — une constante recopiee se perime
+     * en silence le jour ou le groupe change, et le test de morsure mesurerait
+     * alors une configuration qui n'existe plus.
+     *
+     * @return array<int, string>
+     */
+    private function realOrganizationGroupMiddleware(): array
+    {
+        $common = null;
+
+        foreach ($this->organizationRoutes() as $route) {
+            $middleware = array_map('strval', $route->gatherMiddleware());
+
+            $common = $common === null
+                ? $middleware
+                : array_values(array_intersect($common, $middleware));
+        }
+
+        return $common ?? [];
     }
 }

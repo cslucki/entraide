@@ -234,7 +234,7 @@ class TASK1451WorkshopSessionsTest extends TestCase
         $this->actingAs($this->adminA)->get(route('organization.admin.workshops.sessions.edit', [$this->a, $this->workshopA, $sb]))->assertNotFound();
         $this->actingAs($this->adminA)->post(route('organization.admin.workshops.sessions.publish', [$this->a, $this->workshopA, $sb]))->assertNotFound();
         $this->actingAs($this->adminA)->delete(route('organization.admin.workshops.sessions.cancel', [$this->a, $this->workshopA, $sb]))->assertNotFound();
-        $this->actingAs($this->adminB)->get(route('organization.admin.workshops.sessions', [$this->a, $this->workshopA]))->assertForbidden();
+        $this->actingAs($this->adminB)->get(route('organization.admin.workshops.sessions', [$this->a, $this->workshopA]))->assertNotFound();
         $this->actingAs($this->member)->get(route('organization.admin.workshops.sessions', [$this->a, $this->workshopA]))->assertForbidden();
         $this->assertSame(3, WorkshopSession::count());
         $this->assertTrue($sb->fresh()->isDraft(), 'rien n\'a bouge chez B');

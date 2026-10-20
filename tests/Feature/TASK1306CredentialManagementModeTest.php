@@ -132,7 +132,7 @@ class TASK1306CredentialManagementModeTest extends TestCase
                 ->put(route('organization.admin.ai.credential-mode.update', $organization), [
                     'credential_management_mode' => OrganizationAiSetting::CREDENTIAL_MODE_ORGANIZATION,
                 ])
-                ->assertForbidden();
+                ->assertNotFound();
         }
 
         $this->assertDatabaseCount('organization_ai_settings', 0);

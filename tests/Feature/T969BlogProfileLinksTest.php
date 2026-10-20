@@ -24,7 +24,11 @@ class T969BlogProfileLinksTest extends TestCase
 
         $this->createPost($author, $organization, ['title' => 'T969 Org Index Link']);
 
-        $this->get(route('organization.blog.index', ['organization' => $organization->slug]))
+        // TASK-1692 — surface prefixee devenue MEMBRE. Le contenu mesure ici
+        // est inchange ; seul l'oeil qui le lit l'est. Le refus anonyme est
+        // tenu separement par TASK1692StrictHttpIsolationTest.
+        $this->actingAs(\App\Models\User::factory()->create(['organization_id' => $organization->id]))
+            ->get(route('organization.blog.index', ['organization' => $organization->slug]))
             ->assertOk()
             ->assertSee(route('organization.profile.show', ['organization' => $organization->slug, 'user' => $author]), false)
             ->assertDontSee(route('profile.show', $author), false);
@@ -36,7 +40,9 @@ class T969BlogProfileLinksTest extends TestCase
         $author = $this->createUser($organization);
         $post = $this->createPost($author, $organization, ['title' => 'T969 Org Show Link']);
 
-        $this->get(route('organization.blog.show', ['organization' => $organization->slug, 'post' => $post]))
+        // TASK-1692 — surface prefixee devenue MEMBRE ; contenu inchange.
+        $this->actingAs(\App\Models\User::factory()->create(['organization_id' => $organization->id]))
+            ->get(route('organization.blog.show', ['organization' => $organization->slug, 'post' => $post]))
             ->assertOk()
             ->assertSee(route('organization.profile.show', ['organization' => $organization->slug, 'user' => $author]), false)
             ->assertDontSee(route('profile.show', $author), false);
@@ -53,7 +59,9 @@ class T969BlogProfileLinksTest extends TestCase
             'title' => 'T969 Org Category Link',
         ]);
 
-        $this->get(route('organization.blog.category', ['organization' => $organization->slug, 'slug' => $category->slug]))
+        // TASK-1692 — surface prefixee devenue MEMBRE ; contenu inchange.
+        $this->actingAs(\App\Models\User::factory()->create(['organization_id' => $organization->id]))
+            ->get(route('organization.blog.category', ['organization' => $organization->slug, 'slug' => $category->slug]))
             ->assertOk()
             ->assertSee(route('organization.profile.show', ['organization' => $organization->slug, 'user' => $author]), false)
             ->assertDontSee(route('profile.show', $author), false);

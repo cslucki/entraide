@@ -35,8 +35,18 @@ use Tests\TestCase;
  * explorer ici ». Sa projection — `App\Support\Flowchart\FlowchartLoops` — est
  * dediee a ce payload, n'accorde aucun droit, et ne modifie pas `VisibleLoops`.
  *
- * SOCLE PUBLIC, servi a tout le monde :
- * `status = active` ET `visibility = public` ET `access_mode ∈ {open, request}`.
+ * SOCLE PUBLIC — `status = active` ET `visibility = public` ET
+ * `access_mode ∈ {open, request}`.
+ *
+ * TASK-1692 : « servi a tout le monde » voulait dire « y compris a un visiteur
+ * sans session ». Ce n'est plus vrai — `auth` + `organization.member` sont
+ * poses sur tout le groupe `/org/{organization}`, et cette carte est
+ * desormais reservee aux MEMBRES de l'Organization visitee. Le nom « socle
+ * public » est conserve parce qu'il designe la PROJECTION, pas l'audience :
+ * c'est ce que la carte montre a quelqu'un qui n'appartient a aucune de ces
+ * Boucles. Organization = Tenant, mais Loop ≠ Tenant : appartenir au tenant
+ * n'ouvre aucune Boucle privee, et c'est precisement ce que mesurent les
+ * tests 3, 4, 11 et 12.
  *
  * AJOUT MEMBRE, pour qui appartient a l'Organization visitee : ses Boucles
  * actives dont il est membre ACTIF, meme `private`, meme `invitation`.
@@ -167,40 +177,90 @@ class TASK1608FlowchartVisibilityTest extends TestCase
     }
 
     // =====================================================================
-    // A. INVITE — le socle public, et rien d'autre (tests 1 a 6)
+    // A. LE VISITEUR ANONYME — TASK-1692 : il n'atteint plus cette carte
     //
-    // Les six combinaisons des deux axes, une par test. Aucune n'est deduite
-    // d'une autre.
+    // Les tests 1 a 6 mesuraient ici le « socle public » servi a un INVITE.
+    // TASK-1692 a pose `auth` + `organization.member` sur tout le groupe
+    // `/org/{organization}` : un visiteur sans session est redirige vers le
+    // login borne, et la question « que voit un invite ? » n'a plus d'objet.
+    //
+    // AUCUNE garantie n'est perdue pour autant, et c'est le point a verifier
+    // avant de lire la suite — une garantie qu'on ne peut plus mesurer ne se
+    // supprime pas, elle se REFONDE :
+    //
+    //   * le refus anonyme devient une preuve EXPLICITE (test 1 ci-dessous),
+    //     plus forte que l'ancienne : rien ne fuit parce que RIEN n'est servi ;
+    //   * les quatre interdits (3 a 6) sont refondes sur le viseur qui existe
+    //     encore : un membre de l'Organization qui n'appartient PAS a la
+    //     Boucle. C'est la distinction Organization = Tenant mais Loop ≠
+    //     Tenant — appartenir au tenant n'ouvre aucune Boucle privee ;
+    //   * les deux autorises (1 et 2 : `public+open` et `public+request` sont
+    //     montres) restent mesures A L'IDENTIQUE par les tests 7 et 8, qui
+    //     interrogent deja `$this->membre`, lui non plus membre d'aucune de
+    //     ces Boucles. Rien n'a ete retire, la preuve a change de section.
+    //
+    // Les six combinaisons des deux axes restent donc couvertes, une par test,
+    // aucune deduite d'une autre : 7, 8, 3bis, 4bis, 11, 12 pour un non-membre
+    // de la Boucle ; 9 et 10 pour un membre de la Boucle.
     // =====================================================================
 
-    /** 1. `public` + `open` : visible. */
-    public function test_1_guest_sees_a_public_open_loop(): void
+    /**
+     * 1. Le visiteur anonyme est refuse, et rien ne lui echappe au passage.
+     *
+     * Les deux faits sont mesures ensemble : la redirection, ET l'absence de
+     * toute empreinte de Boucle dans ce qui lui est rendu. Un `assertRedirect()`
+     * seul ne dirait pas que la reponse ne porte rien.
+     */
+    public function test_1_an_anonymous_visitor_cannot_reach_the_prefixed_flowchart(): void
+    {
+        $publique = $this->loop('public', Loop::ACCESS_OPEN);
+        $privee = $this->loop('private', Loop::ACCESS_INVITATION);
+
+        $response = $this->get($this->url());
+
+        $response->assertRedirect(route('organization.login', [
+            'organization' => $this->organization->slug,
+        ]));
+
+        foreach ([$publique, $privee] as $loop) {
+            $response->assertDontSee($loop->name, false);
+            $response->assertDontSee($loop->slug, false);
+            $response->assertDontSee($loop->id, false);
+        }
+    }
+
+    /**
+     * 2. Et la carte n'est pas davantage joignable par un membre d'une AUTRE
+     *    Organization : 404, jamais 403 — un 403 avouerait que la carte existe.
+     */
+    public function test_2_a_member_of_another_organization_gets_a_no_oracle_404(): void
     {
         $loop = $this->loop('public', Loop::ACCESS_OPEN);
 
-        $response = $this->get($this->url());
-        $response->assertOk();
+        $etranger = User::factory()->complete()->create([
+            'organization_id' => $this->autreOrganization->id,
+        ]);
 
-        $this->assertPresente($response, $loop, 'Une Boucle publique a entree libre est une possibilite publique.');
+        $response = $this->actingAs($etranger)->get($this->url());
+
+        $response->assertNotFound();
+        $response->assertDontSee($loop->name, false);
+        $response->assertDontSee($loop->slug, false);
+        $response->assertDontSee($loop->id, false);
     }
 
-    /** 2. `public` + `request` : visible — demander a rejoindre EST une possibilite. */
-    public function test_2_guest_sees_a_public_request_loop(): void
-    {
-        $loop = $this->loop('public', Loop::ACCESS_REQUEST);
-
-        $response = $this->get($this->url());
-        $response->assertOk();
-
-        $this->assertPresente($response, $loop, 'Une Boucle publique sur demande est une possibilite publique.');
-    }
-
-    /** 3. `public` + `invitation` : ABSENTE — publique n'est pas praticable. */
-    public function test_3_guest_never_sees_a_public_invitation_loop(): void
+    /**
+     * 3. `public` + `invitation` : ABSENTE — publique n'est pas praticable.
+     *
+     * Refondu sur un membre de l'Organization NON membre de la Boucle : c'est
+     * desormais le viseur le plus faible qui puisse atteindre cette page.
+     * Ce cas n'est couvert par aucun autre test de la section B.
+     */
+    public function test_3_a_member_never_sees_a_public_invitation_loop(): void
     {
         $loop = $this->loop('public', Loop::ACCESS_INVITATION);
 
-        $response = $this->get($this->url());
+        $response = $this->actingAs($this->membre)->get($this->url());
         $response->assertOk();
 
         $this->assertAbsente($response, $loop, 'Sur invitation : on ne peut ni entrer ni demander.');
@@ -211,39 +271,26 @@ class TASK1608FlowchartVisibilityTest extends TestCase
      *
      * Le cas qui prouve que l'axe `visibility` est bien lu. Une regle ecrite
      * sur le seul `access_mode` laisserait passer cette Boucle — et elle
-     * existe reellement sur `main` (4 occurrences mesurees).
+     * existe reellement sur `main` (4 occurrences mesurees). Lui aussi n'est
+     * couvert nulle part ailleurs.
      */
-    public function test_4_guest_never_sees_a_private_open_loop(): void
+    public function test_4_a_member_never_sees_a_private_open_loop_they_do_not_belong_to(): void
     {
         $loop = $this->loop('private', Loop::ACCESS_OPEN);
 
-        $response = $this->get($this->url());
+        $response = $this->actingAs($this->membre)->get($this->url());
         $response->assertOk();
 
         $this->assertAbsente($response, $loop, '`access_mode = open` ne rattrape pas `visibility = private`.');
     }
 
-    /** 5. `private` + `request` : ABSENTE. */
-    public function test_5_guest_never_sees_a_private_request_loop(): void
-    {
-        $loop = $this->loop('private', Loop::ACCESS_REQUEST);
-
-        $response = $this->get($this->url());
-        $response->assertOk();
-
-        $this->assertAbsente($response, $loop, 'Une Boucle privee ne se nomme pas a un visiteur anonyme.');
-    }
-
-    /** 6. `private` + `invitation` : ABSENTE. */
-    public function test_6_guest_never_sees_a_private_invitation_loop(): void
-    {
-        $loop = $this->loop('private', Loop::ACCESS_INVITATION);
-
-        $response = $this->get($this->url());
-        $response->assertOk();
-
-        $this->assertAbsente($response, $loop, 'Le cas le plus ferme reste le plus ferme.');
-    }
+    /**
+     * 5 et 6 — `private` + `request` et `private` + `invitation`, sans
+     * appartenance : ABSENTES. Ces deux cas sont tenus, a l'identique et pour
+     * le meme viseur, par les tests 12 et 11 de la section B. Les redoubler
+     * ici ne mesurerait rien de plus ; les retirer sans le dire aurait ete une
+     * perte silencieuse, d'ou cette note.
+     */
 
     // =====================================================================
     // B. MEMBRE DE L'ORGANIZATION — socle public + son propre espace (7 a 12)
@@ -351,10 +398,17 @@ class TASK1608FlowchartVisibilityTest extends TestCase
         $loop = $this->loop('private', Loop::ACCESS_REQUEST);
         $loop->update(['name' => 'Cartographie Confidentielle 1608']);
 
-        foreach ([$this->get($this->url()), $this->actingAs($this->membre)->get($this->url())] as $response) {
-            $response->assertOk();
-            $response->assertDontSee('Cartographie Confidentielle 1608', false);
-        }
+        // TASK-1692 — l'anonyme n'obtient plus la page du tout : son refus est
+        // mesure d'abord, et on verifie que la reponse de refus ne porte rien.
+        // Puis le membre, pour qui la page EXISTE : c'est la que l'assertion
+        // garde tout son mordant, parce qu'il y a un rendu a inspecter.
+        $this->get($this->url())
+            ->assertRedirect(route('organization.login', ['organization' => $this->organization->slug]))
+            ->assertDontSee('Cartographie Confidentielle 1608', false);
+
+        $this->actingAs($this->membre)->get($this->url())
+            ->assertOk()
+            ->assertDontSee('Cartographie Confidentielle 1608', false);
     }
 
     /** 14. Son SLUG non plus. */
@@ -363,10 +417,13 @@ class TASK1608FlowchartVisibilityTest extends TestCase
         $loop = $this->loop('private', Loop::ACCESS_REQUEST);
         $loop->update(['slug' => 'slug-confidentiel-1608']);
 
-        foreach ([$this->get($this->url()), $this->actingAs($this->membre)->get($this->url())] as $response) {
-            $response->assertOk();
-            $response->assertDontSee('slug-confidentiel-1608', false);
-        }
+        $this->get($this->url())
+            ->assertRedirect(route('organization.login', ['organization' => $this->organization->slug]))
+            ->assertDontSee('slug-confidentiel-1608', false);
+
+        $this->actingAs($this->membre)->get($this->url())
+            ->assertOk()
+            ->assertDontSee('slug-confidentiel-1608', false);
     }
 
     /** 15. Son IDENTIFIANT non plus — ni en node, ni en `data-*`, ni en URL. */
@@ -374,10 +431,13 @@ class TASK1608FlowchartVisibilityTest extends TestCase
     {
         $loop = $this->loop('private', Loop::ACCESS_INVITATION);
 
-        foreach ([$this->get($this->url()), $this->actingAs($this->membre)->get($this->url())] as $response) {
-            $response->assertOk();
-            $response->assertDontSee($loop->id, false);
-        }
+        $this->get($this->url())
+            ->assertRedirect(route('organization.login', ['organization' => $this->organization->slug]))
+            ->assertDontSee($loop->id, false);
+
+        $this->actingAs($this->membre)->get($this->url())
+            ->assertOk()
+            ->assertDontSee($loop->id, false);
     }
 
     /**
@@ -444,14 +504,30 @@ class TASK1608FlowchartVisibilityTest extends TestCase
         ]);
         $this->rendreMembre($etrangere, $etranger);
 
-        foreach ([
-            $this->get($this->url()),
-            $this->actingAs($this->membre)->get($this->url()),
-            $this->actingAs($etranger)->get($this->url()),
-        ] as $response) {
-            $response->assertOk();
-            $this->assertAbsente($response, $etrangere, 'Une Boucle d\'un autre tenant n\'entre jamais sur cette carte.');
-        }
+        // TASK-1692 — les trois viseurs n'ont plus le meme statut, et c'est
+        // le coeur du contrat : seul le membre du tenant obtient un rendu.
+        // Les deux autres sont refuses, chacun de la facon qui ne revele rien.
+
+        // 1. Anonyme : redirige vers le login borne.
+        $this->get($this->url())
+            ->assertRedirect(route('organization.login', ['organization' => $this->organization->slug]))
+            ->assertDontSee($etrangere->name, false)
+            ->assertDontSee($etrangere->slug, false)
+            ->assertDontSee($etrangere->id, false);
+
+        // 2. Membre du tenant : la page existe, et la Boucle etrangere n'y est
+        //    ni dans le payload, ni dans le DOM.
+        $response = $this->actingAs($this->membre)->get($this->url());
+        $response->assertOk();
+        $this->assertAbsente($response, $etrangere, 'Une Boucle d\'un autre tenant n\'entre jamais sur cette carte.');
+
+        // 3. Membre de l'AUTRE Organization : 404, pas d'oracle — et il ne
+        //    ramene pas sa Boucle avec lui.
+        $this->actingAs($etranger->fresh())->get($this->url())
+            ->assertNotFound()
+            ->assertDontSee($etrangere->name, false)
+            ->assertDontSee($etrangere->slug, false)
+            ->assertDontSee($etrangere->id, false);
     }
 
     // =====================================================================
@@ -473,7 +549,7 @@ class TASK1608FlowchartVisibilityTest extends TestCase
      * est `public` + `open`. Elle DOIT apparaitre, invite compris. Sa voisine
      * `QA Gouvernance 1079` est `private` + `invitation` — et reste absente.
      */
-    public function test_a_mono_loop_organization_still_serves_the_public_base(): void
+    public function test_a_mono_loop_organization_still_serves_the_public_base_to_its_members(): void
     {
         $mono = Organization::factory()->create([
             'slug' => 'org-1608-mono',
@@ -489,7 +565,15 @@ class TASK1608FlowchartVisibilityTest extends TestCase
 
         $mono->update(['primary_loop_id' => $gouvernance->id]);
 
-        $response = $this->get($this->url($mono));
+        // TASK-1692 — le socle public est desormais servi aux MEMBRES de
+        // l'Organization. Ce que ce test prouve n'a pas bouge : `loop_mode =
+        // mono` reste une regle du catalogue interne, et ne retire pas du
+        // socle une Boucle qui le satisfait. Seul le viseur a change.
+        $membreMono = User::factory()->complete()->create([
+            'organization_id' => $mono->id,
+        ]);
+
+        $response = $this->actingAs($membreMono)->get($this->url($mono));
         $response->assertOk();
 
         $this->assertPresente(
@@ -504,20 +588,34 @@ class TASK1608FlowchartVisibilityTest extends TestCase
     // F. Le graphe structurel existe, pour tout le monde
     // =====================================================================
 
-    /** La page est publique, et porte bien un graphe — pas une page vide. */
-    public function test_the_structural_graph_is_served_to_everyone(): void
+    /**
+     * La carte porte bien un graphe — pas une page vide.
+     *
+     * CHANGEMENT D'INTENTION PRODUIT — TASK-1692. Ce test s'appelait
+     * `test_the_structural_graph_is_served_to_everyone` et le premier mot du
+     * commentaire etait « La page est publique ». Elle ne l'est plus : la
+     * carte prefixee est reservee aux membres de son Organization. Le graphe
+     * structurel — une racine, les quatre portes du §4 — est inchange, c'est
+     * son public qui l'est.
+     */
+    public function test_the_structural_graph_is_served_to_every_member(): void
     {
-        foreach ([$this->get($this->url()), $this->actingAs($this->membre)->get($this->url())] as $response) {
-            $response->assertOk();
+        // L'ANONYME D'ABORD : `actingAs()` ne se defait pas, une requete posee
+        // apres lui n'est plus anonyme. Sans ce volet, le test serait vert
+        // meme si la carte s'etait rouverte a tout le monde.
+        $this->get($this->url())
+            ->assertRedirect(route('organization.login', ['organization' => $this->organization->slug]));
 
-            $graph = $this->graph($response);
+        $response = $this->actingAs($this->membre)->get($this->url());
+        $response->assertOk();
 
-            $racines = array_filter($graph['nodes'], static fn (array $n): bool => $n['data']['kind'] === 'root');
-            $intentions = array_filter($graph['nodes'], static fn (array $n): bool => $n['data']['kind'] === 'intent');
+        $graph = $this->graph($response);
 
-            $this->assertCount(1, $racines, 'Le graphe doit avoir un point d\'entree unique.');
-            $this->assertCount(4, $intentions, 'Les quatre portes du §4 doivent etre presentes.');
-            $this->assertNotEmpty($graph['edges'], "Un graphe sans arete n'est pas un graphe.");
-        }
+        $racines = array_filter($graph['nodes'], static fn (array $n): bool => $n['data']['kind'] === 'root');
+        $intentions = array_filter($graph['nodes'], static fn (array $n): bool => $n['data']['kind'] === 'intent');
+
+        $this->assertCount(1, $racines, 'Le graphe doit avoir un point d\'entree unique.');
+        $this->assertCount(4, $intentions, 'Les quatre portes du §4 doivent etre presentes.');
+        $this->assertNotEmpty($graph['edges'], "Un graphe sans arete n'est pas un graphe.");
     }
 }

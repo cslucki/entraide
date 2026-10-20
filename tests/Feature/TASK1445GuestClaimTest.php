@@ -95,6 +95,18 @@ class TASK1445GuestClaimTest extends TestCase
 
     public function test_registration_never_claims_and_the_verified_email_claims_the_visitor_of_the_same_organization(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         $raw = Str::random(64);
         $visitor = $this->talkingVisitor($this->a, $raw);
         $conversation = GuestConversation::firstOrFail();
@@ -139,6 +151,18 @@ class TASK1445GuestClaimTest extends TestCase
 
     public function test_a_cookie_of_another_organization_claims_nothing_and_reveals_nothing(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         $raw = Str::random(64);
         $visitor = $this->talkingVisitor($this->b, $raw);
         $user = User::factory()->unverified()->create(['organization_id' => $this->a->id]);
@@ -153,6 +177,18 @@ class TASK1445GuestClaimTest extends TestCase
 
     public function test_an_already_claimed_visitor_a_missing_cookie_or_a_user_without_organization_claim_nothing(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         // Defense en profondeur : meme appele directement avec un cookie valide, le service exige un email VERIFIE.
         $rawFresh = Str::random(64);
         $unclaimed = $this->talkingVisitor($this->a, $rawFresh);
@@ -181,6 +217,18 @@ class TASK1445GuestClaimTest extends TestCase
 
     public function test_a_failed_claim_transaction_never_burns_nor_rotates_the_cookie(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         $raw = Str::random(64);
         $visitor = $this->talkingVisitor($this->a, $raw);
         $user = User::factory()->create(['organization_id' => $this->a->id]);
@@ -229,6 +277,18 @@ class TASK1445GuestClaimTest extends TestCase
 
     public function test_an_authenticated_user_never_gets_the_guest_shell_neither_rendered_nor_served(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         $member = User::factory()->create(['organization_id' => $this->a->id]);
         $raw = Str::random(64);
         $this->talkingVisitor($this->a, $raw);

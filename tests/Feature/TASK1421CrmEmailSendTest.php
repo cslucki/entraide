@@ -249,7 +249,7 @@ class TASK1421CrmEmailSendTest extends TestCase
         $this->actingAs($this->adminA)->get($this->preview($contactB, $this->templateA))->assertNotFound();
         $this->actingAs($this->adminA)->post($this->send($this->contactA, $templateB), ['token' => 'x'])->assertNotFound();
         $this->actingAs($this->adminA)->post($this->send($contactB, $this->templateA), ['token' => 'x'])->assertNotFound();
-        $this->actingAs($this->adminB)->get($this->preview($this->contactA, $this->templateA))->assertForbidden();
+        $this->actingAs($this->adminB)->get($this->preview($this->contactA, $this->templateA))->assertNotFound();
 
         $this->assertSame(0, $this->capturedMailCount());
         $this->assertSame(0, EmailLog::count());

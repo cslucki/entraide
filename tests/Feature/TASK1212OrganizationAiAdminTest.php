@@ -92,13 +92,13 @@ class TASK1212OrganizationAiAdminTest extends TestCase
 
         $this->actingAs($this->otherOrgAdmin)
             ->get(route('organization.admin.ai', $this->organization))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->actingAs($this->otherOrgAdmin)
             ->put(route('organization.admin.ai.update', $this->organization), [
                 'provider' => 'openrouter', 'model' => 'x', 'api_key' => 'sk-hack', 'is_enabled' => 1,
             ])
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertDatabaseCount('organization_ai_settings', 0);
     }

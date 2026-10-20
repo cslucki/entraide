@@ -258,20 +258,45 @@ class TASK1483DashboardTenantRefusalTest extends TestCase
     // =====================================================================
 
     /**
-     * Nommer une Organization privee a quelqu'un qui n'en fait pas partie
-     * confirmerait son existence. Le texte devient neutre, et le second CTA
-     * disparait : il n'y a pas de landing publique a proposer.
+     * CHANGEMENT DE CONTRAT — TASK-1692.
+     *
+     * TASK-1483 taisait le NOM d'une Organization privee tout en rendant 403.
+     * Mesure TASK-1692 : un slug INEXISTANT rend 404 — `ResolveOrganization`
+     * s'execute avant `auth`. Le statut distinguait donc « existe » de
+     * « n'existe pas », et le nom tu n'y changeait rien. TASK-1692 ayant
+     * aligne tout le reste du produit sur 404, ce tableau de bord etait
+     * devenu le dernier point de sonde.
+     *
+     * Une Organization privee repond desormais EXACTEMENT comme un slug
+     * inexistant. Les deux sont mesures ensemble : separes, chacun serait vert
+     * sur une porte muree pour tout le monde.
      */
-    public function test_a_private_organization_is_never_named_to_a_stranger(): void
+    public function test_a_private_organization_answers_exactly_like_a_slug_that_does_not_exist(): void
     {
-        $html = $this->actingAs($this->stranger)
+        $prive = $this->actingAs($this->stranger)
             ->get(route('organization.dashboard', ['organization' => $this->privateHost->slug]))
-            ->assertStatus(403)
-            ->getContent();
+            ->assertNotFound();
 
-        $this->assertStringNotContainsString($this->privateHost->name, $html, 'le nom d\'une Organization privee ne doit pas apparaitre');
-        $this->assertStringContainsString(e(__('errors.org_member_required_heading_neutral')), $html);
-        $this->assertStringNotContainsString(e(__('errors.org_member_required_public_home')), $html);
+        $this->assertStringNotContainsString($this->privateHost->name, $prive->getContent(), 'le nom d\'une Organization privee ne doit pas apparaitre');
+        $this->assertStringNotContainsString($this->privateHost->slug, $prive->getContent());
+
+        $inexistant = $this->actingAs($this->stranger->fresh())
+            ->get('/org/t1483-slug-inexistant/dashboard')
+            ->assertNotFound();
+
+        $this->assertSame(
+            $inexistant->getStatusCode(),
+            $prive->getStatusCode(),
+            'prive et inexistant doivent etre indiscernables',
+        );
+
+        // CONTRE-EPREUVE : l'Organization PUBLIQUE garde son refus explique,
+        // sans quoi ce test serait vert sur un produit qui aurait cesse
+        // d'expliquer quoi que ce soit.
+        $this->actingAs($this->stranger->fresh())
+            ->get(route('organization.dashboard', ['organization' => $this->host->slug]))
+            ->assertStatus(403)
+            ->assertSee($this->host->name, false);
     }
 
     /**

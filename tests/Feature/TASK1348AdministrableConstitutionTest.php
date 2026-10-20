@@ -465,15 +465,15 @@ class TASK1348AdministrableConstitutionTest extends TestCase
     {
         $this->actingAs($this->adminA)
             ->put(route('organization.admin.ai-behavior.constitution.update', ['organization' => $this->organizationB->slug]), ['constitution_body' => 'Intrusion.'])
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->actingAs($this->adminA)
             ->delete(route('organization.admin.ai-behavior.constitution.withdraw', ['organization' => $this->organizationB->slug]))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->actingAs($this->adminA)
             ->get(route('organization.admin.ai-behavior', ['organization' => $this->organizationB->slug]))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertNull(OrganizationAiConstitution::activeFor((string) $this->organizationB->id));
     }

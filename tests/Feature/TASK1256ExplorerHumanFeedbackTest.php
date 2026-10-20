@@ -502,7 +502,7 @@ class TASK1256ExplorerHumanFeedbackTest extends TestCase
         $this->actingAs($this->author)->postJson(route('organization.blog.explorer.feedback.store', [
             'organization' => $this->otherOrganization->slug,
             'post' => $this->foreignPost,
-        ]), ['ai_interaction_id' => $foreign->id, 'verdict' => 'helpful'])->assertForbidden();
+        ]), ['ai_interaction_id' => $foreign->id, 'verdict' => 'helpful'])->assertNotFound();
 
         $this->assertSame(0, AiInteractionFeedback::query()->count());
 

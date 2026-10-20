@@ -160,11 +160,11 @@ class TASK1533AiContextInspectorTest extends TestCase
 
     public function test_an_admin_of_another_organization_is_refused(): void
     {
-        $this->actingAs($this->otherAdmin)->get($this->url())->assertForbidden();
+        $this->actingAs($this->otherAdmin)->get($this->url())->assertNotFound();
         $this->actingAs($this->otherAdmin)->post($this->url('/'), [
             'capability' => CapabilityRegistry::CLARIFY_HELP_REQUEST,
             'question' => 'jai besoin daide pour un atelier',
-        ])->assertForbidden();
+        ])->assertNotFound();
 
         $this->assertSame(0, AiProviderInvocation::query()->count());
     }

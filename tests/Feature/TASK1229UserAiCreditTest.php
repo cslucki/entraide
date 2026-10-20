@@ -650,8 +650,8 @@ class TASK1229UserAiCreditTest extends TestCase
         $this->actingAs($this->memberA)->get($orgUrl)->assertForbidden();
         $this->actingAs($this->memberA)->put($orgUpdate, $payload)->assertForbidden();
         // Admin d'une autre Organization -> 403.
-        $this->actingAs($this->adminB)->get($orgUrl)->assertForbidden();
-        $this->actingAs($this->adminB)->put($orgUpdate, $payload)->assertForbidden();
+        $this->actingAs($this->adminB)->get($orgUrl)->assertNotFound();
+        $this->actingAs($this->adminB)->put($orgUpdate, $payload)->assertNotFound();
         // Non-SuperAdmin -> 403 sur le parametre plateforme (admin d'Organization compris).
         $this->actingAs($this->memberA)->get($platformUrl)->assertForbidden();
         $this->actingAs($this->adminA)->get($platformUrl)->assertForbidden();

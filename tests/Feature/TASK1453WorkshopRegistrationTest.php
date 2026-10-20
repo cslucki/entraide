@@ -300,7 +300,7 @@ class TASK1453WorkshopRegistrationTest extends TestCase
         // Autre Organization : 403, aucune information, rien d'ecrit ; la page ne montre aucun etat prive.
         $memberB = $this->verifiedMember($this->b, 'b@example.test');
         $this->forgetAuth();
-        $this->actingAs($memberB)->post($this->registerUrl($this->s1))->assertForbidden();
+        $this->actingAs($memberB)->post($this->registerUrl($this->s1))->assertNotFound();
         $html = $this->actingAs($memberB)->get($this->pageUrl())->assertOk()->getContent();
         $this->assertStringNotContainsString('data-workshop-register="', $html);
         $this->assertStringNotContainsString('data-workshop-verify-first', $html);

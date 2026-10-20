@@ -593,7 +593,7 @@ class SystemEmailTemplateTest extends TestCase
 
         $response = $this->actingAs($orgAdmin)->get(route('organization.admin.system-email-templates', $otherOrg));
 
-        $response->assertStatus(403);
+        $response->assertStatus(404);
     }
 
     public function test_org_admin_cannot_edit_other_org_template(): void
@@ -610,6 +610,6 @@ class SystemEmailTemplateTest extends TestCase
             route('organization.admin.system-email-templates.edit', [$otherOrg, $otherTemplate])
         );
 
-        $response->assertStatus(403);
+        $response->assertStatus(404);
     }
 }

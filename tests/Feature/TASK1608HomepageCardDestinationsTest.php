@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -112,7 +113,12 @@ class TASK1608HomepageCardDestinationsTest extends TestCase
     {
         app()->forgetInstance('current_organization');
 
-        return $this->get('/org/'.$organization->slug);
+        $member = User::factory()->complete()->create([
+            'organization_id' => $organization->id,
+            'email_verified_at' => now(),
+        ]);
+
+        return $this->actingAs($member)->get('/org/'.$organization->slug);
     }
 
     /**

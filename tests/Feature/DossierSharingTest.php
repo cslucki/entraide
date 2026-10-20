@@ -565,7 +565,7 @@ class DossierSharingTest extends TestCase
                 'user_id' => $this->readerA->id,
                 'role' => 'reader',
             ])
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     // --- Stranger cannot access ---

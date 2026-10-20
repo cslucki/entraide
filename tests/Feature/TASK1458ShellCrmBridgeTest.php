@@ -124,6 +124,18 @@ class TASK1458ShellCrmBridgeTest extends TestCase
 
     public function test_the_claim_finds_or_creates_and_links_the_contact_with_its_first_touch_provenance_once_and_never_per_message(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         $raw = Str::random(64);
         $this->message($raw, $this->a);
         $this->message($raw, $this->a, 'Et un atelier le soir ?');
@@ -166,6 +178,18 @@ class TASK1458ShellCrmBridgeTest extends TestCase
 
     public function test_the_bridge_reuses_an_existing_contact_never_steals_and_never_crosses_tenants(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         // Contact saisi a la main avant l'arrivee du visiteur : lie, jamais duplique, jamais ecrase.
         $existing = CrmContact::query()->create(['organization_id' => $this->a->id, 'email' => 'saisi@example.test', 'first_name' => 'Saisi', 'source' => CrmContact::SOURCE_MANUAL, 'source_ref' => 'carnet']);
         $raw = Str::random(64);
@@ -208,6 +232,18 @@ class TASK1458ShellCrmBridgeTest extends TestCase
 
     public function test_a_broken_crm_bridge_never_breaks_the_verification_nor_the_claim(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         $this->app->bind(ShellCrmBridge::class, fn () => new class extends ShellCrmBridge
         {
             public function __construct() {}

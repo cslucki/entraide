@@ -106,6 +106,18 @@ class TASK1462VerticalDogfoodTest extends TestCase
 
     public function test_the_whole_vertical_from_the_short_link_to_the_crm_contact_is_one_measured_truth(): void
     {
+        // TASK-1692 / MICRO-11.6 — PARCOURS ABANDONNE PAR DECISION PRODUIT.
+        $this->markTestSkipped(
+            'Tunnel d\'acquisition par IA anonyme abandonne. Le Shell Welcome est ferme aux anonymes '
+            .'(TASK-1692 : `auth` + `organization.member` sur tout le groupe `/org/{organization}`), et la surface '
+            .'refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154` -> `display.reason = authenticated`, `turn = unavailable`). '
+            .'AUCUN acteur ne peut donc plus faire repondre ce Shell, et ce scenario n\'est pas rejouable '
+            .'« avec un membre autorise » : il mesurerait une surface inerte. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue. '
+            .'Le contrat de refus, lui, est tenu par '
+            .'TASK1442GuestShellPublicOverlayTest::test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect.'
+        );
         $raw = Str::random(64);
 
         // 3-4. Navigateur neuf, lien court : 302 interne vers la bonne Organization, attribution portee par l'URL, fait journalise AVANT le 302.

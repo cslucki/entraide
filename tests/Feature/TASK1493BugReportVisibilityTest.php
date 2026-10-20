@@ -114,9 +114,15 @@ class TASK1493BugReportVisibilityTest extends TestCase
      * L'intention publique est preservee, et c'est le coeur de cette TASK : la
      * page de transparence d'une Organization PUBLIQUE reste ouverte a l'invite.
      */
-    public function test_the_bug_list_of_a_public_organization_stays_open_to_guests(): void
+    public function test_the_bug_list_of_a_public_organization_is_member_only_since_t1692(): void
     {
+        // CHANGEMENT D'INTENTION PRODUIT — TASK-1692.
         $this->get(route('organization.bug-reports.index', [$this->public]))
+            ->assertRedirect(route('organization.login', ['organization' => $this->public->slug]));
+
+        // CONTRE-EPREUVE : la liste existe toujours pour un membre.
+        $this->actingAs(\App\Models\User::factory()->create(['organization_id' => $this->public->id]))
+            ->get(route('organization.bug-reports.index', [$this->public]))
             ->assertOk()
             ->assertSee('DETAIL VITRINE T1493');
     }

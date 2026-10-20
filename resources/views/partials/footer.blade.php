@@ -12,6 +12,11 @@
     $flowchartUrl = $usesOrganizationRoutes && Route::has('organization.flowchart')
         ? route('organization.flowchart', ['organization' => $organizationRouteParam])
         : null;
+    // TASK-1692 — le predicat « cet acteur voit la navigation interne de
+    // l'Organization designee par l'URL » est passe dans `helpers.php` : il
+    // etait ecrit ici seulement, et `mentions-legales` s'en etait fabrique un
+    // second, plus faible. Une seule ecriture, deux appels.
+    $showOrganizationInternalLinks = showsOrganizationInternalNavigation();
 
     // TASK-1605 — `$bugReportStoreRoute` et `$loginRoute` vivaient ici pour le
     // popup de signalement. Le popup a cede la place a un lien vers la page
@@ -34,6 +39,7 @@
                      font qu'une. Les mettre dans deux cellules aurait rendu
                      « Mycelium | · | Logigramme », soit deux separateurs pour
                      une seule coupure. --}}
+                @if($showOrganizationInternalLinks)
                 <span class="inline-flex items-center px-2">
                     <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}"
                        class="hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
@@ -64,19 +70,40 @@
                         </a>
                     @endif
                 </span>
+                @endif
                 <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}"
                    class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">
                     {{ __('footer.mentions_legales') }}
                 </a>
+                {{-- TASK-1692 / MICRO-11.2D — « Kit demo » sort de la garde
+                     tenant, comme les mentions legales juste au-dessus.
+
+                     Il y etait entre par ricochet : la garde a ete posee autour
+                     d'un bloc, et ce lien se trouvait dans le bloc. Or il ne
+                     mene nulle part dans le produit — c'est `bouclepro.com/demo`,
+                     une adresse EXTERNE, publique, sans prefixe d'Organization
+                     et sans la moindre dimension de tenant. Rien a isoler ici :
+                     le masquer n'ajoutait aucune confidentialite, il retirait
+                     seulement une porte d'entree aux visiteurs anonymes des
+                     pages publiques, qui sont precisement ceux a qui un kit de
+                     demonstration s'adresse.
+
+                     Les autres liens du bloc restent gardes, et pour une raison
+                     differente : Mycelium, le logigramme et l'explorateur Open
+                     Source pointent vers des pages `/org/{slug}/…` fermees
+                     depuis TASK-1692. Les montrer a un anonyme ne lui
+                     proposerait qu'une redirection. --}}
                 <a href="https://bouclepro.com/demo"
                    target="_blank" rel="noopener noreferrer"
-                   class="inline-flex items-center gap-1 px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">
+                   class="inline-flex items-center gap-1 px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
+                   data-footer-kit-demo>
                     <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M12 2l1.5 6.5L20 10l-6.5 1.5L12 18l-1.5-6.5L4 10l6.5-1.5z"/>
                         <path d="M18 14l.5 2.5L21 17l-2.5.5L18 20l-.5-2.5L15 17l2.5-.5z"/>
                     </svg>
                     <span>{{ __('footer.kit_demo') }}</span>
                 </a>
+                @if($showOrganizationInternalLinks)
                 {{-- TASK-1612 / TASK-1613 — « Open Source » n'emmene plus
                      hors de BouclePro : il mene a la page qui donne a voir
                      la racine du depot public.
@@ -119,6 +146,7 @@
                    data-footer-bug-report>
                     {{ __('footer.bug') }}
                 </a>
+                @endif
             </div>
 
             <span class="text-[11px] opacity-60">{{ config('app.version') }}</span>

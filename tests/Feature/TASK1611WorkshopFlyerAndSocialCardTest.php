@@ -67,6 +67,7 @@ class TASK1611WorkshopFlyerAndSocialCardTest extends TestCase
     private function publicPage(): string
     {
         return $this->withCredentials()
+            ->actingAs(User::factory()->create(['organization_id' => $this->organization->id]))
             ->get(route('organization.workshop.show', ['organization' => $this->organization->slug, 'workshop' => $this->workshop->slug]))
             ->assertOk()
             ->getContent();
@@ -328,7 +329,8 @@ class TASK1611WorkshopFlyerAndSocialCardTest extends TestCase
         // et `asset()` reprendraient cet hote : une canonique designerait alors
         // le domaine qu'elle est justement censee ecarter, et `og:image`
         // (ancre sur APP_URL) divergerait de `og:url` sur une meme page.
-        $html = $this->withCredentials()->get('http://vanity.exemple.test'.$path)->assertOk()->getContent();
+        $html = $this->actingAs(User::factory()->create(['organization_id' => $this->organization->id]))
+            ->withCredentials()->get('http://vanity.exemple.test'.$path)->assertOk()->getContent();
 
         foreach ([
             ['property', 'og:url'],
@@ -346,14 +348,16 @@ class TASK1611WorkshopFlyerAndSocialCardTest extends TestCase
 
         // Sans flyer, le repli de marque suit la meme regle.
         app(WorkshopService::class)->removeFlyer($this->workshop, $this->admin);
-        $bare = $this->withCredentials()->get('http://vanity.exemple.test'.$path)->assertOk()->getContent();
+        $bare = $this->actingAs(User::factory()->create(['organization_id' => $this->organization->id]))
+            ->withCredentials()->get('http://vanity.exemple.test'.$path)->assertOk()->getContent();
         $this->assertSame($canonical.'/brand/icon-512.png', $this->meta($bare, 'property', 'og:image'));
         $this->assertSame($canonical.$path, $this->meta($bare, 'property', 'og:url'));
     }
 
     public function test_the_canonical_url_ignores_the_attribution_parameters_of_the_visited_url(): void
     {
-        $html = $this->withCredentials()
+        $html = $this->actingAs(User::factory()->create(['organization_id' => $this->organization->id]))
+            ->withCredentials()
             ->get(route('organization.workshop.show', ['organization' => $this->organization->slug, 'workshop' => $this->workshop->slug]).'?shortcut=demo&utm_source=newsletter')
             ->assertOk()
             ->getContent();

@@ -1,4 +1,7 @@
-<x-app-layout :title="$organization->name">
+<x-app-layout :title="$organization->name" :show-internal-navigation="$showInternalHomepageContent">
+    @php
+        $showInternalHomepageContent = (bool) ($showInternalHomepageContent ?? false);
+    @endphp
     <section class="min-h-screen bg-[var(--bp-page)] px-4 py-6 text-[var(--bp-text)] md:px-8 md:py-8">
         @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'top'])
         <div class="mx-auto flex min-h-[calc(100vh-3.5rem)] flex-col border-0 md:bg-[var(--bp-surface)]/80 md:shadow-sm md:backdrop-blur md:min-h-[calc(100vh-4rem)] md:max-w-6xl md:rounded-[2rem]">
@@ -35,19 +38,15 @@
                                 <a href="{{ route('organization.register', $organization) }}" class="inline-flex items-center justify-center rounded-full bg-[var(--bp-primary)] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]">
                                     {{ org_trans('navigation.create_account') }}
                                 </a>
-                                {{-- TASK-1608 — ce CTA invite visait la route GLOBALE sur une
-                                     page servie sous `/org/{slug}` : il sortait le visiteur de
-                                     l'Organization qu'il consultait. --}}
-                                <a href="{{ route('organization.loops.index', $organization) }}" class="inline-flex items-center justify-center rounded-full border border-[var(--bp-border)] px-6 py-3 text-sm font-semibold text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]">
-                                    {{ org_trans('navigation.discover_loops') }}
-                                </a>
                             @else
-                                <a href="{{ route('organization.loops.index', $organization) }}" class="inline-flex items-center justify-center rounded-full bg-[var(--bp-primary)] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]">
-                                    {{ org_trans('navigation.join_loop') }}
-                                </a>
-                                <a href="{{ route('organization.explorer', $organization) }}" class="inline-flex items-center justify-center rounded-full border border-[var(--bp-border)] px-6 py-3 text-sm font-semibold text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]">
-                                    {{ org_trans('navigation.see_exchanges') }}
-                                </a>
+                                @if($showInternalHomepageContent)
+                                    <a href="{{ route('organization.loops.index', $organization) }}" class="inline-flex items-center justify-center rounded-full bg-[var(--bp-primary)] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]">
+                                        {{ org_trans('navigation.join_loop') }}
+                                    </a>
+                                    <a href="{{ route('organization.explorer', $organization) }}" class="inline-flex items-center justify-center rounded-full border border-[var(--bp-border)] px-6 py-3 text-sm font-semibold text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]">
+                                        {{ org_trans('navigation.see_exchanges') }}
+                                    </a>
+                                @endif
                             @endguest
                         </div>
                     </div>
@@ -65,10 +64,17 @@
                         @endphp
 
                         @foreach($features as $feature)
-                            <a href="{{ $feature['href'] }}" class="block rounded-[1.5rem] p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md {{ $feature['tone'] }}">
-                                <p class="text-lg font-semibold">{{ $feature['label'] }}</p>
-                                <p class="mt-8 text-sm leading-6 opacity-85">{{ $feature['text'] }}</p>
-                            </a>
+                            @if($showInternalHomepageContent)
+                                <a href="{{ $feature['href'] }}" class="block rounded-[1.5rem] p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md {{ $feature['tone'] }}">
+                                    <p class="text-lg font-semibold">{{ $feature['label'] }}</p>
+                                    <p class="mt-8 text-sm leading-6 opacity-85">{{ $feature['text'] }}</p>
+                                </a>
+                            @else
+                                <div class="block rounded-[1.5rem] p-5 shadow-sm {{ $feature['tone'] }}">
+                                    <p class="text-lg font-semibold">{{ $feature['label'] }}</p>
+                                    <p class="mt-8 text-sm leading-6 opacity-85">{{ $feature['text'] }}</p>
+                                </div>
+                            @endif
                         @endforeach
                     </div>
                 </div>

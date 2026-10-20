@@ -177,7 +177,7 @@ class TASK1438GuestShellObservabilityTest extends TestCase
         $this->assertStringNotContainsString('0.5000', $html, 'le cout de B n\'apparait pas chez A');
         $this->assertStringNotContainsString('SECRET-', $html, 'jamais un contenu de conversation');
 
-        $this->actingAs($this->adminB)->get($url)->assertForbidden();
+        $this->actingAs($this->adminB)->get($url)->assertNotFound();
         $htmlB = $this->actingAs($this->adminB)->get(route('organization.admin.ai-consumption', ['organization' => $this->orgB->slug]))->assertOk()->getContent();
         $this->assertStringContainsString('data-consumption-guest-state="disabled"', $htmlB);
         $this->assertStringContainsString('data-consumption-guest-metric="invocations" data-consumption-guest-value="1"', $htmlB);

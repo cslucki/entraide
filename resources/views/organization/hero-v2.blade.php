@@ -1,6 +1,25 @@
 <?php
 $settings = $organization->homepage_settings ?? [];
+$showInternalHomepageContent = (bool) ($showInternalHomepageContent ?? false);
 $demoUrl = 'https://bouclepro.com/demo';
+
+// TASK-1692 / MICRO-11.8 — « A propos » retrouve la cible de la baseline.
+//
+// Ce gabarit pointait vers `route('about')`, la page GLOBALE, publique et
+// servie 200 a un anonyme. TASK-1692 l'a remplacee par
+// `route('organization.about')`, devenue membre-only, puis l'a masquee aux
+// anonymes : la landing a perdu une entree marketing qui n'avait aucune
+// raison de disparaitre.
+//
+// On ne rouvre AUCUNE route — on rend au lien la cible publique qu'il avait,
+// et la MEME pour tout le monde, comme avant. Un lien dont la cible change
+// selon le lecteur est une complication que rien ici ne justifie : la page
+// globale dit la meme chose aux deux.
+//
+// `artscilab-hero`, lui, visait deja `organization.about` AVANT cette branche
+// (verifie sur la baseline) : il n'est pas touche ici, son lien devenu mort
+// pour un anonyme releve d'un autre arbitrage.
+$aboutUrl = route('about');
 $heroAvatars = collect($heroAvatars ?? []);
 $cardLabel = fn (string $key, string $fallback) => filled($settings[$key] ?? null) ? e($settings[$key]) : org_trans($fallback);
 $avatar = fn (int $index) => $heroAvatars->get($index) ?? asset('img/bouclepro-symbol.png');
@@ -20,8 +39,12 @@ $safeUrl = function (?string $url, string $fallback): string {
         ? $url
         : $fallback;
 };
-$primaryCtaUrl = $safeUrl($settings['primary_cta_url'] ?? null, route('organization.register', $organization));
-$secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organization.loops.index', $organization));
+$primaryCtaUrl = $showInternalHomepageContent
+    ? $safeUrl($settings['primary_cta_url'] ?? null, route('organization.loops.index', $organization))
+    : (auth()->check() ? route('dashboard') : route('organization.register', $organization));
+$secondaryCtaUrl = $showInternalHomepageContent
+    ? $safeUrl($settings['secondary_cta_url'] ?? null, route('organization.loops.index', $organization))
+    : route('organization.login', $organization);
 ?>
 <!DOCTYPE html>
 {{-- TASK-1471 : la cle de theme est posee cote SERVEUR. Un visiteur anonyme
@@ -48,8 +71,8 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
     <div class="brand"><span class="flower"></span><b>{{ $organization->name }}</b></div>
     <nav class="nav-right">
       <nav class="nav-menu" aria-label="Menu">
-        <a href="{{ route('about') }}">{{ __('navigation.about') }}</a>
-        @if($organization->subscriptions_enabled)
+        <a href="{{ $aboutUrl }}">{{ __('navigation.about') }}</a>
+        @if($showInternalHomepageContent && $organization->subscriptions_enabled)
           <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
         @endif
         <div class="lang" aria-label="Langue / Language">
@@ -73,8 +96,8 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
   {{-- MOBILE MENU --}}
   <div class="m-menu" id="m-menu" hidden>
-    <a href="{{ route('about') }}">{{ __('navigation.about') }}</a>
-    @if($organization->subscriptions_enabled)
+    <a href="{{ $aboutUrl }}">{{ __('navigation.about') }}</a>
+    @if($showInternalHomepageContent && $organization->subscriptions_enabled)
       <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
     @endif
     @guest
@@ -119,8 +142,17 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       </div>
       <div class="cta-row" data-anim>
         <a href="{{ $primaryCtaUrl }}" class="cta-primary">{{ $settingText('primary_cta_label', 'hero.cta_primary', ['CTA primaire — label']) }} <i class="ti ti-arrow-right"></i></a>
-        <a href="{{ $secondaryCtaUrl }}" class="cta-secondary"><i class="ti ti-circle-plus"></i>{{ $settingText('secondary_cta_label', 'hero.cta_secondary', ['CTA secondaire — label']) }}</a>
-        <a href="{{ $demoUrl }}" class="btn-join">{{ __('hero.cta_demo') }} <i class="ti ti-external-link"></i></a>
+        @if($showInternalHomepageContent || auth()->guest())
+          <a href="{{ $secondaryCtaUrl }}" class="cta-secondary"><i class="ti ti-circle-plus"></i>{{ $showInternalHomepageContent ? $settingText('secondary_cta_label', 'hero.cta_secondary', ['CTA secondaire — label']) : org_trans('hero.nav_login') }}</a>
+        @endif
+        {{-- TASK-1692 / MICRO-11.8 — « Kit demo » sort de la garde tenant.
+             `bouclepro.com/demo` est une adresse EXTERNE, sans prefixe
+             d'Organization et sans la moindre donnee interne : la masquer
+             n'ajoutait aucune confidentialite, elle retirait une porte
+             d'entree aux visiteurs anonymes, qui sont precisement ceux a qui
+             un kit de demonstration s'adresse. Meme arbitrage qu'au pied de
+             page partage (MICRO-11.2D). --}}
+        <a href="{{ $demoUrl }}" class="btn-join" data-hero-kit-demo>{{ __('hero.cta_demo') }} <i class="ti ti-external-link"></i></a>
       </div>
     </section>
 
@@ -168,69 +200,93 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
       <div class="slot slot-help" style="--d:0s;--a:0deg">
         <div class="hand">
+          @if($showInternalHomepageContent)
           <a href="{{ route('organization.explorer', $organization) }}" class="ocard card-help" data-anim>
+          @else
+          <div class="ocard card-help" data-anim>
+          @endif
             <div class="top">
               <span class="ic"><i class="ti ti-heart"></i></span>
               <h3>{!! $cardLabel('card_help_label', 'hero.card_help') !!}</h3>
             </div>
+            @if($showInternalHomepageContent)
             <div class="avatars">
               <img src="{{ $avatar(0) }}" alt="">
               <img src="{{ $avatar(1) }}" alt="">
               <img src="{{ $avatar(2) }}" alt="">
               <span class="more">+12</span>
             </div>
-          </a>
+            @endif
+          @if($showInternalHomepageContent)</a>@else</div>@endif
         </div>
       </div>
 
       <div class="slot slot-offer" style="--d:-17s;--a:90deg">
         <div class="hand">
+          @if($showInternalHomepageContent)
           <a href="{{ route('organization.explorer', $organization).'?tab=requests' }}" class="ocard card-offer" data-anim>
+          @else
+          <div class="ocard card-offer" data-anim>
+          @endif
             <div class="top">
               <span class="ic"><i class="ti ti-hand-stop"></i></span>
               <h3>{!! $cardLabel('card_offer_label', 'hero.card_offer') !!}</h3>
             </div>
+            @if($showInternalHomepageContent)
             <div class="avatars">
               <img src="{{ $avatar(3) }}" alt="">
               <img src="{{ $avatar(4) }}" alt="">
               <img src="{{ $avatar(5) }}" alt="">
               <span class="more">+8</span>
             </div>
-          </a>
+            @endif
+          @if($showInternalHomepageContent)</a>@else</div>@endif
         </div>
       </div>
 
       <div class="slot slot-meet" style="--d:-34s;--a:180deg">
         <div class="hand">
+          @if($showInternalHomepageContent)
           <a href="{{ route('organization.members.index', $organization) }}" class="ocard card-meet" data-anim>
+          @else
+          <div class="ocard card-meet" data-anim>
+          @endif
             <div class="top">
               <span class="ic"><i class="ti ti-link"></i></span>
               <h3>{!! $cardLabel('card_meet_label', 'hero.card_meet') !!}</h3>
             </div>
+            @if($showInternalHomepageContent)
             <div class="avatars">
               <img src="{{ $avatar(6) }}" alt="">
               <img src="{{ $avatar(7) }}" alt="">
               <img src="{{ $avatar(8) }}" alt="">
               <span class="more">+9</span>
             </div>
-          </a>
+            @endif
+          @if($showInternalHomepageContent)</a>@else</div>@endif
         </div>
       </div>
 
       <div class="slot slot-create" style="--d:-51s;--a:270deg">
         <div class="hand">
+          @if($showInternalHomepageContent)
           <a href="{{ route('organization.blog.index', $organization) }}" class="ocard card-create" data-anim>
+          @else
+          <div class="ocard card-create" data-anim>
+          @endif
             <div class="top">
               <span class="ic"><i class="ti ti-bulb"></i></span>
               <h3>{!! $cardLabel('card_create_label', 'hero.card_create') !!}</h3>
             </div>
+            @if($showInternalHomepageContent)
             <div class="avatars">
               <img src="{{ $avatar(9) }}" alt="">
               <img src="{{ $avatar(10) }}" alt="">
               <img src="{{ $avatar(11) }}" alt="">
               <span class="more">+5</span>
             </div>
-          </a>
+            @endif
+          @if($showInternalHomepageContent)</a>@else</div>@endif
         </div>
       </div>
 
@@ -260,6 +316,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
          Meme emplacement, meme rang visuel que les autres liens du pied : le
          footer ne s'allonge pas, une entree en remplace une. --}}
     <div class="foot-credit">
+      @if($showInternalHomepageContent)
       <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
       {{-- TASK-1608 — le logigramme, immediatement a droite de Mycelium,
            separe par « · ». La landing est TOUJOURS servie sous `/org/{slug}` :
@@ -267,9 +324,13 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
            `organizationScopedUrl()`. --}}
       <span class="foot-sep" aria-hidden="true">·</span>
       <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
+      @else
+      <a href="{{ route('organization.home', $organization) }}">{{ $organization->name }}</a>
+      @endif
     </div>
     <nav class="foot-links">
       <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
+      @if($showInternalHomepageContent)
       {{-- TASK-1613 — « OpenSource » et l'icone ouvrent l'explorateur du
            depot, comme partout ailleurs dans le produit.
 
@@ -293,6 +354,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
          aria-label="{{ __('open_source.github_aria') }}">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 .1.8 1.7 2.5 1.4.1-.7.4-1.2.7-1.5-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.5 18.3 4.8 18.3 4.8c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
       </a>
+      @endif
       <span>{{ config('app.version') }}</span>
     </nav>
   </footer>

@@ -1,3 +1,9 @@
+@php
+    // AppLayout transmet cette propriete ; les pages Livewire qui utilisent
+    // directement `layouts::app` ne passent pas par le composant PHP.
+    // `??` preserve explicitement false sur la homepage publique.
+    $showInternalNavigation = (bool) ($showInternalNavigation ?? true);
+@endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}"
       class="{{ ($globalColorMode ?? 'dark') === 'dark' ? 'dark' : '' }}">
@@ -201,7 +207,8 @@
         @endif
 
         {{-- Mobile shell (hidden md:block) --}}
-        <x-mobile-topbar title="{{ isset($title) && filled($title) ? $title : config('app.name') }}" :brand-name="$brandOrganizationName ?? null" />
+        <x-mobile-topbar title="{{ isset($title) && filled($title) ? $title : config('app.name') }}" :brand-name="$brandOrganizationName ?? null" :show-internal-navigation="$showInternalNavigation" />
+        @if($showInternalNavigation)
         <x-mobile-bottom-nav />
         <x-mobile-fab />
         {{-- TASK-1231 : FAB « BouclePro IA » — layout membre uniquement (jamais
@@ -223,8 +230,9 @@
         @endauth
 
         <x-app-side-nav />
+        @endif
 
-        <div class="min-h-screen flex flex-col bg-[var(--bp-page)] pt-0 md:pl-20 pb-0 md:pb-0 mobile-safe-top mobile-safe-bottom-auth">
+        <div class="min-h-screen flex flex-col bg-[var(--bp-page)] pt-0 pb-0 md:pb-0 mobile-safe-top {{ $showInternalNavigation ? 'md:pl-20 mobile-safe-bottom-auth' : '' }}">
 
             <!-- Page Heading -->
             @isset($header)

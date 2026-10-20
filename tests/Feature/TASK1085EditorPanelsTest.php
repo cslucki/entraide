@@ -321,6 +321,6 @@ class TASK1085EditorPanelsTest extends TestCase
 
         $this->actingAs($stranger)
             ->postJson($this->seriesUrl($dossier), ['root_blog_post_id' => $post->id])
-            ->assertForbidden();
+            ->assertNotFound();
     }
 }

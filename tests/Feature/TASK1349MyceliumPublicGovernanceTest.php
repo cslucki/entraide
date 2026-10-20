@@ -15,8 +15,28 @@ use Tests\TestCase;
  * TASK-1349 — Mycelium et transparence publique de la gouvernance IA.
  *
  * Preuves :
- *  A. PUBLIC — `/mycelium` est lisible sans authentification et montre le
- *     texte REELLEMENT compose.
+ *  A. PUBLIC — `/mycelium` GLOBAL est lisible sans authentification et montre
+ *     le texte REELLEMENT compose.
+ *
+ * ## TASK-1692 — ce qui a change, et ce qui n'a PAS change
+ *
+ * `/org/{organization}/constitution` n'est plus une surface anonyme : TASK-1692
+ * a pose `auth` + `organization.member` sur tout le groupe `/org/{organization}`.
+ * La route GLOBALE `/mycelium` reste publique et n'est pas touchee.
+ *
+ * Les preuves ci-dessous sont donc rejouees avec un MEMBRE de l'Organization
+ * concernee — le role minimal, jamais un admin — pour que chaque assertion de
+ * confidentialite continue de MESURER. Les remplacer par un `assertRedirect()`
+ * les aurait rendues vacues : la page ne serait plus rendue, donc plus
+ * inspectee, et « la doctrine privee n'y figure pas » deviendrait vrai pour la
+ * seule raison qu'il n'y a plus de page.
+ *
+ * Le refus anonyme, lui, est prouve A PART, par
+ * `test_an_anonymous_visitor_is_redirected_away_from_the_scoped_constitution`.
+ *
+ * Le mot « public » dans le nom de trois tests designait cette surface : ils
+ * parlent desormais de ce qui est PUBLIE (l'opt-in `ai_constitution_public`),
+ * ce que la bascule a toujours signifie, et qui reste vrai.
  *  B. PRIVACY — ni doctrine, ni prompt, ni auteur, ni historique, ni reglage
  *     n'atteint jamais une surface publique.
  *  C. OPT-IN — prive par DEFAUT ; publique seulement sur choix explicite ET
@@ -37,6 +57,8 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
 
     private User $memberA;
 
+    private User $memberB;
+
     private Organization $organizationA;
 
     private Organization $organizationB;
@@ -56,6 +78,7 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
         $this->adminB->update(['organization_id' => $this->organizationB->id]);
         $this->superAdmin->update(['organization_id' => $this->organizationA->id]);
         $this->memberA = User::factory()->create(['organization_id' => $this->organizationA->id]);
+        $this->memberB = User::factory()->create(['organization_id' => $this->organizationB->id]);
 
         Http::preventStrayRequests();
         Http::fake();
@@ -108,11 +131,15 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
         OrganizationAiDoctrine::activate($this->organizationA, 'DOCTRINE-STRICTEMENT-PRIVEE', $this->adminA);
         $this->organizationA->update(['ai_constitution_public' => true]);
 
+        // TASK-1692 — chaque surface est interrogee par qui a le droit de la
+        // voir : `/mycelium` global reste anonyme, la page scopee demande un
+        // MEMBRE. L'acteur ne change rien a ce qui est mesure : ce qui ne doit
+        // pas sortir ne doit pas sortir non plus pour un membre.
         foreach ([
-            route('mycelium'),
-            route('organization.constitution', ['organization' => $this->organizationA->slug]),
-        ] as $url) {
-            $page = $this->get($url);
+            [route('mycelium'), null],
+            [route('organization.constitution', ['organization' => $this->organizationA->slug]), $this->memberA],
+        ] as [$url, $actor]) {
+            $page = $actor ? $this->actingAs($actor)->get($url) : $this->get($url);
             $page->assertOk();
 
             $html = $page->getContent();
@@ -129,13 +156,14 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
     }
 
     /** L'historique des versions reste prive : seule l'active est publiee. */
-    public function test_the_public_organization_page_never_exposes_history(): void
+    public function test_the_published_organization_page_never_exposes_history(): void
     {
         OrganizationAiConstitution::activate($this->organizationA, 'ANCIENNE-VERSION-PRIVEE', $this->adminA);
         OrganizationAiConstitution::activate($this->organizationA, 'VERSION-ACTIVE-PUBLIEE', $this->adminA);
         $this->organizationA->update(['ai_constitution_public' => true]);
 
-        $this->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))
+        $this->actingAs($this->memberA)
+            ->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))
             ->assertOk()
             ->assertSee('VERSION-ACTIVE-PUBLIEE')
             ->assertDontSee('ANCIENNE-VERSION-PRIVEE');
@@ -152,16 +180,20 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
         OrganizationAiConstitution::activate($this->organizationA, 'Texte non publie.', $this->adminA);
 
         // 404, et non 403 : un 403 avouerait qu'il y a quelque chose ici.
-        $this->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))
+        // TASK-1692 — mesure par un MEMBRE : pour un anonyme la redirection du
+        // groupe masquerait ce 404, et l'opt-in ne serait plus teste du tout.
+        $this->actingAs($this->memberA)
+            ->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))
             ->assertNotFound();
     }
 
-    public function test_the_public_page_appears_once_the_organization_opts_in(): void
+    public function test_the_published_page_appears_to_a_member_once_the_organization_opts_in(): void
     {
         OrganizationAiConstitution::activate($this->organizationA, 'PRINCIPES-PUBLIABLES', $this->adminA);
         $this->organizationA->update(['ai_constitution_public' => true]);
 
-        $this->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))
+        $this->actingAs($this->memberA)
+            ->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))
             ->assertOk()
             ->assertSee('PRINCIPES-PUBLIABLES')
             ->assertSee($this->organizationA->name)
@@ -173,20 +205,23 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
     {
         $this->organizationA->update(['ai_constitution_public' => true]);
 
-        $this->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))
+        $this->actingAs($this->memberA)
+            ->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))
             ->assertNotFound();
     }
 
-    /** Retirer la Constitution active referme la page publique. */
-    public function test_withdrawing_the_constitution_closes_the_public_page(): void
+    /** Retirer la Constitution active referme la page publiee. */
+    public function test_withdrawing_the_constitution_closes_the_published_page(): void
     {
         OrganizationAiConstitution::activate($this->organizationA, 'Publie un temps.', $this->adminA);
         $this->organizationA->update(['ai_constitution_public' => true]);
-        $this->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))->assertOk();
+        $this->actingAs($this->memberA)
+            ->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))->assertOk();
 
         OrganizationAiConstitution::withdraw($this->organizationA);
 
-        $this->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))->assertNotFound();
+        $this->actingAs($this->memberA->fresh())
+            ->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))->assertNotFound();
     }
 
     /** Une organisation privee n'est JAMAIS enumeree dans le hub. */
@@ -229,11 +264,47 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
         $this->organizationA->update(['ai_constitution_public' => true]);
         $this->organizationB->update(['ai_constitution_public' => true]);
 
-        $this->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))
+        // Chacun chez soi : le contenu ne fuit pas d'un tenant a l'autre.
+        $this->actingAs($this->memberA)
+            ->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))
             ->assertOk()->assertSee('SECRET-A')->assertDontSee('SECRET-B');
 
-        $this->get(route('organization.constitution', ['organization' => $this->organizationB->slug]))
+        $this->actingAs($this->memberB)
+            ->get(route('organization.constitution', ['organization' => $this->organizationB->slug]))
             ->assertOk()->assertSee('SECRET-B')->assertDontSee('SECRET-A');
+
+        // TASK-1692 — et le sens CROISE, qui n'etait pas mesure tant que la
+        // page etait anonyme : un membre de A visant B n'obtient pas la page,
+        // et le refus est un 404 qui n'avoue rien.
+        $this->actingAs($this->memberA->fresh())
+            ->get(route('organization.constitution', ['organization' => $this->organizationB->slug]))
+            ->assertNotFound();
+
+        $this->actingAs($this->memberB->fresh())
+            ->get(route('organization.constitution', ['organization' => $this->organizationA->slug]))
+            ->assertNotFound();
+    }
+
+    /**
+     * TASK-1692 — le refus ANONYME, prouve A PART.
+     *
+     * Les preuves de contenu ci-dessus passent par un membre : sans ce test,
+     * rien ne dirait plus qu'un visiteur sans session est refuse. C'est la
+     * moitie du contrat que le passage a un acteur authentifie aurait pu faire
+     * disparaitre en silence.
+     */
+    public function test_an_anonymous_visitor_is_redirected_away_from_the_scoped_constitution(): void
+    {
+        OrganizationAiConstitution::activate($this->organizationA, 'SECRET-A', $this->adminA);
+        $this->organizationA->update(['ai_constitution_public' => true]);
+
+        $response = $this->get(route('organization.constitution', ['organization' => $this->organizationA->slug]));
+
+        $response->assertRedirect(route('organization.login', ['organization' => $this->organizationA->slug]));
+        $this->assertStringNotContainsString('SECRET-A', $response->getContent());
+
+        // La route GLOBALE, elle, reste publique : T1692 ne l'a pas touchee.
+        $this->get(route('mycelium'))->assertOk();
     }
 
     // =====================================================================
@@ -279,9 +350,16 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
         $this->organizationA->update(['ai_constitution_public' => true]);
 
         // Viser B depuis A : la route n'existe pas pour lui.
+        //
+        // TASK-1692 / MICRO-11.1 — l'assertion disait 403, le commentaire
+        // au-dessus disait deja « n'existe pas ». C'est le commentaire qui
+        // avait raison : `EnsureOrganizationMember` s'execute AVANT la policy
+        // et repond 404, sans avouer que la ressource existe. Le 403 METIER
+        // chez soi, lui, est tenu par
+        // `test_a_standard_member_can_never_change_publication` juste dessous.
         $this->actingAs($this->adminA)
             ->put(route('organization.admin.constitution.publication', ['organization' => $this->organizationB->slug]), ['ai_constitution_public' => 1])
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertFalse((bool) $this->organizationB->fresh()->ai_constitution_public);
     }
@@ -366,8 +444,10 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
             ->assertSee(__('mycelium.org_visit_site'))
             ->assertSee(__('mycelium.org_open_page'));
 
-        // Et la page dediee mene elle aussi a l'accueil.
-        $this->get(route('organization.constitution', ['organization' => $slug]))->assertOk()
+        // Et la page dediee mene elle aussi a l'accueil (surface membre
+        // depuis TASK-1692 : le hub, lui, reste anonyme).
+        $this->actingAs($this->memberA)
+            ->get(route('organization.constitution', ['organization' => $slug]))->assertOk()
             ->assertSee($accueil, false)
             ->assertSee(__('mycelium.org_visit_site'));
 
@@ -419,12 +499,13 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
         $this->organizationA->update(['ai_constitution_public' => true]);
 
         foreach ([
-            route('mycelium'),
-            route('organization.constitution', ['organization' => $this->organizationA->slug]),
-        ] as $url) {
+            [route('mycelium'), null],
+            [route('organization.constitution', ['organization' => $this->organizationA->slug]), $this->memberA],
+        ] as [$url, $actor]) {
             // strip_tags laisse le contenu des <script>/<style> : c'est voulu,
             // un mot francais mal choisi y serait tout aussi visible.
-            $habillage = strip_tags($this->get($url)->getContent());
+            $reponse = $actor ? $this->actingAs($actor)->get($url) : $this->get($url);
+            $habillage = strip_tags($reponse->getContent());
 
             // Soustraction du texte administrable LIGNE PAR LIGNE : la mise
             // en page eclate le corps en paragraphes et en items, donc le bloc
@@ -467,8 +548,23 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
         // 2. Le pied autonome de la landing : c'est LUI qui portait « Un projet
         //    porte par l'AMT · en partenariat avec ArtSciLab ».
         $this->organizationA->update(['homepage_template' => 'bouclepro_hero_v2', 'is_public' => true]);
+        $landing = route('organization.home', ['organization' => $this->organizationA->slug]);
 
-        $this->get(route('organization.home', ['organization' => $this->organizationA->slug]))
+        // TASK-1692 — la landing reste PUBLIQUE, mais `/org/{slug}/mycelium`
+        // ne l'est plus : le lien de gouvernance n'est donc plus propose a un
+        // anonyme, qui n'aurait qu'une redirection au bout. Ce que ce test
+        // PROUVE n'a pas bouge pour autant — le credit de portage a disparu
+        // des deux pieds de page, et il doit l'etre pour TOUT LE MONDE.
+        $this->get($landing)
+            ->assertOk()
+            ->assertDontSee(__('footer.by_amt'))
+            ->assertDontSee(__('footer.partner_artscilab'))
+            ->assertDontSee('amteletravail.fr')
+            ->assertDontSee('data-footer-mycelium', false);
+
+        // Le lien lui-meme est servi a qui peut le suivre : un membre.
+        $this->actingAs($this->memberA)
+            ->get($landing)
             ->assertOk()
             ->assertSee('data-footer-mycelium', false)
             ->assertSee(__('mycelium.footer_link'))

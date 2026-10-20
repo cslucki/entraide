@@ -95,7 +95,7 @@ class TASK1217RagConsoleTest extends TestCase
         [$orgA] = $this->organizationWithAdmin();
         [, $adminB] = $this->organizationWithAdmin();
 
-        $this->actingAs($adminB)->get($this->consoleUrl($orgA))->assertForbidden();
+        $this->actingAs($adminB)->get($this->consoleUrl($orgA))->assertNotFound();
     }
 
     /**

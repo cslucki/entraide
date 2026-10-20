@@ -398,8 +398,8 @@ class TASK1227OrganizationDoctrineTest extends TestCase
         $this->actingAs($this->member)->post($this->url('/sandbox'), ['capability' => 'clarify_help_request', 'question' => 'question ?'])->assertForbidden();
 
         // Admin d'une AUTRE Organization : 403 sur celle-ci.
-        $this->actingAs($this->otherAdmin)->get($this->url())->assertForbidden();
-        $this->actingAs($this->otherAdmin)->put($this->url('/doctrine'), ['body' => 'x'])->assertForbidden();
+        $this->actingAs($this->otherAdmin)->get($this->url())->assertNotFound();
+        $this->actingAs($this->otherAdmin)->put($this->url('/doctrine'), ['body' => 'x'])->assertNotFound();
 
         // …et sa propre page ne montre jamais la doctrine de A.
         $response = $this->actingAs($this->otherAdmin)->get($this->url('', $this->otherOrganization));

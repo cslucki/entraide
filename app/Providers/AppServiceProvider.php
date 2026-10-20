@@ -8,6 +8,7 @@ use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Events\LoopMessageCreated;
 use App\Http\Middleware\ResolveOrganization;
+use App\Http\Middleware\EnsureOrganizationMember;
 use App\Jobs\GenerateAiAgentResponse;
 use App\Models\AiConfig;
 use App\Models\BlogPost;
@@ -210,6 +211,12 @@ class AppServiceProvider extends ServiceProvider
         Paginator::useTailwind();
 
         Livewire::addPersistentMiddleware(ResolveOrganization::class);
+        // TASK-1692 — Livewire reconstruit la route de la page d'origine sur
+        // chaque mise a jour. La resolution du tenant et son controle
+        // d'appartenance doivent donc etre rejoues ensemble : sans cette
+        // declaration, `POST /livewire/update` garderait le tenant mais
+        // sauterait la frontiere membre posee sur `/org/{organization}`.
+        Livewire::addPersistentMiddleware(EnsureOrganizationMember::class);
 
         try {
             $dbProvider = AiConfig::get('default_provider');

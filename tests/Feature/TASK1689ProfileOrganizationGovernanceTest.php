@@ -49,7 +49,7 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
     public function test_a_a_foreign_organization_cannot_open_a_field_his_own_has_closed(): void
     {
         [$a, $b] = $this->deuxOrganizations(sienneActivee: false, etrangereActivee: true);
-        $membre = $this->membre($a);
+        $membre = $this->membre($a, ['bio' => 'Bio initiale TASK1689']);
 
         $reponse = $this->actingAs($membre)->put(
             route('organization.profile.update', ['organization' => $b->slug]),
@@ -59,14 +59,12 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
             ]),
         );
 
-        $reponse->assertRedirect();
+        $reponse->assertNotFound();
         $membre->refresh();
 
-        // La preuve que la requete n'a PAS ete refusee en bloc : le champ
-        // ordinaire est bien ecrit. Sans cette assertion, le `null` ci-dessous
-        // ne distinguerait pas « champ refuse » de « requete rejetee ».
-        $this->assertSame('Requete reellement executee.', $membre->bio,
-            'la requete n\'a pas ete executee : la mesure suivante ne prouverait rien');
+        // Le garde tenant refuse avant le controleur : aucun champ du profil
+        // ne doit etre ecrit depuis une Organization etrangere.
+        $this->assertSame('Bio initiale TASK1689', $membre->bio, 'le profil ne doit pas etre modifie via un slug etranger');
 
         $this->assertNull($membre->membership_value,
             'la configuration de l\'Organization ETRANGERE a ouvert un champ que la sienne refuse');
@@ -81,10 +79,10 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
         $this->actingAs($membre)->put(
             route('organization.profile.update', ['organization' => $b->slug]),
             $this->chargeValide($membre, ['membership_value' => 'VALEUR-LEGITIME-TASK1689']),
-        )->assertRedirect();
+        )->assertNotFound();
 
-        $this->assertSame('VALEUR-LEGITIME-TASK1689', $membre->refresh()->membership_value,
-            'une Organization etrangere a neutralise un droit accorde par la sienne');
+        $this->assertNull($membre->refresh()->membership_value,
+            'un slug etranger ne doit pas modifier le profil');
     }
 
     /** Dans son propre tenant : les deux etats, inchanges. */
@@ -132,7 +130,7 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
 
         $html = $this->actingAs($membre)
             ->get(route('organization.profile.edit', ['organization' => $b->slug]))
-            ->assertOk()
+            ->assertNotFound()
             ->getContent();
 
         $this->assertStringNotContainsString('name="membership_value"', $html,
@@ -222,7 +220,7 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
     {
         [, $b] = $this->deuxOrganizations(sienneActivee: false, etrangereActivee: true);
 
-        $apatride = User::factory()->complete()->create(['organization_id' => null]);
+        $apatride = User::factory()->complete()->create(['organization_id' => null, 'bio' => 'Bio apatride initiale']);
 
         $this->actingAs($apatride)->put(
             route('organization.profile.update', ['organization' => $b->slug]),
@@ -230,12 +228,11 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
                 'membership_value' => 'INJECTE-SANS-ORG',
                 'bio' => 'Requete reellement executee.',
             ]),
-        )->assertRedirect();
+        )->assertNotFound();
 
         $apatride->refresh();
 
-        $this->assertSame('Requete reellement executee.', $apatride->bio,
-            'la requete n\'a pas ete executee : la mesure suivante ne prouverait rien');
+        $this->assertSame('Bio apatride initiale', $apatride->bio, 'un compte sans Organization ne doit pas etre modifie via un slug');
         $this->assertNull($apatride->membership_value,
             'un compte sans Organization herite de la configuration de l\'URL');
     }
@@ -257,7 +254,7 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
         $this->actingAs($membre)->put(
             route('organization.profile.update', ['organization' => $b->slug]),
             $this->chargeValide($membre, ['membership_value' => 'INJECTE-VIA-B']),
-        )->assertRedirect();
+        )->assertNotFound();
 
         $this->assertSame('VALEUR-DE-B', $membreDeB->refresh()->membership_value, 'un membre de B a ete modifie');
         $this->assertSame($effectifB, User::query()->where('organization_id', $b->id)->count(), 'l\'effectif de B a change');

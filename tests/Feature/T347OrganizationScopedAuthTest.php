@@ -326,7 +326,7 @@ class T347OrganizationScopedAuthTest extends TestCase
         $response = $this->actingAs($outsider)
             ->get(route('organization.admin.users', $this->cpmeOrg));
 
-        $response->assertStatus(403);
+        $response->assertStatus(404);
     }
 
     // ─── Email templates ────────────────────────────────────

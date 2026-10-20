@@ -118,6 +118,17 @@ class TASK1500GuestShellRailOptionTest extends TestCase
 
     public function test_shell_first_rail_mounts_the_shared_rail_and_offsets_the_page(): void
     {
+        // TASK-1692 — GUEST SHELL VOLONTAIREMENT DESACTIVE (arbitrage MASTER).
+        $this->markTestSkipped(
+            'Mode `shell_first` inatteignable : le Guest Shell est desactive. Un anonyme est arrete par '
+            .'`auth` + `organization.member` sur le groupe `/org/{organization}` ; une personne CONNECTEE est '
+            .'refusee par la surface elle-meme (`GuestShellSurface:154` -> `display.reason = authenticated`), '
+            .'si bien que `OrganizationLandingController` n\'entre jamais dans la branche shell-first, qui '
+            .'exige `display.visible`. Aucun acteur ne peut donc rendre cette page, et la rejouer « sous un '
+            .'membre » mesurerait une surface inerte. Le corps est CONSERVE pour etre reveille si la decision '
+            .'produit est revue ; le code applicatif n\'est pas supprime. Contrat de refus tenu par '
+            .'TASK1442GuestShellPublicOverlayTest.'
+        );
         $html = $this->home($this->organization(GuestShellDisplayMode::SHELL_FIRST_RAIL));
 
         $this->assertStringContainsString('bpsf-page', $html, 'la vue Shell First n\'est pas rendue');
@@ -156,6 +167,17 @@ class TASK1500GuestShellRailOptionTest extends TestCase
 
     public function test_shell_first_without_rail_mounts_no_rail_and_no_cta(): void
     {
+        // TASK-1692 — GUEST SHELL VOLONTAIREMENT DESACTIVE (arbitrage MASTER).
+        $this->markTestSkipped(
+            'Mode `shell_first` inatteignable : le Guest Shell est desactive. Un anonyme est arrete par '
+            .'`auth` + `organization.member` sur le groupe `/org/{organization}` ; une personne CONNECTEE est '
+            .'refusee par la surface elle-meme (`GuestShellSurface:154` -> `display.reason = authenticated`), '
+            .'si bien que `OrganizationLandingController` n\'entre jamais dans la branche shell-first, qui '
+            .'exige `display.visible`. Aucun acteur ne peut donc rendre cette page, et la rejouer « sous un '
+            .'membre » mesurerait une surface inerte. Le corps est CONSERVE pour etre reveille si la decision '
+            .'produit est revue ; le code applicatif n\'est pas supprime. Contrat de refus tenu par '
+            .'TASK1442GuestShellPublicOverlayTest.'
+        );
         $html = $this->home($this->organization(GuestShellDisplayMode::SHELL_FIRST));
 
         $this->assertStringContainsString('bpsf-page', $html);
@@ -167,6 +189,17 @@ class TASK1500GuestShellRailOptionTest extends TestCase
 
     public function test_overlay_keeps_its_cta_and_never_gets_the_rail(): void
     {
+        // TASK-1692 — GUEST SHELL VOLONTAIREMENT DESACTIVE (arbitrage MASTER).
+        $this->markTestSkipped(
+            'Mode `shell_first` inatteignable : le Guest Shell est desactive. Un anonyme est arrete par '
+            .'`auth` + `organization.member` sur le groupe `/org/{organization}` ; une personne CONNECTEE est '
+            .'refusee par la surface elle-meme (`GuestShellSurface:154` -> `display.reason = authenticated`), '
+            .'si bien que `OrganizationLandingController` n\'entre jamais dans la branche shell-first, qui '
+            .'exige `display.visible`. Aucun acteur ne peut donc rendre cette page, et la rejouer « sous un '
+            .'membre » mesurerait une surface inerte. Le corps est CONSERVE pour etre reveille si la decision '
+            .'produit est revue ; le code applicatif n\'est pas supprime. Contrat de refus tenu par '
+            .'TASK1442GuestShellPublicOverlayTest.'
+        );
         $html = $this->home($this->organization(GuestShellDisplayMode::OVERLAY));
 
         $this->assertStringNotContainsString('bpsf-page', $html);

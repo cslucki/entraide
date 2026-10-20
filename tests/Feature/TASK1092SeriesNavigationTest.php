@@ -302,7 +302,7 @@ class TASK1092SeriesNavigationTest extends TestCase
             // avant meme d'atteindre le controleur. Le refus arrive donc plus
             // tot que la garde de tenant du controleur, qui reste en second
             // verrou.
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     public function test_the_neighbours_never_come_from_another_dossier(): void
