@@ -67,9 +67,13 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
         @endforeach
       </div>
       <nav class="nav-links">
-        @if($showInternalHomepageContent)
-          <a href="{{ route('organization.about', $organization) }}">{{ org_trans('artscilab.nav_about') }}</a>
-        @endif
+        {{-- TASK-1692, correctif post-CI — le LIEN reste public, la PAGE reste
+             membre. Masquer le lien ne protegeait rien (la garde de route est
+             l'autorite) et amputait la navigation editoriale de l'affiche
+             publique. Un visiteur anonyme qui le suit est redirige vers la
+             connexion bornee a l'Organization : c'est le tunnel voulu, pas une
+             fuite. --}}
+        <a href="{{ route('organization.about', $organization) }}">{{ org_trans('artscilab.nav_about') }}</a>
         @guest
           @if ($organization->is_public)
             <a href="{{ route('organization.login', $organization) }}">{{ org_trans('artscilab.nav_login') }}</a>

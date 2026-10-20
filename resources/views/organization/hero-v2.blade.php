@@ -72,7 +72,10 @@ $secondaryCtaUrl = $showInternalHomepageContent
     <nav class="nav-right">
       <nav class="nav-menu" aria-label="Menu">
         <a href="{{ $aboutUrl }}">{{ __('navigation.about') }}</a>
-        @if($showInternalHomepageContent && $organization->subscriptions_enabled)
+        {{-- TASK-1692, correctif post-CI — l'offre d'abonnement est une surface
+           COMMERCIALE publique. Son seul discriminant est le reglage de
+           l'Organization ; la garde de route protege la page. --}}
+        @if($organization->subscriptions_enabled)
           <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
         @endif
         <div class="lang" aria-label="Langue / Language">
@@ -97,7 +100,10 @@ $secondaryCtaUrl = $showInternalHomepageContent
   {{-- MOBILE MENU --}}
   <div class="m-menu" id="m-menu" hidden>
     <a href="{{ $aboutUrl }}">{{ __('navigation.about') }}</a>
-    @if($showInternalHomepageContent && $organization->subscriptions_enabled)
+    {{-- TASK-1692, correctif post-CI — l'offre d'abonnement est une surface
+           COMMERCIALE publique. Son seul discriminant est le reglage de
+           l'Organization ; la garde de route protege la page. --}}
+        @if($organization->subscriptions_enabled)
       <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
     @endif
     @guest

@@ -147,12 +147,16 @@ class TASK1451WorkshopSessionsTest extends TestCase
         $this->assertSame(1, substr_count($article, '<form'), 'un seul formulaire dans l\'article : celui du membre');
         // Le meme atelier vu par un VISITEUR (l'admin reste connecte entre deux requetes : on le deconnecte) : le geste Guest
         // et le conseil honnete « compte + email verifie, puis retour ici » (TASK-1462, audit F4) — jamais une promesse perimee.
+        // TASK-1692 — le geste Guest n'a plus de lecteur : la page atelier est
+        // devenue MEMBRE et le tunnel d'acquisition anonyme est abandonne (meme
+        // arbitrage que le Shell Welcome). La mesure n'est pas supprimee, elle
+        // est RETOURNEE : au lieu de prouver que l'invite voit le geste Guest,
+        // on prouve qu'il n'atteint pas la page du tout — et qu'il est oriente
+        // vers la connexion bornee a l'Organization, pas vers un mur muet.
         auth()->logout();
         $this->flushSession();
-        $guestHtml = $this->get($this->publicUrl($this->a))->assertOk()->getContent();
-        $this->assertStringContainsString('data-workshop-interest', $guestHtml);
-        $this->assertStringContainsString('data-workshop-guest-register-hint', $guestHtml);
-        $this->assertStringNotContainsString('prochainement', $guestHtml, 'aucune promesse perimee');
+        $this->get($this->publicUrl($this->a))
+            ->assertRedirect(route('organization.login', ['organization' => $this->a->slug]));
 
         // Publier deux fois : 404 ; annuler : disparue de la page publique ; annulee non editable.
         $this->actingAs($this->adminA)->post(route('organization.admin.workshops.sessions.publish', [$this->a, $this->workshopA, $session]))->assertNotFound();
@@ -186,7 +190,10 @@ class TASK1451WorkshopSessionsTest extends TestCase
         $later = $this->makeSession($this->workshopA, $this->adminA, ['starts_at' => '2026-11-01 09:00', 'ends_at' => null]);
         $this->service->publish($later, $this->adminA);
 
-        $html = $this->get($this->publicUrl($this->a))->assertOk()->getContent();
+        // TASK-1692 — meme selection, lue par un membre : la page atelier est
+        // devenue MEMBRE. Le fait mesure (quelles sessions paraissent, et dans
+        // quel ordre) est inchange.
+        $html = $this->actingAs($this->member)->get($this->publicUrl($this->a))->assertOk()->getContent();
         $this->assertStringContainsString('data-workshop-session="'.$upcoming->id.'"', $html);
         $this->assertStringContainsString('data-workshop-session="'.$later->id.'"', $html);
         foreach ([$draft, $cancelled, $past] as $hidden) {

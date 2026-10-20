@@ -38,7 +38,15 @@ class OrganizationLandingController extends Controller
 
         // TASK-1463 (audit OPUS final P1-1) : les ateliers publies a session publiee a venir — la meme selection que
         // workshops.runtime ; lecture pure (aucun cookie), seulement pour une Organization active et publique.
-        $publicWorkshops = $showInternalHomepageContent && $organization->is_public && $organization->is_active
+        //
+        // TASK-1692, correctif post-CI : cette selection reste PUBLIQUE. Elle ne
+        // porte que des ateliers PUBLIES, a session publiee a venir, d'une
+        // Organization publique ET active — c'est-a-dire des evenements que
+        // l'Organization a elle-meme rendus publics. La borner a
+        // `$showInternalHomepageContent` etait une regression produit, pas un
+        // gain de confidentialite : elle vidait l'affiche publique des ateliers
+        // sans rien proteger. Les trois conditions historiques sont l'autorite.
+        $publicWorkshops = $organization->is_public && $organization->is_active
             ? app(PublicWorkshopListing::class)->upcoming($organization)
             : collect();
 

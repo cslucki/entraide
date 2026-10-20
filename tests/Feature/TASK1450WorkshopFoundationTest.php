@@ -147,6 +147,18 @@ class TASK1450WorkshopFoundationTest extends TestCase
 
     public function test_the_public_page_exists_only_for_a_published_workshop_of_an_active_public_organization(): void
     {
+        // TASK-1692 — `/org/{organization}/ateliers/{slug}` est une surface
+        // prefixee, donc MEMBRE : le tunnel d'acquisition ANONYME des ateliers
+        // est abandonne par le meme arbitrage que le Shell Welcome. Le fait
+        // mesure ici est integralement conserve — la page n'existe que pour un
+        // atelier PUBLIE d'une Organization publique ET active, et un slug
+        // etranger ou inconnu rend 404 — mais il est desormais mesure sous un
+        // membre de l'Organization. C'est meme plus fort : les refus ci-dessous
+        // tiennent face a quelqu'un qui appartient au tenant. Le refus anonyme
+        // est tenu par TASK1692StrictHttpIsolationTest, et le LIEN vers cette
+        // page reste publie sur l'affiche de la landing.
+        $this->actingAs($this->member);
+
         $workshop = $this->workshop($this->a, $this->adminA, ['slug' => 'ia-90']);
         $this->service->publish($workshop, $this->adminA);
         $this->get($this->publicUrl($this->a, 'ia-90'))->assertOk();

@@ -130,6 +130,14 @@
                     </svg>
                     <span>{{ __('footer.opensource') }}</span>
                 </a>
+                @endif
+                {{-- TASK-1692, correctif post-CI — « Un bug ? » sort de la garde
+                     de navigation interne. Signaler un defaut doit rester
+                     possible depuis TOUTE page qui porte ce pied, y compris la
+                     connexion et l'inscription, ou se trouve justement
+                     quelqu'un qui n'arrive pas a entrer. Le lien reste borne a
+                     l'Organization de l'URL ; la PAGE, elle, garde sa garde de
+                     route. Meme principe que « Kit demo ». --}}
                 {{-- TASK-1605 — arbitrage MASTER : PAS de popup Alpine.
                      « Un bug ? » mene a la vraie page de signalement, deja
                      bornee a l'Organization (`organization.bug-reports.index`,
@@ -146,7 +154,6 @@
                    data-footer-bug-report>
                     {{ __('footer.bug') }}
                 </a>
-                @endif
             </div>
 
             <span class="text-[11px] opacity-60">{{ config('app.version') }}</span>

@@ -370,16 +370,53 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             $this->assertStringNotContainsString('t1692-private-member.png', $html);
             $this->assertStringNotContainsString('<div class="avatars">', $html);
             $this->assertStringNotContainsString('data-guest-shell', $html);
-            $this->assertStringNotContainsString('data-org-workshops', $html);
             $this->assertStringNotContainsString('data-footer-mycelium', $html);
             $this->assertStringNotContainsString('data-footer-flowchart', $html);
-            $this->assertStringNotContainsString('data-footer-bug-report', $html);
             $this->assertStringNotContainsString('data-bp-mobile-nav', $html);
             $this->assertStringNotContainsString('<aside x-data class="hidden md:flex', $html);
 
-            foreach (['about', 'shell', 'ateliers', 'blog', 'mycelium', 'flowchart', 'open-source', 'bugs', 'boucles'] as $segment) {
-                $this->assertStringNotContainsString('/org/'.$this->b->slug.'/'.$segment, $html);
+            // TASK-1692, correctif post-CI — cette mesure etait une LISTE
+            // D'ABSENCES, et elle etait trop large : elle interdisait tout
+            // segment `/org/{slug}/…` sur l'accueil public, confondant « lien
+            // interne » et « lien mort ». Un lien qui conduit un anonyme a la
+            // connexion bornee a l'Organization n'est pas mort : c'est le
+            // tunnel d'entree, et c'est ce que le produit publiait avant
+            // TASK-1692. Les supprimer amputait l'affiche publique — la CI l'a
+            // prouve sur 29 tests.
+            //
+            // On mesure donc l'inverse, et c'est plus fort : CHAQUE lien interne
+            // reellement present sur l'accueil public doit, pour un anonyme,
+            // rendre un REFUS. Jamais 200 — sauf les deux seules surfaces
+            // publiques par decision (T1489) —, jamais 5xx.
+            $liens = [];
+            preg_match_all('#href="(https?://[^"]*/org/'.preg_quote($this->b->slug, '#').'/[^"]*)"#', $html, $m);
+            foreach ($m[1] as $lien) {
+                $liens[html_entity_decode($lien, ENT_QUOTES)] = true;
             }
+
+            foreach (array_keys($liens) as $lien) {
+                $this->forgetOrganization();
+                $reponse = $this->get($lien);
+                $statut = $reponse->getStatusCode();
+
+                // L'attendu n'est pas une liste en dur mais la PILE REELLE du
+                // lien : une surface sans `auth` effectif est joignable en
+                // anonyme par construction (l'accueil, les mentions legales et
+                // les portes `guest` de connexion/inscription) ; toute autre
+                // doit refuser. Deriver l'attendu de la pile evite une liste qui
+                // se perimerait au premier ajout de route.
+                if ($this->lienExigeAuth($lien)) {
+                    $this->assertContains(
+                        $statut,
+                        [302, 404],
+                        "[{$lien}] : porte gardee, elle doit refuser un anonyme (redirection de connexion ou 404), jamais le servir",
+                    );
+                } else {
+                    $this->assertSame(200, $statut, "[{$lien}] : surface publique, elle doit rester servie");
+                }
+            }
+
+            $this->assertNotEmpty($liens, 'l\'accueil public porte bien des liens internes : sinon cette garde serait vide');
 
             $this->assertStringContainsString(route('organization.mentions-legales', $this->b), $html);
             $this->assertStringContainsString(route('organization.login', $this->b), $html);
@@ -594,5 +631,33 @@ class TASK1692StrictHttpIsolationTest extends TestCase
     private function forgetOrganization(): void
     {
         app()->forgetInstance('current_organization');
+    }
+
+    /**
+     * Le lien exige-t-il `auth` dans sa pile EFFECTIVE ?
+     *
+     * `Router::gatherRouteMiddleware()` et non `gatherMiddleware()` : seul le
+     * premier soustrait `excludedMiddleware()`, et tout le contrat TASK-1692
+     * repose sur des exclusions nominatives posees sur un groupe garde.
+     */
+    private function lienExigeAuth(string $lien): bool
+    {
+        $route = app('router')->getRoutes()->match(
+            \Illuminate\Http\Request::create($lien, 'GET')
+        );
+
+        foreach (app('router')->gatherRouteMiddleware($route) as $middleware) {
+            if (! is_string($middleware)) {
+                continue;
+            }
+
+            $classe = explode(':', $middleware, 2)[0];
+
+            if ($classe === 'auth' || is_a($classe, \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

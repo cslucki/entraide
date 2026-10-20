@@ -7,6 +7,7 @@ use App\Models\Service;
 use App\Models\UsageReference;
 use App\Models\User;
 use App\Support\Ai\AiShellPageContext;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
@@ -245,12 +246,37 @@ class TASK1473HomeDashboardCollisionTest extends TestCase
         $this->assertSame('dashboard', AiShellPageContext::surfaceFor('organization.dashboard'));
     }
 
+    /**
+     * TASK-1692 — deux corrections de PREDICAT, pas d'assouplissement.
+     *
+     * 1. `gatherMiddleware()` ne soustrait PAS `excludedMiddleware()` : Laravel
+     *    n'applique les exclusions qu'au dispatch, via
+     *    `Router::gatherRouteMiddleware()`. Depuis que le groupe
+     *    `/org/{organization}` porte `auth` et que `organization.home` l'exclut
+     *    nommement, l'ancien predicat declarait l'accueil AUTHENTIFIE alors
+     *    qu'il est public — il mesurait la declaration du groupe, pas la pile
+     *    reellement executee.
+     *
+     * 2. `str_contains('Authenticate')` est une recherche de sous-chaine : elle
+     *    attrape aussi bien `AuthenticateSession` que n'importe quelle classe
+     *    dont le nom contient ce mot. On teste l'IDENTITE de la classe.
+     */
     private function routeRequiresAuth(string $name): bool
     {
         $route = Route::getRoutes()->getByName($name);
 
-        foreach ($route?->gatherMiddleware() ?? [] as $middleware) {
-            if (str_contains((string) $middleware, 'Authenticate') || $middleware === 'auth') {
+        if ($route === null) {
+            return false;
+        }
+
+        foreach (app('router')->gatherRouteMiddleware($route) as $middleware) {
+            if (! is_string($middleware)) {
+                continue;
+            }
+
+            $class = explode(':', $middleware, 2)[0];
+
+            if ($class === 'auth' || is_a($class, AuthenticatesRequests::class, true)) {
                 return true;
             }
         }

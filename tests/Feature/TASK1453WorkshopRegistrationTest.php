@@ -172,6 +172,19 @@ class TASK1453WorkshopRegistrationTest extends TestCase
 
     public function test_guest_interest_then_signup_verification_resumption_and_explicit_registration_keep_the_provenance(): void
     {
+        // TASK-1692 — TUNNEL D'ACQUISITION ANONYME DES ATELIERS ABANDONNE.
+        $this->markTestSkipped(
+            'Meme arbitrage que le Shell Welcome : `/org/{organization}/ateliers/...` est une surface '
+            .'prefixee, donc MEMBRE (`auth` + `organization.member`). Le geste Guest « je choisis cette '
+            .'session » et le parcours interet -> inscription -> verification n\'ont plus de lecteur : un '
+            .'anonyme est redirige vers la connexion bornee a l\'Organization avant d\'atteindre la page. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue ; aucun code '
+            .'applicatif n\'est supprime. Ce qui subsiste et reste mesure : l\'affiche publique des '
+            .'ateliers publies sur la landing (TASK1463), la regle de capacite au niveau du service '
+            .'(TASK1455), l\'inscription MEMBRE et son fail-closed cross-tenant '
+            .'(TASK1453::registration_is_fail_closed), et le refus anonyme lui-meme '
+            .'(TASK1692StrictHttpIsolationTest).'
+        );
         $raw = $this->guestWithInterest();
         $visitor = GuestVisitor::query()->sole();
         $this->assertSame($this->journey->id, $visitor->acquisition_journey_id);
@@ -234,6 +247,19 @@ class TASK1453WorkshopRegistrationTest extends TestCase
 
     public function test_capacity_is_enforced_at_registration_time_only_and_a_guest_interest_never_consumes_it(): void
     {
+        // TASK-1692 — TUNNEL D'ACQUISITION ANONYME DES ATELIERS ABANDONNE.
+        $this->markTestSkipped(
+            'Meme arbitrage que le Shell Welcome : `/org/{organization}/ateliers/...` est une surface '
+            .'prefixee, donc MEMBRE (`auth` + `organization.member`). Le geste Guest « je choisis cette '
+            .'session » et le parcours interet -> inscription -> verification n\'ont plus de lecteur : un '
+            .'anonyme est redirige vers la connexion bornee a l\'Organization avant d\'atteindre la page. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue ; aucun code '
+            .'applicatif n\'est supprime. Ce qui subsiste et reste mesure : l\'affiche publique des '
+            .'ateliers publies sur la landing (TASK1463), la regle de capacite au niveau du service '
+            .'(TASK1455), l\'inscription MEMBRE et son fail-closed cross-tenant '
+            .'(TASK1453::registration_is_fail_closed), et le refus anonyme lui-meme '
+            .'(TASK1692StrictHttpIsolationTest).'
+        );
         // Deux interets Guest sur une capacite de 1 : rien n'est consomme.
         $this->guestWithInterest();
         $this->guestWithInterest();
@@ -301,9 +327,12 @@ class TASK1453WorkshopRegistrationTest extends TestCase
         $memberB = $this->verifiedMember($this->b, 'b@example.test');
         $this->forgetAuth();
         $this->actingAs($memberB)->post($this->registerUrl($this->s1))->assertNotFound();
-        $html = $this->actingAs($memberB)->get($this->pageUrl())->assertOk()->getContent();
-        $this->assertStringNotContainsString('data-workshop-register="', $html);
-        $this->assertStringNotContainsString('data-workshop-verify-first', $html);
+        // TASK-1692 — la non-divulgation n'est plus partielle mais TOTALE : la
+        // page elle-meme est refusee a un membre d'une autre Organization, sans
+        // oracle d'existence. L'ancienne mesure (la page repondait 200 mais
+        // taisait `data-workshop-register`) est donc remplacee par un fait plus
+        // fort, pas affaiblie.
+        $this->actingAs($memberB)->get($this->pageUrl())->assertNotFound();
         try {
             $this->service->register($this->s1, $memberB);
             $this->fail('autre Organization');
@@ -325,6 +354,19 @@ class TASK1453WorkshopRegistrationTest extends TestCase
 
     public function test_existing_email_is_refused_without_disclosure_and_the_resumption_is_a_revalidated_reference_not_a_url(): void
     {
+        // TASK-1692 — TUNNEL D'ACQUISITION ANONYME DES ATELIERS ABANDONNE.
+        $this->markTestSkipped(
+            'Meme arbitrage que le Shell Welcome : `/org/{organization}/ateliers/...` est une surface '
+            .'prefixee, donc MEMBRE (`auth` + `organization.member`). Le geste Guest « je choisis cette '
+            .'session » et le parcours interet -> inscription -> verification n\'ont plus de lecteur : un '
+            .'anonyme est redirige vers la connexion bornee a l\'Organization avant d\'atteindre la page. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue ; aucun code '
+            .'applicatif n\'est supprime. Ce qui subsiste et reste mesure : l\'affiche publique des '
+            .'ateliers publies sur la landing (TASK1463), la regle de capacite au niveau du service '
+            .'(TASK1455), l\'inscription MEMBRE et son fail-closed cross-tenant '
+            .'(TASK1453::registration_is_fail_closed), et le refus anonyme lui-meme '
+            .'(TASK1692StrictHttpIsolationTest).'
+        );
         $this->verifiedMember($this->a, 'deja@example.test');
         $this->verifiedMember($this->b, 'ailleurs@example.test');
         $raw = $this->guestWithInterest();

@@ -127,13 +127,25 @@ class TASK1306CredentialManagementModeTest extends TestCase
         $foreignAdmin = User::factory()->create(['organization_id' => $foreignOrganization->id]);
         $foreignOrganization->update(['admin_id' => $foreignAdmin->id]);
 
-        foreach ([$orgAdmin, $member, $foreignAdmin] as $user) {
-            $this->actingAs($user)
-                ->put(route('organization.admin.ai.credential-mode.update', $organization), [
-                    'credential_management_mode' => OrganizationAiSetting::CREDENTIAL_MODE_ORGANIZATION,
-                ])
-                ->assertNotFound();
+        // TASK-1692 — les trois acteurs ne recoivent PAS le meme refus, et la
+        // boucle unique d'origine masquait cette distinction. Un membre de
+        // l'Organization (admin d'Organization compris) est bien devant la
+        // bonne porte : son refus est METIER, donc 403. Un admin d'une AUTRE
+        // Organization n'a pas a apprendre que cette surface existe : son refus
+        // est 404, sans oracle. Mesurer les deux separement est plus fort que
+        // l'ancienne boucle, et plus fort que le 404 uniforme que j'avais
+        // d'abord applique par erreur.
+        $payload = ['credential_management_mode' => OrganizationAiSetting::CREDENTIAL_MODE_ORGANIZATION];
+
+        foreach ([$orgAdmin, $member] as $insider) {
+            $this->actingAs($insider)
+                ->put(route('organization.admin.ai.credential-mode.update', $organization), $payload)
+                ->assertForbidden();
         }
+
+        $this->actingAs($foreignAdmin)
+            ->put(route('organization.admin.ai.credential-mode.update', $organization), $payload)
+            ->assertNotFound();
 
         $this->assertDatabaseCount('organization_ai_settings', 0);
 
