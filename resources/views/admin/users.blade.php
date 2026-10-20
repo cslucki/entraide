@@ -20,14 +20,45 @@
          compteur qui bougerait avec les filtres repondrait « combien en vois-je »
          au lieu de « combien y en a-t-il ». Le total filtre est affiche a cote du
          tableau, la ou il a du sens. Une SEULE requete agregee les produit tous. --}}
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+    {{-- TASK-1693 bug C — le compteur « Non vérifiés » est CLIQUABLE et mène au
+         filtre correspondant.
+
+         Il préserve `organization_id` : arrivé depuis « Membres » d'une
+         Organization, le compteur est borné à ce tenant (exception TASK-1683
+         BUG-06), et un lien qui laisserait tomber la portée montrerait d'autres
+         tenants que ceux qu'il vient de compter — un chiffre et une liste qui
+         se contrediraient.
+
+         Il est le SEUL cliquable, et ce n'est pas une incohérence : « Nouveaux
+         ce mois » n'a aucun filtre correspondant, et en inventer un pour
+         uniformiser l'apparence dépasserait la demande. --}}
+    @php
+        $unverifiedUrl = route('admin.users', array_filter([
+            'status' => 'unverified',
+            'organization_id' => request('organization_id'),
+        ]));
+    @endphp
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
         @foreach([
-            ['label' => __('admin.users_stat_total'), 'value' => $stats['total'], 'accent' => 'text-gray-900 dark:text-gray-100', 'dot' => 'bg-gray-300 dark:bg-gray-600'],
-            ['label' => __('admin.users_stat_available'), 'value' => $stats['disponibles'], 'accent' => 'text-emerald-600 dark:text-emerald-400', 'dot' => 'bg-emerald-500'],
-            ['label' => __('admin.users_stat_admins'), 'value' => $stats['admins'], 'accent' => 'text-purple-600 dark:text-purple-400', 'dot' => 'bg-purple-500'],
-            ['label' => __('admin.users_stat_banned'), 'value' => $stats['bannis'], 'accent' => 'text-red-600 dark:text-red-400', 'dot' => 'bg-red-500'],
-            ['label' => __('admin.users_stat_new'), 'value' => $stats['nouveaux'], 'accent' => 'text-indigo-600 dark:text-indigo-400', 'dot' => 'bg-indigo-500'],
+            ['label' => __('admin.users_stat_total'), 'value' => $stats['total'], 'accent' => 'text-gray-900 dark:text-gray-100', 'dot' => 'bg-gray-300 dark:bg-gray-600', 'url' => null],
+            ['label' => __('admin.users_stat_available'), 'value' => $stats['disponibles'], 'accent' => 'text-emerald-600 dark:text-emerald-400', 'dot' => 'bg-emerald-500', 'url' => null],
+            ['label' => __('admin.users_stat_admins'), 'value' => $stats['admins'], 'accent' => 'text-purple-600 dark:text-purple-400', 'dot' => 'bg-purple-500', 'url' => null],
+            ['label' => __('admin.users_stat_banned'), 'value' => $stats['bannis'], 'accent' => 'text-red-600 dark:text-red-400', 'dot' => 'bg-red-500', 'url' => null],
+            ['label' => __('admin.users_stat_new'), 'value' => $stats['nouveaux'], 'accent' => 'text-indigo-600 dark:text-indigo-400', 'dot' => 'bg-indigo-500', 'url' => null],
+            ['label' => __('admin.users_stat_unverified'), 'value' => $stats['non_verifies'], 'accent' => 'text-amber-600 dark:text-amber-400', 'dot' => 'bg-amber-500', 'url' => $unverifiedUrl],
         ] as $stat)
+        @if($stat['url'])
+        <a href="{{ $stat['url'] }}"
+           title="{{ __('admin.users_stat_unverified_hint') }}"
+           data-users-stat-unverified
+           class="relative overflow-hidden rounded-xl border border-amber-200 dark:border-amber-800/60 bg-white dark:bg-gray-800 px-4 py-3 shadow-sm transition hover:border-amber-400 hover:shadow focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="w-1.5 h-1.5 rounded-full {{ $stat['dot'] }}"></span>
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">{{ $stat['label'] }}</span>
+            </div>
+            <p class="text-2xl font-bold tabular-nums {{ $stat['accent'] }}">{{ number_format($stat['value'], 0, ',', ' ') }}</p>
+        </a>
+        @else
         <div class="relative overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 shadow-sm">
             <div class="flex items-center gap-2 mb-1">
                 <span class="w-1.5 h-1.5 rounded-full {{ $stat['dot'] }}"></span>
@@ -35,6 +66,7 @@
             </div>
             <p class="text-2xl font-bold tabular-nums {{ $stat['accent'] }}">{{ number_format($stat['value'], 0, ',', ' ') }}</p>
         </div>
+        @endif
         @endforeach
     </div>
 

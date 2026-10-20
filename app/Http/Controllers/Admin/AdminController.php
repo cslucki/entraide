@@ -169,7 +169,12 @@ class AdminController extends Controller
             .' sum(case when banned_at is null and is_available then 1 else 0 end) as disponibles,'
             .' sum(case when banned_at is not null then 1 else 0 end) as bannis,'
             .' sum(case when is_admin then 1 else 0 end) as admins,'
-            .' sum(case when created_at >= ? then 1 else 0 end) as nouveaux',
+            .' sum(case when created_at >= ? then 1 else 0 end) as nouveaux,'
+            // TASK-1693 bug C — dans la MEME requete agregee. Une seconde
+            // requete pour ce seul compteur ferait grandir le cout de l'ecran
+            // avec le nombre de compteurs, ce que la garde de cout de
+            // `/admin/users` interdit precisement.
+            .' sum(case when email_verified_at is null then 1 else 0 end) as non_verifies',
             [now()->startOfMonth()]
         )->first();
 
@@ -179,6 +184,7 @@ class AdminController extends Controller
             'bannis' => (int) $row->bannis,
             'admins' => (int) $row->admins,
             'nouveaux' => (int) $row->nouveaux,
+            'non_verifies' => (int) $row->non_verifies,
         ];
     }
 

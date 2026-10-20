@@ -1568,6 +1568,8 @@ return [
     'users_stat_banned' => 'Banned',
     'users_stat_admins' => 'Administrators',
     'users_stat_new' => 'New this month',
+    'users_stat_unverified' => 'Unverified',
+    'users_stat_unverified_hint' => 'Show these accounts',
     'users_results_count' => ':count result(s) for this filter',
     'users_status_available' => 'Available',
     'users_status_unavailable' => 'Unavailable',

@@ -211,4 +211,85 @@ class TASK1693AdminEmailVerificationTest extends TestCase
 
         Event::assertNotDispatched(Verified::class);
     }
+
+    /**
+     * Bug C — le compteur « Non verifies » existe, compte juste, et mene au
+     * filtre qui montre exactement ces comptes.
+     */
+    public function test_the_unverified_counter_counts_the_whole_population_and_links_to_them(): void
+    {
+        $this->membre();
+        $this->membre();
+        $this->membre(['email_verified_at' => now()]);
+
+        // Le SuperAdmin du setUp est verifie : 2 non verifies attendus.
+        $reponse = $this->actingAs($this->superAdmin)->get(route('admin.users'))->assertOk();
+
+        $reponse->assertViewHas('stats', fn (array $stats): bool => $stats['non_verifies'] === 2);
+        $reponse->assertSee('data-users-stat-unverified', false);
+
+        // Le lien mene au filtre, et le filtre montre bien ces comptes.
+        $reponse->assertSee(route('admin.users', ['status' => 'unverified']), false);
+    }
+
+    /**
+     * Le compteur ne bouge PAS avec le filtre de statut.
+     *
+     * Doctrine TASK-1640 : un compteur qui suivrait les filtres repondrait
+     * « combien en vois-je » au lieu de « combien y en a-t-il ».
+     */
+    public function test_the_unverified_counter_ignores_the_current_status_filter(): void
+    {
+        $this->membre();
+        $this->membre(['email_verified_at' => now()]);
+
+        foreach ([null, 'unverified', 'banned', 'admin'] as $statut) {
+            $this->actingAs($this->superAdmin)
+                ->get(route('admin.users', array_filter(['status' => $statut])))
+                ->assertOk()
+                ->assertViewHas('stats', fn (array $stats): bool => $stats['non_verifies'] === 1);
+        }
+    }
+
+    /**
+     * Le lien PRESERVE la portee tenant.
+     *
+     * Arrive depuis « Membres » d'une Organization, le compteur est borne a ce
+     * tenant (exception TASK-1683 BUG-06). Un lien qui laisserait tomber
+     * `organization_id` montrerait d'autres tenants que ceux qu'il vient de
+     * compter : le chiffre et la liste se contrediraient.
+     */
+    public function test_the_counter_link_keeps_the_tenant_scope(): void
+    {
+        $autre = Organization::factory()->create(['slug' => 'org-1693c']);
+        $chezNous = $this->membre();
+        $ailleurs = User::factory()->create([
+            'organization_id' => $autre->id,
+            'email_verified_at' => null,
+        ]);
+
+        $reponse = $this->actingAs($this->superAdmin)
+            ->get(route('admin.users', ['organization_id' => $this->organization->id]))
+            ->assertOk();
+
+        // Le compteur ne compte que notre tenant.
+        $reponse->assertViewHas('stats', fn (array $stats): bool => $stats['non_verifies'] === 1);
+
+        // Et le lien emporte la portee.
+        $attendu = route('admin.users', [
+            'status' => 'unverified',
+            'organization_id' => $this->organization->id,
+        ]);
+        // `e()` : l'URL porte DEUX parametres, donc un `&`, que Blade echappe en
+        // `&amp;` dans l'attribut `href`. Chercher la forme brute mesurerait
+        // l'echappement, pas le lien.
+        $reponse->assertSee(e($attendu), false);
+
+        // Suivre ce lien montre exactement le compte compte, et pas l'autre.
+        $html = $this->actingAs($this->superAdmin)->get($attendu)->assertOk()->getContent();
+        $corps = substr($html, strpos($html, '<tbody'), strpos($html, '</tbody>') - strpos($html, '<tbody'));
+
+        $this->assertStringContainsString($chezNous->email, $corps);
+        $this->assertStringNotContainsString($ailleurs->email, $corps, 'le lien ne doit pas elargir la portee du tenant');
+    }
 }

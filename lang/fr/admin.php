@@ -1583,6 +1583,8 @@ return [
     'users_stat_banned' => 'Bannis',
     'users_stat_admins' => 'Administrateurs',
     'users_stat_new' => 'Nouveaux ce mois',
+    'users_stat_unverified' => 'Non vérifiés',
+    'users_stat_unverified_hint' => 'Afficher ces comptes',
     'users_results_count' => ':count résultat(s) pour ce filtre',
     'users_status_available' => 'Disponible',
     'users_status_unavailable' => 'Indisponible',
