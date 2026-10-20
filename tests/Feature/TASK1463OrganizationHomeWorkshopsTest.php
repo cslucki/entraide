@@ -140,6 +140,15 @@ class TASK1463OrganizationHomeWorkshopsTest extends TestCase
 
     public function test_the_attribution_survives_from_the_short_link_to_the_first_gesture_without_the_shell_and_the_browser_is_never_the_authority(): void
     {
+        // TASK-1692 — TUNNEL D'ACQUISITION ANONYME DES ATELIERS ABANDONNE.
+        $this->markTestSkipped(
+            'Le parcours mesure ici va du lien court `/s/demo` a la page atelier puis au geste Guest '
+            .'« je choisis cette session ». Sa cible centrale, `/org/{organization}/ateliers/...`, est '
+            .'devenue MEMBRE (`auth` + `organization.member`) : un anonyme est redirige vers la connexion '
+            .'bornee a l\'Organization avant d\'y arriver. Corps CONSERVE, aucun code applicatif supprime. '
+            .'Ce qui reste mesure dans cette meme classe : l\'affiche publique des ateliers publies sur la '
+            .'landing, ses liens nus, et le cloisonnement entre Organizations.'
+        );
         // /s/demo → accueil (attribution dans l'URL) → lien interne du bloc → page atelier → « Je choisis cette session ».
         $landing = $this->withCredentials()->get('/s/demo')->assertRedirect()->headers->get('Location');
         $this->assertStringContainsString('shortcut=demo', $landing);

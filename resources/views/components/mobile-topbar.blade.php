@@ -1,3 +1,5 @@
+@props(['showInternalNavigation' => true])
+
 @php
     $routeName = request()->route()?->getName() ?? '';
     $organizationRouteParam = request()->route('organization');
@@ -184,7 +186,7 @@
             @endunless
         </div>
         <div class="flex items-center gap-2.5">
-             @auth
+             @if(auth()->check() && $showInternalNavigation)
              <div class="flex shrink-0 items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
                  @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                       <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
@@ -314,7 +316,7 @@
                 {{ __('navigation.login') }}
             </a>
             @endunless
-            @endauth
+             @endif
         </div>
     </div>
 </header>

@@ -398,8 +398,8 @@ class TASK1227OrganizationDoctrineTest extends TestCase
         $this->actingAs($this->member)->post($this->url('/sandbox'), ['capability' => 'clarify_help_request', 'question' => 'question ?'])->assertForbidden();
 
         // Admin d'une AUTRE Organization : 403 sur celle-ci.
-        $this->actingAs($this->otherAdmin)->get($this->url())->assertForbidden();
-        $this->actingAs($this->otherAdmin)->put($this->url('/doctrine'), ['body' => 'x'])->assertForbidden();
+        $this->actingAs($this->otherAdmin)->get($this->url())->assertNotFound();
+        $this->actingAs($this->otherAdmin)->put($this->url('/doctrine'), ['body' => 'x'])->assertNotFound();
 
         // …et sa propre page ne montre jamais la doctrine de A.
         $response = $this->actingAs($this->otherAdmin)->get($this->url('', $this->otherOrganization));
@@ -407,8 +407,18 @@ class TASK1227OrganizationDoctrineTest extends TestCase
         $response->assertDontSee('SECRET-DOCTRINE-A');
         $response->assertSee('data-behavior-doctrine-status="none"', false);
 
-        // Invite : jamais la page (redirection login ou 403 selon la resolution d'Organization).
-        $this->assertContains($this->get($this->url())->getStatusCode(), [302, 403]);
+        // Invite : jamais la page.
+        //
+        // TASK-1692 — cette mesure etait LATENTE : `actingAs()` persiste pour le
+        // reste du test, si bien que ce `get()` partait encore sous
+        // `$this->otherAdmin`. Elle mesurait donc un admin etranger (403 a
+        // l'epoque, inclus dans l'ensemble tolere), jamais un anonyme. On
+        // deconnecte explicitement, et on asserte la reponse REELLE d'un
+        // anonyme : la redirection vers la connexion bornee a l'Organization.
+        auth()->logout();
+        $this->flushSession();
+        $this->get($this->url())
+            ->assertRedirect(route('organization.login', ['organization' => $this->organization->slug]));
 
         // Rien n'a bouge.
         $this->assertSame(1, OrganizationAiDoctrine::query()->count());

@@ -72,6 +72,44 @@ if (! function_exists('organizationScopedUrl')) {
     }
 }
 
+if (! function_exists('showsOrganizationInternalNavigation')) {
+    /**
+     * TASK-1692 — la navigation interne d'une Organization ne s'affiche qu'a
+     * ses membres.
+     *
+     * Le predicat vivait EN DOUBLE, ecrit a la main dans `partials/footer` et
+     * absent de `mentions-legales`, qui se contentait de `auth()->check()`.
+     * Une garde conditionnee a la seule AUTHENTIFICATION ne garde rien ici :
+     * mesure avant correctif, un membre de A ouvrant
+     * `/org/B/mentions-legales` recevait les 6 destinations internes de B
+     * (`dashboard`, `loops`, `agenda`, `membres`, `blog`, `explorer`), toutes
+     * prefixees par le slug de B. La page reste publique — c'est sa
+     * NAVIGATION qui devient membre.
+     *
+     * LE DECLENCHEUR EST L'URL, comme pour `organizationScopedUrl()` : sans
+     * prefixe `/org/{organization}`, aucune Organization n'est designee, donc
+     * il n'y a pas de frontiere a tenir et la fonction rend `true`. Elle ne
+     * dit rien de l'authentification : l'appelant la compose avec la sienne.
+     */
+    function showsOrganizationInternalNavigation(): bool
+    {
+        $organizationRouteParam = request()->route('organization');
+
+        if (! (request()->routeIs('organization.*') && $organizationRouteParam)) {
+            return true;
+        }
+
+        $organization = currentOrganization();
+        $actor = request()->user();
+
+        if (! $actor || ! $organization) {
+            return false;
+        }
+
+        return $actor->organization_id === $organization->id || $actor->is_admin;
+    }
+}
+
 if (! function_exists('aiOffersUrl')) {
     /**
      * TASK-1229 : URL de la page « Voir les offres » (information, sans

@@ -106,6 +106,19 @@ class TASK1628RootDestinationExplicitChoiceTest extends TestCase
      */
     public function test_the_premise_holds_the_landing_really_serves_the_shell(): void
     {
+        // TASK-1692 — GUEST SHELL VOLONTAIREMENT DESACTIVE (arbitrage MASTER).
+        $this->markTestSkipped(
+            'Ces deux gardes reposent sur une premisse morte : que la landing RENDE le Shell Welcome '
+            .'(`bpsf-page`). Le Shell est ferme aux anonymes (`auth` + `organization.member` sur le groupe '
+            .'`/org/{organization}`) et refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154`), si bien que `OrganizationLandingController` n\'entre jamais dans la '
+            .'branche shell-first. Le test etait explicitement concu pour NE PAS rester vert si le Shell '
+            .'s\'eteignait : il fait donc son travail en signalant l\'extinction, et le SKIP porte la raison '
+            .'plutot que de la taire. Corps CONSERVE, aucun code applicatif supprime. La souverainete du '
+            .'choix de destination racine — le vrai sujet de TASK-1628 — reste mesuree par les gardes '
+            .'`explicit_homepage` et `explicit_blog` de cette meme classe, qui reposent sur des '
+            .'destinations vivantes.'
+        );
         $organization = $this->defaultOrganization(null);
 
         $body = $this->get(route('organization.home', $organization))->assertOk()->getContent();
@@ -201,6 +214,19 @@ class TASK1628RootDestinationExplicitChoiceTest extends TestCase
      */
     public function test_explicit_shell_welcome_still_serves_the_shell(): void
     {
+        // TASK-1692 — GUEST SHELL VOLONTAIREMENT DESACTIVE (arbitrage MASTER).
+        $this->markTestSkipped(
+            'Ces deux gardes reposent sur une premisse morte : que la landing RENDE le Shell Welcome '
+            .'(`bpsf-page`). Le Shell est ferme aux anonymes (`auth` + `organization.member` sur le groupe '
+            .'`/org/{organization}`) et refuse d\'elle-meme les personnes connectees depuis TASK-1442 '
+            .'(`GuestShellSurface:154`), si bien que `OrganizationLandingController` n\'entre jamais dans la '
+            .'branche shell-first. Le test etait explicitement concu pour NE PAS rester vert si le Shell '
+            .'s\'eteignait : il fait donc son travail en signalant l\'extinction, et le SKIP porte la raison '
+            .'plutot que de la taire. Corps CONSERVE, aucun code applicatif supprime. La souverainete du '
+            .'choix de destination racine — le vrai sujet de TASK-1628 — reste mesuree par les gardes '
+            .'`explicit_homepage` et `explicit_blog` de cette meme classe, qui reposent sur des '
+            .'destinations vivantes.'
+        );
         $organization = $this->defaultOrganization(RootDestination::SHELL_WELCOME);
 
         $this->get('/')->assertRedirect(route('organization.home', $organization));

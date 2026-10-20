@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -79,11 +80,25 @@ class TASK1610SocialMetadataTest extends TestCase
         return preg_match('~<title>([^<]*)</title>~', $html, $m) ? html_entity_decode($m[1]) : null;
     }
 
+    /**
+     * TASK-1692 — le logigramme prefixe est devenu une surface MEMBRE.
+     *
+     * Ce que ce fichier mesure n'a pas bouge d'un mot : la description
+     * canonique, le titre et les balises sociales de la page. Seul l'oeil qui
+     * la regarde change — un membre de l'Organization visee, au role minimal.
+     * Remplacer l'appel par une assertion de redirection aurait supprime la
+     * mesure elle-meme : il n'y aurait plus de page a inspecter.
+     */
     private function flowchart(Organization $organisation): string
     {
         app()->forgetInstance('current_organization');
 
-        return $this->get('/org/'.$organisation->slug.'/flowchart')->assertOk()->getContent();
+        $membre = User::factory()->create(['organization_id' => $organisation->id]);
+
+        return $this->actingAs($membre)
+            ->get('/org/'.$organisation->slug.'/flowchart')
+            ->assertOk()
+            ->getContent();
     }
 
     // =====================================================================

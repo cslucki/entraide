@@ -283,7 +283,7 @@ class TASK1258OrganizationAiStatementV2Test extends TestCase
             ->assertDontSee('data-consumption-top-process="blog.article_generate"', false);
 
         // Un admin d'une autre Organization ne voit pas cette console (inchange, T1219).
-        $this->actingAs($this->adminB)->get($this->orgUrl())->assertForbidden();
+        $this->actingAs($this->adminB)->get($this->orgUrl())->assertNotFound();
         $this->actingAs($this->memberA)->get($this->orgUrl())->assertForbidden();
     }
 

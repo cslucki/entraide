@@ -80,7 +80,7 @@ class TASK1290BlogWriteMembershipTest extends TestCase
             ->post(route('organization.blog.store', [
                 'organization' => $this->defaultOrganization->slug,
             ]), $this->storePayload('Intrusion prefixee'))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertNoPostBy($this->stranger);
     }
@@ -100,7 +100,7 @@ class TASK1290BlogWriteMembershipTest extends TestCase
             ->postJson(route('organization.blog.create-draft', [
                 'organization' => $this->defaultOrganization->slug,
             ]), $this->draftPayload('Brouillon intrusion prefixee'))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertNoPostBy($this->stranger);
     }

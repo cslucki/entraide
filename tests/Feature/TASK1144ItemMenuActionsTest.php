@@ -313,6 +313,6 @@ class TASK1144ItemMenuActionsTest extends TestCase
                 'organization' => $this->org->slug,
                 'dossier' => $this->dossier->getKey(),
             ]))
-            ->assertForbidden();
+            ->assertNotFound();
     }
 }

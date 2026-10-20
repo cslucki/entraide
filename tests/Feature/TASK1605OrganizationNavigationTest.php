@@ -324,9 +324,11 @@ class TASK1605OrganizationNavigationTest extends TestCase
     {
         $this->oublierOrganisation();
 
-        $html = $this->get(route('organization.bug-reports.index', [
-            'organization' => $this->otherOrg->slug,
-        ]))->assertOk()->getContent();
+        // TASK-1692 — surface prefixee devenue MEMBRE ; contenu inchange.
+        $html = $this->actingAs(\App\Models\User::factory()->create(['organization_id' => $this->otherOrg->id]))
+            ->get(route('organization.bug-reports.index', [
+                'organization' => $this->otherOrg->slug,
+            ]))->assertOk()->getContent();
 
         $this->assertStringContainsString('/org/'.$this->otherOrg->slug, $html,
             'la page de signalement bornee ne porte aucune navigation de l\'Organization');
@@ -389,9 +391,11 @@ class TASK1605OrganizationNavigationTest extends TestCase
     {
         $this->oublierOrganisation();
 
-        $html = $this->get(route('organization.bug-reports.index', [
-            'organization' => $this->otherOrg->slug,
-        ]))->assertOk()->getContent();
+        // TASK-1692 — surface prefixee devenue MEMBRE ; contenu inchange.
+        $html = $this->actingAs(\App\Models\User::factory()->create(['organization_id' => $this->otherOrg->id]))
+            ->get(route('organization.bug-reports.index', [
+                'organization' => $this->otherOrg->slug,
+            ]))->assertOk()->getContent();
 
         $this->assertStringNotContainsString('/org/'.$this->defaultOrg->slug, $html,
             'la page bornee expose une AUTRE Organization');

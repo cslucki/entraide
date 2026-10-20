@@ -1,5 +1,6 @@
 <?php
 $settings = $organization->homepage_settings ?? [];
+$showInternalHomepageContent = (bool) ($showInternalHomepageContent ?? false);
 $heroAvatars = collect($heroAvatars ?? []);
 $avatar = fn (int $index) => $heroAvatars->get($index) ?? asset('img/bouclepro-symbol.png');
 $settingText = fn (string $key, string $fallback) => filled($settings[$key] ?? null) && ! in_array($settings[$key], [
@@ -66,6 +67,12 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
         @endforeach
       </div>
       <nav class="nav-links">
+        {{-- TASK-1692, correctif post-CI — le LIEN reste public, la PAGE reste
+             membre. Masquer le lien ne protegeait rien (la garde de route est
+             l'autorite) et amputait la navigation editoriale de l'affiche
+             publique. Un visiteur anonyme qui le suit est redirige vers la
+             connexion bornee a l'Organization : c'est le tunnel voulu, pas une
+             fuite. --}}
         <a href="{{ route('organization.about', $organization) }}">{{ org_trans('artscilab.nav_about') }}</a>
         @guest
           @if ($organization->is_public)
@@ -93,65 +100,81 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       <div class="orbit" id="bp-orbit">
         <div class="loop"></div>
 
+        @if($showInternalHomepageContent)
         <a href="{{ route('organization.explorer', $organization).'?tab=requests' }}" class="ocard c1">
+        @else
+        <div class="ocard c1">
+        @endif
           <div class="top">
             <span class="ic"><i class="ti ti-hand-stop"></i></span>
             <span class="lbl">{{ $settingText('card_1_label', 'artscilab.card_1_label') }}</span>
           </div>
-          <div class="ppl">
+          @if($showInternalHomepageContent)<div class="ppl">
             <div class="avatars">
               <img src="{{ $avatar(0) }}" alt=""><img src="{{ $avatar(1) }}" alt=""><img src="{{ $avatar(2) }}" alt=""><img src="{{ $avatar(3) }}" alt="">
             </div>
             <span class="more">+4</span>
-          </div>
-        </a>
+          </div>@endif
+        @if($showInternalHomepageContent)</a>@else</div>@endif
 
+        @if($showInternalHomepageContent)
         <a href="{{ route('organization.explorer', $organization) }}" class="ocard c2">
+        @else
+        <div class="ocard c2">
+        @endif
           <div class="top">
             <span class="ic"><i class="ti ti-lifebuoy"></i></span>
             <span class="lbl">{{ $settingText('card_2_label', 'artscilab.card_2_label') }}</span>
           </div>
-          <div class="ppl">
+          @if($showInternalHomepageContent)<div class="ppl">
             <div class="avatars">
               <img src="{{ $avatar(4) }}" alt=""><img src="{{ $avatar(5) }}" alt=""><img src="{{ $avatar(6) }}" alt=""><img src="{{ $avatar(7) }}" alt="">
             </div>
             <span class="more">+7</span>
-          </div>
-        </a>
+          </div>@endif
+        @if($showInternalHomepageContent)</a>@else</div>@endif
 
         {{-- TASK-1608 — c3 porte l'intention EXPLORER (icone `ti-bulb`, libelle
              « Je suis actuellement fascine par… ») : elle mene desormais aux
              CONTENUS, pas a l'Annuaire. Meme arbitrage MASTER que `hero-v2`. --}}
+        @if($showInternalHomepageContent)
         <a href="{{ route('organization.blog.index', $organization) }}" class="ocard c3">
+        @else
+        <div class="ocard c3">
+        @endif
           <div class="top">
             <span class="ic"><i class="ti ti-bulb"></i></span>
             <span class="lbl">{{ $settingText('card_3_label', 'artscilab.card_3_label') }}</span>
           </div>
-          <div class="ppl">
+          @if($showInternalHomepageContent)<div class="ppl">
             <div class="avatars">
               <img src="{{ $avatar(8) }}" alt=""><img src="{{ $avatar(9) }}" alt=""><img src="{{ $avatar(10) }}" alt=""><img src="{{ $avatar(11) }}" alt="">
             </div>
             <span class="more">+3</span>
-          </div>
-        </a>
+          </div>@endif
+        @if($showInternalHomepageContent)</a>@else</div>@endif
 
         {{-- c4 porte l'intention RELIER (icone `ti-friends`, libelle « Je pense
              que ces deux personnes devraient se rencontrer… ») : elle mene aux
              PERSONNES. Consequence acceptee par MASTER : plus aucune des quatre
              cartes ne mene au catalogue des Boucles — il reste atteint par le
              CTA secondaire, la navigation et le logigramme. --}}
+        @if($showInternalHomepageContent)
         <a href="{{ route('organization.members.index', $organization) }}" class="ocard c4">
+        @else
+        <div class="ocard c4">
+        @endif
           <div class="top">
             <span class="ic"><i class="ti ti-friends"></i></span>
             <span class="lbl">{{ $settingText('card_4_label', 'artscilab.card_4_label') }}</span>
           </div>
-          <div class="ppl">
+          @if($showInternalHomepageContent)<div class="ppl">
             <div class="avatars">
               <img src="{{ $avatar(12) }}" alt=""><img src="{{ $avatar(13) }}" alt=""><img src="{{ $avatar(14) }}" alt=""><img src="{{ $avatar(15) }}" alt="">
             </div>
             <span class="more">+6</span>
-          </div>
-        </a>
+          </div>@endif
+        @if($showInternalHomepageContent)</a>@else</div>@endif
 
         <div class="ainote">
           <svg width="32" height="40" viewBox="0 0 34 40" fill="none" aria-hidden="true">
@@ -172,6 +195,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       <img class="foot-symbol" src="{{ asset('img/bouclepro-symbol.png') }}" alt="" aria-hidden="true">
     </div>
     <nav class="foot-right">
+      @if($showInternalHomepageContent)
       {{-- TASK-1608, addendum vocabulaire — « Mycelium · Flowchart ».
 
            ECART ASSUME, rapporte a MASTER : ce gabarit ne portait AUCUN lien
@@ -185,7 +209,9 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
         <span class="foot-sep" aria-hidden="true">·</span>
         <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
       </span>
+      @endif
       <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ org_trans('artscilab.footer_terms') }}</a>
+      @if($showInternalHomepageContent)
       {{-- TASK-1613 — l'icone ouvre l'explorateur du depot, comme partout
            ailleurs. Cible : `/open-source/github`, une redirection
            BouclePro — jamais l'URL du depot, ni dans le HTML ni au survol. --}}
@@ -193,6 +219,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
          aria-label="{{ __('open_source.github_aria') }}">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 .1.8 1.7 2.5 1.4.1-.7.4-1.2.7-1.5-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.5 18.3 4.8 18.3 4.8c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
       </a>
+      @endif
     </nav>
   </footer>
 </div>

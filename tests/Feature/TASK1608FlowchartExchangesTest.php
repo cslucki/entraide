@@ -148,12 +148,14 @@ class TASK1608FlowchartExchangesTest extends TestCase
         $this->assertTrue($echanges->proposals($this->organisation, null)->isEmpty());
         $this->assertTrue($echanges->requests($this->organisation, null)->isEmpty());
 
+        // TASK-1692 — la non-divulgation devient TOTALE : le logigramme est une
+        // surface prefixee, donc MEMBRE, et un anonyme n'atteint plus la page.
+        // La garantie de fond (le service ne rend AUCUN echange a un invite)
+        // reste mesuree juste au-dessus, inchangee ; ce qui change ici est que
+        // l'invite ne lit meme plus le gabarit.
         app()->forgetInstance('current_organization');
-        $response = $this->get($this->url());
-        $response->assertOk();
-
-        $response->assertDontSee('Proposition Confidentielle 1608', false);
-        $response->assertDontSee('Demande Confidentielle 1608', false);
+        $this->get($this->url())
+            ->assertRedirect(route('organization.login', ['organization' => $this->organisation->slug]));
     }
 
     /**
@@ -172,10 +174,12 @@ class TASK1608FlowchartExchangesTest extends TestCase
             app(FlowchartExchanges::class)->proposals($this->organisation, $etranger)->isEmpty(),
         );
 
+        // TASK-1692 — « traite exactement comme un anonyme » est devenu plus
+        // vrai qu'avant : appartenir a une AUTRE Organization ne donne meme plus
+        // acces au gabarit. Le refus est 404, sans oracle d'existence, et non
+        // 403 — l'etranger n'apprend pas que cette surface existe ici.
         app()->forgetInstance('current_organization');
-        $this->actingAs($etranger)->get($this->url())
-            ->assertOk()
-            ->assertDontSee('Proposition Confidentielle 1608', false);
+        $this->actingAs($etranger)->get($this->url())->assertNotFound();
     }
 
     /** Un MEMBRE de cette Organization, lui, les recoit. */

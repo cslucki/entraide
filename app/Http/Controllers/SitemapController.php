@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Organization;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
@@ -62,14 +63,8 @@ class SitemapController extends Controller
      * @var list<array{name: string, changefreq: string, priority: string}>
      */
     private const PUBLIC_SURFACES = [
-        ['name' => 'home', 'changefreq' => 'daily', 'priority' => '1.0'],
-        ['name' => 'blog.index', 'changefreq' => 'daily', 'priority' => '0.8'],
-        ['name' => 'boucles.index', 'changefreq' => 'weekly', 'priority' => '0.7'],
-        ['name' => 'partenaires.index', 'changefreq' => 'monthly', 'priority' => '0.6'],
-        ['name' => 'about', 'changefreq' => 'monthly', 'priority' => '0.5'],
-        ['name' => 'help', 'changefreq' => 'monthly', 'priority' => '0.5'],
-        ['name' => 'open-source.page', 'changefreq' => 'monthly', 'priority' => '0.5'],
-        ['name' => 'mentions-legales', 'changefreq' => 'yearly', 'priority' => '0.3'],
+        ['name' => 'organization.home', 'changefreq' => 'daily', 'priority' => '1.0'],
+        ['name' => 'organization.mentions-legales', 'changefreq' => 'yearly', 'priority' => '0.3'],
     ];
 
     /**
@@ -87,29 +82,39 @@ class SitemapController extends Controller
         return self::PUBLIC_SURFACES;
     }
 
+    /** Les seuls tenants dont la homepage est volontairement publique. */
+    protected function publicOrganizations()
+    {
+        return Organization::query()
+            ->where('is_active', true)
+            ->where('is_public', true)
+            ->orderBy('created_at')
+            ->get(['id', 'slug']);
+    }
+
     public function index(): Response
     {
         $urls = [];
 
-        foreach ($this->publicSurfaces() as $surface) {
-            // Une route renommee ne doit pas rendre `/sitemap.xml` indisponible
-            // aux moteurs. Mais elle ne doit pas DISPARAITRE EN SILENCE non
-            // plus : le saut est journalise, et un test exige par ailleurs que
-            // les huit noms existent — une renommage casse donc la CI, pas la
-            // production.
-            if (! Route::has($surface['name'])) {
-                Log::warning('SitemapController: declared public route is missing; URL omitted.', [
-                    'route' => $surface['name'],
-                ]);
+        foreach ($this->publicOrganizations() as $organization) {
+            foreach ($this->publicSurfaces() as $surface) {
+                // Une route renommee ne doit pas rendre `/sitemap.xml`
+                // indisponible aux moteurs. Elle est omise et journalisee ;
+                // la CI exige par ailleurs que chaque nom existe.
+                if (! Route::has($surface['name'])) {
+                    Log::warning('SitemapController: declared public route is missing; URL omitted.', [
+                        'route' => $surface['name'],
+                    ]);
 
-                continue;
+                    continue;
+                }
+
+                $urls[] = [
+                    'loc' => route($surface['name'], ['organization' => $organization->slug]),
+                    'changefreq' => $surface['changefreq'],
+                    'priority' => $surface['priority'],
+                ];
             }
-
-            $urls[] = [
-                'loc' => route($surface['name']),
-                'changefreq' => $surface['changefreq'],
-                'priority' => $surface['priority'],
-            ];
         }
 
         $xml = view('sitemap', ['urls' => $urls])->render();

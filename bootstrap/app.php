@@ -13,6 +13,8 @@ use App\Http\Middleware\ResolveApiOrganization;
 use App\Http\Middleware\ResolveOrganization;
 use App\Http\Middleware\ResolveUrlOrganization;
 use App\Http\Middleware\SetLocale;
+use Illuminate\Auth\Middleware\EnsureEmailIsVerified;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Application;
@@ -108,6 +110,27 @@ return Application::configure(basePath: dirname(__DIR__))
             // pas l'authentification.
             'organization.member' => EnsureOrganizationMember::class,
         ]);
+
+        // TASK-1692 — l'ordre est une frontiere de securite, pas une
+        // consequence accidentelle de l'ordre d'ecriture des routes.
+        //
+        // `auth` reste la premiere porte : un invite est redirige vers la
+        // connexion bornee a l'Organization. Ensuite seulement, l'appartenance
+        // est verifiee en 404 sans oracle. La verification d'email arrive en
+        // dernier, afin qu'un compte non verifie d'un autre tenant ne puisse
+        // pas apprendre que la surface existe via `/verify-email`.
+        //
+        // On INSERE ces deux classes dans la priorite Laravel existante au lieu
+        // de la remplacer : l'ordre relatif des middlewares du framework reste
+        // donc intact pour tous les autres groupes.
+        $middleware->appendToPriorityList(
+            AuthenticatesRequests::class,
+            EnsureOrganizationMember::class,
+        );
+        $middleware->appendToPriorityList(
+            EnsureOrganizationMember::class,
+            EnsureEmailIsVerified::class,
+        );
         // TASK-145: Reorder web group so ResolveUrlOrganization runs BEFORE
         // SubstituteBindings. With appendToGroup, ResolveUrlOrganization ran AFTER
         // SubstituteBindings, meaning route model binding (Service $service, etc.)

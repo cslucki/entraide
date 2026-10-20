@@ -268,7 +268,7 @@ class DossierSeriesTest extends TestCase
             ['root_blog_post_id' => $post->id]
         );
 
-        $response->assertStatus(403);
+        $response->assertStatus(404);
     }
 
     public function test_reader_cannot_create_series(): void
@@ -703,7 +703,7 @@ class DossierSeriesTest extends TestCase
             $this->orgRoute('dossiers.series.show', $dossier)
         );
 
-        $response->assertStatus(403);
+        $response->assertStatus(404);
     }
 
     // ── Promotion de racine ─────────────────────────────────────────────────

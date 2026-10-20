@@ -29,18 +29,10 @@ class TASK1673SitemapPublicSurfacesTest extends TestCase
 {
     use RefreshDatabase;
 
-    /**
-     * Les huit surfaces attendues, URI telle qu'un crawler la lit.
-     */
-    private const SURFACES_ATTENDUES = [
-        '/',
-        '/blog',
-        '/boucles',
-        '/partenaires',
-        '/about',
-        '/aide',
-        '/open-source',
-        '/mentions-legales',
+    /** Les deux surfaces indexables de chaque Organization publique. */
+    private const ROUTES_ATTENDUES = [
+        'organization.home',
+        'organization.mentions-legales',
     ];
 
     private function xml(): string
@@ -163,26 +155,35 @@ class TASK1673SitemapPublicSurfacesTest extends TestCase
     // 3. Les promesses POSITIVES — et chaque URL est verifiee ANONYMEMENT
     // -------------------------------------------------------------------------
 
-    public function test_les_huit_surfaces_publiques_sont_publiees(): void
+    public function test_seuls_accueil_et_mentions_legales_des_organizations_publiques_sont_publies(): void
     {
+        $publique = Organization::factory()->create([
+            'slug' => 'publique-sitemap',
+            'is_active' => true,
+            'is_public' => true,
+        ]);
+        Organization::factory()->create(['slug' => 'privee-sitemap', 'is_active' => true, 'is_public' => false]);
+        Organization::factory()->create(['slug' => 'inactive-sitemap', 'is_active' => false, 'is_public' => true]);
+
         $chemins = array_map(
             fn (string $loc) => '/'.ltrim(parse_url($loc, PHP_URL_PATH) ?? '/', '/'),
             $this->locs()
         );
 
-        // `/` se normalise en chaine vide par `ltrim` : on le remet.
-        $chemins = array_map(fn (string $c) => $c === '/' ? '/' : rtrim($c, '/'), $chemins);
-
-        foreach (self::SURFACES_ATTENDUES as $attendu) {
-            $this->assertContains($attendu, $chemins, "Le sitemap doit publier $attendu.");
-        }
-
-        $this->assertCount(count(self::SURFACES_ATTENDUES), $chemins,
-            'Le sitemap ne doit publier QUE ces surfaces.');
+        $this->assertSame([
+            '/org/'.$publique->slug,
+            '/org/'.$publique->slug.'/mentions-legales',
+        ], $chemins, 'Le sitemap ne doit publier que les deux surfaces publiques du tenant.');
     }
 
     public function test_chaque_url_publiee_repond_200_a_un_visiteur_anonyme(): void
     {
+        Organization::factory()->create([
+            'slug' => 'publique-anonyme-sitemap',
+            'is_active' => true,
+            'is_public' => true,
+        ]);
+
         $locs = $this->locs();
 
         $this->assertNotEmpty($locs);
@@ -211,7 +212,9 @@ class TASK1673SitemapPublicSurfacesTest extends TestCase
 
         $surfaces = $sonde->surfaces();
 
-        $this->assertCount(count(self::SURFACES_ATTENDUES), $surfaces);
+        $this->assertCount(count(self::ROUTES_ATTENDUES), $surfaces);
+
+        $this->assertSame(self::ROUTES_ATTENDUES, array_column($surfaces, 'name'));
 
         foreach ($surfaces as $surface) {
             $this->assertTrue(
@@ -228,12 +231,18 @@ class TASK1673SitemapPublicSurfacesTest extends TestCase
         // logique dans le test.
         $this->assertFalse(Route::has('route.qui.n.existe.pas'));
 
+        $organization = Organization::factory()->create([
+            'slug' => 'publique-route-manquante',
+            'is_active' => true,
+            'is_public' => true,
+        ]);
+
         $controleur = new class extends SitemapController
         {
             protected function publicSurfaces(): array
             {
                 return [
-                    ['name' => 'home', 'changefreq' => 'daily', 'priority' => '1.0'],
+                    ['name' => 'organization.home', 'changefreq' => 'daily', 'priority' => '1.0'],
                     ['name' => 'route.qui.n.existe.pas', 'changefreq' => 'daily', 'priority' => '0.5'],
                 ];
             }
@@ -246,7 +255,7 @@ class TASK1673SitemapPublicSurfacesTest extends TestCase
         // L'URL manquante est omise, et `/` survit : un nom casse n'emporte
         // pas le sitemap entier.
         $this->assertStringNotContainsString('route.qui.n.existe.pas', $xml);
-        $this->assertStringContainsString('<loc>'.route('home').'</loc>', $xml);
+        $this->assertStringContainsString('<loc>'.route('organization.home', $organization).'</loc>', $xml);
         $this->assertSame(1, preg_match_all('#<loc>#', $xml));
 
         Log::shouldHaveReceived('warning')->withArgs(

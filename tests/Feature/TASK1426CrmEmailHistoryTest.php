@@ -253,7 +253,7 @@ class TASK1426CrmEmailHistoryTest extends TestCase
         $log = $this->log($this->contactA, EmailLog::STATUS_SENT, 'Le mien');
 
         $this->actingAs($this->memberA)->get($this->reread($this->contactA, $log->id))->assertForbidden();
-        $this->actingAs($this->adminB)->get($this->reread($this->contactA, $log->id))->assertForbidden();
+        $this->actingAs($this->adminB)->get($this->reread($this->contactA, $log->id))->assertNotFound();
         $superAdmin = User::factory()->create(['organization_id' => $this->orgB->id, 'is_admin' => true]);
         $this->actingAs($superAdmin)->get($this->reread($this->contactA, $log->id))->assertOk();
     }

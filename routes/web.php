@@ -1115,11 +1115,13 @@ $organizationConstraint = '(?!login|register|admin|api|sitemap|search|explorer|p
 
 // Organization-prefixed routes (/org/{organization}/...) — en parallèle des routes legacy /{community}
 Route::prefix('/org/{organization}')
-    ->middleware(['web', 'organization'])
+    ->middleware(['web', 'organization', 'auth', 'organization.member'])
     ->where(['organization' => $organizationConstraint])
     ->name('organization.')
     ->group(function () {
-        Route::get('/', [OrganizationLandingController::class, '__invoke'])->name('home');
+        Route::get('/', [OrganizationLandingController::class, '__invoke'])
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('home');
         // TASK-1442 — SW-8a : la surface publique du Shell Welcome (lecture pure + premier geste). Distincte du Shell membre.
         Route::get('/shell', [GuestShellController::class, 'show'])->middleware('throttle:60,1')->name('shell.show');
         Route::post('/shell/message', [GuestShellController::class, 'message'])->middleware('throttle:30,1')->name('shell.message');
@@ -1157,7 +1159,9 @@ Route::prefix('/org/{organization}')
           // groupe `/org/{organization}` lie deja l'Organization courante.
           // Mesure avant correctif : en invite, `/mentions-legales` depuis
           // `launchpals` rendait 7 occurrences « BouclePro » et 0 « LaunchPals ».
-          Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
+          Route::view('/mentions-legales', 'mentions-legales')
+              ->withoutMiddleware(['auth', 'organization.member'])
+              ->name('mentions-legales');
 
           // TASK-1613 — l'explorateur Open Source servi DANS le contexte de
           // l'Organization, exactement comme les mentions legales ci-dessus :
@@ -1192,7 +1196,9 @@ Route::prefix('/org/{organization}')
           // l'a explicitement rendue publique.
           Route::get('/mycelium', [MyceliumController::class, 'index'])->name('mycelium');
 
-        Route::middleware('guest')->group(function () {
+        Route::middleware('guest')
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->group(function () {
             Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
             Route::post('/login', [AuthenticatedSessionController::class, 'store']);
             Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
@@ -1219,7 +1225,9 @@ Route::prefix('/org/{organization}')
             // `explain` plutot que le 404 par defaut : la personne est
             // connectee et a tape ce slug elle-meme. Voir
             // `EnsureOrganizationMember`.
-            Route::middleware('organization.member:explain')->group(function () {
+            Route::middleware('organization.member:explain')
+                ->withoutMiddleware(['organization.member'])
+                ->group(function () {
                 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
                 Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
                 Route::get('/dashboard/requests/{serviceRequest}', [DashboardController::class, 'requestDetail'])->name('dashboard.requests.detail')->middleware('consume.org')->whereUuid('serviceRequest');

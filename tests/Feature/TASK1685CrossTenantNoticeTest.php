@@ -368,7 +368,7 @@ class TASK1685CrossTenantNoticeTest extends TestCase
         $response = $this->actingAs($this->member)
             ->get("/org/{$this->other->slug}/dossiers");
 
-        $response->assertStatus(403);
+        $response->assertStatus(404);
         $response->assertSee('data-error-page="cross-tenant"', false);
         $response->assertSee(e(__('errors.404_cross_tenant_title')), false);
         $response->assertSee('data-error-icon="lock"', false);

@@ -143,6 +143,19 @@ class TASK1452GuestSessionInterestTest extends TestCase
 
     public function test_a_guest_chooses_a_session_as_a_first_gesture_idempotently_and_the_page_reflects_it(): void
     {
+        // TASK-1692 — TUNNEL D'ACQUISITION ANONYME DES ATELIERS ABANDONNE.
+        $this->markTestSkipped(
+            'Meme arbitrage que le Shell Welcome : `/org/{organization}/ateliers/...` est une surface '
+            .'prefixee, donc MEMBRE (`auth` + `organization.member`). Le geste Guest « je choisis cette '
+            .'session » et le parcours interet -> inscription -> verification n\'ont plus de lecteur : un '
+            .'anonyme est redirige vers la connexion bornee a l\'Organization avant d\'atteindre la page. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue ; aucun code '
+            .'applicatif n\'est supprime. Ce qui subsiste et reste mesure : l\'affiche publique des '
+            .'ateliers publies sur la landing (TASK1463), la regle de capacite au niveau du service '
+            .'(TASK1455), l\'inscription MEMBRE et son fail-closed cross-tenant '
+            .'(TASK1453::registration_is_fail_closed), et le refus anonyme lui-meme '
+            .'(TASK1692StrictHttpIsolationTest).'
+        );
         $this->forgetAuth();
         // Aucune identite avant le geste : afficher ne cree rien.
         $this->get($this->pageUrl().'?shortcut=demo&utm_source=linkedin')->assertOk()->assertCookieMissing(GuestVisitorResolver::COOKIE);
@@ -201,6 +214,19 @@ class TASK1452GuestSessionInterestTest extends TestCase
 
     public function test_only_a_published_upcoming_session_of_a_published_workshop_accepts_a_guest_interest_and_capacity_is_informative(): void
     {
+        // TASK-1692 — TUNNEL D'ACQUISITION ANONYME DES ATELIERS ABANDONNE.
+        $this->markTestSkipped(
+            'Meme arbitrage que le Shell Welcome : `/org/{organization}/ateliers/...` est une surface '
+            .'prefixee, donc MEMBRE (`auth` + `organization.member`). Le geste Guest « je choisis cette '
+            .'session » et le parcours interet -> inscription -> verification n\'ont plus de lecteur : un '
+            .'anonyme est redirige vers la connexion bornee a l\'Organization avant d\'atteindre la page. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue ; aucun code '
+            .'applicatif n\'est supprime. Ce qui subsiste et reste mesure : l\'affiche publique des '
+            .'ateliers publies sur la landing (TASK1463), la regle de capacite au niveau du service '
+            .'(TASK1455), l\'inscription MEMBRE et son fail-closed cross-tenant '
+            .'(TASK1453::registration_is_fail_closed), et le refus anonyme lui-meme '
+            .'(TASK1692StrictHttpIsolationTest).'
+        );
         $sessions = app(WorkshopSessionService::class);
         $draft = $sessions->create($this->workshopA, ['starts_at' => '2026-10-15 18:30', 'timezone' => 'Europe/Paris'], $this->adminA);
         $cancelled = $sessions->create($this->workshopA, ['starts_at' => '2026-10-16 18:30', 'timezone' => 'Europe/Paris'], $this->adminA);
@@ -251,6 +277,19 @@ class TASK1452GuestSessionInterestTest extends TestCase
 
     public function test_workshop_viewed_is_journaled_once_per_known_visitor_and_workshop_without_creating_any_identity(): void
     {
+        // TASK-1692 — TUNNEL D'ACQUISITION ANONYME DES ATELIERS ABANDONNE.
+        $this->markTestSkipped(
+            'Meme arbitrage que le Shell Welcome : `/org/{organization}/ateliers/...` est une surface '
+            .'prefixee, donc MEMBRE (`auth` + `organization.member`). Le geste Guest « je choisis cette '
+            .'session » et le parcours interet -> inscription -> verification n\'ont plus de lecteur : un '
+            .'anonyme est redirige vers la connexion bornee a l\'Organization avant d\'atteindre la page. '
+            .'Le corps est CONSERVE pour etre reveille si la decision produit est revue ; aucun code '
+            .'applicatif n\'est supprime. Ce qui subsiste et reste mesure : l\'affiche publique des '
+            .'ateliers publies sur la landing (TASK1463), la regle de capacite au niveau du service '
+            .'(TASK1455), l\'inscription MEMBRE et son fail-closed cross-tenant '
+            .'(TASK1453::registration_is_fail_closed), et le refus anonyme lui-meme '
+            .'(TASK1692StrictHttpIsolationTest).'
+        );
         $this->forgetAuth();
         $this->get($this->pageUrl())->assertOk();
         $this->assertSame(0, AcquisitionEvent::count(), 'sans cookie : aucun visiteur, aucun fait');

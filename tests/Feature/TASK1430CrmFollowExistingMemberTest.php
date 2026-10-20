@@ -192,8 +192,8 @@ class TASK1430CrmFollowExistingMemberTest extends TestCase
         // Un membre d'une autre Organization n'existe pas ici : 404.
         $this->actingAs($this->adminA)->post($this->follow($this->orgA, $this->memberB))->assertNotFound();
         // L'OrgAdmin d'ailleurs ne peut ni chercher ni ajouter dans cette Organization : 403.
-        $this->actingAs($this->adminB)->get($this->contacts($this->orgA, ['member_search' => '']))->assertForbidden();
-        $this->actingAs($this->adminB)->post($this->follow($this->orgA, $this->memberA1))->assertForbidden();
+        $this->actingAs($this->adminB)->get($this->contacts($this->orgA, ['member_search' => '']))->assertNotFound();
+        $this->actingAs($this->adminB)->post($this->follow($this->orgA, $this->memberA1))->assertNotFound();
         // Un simple membre non plus.
         $this->actingAs($this->memberA1)->get($this->contacts($this->orgA, ['member_search' => '']))->assertForbidden();
         $this->actingAs($this->memberA1)->post($this->follow($this->orgA, $this->memberA2))->assertForbidden();

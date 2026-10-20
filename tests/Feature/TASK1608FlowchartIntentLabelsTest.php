@@ -250,12 +250,52 @@ class TASK1608FlowchartIntentLabelsTest extends TestCase
 
         app()->forgetInstance('current_organization');
 
-        $response = $this->get('/org/'.$organisation->slug.'/flowchart');
+        // TASK-1692 — le logigramme est une surface prefixee, donc MEMBRE. Le
+        // fait mesure ici (la page rend le libelle choisi par l'Organization,
+        // pas le libelle par defaut) est inchange ; seul l'oeil qui le lit
+        // change. Le refus anonyme est tenu par TASK1608FlowchartExchangesTest.
+        $membre = \App\Models\User::factory()->complete()->create([
+            'organization_id' => $organisation->id,
+        ]);
+
+        $response = $this->actingAs($membre)->get('/org/'.$organisation->slug.'/flowchart');
         $response->assertOk();
 
-        // `assertSee` AVEC echappement : Blade rend `'` en `&#039;`, et
-        // chercher la chaine brute mesurerait l'echappement, pas le libelle.
-        $response->assertSee("J'ai besoin d'une ressource");
-        $response->assertDontSee("J'ai besoin d'aide");
+        // TASK-1692 — la mesure vise desormais le PAYLOAD DU GRAPHE, pas la page
+        // entiere. Depuis que la page est lue par un membre, le chrome membre
+        // l'accompagne, et `app-side-nav.blade.php` porte legitimement la phrase
+        // par defaut « J'ai besoin d'aide » dans sa propre entree de menu. Un
+        // `assertDontSee` a l'echelle de la page mesurerait donc la navigation
+        // au lieu du graphe : il rougirait sans qu'aucun libelle d'intention
+        // soit faux. Le payload `data-flowchart-graph` est la source unique que
+        // le moteur rend.
+        $payload = $this->payloadDuGraphe($response->getContent());
+
+        $this->assertStringContainsString("J'ai besoin d'une ressource", $payload);
+        $this->assertStringNotContainsString("J'ai besoin d'aide", $payload);
+    }
+
+    /**
+     * Le contenu du `<script type="application/json" data-flowchart-graph>` —
+     * ce que le moteur du logigramme lit reellement.
+     *
+     * `@json` encode avec `JSON_HEX_APOS` : l'apostrophe sort en `\u0027`, pas
+     * en entite HTML. On DECODE donc le JSON, puis on le re-encode sans
+     * echappement — sinon la mesure porterait sur l'encodage, pas sur le
+     * libelle.
+     */
+    private function payloadDuGraphe(string $html): string
+    {
+        $this->assertSame(
+            1,
+            preg_match('/<script type="application\\/json" data-flowchart-graph>(.*?)<\\/script>/s', $html, $m),
+            'le payload du graphe est present une fois',
+        );
+
+        $decode = json_decode($m[1], true);
+
+        $this->assertIsArray($decode, 'le payload est un JSON valide');
+
+        return json_encode($decode, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 }
