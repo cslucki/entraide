@@ -79,6 +79,10 @@ class AdminController extends Controller
                 'banned' => $query->whereNotNull('banned_at'),
                 'admin' => $query->where('is_admin', true),
                 'available' => $query->where('is_available', true)->whereNull('banned_at'),
+                // TASK-1693 bug B — sans ce filtre, un compte bloque par la
+                // garde de verification etait introuvable : l'ecran n'exposait
+                // ni l'etat ni le moyen de le chercher.
+                'unverified' => $query->whereNull('email_verified_at'),
                 default => null,
             };
         }
@@ -338,6 +342,67 @@ class AdminController extends Controller
         $sign = $data['delta'] > 0 ? '+' : '';
 
         return back()->with('success', "Solde ajusté de {$sign}{$data['delta']} pts pour {$user->name}.");
+    }
+
+    /**
+     * TASK-1693 bug B — valider manuellement la verification d'email.
+     *
+     * ## Pourquoi cet ecran n'existait pas
+     *
+     * Avant cette tranche, TROIS chemins seulement posaient
+     * `email_verified_at` : le parcours d'INVITATION (le jeton est arrive sur
+     * cette adresse exacte, la possession est donc prouvee), les Scenario Packs
+     * (donnees de demonstration), et le lien signe standard
+     * `verification.verify`. Un compte cree a la main par un administrateur, ou
+     * dont l'email de verification n'est jamais arrive, restait donc bloque sans
+     * aucun recours cote produit : `EnsureEmailIsVerified` le detournait vers
+     * `/verify-email` sur toute surface prefixee, et rien dans
+     * l'administration ne permettait de le debloquer.
+     *
+     * ## Ce que ce geste est, et ce qu'il n'est pas
+     *
+     * C'est un DEPANNAGE, pas un outil de gestion courante : il contourne une
+     * preuve de possession d'adresse. Il vit donc dans le groupe
+     * `['auth','admin']` — pile effective `AdminMiddleware`, le SuperAdmin
+     * PLATEFORME — et jamais a la main d'un admin d'Organization, qui pourrait
+     * sinon valider une adresse qu'il ne controle pas.
+     *
+     * Il est IDEMPOTENT et ne reverifie jamais a la baisse : un compte deja
+     * verifie conserve sa date d'origine, et aucun chemin ici ne REMET
+     * `email_verified_at` a `null` (ce que fait deja, legitimement, le
+     * changement d'adresse dans `ProfileController::update()`).
+     *
+     * `markEmailAsVerified()` plutot qu'un `forceFill()` ecrit a la main :
+     * c'est le contrat du framework pour poser cette colonne.
+     *
+     * ## Pourquoi l'evenement `Verified` n'est PAS emis ici
+     *
+     * `markEmailAsVerified()` n'emet rien par lui-meme — c'est
+     * `VerifyEmailController` qui emet `Verified` apres l'avoir appele. On ne
+     * reproduit PAS ce geste, et c'est deliberé.
+     *
+     * `ClaimGuestVisitorOnVerification` reagit a cet evenement en appelant
+     * `GuestClaimService::claim($user, request())`, qui lit le cookie
+     * `bp_guest` de la REQUETE COURANTE. Or ici la requete est celle du
+     * SuperAdmin : on lierait le visiteur anonyme de l'ADMINISTRATEUR au compte
+     * du membre, et `RecordCrmEmailVerified` consignerait les dimensions
+     * d'acquisition de l'admin comme si elles etaient celles du membre. Un fait
+     * FAUX ecrit sur une personne, pire que l'absence de fait.
+     *
+     * Consequence assumee et nommee : une validation manuelle ne produit ni
+     * claim de visiteur, ni fait CRM `email_verified`. C'est coherent — il n'y
+     * a eu aucun parcours d'acquisition a attribuer, puisque personne n'a
+     * clique de lien. Mesure par `test_the_gesture_emits_no_acquisition_event`.
+     */
+    public function verifyUserEmail(User $user): RedirectResponse
+    {
+        if ($user->hasVerifiedEmail()) {
+            return back()->with('success', "L'adresse de {$user->name} était déjà vérifiée.");
+        }
+
+        $user->markEmailAsVerified();
+
+        return back()->with('success', "Adresse email de {$user->name} marquée comme vérifiée.");
     }
 
     public function createUser(): View

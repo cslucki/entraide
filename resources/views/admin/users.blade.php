@@ -71,6 +71,9 @@
             <option value="available" {{ request('status') === 'available' ? 'selected' : '' }}>Disponibles</option>
             <option value="banned" {{ request('status') === 'banned' ? 'selected' : '' }}>Bannis</option>
             <option value="admin" {{ request('status') === 'admin' ? 'selected' : '' }}>Admins</option>
+            {{-- TASK-1693 bug B — retrouver les comptes bloques par la garde de
+                 verification d'email, qui etaient jusqu'ici introuvables. --}}
+            <option value="unverified" {{ request('status') === 'unverified' ? 'selected' : '' }}>Email non vérifié</option>
         </select>
         <select name="organization_id" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
             <option value="">{{ __('admin.users_org_all') }}</option>
@@ -167,7 +170,20 @@
                                     @if($u->is_admin)<span class="ml-1 text-xs text-purple-600 dark:text-purple-400">[admin]</span>@endif
                                     @if($u->banned_at)<span class="ml-1 text-xs text-red-500">[banni]</span>@endif
                                 </p>
-                                <p class="text-xs text-gray-500 truncate">{{ $u->email }}</p>
+                                <p class="text-xs text-gray-500 truncate">
+                                    {{ $u->email }}
+                                    {{-- TASK-1693 bug B — l'etat se lit a cote de
+                                         l'adresse qu'il qualifie. Seul le cas NON
+                                         verifie porte une pastille : signaler
+                                         chaque compte sain noierait l'exception. --}}
+                                    @unless($u->hasVerifiedEmail())
+                                        <span class="ml-1 inline-flex items-center gap-1 text-amber-600 dark:text-amber-400"
+                                              title="Cette personne est renvoyée vers /verify-email sur toute surface d'Organization"
+                                              data-user-email-unverified="{{ $u->id }}">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>email non vérifié
+                                        </span>
+                                    @endunless
+                                </p>
 
                                 {{-- TASK-1640 — sur mobile les colonnes Organisation et
                                      Points sont masquees : l'information ne doit pas etre
@@ -281,6 +297,20 @@
                                     {{ $u->is_admin ? '−Admin' : '+Admin' }}
                                 </button>
                             </form>
+
+                            {{-- TASK-1693 bug B — valider manuellement l'adresse.
+                                 Le bouton n'apparait que pour un compte NON
+                                 verifie : il n'y a rien a faire sur les autres,
+                                 et un geste sans effet est un piege. Confirmation
+                                 explicite, parce qu'il contourne une preuve de
+                                 possession d'adresse. --}}
+                            @unless($u->hasVerifiedEmail())
+                            <form method="POST" action="{{ route('admin.users.verify-email', $u) }}"
+                                  onsubmit="return confirm('Marquer {{ addslashes($u->email) }} comme vérifiée, sans que cette personne ait cliqué le lien de confirmation ?')">
+                                @csrf
+                                <button class="text-xs text-amber-600 hover:underline" data-user-verify-email="{{ $u->id }}">Valider l'email</button>
+                            </form>
+                            @endunless
 
                             @if($u->banned_at)
                             <form method="POST" action="{{ route('admin.users.unban', $u) }}">

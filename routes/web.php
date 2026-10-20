@@ -564,6 +564,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
     Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');
     Route::post('/users/{user}/adjust-points', [AdminController::class, 'adjustPoints'])->name('users.adjust-points');
+    // TASK-1693 bug B — valider MANUELLEMENT la verification d'email d'un
+    // compte. Geste de DEPANNAGE : il contourne une preuve de possession
+    // d'adresse, et reste donc dans ce groupe `['auth','admin']`, dont la pile
+    // effective est `AdminMiddleware` — le SuperAdmin PLATEFORME, jamais un
+    // admin d'Organization.
+    Route::post('/users/{user}/verify-email', [AdminController::class, 'verifyUserEmail'])->name('users.verify-email');
     Route::post('/users/{user}/password', [AdminController::class, 'changePassword'])->name('users.password');
     Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordResetLink'])->name('users.send-password-reset');
     Route::patch('/users/{user}/assign-organization', [AdminController::class, 'assignOrganization'])->name('users.assign-organization');
