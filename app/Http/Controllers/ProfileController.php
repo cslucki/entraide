@@ -220,7 +220,21 @@ class ProfileController extends Controller
 
         $request->user()->save();
 
-        return redirect()->intended(route('profile.edit'))->with('status', 'profile-updated');
+        // TASK-1693 / bug A — destination DETERMINISTE, jamais `intended()`.
+        //
+        // `redirect()->intended()` consomme `url.intended`, et cette clef est
+        // ecrite par `Redirect::guest()` — ce que fait `EnsureEmailIsVerified`
+        // quand il detourne une page vers `verification.notice`. Un compte non
+        // verifie qui visitait `/org/{slug}/dossiers` laissait donc cette URL
+        // en session ; « Enregistrer » sur son profil l'y renvoyait, la garde
+        // `verified` s'y declenchait a nouveau, et la personne atterrissait sur
+        // `/verify-email` sans comprendre le rapport. Mesure : `PUT /profile`
+        // ne porte QUE `auth`, pas `verified` — la redirection ne venait pas de
+        // la route mais d'une intention etrangere.
+        //
+        // Enregistrer son profil ramene a son profil. Le prefixe d'Organization
+        // reste gouverne par la redirection canonique de TASK-1601.
+        return redirect()->route('profile.edit')->with('status', 'profile-updated');
     }
 
     public function toggleAvailability(Request $request): RedirectResponse
