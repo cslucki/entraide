@@ -146,7 +146,11 @@ class TASK1693AdminLoopRoleAgilityTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString($this->membre->publicDisplayName(), $html);
+        // Viser la forme ECHAPPEE (lecon TASK-1672) : Blade rend « O'Hara »
+        // en « O&#039;Hara », et 1,55 % des noms tires par Faker portent une
+        // apostrophe. Une assertion sur le nom BRUT est une bombe a
+        // retardement — verte aujourd'hui, rouge au hasard d'un tirage.
+        $this->assertStringContainsString(e($this->membre->publicDisplayName()), $html);
     }
 
     /**
@@ -265,7 +269,11 @@ class TASK1693AdminLoopRoleAgilityTest extends TestCase
             'le dernier proprietaire doit pouvoir designer son successeur',
         );
         $this->assertStringContainsString('name="successor_id"', $html);
-        $this->assertStringContainsString($this->membre->publicDisplayName(), $html);
+        // Viser la forme ECHAPPEE (lecon TASK-1672) : Blade rend « O'Hara »
+        // en « O&#039;Hara », et 1,55 % des noms tires par Faker portent une
+        // apostrophe. Une assertion sur le nom BRUT est une bombe a
+        // retardement — verte aujourd'hui, rouge au hasard d'un tirage.
+        $this->assertStringContainsString(e($this->membre->publicDisplayName()), $html);
     }
 
     /** Un seul geste, et l'invariant n'est jamais rompu. */
