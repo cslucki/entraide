@@ -155,9 +155,29 @@
                             {{-- TASK-1667 — un pas de plus vers la correction : la Fiche
                                  dit QUI c'est, ce lien amene a ses ecritures et au
                                  panneau de correction. --}}
+                            {{-- TASK-1693 bug H — ce lien etait un `&rarr;` gris
+                                 pale, dont la seule explication vivait dans un
+                                 attribut `title`. Une infobulle ne se survole
+                                 pas au doigt, ne se lit pas au lecteur d'ecran
+                                 comme une commande, et ne se devine pas : la
+                                 porte principale vers la correction d'un solde
+                                 etait donc invisible, exactement comme le
+                                 panneau l'etait avant le bug F.
+
+                                 Un VERBE, et une forme qui se lit comme une
+                                 commande. Le libelle reste court — « Corriger »
+                                 plutot que « Voir et corriger ses points » —
+                                 parce qu'il se repete a chaque ligne : lecon du
+                                 bug D, ou un libelle long avait fait exploser
+                                 la largeur d'une colonne. La phrase complete
+                                 reste en `title`. --}}
                             <a href="{{ request()->fullUrlWithQuery(['user_id' => $entry->user->id]) }}"
-                               class="ml-1 text-xs text-gray-400 hover:text-indigo-600 hover:underline"
-                               title="{{ __('admin.points_focus_member') }}">&rarr;</a>
+                               class="ml-2 inline-flex items-center gap-1 rounded-md border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:border-indigo-400 transition"
+                               data-points-focus-member="{{ $entry->user->id }}"
+                               title="{{ __('admin.points_focus_member') }}">
+                                {{ __('admin.points_focus_member_short') }}
+                                <span aria-hidden="true">&rarr;</span>
+                            </a>
                             @else <span class="text-xs text-gray-400">—</span>
                             @endif
                         </td>

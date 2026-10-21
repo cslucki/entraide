@@ -220,4 +220,63 @@ class TASK1693AdminPointsReachabilityTest extends TestCase
         $this->assertSame(50, $this->membre->fresh()->points_balance, 'aucun solde n\'a bouge');
         $this->assertSame(0, PointLedger::query()->where('user_id', $this->membre->id)->count());
     }
+
+    // ── 4. Bug H — la porte vers la correction se VOIT ──────────────────────
+
+    /**
+     * Le lien de chaque ecriture porte un VERBE, pas seulement un chevron.
+     *
+     * Il etait rendu `&rarr;` en gris pale, et sa seule explication vivait dans
+     * un attribut `title`. Une infobulle ne se survole pas au doigt, ne
+     * s'annonce pas comme une commande a un lecteur d'ecran, et ne se devine
+     * pas : la porte principale vers la correction d'un solde etait invisible.
+     */
+    public function test_the_ledger_row_link_carries_a_visible_verb_not_just_a_glyph(): void
+    {
+        PointLedger::query()->create([
+            'user_id' => $this->membre->id,
+            'organization_id' => $this->organization->id,
+            'delta' => 10,
+            'reason' => 'welcome_bonus',
+        ]);
+
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.points'))
+            ->assertOk()
+            ->getContent();
+
+        $ancre = 'data-points-focus-member="'.$this->membre->id.'"';
+        $position = strpos($html, $ancre);
+        $this->assertNotFalse($position, 'le lien de focus est present sur la ligne');
+
+        $lien = substr($html, $position, strpos($html, '</a>', $position) - $position);
+
+        // Le VERBE est dans le corps du lien, pas seulement en infobulle.
+        $this->assertStringContainsString(__('admin.points_focus_member_short'), $lien);
+
+        // Le chevron subsiste comme ornement, mais il est masque aux lecteurs
+        // d'ecran : il ne porte plus le sens a lui seul.
+        $this->assertStringContainsString('aria-hidden="true"', $lien);
+
+        // La phrase complete reste disponible au survol.
+        $this->assertStringContainsString(e(__('admin.points_focus_member')), substr($html, $position - 400, 400 + strlen($lien)));
+    }
+
+    /** Suivre ce lien mene bien au panneau de correction de cette personne. */
+    public function test_following_the_ledger_row_link_opens_the_correction_panel(): void
+    {
+        PointLedger::query()->create([
+            'user_id' => $this->membre->id,
+            'organization_id' => $this->organization->id,
+            'delta' => 10,
+            'reason' => 'welcome_bonus',
+        ]);
+
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['user_id' => $this->membre->id]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(route('admin.users.adjust-points', $this->membre), $html);
+    }
 }

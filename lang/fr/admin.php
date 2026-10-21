@@ -1687,6 +1687,7 @@ return [
     'points_see_ledger' => 'Voir les ecritures de ce membre',
     'points_reset_confirm' => 'Remettre le solde a zero en ajoutant une ecriture de :balance pts ?',
     'points_focus_member' => 'Voir et corriger ses points',
+    'points_focus_member_short' => 'Corriger',
     // TASK-1693 bug F — « en lecture seule » etait devenu FAUX : TASK-1667 a
     // ajoute le panneau de correction, et cette phrase continuait d'annoncer le
     // contraire. Un ecran qui se declare incapable de ce qu'il fait rend la
