@@ -1691,6 +1691,11 @@ return [
     'points_search_placeholder' => 'Email, prenom ou nom...',
     // `trans_choice` : la borne est le COMPTE, et le parametre s'ecrit `:count`.
     'points_search_no_entry' => '{1} 1 personne trouvee, mais aucune ecriture a son grand livre.|[2,*] :count personnes trouvees, mais aucune ecriture a leur grand livre.',
+    'loop_join_requests_pending' => '{1} 1 demande d\'adhesion en attente|[2,*] :count demandes d\'adhesion en attente',
+    'loop_join_request_accept' => 'Accepter',
+    'loop_join_request_reject' => 'Refuser',
+    'loop_join_request_accepted' => 'Demande acceptee : la personne est desormais membre de la Boucle.',
+    'loop_join_request_rejected' => 'Demande refusee.',
     // TASK-1693 bug F — « en lecture seule » etait devenu FAUX : TASK-1667 a
     // ajoute le panneau de correction, et cette phrase continuait d'annoncer le
     // contraire. Un ecran qui se declare incapable de ce qu'il fait rend la

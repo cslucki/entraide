@@ -938,6 +938,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/loops/{loop}/edit', [AdminLoopController::class, 'edit'])->name('loops.edit');
     Route::put('/loops/{loop}', [AdminLoopController::class, 'update'])->name('loops.update');
     Route::post('/loops/{loop}/members', [AdminLoopController::class, 'addMember'])->name('loops.members.add');
+    // TASK-1693 bug M — decider une demande d'adhesion depuis la fiche admin.
+    //
+    // Les routes globales `loop-join-requests.accept|reject` existent, mais
+    // renvoient toujours vers la Boucle : depuis l'administration cela ejecte
+    // le SuperAdmin de son ecran. Ces deux-la delegent au MEME service, avec la
+    // meme autorisation, et reviennent sur la fiche. La Boucle figure dans
+    // l'URL pour que le controleur puisse verifier que la demande lui
+    // appartient vraiment.
+    Route::post('/loops/{loop}/join-requests/{joinRequest}/accept', [AdminLoopController::class, 'acceptJoinRequest'])->name('loops.join-requests.accept');
+    Route::post('/loops/{loop}/join-requests/{joinRequest}/reject', [AdminLoopController::class, 'rejectJoinRequest'])->name('loops.join-requests.reject');
     Route::put('/loops/{loop}/members/{member}/role', [AdminLoopController::class, 'updateMemberRole'])->name('loops.members.role');
     Route::delete('/loops/{loop}/members/{member}', [AdminLoopController::class, 'removeMember'])->name('loops.members.remove');
     Route::get('/loops/{loop}/files', [AdminLoopController::class, 'files'])->name('loops.files');

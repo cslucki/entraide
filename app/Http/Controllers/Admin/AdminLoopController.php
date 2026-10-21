@@ -587,6 +587,25 @@ class AdminLoopController extends Controller
 
         $loop->load(['members.user', 'creator', 'organization']);
 
+        // TASK-1693 bug M — les demandes EN ATTENTE, que cette fiche ne montrait
+        // pas du tout.
+        //
+        // Elle affichait les membres et laissait en ajouter, mais taisait les
+        // personnes qui en avaient fait la demande : un administrateur venu
+        // regler le cas d'un demandeur ne voyait aucune trace de lui, et
+        // l'ajoutait « a la main » sans savoir qu'une demande existait. C'est
+        // ainsi que la Boucle `ofsh` s'est retrouvee avec des membres actifs
+        // portant encore une demande ouverte (bug L).
+        //
+        // Seules les demandes PENDING : les decisions passees appartiennent a
+        // l'historique, pas a un ecran d'action.
+        $demandesEnAttente = LoopJoinRequest::query()
+            ->where('loop_id', $loop->id)
+            ->where('status', LoopJoinRequest::STATUS_PENDING)
+            ->with('user:id,name,first_name,email')
+            ->orderBy('created_at')
+            ->get();
+
         $boucle = $loop;
 
         // La capacite reelle, pas une supposition : le bouton « Modifier les
@@ -596,7 +615,7 @@ class AdminLoopController extends Controller
         $canConfigureCards = ! $loop->isArchived()
             && app(LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop);
 
-        return view('admin.loops.edit', compact('boucle', 'users', 'canConfigureCards'));
+        return view('admin.loops.edit', compact('boucle', 'users', 'canConfigureCards', 'demandesEnAttente'));
     }
 
     public function update(Request $request, Loop $loop): RedirectResponse
@@ -613,6 +632,56 @@ class AdminLoopController extends Controller
 
         return redirect()->route('admin.loops.edit', $loop)
             ->with('success', 'Boucle mise à jour.');
+    }
+
+    /**
+     * TASK-1693 bug M — decider une demande d'adhesion SANS quitter l'ecran.
+     *
+     * `LoopController::acceptJoinRequest()` existe et fait le bon travail, mais
+     * il renvoie toujours vers la Boucle elle-meme. Depuis l'administration,
+     * cela ejecterait le SuperAdmin de son ecran — et, s'il n'est pas membre de
+     * la Boucle, vers la page de PRESENTATION, ce qui ressemblerait a une
+     * erreur.
+     *
+     * Ces deux actions ne portent donc AUCUNE regle metier : elles appellent le
+     * meme service, avec la meme autorisation (`manageJoinRequests`, ou le
+     * SuperAdmin passe par l'autorite plateforme du resolveur canonique), et
+     * reviennent sur la fiche. Dupliquer la decision aurait cree un second
+     * systeme ; la deleguer n'en cree aucun.
+     */
+    public function acceptJoinRequest(Request $request, Loop $loop, LoopJoinRequest $joinRequest): RedirectResponse
+    {
+        return $this->decideJoinRequest($request, $loop, $joinRequest, true);
+    }
+
+    public function rejectJoinRequest(Request $request, Loop $loop, LoopJoinRequest $joinRequest): RedirectResponse
+    {
+        return $this->decideJoinRequest($request, $loop, $joinRequest, false);
+    }
+
+    private function decideJoinRequest(Request $request, Loop $loop, LoopJoinRequest $joinRequest, bool $accepte): RedirectResponse
+    {
+        // La demande doit appartenir a CETTE Boucle : deux identifiants dans
+        // l'URL, et rien ne garantit qu'ils aillent ensemble. Sans ce controle,
+        // la fiche d'une Boucle deciderait de la demande d'une autre.
+        if ($joinRequest->loop_id !== $loop->id) {
+            abort(404);
+        }
+
+        $this->authorize('manageJoinRequests', $loop);
+
+        try {
+            if ($accepte) {
+                $this->loopService->acceptJoinRequest($joinRequest, $request->user());
+            } else {
+                $this->loopService->rejectJoinRequest($joinRequest, $request->user());
+            }
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('admin.loops.edit', $loop)
+            ->with('success', __($accepte ? 'admin.loop_join_request_accepted' : 'admin.loop_join_request_rejected'));
     }
 
     public function addMember(Request $request, Loop $loop): RedirectResponse
