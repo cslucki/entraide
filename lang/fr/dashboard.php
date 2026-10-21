@@ -95,6 +95,9 @@ return [
     'to_member' => 'à :name',
     'with_member' => 'avec :name',
     'no_current_exchange' => 'Aucun échange en cours.',
+    // TASK-1693 bug T — la card unique qui remplace les deux precedentes.
+    'exchanges' => 'Échanges',
+    'no_exchange' => 'Aucun échange en cours.',
     'my_announcements' => 'Mes annonces',
     'untitled' => 'Sans titre',
     'published' => 'Publiée',

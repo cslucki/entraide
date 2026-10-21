@@ -222,22 +222,39 @@
                 </div>
             </div>
 
-            <!-- Buyer proposals -->
-            @if($myProposals->isNotEmpty())
-            <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {{-- TASK-1693 bug T — UNE seule card « Échanges ».
+
+                 Deux cards se chevauchaient : un echange dont j'etais
+                 acheteur et qui etait accepte figurait dans les deux, meme
+                 titre, meme lien. Et la premiere se masquant quand elle etait
+                 vide, le tableau de bord changeait de FORME selon la personne.
+
+                 L'etat est desormais porte par la PASTILLE de chaque ligne au
+                 lieu du titre de deux cards qu'il fallait savoir distinguer. --}}
+            <div x-data="{ open: true }" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden" data-dashboard-exchanges>
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
                     <button type="button" @click="open = !open" class="flex w-full items-center justify-between gap-3 text-left font-semibold text-gray-900 dark:text-gray-100">
-                        <span class="truncate">{{ __('dashboard.my_current_exchanges') }}</span>
+                        <span class="truncate">{{ __('dashboard.exchanges') }}</span>
                         <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 shrink-0 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
                     </button>
                 </div>
                 <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700">
-                    @foreach($myProposals as $tx)
-                    <a href="{{ $_dashRoute('messages.show', ['transaction' => $tx]) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        <img src="{{ $tx->seller->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0 self-start sm:self-center" alt="">
+                    @forelse($exchanges as $tx)
+                    @php
+                        $other = auth()->id() === $tx->buyer_id ? $tx->seller : $tx->buyer;
+                        // Tant que rien n'est accepte, le montant CONVENU n'existe
+                        // pas encore : la card d'origine allait le chercher au
+                        // mauvais endroit et affichait « 0 pts » sur toute
+                        // proposition en attente.
+                        $points = $tx->points_agreed ?? $tx->points_proposed;
+                    @endphp
+                    <a href="{{ $_dashRoute('messages.show', ['transaction' => $tx]) }}"
+                       data-dashboard-exchange="{{ $tx->id }}"
+                       class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0 self-start sm:self-center" alt="">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $tx->subject }}</p>
-                            <p class="text-xs text-gray-500">{{ __('dashboard.to_member', ['name' => $tx->seller->full_name]) }} · {{ $tx->points_proposed }} pts</p>
+                            <p class="text-xs text-gray-500">{{ __('dashboard.with_member', ['name' => $other->full_name]) }} · {{ $points }} pts</p>
                         </div>
                         <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0 self-start sm:self-center
                             {{ match($tx->status) {
@@ -247,32 +264,11 @@
                                 default      => 'bg-gray-100 text-gray-600',
                             } }}">{{ $tx->status_label }}</span>
                     </a>
-                    @endforeach
-                </div>
-            </div>
-            @endif
-
-            <!-- Active exchanges -->
-            <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-                    <button type="button" @click="open = !open" class="flex w-full items-center justify-between gap-3 text-left font-semibold text-gray-900 dark:text-gray-100">
-                        <span class="truncate">{{ __('dashboard.current_exchanges') }}</span>
-                        <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 shrink-0 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
-                    </button>
-                </div>
-                <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700">
-                    @forelse($activeExchanges as $tx)
-                    @php $other = auth()->id() === $tx->buyer_id ? $tx->seller : $tx->buyer; @endphp
-                    <a href="{{ $_dashRoute('messages.show', ['transaction' => $tx]) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0 self-start sm:self-center" alt="">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $tx->subject }}</p>
-                            <p class="text-xs text-gray-500">{{ __('dashboard.with_member', ['name' => $other->name]) }} · {{ $tx->points_agreed }} pts</p>
-                        </div>
-                        <span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 flex-shrink-0 self-start sm:self-center">{{ $tx->status_label }}</span>
-                    </a>
                     @empty
-                    <p class="px-5 py-8 text-sm text-gray-400 text-center">{{ __('dashboard.no_current_exchange') }}</p>
+                    {{-- La card reste VISIBLE quand elle est vide : un tableau
+                         de bord dont la forme change selon le contenu se relit
+                         mal d'une fois sur l'autre. --}}
+                    <p class="px-5 py-8 text-sm text-gray-400 text-center">{{ __('dashboard.no_exchange') }}</p>
                     @endforelse
                 </div>
             </div>

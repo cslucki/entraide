@@ -25,15 +25,32 @@ class DashboardController extends Controller
         $myServices = $user->services()->where('status', 'active')->with('category')->latest()->get();
         $myRequests = $user->serviceRequests()->where('status', 'open')->with('category')->latest()->get();
 
-        $myProposals = Transaction::where('buyer_id', $user->id)
-            ->whereIn('status', ['pending', 'accepted', 'buyer_done'])
-            ->with(['service', 'serviceRequest', 'seller'])
-            ->latest()
-            ->get();
-
-        $activeExchanges = Transaction::where(function ($q) use ($user) {
+        // TASK-1693 bug T — UNE seule card « Échanges », l'UNION des deux.
+        //
+        // Le tableau de bord portait deux cards qui se CHEVAUCHAIENT :
+        //
+        //   « Mes échanges en cours »  buyer_id = moi, statuts pending+accepted+buyer_done
+        //   « Échanges en cours »      moi des deux cotes, statuts accepted+buyer_done
+        //
+        // Un echange dont j'etais acheteur et qui etait `accepted` figurait
+        // donc DANS LES DEUX, meme titre, meme lien (constate en recette :
+        // « Titre Titre Titre · 20 pts » affiche deux fois). Et comme la
+        // premiere se masquait quand elle etait vide, le tableau de bord
+        // changeait de FORME selon la personne : deux cards pour qui achete,
+        // une seule pour qui vend.
+        //
+        // Supprimer l'une des deux aurait perdu quelque chose dans les deux
+        // sens — la premiere seule montrait les propositions `pending`, la
+        // seconde seule ce dont je suis vendeur. L'union ne perd rien, et
+        // c'est deja exactement le perimetre de « Messages récents »
+        // ci-dessous : la coherence est donc retablie, pas inventee.
+        //
+        // L'etat de chaque ligne — En attente / Accepté / Terminé (acheteur) —
+        // est porte par la PASTILLE, a cote de chaque echange, au lieu d'etre
+        // porte par le titre de deux cards qu'il fallait savoir distinguer.
+        $exchanges = Transaction::where(function ($q) use ($user) {
             $q->where('buyer_id', $user->id)->orWhere('seller_id', $user->id);
-        })->whereIn('status', ['accepted', 'buyer_done'])
+        })->whereIn('status', ['pending', 'accepted', 'buyer_done'])
             ->with(['buyer', 'seller', 'service', 'serviceRequest'])
             ->latest()
             ->get();
@@ -132,7 +149,7 @@ class DashboardController extends Controller
 
         return view('dashboard', compact(
             'user',
-            'myServices', 'myRequests', 'myProposals', 'activeExchanges', 'recentMessages',
+            'myServices', 'myRequests', 'exchanges', 'recentMessages',
             'referralCode', 'referralLink', 'sentReferralsCount', 'activatedReferralsCount', 'referralPointsEarned',
             'aiProfile', 'onboardingSteps', 'requestCreateUrl',
             'aiProfileDisabled', 'subscriptionsEnabled',
