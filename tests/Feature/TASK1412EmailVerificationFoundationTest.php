@@ -109,19 +109,56 @@ class TASK1412EmailVerificationFoundationTest extends TestCase
         $this->assertDatabaseHas('users', ['email' => 'resilient@t1412.test']);
     }
 
-    // ── 3. Le middleware `verified` est devenu effectif ─────────────────────
+    // ── 3. La verification ne garde plus AUCUNE page ────────────────────────
 
-    public function test_an_unverified_member_is_sent_to_the_notice_on_a_verified_route(): void
+    /**
+     * TASK-1693 bug E — RENVERSEMENT ASSUME, sur decision produit.
+     *
+     * Ce test affirmait l'inverse : « un membre non verifie est renvoye vers la
+     * notice sur une route gardee ». Arbitrage de Cyril (21/10/2026) : « il n'y
+     * a aucune raison de verifier l'email a ce stade. Si on doit le faire ce
+     * sera lors du processus d'inscription. Mais non pas sur une page X ou Y,
+     * cela n'a aucun sens. »
+     *
+     * Ce que la garde produisait : quelqu'un qui n'avait jamais recu son email
+     * de confirmation etait renvoye vers `/verify-email` en voulant relire SES
+     * PROPRES brouillons.
+     *
+     * Le test n'est pas supprime, il est RETOURNE : il mesure desormais que ces
+     * pages s'ouvrent. Une garantie qui disparait sans rien a sa place laisse un
+     * trou ou personne ne regarde plus.
+     */
+    public function test_an_unverified_member_now_reaches_the_pages_that_were_gated(): void
     {
         $membre = User::factory()->unverified()->create(['organization_id' => $this->organization->id]);
 
-        // Surface courte (routes/web.php:144)
-        $this->actingAs($membre)->get(route('blog.create'))
-            ->assertRedirect(route('verification.notice'));
+        $this->assertFalse($membre->hasVerifiedEmail(), 'premisse : le compte est bien NON verifie');
 
-        // Surface org (routes/web.php:865)
-        $this->actingAs($membre)->get(route('organization.dossiers.index', ['organization' => $this->organization->slug]))
-            ->assertRedirect(route('verification.notice'));
+        $this->actingAs($membre)->get(route('blog.create'))->assertOk();
+
+        $this->actingAs($membre)
+            ->get(route('organization.dossiers.index', ['organization' => $this->organization->slug]))
+            ->assertOk();
+    }
+
+    /**
+     * …mais ce qui garde ces pages, lui, n'a pas bouge.
+     *
+     * Retirer `verified` d'un groupe pouvait emporter autre chose par
+     * inadvertance. On mesure donc que les deux gardes QUI COMPTENT sont
+     * toujours la : `auth` et la frontiere de tenant de TASK-1692.
+     */
+    public function test_removing_the_verification_guard_left_auth_and_the_tenant_boundary_intact(): void
+    {
+        $url = route('organization.dossiers.index', ['organization' => $this->organization->slug]);
+
+        // Anonyme d'abord : `actingAs()` persiste pour le reste du test.
+        $this->get($url)->assertRedirect(route('organization.login', ['organization' => $this->organization->slug]));
+
+        $autre = Organization::factory()->create(['slug' => 'org-1412-etrangere', 'is_active' => true, 'is_public' => true]);
+        $etranger = User::factory()->unverified()->create(['organization_id' => $autre->id]);
+
+        $this->actingAs($etranger)->get($url)->assertNotFound();
     }
 
     public function test_a_verified_member_passes_the_verified_routes(): void
@@ -249,8 +286,15 @@ class TASK1412EmailVerificationFoundationTest extends TestCase
 
         $this->assertTrue($verifie->hasVerifiedEmail());
         $this->assertFalse($nonVerifie->hasVerifiedEmail());
+        // TASK-1693 bug E — la sonde ne peut plus s'appuyer sur une PAGE : plus
+        // aucune n'est gardee par la verification. Elle porte donc sur ce qui
+        // distingue reellement les deux comptes — l'etat du modele — et sur la
+        // regle METIER qui, elle, exige toujours une adresse verifiee.
         $this->actingAs($verifie)->get(route('blog.create'))->assertOk();
-        $this->actingAs($nonVerifie)->get(route('blog.create'))->assertRedirect(route('verification.notice'));
+        $this->actingAs($nonVerifie)->get(route('blog.create'))->assertOk();
+
+        $this->assertNotNull($verifie->email_verified_at);
+        $this->assertNull($nonVerifie->email_verified_at);
     }
 
     // ── Fixtures ────────────────────────────────────────────────────────────

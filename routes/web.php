@@ -184,7 +184,25 @@ Route::get('/blog/categorie/{slug}', [BlogController::class, 'byCategory'])->nam
 Route::get('/blog/tag/{slug}', [BlogController::class, 'byTag'])->name('blog.tag');
 
 // Blog — authentifié (chemins fixes AVANT le wildcard /blog/{slug})
-Route::middleware(['auth', 'verified'])->group(function () {
+//
+// TASK-1693 bug E — `verified` RETIRE, decision produit de Cyril : « il n'y a
+// aucune raison de verifier l'email a ce stade. Si on doit le faire ce sera
+// lors du processus d'inscription. Mais non pas sur une page X ou Y, cela n'a
+// aucun sens. »
+//
+// Ce que la garde produisait : quelqu'un qui n'avait jamais recu — ou jamais
+// vu — son email de confirmation etait renvoye vers `/verify-email` en
+// essayant de relire SES PROPRES brouillons. Une page de contenu personnel
+// n'est pas le bon endroit pour reclamer une preuve de possession d'adresse.
+//
+// Ce qui ne change PAS : `auth` reste, donc rien ne s'ouvre a un anonyme. Les
+// routes `verification.*` et l'interface `MustVerifyEmail` du modele restent
+// en place — l'email de confirmation part toujours a l'inscription, il ne
+// BLOQUE simplement plus la lecture et l'ecriture. Les regles METIER qui
+// exigent une adresse verifiee pour un engagement (inscription a un atelier,
+// `WorkshopRegistrationService:158`) sont intouchees : ce sont des gestes, pas
+// des pages.
+Route::middleware('auth')->group(function () {
     Route::get('/blog/rediger/nouveau', [BlogController::class, 'create'])->name('blog.create');
     Route::get('/blog/mes-articles', [BlogController::class, 'myPosts'])->name('blog.my-posts');
     Route::post('/blog', [BlogController::class, 'store'])->name('blog.store');
@@ -1381,7 +1399,19 @@ Route::prefix('/org/{organization}')
                     ->defaults('adminScope', false)->middleware('throttle:30,1')->name('loops.plugins.configure.update');
             });
 
-            Route::middleware('verified')->group(function () {
+            // TASK-1693 bug E — `verified` RETIRE de ce groupe (dossiers + blog
+            // prefixe + likes), meme decision produit que pour le blog global
+            // plus haut : la verification d'email ne garde plus de PAGE.
+            //
+            // Le groupe lui-meme est conserve, et ce n'est pas de la timidite :
+            // il porte ses propres commentaires d'arbitrage (TASK-1629 sur les
+            // routes `dossiers.create`/`store` supprimees), et ses 132 lignes
+            // restent une unite de lecture. Seule la garde disparait.
+            //
+            // `auth` + `organization.member` continuent de s'appliquer depuis le
+            // groupe `/org/{organization}` (TASK-1692) : la frontiere de tenant
+            // est INTOUCHEE, seule l'exigence de verification tombe.
+            Route::group([], function () {
                 Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
 
                 // Dossiers (org-scoped, private foundation)

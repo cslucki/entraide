@@ -68,11 +68,13 @@ class TASK1693AdminEmailVerificationTest extends TestCase
     {
         $membre = $this->membre();
 
-        // Prémisse : la garde bloque réellement ce compte. Sans elle, le test
-        // ne mesurerait que l'écriture d'une colonne.
-        $this->actingAs($membre)
-            ->get(route('organization.dossiers.index', ['organization' => $this->organization->slug]))
-            ->assertRedirect(route('verification.notice'));
+        // TASK-1693 bug E — la premisse d'origine (« la garde bloque reellement
+        // ce compte sur une page ») n'existe plus : plus aucune page n'exige une
+        // adresse verifiee. Ce que le geste change est donc mesure la ou l'etat
+        // compte encore — la colonne, l'evenement, et les regles METIER qui
+        // s'appuient dessus (inscription a un atelier,
+        // `WorkshopRegistrationService:158`), jamais un acces a une page.
+        $this->assertFalse($membre->hasVerifiedEmail(), 'premisse : le compte est bien NON verifie');
 
         $this->actingAs($this->superAdmin)
             ->post(route('admin.users.verify-email', $membre))
@@ -80,12 +82,8 @@ class TASK1693AdminEmailVerificationTest extends TestCase
             ->assertSessionHas('success');
 
         $this->assertNotNull($membre->fresh()->email_verified_at);
-
-        // Et la garde laisse maintenant passer : c'est le FAIT attendu, pas la
-        // colonne. `fresh()` modélise une vraie seconde requête.
-        $this->actingAs($membre->fresh())
-            ->get(route('organization.dossiers.index', ['organization' => $this->organization->slug]))
-            ->assertOk();
+        $this->assertTrue($membre->fresh()->hasVerifiedEmail(),
+            'le contrat du framework, et non la seule colonne : c\'est `hasVerifiedEmail()` que lisent les regles metier');
     }
 
     /**

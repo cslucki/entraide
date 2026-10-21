@@ -93,16 +93,32 @@ class TASK1692StrictHttpIsolationTest extends TestCase
 
         $auth = $position(\Illuminate\Auth\Middleware\Authenticate::class);
         $member = $position(EnsureOrganizationMember::class);
-        $verified = $position(EnsureEmailIsVerified::class);
         $bindings = $position(SubstituteBindings::class);
 
-        foreach (compact('auth', 'member', 'verified', 'bindings') as $name => $index) {
+        foreach (compact('auth', 'member', 'bindings') as $name => $index) {
             $this->assertGreaterThanOrEqual(0, $index, "middleware {$name} absent de la pile effective");
         }
 
         $this->assertLessThan($member, $auth, 'auth doit agir avant la frontiere membre');
-        $this->assertLessThan($verified, $member, 'la frontiere membre doit agir avant verified');
         $this->assertLessThan($bindings, $member, 'aucun binding de modele ne doit preceder la frontiere membre');
+
+        // TASK-1693 bug E — `verified` ne garde PLUS aucune page (decision
+        // produit) : il a donc quitte la pile effective de cette route, et l'y
+        // chercher mesurerait une absence, pas un ordre.
+        //
+        // La garantie « la frontiere membre agit AVANT la verification » ne
+        // disparait pas pour autant : elle vit dans la PRIORITE declaree, pas
+        // dans une route. C'est la qu'on la mesure desormais — et c'est plus
+        // juste, puisqu'elle doit tenir pour toute route qui reappliquerait
+        // `verified` un jour, pas seulement pour celle-ci.
+        $priorite = app('router')->middlewarePriority;
+        $rangMembre = array_search(EnsureOrganizationMember::class, $priorite, true);
+        $rangVerified = array_search(EnsureEmailIsVerified::class, $priorite, true);
+
+        $this->assertNotFalse($rangMembre, 'la frontiere membre est declaree dans la priorite');
+        $this->assertNotFalse($rangVerified, 'la verification est declaree dans la priorite');
+        $this->assertLessThan($rangVerified, $rangMembre,
+            'la frontiere membre doit rester prioritaire sur la verification : un compte non verifie d\'un AUTRE tenant ne doit pas apprendre que la surface existe via /verify-email');
     }
 
     public function test_a_framework_priority_keeps_its_existing_relative_order(): void
@@ -161,7 +177,22 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_c_foreign_unverified_user_is_refused_before_email_verification(): void
+    /**
+     * TASK-1693 bug E — la moitie SECURITE de ce test est intacte, la moitie
+     * verification a disparu avec la garde.
+     *
+     * Ce test prouvait deux choses d'un coup : (1) un etranger non verifie est
+     * refuse par le TENANT, pas par la verification ; (2) un membre non verifie
+     * de B, lui, etait renvoye vers `/verify-email`.
+     *
+     * Le (2) n'existe plus : plus aucune page n'exige une adresse verifiee
+     * (decision produit, 21/10/2026). Le (1) — le seul des deux qui porte une
+     * garantie de confidentialite — est CONSERVE et meme RENFORCE : on mesure
+     * desormais que le membre legitime de B passe, ce qui prouve que le 404 de
+     * l'etranger vient bien de l'appartenance et de rien d'autre. Un refus qui
+     * refuserait tout le monde ne prouverait aucune frontiere.
+     */
+    public function test_c_foreign_unverified_user_is_refused_by_tenancy_not_by_verification(): void
     {
         $unverifiedA = User::factory()->complete()->create([
             'organization_id' => $this->a->id,
@@ -176,7 +207,7 @@ class TASK1692StrictHttpIsolationTest extends TestCase
         $this->actingAs($unverifiedA)->get($url)->assertNotFound();
 
         $this->forgetOrganization();
-        $this->actingAs($unverifiedB)->get($url)->assertRedirectContains('verify-email');
+        $this->actingAs($unverifiedB)->get($url)->assertOk();
     }
 
     public function test_d_superadmin_keeps_transverse_access_without_membership_side_effect(): void

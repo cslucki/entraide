@@ -70,17 +70,24 @@ class TASK1693ProfileSaveDestinationTest extends TestCase
     public function test_saving_the_profile_ignores_an_intention_left_by_the_email_verification_guard(): void
     {
         $user = $this->membre(['email_verified_at' => null]);
+        $cible = route('organization.dossiers.index', ['organization' => $user->organization->slug]);
 
-        // 1. La page prefixee refuse, et son refus ecrit `url.intended`.
-        $this->actingAs($user)
-            ->get(route('organization.dossiers.index', ['organization' => $user->organization->slug]))
-            ->assertRedirect(route('verification.notice'));
+        // 1. Une page gardee refuse, et son refus ecrit `url.intended`.
+        //
+        // TASK-1693 bug E — le declencheur d'origine etait la garde de
+        // VERIFICATION, retiree depuis sur decision produit. On passe donc par
+        // l'autre middleware qui appelle `Redirect::guest()` : `auth`, face a un
+        // visiteur anonyme. Le mecanisme mesure est rigoureusement le meme —
+        // `guest()` ecrit `url.intended` —, et il est toujours vivant.
+        $this->get($cible)->assertRedirect(route('organization.login', ['organization' => $user->organization->slug]));
 
         $this->assertSame(
-            route('organization.dossiers.index', ['organization' => $user->organization->slug]),
+            $cible,
             session('url.intended'),
-            'premisse : la garde de verification laisse bien une intention en session',
+            'premisse : la garde laisse bien une intention en session',
         );
+
+        $this->actingAs($user);
 
         // 2. Enregistrer son profil ramene a SON PROFIL, pas a cette intention.
         $this->put(route('profile.update'), $this->payload($user))
