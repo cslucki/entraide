@@ -177,18 +177,34 @@
                         <p class="truncate">{{ Str::limit($message->body, 100) }}</p>
                     </td>
                     <td class="px-4 py-3">
-                        @if($isLoop)
-                        <form method="POST" action="{{ route('admin.loop-messages.destroy', $message) }}"
-                              onsubmit="return confirm('{{ __('admin.loop_message_delete_confirm') }}')">
-                            @csrf @method('DELETE')
-                            <button class="text-xs text-red-600 hover:underline">Supprimer</button>
-                        </form>
-                        @else
-                        <form method="POST" action="{{ route('admin.messages.destroy', $message) }}"
-                              onsubmit="return confirm('{{ __('admin.message_delete_confirm') }}')">
-                            @csrf @method('DELETE')
-                            <button class="text-xs text-red-600 hover:underline">Supprimer</button>
-                        </form>
+                        {{-- TASK-1693 bug Q — l'ecran ne savait que supprimer.
+                             « Modifier » est pose AVANT, parce que c'est le
+                             geste reparable : pour une faute de frappe ou une
+                             donnee personnelle lachee dans un fil, detruire le
+                             message emportait aussi les reponses qui s'y
+                             rattachaient. --}}
+                        <div class="flex items-center gap-2">
+                            <a href="{{ $isLoop ? route('admin.loop-messages.edit', $message) : route('admin.messages.edit', $message) }}"
+                               data-message-edit-link="{{ $message->id }}"
+                               class="text-xs text-indigo-600 hover:underline">{{ __('admin.message_edit_action') }}</a>
+                            @if($isLoop)
+                            <form method="POST" action="{{ route('admin.loop-messages.destroy', $message) }}"
+                                  onsubmit="return confirm('{{ __('admin.loop_message_delete_confirm') }}')">
+                                @csrf @method('DELETE')
+                                <button class="text-xs text-red-600 hover:underline">Supprimer</button>
+                            </form>
+                            @else
+                            <form method="POST" action="{{ route('admin.messages.destroy', $message) }}"
+                                  onsubmit="return confirm('{{ __('admin.message_delete_confirm') }}')">
+                                @csrf @method('DELETE')
+                                <button class="text-xs text-red-600 hover:underline">Supprimer</button>
+                            </form>
+                            @endif
+                        </div>
+                        @if($message->edited_at)
+                        <span class="mt-0.5 block text-[10px] text-gray-400" data-message-edited="{{ $message->id }}">
+                            {{ __('messages.edited') }}
+                        </span>
                         @endif
                     </td>
                 </tr>

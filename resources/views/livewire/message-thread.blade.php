@@ -114,6 +114,11 @@
                     <x-conversation.message-bubble
                         type="sent"
                         :time="$message->created_at->format('H:i')"
+                        {{-- TASK-1693 bug Q — une correction par la moderation
+                             doit se voir ici, exactement comme elle se voit
+                             dans le ChatLoop. La bulle partagee le sait deja
+                             faire ; seul ce fil ne le lui disait pas. --}}
+                        :is-edited="$message->edited_at !== null"
                         :message-id="$message->id"
                         :show-reply-button="true"
                         :show-pin-button="$canPin"
@@ -134,6 +139,7 @@
                         :time="$message->created_at->format('H:i')"
                         :name="$senderName"
                         :avatar="$senderDisplayable ? $message->sender?->avatar_url : null"
+                        :is-edited="$message->edited_at !== null"
                         :message-id="$message->id"
                         :show-reply-button="true"
                         :show-pin-button="$canPin"

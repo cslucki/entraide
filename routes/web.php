@@ -723,6 +723,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/messages/bulk', [AdminMessageController::class, 'bulkDestroy'])->name('messages.bulk-destroy');
     Route::delete('/messages/{message}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
     Route::delete('/loop-messages/{loopMessage}', [AdminMessageController::class, 'destroyLoopMessage'])->name('loop-messages.destroy');
+    // TASK-1693 bug Q — l'ecran ne savait que supprimer. Corriger le CORPS
+    // d'un message est le geste de moderation manquant, et chaque edition
+    // inscrit son decideur (`edited_by`) : voir AdminMessageController::edit().
+    Route::get('/messages/{message}/edit', [AdminMessageController::class, 'edit'])->name('messages.edit');
+    Route::put('/messages/{message}', [AdminMessageController::class, 'update'])->name('messages.update');
+    Route::get('/loop-messages/{loopMessage}/edit', [AdminMessageController::class, 'editLoopMessage'])->name('loop-messages.edit');
+    Route::put('/loop-messages/{loopMessage}', [AdminMessageController::class, 'updateLoopMessage'])->name('loop-messages.update');
 
     // Reports
     Route::get('/reports', [AdminController::class, 'reports'])->name('reports');

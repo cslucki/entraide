@@ -16,7 +16,7 @@ class Message extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['transaction_id', 'sender_id', 'reply_to_id', 'body', 'image_path', 'metadata', 'type', 'read_at', 'organization_id', 'pinned_at', 'pinned_by_id'];
+    protected $fillable = ['transaction_id', 'sender_id', 'reply_to_id', 'body', 'image_path', 'metadata', 'type', 'read_at', 'organization_id', 'pinned_at', 'pinned_by_id', 'edited_at', 'edited_by'];
 
     public function organization(): BelongsTo
     {
@@ -30,6 +30,10 @@ class Message extends Model
             'read_at' => 'datetime',
             'metadata' => 'array',
             'pinned_at' => 'datetime',
+            // TASK-1693 bug Q — ce modele n'a pas d'`updated_at`
+            // (`$timestamps = false`) : sans cette colonne, une edition serait
+            // invisible.
+            'edited_at' => 'datetime',
         ];
     }
 
@@ -46,6 +50,12 @@ class Message extends Model
     public function pinnedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'pinned_by_id');
+    }
+
+    /** TASK-1693 bug Q — qui a modifie ce message, s'il l'a ete. */
+    public function editedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'edited_by');
     }
 
     public function reactions(): MorphMany
