@@ -641,7 +641,22 @@ class AdminController extends Controller
             ->get(['id', 'name', 'slug', 'is_default']);
     }
 
-    private function selectedAdminOrganizationId(Request $request): string
+    /**
+     * TASK-1693 bug J — le defaut devient un PARAMETRE, au lieu d'etre impose.
+     *
+     * Ce helper sert QUATRE ecrans d'administration. Changer son repli pour
+     * tous aurait modifie trois ecrans que personne n'a demandes — et un
+     * filtre qui change de defaut sans prevenir fait lire les mauvais chiffres
+     * a qui connait l'ancien comportement.
+     *
+     * Le repli historique (l'Organization par defaut de la plateforme) reste
+     * donc la valeur par defaut du parametre : les trois autres appels sont
+     * inchanges, a l'octet. Seul le grand livre passe `'all'`, parce que c'est
+     * un ecran de RECHERCHE : on y arrive sans savoir dans quel tenant se
+     * trouve la personne, et pre-filtrer sur une Organization y cache
+     * precisement ce qu'on vient chercher.
+     */
+    private function selectedAdminOrganizationId(Request $request, ?string $defaut = null): string
     {
         if ($request->input('organization_id') === 'all') {
             return 'all';
@@ -649,6 +664,10 @@ class AdminController extends Controller
 
         if ($request->filled('organization_id')) {
             return (string) $request->input('organization_id');
+        }
+
+        if ($defaut !== null) {
+            return $defaut;
         }
 
         return (string) (DefaultOrganizationResolver::resolve()?->getKey() ?? 'all');
@@ -808,7 +827,13 @@ class AdminController extends Controller
             ->with(['user', 'organization']);
 
         $organizations = $this->adminOrganizations();
-        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+        // TASK-1693 bug J — « Toutes les organisations » par DEFAUT ici.
+        //
+        // Le grand livre est un ecran de RECHERCHE : on y arrive sans savoir
+        // dans quel tenant se trouve la personne, et pre-filtrer sur une
+        // Organization y cache precisement ce qu'on vient chercher. Les trois
+        // autres ecrans qui partagent ce helper gardent leur repli historique.
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request, 'all');
 
         $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
 

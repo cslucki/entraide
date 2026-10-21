@@ -1674,6 +1674,7 @@ return [
     'points_focus_member' => 'View and adjust their points',
     'points_focus_member_short' => 'Adjust',
     'points_search_placeholder' => 'Email, first name or name...',
+    'points_search_no_entry' => '{1} 1 person found, but no entry in their ledger.|[2,*] :count people found, but no entry in their ledgers.',
     'points_intro' => 'Points ledger. An entry is NEVER deleted: that is why it blocks account deletion. To correct a balance, pick a person below — the correction ADDS an entry, it never edits one.',
     'points_reason_placeholder' => 'Reason…',
     'points_filtered_on_user' => 'Entries for :name — balance :solde.',

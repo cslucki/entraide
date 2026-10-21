@@ -1689,6 +1689,8 @@ return [
     'points_focus_member' => 'Voir et corriger ses points',
     'points_focus_member_short' => 'Corriger',
     'points_search_placeholder' => 'Email, prenom ou nom...',
+    // `trans_choice` : la borne est le COMPTE, et le parametre s'ecrit `:count`.
+    'points_search_no_entry' => '{1} 1 personne trouvee, mais aucune ecriture a son grand livre.|[2,*] :count personnes trouvees, mais aucune ecriture a leur grand livre.',
     // TASK-1693 bug F — « en lecture seule » etait devenu FAUX : TASK-1667 a
     // ajoute le panneau de correction, et cette phrase continuait d'annoncer le
     // contraire. Un ecran qui se declare incapable de ce qu'il fait rend la

@@ -132,7 +132,7 @@
                             <a href="{{ request()->fullUrlWithQuery(['sort' => 'created_at', 'direction' => ($tri === 'created_at' && $sens === 'asc') ? 'desc' : 'asc']) }}"
                                class="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
                                 {{ __('admin.points_col_date') }}
-                                @if($tri === 'created_at')<span>{{ $sens === 'asc' ? '&uarr;' : '&darr;' }}</span>@endif
+                                @if($tri === 'created_at')<span aria-hidden="true">{!! $sens === 'asc' ? '&uarr;' : '&darr;' !!}</span>@endif
                             </a>
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.points_col_member') }}</th>
@@ -140,14 +140,14 @@
                             <a href="{{ request()->fullUrlWithQuery(['sort' => 'delta', 'direction' => ($tri === 'delta' && $sens === 'asc') ? 'desc' : 'asc']) }}"
                                class="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
                                 {{ __('admin.points_col_delta') }}
-                                @if($tri === 'delta')<span>{{ $sens === 'asc' ? '&uarr;' : '&darr;' }}</span>@endif
+                                @if($tri === 'delta')<span aria-hidden="true">{!! $sens === 'asc' ? '&uarr;' : '&darr;' !!}</span>@endif
                             </a>
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                             <a href="{{ request()->fullUrlWithQuery(['sort' => 'reason', 'direction' => ($tri === 'reason' && $sens === 'asc') ? 'desc' : 'asc']) }}"
                                class="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
                                 {{ __('admin.points_col_reason') }}
-                                @if($tri === 'reason')<span>{{ $sens === 'asc' ? '&uarr;' : '&darr;' }}</span>@endif
+                                @if($tri === 'reason')<span aria-hidden="true">{!! $sens === 'asc' ? '&uarr;' : '&darr;' !!}</span>@endif
                             </a>
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.points_col_organization') }}</th>
@@ -204,7 +204,33 @@
                     @empty
                     <tr>
                         <td colspan="5" class="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                            {{ __('admin.points_empty') }}
+                            {{-- TASK-1693 bug J — une recherche qui TROUVE une
+                                 personne mais rend un tableau vide se lit comme
+                                 « la recherche ne marche pas ». Elle marche :
+                                 ce tableau liste des ECRITURES, et cette
+                                 personne n'en a aucune.
+
+                                 Le dire, et offrir le pas suivant — car si l'on
+                                 cherche quelqu'un ici, c'est pour corriger son
+                                 solde, et c'est justement quand le grand livre
+                                 est vide qu'il faut une premiere ecriture. --}}
+                            @if(request()->filled('search') && $membres->isNotEmpty())
+                                <p data-points-search-no-entry>
+                                    {{ trans_choice('admin.points_search_no_entry', $membres->count(), ['count' => $membres->count()]) }}
+                                </p>
+                                <div class="mt-3 flex flex-wrap items-center justify-center gap-2">
+                                    @foreach($membres as $trouve)
+                                    <a href="{{ request()->fullUrlWithQuery(['user_id' => $trouve->id]) }}"
+                                       data-points-search-member="{{ $trouve->id }}"
+                                       class="inline-flex items-center gap-1 rounded-md border border-indigo-200 dark:border-indigo-800 px-2 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:border-indigo-400 transition">
+                                        {{ $trouve->full_name }} — {{ $trouve->points_balance }} pts
+                                        <span aria-hidden="true">&rarr;</span>
+                                    </a>
+                                    @endforeach
+                                </div>
+                            @else
+                                {{ __('admin.points_empty') }}
+                            @endif
                         </td>
                     </tr>
                     @endforelse

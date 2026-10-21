@@ -432,4 +432,110 @@ class TASK1693AdminPointsReachabilityTest extends TestCase
 
         $this->assertStringNotContainsString($this->membre->name, $corps);
     }
+
+    // ── 6. Bug J — une recherche qui trouve mais n'affiche rien ─────────────
+
+    /**
+     * LE signalement : « je tape slucki, je ne vois rien dans le tableau ».
+     *
+     * La recherche marchait. Le tableau liste des ECRITURES, et la personne
+     * trouvee n'en avait aucune — mais rien ne le disait, et un tableau vide
+     * apres une recherche reussie se lit comme « la recherche est cassee ».
+     */
+    public function test_a_search_that_finds_someone_without_entries_says_so_and_offers_the_next_step(): void
+    {
+        $sansEcriture = User::factory()->create([
+            'organization_id' => $this->organization->id,
+            'first_name' => 'Cyril',
+            'name' => 'Slucki',
+            'email' => 'cyril@slucki.test',
+            'points_balance' => 0,
+        ]);
+
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['search' => 'slucki']))
+            ->assertOk()
+            ->getContent();
+
+        // On DIT ce qui se passe…
+        $this->assertStringContainsString('data-points-search-no-entry', $html);
+
+        // …et on offre le pas suivant : corriger le solde de cette personne.
+        // C'est justement quand le grand livre est vide qu'il faut une
+        // premiere ecriture.
+        $this->assertStringContainsString('data-points-search-member="'.$sansEcriture->id.'"', $html);
+    }
+
+    /** Un terme qui ne trouve PERSONNE garde le message vide ordinaire. */
+    public function test_a_search_matching_nobody_keeps_the_plain_empty_message(): void
+    {
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['search' => 'zzz-introuvable-zzz']))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-points-search-no-entry', $html,
+            'sans personne trouvee, il n\'y a rien a expliquer ni aucun pas suivant a offrir');
+        $this->assertStringContainsString(__('admin.points_empty'), $html);
+    }
+
+    /**
+     * Le grand livre s'ouvre sur TOUTES les organisations.
+     *
+     * C'est un ecran de recherche : on y arrive sans savoir dans quel tenant se
+     * trouve la personne, et pre-filtrer sur une Organization cache precisement
+     * ce qu'on vient chercher.
+     */
+    public function test_the_ledger_defaults_to_all_organizations(): void
+    {
+        $autreOrg = Organization::factory()->create(['slug' => 'org-1693j-autre']);
+        $ailleurs = User::factory()->create([
+            'organization_id' => $autreOrg->id,
+            'first_name' => 'Ines', 'name' => 'Bertrand', 'email' => 'ines@ailleurs.test',
+        ]);
+
+        PointLedger::query()->create([
+            'user_id' => $ailleurs->id,
+            'organization_id' => $autreOrg->id,
+            'delta' => 7,
+            'reason' => 'welcome_bonus',
+        ]);
+
+        $reponse = $this->actingAs($this->superAdmin)->get(route('admin.points'))->assertOk();
+
+        $reponse->assertViewHas('selectedOrganizationId', 'all');
+
+        // Et le fait, pas seulement la variable : l'ecriture d'un AUTRE tenant
+        // paraît bien sans avoir rien filtre.
+        $this->assertStringContainsString('Bertrand', $this->corpsDuTableau($reponse->getContent()));
+    }
+
+    /**
+     * Les trois autres ecrans qui partagent le helper gardent leur repli.
+     *
+     * Changer un defaut partage aurait modifie des ecrans que personne n'a
+     * demandes — et un filtre qui change de defaut sans prevenir fait lire les
+     * mauvais chiffres a qui connait l'ancien comportement.
+     */
+    public function test_the_other_admin_screens_keep_their_historical_default(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.services'))
+            ->assertOk()
+            ->assertViewHas('selectedOrganizationId', fn ($valeur): bool => $valeur !== 'all');
+    }
+
+    /** Les fleches de tri sont rendues, pas affichees en toutes lettres. */
+    public function test_the_sort_arrows_are_rendered_not_printed_literally(): void
+    {
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['sort' => 'delta', 'direction' => 'asc']))
+            ->assertOk()
+            ->getContent();
+
+        // `{{ }}` echappait l'entite : l'en-tete affichait « DATE &darr; ».
+        $this->assertStringNotContainsString('&amp;darr;', $html);
+        $this->assertStringNotContainsString('&amp;uarr;', $html);
+        $this->assertStringContainsString('&uarr;', $html, 'la fleche du tri courant est bien rendue');
+    }
 }
