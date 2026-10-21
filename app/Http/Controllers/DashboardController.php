@@ -23,7 +23,28 @@ class DashboardController extends Controller
         $user = auth()->user();
 
         $myServices = $user->services()->where('status', 'active')->with('category')->latest()->get();
-        $myRequests = $user->serviceRequests()->where('status', 'open')->with('category')->latest()->get();
+        // TASK-1693 bug U — « Mes demandes d'aide » taisait les demandes PRISES
+        // EN CHARGE.
+        //
+        // Des qu'une personne propose son aide, la demande passe de `open` a
+        // `in_progress` (`TransactionController:106`). La card ne listant que
+        // `open`, elle DISPARAISSAIT de la vue de son auteur a la seconde ou
+        // elle devenait vivante — c'est-a-dire au moment le plus interessant.
+        //
+        // Le titre dit « mes demandes », pas « mes demandes que personne n'a
+        // encore vues ». On liste donc les deux etats, et c'est la PASTILLE qui
+        // dit lequel. `closed` reste dehors : son auteur l'a ferme
+        // deliberement, exactement comme les echanges termines restent hors de
+        // la card « Échanges ».
+        //
+        // A noter : la page « Voir tout » (`dashboard.requests`) n'a JAMAIS
+        // filtre sur le statut. L'information n'etait donc pas perdue, elle
+        // etait absente de l'ecran d'accueil — la card mentait par omission.
+        $myRequests = $user->serviceRequests()
+            ->whereIn('status', ['open', 'in_progress'])
+            ->with('category')
+            ->latest()
+            ->get();
 
         // TASK-1693 bug T — UNE seule card « Échanges », l'UNION des deux.
         //

@@ -89,6 +89,9 @@ return [
     'my_requests' => 'My help requests',
     'close_request' => 'Close',
     'no_open_request' => 'No open request.',
+    // TASK-1693 bug U — a request's state, carried by the pill.
+    'request_open' => 'Open',
+    'request_in_progress' => 'Being handled',
     'ask_help' => 'Ask for help',
     'my_current_exchanges' => 'My current exchanges',
     'current_exchanges' => 'Current exchanges',

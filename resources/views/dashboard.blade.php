@@ -197,12 +197,30 @@
                 </div>
                 <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($myRequests as $req)
-                    <div class="px-5 py-3 flex items-start gap-2">
+                    @php $reqPriseEnCharge = $req->status === 'in_progress'; @endphp
+                    <div class="px-5 py-3 flex items-start gap-2" data-dashboard-request="{{ $req->id }}">
                         <div class="min-w-0 flex-1">
                             <a href="{{ $_dashRoute('requests.show', ['request' => $req]) }}" class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600">{{ $req->title }}</a>
                             <p class="text-xs text-gray-500">{{ $req->budget_min }}{{ $req->budget_max ? '–'.$req->budget_max : '+' }} pts</p>
                         </div>
-                        <form method="POST" action="{{ $_dashRoute('requests.destroy', ['request' => $req]) }}" class="flex-shrink-0" x-data="{ asked: false }">
+                        {{-- TASK-1693 bug U — la pastille dit l'etat, puisque la
+                             card porte desormais les deux. --}}
+                        <span class="shrink-0 rounded-full px-2 py-0.5 text-xs
+                            {{ $reqPriseEnCharge
+                                ? 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
+                                : 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300' }}"
+                              data-dashboard-request-state="{{ $req->status }}">
+                            {{ $reqPriseEnCharge ? __('dashboard.request_in_progress') : __('dashboard.request_open') }}
+                        </span>
+                        {{-- « Fermer » n'est offert que sur une demande encore
+                             OUVERTE. Fermer une demande deja prise en charge
+                             laisserait une proposition en attente pointant sur
+                             une demande close, sans rien dire a la personne qui
+                             l'a faite : ce serait offrir un geste dont la
+                             consequence n'est pas nommee. --}}
+                        @if(! $reqPriseEnCharge)
+                        <form method="POST" action="{{ $_dashRoute('requests.destroy', ['request' => $req]) }}" class="flex-shrink-0" x-data="{ asked: false }"
+                              data-dashboard-request-close="{{ $req->id }}">
                             @csrf @method('DELETE')
                             <template x-if="!asked">
                                 <button type="button" @click="asked = true" class="text-xs text-red-500 hover:text-red-700 whitespace-nowrap">{{ __('dashboard.close_request') }}</button>
@@ -215,6 +233,7 @@
                                 </span>
                             </template>
                         </form>
+                        @endif
                     </div>
                     @empty
                     <p class="px-5 py-8 text-sm text-gray-400 text-center">{!! __('dashboard.no_open_request') !!}<br><a href="{{ $requestCreateUrl }}" class="text-indigo-600 hover:underline">{{ __('dashboard.ask_help') }}</a></p>

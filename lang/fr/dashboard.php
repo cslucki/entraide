@@ -89,6 +89,9 @@ return [
     'my_requests' => 'Mes demandes d\'aide',
     'close_request' => 'Fermer',
     'no_open_request' => 'Aucune demande ouverte.',
+    // TASK-1693 bug U — l'etat d'une demande, porte par la pastille.
+    'request_open' => 'Ouverte',
+    'request_in_progress' => 'Prise en charge',
     'ask_help' => 'Demander de l\'aide',
     'my_current_exchanges' => 'Mes échanges en cours',
     'current_exchanges' => 'Échanges en cours',
