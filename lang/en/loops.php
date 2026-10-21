@@ -1225,6 +1225,7 @@ return [
     'governance_transfer_placeholder' => '— Transfer to —',
     'governance_transfer_submit' => 'Transfer',
     'governance_transfer_confirm' => 'Transfer ownership of the Loop? The current owner will become a plain member.',
+    'governance_last_owner_demote_confirm' => 'Demote the LAST owner? The Loop will have no owner at all and can then only be governed from the administration.',
     'governance_removed' => 'Member removed from the Loop.',
     'governance_refused_last_owner' => 'Refused: this person is the last active owner of the Loop.',
     'governance_refused' => 'Action not possible.',

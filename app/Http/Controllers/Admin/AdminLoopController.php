@@ -773,7 +773,11 @@ class AdminLoopController extends Controller
 
         $role = (string) $request->input('role');
 
-        $result = app(LoopGovernanceService::class)->changeRole($member, $role);
+        // TASK-1693 bug P — la derogation « dernier proprietaire » doit etre
+        // DEMANDEE par la requete, champ `allow_last_owner`. Un changement de
+        // role ordinaire continue donc de se faire refuser, et seul le bouton
+        // qui porte la confirmation explicite peut orpheliner une Boucle.
+        $result = app(LoopGovernanceService::class)->changeRole($member, $role, $request->boolean('allow_last_owner'));
 
         return redirect()->route('admin.loops.edit', $loop)->with(
             $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',

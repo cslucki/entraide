@@ -478,7 +478,11 @@ class OrgAdminController extends Controller
         abort_if($loop->organization_id !== $organization->id, 404);
         abort_if($member->loop_id !== $loop->id, 404);
 
-        $result = app(LoopGovernanceService::class)->changeRole($member, (string) $request->input('role'));
+        // TASK-1693 bug P — la derogation « dernier proprietaire » doit etre
+        // DEMANDEE par la requete, champ `allow_last_owner`. Un changement de
+        // role ordinaire continue donc de se faire refuser, et seul le bouton
+        // qui porte la confirmation explicite peut orpheliner une Boucle.
+        $result = app(LoopGovernanceService::class)->changeRole($member, (string) $request->input('role'), $request->boolean('allow_last_owner'));
 
         return redirect()
             ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])

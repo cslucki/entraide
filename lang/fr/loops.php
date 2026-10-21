@@ -1229,6 +1229,7 @@ return [
     'governance_transfer_placeholder' => '— Transférer à —',
     'governance_transfer_submit' => 'Transférer',
     'governance_transfer_confirm' => 'Transférer la propriété de la Boucle ? L\'actuel propriétaire deviendra simple membre.',
+    'governance_last_owner_demote_confirm' => 'Rétrograder le DERNIER propriétaire ? La Boucle n\'aura plus aucun propriétaire et ne pourra plus être gouvernée que depuis l\'administration.',
     'governance_removed' => 'Membre retiré de la Boucle.',
     'governance_refused_last_owner' => 'Action refusée : cette personne est le dernier propriétaire actif de la Boucle.',
     'governance_refused' => 'Action impossible.',

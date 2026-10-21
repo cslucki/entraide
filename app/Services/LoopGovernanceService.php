@@ -84,13 +84,34 @@ class LoopGovernanceService
      * because the guard is the same in both directions: the change must not
      * leave the Loop without an active owner.
      */
-    public function changeRole(LoopMember $member, string $targetRole): string
+    /**
+     * TASK-1693 bug P — `$autoriserDepartDuDernierProprietaire`, et pourquoi il
+     * est un PARAMETRE plutot qu'une suppression de la garde.
+     *
+     * L'invariant « il reste au moins un proprietaire actif » protege un etat
+     * reel : une Boucle orpheline ne se gouverne plus que par
+     * l'administration. Il reste donc la regle, et la valeur par defaut est
+     * `false` : les quatre ecrans et tous les appelants existants sont
+     * inchanges a l'octet.
+     *
+     * MASTER a demande (21/10) de pouvoir malgre tout retrograder le dernier
+     * proprietaire depuis l'ADMINISTRATION — « option B, et on garde A ». Ce
+     * drapeau est donc une derogation NOMMEE, demandee explicitement a chaque
+     * appel, jamais un assouplissement general : un appelant qui l'ignore
+     * continue de se faire refuser.
+     *
+     * Il ne vaut que pour la RETROGRADATION. Le retrait pur et simple du
+     * dernier proprietaire reste refuse : une fois retrograde, la personne
+     * n'est plus proprietaire et « Retirer » redevient disponible par
+     * composition. On n'ouvre donc qu'une porte, pas deux.
+     */
+    public function changeRole(LoopMember $member, string $targetRole, bool $autoriserDepartDuDernierProprietaire = false): string
     {
         if (! $this->roles->isCanonical($targetRole)) {
             return self::RESULT_INVALID_ROLE;
         }
 
-        return DB::transaction(function () use ($member, $targetRole) {
+        return DB::transaction(function () use ($member, $targetRole, $autoriserDepartDuDernierProprietaire) {
             // Lock the whole Loop's memberships, not just this row: the decision
             // depends on how many *other* owners there are.
             $locked = LoopMember::where('loop_id', $member->loop_id)
@@ -122,7 +143,7 @@ class LoopGovernanceService
                     ->filter(fn (LoopMember $m) => $this->roles->canonical($m->role) === LoopRoleRegistry::OWNER)
                     ->count();
 
-                if ($otherOwners === 0) {
+                if ($otherOwners === 0 && ! $autoriserDepartDuDernierProprietaire) {
                     return self::RESULT_LAST_OWNER;
                 }
             }

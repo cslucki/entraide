@@ -148,7 +148,7 @@
                         @endif
                     </span>
 
-                    @if($isLastOwner && $inlineActions && $transferRoute && $transferables->isNotEmpty())
+                    @if($isLastOwner && $inlineActions && $transferRoute && $canManageOwners)
                         {{-- TASK-1693 bug O — le dernier proprietaire n'a aucune
                              action, et c'est juste : une Boucle sans
                              proprietaire est l'etat qui bloque tout le reste.
@@ -160,6 +160,7 @@
                              ici meme — c'est la question reelle : « qui reprend
                              la Boucle ? », pas « comment contourner la
                              garde ». --}}
+                        @if($transferables->isNotEmpty())
                         <form method="POST" action="{{ $transferRoute($member) }}"
                               class="flex shrink-0 items-center gap-1"
                               data-governance-transfer="{{ $member->user_id }}"
@@ -176,6 +177,34 @@
                             <button type="submit"
                                     class="rounded-md border border-indigo-300 px-2 py-1 text-[11px] font-medium text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/25">
                                 {{ __('loops.governance_transfer_submit') }}
+                            </button>
+                        </form>
+                        @endif
+
+                        {{-- TASK-1693 bug P — arbitrage MASTER du 21/10 :
+                             « option B, et on garde A ».
+
+                             Le transfert ci-contre reste la voie recommandee,
+                             parce qu'il laisse la Boucle gouvernee. Mais on
+                             peut aussi retrograder le dernier proprietaire tout
+                             simplement, et la Boucle devient alors ORPHELINE :
+                             plus personne ne la gouverne hormis
+                             l'administration.
+
+                             La consequence est donc NOMMEE dans la
+                             confirmation, et la derogation est demandee
+                             explicitement par un champ (`allow_last_owner`) :
+                             un changement de role ordinaire continue de se
+                             faire refuser par l'invariant. --}}
+                        <form method="POST" action="{{ $roleRoute($member) }}" class="shrink-0"
+                              data-governance-demote-last-owner="{{ $member->user_id }}"
+                              onsubmit="return confirm('{{ __('loops.governance_last_owner_demote_confirm') }}')">
+                            @csrf @method('PUT')
+                            <input type="hidden" name="role" value="{{ $MEMBER }}">
+                            <input type="hidden" name="allow_last_owner" value="1">
+                            <button type="submit"
+                                    class="rounded-md border border-amber-300 px-2 py-1 text-[11px] font-medium text-amber-700 transition hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/25">
+                                {{ __('loops.governance_demote_member') }}
                             </button>
                         </form>
                     @elseif($hasActions && $inlineActions)

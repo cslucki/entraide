@@ -367,4 +367,121 @@ class TASK1693AdminLoopRoleAgilityTest extends TestCase
             'un formulaire sans candidat ne peut qu\'echouer : ne pas l\'offrir',
         );
     }
+
+    /**
+     * TASK-1693 bug P — « il ne faut pas qu'un bouton Transferer, il faut
+     * aussi un bouton qui le repasse comme membre, tout simplement »
+     * (arbitrage MASTER du 21/10 : « option B, et on garde A »).
+     *
+     * Le transfert repond a « qui reprend la Boucle ? ». Mais parfois la
+     * reponse est « personne » — on veut simplement sortir quelqu'un de la
+     * propriete, et la Boucle restera gouvernee depuis l'administration. Le
+     * transfert ne couvrait pas ce cas, et il ne pouvait meme pas etre offert
+     * quand la Boucle n'a aucun autre membre.
+     */
+    public function test_the_last_owner_row_also_offers_a_plain_demotion(): void
+    {
+        $html = $this->fiche();
+
+        $this->assertStringContainsString(
+            'data-governance-demote-last-owner="'.$this->proprietaire->id.'"',
+            $html,
+        );
+        $this->assertStringContainsString('name="allow_last_owner"', $html);
+    }
+
+    /** Et il est offert MEME quand il n'y a personne a qui transferer. */
+    public function test_the_plain_demotion_is_offered_even_with_nobody_to_transfer_to(): void
+    {
+        $this->membreDeBoucleLigne($this->membre)->delete();
+
+        $html = $this->fiche();
+
+        $this->assertStringNotContainsString('data-governance-transfer=', $html);
+        $this->assertStringContainsString(
+            'data-governance-demote-last-owner="'.$this->proprietaire->id.'"',
+            $html,
+            'c\'est precisement le cas que le transfert ne peut pas servir',
+        );
+    }
+
+    /** Le geste ABOUTIT : la Boucle se retrouve sans proprietaire, assume. */
+    public function test_the_plain_demotion_leaves_the_loop_without_an_owner(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->put(route('admin.loops.members.role', [
+                $this->loop,
+                $this->membreDeBoucleLigne($this->proprietaire),
+            ]), ['role' => LoopRoleRegistry::MEMBER, 'allow_last_owner' => '1'])
+            ->assertRedirect();
+
+        $this->assertSame(
+            LoopRoleRegistry::MEMBER,
+            $this->membreDeBoucleLigne($this->proprietaire)->role,
+        );
+        $this->assertSame(
+            0,
+            LoopMember::where('loop_id', $this->loop->id)
+                ->where('status', 'active')
+                ->where('role', LoopRoleRegistry::OWNER)
+                ->count(),
+            'la consequence est nommee dans la confirmation : la Boucle devient orpheline',
+        );
+    }
+
+    /**
+     * LA non-regression de ce correctif.
+     *
+     * La derogation doit etre DEMANDEE. Sans le champ, l'invariant tient
+     * exactement comme avant — sinon ce bug P aurait simplement supprime la
+     * garde du dernier proprietaire pour tous les appelants, dont la Card
+     * Membres cote front, qui ne doit pas pouvoir orpheliner une Boucle.
+     */
+    public function test_an_ordinary_role_change_is_still_refused_for_the_last_owner(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->put(route('admin.loops.members.role', [
+                $this->loop,
+                $this->membreDeBoucleLigne($this->proprietaire),
+            ]), ['role' => LoopRoleRegistry::MEMBER]);
+
+        $this->assertSame(
+            LoopRoleRegistry::OWNER,
+            $this->membreDeBoucleLigne($this->proprietaire)->role,
+            'sans `allow_last_owner`, le refus est inchange',
+        );
+    }
+
+    /** Et le refus reste entier sur l'ecran etroit du front, qui ne l'offre pas. */
+    public function test_the_front_member_card_cannot_orphan_a_loop_even_by_forcing_the_field(): void
+    {
+        $this->actingAs($this->proprietaire)
+            ->put(route('loops.members.role', $this->membreDeBoucleLigne($this->proprietaire)), [
+                'role' => LoopRoleRegistry::MEMBER,
+                'allow_last_owner' => '1',
+            ]);
+
+        $this->assertSame(
+            LoopRoleRegistry::OWNER,
+            $this->membreDeBoucleLigne($this->proprietaire)->role,
+            'seuls les deux ecrans d\'administration portent la derogation',
+        );
+    }
+
+    /** Apres retrogradation, « Retirer » devient disponible par composition. */
+    public function test_the_demoted_owner_becomes_removable(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->put(route('admin.loops.members.role', [
+                $this->loop,
+                $this->membreDeBoucleLigne($this->proprietaire),
+            ]), ['role' => LoopRoleRegistry::MEMBER, 'allow_last_owner' => '1'])
+            ->assertRedirect();
+
+        $this->assertStringContainsString(
+            'data-governance-inline-actions="'.$this->proprietaire->id.'"',
+            $this->fiche(),
+            'une fois simple membre, il a les actions d\'un simple membre',
+        );
+    }
 }
