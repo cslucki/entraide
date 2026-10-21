@@ -287,11 +287,23 @@ class MessageThread extends Component
         return $relativePath;
     }
 
+    /**
+     * TASK-1693 bug V — marquer lu, y compris les messages SYSTEME.
+     *
+     * `sender_id != $userId` les ecartait : ils portent `sender_id = NULL`, et
+     * `NULL != 'x'` vaut NULL en SQL, donc jamais VRAI. Aucun message systeme
+     * n'etait donc JAMAIS marque comme lu — toute la base de recette le
+     * confirme.
+     *
+     * Tant qu'ils ne comptaient pas dans le badge, cela ne se voyait pas.
+     * Depuis qu'ils y comptent (`User::unreadMessagesCount()`), un badge sans
+     * ce correctif resterait allume DEFINITIVEMENT.
+     */
     public function markRead(): void
     {
         $userId = auth()->id();
         Message::where('transaction_id', $this->transaction()->id)
-            ->where('sender_id', '!=', $userId)
+            ->where(fn ($q) => $q->whereNull('sender_id')->orWhere('sender_id', '!=', $userId))
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
     }

@@ -141,6 +141,11 @@
             'hint' => __('navigation.messages'),
             'icon' => config('navigation_icons.messaging'),
             'badge' => $unreadMessagesCount,
+            // TASK-1693 bug V — ce point de menu portait un badge SANS clef :
+            // aucun `data-nav-badge-*` n'etait donc emis, et le badge de la
+            // messagerie restait le seul non mesurable du rail. Meme idiome
+            // que `notifications` (TASK-1373), qui l'etait deja.
+            'key' => 'messages',
         ],
         [
             'url' => $routeUrl('members.index', 'organization.members.index'),

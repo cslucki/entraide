@@ -24,10 +24,16 @@ class MessageController extends Controller
             ->orderByDesc('updated_at')
             ->get();
 
+        // TASK-1693 bug V — meme regle que le badge du rail.
+        //
+        // Ce compteur-ci traitait DEJA correctement le `sender_id` NULL des
+        // messages systeme, mais les ecartait par leur `type`. Les deux
+        // compteurs auraient donc diverge : le rail annoncant 3, les fils
+        // affichant 0. Un badge qu'aucune ligne ne justifie est pire que pas
+        // de badge.
         $unreadCounts = Message::whereIn('transaction_id', $transactions->pluck('id'))
             ->where(fn ($q) => $q->where('sender_id', '!=', $user->id)->orWhereNull('sender_id'))
             ->whereNull('read_at')
-            ->where('type', 'user')
             ->selectRaw('transaction_id, count(*) as cnt')
             ->groupBy('transaction_id')
             ->pluck('cnt', 'transaction_id');

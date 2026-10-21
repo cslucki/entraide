@@ -318,14 +318,45 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->favorites()->where('service_id', $serviceId)->exists();
     }
 
+    /**
+     * TASK-1693 bug V — les messages NON LUS qui doivent attirer l'attention.
+     *
+     * ## Deux exclusions se cumulaient, et la seconde etait invisible
+     *
+     * 1. `type = 'user'` ecartait deliberement les messages SYSTEME. Or ce sont
+     *    eux qui portent les nouvelles qui comptent : « Nouvelle échange
+     *    envoyée », « Échange acceptée », « L'acheteur a déclaré la prestation
+     *    terminée ». Arbitrage Cyril du 21/10 : « il faut le mettre car cela
+     *    attire l'attention ».
+     *
+     * 2. `sender_id != $this->id` les ecartait une SECONDE fois, et celle-la ne
+     *    se voyait pas : `addSystemMessage()` pose `sender_id = NULL`, et en SQL
+     *    `NULL != 'x'` vaut NULL — donc jamais VRAI, donc la ligne tombe.
+     *    Mesure sur la base de recette : 8 messages comptes contre 17 des que
+     *    les NULL sont admis. Lever la seule premiere exclusion n'aurait donc
+     *    RIEN change, et aurait laisse croire le correctif applique.
+     *
+     * ## Pourquoi `markRead()` devait bouger en meme temps
+     *
+     * `MessageThread::markRead()` portait exactement la meme comparaison, et
+     * ne marquait donc JAMAIS un message systeme comme lu — tous ceux de la
+     * base de recette le prouvent. Compter les messages systeme sans corriger
+     * cela aurait allume le badge DEFINITIVEMENT, sans aucun moyen de
+     * l'eteindre. Les deux corrections ne valent qu'ensemble.
+     *
+     * ## Ce qui reste absent, et qu'il ne faut pas croire resolu
+     *
+     * Ce compteur est evalue cote serveur au rendu de la page. Il n'y a ni
+     * sondage ni temps reel : un message qui arrive pendant qu'on lit un autre
+     * fil n'allume le badge qu'a la navigation suivante.
+     */
     public function unreadMessagesCount(): int
     {
         return Message::whereHas('transaction', function ($q) {
             $q->where('buyer_id', $this->id)->orWhere('seller_id', $this->id);
         })
-            ->where('sender_id', '!=', $this->id)
+            ->where(fn ($q) => $q->whereNull('sender_id')->orWhere('sender_id', '!=', $this->id))
             ->whereNull('read_at')
-            ->where('type', 'user')
             ->count();
     }
 

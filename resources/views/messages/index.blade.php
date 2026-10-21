@@ -51,7 +51,14 @@
                                     <span class="flex w-10 h-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300">?</span>
                                 @endif
                                 @if($unread > 0 && !$isActive)
-                                <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                {{-- TASK-1693 bug V — la valeur BRUTE, pour que
+                                     ce compteur soit mesurable comme celui du
+                                     rail. Sans marqueur, une assertion ne
+                                     pouvait que chercher le chiffre quelque
+                                     part dans la page : un sabotage restait
+                                     vert. --}}
+                                <span data-thread-unread="{{ $conv->id }}:{{ $unread }}"
+                                      class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                                     {{ $unread > 9 ? '9+' : $unread }}
                                 </span>
                                 @endif
@@ -145,7 +152,14 @@
                                     <span class="flex w-10 h-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300">?</span>
                                 @endif
                                 @if($unread > 0 && !$isActive)
-                                <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                {{-- TASK-1693 bug V — la valeur BRUTE, pour que
+                                     ce compteur soit mesurable comme celui du
+                                     rail. Sans marqueur, une assertion ne
+                                     pouvait que chercher le chiffre quelque
+                                     part dans la page : un sabotage restait
+                                     vert. --}}
+                                <span data-thread-unread="{{ $conv->id }}:{{ $unread }}"
+                                      class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                                     {{ $unread > 9 ? '9+' : $unread }}
                                 </span>
                                 @endif
