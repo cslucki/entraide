@@ -22,7 +22,15 @@
 #       verts ici ; ils appartiennent a la reference, pas a la dette
 #   19  `ci-known-red` deterministes, deja annotes et deja exclus du gate
 #       PostgreSQL ; c'est **la** dette a resorber
-#    1  `AdminAiInteractionTest` — ni annote, ni pgvector, a classer
+#    1  `AdminAiInteractionTest` — RETIRE le 2026-10-21 (TASK-1693). Ce test
+#       ne rougit plus parce qu'il ne TOURNE plus : TASK-1369 l'a place
+#       derriere `skipWithoutJsonArrowOperator()`, SQLite n'ayant pas
+#       l'operateur fleche JSON. Il SKIPPE, il ne passe pas — la nuance
+#       compte, et la reference n'avait pas ete nettoyee a l'epoque.
+#       Retrait exige par le gate, qui reste rouge tant que la reference
+#       pretend rouge un echec qui ne se produit plus. Ce n'est PAS une
+#       reparation de TASK-1693 : c'est une dette anterieure que cette
+#       PR a fait apparaitre.
 #
 # Aucun flaky ici, et aucun ne doit y entrer : un test rouge un jour sur deux
 # rendrait ce gate instable. Les flakies se corrigent, ils ne s'inscrivent pas.
@@ -30,7 +38,6 @@
 # Identites au format JUnit normalise : `Espace.De.Noms.Classe::methode`.
 # Ne jamais coller depuis la sortie du terminal, qui tronque les noms.
 #
-Tests.Feature.Admin.AdminAiInteractionTest::test_filter_by_search
 Tests.Feature.Admin.AdminDashboardRedirectTest::test_admin_with_organization_login_defaults_to_chatloop_url
 Tests.Feature.Admin.AdminUserDeletePreviewTest::test_delete_preview_shows_count_tables
 Tests.Feature.Admin.AdminUserDeletePreviewTest::test_org_admin_can_access_org_delete_preview
