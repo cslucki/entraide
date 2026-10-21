@@ -26,6 +26,11 @@ return [
         'exchange_spent' => 'Échange — dépense',
         'referral_reward' => 'Récompense invitation',
         'adjustment' => 'Ajustement',
+        // TASK-1693 bug G — ecrit par le bouton « remettre a zero » du
+        // panneau de correction (vue admin, champ cache `reason`). Il
+        // appartient au vocabulaire FERME du produit, pas au texte libre :
+        // sans cette clef, le membre lisait « points.reasons.admin_reset ».
+        'admin_reset' => 'Remise a zero par l\'administration',
     ],
     'empty' => 'Aucun mouvement de points.',
     'dataset' => 'Points',
