@@ -206,7 +206,8 @@
                     :can-manage-facilitators="true"
                     :can-remove="true"
                     :creator-id="$boucle->created_by"
-                    :current-user-id="auth()->id()" />
+                    :current-user-id="auth()->id()"
+                    :inline-actions="true" />
             </div>
 
             {{-- Status / Archive / Restore --}}

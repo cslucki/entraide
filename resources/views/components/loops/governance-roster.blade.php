@@ -31,6 +31,17 @@
     // Card Membres, elle, tient dans un panneau etroit et prefere un flux unique
     // ou le role se lit sur la ligne.
     'sections' => true,
+    // TASK-1693 bug N — sur les ecrans d'ADMINISTRATION, les actions de role
+    // se posent EN FACE du nom plutot que dans un menu « ... » sans libelle.
+    //
+    // On y vient precisement pour agir, et le menu rendait le changement de
+    // role introuvable : « il n'est pas commode de gerer qui est proprietaire,
+    // animateur ou membre » (recette Cyril, 21/10). La Card Membres, elle,
+    // tient dans un panneau etroit et garde son menu — c'est le meme arbitrage
+    // de largeur que `sections` juste au-dessus.
+    //
+    // Aucune regle ne change : memes gardes, memes routes, meme formulaire.
+    'inlineActions' => false,
 ])
 
 @php
@@ -127,7 +138,41 @@
                         @endif
                     </span>
 
-                    @if($hasActions)
+                    @if($hasActions && $inlineActions)
+                        <span class="flex shrink-0 flex-wrap items-center justify-end gap-1"
+                              data-governance-inline-actions="{{ $member->user_id }}">
+                            @if($canPromoteOwner)
+                                <x-loops.governance-action :action="$roleRoute($member)" role="owner"
+                                    :label="__('loops.governance_promote_owner')" variant="inline" />
+                            @endif
+                            @if($canPromoteFacilitator)
+                                <x-loops.governance-action :action="$roleRoute($member)" role="facilitator"
+                                    :label="__('loops.governance_promote_facilitator')" variant="inline" />
+                            @endif
+                            @if($canDemoteOwner)
+                                <x-loops.governance-action :action="$roleRoute($member)" role="facilitator"
+                                    :label="__('loops.governance_demote_facilitator')" variant="inline"
+                                    :confirm="$isSelf ? __('loops.governance_self_demote_confirm') : null" />
+                                <x-loops.governance-action :action="$roleRoute($member)" role="member"
+                                    :label="__('loops.governance_demote_member')" variant="inline"
+                                    :confirm="$isSelf ? __('loops.governance_self_demote_confirm') : null" />
+                            @endif
+                            @if($canDemoteFacilitator)
+                                <x-loops.governance-action :action="$roleRoute($member)" role="member"
+                                    :label="__('loops.governance_demote_member')" variant="inline" />
+                            @endif
+                            @if($canDrop)
+                                <form method="POST" action="{{ $removeRoute($member) }}"
+                                      onsubmit="return confirm('{{ __('loops.governance_remove') }} ?')" class="inline">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" data-governance-inline="remove"
+                                            class="rounded-md border border-red-200 px-2 py-1 text-[11px] font-medium text-red-600 transition hover:bg-red-50 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-900/20">
+                                        {{ __('loops.governance_remove') }}
+                                    </button>
+                                </form>
+                            @endif
+                        </span>
+                    @elseif($hasActions)
                         {{-- Les actions de gouvernance se prennent rarement et
                              jamais dans l'urgence : elles n'ont pas a occuper
                              une ligne en face de chaque nom. --}}

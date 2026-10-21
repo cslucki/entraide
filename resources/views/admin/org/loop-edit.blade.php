@@ -130,7 +130,8 @@
                 :can-manage-facilitators="true"
                 :can-remove="true"
                 :creator-id="$currentLoop->created_by"
-                :current-user-id="auth()->id()" />
+                :current-user-id="auth()->id()"
+                    :inline-actions="true" />
 
             @if($candidates->isNotEmpty())
                 {{-- A searchable picker rather than a bare select: an Organization
