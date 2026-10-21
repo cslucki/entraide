@@ -149,6 +149,73 @@ class LoopGovernanceService
     }
 
     /**
+     * TASK-1693 bug O — TRANSFERER la propriete, en un seul geste.
+     *
+     * ## Ce qui gênait
+     *
+     * L'invariant « il reste au moins un proprietaire actif » est juste, et il
+     * n'est pas en cause. Mais il imposait DEUX gestes, dans DEUX endroits de
+     * l'ecran : promouvoir quelqu'un d'autre depuis sa ligne, puis revenir sur
+     * celle du proprietaire pour le retrograder ou le retirer. Entre les deux,
+     * la Boucle avait deux proprietaires — un etat que personne n'avait voulu.
+     *
+     * Ici, la succession est NOMMEE : on designe qui reprend, et le sortant
+     * redescend. Une seule transaction, l'invariant jamais rompu, et aucun
+     * etat intermediaire visible.
+     *
+     * ## Le sortant devient MEMBRE, il n'est pas retire
+     *
+     * « Supprimer le proprietaire » est ambigu : retirer son ROLE, ou retirer
+     * la PERSONNE ? On fait le geste reversible — il reste dans la Boucle. S'il
+     * doit aussi en sortir, « Retirer » devient disponible sur sa ligne des
+     * l'instant ou il n'est plus le dernier proprietaire : les deux gestes se
+     * composent, au lieu d'en inventer un troisieme qui ferait les deux a la
+     * fois sans qu'on puisse revenir en arriere.
+     *
+     * ## Pourquoi pas deux appels a `changeRole()`
+     *
+     * Parce que l'ordre compte et que chacun ouvre sa propre transaction.
+     * Promouvoir d'abord puis retrograder laisserait, entre les deux, une
+     * fenetre ou un autre processus verrait deux proprietaires ; retrograder
+     * d'abord serait refuse par l'invariant. Les deux ecritures vivent donc
+     * dans UNE transaction, avec le meme verrou que les autres gestes.
+     */
+    public function transferOwnership(LoopMember $sortant, LoopMember $successeur): string
+    {
+        if ($sortant->loop_id !== $successeur->loop_id) {
+            return self::RESULT_NOT_IN_LOOP;
+        }
+
+        if ($sortant->id === $successeur->id) {
+            return self::RESULT_UNCHANGED;
+        }
+
+        return DB::transaction(function () use ($sortant, $successeur) {
+            $verrouilles = LoopMember::where('loop_id', $sortant->loop_id)->lockForUpdate()->get();
+
+            $sortantFrais = $verrouilles->firstWhere('id', $sortant->id);
+            $successeurFrais = $verrouilles->firstWhere('id', $successeur->id);
+
+            if (! $sortantFrais || ! $successeurFrais) {
+                return self::RESULT_NOT_IN_LOOP;
+            }
+
+            if ($sortantFrais->status !== 'active' || $successeurFrais->status !== 'active') {
+                return self::RESULT_INACTIVE;
+            }
+
+            if ($this->roles->canonical($sortantFrais->role) !== LoopRoleRegistry::OWNER) {
+                return self::RESULT_UNCHANGED;
+            }
+
+            $successeurFrais->update(['role' => LoopRoleRegistry::OWNER]);
+            $sortantFrais->update(['role' => LoopRoleRegistry::MEMBER]);
+
+            return self::RESULT_OK;
+        });
+    }
+
+    /**
      * Remove someone from the Loop.
      *
      * Replaces the previous blanket refusal for any owner: an owner may be

@@ -440,6 +440,39 @@ class OrgAdminController extends Controller
      * the membership must belong to that Loop. Same governance service as the
      * global screen — the business rule is not duplicated.
      */
+    /**
+     * TASK-1693 bug O — transferer la propriete, cote admin d'Organization.
+     *
+     * Miroir exact de l'ecran global : l'admin d'Organization bute sur le MEME
+     * invariant, et le laisser sans ce geste aurait ete un arret arbitraire —
+     * le defaut est le meme, l'ecran est le meme composant. Meme service, donc
+     * aucune regle dupliquee.
+     */
+    public function transferLoopOwnership(Request $request, Organization $organization, Loop $loop, LoopMember $member): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+        abort_if($member->loop_id !== $loop->id, 404);
+
+        $data = $request->validate(['successor_id' => ['required', 'uuid']]);
+
+        $successeur = LoopMember::where('loop_id', $loop->id)
+            ->where('id', $data['successor_id'])
+            ->first();
+
+        abort_if($successeur === null, 404);
+
+        $result = app(LoopGovernanceService::class)->transferOwnership($member, $successeur);
+
+        return redirect()
+            ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])
+            ->with(
+                $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',
+                $result === LoopGovernanceService::RESULT_OK
+                    ? __('loops.governance_ownership_transferred')
+                    : __('loops.governance_refused'),
+            );
+    }
+
     public function updateLoopMemberRole(Request $request, Organization $organization, Loop $loop, LoopMember $member): RedirectResponse
     {
         abort_if($loop->organization_id !== $organization->id, 404);

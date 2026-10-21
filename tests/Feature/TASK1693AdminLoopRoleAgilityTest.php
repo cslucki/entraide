@@ -239,4 +239,132 @@ class TASK1693AdminLoopRoleAgilityTest extends TestCase
         $this->assertStringNotContainsString('data-governance-inline-actions=', $html,
             'la Card Membres garde le menu : elle n\'a pas la largeur des pastilles');
     }
+
+    // ── Bug O — transferer la propriete en un geste ─────────────────────────
+
+    private function membreDeBoucleLigne(User $u): LoopMember
+    {
+        return LoopMember::where('loop_id', $this->loop->id)->where('user_id', $u->id)->sole();
+    }
+
+    /**
+     * LE geste manquant : « on ne peut pas facilement supprimer le
+     * proprietaire de la boucle ».
+     *
+     * Il fallait deux actions, dans deux endroits de l'ecran. La ligne du
+     * dernier proprietaire offre desormais la question REELLE — « qui reprend
+     * la Boucle ? » — plutot qu'une note expliquant qu'il est bloque.
+     */
+    public function test_the_last_owner_row_offers_a_transfer_rather_than_a_dead_end(): void
+    {
+        $html = $this->fiche();
+
+        $this->assertStringContainsString(
+            'data-governance-transfer="'.$this->proprietaire->id.'"',
+            $html,
+            'le dernier proprietaire doit pouvoir designer son successeur',
+        );
+        $this->assertStringContainsString('name="successor_id"', $html);
+        $this->assertStringContainsString($this->membre->publicDisplayName(), $html);
+    }
+
+    /** Un seul geste, et l'invariant n'est jamais rompu. */
+    public function test_transferring_swaps_the_two_roles_in_one_gesture(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->put(route('admin.loops.members.transfer-ownership', [
+                $this->loop,
+                $this->membreDeBoucleLigne($this->proprietaire),
+            ]), ['successor_id' => $this->membreDeBoucleLigne($this->membre)->id])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(LoopRoleRegistry::OWNER, $this->membreDeBoucleLigne($this->membre)->role);
+        $this->assertSame(LoopRoleRegistry::MEMBER, $this->membreDeBoucleLigne($this->proprietaire)->role);
+
+        // L'invariant, apres coup : exactement UN proprietaire actif.
+        $this->assertSame(1, LoopMember::where('loop_id', $this->loop->id)
+            ->where('role', LoopRoleRegistry::OWNER)->where('status', 'active')->count());
+    }
+
+    /**
+     * Le sortant RESTE dans la Boucle — « supprimer le proprietaire » est
+     * ambigu, et on fait le geste REVERSIBLE.
+     *
+     * S'il doit aussi en sortir, « Retirer » devient disponible sur sa ligne
+     * des l'instant ou il n'est plus le dernier proprietaire : les deux gestes
+     * se composent.
+     */
+    public function test_the_outgoing_owner_stays_in_the_loop_and_becomes_removable(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->put(route('admin.loops.members.transfer-ownership', [
+                $this->loop,
+                $this->membreDeBoucleLigne($this->proprietaire),
+            ]), ['successor_id' => $this->membreDeBoucleLigne($this->membre)->id])
+            ->assertRedirect();
+
+        $this->assertSame('active', $this->membreDeBoucleLigne($this->proprietaire)->status,
+            'le sortant reste membre : le geste est reversible');
+
+        // Et il est desormais retirable, ce qu'il n'etait pas.
+        $this->actingAs($this->superAdmin)
+            ->delete(route('admin.loops.members.remove', [
+                $this->loop,
+                $this->membreDeBoucleLigne($this->proprietaire),
+            ]))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('loop_members', [
+            'loop_id' => $this->loop->id,
+            'user_id' => $this->proprietaire->id,
+            'status' => 'active',
+        ]);
+    }
+
+    /**
+     * Le successeur doit appartenir a CETTE Boucle.
+     *
+     * L'identifiant vient d'un `select` que rien n'empeche de forger : sans ce
+     * controle, on promouvrait le membre d'une autre Boucle — et on
+     * retrograderait le proprietaire de celle-ci au passage.
+     */
+    public function test_a_successor_from_another_loop_is_refused_and_nothing_moves(): void
+    {
+        $autreBoucle = Loop::factory()->create([
+            'organization_id' => $this->organization->id,
+            'visibility' => 'public',
+            'status' => 'active',
+        ]);
+        $etranger = LoopMember::query()->create([
+            'loop_id' => $autreBoucle->id,
+            'user_id' => User::factory()->complete()->create(['organization_id' => $this->organization->id])->id,
+            'organization_id' => $this->organization->id,
+            'role' => LoopRoleRegistry::MEMBER,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->put(route('admin.loops.members.transfer-ownership', [
+                $this->loop,
+                $this->membreDeBoucleLigne($this->proprietaire),
+            ]), ['successor_id' => $etranger->id])
+            ->assertNotFound();
+
+        $this->assertSame(LoopRoleRegistry::OWNER, $this->membreDeBoucleLigne($this->proprietaire)->role,
+            'un successeur invalide ne doit RIEN deplacer');
+        $this->assertSame(LoopRoleRegistry::MEMBER, $etranger->fresh()->role);
+    }
+
+    /** Pas de transfert a offrir quand il n'y a personne a qui transferer. */
+    public function test_no_transfer_is_offered_when_the_owner_is_alone(): void
+    {
+        $this->membreDeBoucleLigne($this->membre)->delete();
+
+        $this->assertStringNotContainsString(
+            'data-governance-transfer=',
+            $this->fiche(),
+            'un formulaire sans candidat ne peut qu\'echouer : ne pas l\'offrir',
+        );
+    }
 }

@@ -719,6 +719,47 @@ class AdminLoopController extends Controller
     }
 
     /**
+     * TASK-1693 bug O — transferer la propriete en un geste.
+     *
+     * Le chemin existant demandait DEUX actions dans DEUX endroits de l'ecran :
+     * promouvoir un second proprietaire, puis revenir retrograder le premier.
+     * Entre les deux, la Boucle avait deux proprietaires — un etat que personne
+     * n'avait voulu.
+     *
+     * Le service fait les deux ecritures dans UNE transaction, avec le meme
+     * verrou que les autres gestes : l'invariant « au moins un proprietaire
+     * actif » n'est jamais rompu, et aucun etat intermediaire n'existe.
+     */
+    public function transferOwnership(Request $request, Loop $loop, LoopMember $member): RedirectResponse
+    {
+        $this->assertOrgAccess($loop);
+
+        abort_if($member->loop_id !== $loop->id, 404);
+
+        $data = $request->validate([
+            'successor_id' => ['required', 'uuid'],
+        ]);
+
+        // Le successeur doit appartenir a CETTE Boucle : l'identifiant vient
+        // d'un `select` que rien n'empeche de forger.
+        $successeur = LoopMember::where('loop_id', $loop->id)
+            ->where('id', $data['successor_id'])
+            ->first();
+
+        abort_if($successeur === null, 404);
+
+        $result = app(LoopGovernanceService::class)->transferOwnership($member, $successeur);
+
+        return redirect()->route('admin.loops.edit', $loop)->with(
+            $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',
+            match ($result) {
+                LoopGovernanceService::RESULT_OK => __('loops.governance_ownership_transferred'),
+                default => __('loops.governance_refused'),
+            },
+        );
+    }
+
+    /**
      * Change a member's role from the global admin.
      *
      * Every transition goes through the governance service, so the last-owner

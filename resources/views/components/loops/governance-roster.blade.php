@@ -42,10 +42,20 @@
     //
     // Aucune regle ne change : memes gardes, memes routes, meme formulaire.
     'inlineActions' => false,
+    // TASK-1693 bug O — fn(LoopMember): string, ou null. Quand elle est
+    // fournie, la ligne du DERNIER proprietaire offre un transfert de
+    // propriete plutot qu'une simple note expliquant qu'il est bloque.
+    'transferRoute' => null,
 ])
 
 @php
     $roles = app(\App\Support\Loops\LoopRoleRegistry::class);
+
+    // TASK-1693 bug O — qui peut reprendre la Boucle : tout membre ACTIF qui
+    // n'est pas deja proprietaire. Calcule UNE fois, pas par ligne.
+    $transferables = collect($members)
+        ->filter(fn ($m) => $roles->canonical($m->role) !== \App\Support\Loops\LoopRoleRegistry::OWNER)
+        ->values();
 
     $OWNER = \App\Support\Loops\LoopRoleRegistry::OWNER;
     $FACILITATOR = \App\Support\Loops\LoopRoleRegistry::FACILITATOR;
@@ -138,7 +148,37 @@
                         @endif
                     </span>
 
-                    @if($hasActions && $inlineActions)
+                    @if($isLastOwner && $inlineActions && $transferRoute && $transferables->isNotEmpty())
+                        {{-- TASK-1693 bug O — le dernier proprietaire n'a aucune
+                             action, et c'est juste : une Boucle sans
+                             proprietaire est l'etat qui bloque tout le reste.
+
+                             Mais la NOTE seule laissait l'administrateur se
+                             debrouiller en deux gestes, dans deux endroits de
+                             l'ecran : promouvoir quelqu'un, puis revenir
+                             retrograder celui-ci. On nomme donc la succession
+                             ici meme — c'est la question reelle : « qui reprend
+                             la Boucle ? », pas « comment contourner la
+                             garde ». --}}
+                        <form method="POST" action="{{ $transferRoute($member) }}"
+                              class="flex shrink-0 items-center gap-1"
+                              data-governance-transfer="{{ $member->user_id }}"
+                              onsubmit="return confirm('{{ __('loops.governance_transfer_confirm') }}')">
+                            @csrf @method('PUT')
+                            <label class="sr-only" for="successeur-{{ $member->id }}">{{ __('loops.governance_transfer_label') }}</label>
+                            <select name="successor_id" id="successeur-{{ $member->id }}" required
+                                    class="max-w-[10rem] rounded-md border border-gray-300 px-1.5 py-1 text-[11px] text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                                <option value="">{{ __('loops.governance_transfer_placeholder') }}</option>
+                                @foreach($transferables as $candidat)
+                                <option value="{{ $candidat->id }}">{{ $candidat->user?->publicDisplayName() ?? '—' }}</option>
+                                @endforeach
+                            </select>
+                            <button type="submit"
+                                    class="rounded-md border border-indigo-300 px-2 py-1 text-[11px] font-medium text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/25">
+                                {{ __('loops.governance_transfer_submit') }}
+                            </button>
+                        </form>
+                    @elseif($hasActions && $inlineActions)
                         <span class="flex shrink-0 flex-wrap items-center justify-end gap-1"
                               data-governance-inline-actions="{{ $member->user_id }}">
                             @if($canPromoteOwner)

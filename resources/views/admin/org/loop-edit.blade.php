@@ -131,7 +131,8 @@
                 :can-remove="true"
                 :creator-id="$currentLoop->created_by"
                 :current-user-id="auth()->id()"
-                    :inline-actions="true" />
+                    :inline-actions="true"
+                :transfer-route="fn($m) => route('organization.admin.loops.members.transfer-ownership', [$organization, $currentLoop, $m])" />
 
             @if($candidates->isNotEmpty())
                 {{-- A searchable picker rather than a bare select: an Organization

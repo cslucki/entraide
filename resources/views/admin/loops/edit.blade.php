@@ -207,7 +207,8 @@
                     :can-remove="true"
                     :creator-id="$boucle->created_by"
                     :current-user-id="auth()->id()"
-                    :inline-actions="true" />
+                    :inline-actions="true"
+                    :transfer-route="fn($m) => route('admin.loops.members.transfer-ownership', [$boucle, $m])" />
             </div>
 
             {{-- Status / Archive / Restore --}}

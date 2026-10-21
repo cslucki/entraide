@@ -949,6 +949,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/loops/{loop}/join-requests/{joinRequest}/accept', [AdminLoopController::class, 'acceptJoinRequest'])->name('loops.join-requests.accept');
     Route::post('/loops/{loop}/join-requests/{joinRequest}/reject', [AdminLoopController::class, 'rejectJoinRequest'])->name('loops.join-requests.reject');
     Route::put('/loops/{loop}/members/{member}/role', [AdminLoopController::class, 'updateMemberRole'])->name('loops.members.role');
+    // TASK-1693 bug O — transferer la propriete : designer qui reprend, et le
+    // sortant redescend. Une seule transaction cote service.
+    Route::put('/loops/{loop}/members/{member}/transfer-ownership', [AdminLoopController::class, 'transferOwnership'])->name('loops.members.transfer-ownership');
     Route::delete('/loops/{loop}/members/{member}', [AdminLoopController::class, 'removeMember'])->name('loops.members.remove');
     Route::get('/loops/{loop}/files', [AdminLoopController::class, 'files'])->name('loops.files');
     Route::put('/loops/{loop}/type', [AdminLoopController::class, 'updateType'])->name('loops.type.update');
@@ -1640,6 +1643,9 @@ Route::prefix('/org/{organization}')
                 Route::patch('/composition-policy', [OrgAdminController::class, 'updateCompositionPolicy'])->name('composition-policy.update');
                 Route::post('/loops/{loop}/members', [OrgAdminController::class, 'addLoopMember'])->name('loops.members.add');
                 Route::put('/loops/{loop}/members/{member}/role', [OrgAdminController::class, 'updateLoopMemberRole'])->name('loops.members.role');
+                // TASK-1693 bug O — meme geste que sur l'ecran global : l'admin
+                // d'Organization bute sur le MEME invariant.
+                Route::put('/loops/{loop}/members/{member}/transfer-ownership', [OrgAdminController::class, 'transferLoopOwnership'])->name('loops.members.transfer-ownership');
                 Route::delete('/loops/{loop}/members/{member}', [OrgAdminController::class, 'removeLoopMember'])->name('loops.members.remove');
                 Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
                 Route::get('/users', [OrgAdminController::class, 'users'])->name('users');
