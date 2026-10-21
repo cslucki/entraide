@@ -268,6 +268,13 @@ class UserDataLifecycleRegistry
             ['key' => 'loop_marketplace_links_added_by', 'type' => 'sql', 'table' => 'loop_marketplace_links', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Who highlighted an offer is audit; the link survives.'],
             ['key' => 'loop_manifesto_sources_added_by', 'type' => 'sql', 'table' => 'loop_manifesto_sources', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Source attribution audit can be detached.'],
             ['key' => 'loop_messages_deleted_by', 'type' => 'sql', 'table' => 'loop_messages', 'column' => 'deleted_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Moderation audit: who removed a message must remain answerable.'],
+            // TASK-1693 bug Q — l'administration peut corriger le CORPS d'un
+            // message. Meme nature que `deleted_by` juste au-dessus : qui a
+            // reecrit les mots de quelqu'un d'autre doit rester imputable,
+            // sinon la trace ne protege personne. RETAIN, donc — la colonne
+            // elle-meme est `nullOnDelete` au niveau de la base.
+            ['key' => 'loop_messages_edited_by', 'type' => 'sql', 'table' => 'loop_messages', 'column' => 'edited_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Moderation audit: who edited a message must remain answerable.'],
+            ['key' => 'messages_edited_by', 'type' => 'sql', 'table' => 'messages', 'column' => 'edited_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_transaction', 'justification' => 'Moderation audit: who edited a message must remain answerable.'],
 
             ['key' => 'loop_events_created_by', 'type' => 'sql', 'table' => 'loop_events', 'column' => 'created_by', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'The event survives; its author is anonymized.'],
             ['key' => 'loop_events_cancelled_by', 'type' => 'sql', 'table' => 'loop_events', 'column' => 'cancelled_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Cancellation audit can be detached.'],
