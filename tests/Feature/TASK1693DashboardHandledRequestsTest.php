@@ -189,12 +189,12 @@ class TASK1693DashboardHandledRequestsTest extends TestCase
     /**
      * Le mecanisme amont n'est PAS en cause, et ce test le fixe.
      *
-     * Un refus rouvre la demande. Si ce comportement disparaissait, une demande
-     * refusee resterait « prise en charge » a vie — et le present correctif la
+     * Accepter pourvoit la demande, relacher la rouvre. Si ce comportement
+     * disparaissait, une demande relachee resterait « prise en charge » a vie — et le present correctif la
      * montrerait alors dans un etat faux au lieu de la cacher dans un etat
      * faux. Le gain serait nul.
      */
-    public function test_refusing_an_offer_reopens_the_request(): void
+    public function test_accepting_then_releasing_an_offer_reopens_the_request(): void
     {
         $aidant = User::factory()->complete()->create([
             'organization_id' => $this->organization->id,
@@ -211,19 +211,33 @@ class TASK1693DashboardHandledRequestsTest extends TestCase
             ])
             ->assertRedirect();
 
-        $this->assertSame('in_progress', $demande->fresh()->status);
+        // TASK-1693 bug W — la demande reste OUVERTE pendant la phase de
+        // proposition : elle ne quitte l'explorateur qu'a l'ACCEPTATION. Ce
+        // test, ecrit au bug U, mesurait le comportement d'alors ; il vise
+        // desormais la vraie transition.
+        $this->assertSame('open', $demande->fresh()->status);
 
         $transaction = \App\Models\Transaction::where('request_id', $demande->id)->sole();
 
         // TASK-1693 bug S : decide celui qui n'a PAS propose.
         $this->actingAs($this->demandeur)
-            ->patch(route('organization.transactions.refuse', [
+            ->patch(route('organization.transactions.approve', [
                 'organization' => $this->organization->slug,
                 'transaction' => $transaction,
             ]))
             ->assertRedirect();
 
+        $this->assertSame('in_progress', $demande->fresh()->status,
+            'accepter pourvoit la demande');
+
+        $this->actingAs($this->demandeur)
+            ->patch(route('organization.transactions.cancel', [
+                'organization' => $this->organization->slug,
+                'transaction' => $transaction->fresh(),
+            ]))
+            ->assertRedirect();
+
         $this->assertSame('open', $demande->fresh()->status,
-            'refuser rouvre la demande : le mecanisme amont est coherent');
+            'relacher la rouvre : le mecanisme amont reste coherent');
     }
 }

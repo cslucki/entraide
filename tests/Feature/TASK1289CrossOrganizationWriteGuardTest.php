@@ -306,6 +306,12 @@ class TASK1289CrossOrganizationWriteGuardTest extends TestCase
             'organization_id' => $this->defaultOrganization->id,
             'status' => 'pending',
         ]);
-        $this->assertSame('in_progress', $serviceRequest->fresh()->status);
+        // TASK-1693 bug W — la demande reste OUVERTE apres une proposition :
+        // elle ne quitte l'explorateur qu'a l'ACCEPTATION, pour pouvoir
+        // recevoir plusieurs offres. Cette ligne n'etait pas la garantie de
+        // T1289 — qui porte sur l'isolation inter-Organizations, verifiee
+        // juste au-dessus et INCHANGEE — mais un instantane du comportement
+        // d'alors.
+        $this->assertSame('open', $serviceRequest->fresh()->status);
     }
 }

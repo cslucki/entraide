@@ -7,6 +7,7 @@ use App\Models\PointLedger;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use App\Services\ServiceRequestLifecycle;
 use App\Models\Transaction;
 use App\Notifications\TransactionStatusChanged;
 use Illuminate\Http\RedirectResponse;
@@ -115,10 +116,17 @@ class TransactionController extends Controller
 
         $this->addSystemMessage($transaction, 'Nouvelle échange envoyée : '.$data['points_proposed'].' points.');
 
-        // Update service_request status if applicable
-        if (! empty($data['request_id'])) {
-            ServiceRequest::where('id', $data['request_id'])->update(['status' => 'in_progress']);
-        }
+        // TASK-1693 bug W — la demande ne quitte PLUS l'explorateur ici.
+        //
+        // Elle y restait jusqu'a la premiere proposition seulement, et ne
+        // pouvait donc recevoir qu'UNE offre, de qui que ce soit. Elle le
+        // quitte desormais a l'ACCEPTATION (`approve()`), ce qui laisse son
+        // auteur comparer plusieurs propositions.
+        //
+        // Rien d'autre ne bouge : la demande reste `open`, donc l'explorateur
+        // (`scopeOpen`) et le formulaire « Proposer mon aide »
+        // (`requests/show.blade.php:111`) la montrent sans qu'on ait a les
+        // toucher — les deux verrous tombent d'eux-memes.
 
         return $this->redirectToMessage($transaction)->with('success', 'Échange envoyée !');
     }
@@ -132,12 +140,27 @@ class TransactionController extends Controller
     {
         $this->authorize('approve', $transaction);
 
+        // TASK-1693 bug W — le solde est verifie AU MOMENT DE L'ENGAGEMENT.
+        //
+        // Il ne l'etait qu'a la proposition, et rien n'est reserve entre les
+        // deux (les points ne bougent qu'a la fin de la prestation). Tant
+        // qu'une seule proposition pouvait exister, cela ne pouvait pas nuire.
+        // Avec plusieurs, trois offres de 20 points a quelqu'un qui en a 25
+        // passeraient toutes, et accepter la deuxieme mettrait son compte a
+        // decouvert. L'acceptation est le moment ou l'engagement devient reel.
+        if ($transaction->buyer->points_balance < $transaction->points_proposed) {
+            return back()->with('error', __('requests.lifecycle.insufficient_balance'));
+        }
+
         $transaction->update([
             'status' => 'accepted',
             'points_agreed' => $transaction->points_proposed,
         ]);
 
         $this->addSystemMessage($transaction, 'Échange acceptée. L\'échange est en cours.');
+
+        // La demande est pourvue, et les propositions concurrentes closes.
+        app(ServiceRequestLifecycle::class)->markHandled($transaction);
 
         rescue(
             fn () => $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh())),
@@ -179,9 +202,11 @@ class TransactionController extends Controller
             false,
         );
 
-        if ($transaction->request_id) {
-            ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'open']);
-        }
+        // TASK-1693 bug W — ne rouvrir que si AUCUNE autre proposition ne
+        // tient la demande. Sans cette condition, relacher une concurrente
+        // rouvrirait une demande deja pourvue — sans danger tant qu'une seule
+        // proposition pouvait exister, plus du tout aujourd'hui.
+        app(ServiceRequestLifecycle::class)->releaseIfNothingHolds($transaction);
 
         return $this->redirectToMessage($transaction)->with('success', 'Échange refusée.');
     }
@@ -223,9 +248,11 @@ class TransactionController extends Controller
 
         $this->addSystemMessage($transaction, 'Transaction annulée.');
 
-        if ($transaction->request_id) {
-            ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'open']);
-        }
+        // TASK-1693 bug W — ne rouvrir que si AUCUNE autre proposition ne
+        // tient la demande. Sans cette condition, relacher une concurrente
+        // rouvrirait une demande deja pourvue — sans danger tant qu'une seule
+        // proposition pouvait exister, plus du tout aujourd'hui.
+        app(ServiceRequestLifecycle::class)->releaseIfNothingHolds($transaction);
 
         return $this->redirectToMessage($transaction)->with('success', 'Transaction annulée.');
     }
@@ -304,9 +331,7 @@ class TransactionController extends Controller
                 'completed_at' => now(),
             ]);
 
-            if ($tx->request_id) {
-                ServiceRequest::where('id', $tx->request_id)->update(['status' => 'closed']);
-            }
+            app(ServiceRequestLifecycle::class)->close($tx);
         });
 
         $fresh = $transaction->fresh();
