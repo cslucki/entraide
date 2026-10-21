@@ -139,6 +139,9 @@ return [
     'message_deleted' => 'Message supprimé.',
     // TASK-1693 bug Q — edition d'un message depuis la moderation.
     'message_edit_action' => 'Modifier',
+    'message_show_title' => 'Voir le message dans son fil',
+    'message_show_in_thread' => 'Voir dans son fil',
+    'message_show_other_org' => "Le detail n'est consultable que dans l'Organisation du message.",
     'message_edit_title' => 'Modifier le message',
     'message_edit_back' => 'Retour a la liste des messages',
     'message_edit_sender' => 'Expediteur',

@@ -15,6 +15,13 @@
         <div class="mb-4">
             <a href="{{ route('admin.messages', ['filter' => $isLoop ? 'chatloop' : 'exchanges']) }}"
                class="text-sm text-indigo-600 hover:underline">&larr; {{ __('admin.message_edit_back') }}</a>
+            {{-- TASK-1693 bug R — relire le message DANS SON FIL avant de le
+                 corriger : une phrase se juge sur ce a quoi elle repond. Le
+                 lien n'est pose que lorsqu'il aboutit. --}}
+            @if($showRoute)
+            <a href="{{ $showRoute }}" data-message-edit-show-link
+               class="ml-3 text-sm text-indigo-600 hover:underline">{{ __('admin.message_show_in_thread') }}</a>
+            @endif
         </div>
 
         <div class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">

@@ -142,8 +142,23 @@
                                class="rounded border-gray-300 dark:border-gray-600">
                     </td>
                     @endif
+                    {{-- TASK-1693 bug R — la DATE mene au message dans son fil.
+                         Le lien n'est pose que lorsqu'il ABOUTIT : le detail
+                         rend 404 hors de l'Organisation de l'administrateur
+                         (garantie ecrite, AdminMessagesTest), et avec le
+                         selecteur sur « Toutes les organisations » la liste
+                         peut contenir de telles lignes. Offrir un lien que le
+                         serveur refuse serait le defaut du bug K. --}}
                     <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                        {{ $message->created_at->format('d/m/Y H:i') }}
+                        @if($message->organization_id && $message->organization_id === $adminOrganizationId)
+                        <a href="{{ $isLoop ? route('admin.loop-messages.show', $message) : route('admin.messages.show', $message) }}"
+                           data-message-show-link="{{ $message->id }}"
+                           title="{{ __('admin.message_show_title') }}"
+                           class="text-indigo-600 hover:underline">{{ $message->created_at->format('d/m/Y H:i') }}</a>
+                        @else
+                        <span data-message-show-unavailable="{{ $message->id }}"
+                              title="{{ __('admin.message_show_other_org') }}">{{ $message->created_at->format('d/m/Y H:i') }}</span>
+                        @endif
                     </td>
                     @if($filter === 'all')
                     <td class="px-4 py-3">

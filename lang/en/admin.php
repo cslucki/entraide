@@ -138,6 +138,9 @@ return [
     'message_deleted' => 'Message deleted.',
     // TASK-1693 bug Q — moderation editing of a message.
     'message_edit_action' => 'Edit',
+    'message_show_title' => 'View the message in its thread',
+    'message_show_in_thread' => 'View in thread',
+    'message_show_other_org' => 'The detail is only available within the message\'s Organization.',
     'message_edit_title' => 'Edit message',
     'message_edit_back' => 'Back to the message list',
     'message_edit_sender' => 'Sender',

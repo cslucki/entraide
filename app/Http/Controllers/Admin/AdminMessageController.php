@@ -59,7 +59,15 @@ class AdminMessageController extends Controller
             default => $this->unifiedFeed($selectedOrganizationId, $perPage),
         };
 
-        return view('admin.messages.index', compact('filter', 'messages', 'organizations', 'selectedOrganizationId', 'transactionId'));
+        // TASK-1693 bug R — la date devient un lien vers le detail, mais
+        // `show()` rend 404 hors de l'Organisation de l'administrateur
+        // (garantie ecrite, AdminMessagesTest). Avec le selecteur sur « Toutes
+        // les organisations », la liste peut donc contenir des lignes dont le
+        // detail serait refuse : la vue a besoin de savoir lesquelles, pour ne
+        // PAS offrir un lien mort.
+        $adminOrganizationId = $request->user()->organization_id;
+
+        return view('admin.messages.index', compact('filter', 'messages', 'organizations', 'selectedOrganizationId', 'transactionId', 'adminOrganizationId'));
     }
 
     private function unifiedFeed(string $organizationId, int $perPage): LengthAwarePaginator
@@ -170,7 +178,7 @@ class AdminMessageController extends Controller
             ->limit(5)
             ->get();
 
-        return view('admin.messages.show', compact('message', 'before', 'after'));
+        return view('admin.messages.show', compact('message', 'before', 'after') + ['isLoop' => false]);
     }
 
     /**
@@ -225,6 +233,52 @@ class AdminMessageController extends Controller
     }
 
     /**
+     * TASK-1693 bug R — le detail d'un message de ChatLoop.
+     *
+     * `show()` juste au-dessus ne connait que les conversations d'ECHANGE. Or
+     * l'onglet ChatLoop est celui par DEFAUT de l'ecran : sans ce chemin, le
+     * lien demande n'aurait existe que pour une minorite de lignes.
+     *
+     * Memes bornes que son jumeau, a l'identique — y compris le 404 hors de
+     * l'Organisation de l'administrateur, qui est une garantie ecrite et non
+     * un detail d'implementation. Le voisinage se lit dans la BOUCLE, la ou
+     * celui d'un message d'echange se lit dans la transaction.
+     */
+    public function showLoopMessage(LoopMessage $loopMessage): View
+    {
+        $loopMessage->load(['sender', 'loop', 'editedBy']);
+
+        $orgId = auth()->user()->organization_id;
+
+        if (! $orgId || $loopMessage->organization_id !== $orgId) {
+            abort(404);
+        }
+
+        $before = LoopMessage::where('loop_id', $loopMessage->loop_id)
+            ->where('organization_id', $orgId)
+            ->where('created_at', '<', $loopMessage->created_at)
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get()
+            ->reverse()
+            ->values();
+
+        $after = LoopMessage::where('loop_id', $loopMessage->loop_id)
+            ->where('organization_id', $orgId)
+            ->where('created_at', '>', $loopMessage->created_at)
+            ->orderBy('created_at')
+            ->limit(5)
+            ->get();
+
+        return view('admin.messages.show', [
+            'message' => $loopMessage,
+            'before' => $before,
+            'after' => $after,
+            'isLoop' => true,
+        ]);
+    }
+
+    /**
      * TASK-1693 bug Q — corriger le CORPS d'un message depuis l'administration.
      *
      * ## Ce qui manquait
@@ -273,6 +327,7 @@ class AdminMessageController extends Controller
             'message' => $message,
             'isLoop' => false,
             'updateRoute' => route('admin.messages.update', $message),
+            'showRoute' => $this->lienDetail($message, false),
         ]);
     }
 
@@ -284,6 +339,7 @@ class AdminMessageController extends Controller
             'message' => $loopMessage,
             'isLoop' => true,
             'updateRoute' => route('admin.loop-messages.update', $loopMessage),
+            'showRoute' => $this->lienDetail($loopMessage, true),
         ]);
     }
 
@@ -335,6 +391,27 @@ class AdminMessageController extends Controller
         ])->save();
 
         return redirect($retour)->with('success', __('admin.message_edit_done'));
+    }
+
+    /**
+     * TASK-1693 bug R — le lien vers le detail, ou `null` s'il serait refuse.
+     *
+     * Une capacite offerte puis refusee est un cul-de-sac : c'est exactement le
+     * defaut corrige au bug K, ou un bouton « Rejoindre » menait a un 403. Le
+     * predicat vit donc a UN endroit, et il est le MEME que celui des deux
+     * actions `show` — les faire divergere, c'est reinventer le lien mort.
+     */
+    private function lienDetail(Message|LoopMessage $message, bool $isLoop): ?string
+    {
+        $orgId = auth()->user()?->organization_id;
+
+        if (! $orgId || $message->organization_id !== $orgId) {
+            return null;
+        }
+
+        return $isLoop
+            ? route('admin.loop-messages.show', $message)
+            : route('admin.messages.show', $message);
     }
 
     public function destroy(Message $message): RedirectResponse

@@ -728,6 +728,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // inscrit son decideur (`edited_by`) : voir AdminMessageController::edit().
     Route::get('/messages/{message}/edit', [AdminMessageController::class, 'edit'])->name('messages.edit');
     Route::put('/messages/{message}', [AdminMessageController::class, 'update'])->name('messages.update');
+    // TASK-1693 bug R — le detail d'un message de ChatLoop. `messages.show` ne
+    // connaissait que les echanges, et l'onglet ChatLoop est celui par DEFAUT :
+    // le lien demande n'aurait existe que pour une minorite de lignes.
+    Route::get('/loop-messages/{loopMessage}', [AdminMessageController::class, 'showLoopMessage'])->name('loop-messages.show');
     Route::get('/loop-messages/{loopMessage}/edit', [AdminMessageController::class, 'editLoopMessage'])->name('loop-messages.edit');
     Route::put('/loop-messages/{loopMessage}', [AdminMessageController::class, 'updateLoopMessage'])->name('loop-messages.update');
 
