@@ -11,6 +11,15 @@
     </p>
 
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
+        {{-- TASK-1693 bug I — chercher AVANT de choisir. Le `select` ci-dessous
+             repond bien quand on connait deja la personne ; il ne repond pas a
+             « qui est ce ofsh@… ? ». Ce champ borne a la fois les ecritures
+             affichees ET la liste deroulante, pour qu'on puisse designer
+             ensuite la personne trouvee. --}}
+        <input type="search" name="search" value="{{ request('search') }}"
+               placeholder="{{ __('admin.points_search_placeholder') }}"
+               data-points-search
+               class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm min-w-56">
         {{-- TASK-1667 — choisir la personne ICI, et non en fabriquant l'URL a la
              main. Ce `select` fait deux choses d'un coup : il borne la liste, et
              il fait apparaitre le panneau de correction. Il porte aussi le
@@ -34,7 +43,10 @@
         <input type="text" name="reason" value="{{ request('reason') }}" placeholder="{{ __('admin.points_reason_placeholder') }}"
                class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
         <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">{{ __('admin.filter') }}</button>
-        @if(request()->hasAny(['organization_id', 'reason', 'user_id']))
+        {{-- TASK-1693 bug I — `search` entre dans cette liste. Sans lui, une
+             recherche seule n'aurait fait apparaitre aucun bouton « Effacer » :
+             l'ecran serait filtre sans offrir de sortie. --}}
+        @if(request()->hasAny(['organization_id', 'reason', 'user_id', 'search']))
         <a href="{{ route('admin.points') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">{{ __('admin.clear') }}</a>
         @endif
     </form>

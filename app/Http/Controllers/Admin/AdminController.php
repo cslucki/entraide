@@ -816,6 +816,28 @@ class AdminController extends Controller
             $query->where('reason', $request->input('reason'));
         }
 
+        // TASK-1693 bug I — chercher une personne par email, prenom ou nom.
+        //
+        // Le `select` de TASK-1667 charge TOUS les membres de la portee : il
+        // repond bien quand on connait deja la personne et qu'ils sont peu
+        // nombreux, mais pas a « qui est ce ofsh@… ? ». La recherche precede
+        // donc le choix, et BORNE aussi ce `select` plus bas : apres une
+        // recherche, la liste deroulante tient dans l'ecran.
+        //
+        // Le groupe `where(function ...)` n'est pas decoratif : sans lui, les
+        // `orWhere` s'echapperaient de la contrainte d'Organization posee par
+        // `applyAdminOrganizationFilter()` et la recherche RE-ELARGIRAIT la
+        // liste a toute la plateforme — un filtre qui defiltre.
+        $recherche = trim((string) $request->input('search', ''));
+
+        if ($recherche !== '') {
+            $query->whereHas('user', fn ($q) => $q->where(
+                fn ($q2) => $q2->where('email', 'like', '%'.$recherche.'%')
+                    ->orWhere('first_name', 'like', '%'.$recherche.'%')
+                    ->orWhere('name', 'like', '%'.$recherche.'%')
+            ));
+        }
+
         $filteredUser = $this->applyAdminUserFilter($query, $request);
 
         // TASK-1667 — tri sur les colonnes, par liste BLANCHE.
@@ -839,6 +861,14 @@ class AdminController extends Controller
         $membres = User::withoutGlobalScope(BelongsToOrganizationScope::class)
             ->when($selectedOrganizationId !== 'all',
                 fn ($q) => $q->where('organization_id', $selectedOrganizationId))
+            // TASK-1693 bug I — la recherche borne AUSSI la liste deroulante :
+            // trouver quelqu'un sans pouvoir le designer ensuite n'avancerait a
+            // rien. Meme groupe, meme raison qu'au-dessus.
+            ->when($recherche !== '', fn ($q) => $q->where(
+                fn ($q2) => $q2->where('email', 'like', '%'.$recherche.'%')
+                    ->orWhere('first_name', 'like', '%'.$recherche.'%')
+                    ->orWhere('name', 'like', '%'.$recherche.'%')
+            ))
             ->orderBy('name')
             ->get(['id', 'name', 'first_name', 'points_balance']);
 

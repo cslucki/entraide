@@ -279,4 +279,157 @@ class TASK1693AdminPointsReachabilityTest extends TestCase
 
         $this->assertStringContainsString(route('admin.users.adjust-points', $this->membre), $html);
     }
+
+    // ── 5. Bug I — chercher une personne par email, prenom ou nom ───────────
+
+    /** @return string le CORPS du tableau, pas la page : le `select` des membres la contiendrait. */
+    private function corpsDuTableau(string $html): string
+    {
+        $debut = strpos($html, '<tbody');
+        $this->assertNotFalse($debut, 'le tableau est present');
+
+        return substr($html, $debut, strpos($html, '</tbody>', $debut) - $debut);
+    }
+
+    private function ecritureDe(User $u, string $motif = 'welcome_bonus'): void
+    {
+        PointLedger::query()->create([
+            'user_id' => $u->id,
+            'organization_id' => $u->organization_id,
+            'delta' => 10,
+            'reason' => $motif,
+        ]);
+    }
+
+    public function test_the_search_matches_email_first_name_and_name(): void
+    {
+        $cible = User::factory()->create([
+            'organization_id' => $this->organization->id,
+            'first_name' => 'Soline',
+            'name' => 'Marchand',
+            'email' => 'soline@ofsh.test',
+        ]);
+        $autre = User::factory()->create([
+            'organization_id' => $this->organization->id,
+            'first_name' => 'Bruno',
+            'name' => 'Lefevre',
+            'email' => 'bruno@ailleurs.test',
+        ]);
+
+        $this->ecritureDe($cible);
+        $this->ecritureDe($autre);
+
+        // Les trois champs demandes, un par un.
+        foreach (['soline@ofsh', 'Soline', 'Marchand'] as $terme) {
+            $corps = $this->corpsDuTableau(
+                $this->actingAs($this->superAdmin)
+                    ->get(route('admin.points', ['search' => $terme]))
+                    ->assertOk()
+                    ->getContent()
+            );
+
+            $this->assertStringContainsString('Marchand', $corps, "[{$terme}] trouve la personne visee");
+            $this->assertStringNotContainsString('Lefevre', $corps, "[{$terme}] n'en ramene aucune autre");
+        }
+    }
+
+    /**
+     * LE piege de cette tranche : une recherche qui DEFILTRE.
+     *
+     * Les `orWhere` du terme recherche doivent vivre dans un GROUPE. Sans lui,
+     * ils s'echappent de la contrainte d'Organization et la recherche
+     * re-elargit la liste a toute la plateforme — un filtre qui defiltre, et
+     * qui ne se verrait qu'avec plusieurs tenants peuples.
+     */
+    public function test_the_search_never_escapes_the_organization_filter(): void
+    {
+        $autreOrg = Organization::factory()->create(['slug' => 'org-1693i-autre']);
+
+        $chezNous = User::factory()->create([
+            'organization_id' => $this->organization->id,
+            'first_name' => 'Camille',
+            'name' => 'Dupont',
+            'email' => 'camille@ici.test',
+        ]);
+        $ailleurs = User::factory()->create([
+            'organization_id' => $autreOrg->id,
+            'first_name' => 'Camille',
+            'name' => 'Durand',
+            'email' => 'camille@ailleurs.test',
+        ]);
+
+        $this->ecritureDe($chezNous);
+        $this->ecritureDe($ailleurs);
+
+        $corps = $this->corpsDuTableau(
+            $this->actingAs($this->superAdmin)
+                ->get(route('admin.points', [
+                    'search' => 'Camille',
+                    'organization_id' => $this->organization->id,
+                ]))
+                ->assertOk()
+                ->getContent()
+        );
+
+        $this->assertStringContainsString('Dupont', $corps);
+        $this->assertStringNotContainsString('Durand', $corps,
+            'la recherche ne doit jamais ramener une autre Organization que celle filtree');
+    }
+
+    /**
+     * La recherche borne AUSSI la liste deroulante.
+     *
+     * Trouver quelqu'un sans pouvoir le designer ensuite n'avancerait a rien :
+     * c'est le choix dans ce `select` qui fait apparaitre le panneau de
+     * correction.
+     */
+    public function test_the_search_also_narrows_the_member_dropdown(): void
+    {
+        User::factory()->create([
+            'organization_id' => $this->organization->id,
+            'first_name' => 'Soline', 'name' => 'Marchand', 'email' => 'soline@ofsh.test',
+        ]);
+        User::factory()->create([
+            'organization_id' => $this->organization->id,
+            'first_name' => 'Bruno', 'name' => 'Lefevre', 'email' => 'bruno@ofsh.test',
+        ]);
+
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['search' => 'soline']))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Marchand', $html);
+        $this->assertStringNotContainsString('Lefevre', $html,
+            'le `select` doit suivre la recherche, sinon il reste illisible');
+    }
+
+    /** Le champ est rendu, garde sa valeur, et une recherche offre une sortie. */
+    public function test_the_search_field_keeps_its_value_and_offers_a_way_out(): void
+    {
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.points', ['search' => 'soline']))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-points-search', $html);
+        $this->assertStringContainsString('value="soline"', $html);
+        $this->assertStringContainsString(__('admin.clear'), $html,
+            'une recherche seule doit faire apparaitre le bouton Effacer');
+    }
+
+    /** Un terme qui ne correspond a personne rend une liste VIDE, jamais tout. */
+    public function test_a_search_matching_nobody_returns_nothing_rather_than_everything(): void
+    {
+        $this->ecritureDe($this->membre);
+
+        $corps = $this->corpsDuTableau(
+            $this->actingAs($this->superAdmin)
+                ->get(route('admin.points', ['search' => 'zzz-introuvable-zzz']))
+                ->assertOk()
+                ->getContent()
+        );
+
+        $this->assertStringNotContainsString($this->membre->name, $corps);
+    }
 }

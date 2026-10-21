@@ -1673,6 +1673,7 @@ return [
     'points_reset_confirm' => 'Reset the balance by adding an entry of :balance pts?',
     'points_focus_member' => 'View and adjust their points',
     'points_focus_member_short' => 'Adjust',
+    'points_search_placeholder' => 'Email, first name or name...',
     'points_intro' => 'Points ledger. An entry is NEVER deleted: that is why it blocks account deletion. To correct a balance, pick a person below — the correction ADDS an entry, it never edits one.',
     'points_reason_placeholder' => 'Reason…',
     'points_filtered_on_user' => 'Entries for :name — balance :solde.',
