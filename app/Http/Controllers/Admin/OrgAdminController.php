@@ -617,7 +617,9 @@ class OrgAdminController extends Controller
         abort_if($user->organization_id !== $organization->id, 422, __('loops.not_member'));
 
         try {
-            app(LoopService::class)->addMemberByUserId($loop, $data['user_id'], $data['role'] ?? LoopRoleRegistry::MEMBER);
+            // TASK-1693 bug L — meme regle que le SuperAdmin : l'admin
+            // d'Organization qui ajoute quelqu'un decide sa demande.
+            app(LoopService::class)->addMemberByUserId($loop, $data['user_id'], $data['role'] ?? LoopRoleRegistry::MEMBER, $request->user());
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }

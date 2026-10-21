@@ -638,7 +638,9 @@ class AdminLoopController extends Controller
         $role = (string) $request->input('role', LoopRoleRegistry::MEMBER);
 
         try {
-            $this->loopService->addMemberByUserId($loop, $userId, $role);
+            // TASK-1693 bug L — l'administrateur est le DECIDEUR : la demande
+            // en attente se solde a son nom, et le demandeur en est notifie.
+            $this->loopService->addMemberByUserId($loop, $userId, $role, $request->user());
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
