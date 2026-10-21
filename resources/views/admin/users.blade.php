@@ -226,17 +226,48 @@
                                     {{ $u->organization?->name ?? 'Globale' }}
                                     <span class="lg:hidden">&middot; {{ $u->points_balance }} pts</span>
                                 </p>
+
+                                {{-- TASK-1693 bug D — sur mobile la colonne
+                                     Organisation est masquee : le controle
+                                     remonte ici, exactement comme TASK-1640
+                                     avait fait remonter l'information. Deplacer
+                                     le controle dans une colonne `hidden` sans
+                                     ce second rendu aurait RETIRE du telephone
+                                     une capacite qui y fonctionnait — le popover
+                                     n'etait casse que sur desktop. MEME partiel
+                                     dans les deux cas : rien n'est duplique. --}}
+                                @if($u->id !== auth()->id())
+                                <div class="md:hidden mt-1 max-w-xs">
+                                    @include('admin.partials.user-organization-assign', ['u' => $u, 'organizations' => $organizations, 'context' => 'mobile'])
+                                </div>
+                                @endif
                             </div>
                         </div>
                     </td>
-                    <td class="hidden md:table-cell px-4 py-3">
+                    <td class="hidden md:table-cell px-4 py-3 align-top">
+                        {{-- TASK-1693 bug D — le SLUG, pas le nom complet.
+                             « Organismes de formation solidaires et humanistes »
+                             faisait a lui seul la largeur de la colonne, et il
+                             paraissait DEUX fois par ligne depuis que le
+                             selecteur vit ici. Le slug est court, stable, et
+                             c'est deja l'identifiant lu dans les URL
+                             `/org/{slug}`. Le nom complet reste au survol. --}}
                         @if($u->organization)
-                        <span class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                        <span class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400"
+                              title="{{ $u->organization->name }}">
                             <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                            {{ $u->organization->name }}
+                            {{ $u->organization->slug }}
                         </span>
                         @else
                         <span class="text-xs text-gray-400">Globale</span>
+                        @endif
+
+                        {{-- TASK-1693 bug D — le changement d'Organization vit
+                             desormais dans la colonne qu'il modifie, et non plus
+                             en popover dans « Actions » ou le defilement
+                             horizontal du tableau le rognait. --}}
+                        @if($u->id !== auth()->id())
+                            @include('admin.partials.user-organization-assign', ['u' => $u, 'organizations' => $organizations, 'context' => 'desktop'])
                         @endif
                     </td>
                     <td class="hidden lg:table-cell px-4 py-3">
@@ -358,35 +389,12 @@
                             @endif
                             @endif
 
-                            <!-- Affecter à une organisation -->
-                            @if($u->id !== auth()->id())
-                            <div x-data="{ commOpen: false }" class="relative">
-                                <button @click="commOpen = !commOpen"
-                                        class="text-xs text-gray-400 hover:text-indigo-500">Organisation</button>
-                                <div x-show="commOpen" x-cloak @click.outside="commOpen = false"
-                                     class="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-10 p-3">
-                                    <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                        Affecter à une organisation
-                                    </p>
-                                    <form method="POST" action="{{ route('admin.users.assign-organization', $u) }}">
-                                        @csrf @method('PATCH')
-                                        <select name="organization_id"
-                                                class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-2">
-                                            <option value="">— Organisation par defaut de la plateforme —</option>
-                                            @foreach(\App\Models\Organization::where('is_active', true)->get() as $organization)
-                                            <option value="{{ $organization->id }}" {{ $u->organization_id === $organization->id ? 'selected' : '' }}>
-                                                {{ $organization->name }}
-                                            </option>
-                                            @endforeach
-                                        </select>
-                                        <button type="submit"
-                                                class="w-full px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded transition">
-                                            Affecter
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                            @endif
+                            {{-- TASK-1693 bug D — l'affectation d'Organization a
+                                 QUITTE cette colonne pour celle qu'elle modifie.
+                                 Son popover `absolute` etait rogne par le
+                                 `overflow-x-auto` du tableau (TASK-1640), donc
+                                 inatteignable sur desktop. Voir
+                                 `admin/partials/user-organization-assign.blade.php`. --}}
 
                             <!-- Emailer -->
                             <a href="{{ route('admin.email-templates') }}"
