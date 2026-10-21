@@ -117,7 +117,11 @@ class TransactionController extends Controller
     {
         $user = $request->user();
 
-        if ($user->id !== $transaction->seller_id || $transaction->status !== 'pending') {
+        // TASK-1693 bug S — decide celui qui n'a PAS propose (voir
+        // `Transaction::decisionMakerId()`). Cette API dupliquait la regle en
+        // dur au lieu de passer par la policy : sans ce correctif, elle aurait
+        // garde le comportement inverse.
+        if ($user->id !== $transaction->decisionMakerId() || $transaction->status !== 'pending') {
             return response()->json(['message' => 'Action non autorisée.'], 403);
         }
 
@@ -135,7 +139,11 @@ class TransactionController extends Controller
     {
         $user = $request->user();
 
-        if ($user->id !== $transaction->seller_id || $transaction->status !== 'pending') {
+        // TASK-1693 bug S — decide celui qui n'a PAS propose (voir
+        // `Transaction::decisionMakerId()`). Cette API dupliquait la regle en
+        // dur au lieu de passer par la policy : sans ce correctif, elle aurait
+        // garde le comportement inverse.
+        if ($user->id !== $transaction->decisionMakerId() || $transaction->status !== 'pending') {
             return response()->json(['message' => 'Action non autorisée.'], 403);
         }
 

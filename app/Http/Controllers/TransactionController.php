@@ -75,8 +75,22 @@ class TransactionController extends Controller
             return back()->with('error', 'Solde insuffisant pour cette échange.');
         }
 
-        // Check for existing pending/accepted transaction
-        $existingQuery = Transaction::where('buyer_id', $buyer->id)
+        // TASK-1693 bug S — « VOUS avez deja une transaction en cours » doit
+        // parler de CELUI QUI PROPOSE, pas de l'acheteur.
+        //
+        // Sur une demande d'aide, `$buyer` a ete echange juste au-dessus : il
+        // designe l'AUTEUR DE LA DEMANDE, pas la personne qui clique. La garde
+        // disait donc « cette demande a deja une proposition » tout en
+        // l'annoncant au second aidant comme SA transaction — un message faux
+        // pour lui, qui n'avait rien. C'est le troisieme symptome de la meme
+        // racine que le bouton « Accepter » : le proposant n'etait pas celui
+        // qu'on croyait.
+        //
+        // Le proposant est TOUJOURS l'acteur authentifie. On vise donc la
+        // colonne qui le porte, cote service comme cote demande.
+        $colonneDuProposant = ! empty($data['service_id']) ? 'buyer_id' : 'seller_id';
+
+        $existingQuery = Transaction::where($colonneDuProposant, $actor->id)
             ->whereIn('status', ['pending', 'accepted']);
 
         if (! empty($data['service_id'])) {

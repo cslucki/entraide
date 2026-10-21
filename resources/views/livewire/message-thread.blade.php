@@ -38,7 +38,11 @@
             <div class="flex flex-wrap gap-2 {{ $isDirectConversation ? 'hidden' : '' }}">
                 @php $user = auth()->user(); @endphp
 
-                @if($transaction->status === 'pending' && $user->id === $transaction->seller_id)
+                {{-- TASK-1693 bug S — « Accepter » s'affiche pour celui qui
+                     n'a PAS propose. En dur sur `seller_id`, le bouton
+                     revenait au proposant lui-meme des que l'echange naissait
+                     d'une demande d'aide. --}}
+                @if($transaction->status === 'pending' && $user->id === $transaction->decisionMakerId())
                     <form method="POST" action="{{ $_threadRoute('transactions.approve', 'organization.transactions.approve', ['transaction' => $transaction]) }}">
                         @csrf @method('PATCH')
                         <button class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">{{ __('messages.actions.accept') }}</button>

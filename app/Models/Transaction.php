@@ -101,6 +101,55 @@ class Transaction extends Model
             && (int) $this->points_proposed === 0;
     }
 
+    /**
+     * TASK-1693 bug S — QUI a propose cet echange, et QUI doit en decider.
+     *
+     * ## Le defaut que ces deux methodes ferment
+     *
+     * Le modele sous-jacent est « l'acheteur propose, le vendeur accepte ». Il
+     * colle parfaitement a une OFFRE DE SERVICE : je vois ton annonce, je te
+     * propose 20 points, tu acceptes. L'acheteur est bien le proposant, le
+     * vendeur bien le decideur.
+     *
+     * Mais sur une DEMANDE D'AIDE, la proposition vient de l'autre cote :
+     * `TransactionController` inverse les roles economiques (celui qui rend le
+     * service encaisse les points, donc il est « vendeur »), et personne n'a
+     * inverse le role DECISIONNEL qui va avec. « Le vendeur accepte » pointait
+     * alors sur le proposant lui-meme : l'aidant devait accepter sa propre
+     * offre, pendant que la personne concernee ne voyait qu'« Ajuster » et
+     * « Annuler » (recette Cyril, 21/10).
+     *
+     * ## Pourquoi aucune colonne nouvelle
+     *
+     * Le sens de la proposition est deja DEDUCTIBLE sans ambiguite de la donnee
+     * existante : `request_id` renseigne veut dire « quelqu'un a repondu a une
+     * demande », donc le proposant est le vendeur. Ajouter un `proposed_by`
+     * demanderait une migration ET une reprise de l'existant pour une
+     * information deja presente.
+     *
+     * ## Ce que cela ne touche PAS
+     *
+     * Seule la decision sur la PROPOSITION (`approve` / `refuse`) etait
+     * inversee. La choregraphie de FIN — l'acheteur declare la prestation
+     * terminee, le vendeur confirme — est juste dans les deux sens : celui qui
+     * a recu l'aide declare, celui qui l'a rendue confirme, et les points vont
+     * de l'acheteur au vendeur. Elle reste intouchee.
+     *
+     * Les conversations directes (ni service ni demande) retombent sur la
+     * branche historique : decideur = vendeur, comportement inchange. Leurs
+     * boutons sont de toute facon masques.
+     */
+    public function proposerId(): string
+    {
+        return $this->request_id !== null ? $this->seller_id : $this->buyer_id;
+    }
+
+    /** L'autre partie : celle qui n'a pas propose, donc celle qui decide. */
+    public function decisionMakerId(): string
+    {
+        return $this->request_id !== null ? $this->buyer_id : $this->seller_id;
+    }
+
     public function getSubjectAttribute(): string
     {
         if ($this->isDirectConversation()) {
