@@ -1680,8 +1680,18 @@ return [
     'points_adjust_submit' => 'Appliquer',
     'points_reset' => 'Remettre a zero (:balance pts)',
     'points_member_any' => '— Tous les membres —',
+    'points_adjust_hint' => 'Choisissez une personne puis « Filtrer » pour ajouter, retirer ou remettre a zero ses points.',
+    'points_section' => 'Points',
+    'points_section_hint' => "Un grand livre est append-only : corriger AJOUTE une ecriture, cela n'en modifie et n'en supprime aucune.",
+    'points_current_balance' => 'Solde actuel :',
+    'points_see_ledger' => 'Voir les ecritures de ce membre',
+    'points_reset_confirm' => 'Remettre le solde a zero en ajoutant une ecriture de :balance pts ?',
     'points_focus_member' => 'Voir et corriger ses points',
-    'points_intro' => "Historique comptable des points, en lecture seule. Une ecriture ne se supprime pas : c'est pourquoi elle empeche la suppression d'un compte.",
+    // TASK-1693 bug F — « en lecture seule » etait devenu FAUX : TASK-1667 a
+    // ajoute le panneau de correction, et cette phrase continuait d'annoncer le
+    // contraire. Un ecran qui se declare incapable de ce qu'il fait rend la
+    // capacite introuvable — c'est exactement ce qui a ete signale.
+    'points_intro' => "Historique comptable des points. Une ecriture ne se supprime JAMAIS : c'est pourquoi elle empeche la suppression d'un compte. Pour corriger un solde, designez une personne ci-dessous — la correction AJOUTE une ecriture, elle n'en modifie aucune.",
     'points_reason_placeholder' => 'Motif…',
     'points_filtered_on_user' => 'Ecritures de :name — solde :solde.',
     'points_filtered_clear' => 'Voir toutes les ecritures',

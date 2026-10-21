@@ -231,5 +231,87 @@
                 </a>
             </div>
         </form>
+
+        {{-- TASK-1693 bug F — corriger le solde depuis la fiche.
+
+             ## Hors du formulaire principal, et ce n'est pas un detail
+
+             Ce bloc est pose APRES `</form>`. Imbriquer un `<form>` dans un
+             autre est invalide en HTML, et le navigateur recolle l'arbre a sa
+             facon : le formulaire interieur disparait ou avale les champs du
+             premier. Rien ne le signale cote serveur, et les tests passent —
+             defaut deja paye en TASK-1668.
+
+             ## Un grand livre est APPEND-ONLY
+
+             On ne modifie jamais une ecriture passee : on en AJOUTE une qui
+             corrige. Le solde bouge, la tracabilite reste — et c'est cette
+             immuabilite qui fait qu'un solde bloque la suppression d'un compte.
+             « Modifier » et « retirer » des points se font donc tous deux par un
+             delta, positif ou negatif, jamais par une edition.
+
+             Le motif est offert ici, alors que le formulaire compact de la liste
+             ne le propose pas : une fiche a la place de s'expliquer. Sans motif,
+             `AdminController::adjustPoints()` retombe sur `adjustment`. --}}
+        <div class="mt-5 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 space-y-4"
+             data-user-points-panel="{{ $user->id }}">
+            <div>
+                <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    {{ __('admin.points_section') }}
+                </h2>
+                <p class="mt-1 text-xs text-gray-400">{{ __('admin.points_section_hint') }}</p>
+            </div>
+
+            <p class="text-sm text-gray-700 dark:text-gray-300">
+                {{ __('admin.points_current_balance') }}
+                <span class="font-bold tabular-nums" data-user-points-balance>{{ $user->points_balance }}</span>
+            </p>
+
+            <div class="flex flex-wrap items-end gap-4">
+                <form method="POST" action="{{ route('admin.users.adjust-points', $user) }}"
+                      class="flex flex-wrap items-end gap-2">
+                    @csrf
+                    <div>
+                        <label for="points-delta" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            {{ __('admin.points_adjust_delta') }}
+                        </label>
+                        <input id="points-delta" type="number" name="delta" step="1" required
+                               placeholder="±"
+                               class="w-28 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+                    </div>
+                    <div>
+                        <label for="points-reason" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            {{ __('admin.points_adjust_reason') }}
+                        </label>
+                        <input id="points-reason" type="text" name="reason" maxlength="255"
+                               class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+                    </div>
+                    <button type="submit"
+                            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm transition">
+                        {{ __('admin.points_adjust_submit') }}
+                    </button>
+                </form>
+
+                @if($user->points_balance != 0)
+                {{-- Remettre a zero, c'est encore un delta : l'oppose du solde. --}}
+                <form method="POST" action="{{ route('admin.users.adjust-points', $user) }}"
+                      onsubmit="return confirm('{{ __('admin.points_reset_confirm', ['balance' => $user->points_balance]) }}')">
+                    @csrf
+                    <input type="hidden" name="delta" value="{{ -$user->points_balance }}">
+                    <input type="hidden" name="reason" value="admin_reset">
+                    <button type="submit" class="text-sm text-red-600 hover:underline" data-user-points-reset>
+                        {{ __('admin.points_reset', ['balance' => $user->points_balance]) }}
+                    </button>
+                </form>
+                @endif
+            </div>
+
+            <p class="text-xs text-gray-400">
+                <a href="{{ route('admin.points', ['user_id' => $user->id]) }}"
+                   class="text-indigo-600 dark:text-indigo-400 hover:underline" data-user-points-ledger>
+                    {{ __('admin.points_see_ledger') }} →
+                </a>
+            </p>
+        </div>
     </div>
 </x-admin-layout>

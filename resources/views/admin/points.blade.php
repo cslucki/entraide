@@ -39,6 +39,17 @@
         @endif
     </form>
 
+    {{-- TASK-1693 bug F — quand personne n'est designe, DIRE que la correction
+         existe. Le panneau ne s'affiche qu'une fois la personne choisie, et
+         rien ne l'annoncait : la capacite etait livree mais invisible, exactement
+         le defaut signale. Un indice coute une ligne ; une capacite introuvable
+         equivaut a une capacite absente. --}}
+    @unless($filteredUser)
+    <p class="mb-4 text-xs text-gray-500 dark:text-gray-400" data-points-adjust-hint>
+        {{ __('admin.points_adjust_hint') }}
+    </p>
+    @endunless
+
     {{-- Une liste bornee a une personne doit se VOIR : sinon une ecriture se lit
          comme « il n'y en a qu'une sur toute la plateforme ». --}}
     @if($filteredUser)
