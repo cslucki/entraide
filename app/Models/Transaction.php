@@ -94,6 +94,48 @@ class Transaction extends Model
         return $user->id === $this->buyer_id ? $this->seller : $this->buyer;
     }
 
+    /**
+     * TASK-1693 bug AB — les conversations DIRECTES, et elles seules.
+     *
+     * « Ecrire a quelqu'un » cherchait n'importe quelle transaction entre les
+     * deux personnes et rouvrait la premiere venue. On atterrissait donc dans
+     * un ECHANGE en cours — avec ses points, son statut et ses boutons
+     * « Confirmer / Contester » — au lieu d'une discussion.
+     *
+     * La condition est ecrite ici, a cote d'`isDirectConversation()` qui la
+     * dit deja pour une ligne donnee : les laisser diverger, c'est se
+     * condamner a ce qu'un ecran juge « directe » une conversation que la
+     * requete n'aurait pas ramenee.
+     */
+    public function scopeDirectConversation($query): void
+    {
+        $query->whereNull('service_id')
+            ->whereNull('request_id')
+            ->where('points_proposed', 0);
+    }
+
+    /**
+     * Les transactions qui lient ces deux personnes, dans un sens ou l'autre.
+     *
+     * Les parentheses explicites sont une ceinture, pas une bretelle : Laravel
+     * groupe DEJA les conditions d'un scope (`Builder::callScope()` appelle
+     * `addNewWheresWithinGroup`), et les deux ecritures rendent ici un SQL
+     * IDENTIQUE — verifie par `toSql()`. Le risque de precedence existe pour
+     * un `where(...)->orWhere(...)` ecrit en ligne dans un controleur, ce
+     * qu'etait la version d'origine ; il disparait des lors que la regle vit
+     * dans un scope.
+     */
+    public function scopeBetween($query, string $unId, string $autreId): void
+    {
+        $query->where(function ($q) use ($unId, $autreId) {
+            $q->where(function ($q) use ($unId, $autreId) {
+                $q->where('buyer_id', $unId)->where('seller_id', $autreId);
+            })->orWhere(function ($q) use ($unId, $autreId) {
+                $q->where('buyer_id', $autreId)->where('seller_id', $unId);
+            });
+        });
+    }
+
     public function isDirectConversation(): bool
     {
         return $this->service_id === null

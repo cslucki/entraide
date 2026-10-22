@@ -113,14 +113,27 @@ class MessageController extends Controller
             return redirect()->route('messages.index');
         }
 
-        $transaction = Transaction::where(function ($q) use ($currentUser, $user) {
-            $q->where('buyer_id', $currentUser->id)->where('seller_id', $user->id);
-        })->orWhere(function ($q) use ($currentUser, $user) {
-            $q->where('buyer_id', $user->id)->where('seller_id', $currentUser->id);
-        })->first();
+        // TASK-1693 bug AB — on rouvre une DISCUSSION, jamais un echange.
+        //
+        // La recherche portait sur n'importe quelle transaction entre les deux
+        // personnes : « Ecrire a user2 » ramenait donc dans « Proposition 1
+        // d'aide de user », un echange termine, avec ses points et ses boutons
+        // « Confirmer / Contester ». Ecrire a quelqu'un n'a rien a voir avec
+        // une transaction en cours.
+        //
+        // L'alternative des deux sens passe par un SCOPE, et c'est ce qui la
+        // met a l'abri : Laravel groupe les conditions d'un scope. Ecrite en
+        // ligne — comme elle l'etait — un `where(...)->orWhere(...)` auquel on
+        // ajoute une condition rendrait « (conditions ET A) OU B », et la
+        // seconde branche echapperait au filtre.
+        $conversation = Transaction::query()
+            ->directConversation()
+            ->between($currentUser->id, $user->id)
+            ->latest()
+            ->first();
 
-        if ($transaction) {
-            return $this->versLaConversation($transaction);
+        if ($conversation) {
+            return $this->versLaConversation($conversation);
         }
 
         $organization = currentOrganization() ?? $currentUser->organization ?? $user->organization;

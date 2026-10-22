@@ -307,4 +307,178 @@ class TASK1693WriteToMemberTest extends TestCase
         $this->assertSame([], $fautifs,
             "Ces liens de profil portent encore l'identifiant :\n".implode("\n", $fautifs));
     }
+
+    // ── Bug AB : ecrire n'est pas rouvrir un echange ─────────────────────────
+
+    /**
+     * TASK-1693 bug AB — LE defaut signale, reproduit tel quel.
+     *
+     * « Ecrire a user2 OFSHok » ouvrait « Proposition 1 d'aide de user » : un
+     * ECHANGE termine, avec ses 20 points, son statut « Termine (acheteur) » et
+     * ses boutons « Confirmer / Contester ». Ecrire a quelqu'un n'a rien a voir
+     * avec une transaction en cours.
+     */
+    public function test_writing_never_reopens_an_exchange(): void
+    {
+        $echange = Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            'buyer_id' => $this->alice->id,
+            'seller_id' => $this->bob->id,
+            'service_id' => $this->unService(),
+            'status' => 'buyer_done',
+            'points_proposed' => 20,
+            'points_agreed' => 20,
+        ]);
+
+        $this->actingAs($this->alice)->get($this->urlEcrire($this->bob))->assertRedirect();
+
+        $conversation = Transaction::where('id', '!=', $echange->id)->sole();
+
+        $this->assertTrue($conversation->isDirectConversation(),
+            'ecrire doit ouvrir une DISCUSSION, pas rouvrir l\'echange');
+        $this->assertSame('buyer_done', $echange->fresh()->status,
+            'et l\'echange existant ne doit pas etre touche');
+    }
+
+    /** Un echange NE au fil d'une demande d'aide ne doit pas davantage servir. */
+    public function test_an_exchange_born_from_a_help_request_is_not_reused_either(): void
+    {
+        $demande = \App\Models\ServiceRequest::factory()->create([
+            'user_id' => $this->alice->id,
+            'organization_id' => $this->organization->id,
+            'category_id' => \App\Models\Category::factory()->create(['organization_id' => $this->organization->id])->id,
+            'status' => 'in_progress',
+        ]);
+
+        Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            'buyer_id' => $this->alice->id,
+            'seller_id' => $this->bob->id,
+            'request_id' => $demande->id,
+            'status' => 'pending',
+            'points_proposed' => 20,
+        ]);
+
+        $this->actingAs($this->alice)->get($this->urlEcrire($this->bob))->assertRedirect();
+
+        $this->assertSame(1, Transaction::query()->directConversation()->count());
+        $this->assertSame(2, Transaction::count(), 'l\'echange reste, la discussion s\'ajoute');
+    }
+
+    /**
+     * Et une discussion existante est bien REPRISE, pas dupliquee — meme quand
+     * un echange cohabite.
+     *
+     * Sans ce test, le precedent resterait vert si l'on creait une nouvelle
+     * discussion a chaque clic.
+     */
+    public function test_an_existing_discussion_is_reused_even_alongside_an_exchange(): void
+    {
+        Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            'buyer_id' => $this->alice->id,
+            'seller_id' => $this->bob->id,
+            'service_id' => $this->unService(),
+            'status' => 'accepted',
+            'points_proposed' => 20,
+        ]);
+
+        $this->actingAs($this->alice)->get($this->urlEcrire($this->bob))->assertRedirect();
+        $premiere = Transaction::query()->directConversation()->sole();
+
+        $this->actingAs($this->alice)->get($this->urlEcrire($this->bob))->assertRedirect();
+
+        $this->assertSame($premiere->id, Transaction::query()->directConversation()->sole()->id);
+        $this->assertSame(2, Transaction::count());
+    }
+
+    /**
+     * Le sens n'importe pas : une discussion ouverte par l'AUTRE est reprise.
+     *
+     * L'ancien `orWhere` n'etait pas GROUPE — il s'ajoutait a cote du premier
+     * `where` au lieu de former une alternative bornee. Tant que la requete
+     * n'avait aucune autre condition cela ne se voyait pas ; avec les trois
+     * conditions du bug AB, une parenthese manquante rendrait n'importe quoi.
+     */
+    public function test_a_discussion_opened_by_the_other_person_is_reused(): void
+    {
+        $this->actingAs($this->bob)->get($this->urlEcrire($this->alice))->assertRedirect();
+        $ouverte = Transaction::query()->directConversation()->sole();
+
+        $this->actingAs($this->alice)->get($this->urlEcrire($this->bob))->assertRedirect();
+
+        $this->assertSame($ouverte->id, Transaction::query()->directConversation()->sole()->id);
+    }
+
+    /**
+     * Un echange en SENS INVERSE n'est pas davantage repris.
+     *
+     * Les deux autres tests de sens n'emploient que des discussions, qui
+     * passent le filtre des deux cotes : celui-ci est le seul a confronter
+     * l'alternative des deux sens au filtre de discussion.
+     *
+     * Note : j'avais d'abord justifie ce test par un risque de precedence
+     * SQL — « (conditions ET A) OU B ». `toSql()` dit le contraire des lors
+     * que la regle vit dans un SCOPE : Laravel groupe deja ses conditions, et
+     * les deux ecritures rendent un SQL identique. Le test reste utile, sa
+     * raison d'etre n'etait pas celle-la.
+     */
+    public function test_a_reversed_exchange_is_not_reused_either(): void
+    {
+        Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            // Sens INVERSE : c'est bob qui achete a alice.
+            'buyer_id' => $this->bob->id,
+            'seller_id' => $this->alice->id,
+            'service_id' => $this->unService(),
+            'status' => 'accepted',
+            'points_proposed' => 20,
+        ]);
+
+        $this->actingAs($this->alice)->get($this->urlEcrire($this->bob))->assertRedirect();
+
+        $this->assertSame(1, Transaction::query()->directConversation()->count());
+        $this->assertSame(2, Transaction::count(),
+            'un echange en sens inverse ne doit pas servir de discussion');
+    }
+
+    /**
+     * Le scope doit dire EXACTEMENT ce que dit `isDirectConversation()`.
+     *
+     * Une transaction sans service ni demande mais PORTANT DES POINTS n'est pas
+     * une discussion — le modele le dit. Si le scope oubliait la condition sur
+     * les points, il la ramenerait quand meme. Mon premier jet de contre-epreuve
+     * restait vert : tous mes echanges portaient un service, donc la condition
+     * sur les points n'etait jamais la seule a trancher.
+     */
+    public function test_a_pointed_transaction_without_service_is_not_a_discussion(): void
+    {
+        $avecPoints = Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            'buyer_id' => $this->alice->id,
+            'seller_id' => $this->bob->id,
+            'service_id' => null,
+            'request_id' => null,
+            'status' => 'pending',
+            'points_proposed' => 20,
+        ]);
+
+        $this->assertFalse($avecPoints->isDirectConversation(),
+            'premisse : le modele ne la tient pas pour une discussion');
+
+        $this->actingAs($this->alice)->get($this->urlEcrire($this->bob))->assertRedirect();
+
+        $this->assertSame(2, Transaction::count(),
+            'le scope doit dire exactement ce que dit `isDirectConversation()`');
+    }
+
+    private function unService(): string
+    {
+        return \App\Models\Service::factory()->create([
+            'user_id' => $this->bob->id,
+            'organization_id' => $this->organization->id,
+            'category_id' => \App\Models\Category::factory()->create(['organization_id' => $this->organization->id])->id,
+            'status' => 'active',
+        ])->id;
+    }
 }
