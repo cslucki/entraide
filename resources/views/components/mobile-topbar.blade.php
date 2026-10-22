@@ -261,7 +261,7 @@
                             {{ auth()->user()->is_available ? __('dashboard.available') : __('dashboard.unavailable') }}
                         </button>
                     </form>
-                    <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()]) : route('profile.show', auth()->user())">{{ __('navigation.profile') }}</x-dropdown-link>
+                    <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()->profileRouteKey()]) : route('profile.show', auth()->user()->profileRouteKey())">{{ __('navigation.profile') }}</x-dropdown-link>
                     @if(!$currentOrganization || $currentOrganization->ai_profiles_enabled)
                     <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     @endif

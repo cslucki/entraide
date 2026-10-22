@@ -1315,6 +1315,18 @@ Route::prefix('/org/{organization}')
             Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.store');
 
             Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
+            // TASK-1693 bug AA — « Ecrire a cette personne », sur la surface de
+            // l'Organization.
+            //
+            // Cette route n'existait QUE sans prefixe. Or `ResolveUrlOrganization`
+            // est dans le groupe `web` global et lie l'Organization PAR DEFAUT
+            // sur une URL non prefixee ; la redirection canonique, elle, ne
+            // s'applique qu'aux URL d'UN SEUL segment (middleware:256), donc pas
+            // a `/messages/with/{user}`. La garde inter-tenant de T1289 refusait
+            // alors — a juste titre — et renvoyait vers la liste des messages.
+            // D'ou « on arrive bien sur la Messagerie, mais on ne peut pas
+            // ecrire ». Le defaut n'etait pas la garde, c'etait le LIEN.
+            Route::get('/messages/with/{user}', [MessageController::class, 'orgShowWithUser'])->name('messages.with');
             Route::get('/messages/{transaction}', [MessageController::class, 'orgShow'])->name('messages.show');
 
             Route::get('/points', [PointController::class, 'index'])->name('points.index');

@@ -104,7 +104,7 @@
                                     <td class="px-4 py-3">
                                         <div class="flex items-center justify-end gap-2">
                                             @if($profile->user)
-                                                <a href="{{ route('profile.show', $profile->user) }}" target="_blank" rel="noopener" class="text-xs font-medium text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-300">Voir</a>
+                                                <a href="{{ route('profile.show', $profile->user->profileRouteKey()) }}" target="_blank" rel="noopener" class="text-xs font-medium text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-300">Voir</a>
                                             @endif
                                             <a href="{{ route('admin.member-ai-profiles.edit', $profile) }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">Modifier</a>
                                             @if($profile->status !== 'published')

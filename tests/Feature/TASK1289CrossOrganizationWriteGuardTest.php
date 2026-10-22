@@ -176,7 +176,12 @@ class TASK1289CrossOrganizationWriteGuardTest extends TestCase
         $this->assertSame($this->member->id, $transaction->buyer_id);
         $this->assertSame($this->otherMember->id, $transaction->seller_id);
 
-        $response->assertRedirect(route('messages.show', $transaction))
+        // TASK-1693 bug AA — la surface d'arrivee suit l'Organization liee.
+        // La garantie de T1289 est l'Organization de la conversation, verifiee
+        // juste au-dessus et inchangee.
+        $this->assertStringContainsString('/messages/'.$transaction->id,
+            (string) $response->headers->get('Location'));
+        $response
             ->assertSessionMissing('error');
 
         $this->assertSame(1, Transaction::withoutGlobalScopes()->count());

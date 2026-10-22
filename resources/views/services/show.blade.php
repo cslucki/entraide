@@ -2,7 +2,7 @@
     @php
         $_serviceOrgSlug = request()->route('organization');
         $_serviceExplorerHref = ($_serviceOrgSlug && Route::has('organization.explorer') ? route('organization.explorer', ['organization' => $_serviceOrgSlug]) : route('explorer')).'?tab=services';
-        $_serviceProfileHref = $_serviceOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_serviceOrgSlug, 'user' => $service->user]) : route('profile.show', $service->user);
+        $_serviceProfileHref = $_serviceOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_serviceOrgSlug, 'user' => $service->user->profileRouteKey()]) : route('profile.show', $service->user->profileRouteKey());
         $_serviceReportAction = $_serviceOrgSlug && Route::has('organization.reports.service') ? route('organization.reports.service', ['organization' => $_serviceOrgSlug, 'service' => $service]) : route('reports.service', $service);
         $_serviceTxStoreAction = $_serviceOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_serviceOrgSlug]) : route('transactions.store');
         $_serviceEditHref = $_serviceOrgSlug && Route::has('organization.services.edit') ? route('organization.services.edit', ['organization' => $_serviceOrgSlug, 'service' => $service]) : route('services.edit', $service);

@@ -244,7 +244,7 @@
                    class="ml-auto text-xs text-red-600 dark:text-red-400 hover:underline">
                     {{ __('admin.delete_user') }} →
                 </a>
-                <a href="{{ route('profile.show', $user) }}" target="_blank"
+                <a href="{{ route('profile.show', $user->profileRouteKey()) }}" target="_blank"
                    class="ml-auto text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
                     {{ __('admin.view_public_profile') }} ↗
                 </a>

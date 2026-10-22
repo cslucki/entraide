@@ -145,7 +145,7 @@
                     </x-slot>
                     <x-slot name="content">
                         <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')"><span class="font-medium">{{ __('navigation.dashboard') }}</span></x-dropdown-link>
-                        <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()]) : route('profile.show', Auth::user())">{{ __('navigation.profile') }}</x-dropdown-link>
+                        <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()->profileRouteKey()]) : route('profile.show', Auth::user()->profileRouteKey())">{{ __('navigation.profile') }}</x-dropdown-link>
                         @if(!$tenant || $tenant->ai_profiles_enabled)
                         <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('agent-ia.interactions')">{{ __('navigation.ai_interactions') }}</x-dropdown-link>
@@ -258,7 +258,7 @@
             </div>
             <div class="mt-1 space-y-1">
                 <x-responsive-nav-link :href="route('dashboard')">{{ __('navigation.dashboard') }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()]) : route('profile.show', Auth::user())">{{ __('navigation.profile') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()->profileRouteKey()]) : route('profile.show', Auth::user()->profileRouteKey())">{{ __('navigation.profile') }}</x-responsive-nav-link>
                 @if(!$tenant || $tenant->ai_profiles_enabled)
                 <x-responsive-nav-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('agent-ia.interactions')">{{ __('navigation.ai_interactions') }}</x-responsive-nav-link>

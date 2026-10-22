@@ -132,7 +132,7 @@ class DashboardController extends Controller
         $stepsKeys = ['presentation', 'request', 'service', 'ai_profile'];
         $stepsDone = [$hasPresentation, $hasServiceRequest, $hasService, $hasPublishedAiProfile];
         $stepsCtaUrls = [
-            $hasPresentation ? $onboardingRoute('profile.show', ['user' => $user]) : $onboardingRoute('profile.edit'),
+            $hasPresentation ? $onboardingRoute('profile.show', ['user' => $user->profileRouteKey()]) : $onboardingRoute('profile.edit'),
             $hasServiceRequest ? $onboardingRoute('dashboard.requests') : $onboardingRoute('requests.create'),
             $hasService ? $onboardingRoute('dashboard.services') : $onboardingRoute('services.create'),
             $aiProfileDisabled

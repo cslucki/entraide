@@ -61,7 +61,7 @@
                     </td>
                     <td class="px-4 py-3">
                         @if($req->user)
-                        <a href="{{ route('profile.show', $req->user) }}" class="text-indigo-600 hover:underline text-xs">{{ $req->user->fullName }}</a>
+                        <a href="{{ route('profile.show', $req->user->profileRouteKey()) }}" class="text-indigo-600 hover:underline text-xs">{{ $req->user->fullName }}</a>
                         @else <span class="text-xs text-gray-400">—</span>
                         @endif
                     </td>

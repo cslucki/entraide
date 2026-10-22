@@ -6,6 +6,7 @@ use App\Models\Message;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
 class MessageController extends Controller
@@ -68,6 +69,42 @@ class MessageController extends Controller
         return $this->show($transaction);
     }
 
+    /**
+     * TASK-1693 bug AA — le jumeau prefixe d'`showWithUser()`.
+     *
+     * Sur une route `/org/{organization}/…`, le parametre `{organization}`
+     * arrive en PREMIER argument du controleur : sans ce relais, la methode
+     * recevait le slug de l'Organization a la place de la personne, et levait
+     * un `TypeError` — un 500. C'est l'idiome deja tenu par `orgShow()` juste
+     * au-dessus, et par `orgStore()` / `orgCancel()` ailleurs.
+     */
+    /**
+     * TASK-1693 bug AA — rester sur la surface de l'Organization.
+     *
+     * Rediriger vers `messages.show` sans prefixe ramenait sur la surface
+     * courte, ou `ResolveUrlOrganization` lie l'Organization PAR DEFAUT —
+     * exactement le piege que ce correctif ferme un cran plus haut. Ouvrir une
+     * conversation depuis sa Boucle doit y laisser.
+     */
+    private function versLaConversation(Transaction $transaction): RedirectResponse
+    {
+        $organization = currentOrganization();
+
+        if ($organization !== null && Route::has('organization.messages.show')) {
+            return redirect()->route('organization.messages.show', [
+                'organization' => $organization->slug,
+                'transaction' => $transaction,
+            ]);
+        }
+
+        return redirect()->route('messages.show', $transaction);
+    }
+
+    public function orgShowWithUser(string $org, User $user): View|RedirectResponse
+    {
+        return $this->showWithUser($user);
+    }
+
     public function showWithUser(User $user): View|RedirectResponse
     {
         $currentUser = auth()->user();
@@ -83,7 +120,7 @@ class MessageController extends Controller
         })->first();
 
         if ($transaction) {
-            return redirect()->route('messages.show', $transaction);
+            return $this->versLaConversation($transaction);
         }
 
         $organization = currentOrganization() ?? $currentUser->organization ?? $user->organization;
@@ -118,6 +155,6 @@ class MessageController extends Controller
             'organization_id' => $organization->id,
         ]);
 
-        return redirect()->route('messages.show', $transaction);
+        return $this->versLaConversation($transaction);
     }
 }

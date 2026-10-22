@@ -323,7 +323,7 @@
                             @if($u->organization_id !== null
                                 && optional(currentOrganization())->id === $u->organization_id
                                 && $u->banned_at === null)
-                            <a href="{{ route('profile.show', $u) }}" class="text-xs text-gray-500 hover:underline">Profil</a>
+                            <a href="{{ route('profile.show', $u->profileRouteKey()) }}" class="text-xs text-gray-500 hover:underline">Profil</a>
                             @endif
 
                             {{-- TASK-1640 — la fiche complete, en pop-up. Aucun precheck ni

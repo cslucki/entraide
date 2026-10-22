@@ -116,7 +116,7 @@ class ProfileController extends Controller
             '@context' => 'https://schema.org',
             '@type' => 'Person',
             'name' => $user->name,
-            'url' => route('profile.show', $user),
+            'url' => route('profile.show', $user->profileRouteKey()),
             'description' => $user->bio,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
@@ -325,12 +325,12 @@ class ProfileController extends Controller
             return redirect()
                 ->route('organization.profile.show', [
                     'organization' => $organization->slug,
-                    'user' => $moi->id,
+                    'user' => $moi->profileRouteKey(),
                 ])
                 ->with('status', 'profile-updated');
         }
 
-        return redirect()->route('profile.show', ['user' => $moi->id])
+        return redirect()->route('profile.show', ['user' => $moi->profileRouteKey()])
             ->with('status', 'profile-updated');
     }
 
