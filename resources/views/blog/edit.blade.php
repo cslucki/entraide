@@ -216,9 +216,15 @@
                     tags: '{{ old('tags', $post->tags->pluck('name')->implode(', ')) }}',
                     tagList: [],
                     tagInput: '',
+                    // TASK-1693 bug X — refuser un tag deja present : le
+                    // serveur les fait collapser par slug, l'ecran ne doit pas
+                    // promettre ce qu'il ne livrera pas.
+                    normaliserTag(t) { return t.trim().replace(/^#+/, '').toLowerCase(); },
                     addTag() {
                         let t = this.tagInput.trim();
                         if (!t || this.tagList.length >= 10) return;
+                        const vise = this.normaliserTag(t);
+                        if (!vise || this.tagList.some(x => this.normaliserTag(x) === vise)) { this.tagInput = ''; return; }
                         this.tagList.push(t);
                         this.tags = this.tagList.join(',');
                         this.tagInput = '';

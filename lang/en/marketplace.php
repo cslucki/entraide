@@ -106,4 +106,7 @@ return [
         'delete_attachments' => 'attachments to delete',
         'delete_attachments.*' => 'attachment to delete',
     ],
+    // TASK-1693 bug X
+    'tag_duplicate' => 'That tag is already in the list.',
+    'images_trimmed' => ':count image(s) dropped: the limit is :max. The first :max were kept.',
 ];

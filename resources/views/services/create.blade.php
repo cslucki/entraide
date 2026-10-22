@@ -182,14 +182,49 @@
                 tags: '{{ old('tags', '') }}',
                 tagList: [],
                 tagInput: '',
+                tagDuplique: false,
+                // TASK-1693 bug X — deux tags identiques etaient acceptes.
+                //
+                // Le serveur les fait de toute facon collapser : il slugifie
+                // chaque nom puis `syncWithPivotValues()` sur des IDENTIFIANTS.
+                // « AZD » trois fois ne produisait donc qu'UN tag — mais
+                // l'ecran en affichait trois, et promettait ce qu'il ne livrait
+                // pas. On compare donc sur la meme base que le serveur :
+                // sans « # », sans espaces de bord, insensible a la casse.
+                normaliserTag(t) { return t.trim().replace(/^#+/, '').toLowerCase(); },
                 addTag() {
-                    if (!this.tagInput.trim() || this.tagList.length >= 10) return;
-                    this.tagList.push(this.tagInput.trim());
+                    const brut = this.tagInput.trim();
+                    if (!brut || this.tagList.length >= 10) return;
+
+                    const vise = this.normaliserTag(brut);
+                    if (!vise) return;
+
+                    if (this.tagList.some(t => this.normaliserTag(t) === vise)) {
+                        this.tagDuplique = true;
+                        this.tagInput = '';
+                        return;
+                    }
+
+                    this.tagDuplique = false;
+                    this.tagList.push(brut);
                     this.tags = this.tagList.join(',');
                     this.tagInput = '';
                 },
-                removeTag(i) { this.tagList.splice(i,1); this.tags = this.tagList.join(','); },
-                init() { if(this.tags) this.tagList = this.tags.split(',').filter(t=>t); }
+                removeTag(i) { this.tagList.splice(i,1); this.tagDuplique = false; this.tags = this.tagList.join(','); },
+                init() {
+                    if (!this.tags) return;
+                    // Les doublons peuvent aussi REVENIR d'une soumission
+                    // refusee (`old('tags')`) : les laisser passer ici aurait
+                    // laisse l'ecran fautif apres chaque erreur de validation.
+                    const vus = new Set();
+                    this.tagList = this.tags.split(',').filter(t => {
+                        const vise = this.normaliserTag(t);
+                        if (!vise || vus.has(vise)) return false;
+                        vus.add(vise);
+                        return true;
+                    });
+                    this.tags = this.tagList.join(',');
+                }
               }">
             @csrf
 
@@ -242,12 +277,37 @@
             </div>
 
             <!-- Images -->
-            <div class="mb-5" x-data="{ images: [] }">
+            {{-- TASK-1693 bug X — `slice(0, 5)` ne tronquait que l'APERCU.
+
+                 L'input conservait les 8 fichiers choisis et les envoyait :
+                 l'ecran en montrait 5 et en transmettait 8. La soumission
+                 partait donc se faire refuser par le serveur, et le navigateur
+                 ne peut PAS repeupler un champ fichier — tout etait a
+                 recommencer.
+
+                 On tronque desormais la selection REELLE via `DataTransfer`,
+                 et on nomme ce qui vient de se passer plutot que de le laisser
+                 deviner. Le serveur garde sa regle `max:5` : ceci est une
+                 commodite, pas une garde. --}}
+            <div class="mb-5" x-data="{ images: [], ecartees: 0, LIMITE: 5 }">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.images') }}</label>
                 <input type="file" name="images[]" multiple accept="image/*"
-                    @change="images = Array.from($event.target.files).slice(0, 5)"
+                    data-images-input
+                    @change="
+                        const choisis = Array.from($event.target.files);
+                        this.ecartees = Math.max(0, choisis.length - this.LIMITE);
+                        if (this.ecartees > 0 && window.DataTransfer) {
+                            const dt = new DataTransfer();
+                            choisis.slice(0, this.LIMITE).forEach(f => dt.items.add(f));
+                            $event.target.files = dt.files;
+                        }
+                        this.images = Array.from($event.target.files).slice(0, this.LIMITE);
+                    "
                     class="block w-full text-sm text-gray-600 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-300 hover:file:bg-indigo-100">
                 <p class="text-xs text-gray-400 mt-1">{{ __('marketplace.image_help') }}</p>
+                <p x-show="ecartees > 0" x-cloak data-images-trimmed
+                   class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+                   x-text="@js(__('marketplace.images_trimmed')).replace(':count', ecartees).replace(':max', LIMITE)"></p>
                 <div class="flex flex-wrap gap-2 mt-2">
                     <template x-for="(img, i) in images" :key="i">
                         <div class="relative w-20 h-20 border rounded overflow-hidden bg-gray-100 dark:bg-gray-700">
@@ -269,6 +329,8 @@
                         </span>
                     </template>
                 </div>
+                <p x-show="tagDuplique" x-cloak data-tag-duplicate
+                   class="mb-2 text-xs text-amber-600 dark:text-amber-400">{{ __('marketplace.tag_duplicate') }}</p>
                 <div class="flex gap-2" x-show="tagList.length < 10">
                     <input type="text" x-model="tagInput" @keydown.enter.prevent="addTag" placeholder="{{ __('marketplace.add_tag_placeholder') }}"
                         class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
