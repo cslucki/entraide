@@ -111,11 +111,35 @@
                        aria-label="{{ __('messages.back_to_conversations') }}">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                     </a>
+                    {{-- TASK-1693 bug AE — l'avatar et le nom menent au profil.
+
+                         Le lien n'est pose que si la personne est AFFICHABLE :
+                         `isDisplayableIn()` verifie exactement les deux gardes
+                         de `ProfileController::show()` — ni desactivee, ni
+                         d'une autre Organization. Le poser sans cela
+                         fabriquerait un 404, le defaut du bug K.
+
+                         Deux liens distincts (l'avatar, le nom) plutot qu'un
+                         seul englobant : la ligne du dessous porte deja un lien
+                         vers le service ou la demande, et un lien dans un lien
+                         est invalide en HTML — lecon du bug AA. --}}
+                    @php
+                        $_profilUrl = $otherDisplayable
+                            ? $_messagesRoute('profile.show', 'organization.profile.show', ['user' => $other->profileRouteKey()])
+                            : null;
+                    @endphp
                     @if($otherDisplayable)
-                        <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
+                        <a href="{{ $_profilUrl }}" data-thread-profile-avatar="{{ $other->id }}" class="flex-shrink-0 hover:opacity-80 transition">
+                            <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
+                        </a>
                     @endif
                     <div class="min-w-0 flex-1">
-                        <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ $other?->publicDisplayName() ?? __('profile.deactivated_user') }}</p>
+                        @if($otherDisplayable)
+                        <a href="{{ $_profilUrl }}" data-thread-profile-link="{{ $other->id }}"
+                           class="block font-medium text-sm text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $other->publicDisplayName() }}</a>
+                        @else
+                        <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ __('profile.deactivated_user') }}</p>
+                        @endif
                         <p class="text-xs text-gray-500 truncate">
                             @if($transaction->service)
                             <a href="{{ $_messagesRoute('services.show', 'organization.services.show', ['service' => $transaction->service]) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
@@ -217,11 +241,23 @@
                         $otherDisplayable = $other?->isDisplayableIn(currentOrganization()) ?? false;
                     @endphp
                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                        @php
+                            $_profilUrl = $otherDisplayable
+                                ? $_messagesRoute('profile.show', 'organization.profile.show', ['user' => $other->profileRouteKey()])
+                                : null;
+                        @endphp
                         @if($otherDisplayable)
-                            <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
+                            <a href="{{ $_profilUrl }}" data-thread-profile-avatar="{{ $other->id }}" class="flex-shrink-0 hover:opacity-80 transition">
+                                <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
+                            </a>
                         @endif
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-gray-100">{{ $other?->publicDisplayName() ?? __('profile.deactivated_user') }}</p>
+                            @if($otherDisplayable)
+                            <a href="{{ $_profilUrl }}" data-thread-profile-link="{{ $other->id }}"
+                               class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $other->publicDisplayName() }}</a>
+                            @else
+                            <p class="font-medium text-gray-900 dark:text-gray-100">{{ __('profile.deactivated_user') }}</p>
+                            @endif
                             <p class="text-xs text-gray-500">
                                 @if($transaction->service)
                                 <a href="{{ $_messagesRoute('services.show', 'organization.services.show', ['service' => $transaction->service]) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>

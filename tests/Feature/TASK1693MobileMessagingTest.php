@@ -292,4 +292,97 @@ class TASK1693MobileMessagingTest extends TestCase
             $this->assertStringContainsString('[data-bp-shell-bottom-nav="1"] { --bp-bottom-nav:', $html);
         }
     }
+
+    // ── Bug AE : atteindre le profil depuis la conversation ─────────────────
+
+    /**
+     * TASK-1693 bug AE — « aucun lien vers le profil de la personne avec qui
+     * on discute ».
+     *
+     * L'avatar ET le nom y menent desormais, dans les deux en-tetes, et
+     * l'adresse porte le slug.
+     */
+    public function test_the_conversation_header_links_to_the_profile(): void
+    {
+        $html = $this->conversation($this->discussion());
+
+        $this->assertStringContainsString('data-thread-profile-link="'.$this->bob->id.'"', $html);
+        $this->assertStringContainsString('data-thread-profile-avatar="'.$this->bob->id.'"', $html);
+        $this->assertStringContainsString(
+            e(route('organization.profile.show', [
+                'organization' => $this->organization->slug,
+                'user' => $this->bob->profileRouteKey(),
+            ])),
+            $html,
+        );
+    }
+
+    /** L'adresse porte le SLUG, pas l'identifiant. */
+    public function test_the_profile_link_carries_the_readable_address(): void
+    {
+        $this->bob->forceFill(['slug' => null])->save();
+        app(\App\Services\UserSlugService::class)->attribuer($this->bob, 'bob-durand');
+
+        $html = $this->conversation($this->discussion());
+
+        $this->assertStringContainsString('/profile/bob-durand', $html);
+        $this->assertStringNotContainsString('/profile/'.$this->bob->id, $html);
+    }
+
+    /**
+     * Les deux en-tetes l'ont : celui du telephone et celui de l'ordinateur.
+     *
+     * Ils vivent dans deux blocs SEPARES de la meme vue — n'en corriger qu'un
+     * laisserait l'autre muet, et le test resterait vert.
+     */
+    public function test_both_headers_carry_the_link(): void
+    {
+        $html = $this->conversation($this->discussion());
+
+        $this->assertSame(2, substr_count($html, 'data-thread-profile-link="'.$this->bob->id.'"'),
+            'le lien doit figurer dans l\'en-tete mobile ET dans celui de l\'ordinateur');
+    }
+
+    /**
+     * Aucun lien quand la personne n'est pas affichable.
+     *
+     * `ProfileController::show()` rend 404 pour un compte desactive :
+     * `isDisplayableIn()` verifie exactement cette garde, et poser le lien
+     * malgre tout fabriquerait un cul-de-sac — le defaut du bug K.
+     */
+    public function test_no_link_towards_a_deactivated_account(): void
+    {
+        $this->bob->forceFill(['banned_at' => now()])->save();
+
+        $html = $this->conversation($this->discussion());
+
+        $this->assertStringNotContainsString('data-thread-profile-link=', $html);
+        $this->assertStringNotContainsString('data-thread-profile-avatar=', $html);
+        $this->assertStringContainsString(e(__('profile.deactivated_user')), $html);
+    }
+
+    /**
+     * Et le lien du SUJET reste hors de celui du profil.
+     *
+     * La ligne du dessous porte un lien vers le service ou la demande : un lien
+     * dans un lien est invalide en HTML, et le navigateur le deplace hors de
+     * son parent — lecon du bug AA, invisible aux tests qui ne regardent que
+     * le serveur.
+     */
+    public function test_the_subject_link_is_not_nested_inside_the_profile_link(): void
+    {
+        $html = $this->conversation($this->echange());
+
+        $marqueur = 'data-thread-profile-link="'.$this->bob->id.'"';
+        $debut = (int) strpos($html, $marqueur);
+        $apres = substr($html, $debut);
+
+        // Le lien du nom doit se fermer AVANT que celui du sujet ne s'ouvre.
+        $fermeture = (int) strpos($apres, '</a>');
+        $sujet = strpos($apres, '<a href');
+
+        $this->assertNotFalse($sujet);
+        $this->assertGreaterThan($fermeture, $sujet,
+            'le lien du sujet est imbrique dans celui du profil');
+    }
 }
