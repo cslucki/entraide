@@ -60,6 +60,27 @@ class TASK1693ProfileSaveDestinationTest extends TestCase
     }
 
     /**
+     * TASK-1693 bug Y — la destination est desormais le PROFIL PUBLIC.
+     *
+     * Le bug A avait pose `profile.edit` : deja mieux que de suivre une
+     * intention etrangere, mais cela rendait la personne au formulaire qu'elle
+     * venait de quitter sans lui montrer le RESULTAT. On modifie son profil
+     * public pour le voir change (arbitrage Cyril, 22/10).
+     *
+     * Ce que ces tests continuent de garantir est INCHANGE : la destination
+     * reste DETERMINISTE et n'emprunte jamais `redirect()->intended()`. Seule
+     * la cible bouge — c'est un changement de contrat produit, pas un
+     * affaiblissement de la garde.
+     */
+    private function destinationAttendue(User $user): string
+    {
+        return route('organization.profile.show', [
+            'organization' => $user->organization->slug,
+            'user' => $user->id,
+        ]);
+    }
+
+    /**
      * LE defaut, reproduit par son vrai declencheur.
      *
      * On ne POSE PAS `url.intended` a la main : on laisse la garde de
@@ -89,10 +110,10 @@ class TASK1693ProfileSaveDestinationTest extends TestCase
 
         $this->actingAs($user);
 
-        // 2. Enregistrer son profil ramene a SON PROFIL, pas a cette intention.
+        // 2. Enregistrer son profil ramene a SON PROFIL PUBLIC, pas a cette intention.
         $this->put(route('profile.update'), $this->payload($user))
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('profile.edit'))
+            ->assertRedirect($this->destinationAttendue($user))
             ->assertSessionHas('status', 'profile-updated');
     }
 
@@ -111,7 +132,7 @@ class TASK1693ProfileSaveDestinationTest extends TestCase
         $this->actingAs($user)
             ->put(route('profile.update'), $this->payload($user))
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('profile.edit'))
+            ->assertRedirect($this->destinationAttendue($user))
             ->assertSessionHas('status', 'profile-updated');
     }
 
@@ -130,7 +151,7 @@ class TASK1693ProfileSaveDestinationTest extends TestCase
 
         $this->put(route('profile.update'), $this->payload($user))
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('profile.edit'));
+            ->assertRedirect($this->destinationAttendue($user));
 
         $effective = app('router')->gatherRouteMiddleware(
             app('router')->getRoutes()->getByName('profile.update')
@@ -143,5 +164,70 @@ class TASK1693ProfileSaveDestinationTest extends TestCase
                 'le profil ne doit jamais exiger un email verifie',
             );
         }
+    }
+
+    /**
+     * TASK-1693 bug Y — la destination ABOUTIT, et montre le changement.
+     *
+     * Asserter qu'une redirection pointe quelque part ne prouve pas que cette
+     * page s'ouvre — c'est la lecon du bug R, ou un lien pose menait a un 404.
+     * `ProfileController::show()` exige `currentOrganization()` et rend 404
+     * sinon : il faut donc SUIVRE la redirection, pas seulement la lire.
+     */
+    public function test_the_destination_actually_opens_and_shows_the_change(): void
+    {
+        $user = $this->membre(['email_verified_at' => now()]);
+
+        $reponse = $this->actingAs($user)
+            ->put(route('profile.update'), $this->payload($user) + [
+                'bio' => 'Ma nouvelle presentation publique.',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect($this->destinationAttendue($user));
+
+        $html = $this->followRedirects($reponse)->assertOk()->getContent();
+
+        $this->assertStringContainsString(
+            e('Ma nouvelle presentation publique.'),
+            $html,
+            'on modifie son profil public pour le voir change : la page doit porter la modification',
+        );
+    }
+
+    /**
+     * Ce n'est PAS le formulaire d'edition.
+     *
+     * Sans cette mesure, une destination qui retomberait sur `profile.edit`
+     * — par un repli, une redirection canonique mal posee — resterait verte
+     * pour les tests ci-dessus, qui comparent des URL.
+     */
+    public function test_the_destination_is_not_the_edit_form(): void
+    {
+        $user = $this->membre(['email_verified_at' => now()]);
+
+        $cible = $this->actingAs($user)
+            ->put(route('profile.update'), $this->payload($user))
+            ->headers->get('Location');
+
+        $this->assertStringNotContainsString('/profile/edit', (string) $cible);
+        $this->assertStringContainsString('/profile/'.$user->id, (string) $cible);
+    }
+
+    /**
+     * L'Organization est nommee EXPLICITEMENT dans la destination.
+     *
+     * `show()` rend 404 sans `currentOrganization()`. S'en remettre au seul
+     * repli canonique de TASK-1601 ferait dependre l'aboutissement d'un second
+     * saut — et un saut de plus est un endroit de plus ou se perdre.
+     */
+    public function test_the_destination_carries_the_organization_prefix(): void
+    {
+        $user = $this->membre(['email_verified_at' => now()]);
+
+        $cible = $this->actingAs($user)
+            ->put(route('profile.update'), $this->payload($user))
+            ->headers->get('Location');
+
+        $this->assertStringContainsString('/org/'.$user->organization->slug.'/', (string) $cible);
     }
 }

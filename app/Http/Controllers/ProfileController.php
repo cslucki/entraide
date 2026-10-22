@@ -232,9 +232,36 @@ class ProfileController extends Controller
         // ne porte QUE `auth`, pas `verified` — la redirection ne venait pas de
         // la route mais d'une intention etrangere.
         //
-        // Enregistrer son profil ramene a son profil. Le prefixe d'Organization
-        // reste gouverne par la redirection canonique de TASK-1601.
-        return redirect()->route('profile.edit')->with('status', 'profile-updated');
+        // TASK-1693 / bug Y — on revient au PROFIL PUBLIC, pas au formulaire.
+        //
+        // Le bug A avait pose `profile.edit` : c'etait deja mieux que de suivre
+        // une intention etrangere, mais cela rendait la personne au formulaire
+        // qu'elle venait de quitter, sans lui montrer le RESULTAT de ce qu'elle
+        // avait change. On modifie son profil public pour le voir change.
+        //
+        // La garantie du bug A ne bouge PAS : la destination reste DETERMINISTE
+        // et n'emprunte jamais `redirect()->intended()`, dont la clef
+        // `url.intended` est ecrite par `Redirect::guest()` — c'est ce qui
+        // renvoyait vers `/verify-email` sans rapport avec le geste. Seule la
+        // cible change.
+        //
+        // L'Organization est nommee EXPLICITEMENT quand on la connait :
+        // `ProfileController::show()` exige `currentOrganization()` et rend 404
+        // sinon. S'en remettre au seul repli canonique de TASK-1601 ferait
+        // dependre l'aboutissement d'un second saut.
+        $moi = $request->user();
+
+        if ($organization !== null) {
+            return redirect()
+                ->route('organization.profile.show', [
+                    'organization' => $organization->slug,
+                    'user' => $moi->id,
+                ])
+                ->with('status', 'profile-updated');
+        }
+
+        return redirect()->route('profile.show', ['user' => $moi->id])
+            ->with('status', 'profile-updated');
     }
 
     public function toggleAvailability(Request $request): RedirectResponse
