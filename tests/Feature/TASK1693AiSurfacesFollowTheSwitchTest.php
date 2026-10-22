@@ -219,8 +219,15 @@ class TASK1693AiSurfacesFollowTheSwitchTest extends TestCase
             'status' => 'active',
         ]);
 
+        // `dossiers_holder_xor` (PostgreSQL seulement) exige UN SEUL porteur :
+        // un Dossier appartient a une Boucle OU a une personne, jamais aux deux.
+        // La fabrique remplit `owner_id` par defaut — le laisser avec `loop_id`
+        // viole la contrainte. Invisible sous SQLite, qui ne porte pas ce CHECK :
+        // c'est la CI PostgreSQL qui l'a dit (meme famille que le `22P02` de
+        // TASK-1683).
         return Dossier::factory()->create([
             'organization_id' => $this->organization->id,
+            'owner_id' => null,
             'loop_id' => $loop->id,
         ]);
     }
