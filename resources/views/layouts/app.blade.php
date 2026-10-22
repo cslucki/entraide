@@ -188,6 +188,20 @@
             }
         </style>
     </head>
+        @php
+            // TASK-1693 bug AC — dans une conversation ouverte sur mobile, le
+            // bas de l'ecran revient au COMPOSEUR, pas a la barre d'outils.
+            //
+            // Elle occupait 4rem + la zone de securite sous un champ de saisie
+            // deja serre, et poussait le clavier a recouvrir le fil. On ecrit
+            // : la navigation attend. Le retour vers la liste reste a portee —
+            // la fleche en haut a gauche de l'en-tete.
+            //
+            // Condition exprimee en NOMS DE ROUTE, cote serveur : la liste
+            // (`messages.index`) garde sa barre, seule la conversation la
+            // retire.
+            $_conversationOuverte = request()->routeIs('messages.show', 'organization.messages.show');
+        @endphp
     <body class="font-sans antialiased">
         {{-- TASK-1654 — le bandeau du mode persona, en UN seul endroit.
              Voir `components/persona-banner.blade.php` : il est aussi inclus par
@@ -208,7 +222,7 @@
 
         {{-- Mobile shell (hidden md:block) --}}
         <x-mobile-topbar title="{{ isset($title) && filled($title) ? $title : config('app.name') }}" :brand-name="$brandOrganizationName ?? null" :show-internal-navigation="$showInternalNavigation" />
-        @if($showInternalNavigation)
+        @if($showInternalNavigation && ! $_conversationOuverte)
         <x-mobile-bottom-nav />
         <x-mobile-fab />
         {{-- TASK-1231 : FAB « BouclePro IA » — layout membre uniquement (jamais
@@ -232,7 +246,14 @@
         <x-app-side-nav />
         @endif
 
-        <div class="min-h-screen flex flex-col bg-[var(--bp-page)] pt-0 pb-0 md:pb-0 mobile-safe-top {{ $showInternalNavigation ? 'md:pl-20 mobile-safe-bottom-auth' : '' }}">
+        {{-- TASK-1693 bug AC — `data-bp-shell-bottom-nav` dit si la marge
+             basse reservee a la barre d'outils est APPLIQUEE. Point d'ancrage,
+             sans effet de rendu : la classe `mobile-safe-bottom-auth` figure
+             de toute facon dans la feuille de style du document, et une
+             assertion sur son seul nom ne distinguerait pas sa DEFINITION de
+             son APPLICATION. Meme idiome que `data-bp-mobile-nav` (T1609). --}}
+        <div data-bp-shell-bottom-nav="{{ $showInternalNavigation && ! $_conversationOuverte ? '1' : '0' }}"
+             class="min-h-screen flex flex-col bg-[var(--bp-page)] pt-0 pb-0 md:pb-0 mobile-safe-top {{ $showInternalNavigation ? 'md:pl-20' : '' }} {{ $showInternalNavigation && ! $_conversationOuverte ? 'mobile-safe-bottom-auth' : '' }}">
 
             <!-- Page Heading -->
             @isset($header)

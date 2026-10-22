@@ -10,7 +10,13 @@
         };
     @endphp
 
-    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+    {{-- TASK-1693 bug AC — pour une DISCUSSION, cette bande ne portait plus
+         que le badge : les actions y sont masquees et il n'y a pas de points.
+         Le badge ayant rejoint la ligne du pseudo, la bande entiere disparait
+         — une ligne de gagnee sur un ecran de telephone. Pour un ECHANGE elle
+         reste : elle y porte le statut, les points et les boutons. --}}
+    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 {{ $isDirectConversation ? 'hidden' : '' }}"
+         data-thread-status-banner>
         <div class="flex items-center justify-between flex-wrap gap-2">
             <div class="flex items-center gap-2">
                 @if($isDirectConversation)

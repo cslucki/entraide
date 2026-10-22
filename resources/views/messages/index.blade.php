@@ -119,6 +119,16 @@
                             @endif
                         </p>
                     </div>
+                        {{-- TASK-1693 bug AC — le badge rejoint la ligne du
+                             pseudo, a droite. Isole sur sa propre ligne il
+                             coutait une bande entiere d'un ecran de
+                             telephone, pour un mot. --}}
+                        @if($transaction->isDirectConversation())
+                        <span data-conversation-badge
+                              class="ml-auto flex-shrink-0 inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                            {{ __('messages.direct_conversation') }}
+                        </span>
+                        @endif
                 </div>
                     <div class="flex-1 min-h-0 flex flex-col">
                         @livewire('message-thread', ['transaction' => $transaction])
@@ -215,6 +225,16 @@
                                 @endif
                             </p>
                         </div>
+                        {{-- TASK-1693 bug AC — le badge rejoint la ligne du
+                             pseudo, a droite. Isole sur sa propre ligne il
+                             coutait une bande entiere d'un ecran de
+                             telephone, pour un mot. --}}
+                        @if($transaction->isDirectConversation())
+                        <span data-conversation-badge
+                              class="ml-auto flex-shrink-0 inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                            {{ __('messages.direct_conversation') }}
+                        </span>
+                        @endif
                     </div>
                     <div class="flex-1 min-h-0 flex flex-col">
                         @livewire('message-thread', ['transaction' => $transaction])
