@@ -92,6 +92,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'banned_at',
         'rating',
         'referral_code',
+        'slug',
     ];
 
     protected $hidden = [
@@ -240,6 +241,30 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         return true;
+    }
+
+    /**
+     * TASK-1693 bug Z — le registre des adresses publiques de ce membre,
+     * courante ET passees. Les passees restent prises : voir `UserSlug`.
+     */
+    public function slugs(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(UserSlug::class);
+    }
+
+    /**
+     * Le segment d'URL a utiliser pour atteindre ce profil.
+     *
+     * Le slug quand il existe, l'identifiant sinon. On NE surcharge PAS
+     * `getRouteKey()` : 30 routes hors profil resolvent un `{user}` par
+     * LIAISON IMPLICITE sur l'identifiant, et elles recevraient alors un slug
+     * qu'elles ne sauraient pas resoudre — toute l'administration tomberait en
+     * 404. La jolie adresse est donc obtenue par la redirection canonique de
+     * `ProfileController::show()`, pas en changeant la clef du modele.
+     */
+    public function profileRouteKey(): string
+    {
+        return $this->slug ?: $this->id;
     }
 
     public function publicDisplayName(): string

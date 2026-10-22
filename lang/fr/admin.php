@@ -1738,4 +1738,7 @@ return [
     'user_delete_blocked_title' => "Ce qui empeche encore la suppression",
     'user_delete_final_title' => "Suppression definitive",
     'user_delete_final_hint' => "Cette action est irreversible. Le compte et ses donnees personnelles seront detruits ; le contenu collaboratif reste, sans auteur.",
+    // TASK-1693 bug Z
+    'user_slug' => 'Adresse publique du profil',
+    'user_slug_help' => 'Lettres minuscules, chiffres et tirets. L\'ancienne adresse restera reservee a cette personne et continuera de rediriger.',
 ];

@@ -221,6 +221,8 @@ class AdminController extends Controller
         $data = $request->validate([
             'first_name' => 'nullable|string|max:255',
             'name' => 'required|string|max:255',
+            // TASK-1693 bug Z — l'adresse publique du profil.
+            'slug' => 'nullable|string|max:60',
             'email' => 'required|email|max:255|unique:users,email,'.$user->id,
             'phone' => 'nullable|string|max:30',
             'bio' => 'nullable|string|max:500',
@@ -238,6 +240,27 @@ class AdminController extends Controller
             'is_admin' => 'boolean',
             'banned' => 'boolean',
         ]);
+
+        // TASK-1693 bug Z — l'adresse publique passe par son autorite unique,
+        // la meme que l'ecran de profil. Deux refus distincts : une FORME
+        // invalide se corrige en reecrivant, une adresse DEJA PRISE en en
+        // choisissant une autre.
+        $slugDemande = isset($data['slug']) ? trim((string) $data['slug']) : null;
+        unset($data['slug']);
+
+        if ($slugDemande !== null && $slugDemande !== '' && $slugDemande !== $user->slug) {
+            $slugs = app(\App\Services\UserSlugService::class);
+
+            if (! $slugs->formeValide($slugDemande)) {
+                return back()->withInput()->withErrors(['slug' => __('profile.slug_invalid')]);
+            }
+
+            if (! $slugs->disponiblePour($user, $slugDemande)) {
+                return back()->withInput()->withErrors(['slug' => __('profile.slug_taken')]);
+            }
+
+            $slugs->attribuer($user, $slugDemande);
+        }
 
         $update = [
             'first_name' => $data['first_name'] ?? null,

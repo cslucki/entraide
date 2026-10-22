@@ -1718,4 +1718,7 @@ return [
     'user_delete_blocked_title' => "What still prevents deletion",
     'user_delete_final_title' => "Permanent deletion",
     'user_delete_final_hint' => "This cannot be undone. The account and its personal data are destroyed; collaborative content stays, without an author.",
+    // TASK-1693 bug Z
+    'user_slug' => 'Public profile address',
+    'user_slug_help' => 'Lowercase letters, digits and hyphens. The previous address stays reserved to this person and keeps redirecting.',
 ];

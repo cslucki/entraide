@@ -99,4 +99,11 @@ return [
     'profile_reminder_title' => 'Complétez votre profil avant de publier.',
     'profile_reminder_body' => 'Les champs :fields sont obligatoires — les membres ont besoin de savoir à qui ils ont affaire avant d\'échanger.',
     'reminder_fields' => 'Prénom, Nom, Téléphone, Ville, Pays et Présentation',
+    // TASK-1693 bug Z — l'adresse publique du profil.
+    'slug' => 'Adresse de votre profil',
+    'slug_prefix' => '…/profile/',
+    'slug_help' => 'Lettres minuscules, chiffres et tirets. Entre 3 et 60 caracteres. Laissez vide pour revenir a l\'adresse technique.',
+    'slug_change_notice' => 'Votre ancienne adresse continuera de fonctionner et restera reservee : aucun lien deja partage ne sera perdu.',
+    'slug_taken' => 'Cette adresse est deja prise dans votre Organisation. Choisissez-en une autre.',
+    'slug_invalid' => 'Cette adresse n\'est pas utilisable : lettres minuscules, chiffres et tirets uniquement, et certains mots sont reserves.',
 ];

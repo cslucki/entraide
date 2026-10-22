@@ -274,6 +274,14 @@ class UserDataLifecycleRegistry
             // sinon la trace ne protege personne. RETAIN, donc — la colonne
             // elle-meme est `nullOnDelete` au niveau de la base.
             ['key' => 'loop_messages_edited_by', 'type' => 'sql', 'table' => 'loop_messages', 'column' => 'edited_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Moderation audit: who edited a message must remain answerable.'],
+            // TASK-1693 bug Z — le registre des adresses publiques d'un membre.
+            //
+            // CASCADE, et c'est le seul choix juste : ces lignes n'existent que
+            // pour reserver des adresses A CETTE PERSONNE. Le compte parti,
+            // elles ne reservent plus rien — les RETENIR bloquerait
+            // indefiniment des adresses au nom de quelqu'un qui n'est plus la.
+            // La contrainte de base porte deja `cascadeOnDelete`.
+            ['key' => 'user_slugs', 'type' => 'sql', 'table' => 'user_slugs', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'Public address reservations only make sense while the account exists.'],
             ['key' => 'messages_edited_by', 'type' => 'sql', 'table' => 'messages', 'column' => 'edited_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_transaction', 'justification' => 'Moderation audit: who edited a message must remain answerable.'],
 
             ['key' => 'loop_events_created_by', 'type' => 'sql', 'table' => 'loop_events', 'column' => 'created_by', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'The event survives; its author is anonymized.'],

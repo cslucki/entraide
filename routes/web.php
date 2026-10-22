@@ -1590,7 +1590,19 @@ Route::prefix('/org/{organization}')
         // prouve : `auth` seul laisserait ce cross-tenant AUTHENTIFIE ouvert.
         Route::get('/services/{service}', [ServiceController::class, 'orgShow'])->middleware(['auth', 'organization.member'])->name('services.show')->whereUuid('service');
         Route::get('/requests/{request}', [RequestController::class, 'orgShow'])->middleware(['auth', 'organization.member'])->name('requests.show')->whereUuid('request');
-        Route::get('/profile/{user}', [ProfileController::class, 'show'])->middleware(['auth', 'organization.member'])->name('profile.show')->whereUuid('user');
+        // TASK-1693 bug Z — le segment accepte un SLUG ou un identifiant.
+        //
+        // `whereUuid('user')` faisait rendre 404 a « marie-dupont » AVANT meme
+        // d'atteindre le controleur. La contrainte servait a proteger les
+        // routes voisines du meme espace (`/profile/edit`, `/profile/ai-usage`,
+        // `/profile/availability`) — mais elles sont declarees PLUS HAUT dans
+        // ce groupe et gagnent deja la resolution. Le motif reste borne a un
+        // seul segment, et `UserSlugService::RESERVES` refuse ces mots a la
+        // saisie : on ne peut donc pas fabriquer une adresse morte.
+        //
+        // La sous-route `agent-ia` juste en dessous GARDE son `whereUuid` :
+        // elle resout par liaison implicite sur l'identifiant.
+        Route::get('/profile/{user}', [ProfileController::class, 'show'])->middleware(['auth', 'organization.member'])->name('profile.show')->where('user', '[A-Za-z0-9][A-Za-z0-9-]*');
         Route::middleware('ai-profiles.enabled')->group(function () {
             Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->middleware('consume.org')->name('agent-ia.profile.chat')->whereUuid('user');
         });

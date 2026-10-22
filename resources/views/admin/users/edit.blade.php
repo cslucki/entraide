@@ -55,6 +55,25 @@
                     </div>
                 </div>
 
+                {{-- TASK-1693 bug Z — l'adresse publique du profil.
+
+                     Chacun choisit la sienne depuis `/profile/edit` ; cet
+                     ecran-ci ARBITRE — une adresse qui usurpe une identite,
+                     une faute de frappe qu'on ne sait pas defaire. Les deux
+                     sont complementaires, pas redondants. --}}
+                <div class="mt-4" data-admin-slug-field>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.user_slug') }}</label>
+                    <div class="flex items-center gap-1">
+                        <span class="shrink-0 text-sm text-gray-400">{{ __('profile.slug_prefix') }}</span>
+                        <input type="text" name="slug" value="{{ old('slug', $user->slug) }}" maxlength="60" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    @error('slug')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+                    @enderror
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('admin.user_slug_help') }}</p>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email <span class="text-red-500">*</span></label>
