@@ -213,6 +213,21 @@ class DatasetRegistry
             new Dataset('reviews', 'reviews', $t, ['id', 'transaction_id', 'rating', 'organization_id', 'created_at']),
             new Dataset('transactions', 'transactions', $t, ['id', 'service_id', 'status', 'organization_id', 'created_at']),
             new Dataset('point_ledger', 'point_ledger', $t, ['id', 'user_id', 'delta', 'reason', 'organization_id', 'created_at']),
+
+            // TASK-1693 bug Z — le registre des adresses publiques de profil.
+            //
+            // `DiagnosticOnly`, et NON `AssignableTenant` : rattacher une
+            // ligne a NULL casserait possiblement l'unicite composite
+            // `['organization_id', 'slug']`. Si deux personnes sans
+            // Organization portent « marie-dupont » et qu'on les rattache
+            // toutes deux a la meme, la contrainte refuse — et l'outil
+            // echouerait au milieu d'un lot. La ligne se montre donc, sans
+            // jamais etre offerte a l'affectation.
+            //
+            // Un NULL y est d'ailleurs rare et legitime : il dit que la
+            // personne n'avait pas d'Organization quand son adresse a ete
+            // attribuee, ce que `users.organization_id` autorise.
+            new Dataset('user_slugs', 'user_slugs', $d, ['id', 'user_id', 'slug', 'is_current', 'organization_id', 'created_at']),
             new Dataset('messages', 'messages', $t, ['id', 'transaction_id', 'sender_id', 'type', 'organization_id', 'created_at']),
             new Dataset('loops', 'loops', $t, ['id', 'name', 'slug', 'status', 'organization_id', 'created_at']),
             new Dataset('loop_members', 'loop_members', $t, ['id', 'loop_id', 'user_id', 'role', 'status', 'organization_id']),

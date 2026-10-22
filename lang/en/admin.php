@@ -1085,6 +1085,9 @@ return [
         'dataset_transactions_desc' => 'Tenant data: a NULL predates organization scoping.',
         'dataset_point_ledger' => 'Point ledger',
         'dataset_point_ledger_desc' => 'Point movements. They belong to an organization.',
+        // TASK-1693 bug Z — the public profile address ledger.
+        'dataset_user_slugs' => 'Profile addresses',
+        'dataset_user_slugs_desc' => 'Public profile addresses, current and past. Shown only: reassigning them could clash with address uniqueness inside an organization.',
         'dataset_messages' => 'Transaction messages',
         'dataset_messages_desc' => 'Tenant data: a NULL predates organization scoping.',
         'dataset_loops' => 'Loops',

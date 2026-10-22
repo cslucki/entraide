@@ -1096,6 +1096,9 @@ return [
         'dataset_transactions_desc' => 'Donnee de tenant : un NULL vient d\'avant le rattachement aux organisations.',
         'dataset_point_ledger' => 'Journal de points',
         'dataset_point_ledger_desc' => 'Mouvements de points. Ils appartiennent a une organisation.',
+        // TASK-1693 bug Z — le registre des adresses publiques de profil.
+        'dataset_user_slugs' => 'Adresses de profil',
+        'dataset_user_slugs_desc' => "Les adresses publiques des profils, courantes et passees. Montrees seulement : les rattacher pourrait heurter l'unicite d'une adresse au sein d'une organisation.",
         'dataset_messages' => 'Messages de transaction',
         'dataset_messages_desc' => 'Donnee de tenant : un NULL vient d\'avant le rattachement aux organisations.',
         'dataset_loops' => 'Boucles',
