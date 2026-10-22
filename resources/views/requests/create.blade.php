@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 @php
     $requestTerm = app()->getLocale() === 'en' ? __('marketplace.request_term') : ($T['request'] ?? __('marketplace.request_term'));
     $_reqOrgSlug = request()->route('organization');
@@ -21,7 +22,10 @@
             </div>
         </div>
 
-        <div x-data="{
+        {{-- TASK-1693 bug AF — meme garde que sur Proposer de l'aide : l'aide
+             a reformuler ne s'offre que si l'IA est utilisable ici. --}}
+        @if($_aiGate->availableHere())
+        <div data-ai-formulate-block x-data="{
             loading: false,
             suggestion: null,
             error: null,
@@ -121,6 +125,7 @@
 
             <div x-show="error" x-transition class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300" x-text="error"></div>
         </div>
+        @endif
 
         @if($errors->any())
         <div class="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">

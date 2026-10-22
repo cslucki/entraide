@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 @php
     $serviceTerm = app()->getLocale() === 'en' ? __('marketplace.service_term') : ($T['service'] ?? __('marketplace.service_term'));
     $_svcOrgSlug = request()->route('organization');
@@ -22,7 +23,12 @@
         </div>
 
         <!-- AI Formulation Panel -->
-        <div x-data="{
+        {{-- TASK-1693 bug AF — l'aide a reformuler ne s'offre que si l'IA est
+             utilisable pour cette Organization. `ProviderResolver` refusait
+             deja cote serveur : c'etait une poignee posee sur une porte muree.
+             Voir `AiSurfaceGate`. --}}
+        @if($_aiGate->availableHere())
+        <div data-ai-formulate-block x-data="{
             loading: false,
             suggestion: null,
             error: null,
@@ -166,6 +172,7 @@
             <!-- Error -->
             <div x-show="error" x-transition class="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg text-sm text-red-700 dark:text-red-300" x-text="error"></div>
         </div>
+        @endif
 
         @if($errors->any())
         <div class="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">

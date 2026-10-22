@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 <x-app-layout>
     @php
         $orgParam = request()->route('organization');
@@ -537,7 +538,13 @@
                          loop_knowledge_answer) — jamais de generation
                          automatique, un bouton explicite, un fragment HTML
                          rendu serveur insere par Alpine. --}}
+                    {{-- TASK-1693 bug AF — « Generer la synthese » ne s'offre
+                         que si l'IA est utilisable pour cette Organization.
+                         Le reste de la vue Documents — depot, liste, recherche
+                         — est INCHANGE : il ne depend pas de l'IA. --}}
+                    @if($_aiGate->availableHere())
                     <div x-show="vue === 'documents'"
+                         data-ai-insights-block
                          x-data="dossierInsights(@js([
                              'endpoint' => route('organization.dossiers.insights', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey()]),
                              'hasIndexedContent' => $dossierHasIndexedContent,
@@ -576,6 +583,7 @@
                             <div class="mt-4" x-html="resultHtml" data-dossier-insights-container></div>
                         </section>
                     </div>
+                    @endif
 
                     {{-- Recherche semantique (pilote, gatee par
                          DossierSemanticSearchGate) : re-logee en bloc autonome

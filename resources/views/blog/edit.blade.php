@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 <x-app-layout>
     @php
         $_blogRoute = function ($name, $parameters = []) {
@@ -1065,7 +1066,11 @@
                 {{-- /Plan card --}}
 
                 {{-- Questionner selection card --}}
+                {{-- TASK-1693 bug AF — la carte ne s'offre que si l'IA est
+                     utilisable pour cette Organization. --}}
+                @if($_aiGate->availableHere())
                 <div
+                    data-ai-selection-card
                     x-data="blogMethodSelectionCard({
                         selectionUrl: @js($_blogRoute('ai-method-selection')),
                         annotationStoreUrl: @js($_blogRoute('annotations.store', ['post' => $post])),
@@ -1166,6 +1171,7 @@
                         </div>
                     </div>
                 </div>
+                @endif
                 {{-- /Questionner selection card --}}
 
         {{-- Explorer notes card --}}

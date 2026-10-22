@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Favorite;
 use App\Models\MemberAiProfile;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\Referral;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -215,6 +216,15 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
         ]);
 
         $organizationA->update(['is_default' => true]);
+
+        // TASK-1693 bug AF — l'etape d'onboarding « Creer mon agent IA » suit
+        // desormais l'interrupteur IA de l'Organization. Les tests de ce fichier
+        // comptent les 4 etapes : sans credential utilisable, la 4e disparait et
+        // ils mesureraient l'absence de l'etape au lieu de son etat.
+        OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $organizationA->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
 
         return [$organizationA, $organizationB];
     }

@@ -84,7 +84,7 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
-        $aiProfile = $organization->ai_profiles_enabled
+        $aiProfile = app(\App\Support\Ai\AiSurfaceGate::class)->memberAgentAvailableFor($organization)
             ? MemberAiProfile::forUser($user)->forOrganization($organization)->first()
             : null;
 
@@ -126,7 +126,15 @@ class DashboardController extends Controller
             return route($name, $parameters);
         };
 
-        $aiProfileDisabled = ! $organization->ai_profiles_enabled;
+        // TASK-1693 bug AF — l'etape « Creer mon agent IA » tombe aussi quand
+        // l'IA de l'Organization est ETEINTE.
+        //
+        // Elle ne lisait que `ai_profiles_enabled` — le choix PRODUIT — et
+        // ignorait « Activer les fonctions IA pour cette organisation ». Une
+        // Organization dont l'IA etait eteinte proposait donc une etape
+        // d'accueil que le serveur allait refuser.
+        $aiProfileDisabled = ! app(\App\Support\Ai\AiSurfaceGate::class)
+            ->memberAgentAvailableFor($organization);
         $subscriptionsEnabled = $organization->subscriptions_enabled;
 
         $stepsKeys = ['presentation', 'request', 'service', 'ai_profile'];
