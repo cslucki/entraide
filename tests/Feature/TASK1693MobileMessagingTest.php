@@ -251,4 +251,45 @@ class TASK1693MobileMessagingTest extends TestCase
             '`capture` n\'a de sens que sur un appareil qui a une camera',
         );
     }
+
+    // ── Bug AD : le composeur tient vraiment le bas de l'ecran ───────────────
+
+    /**
+     * TASK-1693 bug AD — une bande vide restait SOUS le composeur.
+     *
+     * La hauteur du conteneur soustrayait `4rem` : la hauteur de la barre
+     * d'outils, recopiee EN DUR dans la feuille de la page. Le bug AC ayant
+     * retire cette barre des conversations, la page continuait de s'en
+     * defalquer — et le composeur ne touchait plus le bas.
+     *
+     * Les deux suivent desormais la MEME decision, `--bp-bottom-nav`, pilotee
+     * par `data-bp-shell-bottom-nav`. Une hauteur recopiee a deux endroits
+     * finit toujours par diverger : c'est ce qui vient de se produire.
+     */
+    public function test_the_page_height_follows_the_same_decision_as_the_bar(): void
+    {
+        $html = $this->conversation($this->discussion());
+
+        $this->assertStringContainsString('var(--bp-bottom-nav', $html,
+            'la page doit se defalquer de la barre par la variable, pas par une copie');
+
+        $this->assertStringNotContainsString('100dvh - 3.5rem - 4rem', $html,
+            'une hauteur de barre recopiee en dur rejoue exactement ce defaut');
+    }
+
+    /** La variable vaut zero dans une conversation, et la hauteur de la barre ailleurs. */
+    public function test_the_variable_is_zero_inside_a_conversation(): void
+    {
+        $conversation = $this->conversation($this->discussion());
+        $liste = $this->liste();
+
+        $this->assertStringContainsString('data-bp-shell-bottom-nav="0"', $conversation);
+        $this->assertStringContainsString('data-bp-shell-bottom-nav="1"', $liste);
+
+        // La regle qui donne sa valeur a la variable doit exister dans les deux
+        // pages : c'est elle qui fait suivre la hauteur.
+        foreach ([$conversation, $liste] as $html) {
+            $this->assertStringContainsString('[data-bp-shell-bottom-nav="1"] { --bp-bottom-nav:', $html);
+        }
+    }
 }

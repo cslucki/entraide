@@ -6,7 +6,12 @@
         }
 
         .messages-index-container {
-            height: calc(100dvh - 3.5rem - 4rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+            /* TASK-1693 bug AD — `4rem` etait la hauteur de la barre d'outils,
+               recopiee en dur. Le bug AC l'ayant retiree des conversations,
+               cette page continuait de la soustraire : d'ou une bande vide
+               sous le composeur, qui ne tenait donc plus le bas de l'ecran.
+               `--bp-bottom-nav` suit la meme decision que la barre. */
+            height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px) - var(--bp-bottom-nav, 0px));
         }
     }
 

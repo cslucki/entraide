@@ -182,9 +182,20 @@
             /* Mobile safe areas */
             .mobile-safe-top { padding-top: 0; }
             .mobile-safe-bottom-auth { padding-bottom: 0; }
+
+            /* TASK-1693 bug AD — la hauteur de la barre d'outils, a UN endroit.
+               Elle etait recopiee en dur (`4rem`) partout ou une page devait
+               s'en defalquer. Quand le bug AC l'a retiree des conversations,
+               `messages/index` a continue de la soustraire : d'ou une bande
+               vide sous le composeur. La variable suit `data-bp-shell-bottom-nav`,
+               donc la MEME decision que la barre elle-meme. */
+            :root { --bp-bottom-nav: 0px; }
+            [data-bp-shell-bottom-nav="0"] { --bp-bottom-nav: 0px; }
+
             @media (max-width: 767px) {
                 .mobile-safe-top { padding-top: calc(3.5rem + env(safe-area-inset-top, 0px)); }
-                .mobile-safe-bottom-auth { padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px)); }
+                [data-bp-shell-bottom-nav="1"] { --bp-bottom-nav: calc(4rem + env(safe-area-inset-bottom, 0px)); }
+                .mobile-safe-bottom-auth { padding-bottom: var(--bp-bottom-nav); }
             }
         </style>
     </head>
