@@ -71,6 +71,23 @@ class TASK1693MessagingShellTest extends TestCase
         Http::fake();
     }
 
+    /**
+     * L'IA devient utilisable pour cette Organization.
+     *
+     * Le FAB suit deja cette disponibilite depuis TASK-1685 : sans credential
+     * il n'est pas rendu DU TOUT, et les deux tests de l'assistant
+     * mesureraient cette absence-la au lieu de la garde du bug AR.
+     */
+    private function allumerLIA(): void
+    {
+        \App\Models\OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $this->organization->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
+
+        app()->forgetInstance(\App\Support\Ai\AiSurfaceGate::class);
+    }
+
     private function urlConversation(): string
     {
         return route('organization.messages.show', [
@@ -117,6 +134,42 @@ class TASK1693MessagingShellTest extends TestCase
         $this->assertStringContainsString(
             'data-bp-shell-bottom-nav="1"',
             $this->page($this->urlListe()),
+        );
+    }
+
+    /**
+     * TASK-1693 bug AR — l'assistant revient sur ORDINATEUR.
+     *
+     * Le bug AC l'avait emporte avec la barre du bas. Il est de nouveau rendu
+     * sur une conversation, mais efface sur TELEPHONE par `hidden md:inline-flex` :
+     * il s'y poserait au-dessus de la zone d'ecriture.
+     */
+    public function test_the_assistant_comes_back_on_desktop_only(): void
+    {
+        $this->allumerLIA();
+
+        $conversation = $this->page($this->urlConversation());
+
+        $this->assertStringContainsString('data-ai-fab-toggle', $conversation,
+            'l\'assistant doit etre atteignable depuis une conversation');
+        $this->assertMatchesRegularExpression(
+            '/bp-ai-trigger[^"]*\bhidden md:inline-flex\b/',
+            $conversation,
+            'et efface sur telephone, ou il couvrirait la zone d\'ecriture',
+        );
+    }
+
+    /** Ailleurs, il reste visible sur les DEUX tailles d'ecran. */
+    public function test_the_assistant_is_not_hidden_elsewhere(): void
+    {
+        $this->allumerLIA();
+
+        $liste = $this->page($this->urlListe());
+
+        $this->assertStringContainsString('data-ai-fab-toggle', $liste);
+        $this->assertDoesNotMatchRegularExpression(
+            '/bp-ai-trigger[^"]*\bhidden md:inline-flex\b/',
+            $liste,
         );
     }
 

@@ -236,9 +236,11 @@
         @if($showInternalNavigation && ! $_conversationOuverte)
         <x-mobile-bottom-nav />
         <x-mobile-fab />
+        @endif
+        @if($showInternalNavigation)
         {{-- TASK-1231 : FAB « BouclePro IA » — layout membre uniquement (jamais
              guest / admin / org-admin). Contexte calcule cote serveur. --}}
-        <x-ai-fab />
+        <x-ai-fab :hide-on-mobile="$_conversationOuverte" />
         {{-- TASK-1315 : le Shell « BouclePro IA ». Monte ici, donc remonte a
              chaque page — l'application ne fait aucune navigation SPA. Ce qui
              survit a la navigation est le FIL, relu en base a chaque montage,

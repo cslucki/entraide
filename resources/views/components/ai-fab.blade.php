@@ -1,3 +1,4 @@
+@props(['hideOnMobile' => false])
 @auth
 @php
     // TASK-1231 : FAB « BouclePro IA » — point d'entree unique et contextuel.
@@ -82,7 +83,13 @@
             aria-label="{{ __('ai.fab_open') }}"
             title="{{ __('ai.fab_label') }}"
             data-ai-fab-toggle
-            class="bp-ai-trigger fixed bottom-36 right-4 md:bottom-24 md:right-6 z-40 inline-flex items-center gap-2 rounded-full text-white shadow-lg shadow-gray-900/20 ring-1 ring-white/20 active:scale-95 transition h-12 w-12 md:h-auto md:w-auto md:px-4 md:py-2.5 justify-center focus:outline-none">
+            {{-- TASK-1693 bug AR — sur une conversation, le bouton s'efface sur
+                 TELEPHONE et reste sur ORDINATEUR.
+                 Sur un telephone il se poserait a `bottom-36`, donc au-dessus
+                 de la zone d'ecriture : c'est le desordre que le bug AC avait
+                 retire. Sur un ordinateur rien ne le gene, et l'y cacher
+                 rendait l'assistant INATTEIGNABLE depuis une conversation. --}}
+            class="bp-ai-trigger fixed bottom-36 right-4 md:bottom-24 md:right-6 z-40 {{ $hideOnMobile ? 'hidden md:inline-flex' : 'inline-flex' }} items-center gap-2 rounded-full text-white shadow-lg shadow-gray-900/20 ring-1 ring-white/20 active:scale-95 transition h-12 w-12 md:h-auto md:w-auto md:px-4 md:py-2.5 justify-center focus:outline-none">
         {{-- Symbole de marque en monochrome blanc translucide : essai visuel,
              directement sur l'aplat violet/indigo du bouton, sans pastille. --}}
         <svg class="h-5 w-5 flex-shrink-0" viewBox="0 0 512 512" fill="none" stroke="white" stroke-width="46" stroke-linecap="round" stroke-opacity="0.92" aria-hidden="true">
