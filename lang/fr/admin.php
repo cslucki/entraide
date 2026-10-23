@@ -1203,6 +1203,9 @@ return [
         'dataset_ai_credit_setting_changes_desc' => 'NULL = reglage plateforme, comme l\'indique la migration.',
         'dataset_system_email_templates' => 'Gabarits d\'e-mail systeme',
         'dataset_system_email_templates_desc' => 'Unique sur organisation + langue + slug. NULL = gabarit systeme.',
+        // TASK-1694 bug U — l'archive, declaree en HistoryNullValid.
+        'dataset_system_email_templates_archive' => 'Archive des gabarits d\'e-mail systeme',
+        'dataset_system_email_templates_archive_desc' => 'Trace des gabarits retires par la normalisation (TASK-1694). Lecture seule : rattacher une ligne reecrirait la preuve.',
         'dataset_admin_ai_interactions' => 'Interactions IA administration',
         'dataset_admin_ai_interactions_desc' => 'Console d\'administration de la plateforme, hors Organization.',
         'dataset_ai_interactions' => 'Interactions IA',

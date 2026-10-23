@@ -301,9 +301,23 @@ class TASK1633ReferralForeignKeyConvergenceTest extends TestCase
         $this->assertNotContains('referrals', $sansContrainte);
         $this->assertNotContains('referral_rewards', $sansContrainte);
 
-        // `ai_provider_invocations` reste la seule exception, et elle est
-        // volontaire : ledger economique, FK retiree par une migration dediee.
-        $this->assertSame(['ai_provider_invocations'], $sansContrainte);
+        // Deux exceptions volontaires, et deux seulement :
+        //   · `ai_provider_invocations` — ledger economique, FK retiree par une
+        //     migration dediee (TASK-1220) ;
+        //   · `system_email_templates_archive` — TASK-1694 bug S : une archive
+        //     doit survivre a la suppression de l'Organization dont elle garde
+        //     la trace, sinon elle disparait au moment ou elle devient le seul
+        //     temoin.
+        //
+        // Les deux sont declarees dans `UnprotectedReferenceRegistry`, et ce
+        // test-ci est la TROISIEME copie en dur de la meme liste (avec
+        // `TASK1632DataIntegrityToolTest` et le registre lui-meme). Celle-ci ne
+        // tourne QUE sur PostgreSQL : le gate SQLite l'exclut, et l'ecart ne se
+        // voyait donc qu'en lancant les deux moteurs.
+        $this->assertSame(
+            ['ai_provider_invocations', 'system_email_templates_archive'],
+            $sansContrainte,
+        );
     }
 
     // ── helpers ───────────────────────────────────────────────────────────

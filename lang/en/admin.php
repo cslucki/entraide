@@ -1192,6 +1192,9 @@ return [
         'dataset_ai_credit_setting_changes_desc' => 'NULL = platform setting, as the migration states.',
         'dataset_system_email_templates' => 'System email templates',
         'dataset_system_email_templates_desc' => 'Unique on organization + locale + slug. NULL = system template.',
+        // TASK-1694 bug U — l'archive, declaree en HistoryNullValid.
+        'dataset_system_email_templates_archive' => 'System e-mail template archive',
+        'dataset_system_email_templates_archive_desc' => 'Trace of the templates removed by the normalization (TASK-1694). Read-only: reassigning a row would rewrite the evidence.',
         'dataset_admin_ai_interactions' => 'Admin AI interactions',
         'dataset_admin_ai_interactions_desc' => 'Platform administration console, outside any Organization.',
         'dataset_ai_interactions' => 'AI interactions',
