@@ -55,7 +55,23 @@ return [
     'ai_shell_toggle_label' => 'Enable the “BouclePro AI” assistant for this organization',
     'ai_shell_toggle_desc' => 'When unchecked, the floating badge and its chat panel no longer appear — even if AI remains enabled for this organization. Other AI features (rewording, summaries, agents) are unaffected.',
     'ai_shell_toggle_saved' => '“BouclePro AI” assistant: setting saved for this organization.',
-    'ai_shell_section_desc' => 'The floating “BouclePro AI” button and its chat panel, organization by organization. Unchecked, the assistant no longer appears — even if AI stays enabled. Other AI features (rewording, summaries, agents) are unaffected.',
+    'ai_shell_section_desc' => 'Where the floating button and its panel appear, organization by organization. The first box turns everything off. Private conversations, ChatLoop and discovery pages never carry it: those three are product decisions, and no box reopens them.',
+    // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
+    // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
+    // pas un tout-cocher : « Partout » se lisait comme une selection globale.
+    'ai_shell_surface_everywhere' => 'Enabled',
+    'ai_shell_select_all' => 'All',
+    'ai_shell_select_none' => 'None',
+    'ai_shell_surface_organization_home' => 'Home',
+    'ai_shell_surface_dashboard' => 'Dashboard',
+    'ai_shell_surface_agenda' => 'Agenda',
+    'ai_shell_surface_directory' => 'Directory',
+    'ai_shell_surface_dossiers' => 'Dossiers',
+    'ai_shell_surface_dossier' => 'A dossier',
+    'ai_shell_surface_blog' => 'Blog',
+    'ai_shell_surface_article' => 'An article',
+    'ai_shell_surface_exchanges' => 'Exchanges',
+    'ai_shell_surface_profile' => 'Profile',
     'ai_profile_toggle_desc' => 'When disabled, AI profiles, wizard and exchanges are only accessible to subscribers of this organization.',
     // TASK-1693 bug AS — le reglage se pose desormais sur l'ecran IA de
     // l'Organization, et non plus depuis la liste de /admin/ai-config.

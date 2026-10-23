@@ -196,6 +196,33 @@ final class AiFabContext
         return in_array((string) ($request->route()?->getName() ?? ''), self::DISCOVERY_SURFACE_ROUTES, true);
     }
 
+    /**
+     * Cette Organization refuse-t-elle l'assistant sur la surface courante ?
+     *
+     * TASK-1693 bug AW. `null` et `[]` se lisent tous deux « aucune surface
+     * refusee » : une Organization qui n'a jamais rien decide garde tout.
+     *
+     * Une surface que la table ne nomme pas (`unknown`) n'est JAMAIS refusee :
+     * l'inconnu ne se coche pas dans l'ecran d'administration, donc le refuser
+     * eteindrait l'assistant sur des pages que personne n'a choisies.
+     */
+    public function isSurfaceRefused(Request $request, Organization $organization): bool
+    {
+        $refusees = $organization->ai_shell_disabled_surfaces;
+
+        if (! is_array($refusees) || $refusees === []) {
+            return false;
+        }
+
+        $surface = AiShellPageContext::surfaceFor((string) ($request->route()?->getName() ?? ''));
+
+        if ($surface === AiShellPageContext::SURFACE_UNKNOWN) {
+            return false;
+        }
+
+        return in_array($surface, $refusees, true);
+    }
+
     /** La page en cours est-elle la Messagerie ? (TASK-1693 bug AT) */
     public function isMessagingSurface(Request $request): bool
     {
@@ -273,6 +300,21 @@ final class AiFabContext
         // rend `null`, et `shouldRenderFab()` comme `shouldMountShell()`
         // tombent ensemble.
         if (! ($organization->ai_shell_enabled ?? true)) {
+            return null;
+        }
+
+        // TASK-1693 bug AW — et surface par surface.
+        //
+        // Le drapeau ci-dessus est le tout-ou-rien ; celui-ci dit OU. La
+        // surface est resolue par `AiShellPageContext::surfaceFor()`, la MEME
+        // autorite que le Shell lit pour se nommer — pas une seconde carte des
+        // routes, qui divergerait au premier ecran ajoute.
+        //
+        // Les exclusions EN DUR (ChatLoop, decouverte, Messagerie) restent
+        // AU-DESSUS : elles sont testees avant, dans `forRequest()`. Cocher
+        // une surface ici ne peut donc pas rouvrir une porte qu'un arbitrage
+        // produit a fermee.
+        if ($this->isSurfaceRefused($request, $organization)) {
             return null;
         }
 

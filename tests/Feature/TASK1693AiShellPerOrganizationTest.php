@@ -222,6 +222,185 @@ class TASK1693AiShellPerOrganizationTest extends TestCase
         $this->assertStringContainsString('data-ai-shell-enabled="0"', $html);
     }
 
+    // ── TASK-1693 bug AW : le tableau Organizations x surfaces ───────────────
+
+    private function refuser(array $surfaces): void
+    {
+        $this->organization->forceFill(['ai_shell_disabled_surfaces' => $surfaces])->save();
+        app()->instance('current_organization', $this->organization->fresh());
+    }
+
+    private function pageExplorer(): string
+    {
+        return $this->actingAs($this->membre)
+            ->get(route('organization.explorer', ['organization' => $this->organization->slug]))
+            ->assertOk()
+            ->getContent();
+    }
+
+    /** Refuser UNE surface n'eteint QUE celle-la. */
+    public function test_refusing_one_surface_only_touches_that_surface(): void
+    {
+        $this->refuser(['exchanges']);
+
+        $this->assertStringNotContainsString('data-ai-fab-toggle', $this->pageExplorer(),
+            'l\'assistant doit disparaitre des Echanges');
+
+        $this->assertStringContainsString('data-ai-fab-toggle', $this->tableauDeBord(),
+            'et rester sur le tableau de bord, qui n\'a pas ete refuse');
+    }
+
+    /** Aucune surface refusee : tout reste, `null` compris. */
+    public function test_no_refused_surface_means_everything_stays(): void
+    {
+        foreach ([null, []] as $valeur) {
+            $this->refuser($valeur ?? []);
+
+            $this->assertStringContainsString('data-ai-fab-toggle', $this->pageExplorer());
+            $this->assertStringContainsString('data-ai-fab-toggle', $this->tableauDeBord());
+        }
+    }
+
+    /**
+     * Une surface que la table ne nomme pas n'est JAMAIS refusee.
+     *
+     * L'inconnu ne se coche pas dans l'ecran d'administration : le refuser
+     * eteindrait l'assistant sur des pages que personne n'a choisies.
+     */
+    public function test_an_unnamed_surface_is_never_refused(): void
+    {
+        // La valeur `unknown` ne peut pas entrer par l'ecran — la validation
+        // n'accepte que les clefs du catalogue. On l'ECRIT donc directement :
+        // c'est exactement ce contre quoi la garde protege — une donnee
+        // ancienne, un seed, une main sur la base.
+        //
+        // Ma premiere version refusait `['exchanges', 'dashboard']` et visitait
+        // une page inconnue : elle restait VERTE la garde retiree, puisque
+        // `unknown` n'etait de toute facon pas dans la liste. Un test qui ne
+        // peut pas rougir ne prouve rien.
+        $this->refuser(['unknown']);
+
+        // Les favoris ne figurent pas dans `SURFACE_ROUTES` : leur surface est
+        // `unknown`.
+        $html = $this->actingAs($this->membre)
+            ->get(route('organization.favorites.index', ['organization' => $this->organization->slug]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-ai-fab-toggle', $html);
+    }
+
+    /** L'interrupteur general PRIME : coupe, aucune case ne rallume rien. */
+    public function test_the_master_switch_wins_over_the_boxes(): void
+    {
+        $this->organization->forceFill([
+            'ai_shell_enabled' => false,
+            'ai_shell_disabled_surfaces' => [],
+        ])->save();
+        app()->instance('current_organization', $this->organization->fresh());
+
+        $this->assertStringNotContainsString('data-ai-fab-toggle', $this->tableauDeBord());
+    }
+
+    /**
+     * Les exclusions EN DUR restent au-dessus du tableau.
+     *
+     * Cocher « partout » ne doit pas rouvrir la Messagerie (bug AT), qui est
+     * un arbitrage produit et non un reglage.
+     */
+    public function test_the_hard_exclusions_stay_above_the_table(): void
+    {
+        $this->refuser([]);
+
+        $html = $this->actingAs($this->membre)
+            ->get(route('organization.messages.index', ['organization' => $this->organization->slug]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-ai-fab-toggle', $html);
+    }
+
+    /** Le tableau montre une case par surface, et dit l'etat stocke. */
+    public function test_the_table_shows_one_box_per_surface(): void
+    {
+        $this->refuser(['exchanges']);
+
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-ai-shell-table', $html);
+
+        foreach (array_keys(\App\Support\Ai\AiShellPageContext::SURFACE_ROUTES) as $surface) {
+            $this->assertStringContainsString(
+                'data-ai-shell-surface="'.$this->organization->slug.':'.$surface.'"',
+                $html,
+                "la surface {$surface} doit avoir sa case",
+            );
+        }
+
+        // Et l'etat STOCKE se lit : « Echanges » decochee, le reste coche.
+        $this->assertMatchesRegularExpression(
+            '/value="exchanges"[^>]*data-ai-shell-surface="'.$this->organization->slug.':exchanges"(?![^>]*checked)/',
+            $html,
+        );
+    }
+
+    /**
+     * Un « tout / rien » par ligne, et l'interrupteur general NOMME.
+     *
+     * Dix cases a cocher une par une etaient un travail de scribe. Et
+     * « Partout » se lisait comme une selection globale alors que c'est
+     * l'interrupteur general : la colonne s'appelle desormais « Active ».
+     *
+     * Le geste est PUREMENT CLIENT — il coche des cases, il n'enregistre rien.
+     * Un test serveur ne peut donc verifier que sa PRESENCE sur chaque ligne ;
+     * il ne prouvera jamais qu'il coche vraiment. Je le dis plutot que de
+     * laisser croire le contraire.
+     */
+    public function test_each_row_offers_a_select_all(): void
+    {
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+
+        $lignes = substr_count($html, 'data-ai-shell-row=');
+
+        $this->assertGreaterThan(0, $lignes);
+        $this->assertSame($lignes, substr_count($html, 'data-ai-shell-select-all'));
+        $this->assertSame($lignes, substr_count($html, 'data-ai-shell-select-none'));
+
+        $this->assertStringContainsString(e(__('admin.ai_shell_surface_everywhere')), $html);
+    }
+
+    /** Ecrire le tableau enregistre le COMPLEMENT des cases cochees. */
+    public function test_writing_the_table_stores_the_refused_surfaces(): void
+    {
+        $toutes = array_keys(\App\Support\Ai\AiShellPageContext::SURFACE_ROUTES);
+        $allumees = array_values(array_diff($toutes, ['exchanges', 'blog']));
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.ai-config.shell'), [
+                'organization_id' => $this->organization->id,
+                'ai_shell_enabled' => '1',
+                'surfaces' => $allumees,
+            ])
+            ->assertRedirect(route('admin.ai-config'));
+
+        $refusees = $this->organization->fresh()->ai_shell_disabled_surfaces;
+
+        sort($refusees);
+        $this->assertSame(['blog', 'exchanges'], $refusees);
+    }
+
+    /** Une surface inventee est REFUSEE par la validation. */
+    public function test_an_invented_surface_is_rejected(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.ai-config.shell'), [
+                'organization_id' => $this->organization->id,
+                'ai_shell_enabled' => '1',
+                'surfaces' => ['exchanges', 'surface-inventee'],
+            ])
+            ->assertSessionHasErrors('surfaces.1');
+    }
+
     public function test_the_superadmin_can_write_it(): void
     {
         $this->actingAs($this->superAdmin)

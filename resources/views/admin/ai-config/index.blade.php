@@ -225,31 +225,82 @@
             <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('admin.ai_shell_section_title') }}</h3>
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-4">{{ __('admin.ai_shell_section_desc') }}</p>
 
-            <div class="space-y-2">
-                @foreach($organizations as $org)
-                    <form method="POST" action="{{ route('admin.ai-config.shell') }}"
-                          class="flex flex-wrap items-center gap-3 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5"
-                          data-ai-shell-form="{{ $org->slug }}"
-                          data-ai-shell-enabled="{{ ($org->ai_shell_enabled ?? true) ? '1' : '0' }}">
-                        @csrf
-                        <input type="hidden" name="organization_id" value="{{ $org->id }}">
-                        <input type="hidden" name="ai_shell_enabled" value="0">
+            @php
+                // TASK-1693 bug AW — les surfaces viennent du CATALOGUE, jamais
+                // d'une liste recopiee ici : une surface ajoutee demain parait
+                // dans ce tableau sans qu'on y pense.
+                $_surfaces = array_keys(\App\Support\Ai\AiShellPageContext::SURFACE_ROUTES);
+            @endphp
 
-                        <label class="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100 cursor-pointer">
-                            <input type="checkbox" name="ai_shell_enabled" value="1"
-                                   @checked($org->ai_shell_enabled ?? true)
-                                   data-ai-shell-toggle
-                                   class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
-                            <span>{{ $org->name }}</span>
-                            <span class="text-gray-400 font-mono text-xs">{{ $org->slug }}</span>
-                        </label>
-
-                        <button type="submit"
-                                class="ml-auto px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">
-                            {{ __('admin.save') }}
-                        </button>
-                    </form>
-                @endforeach
+            <div class="overflow-x-auto" data-ai-shell-table>
+                <table class="min-w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th class="px-3 py-2 font-semibold">&nbsp;</th>
+                            <th class="px-3 py-2 font-semibold whitespace-nowrap">{{ __('admin.ai_shell_surface_everywhere') }}</th>
+                            @foreach($_surfaces as $_surface)
+                                <th class="px-3 py-2 font-medium whitespace-nowrap">{{ __('admin.ai_shell_surface_'.$_surface) }}</th>
+                            @endforeach
+                            <th class="px-3 py-2 font-medium whitespace-nowrap">&nbsp;</th>
+                            <th class="px-3 py-2">&nbsp;</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        @foreach($organizations as $org)
+                            @php
+                                $_refusees = (array) ($org->ai_shell_disabled_surfaces ?? []);
+                            @endphp
+                            {{-- TASK-1693 bug AW — « tout / rien » par ligne.
+                                 Dix cases a cocher une par une etaient un
+                                 travail de scribe. Le geste est PUREMENT
+                                 CLIENT : il coche les cases, il n'enregistre
+                                 rien — c'est « Enregistrer » qui decide, et la
+                                 validation serveur reste la seule autorite. --}}
+                            <tr x-data data-ai-shell-row="{{ $org->slug }}">
+                                <td class="px-3 py-2 whitespace-nowrap">
+                                    <span class="font-medium text-gray-900 dark:text-gray-100">{{ $org->name }}</span>
+                                    <span class="ml-1 text-gray-400 font-mono text-xs">{{ $org->slug }}</span>
+                                </td>
+                                <td class="px-3 py-2 text-center">
+                                    <form method="POST" action="{{ route('admin.ai-config.shell') }}" id="shell-{{ $org->slug }}"
+                                          data-ai-shell-form="{{ $org->slug }}"
+                                          data-ai-shell-enabled="{{ ($org->ai_shell_enabled ?? true) ? '1' : '0' }}">
+                                        @csrf
+                                        <input type="hidden" name="organization_id" value="{{ $org->id }}">
+                                        <input type="hidden" name="ai_shell_enabled" value="0">
+                                    </form>
+                                    <input type="checkbox" name="ai_shell_enabled" value="1" form="shell-{{ $org->slug }}"
+                                           @checked($org->ai_shell_enabled ?? true)
+                                           data-ai-shell-toggle
+                                           class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                                </td>
+                                @foreach($_surfaces as $_surface)
+                                    <td class="px-3 py-2 text-center">
+                                        <input type="checkbox" name="surfaces[]" value="{{ $_surface }}" form="shell-{{ $org->slug }}"
+                                               @checked(! in_array($_surface, $_refusees, true))
+                                               data-ai-shell-surface="{{ $org->slug }}:{{ $_surface }}"
+                                               class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                                    </td>
+                                @endforeach
+                                <td class="px-3 py-2 whitespace-nowrap text-center">
+                                    <button type="button" data-ai-shell-select-all
+                                            @click="$el.closest('tr').querySelectorAll('[data-ai-shell-surface]').forEach(c => c.checked = true)"
+                                            class="text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('admin.ai_shell_select_all') }}</button>
+                                    <span class="mx-1 text-gray-300 dark:text-gray-600">/</span>
+                                    <button type="button" data-ai-shell-select-none
+                                            @click="$el.closest('tr').querySelectorAll('[data-ai-shell-surface]').forEach(c => c.checked = false)"
+                                            class="text-xs font-semibold text-gray-500 hover:underline dark:text-gray-400">{{ __('admin.ai_shell_select_none') }}</button>
+                                </td>
+                                <td class="px-3 py-2 text-right">
+                                    <button type="submit" form="shell-{{ $org->slug }}"
+                                            class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition whitespace-nowrap">
+                                        {{ __('admin.save') }}
+                                    </button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
         </div>
 

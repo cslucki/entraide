@@ -55,7 +55,23 @@ return [
     'ai_shell_toggle_label' => 'Activer l\'assistant « BouclePro IA » pour cette organisation',
     'ai_shell_toggle_desc' => 'Quand il est décoché, la pastille flottante et son panneau de discussion n\'apparaissent plus — même si l\'IA reste activée pour cette organisation. Les autres fonctions IA (reformulation, synthèse, agents) ne sont pas touchées.',
     'ai_shell_toggle_saved' => 'Assistant « BouclePro IA » : réglage enregistré pour cette organisation.',
-    'ai_shell_section_desc' => 'Le bouton flottant « BouclePro IA » et son panneau de discussion, organisation par organisation. Décoché, l\'assistant n\'apparaît plus — même si l\'IA reste activée. Les autres fonctions IA (reformulation, synthèse, agents) ne sont pas touchées.',
+    'ai_shell_section_desc' => 'Où le bouton flottant et son panneau apparaissent, organisation par organisation. La première case coupe tout. Les conversations privées, le ChatLoop et les pages de découverte n\'en portent jamais : ces trois-là sont des arbitrages produit, et aucune case ne les rouvre.',
+    // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
+    // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
+    // pas un tout-cocher : « Partout » se lisait comme une selection globale.
+    'ai_shell_surface_everywhere' => 'Activé',
+    'ai_shell_select_all' => 'Tout',
+    'ai_shell_select_none' => 'Rien',
+    'ai_shell_surface_organization_home' => 'Accueil',
+    'ai_shell_surface_dashboard' => 'Tableau de bord',
+    'ai_shell_surface_agenda' => 'Agenda',
+    'ai_shell_surface_directory' => 'Annuaire',
+    'ai_shell_surface_dossiers' => 'Dossiers',
+    'ai_shell_surface_dossier' => 'Un Dossier',
+    'ai_shell_surface_blog' => 'Blog',
+    'ai_shell_surface_article' => 'Un article',
+    'ai_shell_surface_exchanges' => 'Échanges',
+    'ai_shell_surface_profile' => 'Profil',
     'ai_profile_toggle_desc' => 'Quand désactivé, les profils IA, le wizard et les échanges sont accessibles uniquement aux abonnés de l\'organisation.',
     // TASK-1693 bug AS — le reglage se pose desormais sur l'ecran IA de
     // l'Organization, et non plus depuis la liste de /admin/ai-config.

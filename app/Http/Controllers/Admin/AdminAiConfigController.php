@@ -12,7 +12,9 @@ use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\GuestShell\GuestShellPolicyService;
 use App\Support\GuestShell\GuestShellDisplayMode;
 use Illuminate\Http\RedirectResponse;
+use App\Support\Ai\AiShellPageContext;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminAiConfigController extends Controller
@@ -31,7 +33,7 @@ class AdminAiConfigController extends Controller
         // TASK-1693 bug AU — `ai_shell_enabled` doit etre SELECTIONNEE : sans
         // elle la case lirait le repli `?? true` et afficherait « active » sur
         // une Organization ou l'assistant est eteint.
-        $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug', 'ai_profiles_enabled', 'ai_shell_enabled']);
+        $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug', 'ai_profiles_enabled', 'ai_shell_enabled', 'ai_shell_disabled_surfaces']);
         $blogConfigs = [];
 
         foreach ($organizations as $org) {
@@ -160,13 +162,28 @@ class AdminAiConfigController extends Controller
      */
     public function updateShellConfig(Request $request): RedirectResponse
     {
+        // TASK-1693 bug AW — la ligne porte desormais l'interrupteur ET les
+        // surfaces. `surfaces` est la liste de ce qui reste ALLUME ; on
+        // enregistre son complement, parce qu'une liste d'autorisees rendrait
+        // toute surface ajoutee demain invisible par defaut (voir la
+        // migration).
+        //
+        // `Rule::in` sur les clefs du catalogue : une chaine soumise par le
+        // navigateur ne peut pas inventer une surface.
         $validated = $request->validate([
             'organization_id' => 'required|string|exists:organizations,id',
             'ai_shell_enabled' => 'required|boolean',
+            'surfaces' => 'sometimes|array',
+            'surfaces.*' => ['string', Rule::in(array_keys(AiShellPageContext::SURFACE_ROUTES))],
         ]);
 
-        Organization::findOrFail($validated['organization_id'])
-            ->update(['ai_shell_enabled' => $validated['ai_shell_enabled']]);
+        $allumees = (array) ($validated['surfaces'] ?? []);
+        $refusees = array_values(array_diff(array_keys(AiShellPageContext::SURFACE_ROUTES), $allumees));
+
+        Organization::findOrFail($validated['organization_id'])->update([
+            'ai_shell_enabled' => $validated['ai_shell_enabled'],
+            'ai_shell_disabled_surfaces' => $refusees,
+        ]);
 
         return redirect()->route('admin.ai-config')
             ->with('success', __('admin.ai_shell_toggle_saved'));
