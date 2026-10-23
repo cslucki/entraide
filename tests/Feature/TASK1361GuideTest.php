@@ -54,6 +54,16 @@ class TASK1361GuideTest extends TestCase
             'ai_profiles_enabled' => true,
         ]);
 
+        // TASK-1693 bug AG — l'etape « Creer mon agent IA » n'est comptee que
+        // si l'IA est UTILISABLE. Ce fichier mesure que le tableau de bord et
+        // le Guide disent LA MEME chose ; sans credential l'etape tombe des
+        // deux cotes, et `assertCount(4, ...)` mesurerait cette absence au
+        // lieu de l'accord entre les deux lecteurs.
+        \App\Models\OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $this->organization->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
+
         $this->member = User::factory()->complete()->create([
             'organization_id' => $this->organization->id,
             'first_name' => 'Noe',

@@ -176,6 +176,28 @@ class DashboardController extends Controller
             ];
         }, $stepsKeys, $stepsDone, $stepsCtaUrls);
 
+        // TASK-1693 bug AG — une etape verrouillee qui ne mene NULLE PART
+        // disparait.
+        //
+        // Au bug AF l'etape « Creer mon agent IA » tombait bien sous
+        // l'interrupteur, mais elle restait AFFICHEE, cadenassee, avec
+        // « Contacter l'administration » pour tout horizon — et elle comptait
+        // encore dans la progression, qui annoncait « 2/4 » une cible
+        // inatteignable. C'est la poignee sur la porte muree, un cran plus
+        // loin.
+        //
+        // L'etape RESTE quand l'Organization vend des abonnements : son lien
+        // mene alors a une offre reelle, et la retirer effacerait le seul
+        // chemin qui ouvre la porte. La distinction est donc « ce lien
+        // aboutit-il ? », pas « l'etape est-elle disponible ? ».
+        //
+        // Meme regle que `MemberOnboardingSteps::remainingFor()`, qui ecarte
+        // deja cette etape du RESTE A FAIRE.
+        $onboardingSteps = array_values(array_filter(
+            $onboardingSteps,
+            static fn (array $step): bool => $step['status'] !== 'disabled' || $step['cta_url'] !== null,
+        ));
+
         return view('dashboard', compact(
             'user',
             'myServices', 'myRequests', 'exchanges', 'recentMessages',

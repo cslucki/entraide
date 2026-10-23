@@ -132,12 +132,34 @@ class TASK1693AiSurfacesFollowTheSwitchTest extends TestCase
      *
      * Elle ignorait « Activer les fonctions IA pour cette organisation ».
      */
+    /**
+     * TASK-1693 bug AG — l'etape DISPARAIT, elle ne se cadenasse pas.
+     *
+     * Au bug AF elle tombait bien sous l'interrupteur, mais restait affichee
+     * avec « Contacter l'administration » pour tout horizon, et comptait
+     * encore dans la progression — qui annoncait « 2/4 » une cible
+     * inatteignable.
+     */
     public function test_the_onboarding_step_falls_with_the_general_switch(): void
     {
         $html = $this->page($this->urlOrg('organization.dashboard'));
 
-        $this->assertStringContainsString(e(__('dashboard.ai_profile_disabled_admin')), $html,
-            'l\'etape doit se dire indisponible, pas inviter a un geste refuse');
+        $this->assertStringNotContainsString(e(__('dashboard.steps.ai_profile.title')), $html,
+            'une etape qui ne mene nulle part ne doit pas etre affichee');
+        $this->assertStringNotContainsString(e(__('dashboard.ai_profile_disabled_admin')), $html);
+    }
+
+    /** Et la progression compte CE QUI RESTE : trois etapes, pas quatre. */
+    public function test_the_progress_counts_what_remains(): void
+    {
+        // Viser un marqueur EXPLICITE et non la chaine « /3 », qui parait
+        // ailleurs dans la page (classes Tailwind `w-1/3`, adresses, dates) :
+        // ma premiere version restait verte le filtre retire.
+        $this->assertStringContainsString('data-onboarding-total="3"', $this->page($this->urlOrg('organization.dashboard')));
+
+        $this->allumerLIA();
+
+        $this->assertStringContainsString('data-onboarding-total="4"', $this->page($this->urlOrg('organization.dashboard')));
     }
 
     /** Et elle revient quand l'IA est allumee. */
@@ -145,10 +167,56 @@ class TASK1693AiSurfacesFollowTheSwitchTest extends TestCase
     {
         $this->allumerLIA();
 
-        $this->assertStringNotContainsString(
-            e(__('dashboard.ai_profile_disabled_admin')),
+        $this->assertStringContainsString(
+            e(__('dashboard.steps.ai_profile.title')),
             $this->page($this->urlOrg('organization.dashboard')),
         );
+    }
+
+    /**
+     * Le Guide dit la MEME chose que le tableau de bord.
+     *
+     * `MemberOnboardingSteps` existe pour qu'il n'y ait qu'UNE verite
+     * d'onboarding. Elle ne lisait que le reglage produit : le Guide aurait
+     * continue d'annoncer une etape que le tableau de bord ne montre plus.
+     */
+    public function test_the_guide_drops_the_same_step(): void
+    {
+        $etapes = app(\App\Support\Onboarding\MemberOnboardingSteps::class)
+            ->remainingFor($this->membre, $this->organization);
+
+        $this->assertNotContains(
+            \App\Support\Onboarding\MemberOnboardingSteps::STEP_AI_PROFILE,
+            $etapes,
+            'le Guide ne doit pas proposer une etape que le tableau de bord retire',
+        );
+
+        $this->allumerLIA();
+
+        $this->assertContains(
+            \App\Support\Onboarding\MemberOnboardingSteps::STEP_AI_PROFILE,
+            app(\App\Support\Onboarding\MemberOnboardingSteps::class)
+                ->remainingFor($this->membre, $this->organization->fresh()),
+        );
+    }
+
+    /**
+     * Ce que le retrait ne doit PAS emporter.
+     *
+     * Quand l'Organization vend des abonnements, l'etape verrouillee mene a
+     * une offre REELLE : c'est le seul chemin qui ouvre la porte. La retirer
+     * effacerait la proposition commerciale. La regle est donc « ce lien
+     * aboutit-il ? », pas « l'etape est-elle disponible ? ».
+     */
+    public function test_the_locked_step_stays_when_it_leads_to_an_offer(): void
+    {
+        $this->organization->forceFill(['subscriptions_enabled' => true])->save();
+
+        $html = $this->page($this->urlOrg('organization.dashboard'));
+
+        $this->assertStringContainsString(e(__('dashboard.steps.ai_profile.title')), $html);
+        $this->assertStringContainsString(e(__('dashboard.ai_profile_disabled_subscription')), $html);
+        $this->assertStringContainsString('data-onboarding-total="4"', $html);
     }
 
     /**
@@ -164,8 +232,10 @@ class TASK1693AiSurfacesFollowTheSwitchTest extends TestCase
         $this->organization->forceFill(['ai_profiles_enabled' => false])->save();
         app()->instance('current_organization', $this->organization->fresh());
 
-        $this->assertStringContainsString(
-            e(__('dashboard.ai_profile_disabled_admin')),
+        // Bug AG : l'etape disparait, elle ne se cadenasse plus — la raison
+        // (reglage produit ou interrupteur technique) ne change pas l'issue.
+        $this->assertStringNotContainsString(
+            e(__('dashboard.steps.ai_profile.title')),
             $this->page($this->urlOrg('organization.dashboard')),
         );
     }

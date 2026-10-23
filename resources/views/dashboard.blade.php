@@ -34,8 +34,12 @@
             <button type="button" @click="open = !open"
                 class="w-full flex items-center justify-between gap-4 px-5 sm:px-6 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                 <div class="flex items-center gap-3 min-w-0">
-                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 text-xs font-bold">
-                        {{ $stepsDoneCount }}/4
+                    <div data-onboarding-total="{{ count($onboardingSteps) }}" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 text-xs font-bold">
+                        {{-- TASK-1693 bug AG — le total se COMPTE : une etape
+                             retiree (profil IA sans IA ni abonnement) ne doit
+                             plus figurer au denominateur, sinon la progression
+                             annonce une cible inatteignable. --}}
+                        {{ $stepsDoneCount }}/{{ count($onboardingSteps) }}
                     </div>
                     <div class="min-w-0">
                         <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">{{ __('dashboard.onboarding_badge') }}</p>
