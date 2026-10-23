@@ -4,9 +4,9 @@ namespace App\Services\Loops;
 
 use App\Models\EmailLog;
 use App\Models\LoopInvitation;
-use App\Models\SystemEmailTemplate;
 use App\Services\EmailerService;
 use App\Services\LoopInvitationService;
+use App\Support\Email\SystemEmailTemplateResolver;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -55,11 +55,12 @@ class LoopInvitationMailer
             ? $invitation->message
             : __('loops.invitation_default_message', ['loop' => $loop?->name]);
 
-        $template = SystemEmailTemplate::where('slug', 'loop_invitation')
-            ->where('enabled', true)
-            ->where('organization_id', $invitation->organization_id)
-            ->where('locale', app()->getLocale())
-            ->first();
+        // TASK-1694 bug M — la resolution passe par l'autorite unique. Elle ne
+        // regardait que les lignes du tenant : une ligne « Global » lui etait
+        // invisible. Les crans et leur ordre : voir
+        // `SystemEmailTemplateResolver`.
+        $resolver = app(SystemEmailTemplateResolver::class);
+        $template = $resolver->resolve('loop_invitation', $invitation->organization_id);
 
         $emailer = app(EmailerService::class);
         $extraKeys = [
@@ -93,12 +94,10 @@ class LoopInvitationMailer
                 $fallbackReason = 'render_error: '.$e->getMessage();
             }
         } else {
-            $fallbackReason = SystemEmailTemplate::where('slug', 'loop_invitation')
-                ->where('organization_id', $invitation->organization_id)
-                ->where('locale', app()->getLocale())
-                ->exists()
-                ? 'template_disabled'
-                : 'template_missing';
+            // Le diagnostic interroge LES MEMES crans que la resolution : une
+            // question posee sur d'autres lignes que celles reellement
+            // consultees produirait un journal faux.
+            $fallbackReason = $resolver->diagnoseAbsence('loop_invitation', $invitation->organization_id);
         }
 
         if ($fallbackReason !== null) {

@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\SystemEmailTemplate;
+use App\Support\Email\SystemEmailTemplateResolver;
 use App\Services\EmailerService;
 use Illuminate\Auth\Notifications\VerifyEmail as FrameworkVerifyEmail;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -68,16 +69,24 @@ class VerifyEmailWithTemplate extends FrameworkVerifyEmail
             ]);
     }
 
+    /**
+     * TASK-1694 bug M — passe par l'autorite unique, en GLOBAL DELIBERE.
+     *
+     * Le `null` passe en tenant n'est pas un oubli : decision de Cyril, « l'email
+     * de verification est Global, on ne va pas en creer un par organisation ».
+     * Le resolveur rend alors exactement les crans globaux — langue demandee,
+     * langue de repli, puis la ligne historique sans langue.
+     *
+     * Une Organization ne peut donc PAS surcharger cet email, meme si elle
+     * creait une ligne a ce slug. C'est voulu : le lien de confirmation est le
+     * seul email que personne n'a encore pu lire au moment ou il part.
+     */
     private function resolveTemplate(object $notifiable): ?SystemEmailTemplate
     {
-        $locale = $notifiable->preferred_locale ?? app()->getLocale();
-
-        $base = SystemEmailTemplate::query()
-            ->where('slug', self::SLUG)
-            ->where('enabled', true)
-            ->whereNull('organization_id');
-
-        return (clone $base)->where('locale', $locale)->first()
-            ?? (clone $base)->where('locale', 'fr')->first();
+        return app(SystemEmailTemplateResolver::class)->resolve(
+            self::SLUG,
+            null,
+            $notifiable->preferred_locale ?? null,
+        );
     }
 }

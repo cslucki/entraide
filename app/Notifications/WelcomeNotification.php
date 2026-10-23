@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\SystemEmailTemplate;
+use App\Support\Email\SystemEmailTemplateResolver;
 use App\Services\EmailerService;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -61,58 +62,17 @@ class WelcomeNotification extends Notification
             ]);
     }
 
+    /**
+     * TASK-1694 bug M — la résolution a QUITTÉ ce fichier.
+     *
+     * Cette méthode était l'une des sept copies de la même logique, et elle ne
+     * regardait que les lignes du tenant : une ligne « Global » lui était
+     * invisible.
+     * `SystemEmailTemplateResolver` est désormais l'autorité unique — six crans,
+     * du plus spécifique au Blade. Voir sa documentation.
+     */
     private function resolveTemplate(string $slug, object $notifiable): ?SystemEmailTemplate
     {
-        $organizationId = $notifiable->organization_id ?? null;
-        $locale = $notifiable->preferred_locale ?? app()->getLocale();
-
-        if (! $organizationId) {
-            return SystemEmailTemplate::where('slug', $slug)->where('enabled', true)->first();
-        }
-
-        $organization = $notifiable->organization;
-
-        $query = SystemEmailTemplate::where('slug', $slug)->where('enabled', true);
-
-        $template = (clone $query)
-            ->where('organization_id', $organizationId)
-            ->where('locale', $locale)
-            ->first();
-
-        if ($template) {
-            return $template;
-        }
-
-        $defaultLocale = $organization?->locale ?? 'fr';
-
-        if ($locale !== $defaultLocale) {
-            $template = (clone $query)
-                ->where('organization_id', $organizationId)
-                ->where('locale', $defaultLocale)
-                ->first();
-
-            if ($template) {
-                return $template;
-            }
-        }
-
-        // TASK-1694 bug G — la ligne GLOBALE, enfin atteignable.
-        //
-        // DEFAUT MESURE : des qu'une personne appartenait a une Organization —
-        // c'est-a-dire TOUJOURS — la resolution ne regardait QUE les lignes de
-        // ce tenant, puis retombait sur le gabarit Blade. Une Organization
-        // creee APRES le seeder n'a aucune ligne : OFSH en avait zero, et
-        // c'est le Blade qui partait, avec la marque en dur.
-        //
-        // La ligne globale existait donc sans que PERSONNE ne puisse la lire.
-        // Un gabarit « Global » que l'administration affiche mais que le
-        // produit n'emploie jamais est un mensonge d'interface.
-        //
-        // L'ordre reste : tenant dans la langue, tenant dans la langue par
-        // defaut, PUIS global. Une Organization qui a personnalise garde sa
-        // version — le global ne la recouvre jamais.
-        return (clone $query)->whereNull('organization_id')->where('locale', $locale)->first()
-            ?? (clone $query)->whereNull('organization_id')->where('locale', $defaultLocale)->first()
-            ?? (clone $query)->whereNull('organization_id')->whereNull('locale')->first();
+        return app(SystemEmailTemplateResolver::class)->resolveForNotifiable($slug, $notifiable);
     }
 }
