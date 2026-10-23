@@ -99,7 +99,8 @@ return [
     'with_member' => 'with :name',
     'no_current_exchange' => 'No current exchanges.',
     // TASK-1693 bug T — the single card replacing the two previous ones.
-    'exchanges' => 'Exchanges',
+    // TASK-1694 bug A — dashboard card.
+    'exchanges' => 'Mutual aid',
     'no_exchange' => 'No current exchanges.',
     'my_announcements' => 'My announcements',
     'untitled' => 'Untitled',

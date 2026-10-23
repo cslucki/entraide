@@ -1,7 +1,8 @@
 <?php
 
 return [
-    'title' => 'Exchanges',
+    // TASK-1694 bug A — same term as the rail.
+    'title' => 'Mutual aid',
     'requests' => 'Requests',
     'services' => 'Proposals',
     'help_requests' => 'Help requests',

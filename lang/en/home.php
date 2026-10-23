@@ -8,7 +8,8 @@ return [
     'tagline' => 'Work, help each other, move forward.',
     'feature_loops' => 'Loops',
     'feature_loops_desc' => 'The ChatLoop as a starting point.',
-    'feature_exchanges' => 'Exchanges',
+    // TASK-1694 bug A — public home, same term.
+    'feature_exchanges' => 'Mutual aid',
     'feature_exchanges_desc' => 'Services, requests and helpful conversations.',
     'feature_directory' => 'Directory',
     'feature_directory_desc' => 'Find members, profiles and contact points.',

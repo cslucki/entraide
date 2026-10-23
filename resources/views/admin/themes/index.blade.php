@@ -17,7 +17,7 @@
             'disabled' => 'Texte désactivé',
             'border' => 'Bordures',
             'card-loop' => 'Carte Boucles',
-            'card-exchange' => 'Carte Échanges',
+            'card-exchange' => 'Carte Entraide',
             'card-directory' => 'Carte Annuaire',
             'card-news' => 'Carte Actus',
             'card-welcome' => 'Carte Bienvenue',
@@ -527,7 +527,7 @@
                                      class="rounded-2xl p-3 shadow-sm transition-all cursor-pointer"
                                      :class="highlightedToken === 'card-exchange' ? 'ring-2 ring-indigo-400' : ''"
                                      :style="{ backgroundColor: previewCardExchange() }">
-                                    <p class="text-xs font-bold text-black dark:text-black">Échanges</p>
+                                    <p class="text-xs font-bold text-black dark:text-black">Entraide</p>
                                     <p class="mt-1.5 text-[10px] leading-tight opacity-85 text-black dark:text-black">Services et conversations utiles.</p>
                                 </div>
                                 <div @click.stop="highlight('card-directory')"
@@ -568,7 +568,7 @@
                         </span>
                         <span class="flex flex-col items-center gap-0.5 transition-all" :style="{ color: previewMuted() }">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
-                            <span class="text-[8px] font-medium">Échanges</span>
+                            <span class="text-[8px] font-medium">Entraide</span>
                         </span>
                         <span @click.stop="highlight('accent')"
                               class="flex flex-col items-center gap-0.5 transition-all cursor-pointer"

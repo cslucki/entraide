@@ -1,7 +1,8 @@
 <?php
 
 return [
-    'title' => 'Échanges',
+    // TASK-1694 bug A — titre de la page, meme terme que le rail.
+    'title' => 'Entraide',
     'requests' => 'Demandes',
     'services' => 'Propositions',
     'help_requests' => 'Demandes d\'aide',

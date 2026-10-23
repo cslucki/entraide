@@ -3,7 +3,10 @@
 return [
     'agenda' => 'Agenda',
     'agenda_hint' => 'Meetings',
-    'exchanges' => 'Exchanges',
+    // TASK-1694 bug A — « Entraide » in French. The usual English term for it
+    // is « Mutual aid » ; keeping « Exchanges » would make the two locales
+    // name two different things.
+    'exchanges' => 'Mutual aid',
     'directory' => 'Directory',
     'blog' => 'Blog',
     'loops' => 'Loops',
