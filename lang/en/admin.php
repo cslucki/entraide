@@ -60,6 +60,11 @@ return [
     'users_resend_verification' => 'Resend link',
     'users_resend_verification_sent' => 'Confirmation link resent to :name. It is valid for 24 hours.',
     'users_resend_verification_already' => 'The address :name is already verified: no link was resent.',
+
+    // TASK-1694 bug K — « Lien de réinitialisation » etait ambigu dans une
+    // colonne qui porte DEUX liens envoyes par email (confirmation d'adresse
+    // et mot de passe). Le libelle dit maintenant DE QUOI il s'agit.
+    'users_password_reset_link' => 'Password reset',
     // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
     // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
     // pas un tout-cocher : « Partout » se lisait comme une selection globale.

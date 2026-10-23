@@ -60,6 +60,11 @@ return [
     'users_resend_verification' => 'Renvoyer le lien',
     'users_resend_verification_sent' => 'Lien de confirmation renvoyé à :name. Il est valable 24 heures.',
     'users_resend_verification_already' => 'L\'adresse :name est déjà vérifiée : aucun lien n\'a été renvoyé.',
+
+    // TASK-1694 bug K — « Lien de réinitialisation » etait ambigu dans une
+    // colonne qui porte DEUX liens envoyes par email (confirmation d'adresse
+    // et mot de passe). Le libelle dit maintenant DE QUOI il s'agit.
+    'users_password_reset_link' => 'Réinitialisation mdp',
     // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
     // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
     // pas un tout-cocher : « Partout » se lisait comme une selection globale.
