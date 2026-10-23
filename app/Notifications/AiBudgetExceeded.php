@@ -37,7 +37,9 @@ class AiBudgetExceeded extends Notification
 
             return (new MailMessage)
                 ->subject($emailer->interpolateSubject($template->subject, $vars, array_keys($extraVars)))
-                ->view('emails.system-email', [
+                // TASK-1694 bug P — `markdown()` et non `view()` : c'est ce chemin
+                // qui declenche l'habillage et l'incorporation des styles.
+                ->markdown('emails.system-email', [
                     'html' => $emailer->interpolate($template->content_html, $vars, array_keys($extraVars)),
                 ]);
         }

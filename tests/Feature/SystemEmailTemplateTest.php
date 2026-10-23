@@ -398,8 +398,22 @@ class SystemEmailTemplateTest extends TestCase
         ]);
 
         $msg = (new WelcomeNotification)->toMail($this->user);
-        $this->assertStringContainsString('emails.system-email', $msg->view);
+
+        // TASK-1694 bug P — `markdown` et non `view` : c'est ce chemin qui
+        // declenche l'habillage et l'incorporation des styles.
+        //
+        // Ce test s'appelait « renders within mail layout » et ne mesurait que
+        // le NOM de la vue — jamais la mise en page. Il est desormais rendu :
+        // sans habillage, l'email faisait 261 octets de HTML nu (mesure du
+        // 23/10) ; avec, il en fait plus de sept mille.
+        $this->assertStringContainsString('emails.system-email', $msg->markdown);
         $this->assertStringContainsString('Contenu personnalisé', $msg->viewData['html']);
+
+        $rendu = $msg->render();
+
+        $this->assertStringContainsString('Contenu personnalisé', $rendu);
+        $this->assertStringContainsString('<table', $rendu);
+        $this->assertStringContainsString('style=', $rendu);
     }
 
     // ── Transaction status ─────────────────────────────
