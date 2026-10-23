@@ -1370,6 +1370,37 @@ class OrgAdminController extends Controller
             ->with('success', __('admin.organization_ai_credential_mode_saved'));
     }
 
+    /**
+     * TASK-1693 bug AS — « Agents profil IA », rapatrie sur l'ecran de
+     * l'Organization.
+     *
+     * Ce reglage se posait depuis `/admin/ai-config`, l'administration
+     * PLATEFORME, dans une liste de toutes les Organizations — loin de
+     * l'interrupteur IA, du credential et du budget qui vivent ici. Tout ce
+     * qui concerne l'IA d'une Organization se regle desormais au meme endroit.
+     *
+     * L'AUTORITE NE CHANGE PAS : le reglage etait deja reserve au SuperAdmin
+     * puisqu'il vivait sur l'administration plateforme. La garde est donc
+     * explicite ici, cote SERVEUR — meme idiome que `updateAiCredentialMode()`
+     * (TASK-1306). La vue omet le controle pour l'admin d'Organization ; c'est
+     * un confort, jamais la protection.
+     */
+    public function updateAiProfiles(Request $request, Organization $organization): RedirectResponse
+    {
+        if (! $request->user()->is_admin) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'ai_profiles_enabled' => ['required', 'boolean'],
+        ]);
+
+        $organization->update(['ai_profiles_enabled' => $data['ai_profiles_enabled']]);
+
+        return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
+            ->with('success', __('admin.ai_profile_toggle_saved'));
+    }
+
     public function identity(Organization $organization): View
     {
         return view('admin.org.identity', [

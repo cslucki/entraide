@@ -45,7 +45,12 @@ return [
     'ai_blog_config_note' => 'Blog AI configuration allows enabling/disabling features and defining limits per organization.',
     'ai_profile_config' => 'Profile AI agents by organization',
     'ai_profile_toggle_label' => 'Make available to non-subscribers',
+    'ai_profiles_section_title' => 'AI profile agents',
+    'ai_profiles_configure_on_organization' => 'Configure on this organization\'s AI page',
     'ai_profile_toggle_desc' => 'When disabled, AI profiles, wizard and exchanges are only accessible to subscribers of this organization.',
+    // TASK-1693 bug AS — le reglage se pose desormais sur l'ecran IA de
+    // l'Organization, et non plus depuis la liste de /admin/ai-config.
+    'ai_profile_toggle_saved' => 'AI profile agents: setting saved for this organization.',
     'ai_profile_save_for' => 'Save for :name',
     'ai_profile_config_note' => 'This setting prepares a future subscription feature. For now, it simply enables/disables access to AI profiles.',
     'ai_no_profiles_config' => 'No organizations available.',

@@ -182,28 +182,26 @@
                             <span class="text-gray-400 font-mono text-xs">{{ $org->slug }}</span>
                             <span class="ml-auto text-xs {{ ($org->ai_profiles_enabled ?? true) ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-500 dark:text-gray-400' }}">{{ ($org->ai_profiles_enabled ?? true) ? __('admin.ai_profile_toggle_label') : __('admin.guest_shell_summary_disabled') }}</span>
                         </summary>
-                    <form method="POST" action="{{ route('admin.ai-config.profile') }}" class="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3">
-                        @csrf
-                        <input type="hidden" name="organization_id" value="{{ $org->id }}">
+                    {{-- TASK-1693 bug AS — UN RENVOI, pas un second formulaire.
 
-                        <div>
-                            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                                <input type="hidden" name="ai_profiles_enabled" value="0">
-                                <input type="checkbox" name="ai_profiles_enabled" value="1"
-                                    @checked($org->ai_profiles_enabled ?? true)
-                                    class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
-                                {{ __('admin.ai_profile_toggle_label') }}
-                            </label>
-                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6">{{ __('admin.ai_profile_toggle_desc') }}</p>
-                        </div>
+                         Le reglage se pose desormais sur l'ecran IA de
+                         l'Organization, aupres de l'interrupteur, du
+                         credential et du budget. Garder ici un formulaire
+                         ecrivant la meme colonne fabriquerait deux endroits
+                         pour un meme reglage — ils finissent toujours par
+                         diverger, et l'un des deux devient le mauvais.
 
-                        <div class="flex justify-end">
-                            <button type="submit"
-                                    class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">
-                                {{ __('admin.ai_save_for', ['name' => $org->name]) }}
-                            </button>
-                        </div>
-                    </form>
+                         L'ETAT RESTE LISIBLE ici : le resume ci-dessus le dit,
+                         et cette page garde donc sa valeur de vue d'ensemble
+                         sur toutes les Organizations. --}}
+                    <div class="border-t border-gray-200 dark:border-gray-700 p-4 space-y-2">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.ai_profile_toggle_desc') }}</p>
+                        <a href="{{ route('organization.admin.ai', ['organization' => $org->slug]) }}"
+                           data-ai-profiles-pointer="{{ $org->slug }}"
+                           class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
+                            {{ __('admin.ai_profiles_configure_on_organization') }} →
+                        </a>
+                    </div>
                     </details>
                 @empty
                     <div class="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3">

@@ -141,22 +141,6 @@ class AdminAiConfigController extends Controller
             ->with('success', __('blog.ai_config_updated'));
     }
 
-    public function updateProfileConfig(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'organization_id' => 'required|string|exists:organizations,id',
-            'ai_profiles_enabled' => 'sometimes|boolean',
-        ]);
-
-        $organization = Organization::findOrFail($validated['organization_id']);
-        $organization->update([
-            'ai_profiles_enabled' => $validated['ai_profiles_enabled'] ?? true,
-        ]);
-
-        return redirect()->route('admin.ai-config')
-            ->with('success', 'Configuration profil IA mise à jour pour l\'organisation.');
-    }
-
     /**
      * TASK-1429 — SW-1 : la politique Shell Welcome d'une Organization
      * (ON/OFF, limite de messages, retention, budget Guest). Le provider, le

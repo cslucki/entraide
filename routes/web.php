@@ -893,7 +893,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/ai-config', [AdminAiConfigController::class, 'index'])->name('ai-config');
     Route::post('/ai-config', [AdminAiConfigController::class, 'update'])->name('ai-config.update');
     Route::post('/ai-config/blog', [AdminAiConfigController::class, 'updateBlogConfig'])->name('ai-config.blog');
-    Route::post('/ai-config/profile', [AdminAiConfigController::class, 'updateProfileConfig'])->name('ai-config.profile');
+    // TASK-1693 bug AS : `ai-config/profile` RETIREE. « Agents profil IA » se
+    // regle sur l'ecran IA de l'Organization (organization.admin.ai.profiles.update),
+    // aupres de l'interrupteur et du credential. Deux ecrivains pour une meme
+    // colonne finissent par diverger.
     // TASK-1429 (SW-1) : politique Shell Welcome par Organization (SuperAdmin).
     Route::post('/ai-config/guest-shell', [AdminAiConfigController::class, 'updateGuestShellConfig'])->name('ai-config.guest-shell');
     // TASK-1500 : la configuration Shell Welcome par Organization a SA page (decision Cyril 10/09) ; le POST ci-dessus reste l'unique ecriture.
@@ -1780,6 +1783,10 @@ Route::prefix('/org/{organization}')
                 // Reserve au SuperAdmin, protection serveur dans le controller —
                 // jamais seulement un masquage cote vue.
                 Route::put('/ai/credential-mode', [OrgAdminController::class, 'updateAiCredentialMode'])->name('ai.credential-mode.update');
+                // TASK-1693 bug AS : « Agents profil IA », rapatrie depuis
+                // /admin/ai-config. Reserve au SuperAdmin, garde dans le
+                // controller — jamais seulement un masquage cote vue.
+                Route::put('/ai/profiles', [OrgAdminController::class, 'updateAiProfiles'])->name('ai.profiles.update');
 
                 // Design
                 Route::get('/homepage', [OrgAdminController::class, 'homepage'])->name('homepage');

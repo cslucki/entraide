@@ -195,9 +195,15 @@ class TASK1474AiConfigPremiumTest extends TestCase
         $shell = $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent();
 
         $this->assertStringContainsString('action="'.route('admin.ai-config.guest-shell').'"', $shell, 'admin.ai-config.guest-shell');
-        foreach (['admin.ai-config.blog', 'admin.ai-config.profile'] as $route) {
-            $this->assertStringContainsString('action="'.route($route).'"', $html, $route);
-        }
+        $this->assertStringContainsString('action="'.route('admin.ai-config.blog').'"', $html, 'admin.ai-config.blog');
+
+        // TASK-1693 bug AS — « Agents profil IA » n'a plus de FORMULAIRE ici :
+        // il se regle sur l'ecran IA de l'Organization, et cette page n'en
+        // porte qu'un RENVOI. Deux formulaires ecrivant la meme colonne
+        // finissent par diverger.
+        $this->assertStringNotContainsString('action="'.route('admin.ai-config').'/profile"', $html);
+        $this->assertStringContainsString('data-ai-profiles-pointer', $html,
+            'la page garde un chemin vers le reglage, et sa vue d\'ensemble');
 
         foreach (['name="enabled"', 'name="display_mode"', 'name="max_messages"', 'name="retention_days"', 'name="guest_monthly_budget_usd"', 'name="organization_id"'] as $field) {
             $this->assertStringContainsString($field, $shell, $field.' : le reglage doit rester possible');

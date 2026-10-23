@@ -45,7 +45,12 @@ return [
     'ai_blog_config_note' => 'La configuration IA Blog permet d\'activer/désactiver les fonctionnalités et de définir les limites par organisation.',
     'ai_profile_config' => 'Agents profil IA par organisation',
     'ai_profile_toggle_label' => 'Rendre disponible pour les non abonnés',
+    'ai_profiles_section_title' => 'Agents profil IA',
+    'ai_profiles_configure_on_organization' => 'Régler sur la page IA de cette organisation',
     'ai_profile_toggle_desc' => 'Quand désactivé, les profils IA, le wizard et les échanges sont accessibles uniquement aux abonnés de l\'organisation.',
+    // TASK-1693 bug AS — le reglage se pose desormais sur l'ecran IA de
+    // l'Organization, et non plus depuis la liste de /admin/ai-config.
+    'ai_profile_toggle_saved' => 'Agents profil IA : réglage enregistré pour cette organisation.',
     'ai_profile_save_for' => 'Enregistrer pour :name',
     'ai_profile_config_note' => 'Ce réglage prépare une fonctionnalité future d\'abonnement. Pour l\'instant, il active/désactive simplement l\'accès aux profils IA.',
     'ai_no_profiles_config' => 'Aucune organisation disponible.',
