@@ -345,7 +345,7 @@
                 </div>
             </div>
 
-            <!-- Recent messages -->
+            <!-- Messagerie -->
             <div x-data="{ open: true }" data-dashboard-card="messages" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">

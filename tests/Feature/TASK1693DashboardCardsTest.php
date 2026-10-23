@@ -192,6 +192,22 @@ class TASK1693DashboardCardsTest extends TestCase
         }
     }
 
+    /**
+     * TASK-1693 bug AM — la card s'appelle « Messagerie ».
+     *
+     * « Messages recents » decrivait son contenu ; depuis le bug AL elle porte
+     * un bouton qui mene a TOUTE la messagerie, pas aux seuls derniers
+     * echanges.
+     */
+    public function test_the_messages_card_is_named_messaging(): void
+    {
+        $html = $this->page();
+
+        $this->assertStringContainsString(e(__('dashboard.recent_messages')), $html);
+        $this->assertStringNotContainsString('Messages récents', $html);
+        $this->assertStringNotContainsString('Recent messages', $html);
+    }
+
     /** Et le contenu reste LA : deplier ne doit rien masquer. */
     public function test_the_items_are_still_rendered(): void
     {

@@ -108,7 +108,11 @@ return [
     'no_announcement' => 'No announcements yet.',
     'create_announcement' => 'Create an announcement',
     'view_all_announcements' => 'View all my announcements',
-    'recent_messages' => 'Recent messages',
+    // TASK-1693 bug AM — « Messagerie » et non « Messages recents » : la card
+    // porte desormais un bouton « Nouveau » qui mene a TOUTE la messagerie,
+    // pas aux seuls derniers echanges. La clef garde son nom pour ne pas
+    // toucher ses autres lecteurs eventuels.
+    'recent_messages' => 'Messaging',
     'view_all' => 'View all',
     'no_recent_message' => 'No recent messages.',
     'points_history' => 'My points',
