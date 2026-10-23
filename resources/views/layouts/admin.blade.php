@@ -57,7 +57,8 @@
                         ];
                         $echangesItems = [
                             ['route' => 'admin.services', 'label' => 'Services', 'icon' => 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
-                            ['route' => 'admin.transactions', 'label' => 'Transactions', 'icon' => 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4'],
+                            // TASK-1694 bug B — « Transactions » devient « Entraide » (decision Cyril).
+                            ['route' => 'admin.transactions', 'label' => 'Entraide', 'icon' => 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4'],
                             ['route' => 'admin.requests', 'label' => 'Demandes', 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'],
                             // TASK-1667 — le grand livre des points. Il appartient aux
                             // ECHANGES : les points y naissent et s'y depensent. Ecran de
@@ -339,7 +340,9 @@
                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                             </svg>
-                            <span class="text-xs font-semibold uppercase tracking-wider">Échanges</span>
+                            {{-- TASK-1694 bug B — le GROUPE prend le meme terme que
+                                 l'item qu'il contient. --}}
+                            <span class="text-xs font-semibold uppercase tracking-wider">Entraide</span>
                         </button>
                         <div x-show="open" x-cloak
                              x-transition:enter="transition ease-out duration-200"
