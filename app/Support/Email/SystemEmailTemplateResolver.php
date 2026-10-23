@@ -4,6 +4,7 @@ namespace App\Support\Email;
 
 use App\Models\Organization;
 use App\Models\SystemEmailTemplate;
+use App\Models\User;
 
 /**
  * TASK-1694 bug M — l'autorité UNIQUE qui choisit un gabarit d'email système.
@@ -158,13 +159,36 @@ class SystemEmailTemplateResolver
      * Accepte n'importe quel notifiable — y compris un `AnonymousNotifiable`,
      * qui n'a ni `organization_id` ni `preferred_locale`. Lire ces propriétés
      * sans précaution y lève une erreur : mesuré en bug G, sur ce même objet.
+     *
+     * ## Sans `User`, aucun gabarit administrable — et c'est une REGLE, pas une
+     * précaution
+     *
+     * Un gabarit administrable n'est qu'un texte à trous : il n'a de sens
+     * qu'interpolé avec les variables d'une personne, et
+     * `EmailerService::availableVariables()` exige un `User`. Rendre un gabarit
+     * pour un destinataire qui n'en est pas un revient à promettre une
+     * interpolation impossible.
+     *
+     * Le défaut était **latent** avant le bug M : les sept copies faisaient
+     * `where('slug')->enabled()->first()` et auraient trouvé une ligne, elles
+     * aussi. Il n'éclatait pas parce qu'aucune ligne n'existait dans ce cas de
+     * figure. Les 18 lignes globales du bug Q l'ont rendu atteignable, et la
+     * suite l'a attrapé : `TypeError` sur `AnonymousNotifiable`.
+     *
+     * Fermé ici, dans l'autorité unique, plutôt que cinq fois dans les
+     * notifications. Le `null` renvoyé fait retomber chacune sur son repli
+     * Blade, qui sait déjà se passer d'un `User` (bug G).
      */
     public function resolveForNotifiable(string $slug, object $notifiable): ?SystemEmailTemplate
     {
+        if (! $notifiable instanceof User) {
+            return null;
+        }
+
         return $this->resolve(
             $slug,
-            $notifiable->organization_id ?? null,
-            $notifiable->preferred_locale ?? null,
+            $notifiable->organization_id,
+            $notifiable->preferred_locale,
         );
     }
 }

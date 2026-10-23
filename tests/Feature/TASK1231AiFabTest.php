@@ -286,7 +286,14 @@ class TASK1231AiFabTest extends TestCase
 
         $this->actingAs($this->superAdmin)->get(route('admin.ia-usage'))->assertOk()->assertDontSee('data-ai-fab-page=', false);
 
-        $this->organization->update(['admin_id' => $this->owner->id]);
+        // TASK-1694 bug R — cet ecran demande desormais la capacite
+        // « modifier les emails types », decochee par defaut. Ce test se sert
+        // de lui comme PAGE D'EXEMPLE du layout org-admin : sa question est le
+        // FAB, pas la permission. On lui donne donc de quoi rendre la page.
+        $this->organization->update([
+            'admin_id' => $this->owner->id,
+            'system_emails_editable' => true,
+        ]);
         $this->actingAs($this->owner)
             ->get(route('organization.admin.system-email-templates', ['organization' => $this->organization->slug]))
             ->assertOk()

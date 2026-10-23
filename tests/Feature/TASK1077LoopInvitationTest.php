@@ -545,6 +545,13 @@ class TASK1077LoopInvitationTest extends TestCase
         $org = $this->org();
         $owner = User::factory()->create(['organization_id' => $org->id]);
         $loop = $this->ownedLoop($org, $owner);
+        // TASK-1694 bug T — aucun Global ne doit repondre ici.
+        //
+        // Ce test mesure le REPLI Blade et la raison journalisee. Depuis la
+        // normalisation (bug Q), une ligne globale active repond avant lui —
+        // c'est voulu, c'est l'objet des bugs M et Q. Sans cette ligne, le
+        // test parlerait d'autre chose que de son titre.
+        SystemEmailTemplate::query()->whereNull('organization_id')->delete();
         $this->withCurrentOrganization($org);
 
         $this->actingAs($owner)
@@ -563,6 +570,13 @@ class TASK1077LoopInvitationTest extends TestCase
         $owner = User::factory()->create(['organization_id' => $org->id]);
         $loop = $this->ownedLoop($org, $owner);
         $this->systemTemplate($org, 'NE DOIT PAS SERVIR', '<p>NE DOIT PAS SERVIR</p>', enabled: false);
+        // TASK-1694 bug T — aucun Global ne doit repondre ici.
+        //
+        // Ce test mesure le REPLI Blade et la raison journalisee. Depuis la
+        // normalisation (bug Q), une ligne globale active repond avant lui —
+        // c'est voulu, c'est l'objet des bugs M et Q. Sans cette ligne, le
+        // test parlerait d'autre chose que de son titre.
+        SystemEmailTemplate::query()->whereNull('organization_id')->delete();
         $this->withCurrentOrganization($org);
 
         $this->actingAs($owner)

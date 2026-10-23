@@ -143,6 +143,16 @@ class TASK1681AdminLoopsRecetteTest extends TestCase
 
     public function test_the_template_screen_explains_an_absent_override_instead_of_a_mute_empty_list(): void
     {
+        // TASK-1694 bug T — l'absence de surcharge doit etre CREEE desormais.
+        //
+        // « Etat PROD reel : aucune surcharge » etait vrai quand ce test a ete
+        // ecrit. La migration de normalisation (bug Q) pose 18 lignes globales
+        // ACTIVES : le modele Blade par defaut n'est donc plus « utilise
+        // actuellement », et l'ecran a raison de le dire autrement. Ce test
+        // mesure le MESSAGE de l'ecran dans l'etat « rien en base » — il doit
+        // donc poser cet etat.
+        \App\Models\SystemEmailTemplate::query()->delete();
+
         // Etat PROD reel : aucune surcharge organization_invitation n'existe
         // (le mailer retombe sur le Blade — comportement normal, audit T1681).
         // La page filtree doit le DIRE, pas afficher une liste vide muette.
@@ -187,6 +197,16 @@ class TASK1681AdminLoopsRecetteTest extends TestCase
 
     public function test_the_default_system_template_is_visible_and_marked_in_use(): void
     {
+        // TASK-1694 bug T — l'absence de surcharge doit etre CREEE desormais.
+        //
+        // « Etat PROD reel : aucune surcharge » etait vrai quand ce test a ete
+        // ecrit. La migration de normalisation (bug Q) pose 18 lignes globales
+        // ACTIVES : le modele Blade par defaut n'est donc plus « utilise
+        // actuellement », et l'ecran a raison de le dire autrement. Ce test
+        // mesure le MESSAGE de l'ecran dans l'etat « rien en base » — il doit
+        // donc poser cet etat.
+        \App\Models\SystemEmailTemplate::query()->delete();
+
         // Aucune surcharge DB : l'ecran montre quand meme LE modele (carte
         // « Modele systeme par defaut », « Utilise actuellement ») — l'admin
         // ne doit plus croire que le modele n'existe pas.
@@ -246,6 +266,14 @@ class TASK1681AdminLoopsRecetteTest extends TestCase
     public function test_a_disabled_customization_leaves_the_blade_fallback_in_charge(): void
     {
         \Illuminate\Support\Facades\Mail::fake();
+
+        // TASK-1694 bug T — ce test mesure que le Blade reste en charge quand
+        // la surcharge du tenant est DESACTIVEE. Depuis la normalisation (bug
+        // Q), une ligne GLOBALE active repond avant lui : c'est voulu, c'est
+        // tout l'objet des bugs M et Q. Pour mesurer ce que ce test mesure, il
+        // faut donc qu'aucun Global ne reponde — sinon le « repli » teste n'est
+        // plus le repli reel du produit, et le test parlerait d'autre chose.
+        \App\Models\SystemEmailTemplate::query()->whereNull('organization_id')->delete();
 
         $this->actingAs($this->superAdmin)->post(route('admin.system-email-templates.store'), [
             'slug' => 'organization_invitation',
