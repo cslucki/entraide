@@ -28,7 +28,10 @@ class AdminAiConfigController extends Controller
         $defaultProvider = config('ai.default_provider', $this->resolver->defaultProvider());
         $defaultModel = config('ai.default_model', '');
 
-        $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug', 'ai_profiles_enabled']);
+        // TASK-1693 bug AU — `ai_shell_enabled` doit etre SELECTIONNEE : sans
+        // elle la case lirait le repli `?? true` et afficherait « active » sur
+        // une Organization ou l'assistant est eteint.
+        $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug', 'ai_profiles_enabled', 'ai_shell_enabled']);
         $blogConfigs = [];
 
         foreach ($organizations as $org) {
@@ -139,6 +142,34 @@ class AdminAiConfigController extends Controller
 
         return redirect()->route('admin.ai-config')
             ->with('success', __('blog.ai_config_updated'));
+    }
+
+    /**
+     * TASK-1693 bug AU — l'assistant « BouclePro IA », par Organization.
+     *
+     * Jusqu'ici il n'avait qu'un interrupteur PLATEFORME (`AI_SHELL_ENABLED`,
+     * une variable d'environnement) : impossible de le couper pour UNE
+     * Organization sans le couper pour toutes.
+     *
+     * Ce reglage est DISTINCT de l'interrupteur IA de l'Organization, et c'est
+     * sa raison d'etre : disposer de l'IA — reformulation, synthese, agents —
+     * sans imposer l'assistant flottant par-dessus chaque page.
+     *
+     * Et distinct, aussi, du « Shell Welcome » juste en dessous : celui-la
+     * s'adresse aux VISITEURS non connectes.
+     */
+    public function updateShellConfig(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'organization_id' => 'required|string|exists:organizations,id',
+            'ai_shell_enabled' => 'required|boolean',
+        ]);
+
+        Organization::findOrFail($validated['organization_id'])
+            ->update(['ai_shell_enabled' => $validated['ai_shell_enabled']]);
+
+        return redirect()->route('admin.ai-config')
+            ->with('success', __('admin.ai_shell_toggle_saved'));
     }
 
     /**

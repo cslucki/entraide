@@ -284,7 +284,13 @@ final class AiFabContext
             // autorite qui rejoue les gardes des pages. Cette entree ne donne
             // aucun droit : elle nomme ce que la page montre deja.
             'page_context' => $this->pageContext->forRequest($request, $user, $organization),
-            'shell_enabled' => (bool) config('ai.shell.enabled', true),
+            // TASK-1693 bug AU — DEUX conditions, et l'une n'excuse pas
+            // l'autre : l'interrupteur PLATEFORME (`AI_SHELL_ENABLED`) et
+            // celui de l'ORGANIZATION. Le second agit meme quand l'IA est
+            // allumee pour elle — c'est precisement sa raison d'etre :
+            // disposer de l'IA sans imposer l'assistant flottant.
+            'shell_enabled' => (bool) config('ai.shell.enabled', true)
+                && (bool) ($organization?->ai_shell_enabled ?? true),
         ];
     }
 

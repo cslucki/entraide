@@ -897,6 +897,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // regle sur l'ecran IA de l'Organization (organization.admin.ai.profiles.update),
     // aupres de l'interrupteur et du credential. Deux ecrivains pour une meme
     // colonne finissent par diverger.
+    // TASK-1693 bug AU : l'assistant « BouclePro IA » par Organization.
+    // Arbitrage de Cyril : la case vit ICI, sur l'administration plateforme,
+    // et non sur l'ecran de l'Organization — contrairement a « Agents profil
+    // IA » (bug AS). C'est sa demande explicite.
+    Route::post('/ai-config/shell', [AdminAiConfigController::class, 'updateShellConfig'])->name('ai-config.shell');
     // TASK-1429 (SW-1) : politique Shell Welcome par Organization (SuperAdmin).
     Route::post('/ai-config/guest-shell', [AdminAiConfigController::class, 'updateGuestShellConfig'])->name('ai-config.guest-shell');
     // TASK-1500 : la configuration Shell Welcome par Organization a SA page (decision Cyril 10/09) ; le POST ci-dessus reste l'unique ecriture.

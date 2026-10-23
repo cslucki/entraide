@@ -202,6 +202,41 @@
                             {{ __('admin.ai_profiles_configure_on_organization') }} →
                         </a>
                     </div>
+
+                    {{-- TASK-1693 bug AU — l'assistant « BouclePro IA » par
+                         Organization.
+                         Il n'avait qu'un interrupteur PLATEFORME
+                         (`AI_SHELL_ENABLED`) : impossible de le couper pour UNE
+                         Organization sans le couper pour toutes.
+                         DISTINCT de l'interrupteur IA de l'Organization, et
+                         c'est sa raison d'etre : disposer de l'IA sans imposer
+                         l'assistant flottant par-dessus chaque page. --}}
+                    <form method="POST" action="{{ route('admin.ai-config.shell') }}"
+                          class="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3"
+                          data-ai-shell-form="{{ $org->slug }}"
+                          data-ai-shell-enabled="{{ ($org->ai_shell_enabled ?? true) ? '1' : '0' }}">
+                        @csrf
+                        <input type="hidden" name="organization_id" value="{{ $org->id }}">
+
+                        <div>
+                            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                <input type="hidden" name="ai_shell_enabled" value="0">
+                                <input type="checkbox" name="ai_shell_enabled" value="1"
+                                    @checked($org->ai_shell_enabled ?? true)
+                                    data-ai-shell-toggle
+                                    class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                                {{ __('admin.ai_shell_toggle_label') }}
+                            </label>
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6">{{ __('admin.ai_shell_toggle_desc') }}</p>
+                        </div>
+
+                        <div class="flex justify-end">
+                            <button type="submit"
+                                    class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">
+                                {{ __('admin.ai_save_for', ['name' => $org->name]) }}
+                            </button>
+                        </div>
+                    </form>
                     </details>
                 @empty
                     <div class="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3">

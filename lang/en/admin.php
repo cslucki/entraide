@@ -47,6 +47,14 @@ return [
     'ai_profile_toggle_label' => 'Make available to non-subscribers',
     'ai_profiles_section_title' => 'AI profile agents',
     'ai_profiles_configure_on_organization' => 'Configure on this organization\'s AI page',
+    // TASK-1693 bug AU — l'assistant « BouclePro IA » par Organization.
+    // DISTINCT de l'interrupteur IA : on peut disposer de l'IA sans imposer
+    // l'assistant flottant. Et distinct du « Shell Welcome », qui s'adresse
+    // aux VISITEURS non connectes.
+    'ai_shell_section_title' => "“BouclePro AI” assistant",
+    'ai_shell_toggle_label' => 'Enable the “BouclePro AI” assistant for this organization',
+    'ai_shell_toggle_desc' => 'When unchecked, the floating badge and its chat panel no longer appear — even if AI remains enabled for this organization. Other AI features (rewording, summaries, agents) are unaffected.',
+    'ai_shell_toggle_saved' => '“BouclePro AI” assistant: setting saved for this organization.',
     'ai_profile_toggle_desc' => 'When disabled, AI profiles, wizard and exchanges are only accessible to subscribers of this organization.',
     // TASK-1693 bug AS — le reglage se pose desormais sur l'ecran IA de
     // l'Organization, et non plus depuis la liste de /admin/ai-config.

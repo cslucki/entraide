@@ -47,6 +47,14 @@ return [
     'ai_profile_toggle_label' => 'Rendre disponible pour les non abonnés',
     'ai_profiles_section_title' => 'Agents profil IA',
     'ai_profiles_configure_on_organization' => 'Régler sur la page IA de cette organisation',
+    // TASK-1693 bug AU — l'assistant « BouclePro IA » par Organization.
+    // DISTINCT de l'interrupteur IA : on peut disposer de l'IA sans imposer
+    // l'assistant flottant. Et distinct du « Shell Welcome », qui s'adresse
+    // aux VISITEURS non connectes.
+    'ai_shell_section_title' => "Assistant « BouclePro IA »",
+    'ai_shell_toggle_label' => 'Activer l\'assistant « BouclePro IA » pour cette organisation',
+    'ai_shell_toggle_desc' => 'Quand il est décoché, la pastille flottante et son panneau de discussion n\'apparaissent plus — même si l\'IA reste activée pour cette organisation. Les autres fonctions IA (reformulation, synthèse, agents) ne sont pas touchées.',
+    'ai_shell_toggle_saved' => 'Assistant « BouclePro IA » : réglage enregistré pour cette organisation.',
     'ai_profile_toggle_desc' => 'Quand désactivé, les profils IA, le wizard et les échanges sont accessibles uniquement aux abonnés de l\'organisation.',
     // TASK-1693 bug AS — le reglage se pose desormais sur l'ecran IA de
     // l'Organization, et non plus depuis la liste de /admin/ai-config.
