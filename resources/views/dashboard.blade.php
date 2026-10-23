@@ -30,6 +30,15 @@
 
         <!-- Onboarding accordion -->
         @php $stepsDoneCount = collect($onboardingSteps)->filter(fn($s) => $s['status'] === 'done')->count(); @endphp
+        {{-- TASK-1693 bug AJ — le panneau d'accueil DISPARAIT quand il n'a plus
+             rien a demander.
+             Il guide une installation ; une fois celle-ci faite il n'enseigne
+             plus rien et occupe le haut du tableau de bord a perpetuite. La
+             condition porte sur CE QUI RESTE et non sur un compte fige : une
+             etape « verrouillee mais vendable » (profil IA avec abonnements)
+             n'est pas faite, donc le panneau reste — il y a encore un geste
+             possible. --}}
+        @if($stepsDoneCount < count($onboardingSteps))
         <div x-data="{ open: false }" class="mb-8 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <button type="button" @click="open = !open"
                 class="w-full flex items-center justify-between gap-4 px-5 sm:px-6 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition">
@@ -100,6 +109,7 @@
                 @endforeach
             </div>
         </div>
+        @endif
 
         @if(session('success'))
         <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
