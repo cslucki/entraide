@@ -404,7 +404,11 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             $this->assertStringNotContainsString('data-footer-mycelium', $html);
             $this->assertStringNotContainsString('data-footer-flowchart', $html);
             $this->assertStringNotContainsString('data-bp-mobile-nav', $html);
-            $this->assertStringNotContainsString('<aside x-data class="hidden md:flex', $html);
+            // TASK-1693 bug AQ — viser le MARQUEUR du rail, pas sa chaine de
+            // classes : `<aside x-data class="hidden md:flex` cassait des qu'un
+            // attribut etait ajoute sur la balise, ce qui vient d'arriver.
+            // Ce que ces assertions garantissent est INCHANGE.
+            $this->assertStringNotContainsString('data-bp-side-nav', $html);
 
             // TASK-1692, correctif post-CI — cette mesure etait une LISTE
             // D'ABSENCES, et elle etait trop large : elle interdisait tout
@@ -464,7 +468,7 @@ class TASK1692StrictHttpIsolationTest extends TestCase
         $this->assertStringNotContainsString('t1692-private-member.png', $foreign);
         $this->assertStringNotContainsString(route('organization.blog.index', $this->b), $foreign);
         $this->assertStringNotContainsString('data-bp-mobile-nav', $foreign);
-        $this->assertStringNotContainsString('<aside x-data class="hidden md:flex', $foreign);
+        $this->assertStringNotContainsString('data-bp-side-nav', $foreign);
         $this->assertStringNotContainsString('data-mobile-topbar-notifications', $foreign);
         $this->assertStringNotContainsString('data-ai-fab', $foreign);
 
@@ -477,7 +481,7 @@ class TASK1692StrictHttpIsolationTest extends TestCase
 
         $this->assertStringContainsString(route('organization.blog.index', $this->b), $own);
         $this->assertStringContainsString('data-bp-mobile-nav', $own);
-        $this->assertStringContainsString('<aside x-data class="hidden md:flex', $own);
+        $this->assertStringContainsString('data-bp-side-nav', $own);
         $this->assertStringContainsString('data-mobile-topbar-notifications', $own);
 
         $admin = User::factory()->complete()->create([
@@ -495,7 +499,7 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString('data-bp-mobile-nav', $adminHomepage);
-        $this->assertStringContainsString('<aside x-data class="hidden md:flex', $adminHomepage);
+        $this->assertStringContainsString('data-bp-side-nav', $adminHomepage);
         $this->assertSame($membersBefore, LoopMember::query()->where('user_id', $admin->id)->count());
         $this->assertSame($this->a->id, $admin->fresh()->organization_id);
     }
@@ -605,7 +609,7 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             $this->assertStringNotContainsString($segment, $global);
         }
         $this->assertStringNotContainsString('data-bp-mobile-nav', $global);
-        $this->assertStringNotContainsString('<aside x-data class="hidden md:flex', $global);
+        $this->assertStringNotContainsString('data-bp-side-nav', $global);
 
         // Organization-prefixed legal page. The bare segment is too loose here
         // (`/blog` matches nothing else on the page, but `/explorer` would also
@@ -616,7 +620,7 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             $this->assertStringNotContainsString('/org/'.$this->b->slug.$segment, $org);
         }
         $this->assertStringNotContainsString('data-bp-mobile-nav', $org);
-        $this->assertStringNotContainsString('<aside x-data class="hidden md:flex', $org);
+        $this->assertStringNotContainsString('data-bp-side-nav', $org);
     }
 
     /**
@@ -647,7 +651,7 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             $this->assertStringNotContainsString('/org/'.$this->b->slug.$segment, $foreign);
         }
         $this->assertStringNotContainsString('data-bp-mobile-nav', $foreign);
-        $this->assertStringNotContainsString('<aside x-data class="hidden md:flex', $foreign);
+        $this->assertStringNotContainsString('data-bp-side-nav', $foreign);
 
         // Contre-epreuve : le membre de B garde sa navigation sur la meme page.
         $own = $this->actingAs($this->memberB->fresh())

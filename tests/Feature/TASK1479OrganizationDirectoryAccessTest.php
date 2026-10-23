@@ -476,7 +476,7 @@ class TASK1479OrganizationDirectoryAccessTest extends TestCase
                 // PUBLIQUE : le refus explique, et nomme — decision TASK-1483,
                 // inchangee. Son existence est deja affichee par sa landing.
                 $refus->assertForbidden();
-                $refus->assertSee($organisation->name, false);
+                $refus->assertSee($organisation->name);
             } else {
                 // PRIVEE : 404, STRICTEMENT identique a un slug inexistant.
                 // Un 403 confirmait l'existence ; le nom tu ne suffisait pas.
