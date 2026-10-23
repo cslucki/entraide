@@ -1175,7 +1175,21 @@
                 {{-- /Questionner selection card --}}
 
         {{-- Explorer notes card --}}
+        {{-- TASK-1693 bug AH — la carte « Questionnements » disparait quand
+             l'IA est eteinte, SAUF si elle a quelque chose a montrer.
+             Les questionnements sont produits PAR l'IA : sans elle, la carte
+             promet un contenu qui ne viendra pas. Mais masquer des notes DEJA
+             ECRITES effacerait du travail fait — c'est pourquoi la condition
+             porte sur le CONTENU, pas seulement sur l'interrupteur. --}}
+        @php
+            $_questionnementsExistants = \App\Models\BlogAnalysisNote::query()
+                ->where('blog_post_id', $post->id)
+                ->where('organization_id', $post->organization_id)
+                ->exists();
+        @endphp
+        @if($_aiGate->availableHere() || $_questionnementsExistants)
         <div
+            data-ai-explorer-notes
             x-data="blogExplorerCard({
                 indexUrl: @js($_blogRoute('explorer.notes.index', ['post' => $post])),
                 updateUrlBase: @js($_blogRoute('explorer.notes.update', ['post' => $post, 'note' => '__NOTE_ID__'])),
@@ -1287,6 +1301,7 @@
                 </div>
             </div>
         </div>
+        @endif
         {{-- /Explorer notes card --}}
 
                 {{-- Annotations card --}}
@@ -1607,6 +1622,11 @@
     </div>
 
     {{-- Explorer modal --}}
+    {{-- TASK-1693 bug AH — le panneau lui-meme suit l'interrupteur. Son
+         declencheur a disparu de la barre d'outils, mais son balisage restait
+         rendu : il porte encore le libelle « Questionner l'article » et tous
+         les reglages de methode. Une porte muree ne garde pas sa serrure. --}}
+    @if($_aiGate->availableHere())
     <div
         x-data="blogExplorerModal({
             chatUrl: @js($_blogRoute('explorer.chat', ['post' => $post])),
@@ -1808,6 +1828,7 @@
             </div>
         </div>
     </div>
+    @endif
 
     {{-- coauthors : deplacee dans un pop-up (TASK-1085). Etat Alpine inchange. --}}
     <x-editor-panel name="coauthors" :title="__('blog.sidebar_co_ecriture')" width="max-w-xl">

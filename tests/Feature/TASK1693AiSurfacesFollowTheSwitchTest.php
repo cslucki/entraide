@@ -240,6 +240,110 @@ class TASK1693AiSurfacesFollowTheSwitchTest extends TestCase
         );
     }
 
+    // ── L'editeur d'article ──────────────────────────────────────────────────
+
+    /**
+     * TASK-1693 bug AH — l'editeur lui-meme portait trois poignees IA.
+     *
+     * Le bug AF n'avait garde que la CARTE de selection. Restaient, visibles
+     * sur un article en cours d'ecriture : le bouton « Questionner un
+     * passage » de la barre d'outils, « Generer » et « Corriger », et
+     * « Questionner l'article » (l'Explorer).
+     */
+    public function test_the_editor_ai_tools_follow_the_switch(): void
+    {
+        $post = $this->unArticle();
+        $url = $this->urlOrg('organization.blog.edit', ['post' => $post->slug]);
+
+        $eteinte = $this->page($url);
+        $this->assertStringNotContainsString('data-ai-editor-method', $eteinte);
+        $this->assertStringNotContainsString(e(__('blog.btn_generate_ai_editor')), $eteinte);
+        $this->assertStringNotContainsString(e(__('blog.btn_correct_typos')), $eteinte);
+        $this->assertStringNotContainsString(e(__('blog.editor_explorer')), $eteinte);
+
+        $this->allumerLIA();
+
+        $allumee = $this->page($url);
+        $this->assertStringContainsString('data-ai-editor-method', $allumee);
+        $this->assertStringContainsString(e(__('blog.btn_generate_ai_editor')), $allumee);
+        $this->assertStringContainsString(e(__('blog.btn_correct_typos')), $allumee);
+        $this->assertStringContainsString(e(__('blog.editor_explorer')), $allumee);
+    }
+
+    /**
+     * Ce que la garde ne doit PAS emporter : l'editeur reste un editeur.
+     *
+     * L'ANNOTATION est une note humaine — elle ne demande rien a l'IA.
+     */
+    public function test_the_editor_itself_is_untouched(): void
+    {
+        $post = $this->unArticle();
+
+        $html = $this->page($this->urlOrg('organization.blog.edit', ['post' => $post->slug]));
+
+        $this->assertStringContainsString('bp-btn-annotation', $html);
+        $this->assertStringContainsString('name="content"', $html);
+    }
+
+    /**
+     * La carte « Questionnements » suit l'interrupteur — sauf si elle a
+     * quelque chose a montrer.
+     *
+     * Masquer des notes DEJA ECRITES effacerait du travail fait : la
+     * condition porte sur le CONTENU, pas seulement sur l'interrupteur.
+     */
+    public function test_the_questionings_card_follows_the_switch(): void
+    {
+        $post = $this->unArticle();
+
+        $this->assertStringNotContainsString(
+            'data-ai-explorer-notes',
+            $this->page($this->urlOrg('organization.blog.edit', ['post' => $post->slug])),
+        );
+
+        $this->allumerLIA();
+
+        $this->assertStringContainsString(
+            'data-ai-explorer-notes',
+            $this->page($this->urlOrg('organization.blog.edit', ['post' => $post->slug])),
+        );
+    }
+
+    /** Et un questionnement deja ecrit reste LISIBLE, IA eteinte. */
+    public function test_existing_questionings_stay_readable_with_the_switch_off(): void
+    {
+        $post = $this->unArticle();
+
+        \App\Models\BlogAnalysisNote::query()->create([
+            'blog_post_id' => $post->id,
+            'user_id' => $this->membre->id,
+            'organization_id' => $this->organization->id,
+            'method' => 'socratic',
+            'note_content' => 'Un questionnement deja ecrit.',
+        ]);
+
+        $this->assertStringContainsString(
+            'data-ai-explorer-notes',
+            $this->page($this->urlOrg('organization.blog.edit', ['post' => $post->slug])),
+            'masquer la carte effacerait du travail deja fait',
+        );
+    }
+
+    private function unArticle(): \App\Models\BlogPost
+    {
+        // Pas de fabrique pour `BlogPost` dans ce depot : creation directe,
+        // comme le fait deja `T997BlogMethodSelectionAnnotationTest`.
+        return \App\Models\BlogPost::create([
+            'user_id' => $this->membre->id,
+            'organization_id' => $this->organization->id,
+            'title' => 'Article 1693 AF',
+            'slug' => 'article-1693-af',
+            'content' => '<p>Un passage a questionner.</p>',
+            'summary' => 'Resume',
+            'status' => 'draft',
+        ]);
+    }
+
     // ── Le Dossier ───────────────────────────────────────────────────────────
 
     public function test_the_dossier_synthesis_follows_the_switch(): void
