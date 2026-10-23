@@ -105,9 +105,13 @@ class TASK1693AdminOrganizationAssignPlacementTest extends TestCase
         // retour de Cyril (« cela prend trop de place ») — sans elle, le
         // correctif pourrait etre defait sans que rien ne rougisse.
         $sansTitles = preg_replace('/title="[^"]*"/', '', $cellule);
-        $this->assertStringNotContainsString($this->a->name, $sansTitles,
+        // Viser la forme ECHAPPEE, y compris pour une ABSENCE : un nom portant
+        // une apostrophe est rendu `&#039;` par Blade, donc sa forme brute
+        // n'apparait JAMAIS — l'assertion passerait sans rien prouver.
+        // Faux vert, pas faux rouge (lecon TASK-1672).
+        $this->assertStringNotContainsString(e($this->a->name), $sansTitles,
             'le nom complet ne doit pas elargir la colonne');
-        $this->assertStringNotContainsString($this->b->name, $sansTitles);
+        $this->assertStringNotContainsString(e($this->b->name), $sansTitles);
 
         // …mais il reste accessible au survol : court ne doit pas vouloir dire muet.
         $this->assertStringContainsString('title="'.$this->a->name.'"', $cellule);

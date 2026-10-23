@@ -178,7 +178,7 @@ class TASK1693AdminMessageDetailLinkTest extends TestCase
         $this->assertStringContainsString('La phrase a relire', $html);
         $this->assertStringContainsString($avant->body, $html, 'une phrase se juge sur ce a quoi elle repond');
         $this->assertStringContainsString($apres->body, $html);
-        $this->assertStringContainsString($cible->loop->name, $html, 'le contexte nomme est la BOUCLE');
+        $this->assertStringContainsString(e($cible->loop->name), $html, 'le contexte nomme est la BOUCLE');
     }
 
     /** Le voisinage ne franchit pas la Boucle : un autre fil n'est pas melange. */
@@ -324,6 +324,9 @@ class TASK1693AdminMessageDetailLinkTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString('data-message-detail-edited', $html);
-        $this->assertStringContainsString($this->superAdmin->full_name, $html);
+        // Viser la forme ECHAPPEE : Blade rend l'apostrophe en `&#039;`, et la
+        // fabrique tire des noms qui en portent. Ce test est passe vert ici et
+        // ROUGE en CI sur « O'Hara » — troisieme visage de la lecon TASK-1672.
+        $this->assertStringContainsString(e($this->superAdmin->full_name), $html);
     }
 }

@@ -430,7 +430,7 @@ class TASK1693AdminPointsReachabilityTest extends TestCase
                 ->getContent()
         );
 
-        $this->assertStringNotContainsString($this->membre->name, $corps);
+        $this->assertStringNotContainsString(e($this->membre->name), $corps);
     }
 
     // ── 6. Bug J — une recherche qui trouve mais n'affiche rien ─────────────
