@@ -106,11 +106,17 @@
             @endphp
             <div class="md:hidden flex-1 flex flex-col min-h-0">
                 <div class="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
-                    <a href="{{ $_messagesRoute('messages.index', 'organization.messages.index') }}"
-                       class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0"
-                       aria-label="{{ __('messages.back_to_conversations') }}">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                    </a>
+                    {{-- TASK-1693 bug AQ — la seconde fleche de retour est
+                         RETIREE.
+
+                         Elle existait parce que celle de la barre du haut
+                         sautait un cran : elle menait au tableau de bord et non
+                         a la liste des conversations. Maintenant que la barre
+                         du haut remonte d'UN niveau, deux fleches « < »
+                         cohabitaient a trois centimetres l'une de l'autre, avec
+                         deux destinations differentes.
+
+                         L'avatar reprend donc la premiere place de la ligne. --}}
                     {{-- TASK-1693 bug AE — l'avatar et le nom menent au profil.
 
                          Le lien n'est pose que si la personne est AFFICHABLE :

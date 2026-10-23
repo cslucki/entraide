@@ -254,6 +254,21 @@
         @endif
         @endauth
 
+        @endif
+
+        {{-- TASK-1693 bug AQ — le RAIL GAUCHE sort de la condition de
+             conversation.
+
+             Au bug AC j'ai ajoute `&& ! $_conversationOuverte` a UNE condition
+             qui enveloppait cinq elements. L'intention ne portait que sur le
+             bas de l'ecran d'un TELEPHONE ; elle a emporte le rail de
+             l'ORDINATEUR, qui n'a rien a voir avec le clavier ni avec la place
+             sous le composer. Ouvrir une conversation faisait donc disparaitre
+             toute la navigation laterale — et laissait a sa place la gouttiere
+             de 5rem que `md:pl-20` reserve de toute facon.
+
+             Le rail revient donc a sa condition d'origine : `$showInternalNavigation`. --}}
+        @if($showInternalNavigation)
         <x-app-side-nav />
         @endif
 

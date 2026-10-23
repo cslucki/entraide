@@ -196,7 +196,10 @@
     $currentLocale = app()->getLocale();
 @endphp
 
-<aside x-data class="hidden md:flex fixed inset-y-0 left-0 z-40 w-20 flex-col items-center border-r border-[var(--bp-border)] bg-[var(--bp-surface)]/95 text-[var(--bp-muted)] shadow-[8px_0_24px_rgba(15,23,42,0.05)] backdrop-blur">
+{{-- TASK-1693 bug AQ — `data-bp-side-nav` : point d'ancrage pour mesurer que
+     le rail est RENDU. Sans marqueur, une assertion ne pourrait viser que des
+     classes utilitaires partagees par d'autres blocs. --}}
+<aside x-data data-bp-side-nav class="hidden md:flex fixed inset-y-0 left-0 z-40 w-20 flex-col items-center border-r border-[var(--bp-border)] bg-[var(--bp-surface)]/95 text-[var(--bp-muted)] shadow-[8px_0_24px_rgba(15,23,42,0.05)] backdrop-blur">
     <div class="flex h-full w-full flex-col items-center py-3">
         <a href="{{ $organizationRouteParam ? route('organization.home', ['organization' => $organizationRouteParam]) : route('home') }}" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)] transition hover:scale-105" aria-label="BouclePro">
             <img src="{{ $brandLogoUrl }}" alt="" class="h-7 w-7" aria-hidden="true">
