@@ -138,38 +138,47 @@ class TASK1693MessagingShellTest extends TestCase
     }
 
     /**
-     * TASK-1693 bug AR — l'assistant revient sur ORDINATEUR.
+     * TASK-1693 bug AT — AUCUN assistant sur la Messagerie.
      *
-     * Le bug AC l'avait emporte avec la barre du bas. Il est de nouveau rendu
-     * sur une conversation, mais efface sur TELEPHONE par `hidden md:inline-flex` :
-     * il s'y poserait au-dessus de la zone d'ecriture.
+     * Arbitrage de Cyril, qui ANNULE le bug AR : celui-ci avait remis le FAB
+     * sur une conversation d'ordinateur. On ECRIT a quelqu'un ici ; une
+     * pastille d'assistant posee par-dessus une conversation privee s'y
+     * invite. Meme raisonnement que les surfaces de decouverte (TASK-1609) et
+     * que le ChatLoop (TASK-1466), ou la Boucle porte deja son IA.
+     *
+     * La mesure porte sur les DEUX pages du module, et sur les DEUX objets :
+     * le FAB et le Shell. Ils se decident au meme endroit — `forRequest()`
+     * rend `null`, donc `shouldRenderFab()` et `shouldMountShell()` tombent
+     * ensemble ; n'en mesurer qu'un laisserait l'autre libre de diverger.
      */
-    public function test_the_assistant_comes_back_on_desktop_only(): void
+    public function test_no_assistant_anywhere_in_the_messaging_module(): void
     {
         $this->allumerLIA();
 
-        $conversation = $this->page($this->urlConversation());
+        foreach (['conversation' => $this->urlConversation(), 'liste' => $this->urlListe()] as $ou => $url) {
+            $html = $this->page($url);
 
-        $this->assertStringContainsString('data-ai-fab-toggle', $conversation,
-            'l\'assistant doit etre atteignable depuis une conversation');
-        $this->assertMatchesRegularExpression(
-            '/bp-ai-trigger[^"]*\bhidden md:inline-flex\b/',
-            $conversation,
-            'et efface sur telephone, ou il couvrirait la zone d\'ecriture',
-        );
+            $this->assertStringNotContainsString('data-ai-fab-toggle', $html, "le FAB ne doit pas paraitre sur la {$ou}");
+            // Viser le marqueur du SHELL, pas `wire:id` : la page porte
+            // d'autres composants Livewire parfaitement legitimes, et
+            // l'assertion mesurerait leur presence.
+            $this->assertStringNotContainsString('data-ai-shell', $html, "le Shell ne doit pas se monter sur la {$ou}");
+        }
     }
 
-    /** Ailleurs, il reste visible sur les DEUX tailles d'ecran. */
-    public function test_the_assistant_is_not_hidden_elsewhere(): void
+    /**
+     * Et l'exclusion ne deborde PAS : ailleurs, l'assistant reste.
+     *
+     * Sans cette mesure, une garde trop large eteindrait l'assistant dans
+     * toute l'application sans qu'aucun test ne rougisse.
+     */
+    public function test_the_assistant_stays_everywhere_else(): void
     {
         $this->allumerLIA();
 
-        $liste = $this->page($this->urlListe());
-
-        $this->assertStringContainsString('data-ai-fab-toggle', $liste);
-        $this->assertDoesNotMatchRegularExpression(
-            '/bp-ai-trigger[^"]*\bhidden md:inline-flex\b/',
-            $liste,
+        $this->assertStringContainsString(
+            'data-ai-fab-toggle',
+            $this->page(route('organization.dashboard', ['organization' => $this->organization->slug])),
         );
     }
 

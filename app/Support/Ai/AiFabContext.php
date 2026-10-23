@@ -86,6 +86,34 @@ final class AiFabContext
         'mycelium',
     ];
 
+    /**
+     * La MESSAGERIE — ni FAB, ni Shell.
+     *
+     * TASK-1693 bug AT, arbitrage de Cyril. On y ECRIT a quelqu'un : une
+     * pastille d'assistant posee par-dessus une conversation privee s'y
+     * invite. Meme raisonnement que les surfaces de decouverte (TASK-1609) et
+     * que le ChatLoop (TASK-1466), ou la Boucle porte deja son IA.
+     *
+     * CET ARBITRAGE ANNULE LE BUG AR, qui avait remis l'assistant sur une
+     * conversation d'ordinateur. Il est donc retire des DEUX tailles d'ecran,
+     * et la consigne `hideOnMobile` du FAB devient sans objet ici — elle reste
+     * en place, elle sert toujours si une autre surface en a besoin.
+     *
+     * La liste nomme des ROUTES, jamais un `str_contains` sur « messages » :
+     * `loops.messages.store` et `admin.messages.*` en portent le mot sans etre
+     * la Messagerie.
+     *
+     * @var list<string>
+     */
+    public const MESSAGING_SURFACE_ROUTES = [
+        'messages.index',
+        'messages.show',
+        'messages.with',
+        'organization.messages.index',
+        'organization.messages.show',
+        'organization.messages.with',
+    ];
+
     /** Cle memo : id utilisateur -> contexte (une lecture par requete). */
     private array $memo = [];
 
@@ -125,7 +153,7 @@ final class AiFabContext
         // TASK-1609 — surfaces de decouverte : aucun contexte, donc aucun FAB
         // et, par ricochet, aucun Shell (`shouldMountShell()` lit ce retour).
         // Place AVANT le memo : on ne veut meme pas construire le contexte.
-        if ($this->isDiscoverySurface($request)) {
+        if ($this->isDiscoverySurface($request) || $this->isMessagingSurface($request)) {
             return null;
         }
 
@@ -166,6 +194,12 @@ final class AiFabContext
     public function isDiscoverySurface(Request $request): bool
     {
         return in_array((string) ($request->route()?->getName() ?? ''), self::DISCOVERY_SURFACE_ROUTES, true);
+    }
+
+    /** La page en cours est-elle la Messagerie ? (TASK-1693 bug AT) */
+    public function isMessagingSurface(Request $request): bool
+    {
+        return in_array((string) ($request->route()?->getName() ?? ''), self::MESSAGING_SURFACE_ROUTES, true);
     }
 
     /**
