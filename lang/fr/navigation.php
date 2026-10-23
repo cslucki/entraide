@@ -102,8 +102,7 @@ return [
     'org_admin_ia' => 'IA',
     'org_admin_services' => 'Services',
     'org_admin_requests' => 'Demandes',
-    // TASK-1694 bug B — « Transactions » devient « Entraide ».
-    'org_admin_transactions' => 'Entraide',
+    'org_admin_transactions' => 'Transactions',
     'org_admin_loops' => 'Boucles',
     'org_admin_messages' => 'Messages',
     'org_admin_blog' => 'Blog',
@@ -123,7 +122,7 @@ return [
     'org_admin_ai_quality' => 'Qualité IA',
     'org_admin_ai_context_inspector' => 'Inspecteur de contexte',
     'org_admin_ai_consumption' => 'Consommation IA',
-    'org_admin_section_exchanges' => 'Entraide',
+    'org_admin_section_exchanges' => 'Échanges',
     'org_admin_section_content' => 'Contenu',
     'org_admin_section_community' => 'Communauté',
     'org_admin_section_relations' => 'Relations',

@@ -1,5 +1,4 @@
-{{-- TASK-1694 bug B — le TITRE de la page suit l'item de menu. --}}
-<x-admin-layout title="Entraide">
+<x-admin-layout title="Transactions">
     <!-- Filters -->
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
         {{-- TASK-1665 — un echange cible par la modal de suppression d'un membre
