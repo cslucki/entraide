@@ -527,6 +527,9 @@ return [
     'system_email_default_badge' => 'Default system template',
     'system_email_default_in_use' => 'Currently in use',
     'system_email_default_in_use_partial' => 'Used for Organizations without an active customization',
+    // TASK-1694 bug O — l'ecran sait enfin designer « sans Organization ».
+    'system_email_only_global' => 'Global only',
+    'system_email_scope_global' => '— Global (all organizations) —',
     'system_email_create_customization' => 'Create a customization',
     'system_email_create_customization_hint' => 'The customization is created disabled: review it, adjust it, then enable it. While disabled, the default template keeps being used.',
     'system_email_customization_created' => 'Customization created, disabled by default. Review it, then enable it.',

@@ -530,6 +530,9 @@ return [
     'system_email_default_badge' => 'Modèle système par défaut',
     'system_email_default_in_use' => 'Utilisé actuellement',
     'system_email_default_in_use_partial' => 'Utilisé pour les Organizations sans personnalisation active',
+    // TASK-1694 bug O — l'ecran sait enfin designer « sans Organization ».
+    'system_email_only_global' => 'Global uniquement',
+    'system_email_scope_global' => '— Global (toutes les Organizations) —',
     'system_email_create_customization' => 'Créer une personnalisation',
     'system_email_create_customization_hint' => 'La personnalisation est créée désactivée : relisez-la, adaptez-la, puis activez-la. Tant qu\'elle est désactivée, le modèle par défaut continue d\'être utilisé.',
     'system_email_customization_created' => 'Personnalisation créée, désactivée par défaut. Relisez-la puis activez-la.',
