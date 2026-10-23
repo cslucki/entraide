@@ -52,7 +52,27 @@
                     </div>
                     <div>
                         <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {{ __('points.reasons.' . $entry->reason, ['default' => $entry->reason]) }}
+                            {{-- TASK-1693 bug G — le repli etait INOPERANT.
+                                 Le second argument d'`__()` est le tableau de
+                                 REMPLACEMENT des `:placeholders`, pas une
+                                 valeur par defaut : `['default' => ...]` n'a
+                                 jamais rien fait. Laravel rend alors la CLEF
+                                 elle-meme, et le membre lisait
+                                 « points.reasons.cool » a la place d'un motif.
+
+                                 Deux familles de motifs cohabitent dans
+                                 `point_ledgers.reason` : un vocabulaire FERME
+                                 ecrit par le produit (`welcome_bonus`,
+                                 `exchange_earned`, `admin_reset`…), qui se
+                                 traduit, et du TEXTE LIBRE saisi par un
+                                 administrateur depuis le panneau de correction
+                                 (TASK-1667, elargi en TASK-1693 bug F), qui ne
+                                 peut pas se traduire et doit s'afficher tel
+                                 quel. `Lang::has()` distingue les deux —
+                                 c'est la seule facon de le faire, `__()` ne
+                                 sachant pas dire « absent ». --}}
+                            @php $cleMotif = 'points.reasons.'.$entry->reason; @endphp
+                            {{ \Illuminate\Support\Facades\Lang::has($cleMotif) ? __($cleMotif) : $entry->reason }}
                         </p>
                         @if($entry->transaction)
                         <p class="text-xs text-gray-500 dark:text-gray-400">

@@ -549,10 +549,15 @@ final class AiShellTurnCards
      */
     private function profileUrl(Organization $organization, string $userId): string
     {
+        // TASK-1693 bug AA — cette methode ne recoit qu'un identifiant. On
+        // resout le slug quand il existe, pour poser d'emblee l'adresse
+        // lisible plutot que de la faire obtenir par une redirection.
+        $userSegment = \App\Models\User::where('id', $userId)->value('slug') ?: $userId;
+
         if (Route::has('organization.profile.show')) {
-            return route('organization.profile.show', ['organization' => $organization->slug, 'user' => $userId]);
+            return route('organization.profile.show', ['organization' => $organization->slug, 'user' => $userSegment]);
         }
 
-        return Route::has('profile.show') ? route('profile.show', ['user' => $userId]) : '';
+        return Route::has('profile.show') ? route('profile.show', ['user' => $userSegment]) : '';
     }
 }

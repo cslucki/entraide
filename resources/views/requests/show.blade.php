@@ -2,7 +2,7 @@
     @php
         $_reqOrgSlug = request()->route('organization');
         $_reqExplorerHref = ($_reqOrgSlug && Route::has('organization.explorer') ? route('organization.explorer', ['organization' => $_reqOrgSlug]) : route('explorer')).'?tab=requests';
-        $_reqProfileHref = $_reqOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_reqOrgSlug, 'user' => $request->user]) : route('profile.show', $request->user);
+        $_reqProfileHref = $_reqOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_reqOrgSlug, 'user' => $request->user->profileRouteKey()]) : route('profile.show', $request->user->profileRouteKey());
         $_reqReportAction = $_reqOrgSlug && Route::has('organization.reports.request') ? route('organization.reports.request', ['organization' => $_reqOrgSlug, 'serviceRequest' => $request]) : route('reports.request', $request);
         $_reqTxStoreAction = $_reqOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_reqOrgSlug]) : route('transactions.store');
         $_reqEditHref = $_reqOrgSlug && Route::has('organization.requests.edit') ? route('organization.requests.edit', ['organization' => $_reqOrgSlug, 'request' => $request]) : route('requests.edit', $request);

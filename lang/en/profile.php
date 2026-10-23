@@ -99,4 +99,11 @@ return [
     'profile_reminder_title' => 'Complete your profile before publishing.',
     'profile_reminder_body' => 'The :fields fields are required — members need to know who they are dealing with before exchanging.',
     'reminder_fields' => 'First name, Last name, Phone, City, Country and Introduction',
+    // TASK-1693 bug Z — the public profile address.
+    'slug' => 'Your profile address',
+    'slug_prefix' => '…/profile/',
+    'slug_help' => 'Lowercase letters, digits and hyphens. Between 3 and 60 characters. Leave empty to go back to the technical address.',
+    'slug_change_notice' => 'Your previous address will keep working and stays reserved: no shared link is ever lost.',
+    'slug_taken' => 'That address is already taken in your Organization. Please pick another one.',
+    'slug_invalid' => 'That address cannot be used: lowercase letters, digits and hyphens only, and some words are reserved.',
 ];

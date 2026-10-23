@@ -296,7 +296,7 @@ class TASK1483DashboardTenantRefusalTest extends TestCase
         $this->actingAs($this->stranger->fresh())
             ->get(route('organization.dashboard', ['organization' => $this->host->slug]))
             ->assertStatus(403)
-            ->assertSee($this->host->name, false);
+            ->assertSee($this->host->name);
     }
 
     /**

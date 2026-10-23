@@ -10,7 +10,13 @@
         };
     @endphp
 
-    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+    {{-- TASK-1693 bug AC — pour une DISCUSSION, cette bande ne portait plus
+         que le badge : les actions y sont masquees et il n'y a pas de points.
+         Le badge ayant rejoint la ligne du pseudo, la bande entiere disparait
+         — une ligne de gagnee sur un ecran de telephone. Pour un ECHANGE elle
+         reste : elle y porte le statut, les points et les boutons. --}}
+    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 {{ $isDirectConversation ? 'hidden' : '' }}"
+         data-thread-status-banner>
         <div class="flex items-center justify-between flex-wrap gap-2">
             <div class="flex items-center gap-2">
                 @if($isDirectConversation)
@@ -38,7 +44,11 @@
             <div class="flex flex-wrap gap-2 {{ $isDirectConversation ? 'hidden' : '' }}">
                 @php $user = auth()->user(); @endphp
 
-                @if($transaction->status === 'pending' && $user->id === $transaction->seller_id)
+                {{-- TASK-1693 bug S — « Accepter » s'affiche pour celui qui
+                     n'a PAS propose. En dur sur `seller_id`, le bouton
+                     revenait au proposant lui-meme des que l'echange naissait
+                     d'une demande d'aide. --}}
+                @if($transaction->status === 'pending' && $user->id === $transaction->decisionMakerId())
                     <form method="POST" action="{{ $_threadRoute('transactions.approve', 'organization.transactions.approve', ['transaction' => $transaction]) }}">
                         @csrf @method('PATCH')
                         <button class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">{{ __('messages.actions.accept') }}</button>
@@ -114,6 +124,11 @@
                     <x-conversation.message-bubble
                         type="sent"
                         :time="$message->created_at->format('H:i')"
+                        {{-- TASK-1693 bug Q — une correction par la moderation
+                             doit se voir ici, exactement comme elle se voit
+                             dans le ChatLoop. La bulle partagee le sait deja
+                             faire ; seul ce fil ne le lui disait pas. --}}
+                        :is-edited="$message->edited_at !== null"
                         :message-id="$message->id"
                         :show-reply-button="true"
                         :show-pin-button="$canPin"
@@ -134,6 +149,7 @@
                         :time="$message->created_at->format('H:i')"
                         :name="$senderName"
                         :avatar="$senderDisplayable ? $message->sender?->avatar_url : null"
+                        :is-edited="$message->edited_at !== null"
                         :message-id="$message->id"
                         :show-reply-button="true"
                         :show-pin-button="$canPin"

@@ -13,16 +13,25 @@ class TransactionPolicy
             && ($user->id === $transaction->buyer_id || $user->id === $transaction->seller_id);
     }
 
+    /**
+     * TASK-1693 bug S — decide celui qui n'a PAS propose.
+     *
+     * `seller_id` en dur designait le proposant lui-meme des que l'echange
+     * naissait d'une demande d'aide : voir `Transaction::decisionMakerId()`.
+     * Pour une offre de service, cette methode rend `seller_id` — le
+     * comportement historique, a l'identique.
+     */
     public function approve(User $user, Transaction $transaction): bool
     {
         return $this->resourceBelongsToCurrentOrganization($transaction)
-            && $user->id === $transaction->seller_id && $transaction->status === 'pending';
+            && $user->id === $transaction->decisionMakerId() && $transaction->status === 'pending';
     }
 
+    /** Meme regle qu'`approve()` : refuser est l'autre face de la decision. */
     public function refuse(User $user, Transaction $transaction): bool
     {
         return $this->resourceBelongsToCurrentOrganization($transaction)
-            && $user->id === $transaction->seller_id && $transaction->status === 'pending';
+            && $user->id === $transaction->decisionMakerId() && $transaction->status === 'pending';
     }
 
     public function adjust(User $user, Transaction $transaction): bool

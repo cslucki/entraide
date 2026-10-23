@@ -63,4 +63,7 @@ return [
     'body_or_image_required' => 'Ajoutez un message ou une image.',
     'invalid_file' => 'Seules les images (JPG, PNG, GIF, WebP) sont acceptées.',
     'cross_org' => 'Vous ne pouvez pas démarrer une conversation en dehors de votre organisation.',
+    // TASK-1693 bug AC
+    'send_image' => 'Envoyer une image',
+    'take_photo' => 'Prendre une photo',
 ];

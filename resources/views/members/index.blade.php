@@ -8,9 +8,29 @@
 
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             @foreach($members as $member)
-            @php $profileRoute = request()->route('organization') ? url('org/' . request()->route('organization') . '/profile/' . $member->id) : route('profile.show', $member); @endphp
+            {{-- TASK-1693 bug AA — l'annuaire fabriquait son URL A LA MAIN, avec
+                 l'identifiant, en contournant `route()`. C'est pour cela qu'il
+                 est reste en UUID la ou les autres ecrans suivaient. --}}
+            @php $profileRoute = request()->route('organization')
+                ? route('organization.profile.show', ['organization' => request()->route('organization'), 'user' => $member->profileRouteKey()])
+                : route('profile.show', $member->profileRouteKey()); @endphp
+            @php
+                // TASK-1693 bug AA — ecrire directement depuis l'annuaire.
+                //
+                // L'URL vise la surface de l'Organization : sans prefixe,
+                // `ResolveUrlOrganization` lie l'Organization PAR DEFAUT et la
+                // garde inter-tenant refuse d'ouvrir la conversation.
+                $ecrireUrl = request()->route('organization') && Route::has('organization.messages.with')
+                    ? route('organization.messages.with', ['organization' => request()->route('organization'), 'user' => $member->profileRouteKey()])
+                    : route('messages.with', $member->profileRouteKey());
+            @endphp
+            {{-- La carte entiere est un lien : le bouton « ecrire » se pose
+                 A COTE, en superposition, jamais DEDANS. Un lien imbrique dans
+                 un lien est invalide en HTML et le navigateur le deplace —
+                 meme famille que le formulaire imbrique corrige en T1668. --}}
+            <div class="relative">
             <a href="{{ $profileRoute }}"
-               class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition group flex flex-col gap-3">
+               class="h-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition group flex flex-col gap-3">
 
                 <!-- Avatar + nom -->
                 <div class="flex items-center gap-3">
@@ -75,6 +95,18 @@
                 @endif
 
             </a>
+            @auth
+            @if(auth()->id() !== $member->id)
+            <a href="{{ $ecrireUrl }}"
+               data-member-write="{{ $member->id }}"
+               title="{{ __('directory.write_to', ['name' => $member->fullName]) }}"
+               aria-label="{{ __('directory.write_to', ['name' => $member->fullName]) }}"
+               class="absolute top-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white/90 text-gray-500 shadow-sm transition hover:border-indigo-300 hover:text-indigo-600 dark:border-gray-600 dark:bg-gray-800/90 dark:text-gray-400 dark:hover:text-indigo-400">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+            </a>
+            @endif
+            @endauth
+            </div>
             @endforeach
         </div>
 

@@ -52,6 +52,16 @@ class TASK1128ChatLoopHeaderTest extends TestCase
             'loop_composition_policy' => 'owner_allowed',
         ]);
 
+        // TASK-1693 bug AP — la Card « Resume IA » ne parait que si l'IA est
+        // UTILISABLE pour l'Organization. Ce fichier mesure la FORME de
+        // l'en-tete de ChatLoop, bouton « Resume IA » compris : sans
+        // credential, il mesurerait l'absence de la Card au lieu de la place
+        // qu'elle occupe.
+        \App\Models\OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $this->org->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
+
         $this->owner = User::factory()->create(['organization_id' => $this->org->id]);
 
         $this->loop = Loop::factory()->create([

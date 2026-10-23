@@ -61,7 +61,7 @@ class ServiceController extends Controller
             'provider' => [
                 '@type' => 'Person',
                 'name' => $service->user->name,
-                'url' => route('profile.show', $service->user),
+                'url' => route('profile.show', $service->user->profileRouteKey()),
             ],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 

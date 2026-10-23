@@ -11,6 +11,15 @@
     </p>
 
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
+        {{-- TASK-1693 bug I — chercher AVANT de choisir. Le `select` ci-dessous
+             repond bien quand on connait deja la personne ; il ne repond pas a
+             « qui est ce ofsh@… ? ». Ce champ borne a la fois les ecritures
+             affichees ET la liste deroulante, pour qu'on puisse designer
+             ensuite la personne trouvee. --}}
+        <input type="search" name="search" value="{{ request('search') }}"
+               placeholder="{{ __('admin.points_search_placeholder') }}"
+               data-points-search
+               class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm min-w-56">
         {{-- TASK-1667 — choisir la personne ICI, et non en fabriquant l'URL a la
              main. Ce `select` fait deux choses d'un coup : il borne la liste, et
              il fait apparaitre le panneau de correction. Il porte aussi le
@@ -34,10 +43,24 @@
         <input type="text" name="reason" value="{{ request('reason') }}" placeholder="{{ __('admin.points_reason_placeholder') }}"
                class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
         <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">{{ __('admin.filter') }}</button>
-        @if(request()->hasAny(['organization_id', 'reason', 'user_id']))
+        {{-- TASK-1693 bug I — `search` entre dans cette liste. Sans lui, une
+             recherche seule n'aurait fait apparaitre aucun bouton « Effacer » :
+             l'ecran serait filtre sans offrir de sortie. --}}
+        @if(request()->hasAny(['organization_id', 'reason', 'user_id', 'search']))
         <a href="{{ route('admin.points') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">{{ __('admin.clear') }}</a>
         @endif
     </form>
+
+    {{-- TASK-1693 bug F — quand personne n'est designe, DIRE que la correction
+         existe. Le panneau ne s'affiche qu'une fois la personne choisie, et
+         rien ne l'annoncait : la capacite etait livree mais invisible, exactement
+         le defaut signale. Un indice coute une ligne ; une capacite introuvable
+         equivaut a une capacite absente. --}}
+    @unless($filteredUser)
+    <p class="mb-4 text-xs text-gray-500 dark:text-gray-400" data-points-adjust-hint>
+        {{ __('admin.points_adjust_hint') }}
+    </p>
+    @endunless
 
     {{-- Une liste bornee a une personne doit se VOIR : sinon une ecriture se lit
          comme « il n'y en a qu'une sur toute la plateforme ». --}}
@@ -109,7 +132,7 @@
                             <a href="{{ request()->fullUrlWithQuery(['sort' => 'created_at', 'direction' => ($tri === 'created_at' && $sens === 'asc') ? 'desc' : 'asc']) }}"
                                class="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
                                 {{ __('admin.points_col_date') }}
-                                @if($tri === 'created_at')<span>{{ $sens === 'asc' ? '&uarr;' : '&darr;' }}</span>@endif
+                                @if($tri === 'created_at')<span aria-hidden="true">{!! $sens === 'asc' ? '&uarr;' : '&darr;' !!}</span>@endif
                             </a>
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.points_col_member') }}</th>
@@ -117,14 +140,14 @@
                             <a href="{{ request()->fullUrlWithQuery(['sort' => 'delta', 'direction' => ($tri === 'delta' && $sens === 'asc') ? 'desc' : 'asc']) }}"
                                class="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
                                 {{ __('admin.points_col_delta') }}
-                                @if($tri === 'delta')<span>{{ $sens === 'asc' ? '&uarr;' : '&darr;' }}</span>@endif
+                                @if($tri === 'delta')<span aria-hidden="true">{!! $sens === 'asc' ? '&uarr;' : '&darr;' !!}</span>@endif
                             </a>
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                             <a href="{{ request()->fullUrlWithQuery(['sort' => 'reason', 'direction' => ($tri === 'reason' && $sens === 'asc') ? 'desc' : 'asc']) }}"
                                class="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
                                 {{ __('admin.points_col_reason') }}
-                                @if($tri === 'reason')<span>{{ $sens === 'asc' ? '&uarr;' : '&darr;' }}</span>@endif
+                                @if($tri === 'reason')<span aria-hidden="true">{!! $sens === 'asc' ? '&uarr;' : '&darr;' !!}</span>@endif
                             </a>
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.points_col_organization') }}</th>
@@ -144,9 +167,29 @@
                             {{-- TASK-1667 — un pas de plus vers la correction : la Fiche
                                  dit QUI c'est, ce lien amene a ses ecritures et au
                                  panneau de correction. --}}
+                            {{-- TASK-1693 bug H — ce lien etait un `&rarr;` gris
+                                 pale, dont la seule explication vivait dans un
+                                 attribut `title`. Une infobulle ne se survole
+                                 pas au doigt, ne se lit pas au lecteur d'ecran
+                                 comme une commande, et ne se devine pas : la
+                                 porte principale vers la correction d'un solde
+                                 etait donc invisible, exactement comme le
+                                 panneau l'etait avant le bug F.
+
+                                 Un VERBE, et une forme qui se lit comme une
+                                 commande. Le libelle reste court — « Corriger »
+                                 plutot que « Voir et corriger ses points » —
+                                 parce qu'il se repete a chaque ligne : lecon du
+                                 bug D, ou un libelle long avait fait exploser
+                                 la largeur d'une colonne. La phrase complete
+                                 reste en `title`. --}}
                             <a href="{{ request()->fullUrlWithQuery(['user_id' => $entry->user->id]) }}"
-                               class="ml-1 text-xs text-gray-400 hover:text-indigo-600 hover:underline"
-                               title="{{ __('admin.points_focus_member') }}">&rarr;</a>
+                               class="ml-2 inline-flex items-center gap-1 rounded-md border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:border-indigo-400 transition"
+                               data-points-focus-member="{{ $entry->user->id }}"
+                               title="{{ __('admin.points_focus_member') }}">
+                                {{ __('admin.points_focus_member_short') }}
+                                <span aria-hidden="true">&rarr;</span>
+                            </a>
                             @else <span class="text-xs text-gray-400">—</span>
                             @endif
                         </td>
@@ -161,7 +204,33 @@
                     @empty
                     <tr>
                         <td colspan="5" class="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                            {{ __('admin.points_empty') }}
+                            {{-- TASK-1693 bug J — une recherche qui TROUVE une
+                                 personne mais rend un tableau vide se lit comme
+                                 « la recherche ne marche pas ». Elle marche :
+                                 ce tableau liste des ECRITURES, et cette
+                                 personne n'en a aucune.
+
+                                 Le dire, et offrir le pas suivant — car si l'on
+                                 cherche quelqu'un ici, c'est pour corriger son
+                                 solde, et c'est justement quand le grand livre
+                                 est vide qu'il faut une premiere ecriture. --}}
+                            @if(request()->filled('search') && $membres->isNotEmpty())
+                                <p data-points-search-no-entry>
+                                    {{ trans_choice('admin.points_search_no_entry', $membres->count(), ['count' => $membres->count()]) }}
+                                </p>
+                                <div class="mt-3 flex flex-wrap items-center justify-center gap-2">
+                                    @foreach($membres as $trouve)
+                                    <a href="{{ request()->fullUrlWithQuery(['user_id' => $trouve->id]) }}"
+                                       data-points-search-member="{{ $trouve->id }}"
+                                       class="inline-flex items-center gap-1 rounded-md border border-indigo-200 dark:border-indigo-800 px-2 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:border-indigo-400 transition">
+                                        {{ $trouve->full_name }} — {{ $trouve->points_balance }} pts
+                                        <span aria-hidden="true">&rarr;</span>
+                                    </a>
+                                    @endforeach
+                                </div>
+                            @else
+                                {{ __('admin.points_empty') }}
+                            @endif
                         </td>
                     </tr>
                     @endforelse

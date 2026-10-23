@@ -133,6 +133,16 @@
                 // vers les Boucles d'une autre Organization.
                 $backHref = auth()->check() && Route::has('loops.index') ? $routeUrl('loops.index', 'organization.loops.index') : route('boucles.index');
             }
+        } elseif (request()->routeIs('messages.show', 'organization.messages.show')) {
+            // TASK-1693 bug AQ — depuis une conversation, le retour mene a la
+            // LISTE des conversations, pas au tableau de bord.
+            //
+            // La conversation est le second niveau de la Messagerie : renvoyer
+            // au tableau de bord sautait un cran, et c'est ce qui rendait
+            // indispensable la seconde fleche posee dans l'en-tete du fil.
+            // Une seule fleche desormais, celle de la barre du haut, et elle
+            // remonte d'UN niveau.
+            $backHref = $routeUrl('messages.index', 'organization.messages.index');
         } elseif (request()->routeIs('messages.*', 'points.*', 'favorites.*', 'profile.*', 'invitations.*', 'agent-ia.*', 'organization.messages.*', 'organization.points.*', 'organization.favorites.*', 'organization.profile.*', 'organization.invitations.*', 'organization.agent-ia.*')) {
             $backHref = auth()->check() ? $routeUrl('dashboard', 'organization.dashboard') : route('home');
         } elseif (request()->routeIs('bug-reports.*', 'organization.bug-reports.*')) {
@@ -175,7 +185,12 @@
                 <span class="truncate text-base font-bold text-gray-900 dark:text-gray-100">{{ $brandOrganizationName ?? config('app.name') }}</span>
             </a>
             @elseif($backHref)
-            <a href="{{ $backHref }}" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300 dark:hover:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('ui.back') }}">
+            {{-- TASK-1693 bug AQ — `data-bp-topbar-back` porte la DESTINATION.
+                 Sans lui, une assertion ne peut que chercher l'adresse quelque
+                 part dans la page : elle y figure aussi via le rail et les
+                 liens de la liste, donc elle resterait verte avec une fleche
+                 pointant ailleurs. Mon premier test faisait exactement cela. --}}
+            <a href="{{ $backHref }}" data-bp-topbar-back="{{ $backHref }}" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300 dark:hover:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('ui.back') }}">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
@@ -261,7 +276,7 @@
                             {{ auth()->user()->is_available ? __('dashboard.available') : __('dashboard.unavailable') }}
                         </button>
                     </form>
-                    <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()]) : route('profile.show', auth()->user())">{{ __('navigation.profile') }}</x-dropdown-link>
+                    <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()->profileRouteKey()]) : route('profile.show', auth()->user()->profileRouteKey())">{{ __('navigation.profile') }}</x-dropdown-link>
                     @if(!$currentOrganization || $currentOrganization->ai_profiles_enabled)
                     <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     @endif

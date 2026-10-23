@@ -63,6 +63,10 @@ return [
     'btn_generate_ai' => 'Générer l\'article avec l\'IA',
     'btn_generate_ai_editor' => 'Générer avec l\'IA',
     'btn_write_myself' => 'L\'écrire moi-même',
+    // TASK-1693 bug AI — quand l'IA est eteinte, « ecrire moi-meme » n'oppose
+    // plus rien : il n'y a aucun autre chemin. Le bouton n'annonce alors que ce
+    // qu'il fait — avancer vers l'editeur.
+    'btn_write_myself_without_ai' => 'Valider',
     'btn_save' => 'Enregistrer les modifications',
     'btn_publish' => 'Publier',
     'btn_edit' => 'Modifier',

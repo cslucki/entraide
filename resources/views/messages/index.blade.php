@@ -6,7 +6,12 @@
         }
 
         .messages-index-container {
-            height: calc(100dvh - 3.5rem - 4rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+            /* TASK-1693 bug AD — `4rem` etait la hauteur de la barre d'outils,
+               recopiee en dur. Le bug AC l'ayant retiree des conversations,
+               cette page continuait de la soustraire : d'ou une bande vide
+               sous le composeur, qui ne tenait donc plus le bas de l'ecran.
+               `--bp-bottom-nav` suit la meme decision que la barre. */
+            height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px) - var(--bp-bottom-nav, 0px));
         }
     }
 
@@ -51,7 +56,14 @@
                                     <span class="flex w-10 h-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300">?</span>
                                 @endif
                                 @if($unread > 0 && !$isActive)
-                                <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                {{-- TASK-1693 bug V — la valeur BRUTE, pour que
+                                     ce compteur soit mesurable comme celui du
+                                     rail. Sans marqueur, une assertion ne
+                                     pouvait que chercher le chiffre quelque
+                                     part dans la page : un sabotage restait
+                                     vert. --}}
+                                <span data-thread-unread="{{ $conv->id }}:{{ $unread }}"
+                                      class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                                     {{ $unread > 9 ? '9+' : $unread }}
                                 </span>
                                 @endif
@@ -94,16 +106,46 @@
             @endphp
             <div class="md:hidden flex-1 flex flex-col min-h-0">
                 <div class="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
-                    <a href="{{ $_messagesRoute('messages.index', 'organization.messages.index') }}"
-                       class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0"
-                       aria-label="{{ __('messages.back_to_conversations') }}">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                    </a>
+                    {{-- TASK-1693 bug AQ — la seconde fleche de retour est
+                         RETIREE.
+
+                         Elle existait parce que celle de la barre du haut
+                         sautait un cran : elle menait au tableau de bord et non
+                         a la liste des conversations. Maintenant que la barre
+                         du haut remonte d'UN niveau, deux fleches « < »
+                         cohabitaient a trois centimetres l'une de l'autre, avec
+                         deux destinations differentes.
+
+                         L'avatar reprend donc la premiere place de la ligne. --}}
+                    {{-- TASK-1693 bug AE — l'avatar et le nom menent au profil.
+
+                         Le lien n'est pose que si la personne est AFFICHABLE :
+                         `isDisplayableIn()` verifie exactement les deux gardes
+                         de `ProfileController::show()` — ni desactivee, ni
+                         d'une autre Organization. Le poser sans cela
+                         fabriquerait un 404, le defaut du bug K.
+
+                         Deux liens distincts (l'avatar, le nom) plutot qu'un
+                         seul englobant : la ligne du dessous porte deja un lien
+                         vers le service ou la demande, et un lien dans un lien
+                         est invalide en HTML — lecon du bug AA. --}}
+                    @php
+                        $_profilUrl = $otherDisplayable
+                            ? $_messagesRoute('profile.show', 'organization.profile.show', ['user' => $other->profileRouteKey()])
+                            : null;
+                    @endphp
                     @if($otherDisplayable)
-                        <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
+                        <a href="{{ $_profilUrl }}" data-thread-profile-avatar="{{ $other->id }}" class="flex-shrink-0 hover:opacity-80 transition">
+                            <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
+                        </a>
                     @endif
                     <div class="min-w-0 flex-1">
-                        <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ $other?->publicDisplayName() ?? __('profile.deactivated_user') }}</p>
+                        @if($otherDisplayable)
+                        <a href="{{ $_profilUrl }}" data-thread-profile-link="{{ $other->id }}"
+                           class="block font-medium text-sm text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $other->publicDisplayName() }}</a>
+                        @else
+                        <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ __('profile.deactivated_user') }}</p>
+                        @endif
                         <p class="text-xs text-gray-500 truncate">
                             @if($transaction->service)
                             <a href="{{ $_messagesRoute('services.show', 'organization.services.show', ['service' => $transaction->service]) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
@@ -112,6 +154,16 @@
                             @endif
                         </p>
                     </div>
+                        {{-- TASK-1693 bug AC — le badge rejoint la ligne du
+                             pseudo, a droite. Isole sur sa propre ligne il
+                             coutait une bande entiere d'un ecran de
+                             telephone, pour un mot. --}}
+                        @if($transaction->isDirectConversation())
+                        <span data-conversation-badge
+                              class="ml-auto flex-shrink-0 inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                            {{ __('messages.direct_conversation') }}
+                        </span>
+                        @endif
                 </div>
                     <div class="flex-1 min-h-0 flex flex-col">
                         @livewire('message-thread', ['transaction' => $transaction])
@@ -145,7 +197,14 @@
                                     <span class="flex w-10 h-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300">?</span>
                                 @endif
                                 @if($unread > 0 && !$isActive)
-                                <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                {{-- TASK-1693 bug V — la valeur BRUTE, pour que
+                                     ce compteur soit mesurable comme celui du
+                                     rail. Sans marqueur, une assertion ne
+                                     pouvait que chercher le chiffre quelque
+                                     part dans la page : un sabotage restait
+                                     vert. --}}
+                                <span data-thread-unread="{{ $conv->id }}:{{ $unread }}"
+                                      class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                                     {{ $unread > 9 ? '9+' : $unread }}
                                 </span>
                                 @endif
@@ -188,11 +247,23 @@
                         $otherDisplayable = $other?->isDisplayableIn(currentOrganization()) ?? false;
                     @endphp
                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                        @php
+                            $_profilUrl = $otherDisplayable
+                                ? $_messagesRoute('profile.show', 'organization.profile.show', ['user' => $other->profileRouteKey()])
+                                : null;
+                        @endphp
                         @if($otherDisplayable)
-                            <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
+                            <a href="{{ $_profilUrl }}" data-thread-profile-avatar="{{ $other->id }}" class="flex-shrink-0 hover:opacity-80 transition">
+                                <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
+                            </a>
                         @endif
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-gray-100">{{ $other?->publicDisplayName() ?? __('profile.deactivated_user') }}</p>
+                            @if($otherDisplayable)
+                            <a href="{{ $_profilUrl }}" data-thread-profile-link="{{ $other->id }}"
+                               class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $other->publicDisplayName() }}</a>
+                            @else
+                            <p class="font-medium text-gray-900 dark:text-gray-100">{{ __('profile.deactivated_user') }}</p>
+                            @endif
                             <p class="text-xs text-gray-500">
                                 @if($transaction->service)
                                 <a href="{{ $_messagesRoute('services.show', 'organization.services.show', ['service' => $transaction->service]) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
@@ -201,6 +272,16 @@
                                 @endif
                             </p>
                         </div>
+                        {{-- TASK-1693 bug AC — le badge rejoint la ligne du
+                             pseudo, a droite. Isole sur sa propre ligne il
+                             coutait une bande entiere d'un ecran de
+                             telephone, pour un mot. --}}
+                        @if($transaction->isDirectConversation())
+                        <span data-conversation-badge
+                              class="ml-auto flex-shrink-0 inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                            {{ __('messages.direct_conversation') }}
+                        </span>
+                        @endif
                     </div>
                     <div class="flex-1 min-h-0 flex flex-col">
                         @livewire('message-thread', ['transaction' => $transaction])

@@ -194,7 +194,7 @@
                             @endif
                         </a>
                         <div class="px-4 sm:px-5 pb-4 flex items-center justify-between">
-                            <a href="{{ $_orgSlug ? route('organization.profile.show', ['organization' => $_orgSlug, 'user' => $service->user]) : route('profile.show', $service->user) }}"
+                            <a href="{{ $_orgSlug ? route('organization.profile.show', ['organization' => $_orgSlug, 'user' => $service->user->profileRouteKey()]) : route('profile.show', $service->user->profileRouteKey()) }}"
                                class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                 <img src="{{ $service->user->avatar_url }}" class="w-5 h-5 rounded-full" alt="">
                                 {{ $service->user->fullName }}
@@ -250,7 +250,7 @@
                             </a>
                             <p class="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 mb-3">{{ $request->description }}</p>
                             <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3">
-                                <a href="{{ $_orgSlug ? route('organization.profile.show', ['organization' => $_orgSlug, 'user' => $request->user]) : route('profile.show', $request->user) }}"
+                                <a href="{{ $_orgSlug ? route('organization.profile.show', ['organization' => $_orgSlug, 'user' => $request->user->profileRouteKey()]) : route('profile.show', $request->user->profileRouteKey()) }}"
                                    class="flex items-center gap-2 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                     <img src="{{ $request->user->avatar_url }}" class="w-5 h-5 rounded-full" alt="">
                                     {{ $request->user->fullName }}

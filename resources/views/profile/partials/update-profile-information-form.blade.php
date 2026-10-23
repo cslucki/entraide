@@ -37,6 +37,27 @@
                 </div>
             </div>
 
+            {{-- TASK-1693 bug Z — l'adresse publique, choisie par la personne.
+
+                 Derivee de « prenom-nom » a l'inscription, modifiable ensuite.
+                 La laisser au choix plutot que de l'imposer repond aussi a une
+                 question de discretion : qui tient a la sienne prend un
+                 pseudonyme, qui veut etre trouve prend son nom. --}}
+            <div class="mt-6" data-profile-slug-field>
+                <x-input-label for="slug" :value="__('profile.slug')" />
+                <div class="mt-1 flex items-center gap-1">
+                    <span class="shrink-0 text-sm text-gray-400">{{ __('profile.slug_prefix') }}</span>
+                    <x-text-input id="slug" name="slug" type="text" class="block w-full"
+                                  :value="old('slug', $user->slug)"
+                                  maxlength="60" autocomplete="off" />
+                </div>
+                <x-input-error class="mt-2" :messages="$errors->get('slug')" />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.slug_help') }}</p>
+                {{-- La consequence, NOMMEE : changer d'adresse inquiete, et
+                     cette phrase dit pourquoi il n'y a pas de quoi. --}}
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.slug_change_notice') }}</p>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <x-input-label for="email" :value="__('profile.email')" />

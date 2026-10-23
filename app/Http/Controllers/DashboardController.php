@@ -23,17 +23,55 @@ class DashboardController extends Controller
         $user = auth()->user();
 
         $myServices = $user->services()->where('status', 'active')->with('category')->latest()->get();
-        $myRequests = $user->serviceRequests()->where('status', 'open')->with('category')->latest()->get();
-
-        $myProposals = Transaction::where('buyer_id', $user->id)
-            ->whereIn('status', ['pending', 'accepted', 'buyer_done'])
-            ->with(['service', 'serviceRequest', 'seller'])
+        // TASK-1693 bug U — « Mes demandes d'aide » taisait les demandes PRISES
+        // EN CHARGE.
+        //
+        // Des qu'une personne propose son aide, la demande passe de `open` a
+        // `in_progress` (`TransactionController:106`). La card ne listant que
+        // `open`, elle DISPARAISSAIT de la vue de son auteur a la seconde ou
+        // elle devenait vivante — c'est-a-dire au moment le plus interessant.
+        //
+        // Le titre dit « mes demandes », pas « mes demandes que personne n'a
+        // encore vues ». On liste donc les deux etats, et c'est la PASTILLE qui
+        // dit lequel. `closed` reste dehors : son auteur l'a ferme
+        // deliberement, exactement comme les echanges termines restent hors de
+        // la card « Échanges ».
+        //
+        // A noter : la page « Voir tout » (`dashboard.requests`) n'a JAMAIS
+        // filtre sur le statut. L'information n'etait donc pas perdue, elle
+        // etait absente de l'ecran d'accueil — la card mentait par omission.
+        $myRequests = $user->serviceRequests()
+            ->whereIn('status', ['open', 'in_progress'])
+            ->with('category')
             ->latest()
             ->get();
 
-        $activeExchanges = Transaction::where(function ($q) use ($user) {
+        // TASK-1693 bug T — UNE seule card « Échanges », l'UNION des deux.
+        //
+        // Le tableau de bord portait deux cards qui se CHEVAUCHAIENT :
+        //
+        //   « Mes échanges en cours »  buyer_id = moi, statuts pending+accepted+buyer_done
+        //   « Échanges en cours »      moi des deux cotes, statuts accepted+buyer_done
+        //
+        // Un echange dont j'etais acheteur et qui etait `accepted` figurait
+        // donc DANS LES DEUX, meme titre, meme lien (constate en recette :
+        // « Titre Titre Titre · 20 pts » affiche deux fois). Et comme la
+        // premiere se masquait quand elle etait vide, le tableau de bord
+        // changeait de FORME selon la personne : deux cards pour qui achete,
+        // une seule pour qui vend.
+        //
+        // Supprimer l'une des deux aurait perdu quelque chose dans les deux
+        // sens — la premiere seule montrait les propositions `pending`, la
+        // seconde seule ce dont je suis vendeur. L'union ne perd rien, et
+        // c'est deja exactement le perimetre de « Messages récents »
+        // ci-dessous : la coherence est donc retablie, pas inventee.
+        //
+        // L'etat de chaque ligne — En attente / Accepté / Terminé (acheteur) —
+        // est porte par la PASTILLE, a cote de chaque echange, au lieu d'etre
+        // porte par le titre de deux cards qu'il fallait savoir distinguer.
+        $exchanges = Transaction::where(function ($q) use ($user) {
             $q->where('buyer_id', $user->id)->orWhere('seller_id', $user->id);
-        })->whereIn('status', ['accepted', 'buyer_done'])
+        })->whereIn('status', ['pending', 'accepted', 'buyer_done'])
             ->with(['buyer', 'seller', 'service', 'serviceRequest'])
             ->latest()
             ->get();
@@ -46,7 +84,7 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
-        $aiProfile = $organization->ai_profiles_enabled
+        $aiProfile = app(\App\Support\Ai\AiSurfaceGate::class)->memberAgentAvailableFor($organization)
             ? MemberAiProfile::forUser($user)->forOrganization($organization)->first()
             : null;
 
@@ -88,13 +126,21 @@ class DashboardController extends Controller
             return route($name, $parameters);
         };
 
-        $aiProfileDisabled = ! $organization->ai_profiles_enabled;
+        // TASK-1693 bug AF — l'etape « Creer mon agent IA » tombe aussi quand
+        // l'IA de l'Organization est ETEINTE.
+        //
+        // Elle ne lisait que `ai_profiles_enabled` — le choix PRODUIT — et
+        // ignorait « Activer les fonctions IA pour cette organisation ». Une
+        // Organization dont l'IA etait eteinte proposait donc une etape
+        // d'accueil que le serveur allait refuser.
+        $aiProfileDisabled = ! app(\App\Support\Ai\AiSurfaceGate::class)
+            ->memberAgentAvailableFor($organization);
         $subscriptionsEnabled = $organization->subscriptions_enabled;
 
         $stepsKeys = ['presentation', 'request', 'service', 'ai_profile'];
         $stepsDone = [$hasPresentation, $hasServiceRequest, $hasService, $hasPublishedAiProfile];
         $stepsCtaUrls = [
-            $hasPresentation ? $onboardingRoute('profile.show', ['user' => $user]) : $onboardingRoute('profile.edit'),
+            $hasPresentation ? $onboardingRoute('profile.show', ['user' => $user->profileRouteKey()]) : $onboardingRoute('profile.edit'),
             $hasServiceRequest ? $onboardingRoute('dashboard.requests') : $onboardingRoute('requests.create'),
             $hasService ? $onboardingRoute('dashboard.services') : $onboardingRoute('services.create'),
             $aiProfileDisabled
@@ -130,9 +176,31 @@ class DashboardController extends Controller
             ];
         }, $stepsKeys, $stepsDone, $stepsCtaUrls);
 
+        // TASK-1693 bug AG — une etape verrouillee qui ne mene NULLE PART
+        // disparait.
+        //
+        // Au bug AF l'etape « Creer mon agent IA » tombait bien sous
+        // l'interrupteur, mais elle restait AFFICHEE, cadenassee, avec
+        // « Contacter l'administration » pour tout horizon — et elle comptait
+        // encore dans la progression, qui annoncait « 2/4 » une cible
+        // inatteignable. C'est la poignee sur la porte muree, un cran plus
+        // loin.
+        //
+        // L'etape RESTE quand l'Organization vend des abonnements : son lien
+        // mene alors a une offre reelle, et la retirer effacerait le seul
+        // chemin qui ouvre la porte. La distinction est donc « ce lien
+        // aboutit-il ? », pas « l'etape est-elle disponible ? ».
+        //
+        // Meme regle que `MemberOnboardingSteps::remainingFor()`, qui ecarte
+        // deja cette etape du RESTE A FAIRE.
+        $onboardingSteps = array_values(array_filter(
+            $onboardingSteps,
+            static fn (array $step): bool => $step['status'] !== 'disabled' || $step['cta_url'] !== null,
+        ));
+
         return view('dashboard', compact(
             'user',
-            'myServices', 'myRequests', 'myProposals', 'activeExchanges', 'recentMessages',
+            'myServices', 'myRequests', 'exchanges', 'recentMessages',
             'referralCode', 'referralLink', 'sentReferralsCount', 'activatedReferralsCount', 'referralPointsEarned',
             'aiProfile', 'onboardingSteps', 'requestCreateUrl',
             'aiProfileDisabled', 'subscriptionsEnabled',

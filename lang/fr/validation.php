@@ -165,6 +165,17 @@ return [
     ],
 
     'custom' => [
+        // TASK-1693 bug X — « Le tableau images ne peut pas contenir plus de 5
+        // elements » ne veut rien dire pour qui depose des photos. Le mot
+        // « tableau » est un terme de programmeur, et « elements » n'en est pas
+        // un de photographe.
+        'images' => [
+            'max' => 'Vous ne pouvez pas joindre plus de :max images. Retirez-en quelques-unes et renvoyez le formulaire.',
+        ],
+        'images.*' => [
+            'image' => 'Chaque fichier joint doit etre une image (JPG, PNG ou WebP).',
+            'max' => 'Chaque image doit peser au plus 2 Mo.',
+        ],
         'points_cost' => [
             'min' => 'Le service doit coûter au moins :min points.',
             'max' => 'Le service ne peut pas coûter plus de :max points.',

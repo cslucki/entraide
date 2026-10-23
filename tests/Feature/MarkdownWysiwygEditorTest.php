@@ -25,6 +25,16 @@ class MarkdownWysiwygEditorTest extends TestCase
         $this->organization = Organization::factory()->create(['is_default' => true]);
         $this->user = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->category = Category::factory()->create(['organization_id' => $this->organization->id]);
+
+        // TASK-1693 bug AF — le panneau de reformulation ne s'offre desormais
+        // que si l'IA est UTILISABLE pour l'Organization. Ce n'etait pas une
+        // condition de ces tests, qui portent sur l'EDITEUR ; mais sans elle
+        // le panneau n'existe plus, et `test_create_form_contains_ai_formulation_panel`
+        // mesurerait son absence au lieu de sa presence.
+        \App\Models\OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $this->organization->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
     }
 
     public function test_wysiwyg_editor_on_create_form(): void

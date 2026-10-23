@@ -27,12 +27,12 @@
 
                         <!-- Participants -->
                         <div class="flex items-center gap-3 mt-2">
-                            <a href="{{ route('profile.show', $exchange->seller) }}" class="flex items-center gap-1.5 hover:opacity-75 transition">
+                            <a href="{{ route('profile.show', $exchange->seller->profileRouteKey()) }}" class="flex items-center gap-1.5 hover:opacity-75 transition">
                                 <img src="{{ $exchange->seller->avatar_url }}" class="w-6 h-6 rounded-full" alt="">
                                 <span class="text-xs text-gray-600 dark:text-gray-300">{{ $exchange->seller->name }}</span>
                             </a>
                             <svg class="w-4 h-4 text-gray-300 dark:text-gray-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                            <a href="{{ route('profile.show', $exchange->buyer) }}" class="flex items-center gap-1.5 hover:opacity-75 transition">
+                            <a href="{{ route('profile.show', $exchange->buyer->profileRouteKey()) }}" class="flex items-center gap-1.5 hover:opacity-75 transition">
                                 <img src="{{ $exchange->buyer->avatar_url }}" class="w-6 h-6 rounded-full" alt="">
                                 <span class="text-xs text-gray-600 dark:text-gray-300">{{ $exchange->buyer->name }}</span>
                             </a>

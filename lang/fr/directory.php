@@ -15,4 +15,6 @@ return [
         'Injecter les comptes QA :',
         'Vider le cache :',
     ],
+    // TASK-1693 bug AA
+    'write_to' => 'Ecrire a :name',
 ];

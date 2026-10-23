@@ -616,11 +616,46 @@
 
         {{-- Bottom strip: join CTA (guests) / help-request modal holder (members) --}}
         <div class="flex-shrink-0">
-            @if(!$isMember && $currentLoop->isPublic())
+            {{-- TASK-1693 bug K — le geste propose suit le MODE D'ACCES, plus la
+                 seule visibilite.
+
+                 ## Le defaut
+
+                 Cette zone n'avait qu'un bouton, « Rejoindre cette boucle »,
+                 conditionne a `isPublic()` — c'est-a-dire a la VISIBILITE. Or
+                 `LoopPolicy::join()` exige `isOpenAccess()`, c'est-a-dire le
+                 MODE D'ACCES. Une Boucle `visibility = public` et
+                 `access_mode = request` — exactement celle signalee — affichait
+                 donc un bouton que la politique refusait : 403, « votre compte
+                 ne dispose pas des droits necessaires », sur un geste que
+                 l'ecran venait d'offrir.
+
+                 Le commentaire d'origine affirmait « the button is only ever
+                 shown for open Loops ». C'etait FAUX : il etait montre pour les
+                 Boucles PUBLIQUES. Visibilite et mode d'acces sont deux axes
+                 independants, et les confondre fabrique un cul-de-sac.
+
+                 ## Ce qui manquait
+
+                 `loops.join-requests.store` existait depuis toujours, avec sa
+                 politique `requestToJoin()` et son service — mais AUCUNE
+                 poignee dans cette vue. Une capacite non exposee est une
+                 capacite absente : il n'y avait, pour une Boucle sur demande,
+                 aucun chemin vers l'adhesion.
+
+                 Les trois modes sont desormais distingues, et le mode
+                 `invitation` n'offre rien — c'est son sens meme. --}}
+            @php
+                $demandeEnCours = $isMember ? null : $currentLoop->joinRequests
+                    ->where('user_id', auth()->id())
+                    ->firstWhere('status', \App\Models\LoopJoinRequest::STATUS_PENDING);
+            @endphp
+
+            @if(!$isMember && $currentLoop->isPublic() && $currentLoop->isOpenAccess())
                 <div class="px-4 py-3">
                     <form method="POST" action="{{ $_loopRoute('join', ['loop' => $currentLoop]) }}">
                         @csrf
-                        <button type="submit"
+                        <button type="submit" data-loop-join="direct"
                             class="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
@@ -628,6 +663,46 @@
                             {{ __('loops.join') }}
                         </button>
                     </form>
+                </div>
+
+            @elseif(!$isMember && $currentLoop->isPublic() && $currentLoop->isRequestAccess() && $demandeEnCours)
+                {{-- Une demande deja posee : on DIT qu'elle attend, et on offre
+                     de la retirer. Reafficher le bouton d'envoi serait un piege,
+                     la politique refusant une seconde demande. --}}
+                <div class="px-4 py-3 space-y-2">
+                    <p class="text-center text-sm text-gray-500 dark:text-gray-400" data-loop-join-pending>
+                        {{ __('loops.join_request_pending') }}
+                    </p>
+                    <form method="POST" action="{{ route('loop-join-requests.cancel', $demandeEnCours) }}">
+                        @csrf @method('DELETE')
+                        <button type="submit" data-loop-join-cancel
+                            class="w-full px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                            {{ __('loops.join_request_cancel') }}
+                        </button>
+                    </form>
+                </div>
+
+            @elseif(!$isMember && $currentLoop->isPublic() && $currentLoop->isRequestAccess())
+                <div class="px-4 py-3">
+                    <form method="POST" action="{{ $_loopRoute('join-requests.store', ['loop' => $currentLoop]) }}">
+                        @csrf
+                        <button type="submit" data-loop-join-request
+                            class="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                            </svg>
+                            {{ __('loops.request_to_join') }}
+                        </button>
+                    </form>
+                </div>
+
+            @elseif(!$isMember && $currentLoop->isPublic() && $currentLoop->isInvitationAccess())
+                {{-- Sur invitation : aucun geste, et on le DIT. Une zone vide
+                     laisserait croire a un defaut d'affichage. --}}
+                <div class="px-4 py-3">
+                    <p class="text-center text-sm text-gray-500 dark:text-gray-400" data-loop-invitation-only>
+                        {{ __('loops.access_invitation_only') }}
+                    </p>
                 </div>
 
             @elseif($isMember)

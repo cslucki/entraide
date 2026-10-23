@@ -40,6 +40,16 @@ class TASK1081WorkspaceCompositionTest extends TestCase
         $this->org = Organization::factory()->create(['loops_enabled' => true, 'is_active' => true]);
         $this->member = User::factory()->create(['organization_id' => $this->org->id]);
 
+
+        // TASK-1693 bug AP — une Card de categorie « ai » ne parait que si l'IA
+        // est UTILISABLE pour l'Organization. Ce fichier mesure la COMPOSITION
+        // du plan de travail, « Resume IA » comprise : sans credential, il
+        // mesurerait l'absence de la Card au lieu de la composition.
+        \App\Models\OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $this->org->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
+
         app()->instance('current_organization', $this->org);
     }
 

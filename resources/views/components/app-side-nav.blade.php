@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 @php
     $currentRoute = request()->route()?->getName() ?? '';
     $currentOrganization = currentOrganization();
@@ -141,6 +142,11 @@
             'hint' => __('navigation.messages'),
             'icon' => config('navigation_icons.messaging'),
             'badge' => $unreadMessagesCount,
+            // TASK-1693 bug V — ce point de menu portait un badge SANS clef :
+            // aucun `data-nav-badge-*` n'etait donc emis, et le badge de la
+            // messagerie restait le seul non mesurable du rail. Meme idiome
+            // que `notifications` (TASK-1373), qui l'etait deja.
+            'key' => 'messages',
         ],
         [
             'url' => $routeUrl('members.index', 'organization.members.index'),
@@ -190,7 +196,10 @@
     $currentLocale = app()->getLocale();
 @endphp
 
-<aside x-data class="hidden md:flex fixed inset-y-0 left-0 z-40 w-20 flex-col items-center border-r border-[var(--bp-border)] bg-[var(--bp-surface)]/95 text-[var(--bp-muted)] shadow-[8px_0_24px_rgba(15,23,42,0.05)] backdrop-blur">
+{{-- TASK-1693 bug AQ — `data-bp-side-nav` : point d'ancrage pour mesurer que
+     le rail est RENDU. Sans marqueur, une assertion ne pourrait viser que des
+     classes utilitaires partagees par d'autres blocs. --}}
+<aside x-data data-bp-side-nav class="hidden md:flex fixed inset-y-0 left-0 z-40 w-20 flex-col items-center border-r border-[var(--bp-border)] bg-[var(--bp-surface)]/95 text-[var(--bp-muted)] shadow-[8px_0_24px_rgba(15,23,42,0.05)] backdrop-blur">
     <div class="flex h-full w-full flex-col items-center py-3">
         <a href="{{ $organizationRouteParam ? route('organization.home', ['organization' => $organizationRouteParam]) : route('home') }}" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)] transition hover:scale-105" aria-label="BouclePro">
             <img src="{{ $brandLogoUrl }}" alt="" class="h-7 w-7" aria-hidden="true">
@@ -396,7 +405,7 @@
                                     <span>{{ Auth::user()->is_available ? __('dashboard.available') : __('dashboard.unavailable') }}</span>
                                 </button>
                             </form>
-                            <a href="{{ $organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()]) : route('profile.show', Auth::user()) }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                            <a href="{{ $organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()->profileRouteKey()]) : route('profile.show', Auth::user()->profileRouteKey()) }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/><path d="M4.5 20.25a8.25 8.25 0 1116.5 0"/></svg>
                                 <span>{{ __('navigation.profile') }}</span>
                             </a>
@@ -410,10 +419,16 @@
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.573c1.757.426 1.757 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.065c-.426 1.757-2.924 1.757-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.573c-1.757-.426-1.757-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.065z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                                 <span>{{ __('navigation.settings') }}</span>
                             </a>
-                            <a href="{{ $routeUrl('profile.ai-usage', 'organization.profile.ai-usage') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                            {{-- TASK-1693 bug AP — « Mes usages IA » ne s'offre que si
+                                 l'IA est utilisable ici. Sans elle, cet ecran ne peut
+                                 rien montrer d'autre qu'un registre vide : une poignee
+                                 sur une porte muree. --}}
+                            @if($_aiGate->availableHere())
+                            <a href="{{ $routeUrl('profile.ai-usage', 'organization.profile.ai-usage') }}" data-nav-ai-usage @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                                 <span>{{ __('navigation.my_ai_usage') }}</span>
                             </a>
+                            @endif
                             <a href="{{ $routeUrl('points.index', 'organization.points.index') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6v6l4 2"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 <span>{{ __('navigation.points_history') }}</span>

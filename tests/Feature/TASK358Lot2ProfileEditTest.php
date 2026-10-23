@@ -44,7 +44,7 @@ class TASK358Lot2ProfileEditTest extends TestCase
             'location' => 'Should not be saved',
         ]));
 
-        $response->assertRedirect(route('profile.edit'));
+        $response->assertRedirect($this->destinationApresEnregistrement($user));
 
         $user->refresh();
 
@@ -91,7 +91,7 @@ class TASK358Lot2ProfileEditTest extends TestCase
                 'address_line2' => 'Private Floor',
                 'postal_code' => '12345',
             ]))
-            ->assertRedirect(route('profile.edit'));
+            ->assertRedirect($this->destinationApresEnregistrement($user));
 
         $user->refresh();
         $this->assertSame('99 Private Street', $user->address_line1);
@@ -123,7 +123,7 @@ class TASK358Lot2ProfileEditTest extends TestCase
 
         $this->actingAs($user)
             ->put(route('profile.update'), $this->validPayload(['membership_value' => 'Promo 2026'], $user))
-            ->assertRedirect(route('profile.edit'));
+            ->assertRedirect($this->destinationApresEnregistrement($user));
 
         $this->assertSame('Promo 2026', $user->refresh()->membership_value);
     }
@@ -138,7 +138,7 @@ class TASK358Lot2ProfileEditTest extends TestCase
 
         $this->actingAs($user)
             ->put(route('profile.update'), $this->validPayload(['membership_value' => 'Should be ignored'], $user))
-            ->assertRedirect(route('profile.edit'));
+            ->assertRedirect($this->destinationApresEnregistrement($user));
 
         $this->assertSame('Existing value', $user->refresh()->membership_value);
     }
@@ -161,6 +161,28 @@ class TASK358Lot2ProfileEditTest extends TestCase
             strpos($content, 'value="FR"'),
             strpos($content, 'value="US"')
         );
+    }
+
+    /**
+     * TASK-1693 bug Y — apres un enregistrement REUSSI, on revient au profil
+     * PUBLIC, plus au formulaire (arbitrage Cyril, 22/10).
+     *
+     * Les quatre tests ci-dessus assertaient `profile.edit`. Ce n'etait pas
+     * leur garantie — ils existent pour verifier que les champs structures
+     * sont ENREGISTRES, que l'adresse privee ne fuit pas sur le profil public
+     * et que le champ d'adhesion suit le reglage de l'Organization, toutes
+     * choses verifiees juste apres et INCHANGEES — mais un instantane de la
+     * destination d'alors.
+     *
+     * Les deux tests de REFUS de validation, eux, ne bougent pas : un refus
+     * repart toujours en arriere, vers le formulaire.
+     */
+    private function destinationApresEnregistrement(User $user): string
+    {
+        return route('organization.profile.show', [
+            'organization' => $user->organization->slug,
+            'user' => $user->id,
+        ]);
     }
 
     private function createUserForProfile(array $attributes = []): User

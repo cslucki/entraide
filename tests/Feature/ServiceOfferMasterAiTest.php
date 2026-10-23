@@ -43,6 +43,18 @@ class ServiceOfferMasterAiTest extends TestCase
             'locale' => 'fr',
         ]);
 
+        // TASK-1693 bug AF — le panneau de reformulation ne s'offre desormais
+        // que si l'IA est UTILISABLE pour l'Organization. Le reglage global
+        // d'`ai.openrouter` ci-dessus ne suffit plus : la decision est prise
+        // par Organization. Sans cette ligne,
+        // `test_create_form_still_works_without_ai` mesurerait l'absence du
+        // panneau au lieu de sa presence — son nom dit « sans IA » au sens
+        // « sans appel au fournisseur », pas « interrupteur eteint ».
+        \App\Models\OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $this->org->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
+
         $this->cat1 = Category::factory()->create([
             'organization_id' => $this->org->id,
             'name_b2c' => 'Développement Web',

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Favorite;
 use App\Models\MemberAiProfile;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\Referral;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -102,16 +103,27 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
             'referred_user_id' => $this->createUserForOrganization($organizationA)->id,
         ]);
 
-        $response = $this->actingAs($user)
-            ->get('/dashboard')
-            ->assertOk()
-            ->assertSee('Votre progression dans la boucle')
-            ->assertSee('Voir mon profil')
-            ->assertSee('Voir mes demandes')
-            ->assertSee('Voir mes propositions')
-            ->assertSee('Voir mon agent');
+        $response = $this->actingAs($user)->get('/dashboard')->assertOk();
 
-        $this->assertSame(4, substr_count($response->getContent(), 'Terminé'));
+        // TASK-1693 bug AJ — les quatre etapes se lisent dans les DONNEES de
+        // la vue, plus dans le panneau.
+        //
+        // Ce test affirme que les etapes se calculent depuis les donnees du
+        // tenant ; il le mesurait en lisant le panneau. Or le panneau
+        // disparait desormais PRECISEMENT quand tout est fait : le mesurer
+        // par le balisage reviendrait a exiger qu'il reste affiche, c'est-a-dire
+        // a contredire le correctif. La garantie est INCHANGEE, et meme plus
+        // directe : chaque etape doit etre « faite ».
+        $steps = collect($response->viewData('onboardingSteps'));
+
+        $this->assertCount(4, $steps);
+        foreach (['presentation', 'request', 'service', 'ai_profile'] as $cle) {
+            $this->assertSame('done', $steps->firstWhere('key', $cle)['status'],
+                "l'etape {$cle} doit etre deduite des donnees du tenant");
+        }
+
+        // Et le panneau est bien absent, puisqu'il ne reste rien a demander.
+        $this->assertStringNotContainsString('data-onboarding-total', $response->getContent());
     }
 
     public function test_dashboard_onboarding_ignores_data_from_another_organization(): void
@@ -215,6 +227,15 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
         ]);
 
         $organizationA->update(['is_default' => true]);
+
+        // TASK-1693 bug AF — l'etape d'onboarding « Creer mon agent IA » suit
+        // desormais l'interrupteur IA de l'Organization. Les tests de ce fichier
+        // comptent les 4 etapes : sans credential utilisable, la 4e disparait et
+        // ils mesureraient l'absence de l'etape au lieu de son etat.
+        OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $organizationA->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
 
         return [$organizationA, $organizationB];
     }

@@ -86,6 +86,34 @@ final class AiFabContext
         'mycelium',
     ];
 
+    /**
+     * La MESSAGERIE — ni FAB, ni Shell.
+     *
+     * TASK-1693 bug AT, arbitrage de Cyril. On y ECRIT a quelqu'un : une
+     * pastille d'assistant posee par-dessus une conversation privee s'y
+     * invite. Meme raisonnement que les surfaces de decouverte (TASK-1609) et
+     * que le ChatLoop (TASK-1466), ou la Boucle porte deja son IA.
+     *
+     * CET ARBITRAGE ANNULE LE BUG AR, qui avait remis l'assistant sur une
+     * conversation d'ordinateur. Il est donc retire des DEUX tailles d'ecran,
+     * et la consigne `hideOnMobile` du FAB devient sans objet ici — elle reste
+     * en place, elle sert toujours si une autre surface en a besoin.
+     *
+     * La liste nomme des ROUTES, jamais un `str_contains` sur « messages » :
+     * `loops.messages.store` et `admin.messages.*` en portent le mot sans etre
+     * la Messagerie.
+     *
+     * @var list<string>
+     */
+    public const MESSAGING_SURFACE_ROUTES = [
+        'messages.index',
+        'messages.show',
+        'messages.with',
+        'organization.messages.index',
+        'organization.messages.show',
+        'organization.messages.with',
+    ];
+
     /** Cle memo : id utilisateur -> contexte (une lecture par requete). */
     private array $memo = [];
 
@@ -125,7 +153,7 @@ final class AiFabContext
         // TASK-1609 — surfaces de decouverte : aucun contexte, donc aucun FAB
         // et, par ricochet, aucun Shell (`shouldMountShell()` lit ce retour).
         // Place AVANT le memo : on ne veut meme pas construire le contexte.
-        if ($this->isDiscoverySurface($request)) {
+        if ($this->isDiscoverySurface($request) || $this->isMessagingSurface($request)) {
             return null;
         }
 
@@ -166,6 +194,39 @@ final class AiFabContext
     public function isDiscoverySurface(Request $request): bool
     {
         return in_array((string) ($request->route()?->getName() ?? ''), self::DISCOVERY_SURFACE_ROUTES, true);
+    }
+
+    /**
+     * Cette Organization refuse-t-elle l'assistant sur la surface courante ?
+     *
+     * TASK-1693 bug AW. `null` et `[]` se lisent tous deux « aucune surface
+     * refusee » : une Organization qui n'a jamais rien decide garde tout.
+     *
+     * Une surface que la table ne nomme pas (`unknown`) n'est JAMAIS refusee :
+     * l'inconnu ne se coche pas dans l'ecran d'administration, donc le refuser
+     * eteindrait l'assistant sur des pages que personne n'a choisies.
+     */
+    public function isSurfaceRefused(Request $request, Organization $organization): bool
+    {
+        $refusees = $organization->ai_shell_disabled_surfaces;
+
+        if (! is_array($refusees) || $refusees === []) {
+            return false;
+        }
+
+        $surface = AiShellPageContext::surfaceFor((string) ($request->route()?->getName() ?? ''));
+
+        if ($surface === AiShellPageContext::SURFACE_UNKNOWN) {
+            return false;
+        }
+
+        return in_array($surface, $refusees, true);
+    }
+
+    /** La page en cours est-elle la Messagerie ? (TASK-1693 bug AT) */
+    public function isMessagingSurface(Request $request): bool
+    {
+        return in_array((string) ($request->route()?->getName() ?? ''), self::MESSAGING_SURFACE_ROUTES, true);
     }
 
     /**
@@ -222,6 +283,41 @@ final class AiFabContext
             return null;
         }
 
+        // TASK-1693 bug AV — l'assistant eteint pour cette Organization ne
+        // rend NI panneau NI bouton.
+        //
+        // MON DEFAUT AU BUG AU. J'avais compose le drapeau dans
+        // `shell_enabled`, qui ne gouverne que le MONTAGE du panneau : le
+        // bouton flottant continuait de paraitre et basculait simplement en
+        // mode « panel ». Recette de Cyril : sur `/org/ofsh/explorer`, case
+        // decochee, la pastille « BouclePro IA » etait toujours la.
+        //
+        // Et mon test ne l'a pas vu parce qu'il mesurait l'ABSENCE DU PANNEAU
+        // (`data-ai-shell`), jamais celle du bouton. Deux objets, une seule
+        // mesure.
+        //
+        // La garde vit donc ICI, a cote de celle de TASK-1685 : `forRequest()`
+        // rend `null`, et `shouldRenderFab()` comme `shouldMountShell()`
+        // tombent ensemble.
+        if (! ($organization->ai_shell_enabled ?? true)) {
+            return null;
+        }
+
+        // TASK-1693 bug AW — et surface par surface.
+        //
+        // Le drapeau ci-dessus est le tout-ou-rien ; celui-ci dit OU. La
+        // surface est resolue par `AiShellPageContext::surfaceFor()`, la MEME
+        // autorite que le Shell lit pour se nommer — pas une seconde carte des
+        // routes, qui divergerait au premier ecran ajoute.
+        //
+        // Les exclusions EN DUR (ChatLoop, decouverte, Messagerie) restent
+        // AU-DESSUS : elles sont testees avant, dans `forRequest()`. Cocher
+        // une surface ici ne peut donc pas rouvrir une porte qu'un arbitrage
+        // produit a fermee.
+        if ($this->isSurfaceRefused($request, $organization)) {
+            return null;
+        }
+
         $credit = $this->guard->userCreditStatus($organization, $user);
         $routeName = (string) ($request->route()?->getName() ?? '');
 
@@ -250,6 +346,10 @@ final class AiFabContext
             // autorite qui rejoue les gardes des pages. Cette entree ne donne
             // aucun droit : elle nomme ce que la page montre deja.
             'page_context' => $this->pageContext->forRequest($request, $user, $organization),
+            // L'interrupteur PLATEFORME, et lui seul : il choisit entre le
+            // Shell et l'ancien panneau, il ne retire pas le bouton.
+            // Le reglage par ORGANIZATION (bug AU) agit plus haut, en
+            // rendant `null` — il retire les DEUX.
             'shell_enabled' => (bool) config('ai.shell.enabled', true),
         ];
     }

@@ -10,9 +10,9 @@
         $_profileRoute = function ($user) {
             $orgSlug = request()->route('organization');
             if ($orgSlug && Route::has('organization.profile.show')) {
-                return route('organization.profile.show', ['organization' => $orgSlug, 'user' => $user]);
+                return route('organization.profile.show', ['organization' => $orgSlug, 'user' => $user->profileRouteKey()]);
             }
-            return route('profile.show', $user);
+            return route('profile.show', $user->profileRouteKey());
         };
         $_displayableUser = fn ($user) => $user?->isDisplayableIn(currentOrganization());
         $_publicName = fn ($user) => $user?->publicDisplayName() ?? __('profile.deactivated_user');

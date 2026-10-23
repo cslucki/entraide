@@ -94,6 +94,59 @@
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
                 <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Membres ({{ $boucle->members->count() }})</h2>
 
+                {{-- TASK-1693 bug M — les DEMANDES EN ATTENTE, que cette fiche
+                     ne montrait pas du tout.
+
+                     Elle affichait les membres et laissait en ajouter, mais
+                     taisait les personnes qui en avaient fait la demande : un
+                     administrateur venu regler le cas d'un demandeur ne voyait
+                     aucune trace de lui, et l'ajoutait « a la main » sans
+                     savoir qu'une demande existait. C'est ainsi que la Boucle
+                     `ofsh` s'est retrouvee avec des membres actifs portant
+                     encore une demande ouverte.
+
+                     Le bloc n'apparait que s'il y a quelque chose a decider :
+                     un cadre vide ferait croire a une attente permanente. --}}
+                @if($demandesEnAttente->isNotEmpty())
+                <div class="rounded-xl border border-amber-300 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-3"
+                     data-loop-join-requests="{{ $demandesEnAttente->count() }}">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+                        {{ trans_choice('admin.loop_join_requests_pending', $demandesEnAttente->count(), ['count' => $demandesEnAttente->count()]) }}
+                    </p>
+
+                    @foreach($demandesEnAttente as $demande)
+                    <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white dark:bg-gray-800 px-3 py-2"
+                         data-loop-join-request="{{ $demande->id }}">
+                        <div class="min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $demande->user?->full_name ?? '—' }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                {{ $demande->user?->email }} · {{ $demande->created_at?->diffForHumans() }}
+                            </p>
+                            @if(filled($demande->message))
+                            <p class="mt-1 text-xs italic text-gray-600 dark:text-gray-300">« {{ $demande->message }} »</p>
+                            @endif
+                        </div>
+                        <div class="flex flex-shrink-0 gap-2">
+                            <form method="POST" action="{{ route('admin.loops.join-requests.accept', [$boucle, $demande]) }}">
+                                @csrf
+                                <button type="submit" data-loop-join-request-accept="{{ $demande->id }}"
+                                        class="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition">
+                                    {{ __('admin.loop_join_request_accept') }}
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ route('admin.loops.join-requests.reject', [$boucle, $demande]) }}">
+                                @csrf
+                                <button type="submit" data-loop-join-request-reject="{{ $demande->id }}"
+                                        class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                                    {{ __('admin.loop_join_request_reject') }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+                @endif
+
                 {{-- Ajouter un membre — TASK-1681 : la liste ne contient plus
                      que les utilisateurs de l'Organization de la Boucle (le
                      controller filtre), chacun affiche avec son identite
@@ -153,7 +206,9 @@
                     :can-manage-facilitators="true"
                     :can-remove="true"
                     :creator-id="$boucle->created_by"
-                    :current-user-id="auth()->id()" />
+                    :current-user-id="auth()->id()"
+                    :inline-actions="true"
+                    :transfer-route="fn($m) => route('admin.loops.members.transfer-ownership', [$boucle, $m])" />
             </div>
 
             {{-- Status / Archive / Restore --}}

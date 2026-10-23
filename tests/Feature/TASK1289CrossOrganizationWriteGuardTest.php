@@ -176,7 +176,12 @@ class TASK1289CrossOrganizationWriteGuardTest extends TestCase
         $this->assertSame($this->member->id, $transaction->buyer_id);
         $this->assertSame($this->otherMember->id, $transaction->seller_id);
 
-        $response->assertRedirect(route('messages.show', $transaction))
+        // TASK-1693 bug AA — la surface d'arrivee suit l'Organization liee.
+        // La garantie de T1289 est l'Organization de la conversation, verifiee
+        // juste au-dessus et inchangee.
+        $this->assertStringContainsString('/messages/'.$transaction->id,
+            (string) $response->headers->get('Location'));
+        $response
             ->assertSessionMissing('error');
 
         $this->assertSame(1, Transaction::withoutGlobalScopes()->count());
@@ -306,6 +311,12 @@ class TASK1289CrossOrganizationWriteGuardTest extends TestCase
             'organization_id' => $this->defaultOrganization->id,
             'status' => 'pending',
         ]);
-        $this->assertSame('in_progress', $serviceRequest->fresh()->status);
+        // TASK-1693 bug W — la demande reste OUVERTE apres une proposition :
+        // elle ne quitte l'explorateur qu'a l'ACCEPTATION, pour pouvoir
+        // recevoir plusieurs offres. Cette ligne n'etait pas la garantie de
+        // T1289 — qui porte sur l'isolation inter-Organizations, verifiee
+        // juste au-dessus et INCHANGEE — mais un instantane du comportement
+        // d'alors.
+        $this->assertSame('open', $serviceRequest->fresh()->status);
     }
 }

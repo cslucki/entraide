@@ -179,6 +179,15 @@ return [
     */
 
     'custom' => [
+        // TASK-1693 bug X — "The images field must not have more than 5 items"
+        // is programmer language; people are attaching photos.
+        'images' => [
+            'max' => 'You cannot attach more than :max images. Remove a few and submit the form again.',
+        ],
+        'images.*' => [
+            'image' => 'Each attached file must be an image (JPG, PNG or WebP).',
+            'max' => 'Each image must be at most 2 MB.',
+        ],
         'attribute-name' => [
             'rule-name' => 'custom-message',
         ],

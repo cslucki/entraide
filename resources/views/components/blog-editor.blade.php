@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 @props(['name' => 'content', 'value' => '', 'postId' => null, 'invalid' => false, 'routeAiGenerate' => null, 'routeAiCorrect' => null, 'routeAiRemaining' => null, 'routeUpload' => null, 'routeAnnotationStore' => null, 'routeAnnotationContentSave' => null])
 
 <style>
@@ -385,7 +386,12 @@
         </button>
 
         {{-- Method --}}
-        <button type="button" @click="startEditorMethodSelection()"
+        {{-- TASK-1693 bug AH — « Questionner un passage » ouvre le mode de
+             selection qui alimente la carte IA : il suit l'interrupteur de
+             l'Organization. L'ANNOTATION juste au-dessus reste — c'est une
+             note humaine, elle ne demande rien a l'IA. --}}
+        @if($_aiGate->availableHere())
+        <button type="button" data-ai-editor-method @click="startEditorMethodSelection()"
             class="bp-btn-method shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition hover:bg-violet-50 dark:hover:bg-violet-950/30"
             :class="methodSelectionActive ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-300 dark:bg-violet-950/40 dark:text-violet-200 dark:ring-violet-700' : 'text-gray-600 dark:text-gray-300'"
             :title="'{{ __('blog.editor_method') }}'"
@@ -395,6 +401,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M18 3l.56 1.44A3 3 0 0020 6l-1.44.56A3 3 0 0017 8l-.56-1.44A3 3 0 0015 5l1.44-.56A3 3 0 0018 3z"/>
             </svg>
         </button>
+        @endif
 
         <span class="shrink-0 w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></span>
 
@@ -689,7 +696,11 @@
     </div>
 
     {{-- Boutons IA --}}
+    {{-- TASK-1693 bug AH — meme garde : generer et corriger appellent le
+         fournisseur, qui refuse deja quand l'IA de l'Organization est
+         eteinte. --}}
     @auth
+    @if($_aiGate->availableHere())
     <div class="mt-3 flex flex-wrap items-center gap-4 border-t border-gray-100 dark:border-gray-700 pt-3">
         <button type="button" @click="aiGenerate('generate')" :disabled="generating || remaining.generate <= 0"
             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition"
@@ -722,7 +733,8 @@
         </template>
     </div>
 
-    {{-- Bouton Explorer --}}
+    {{-- Bouton Explorer — « Questionner l'article » : surface IA, meme
+         garde (il alimente la carte « Questionnements »). --}}
     <div class="mt-2">
         <button type="button" @click="openExplorer()"
             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400">
@@ -730,6 +742,7 @@
             {{ __('blog.editor_explorer') }}
         </button>
     </div>
+    @endif
     @endauth
 
     {{-- Erreur IA --}}

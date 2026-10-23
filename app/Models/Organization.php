@@ -39,6 +39,11 @@ class Organization extends Model
         'loops_enabled',
         'members_can_create_loops',
         'ai_profiles_enabled',
+        // TASK-1693 bug AU — l'assistant « BouclePro IA », par Organization.
+        'ai_shell_enabled',
+        // TASK-1693 bug AW — les surfaces ou il est REFUSE (jamais les
+        // autorisees : voir la migration).
+        'ai_shell_disabled_surfaces',
         // TASK-1349 : opt-in explicite de publication de la Constitution.
         'ai_constitution_public',
         'subscriptions_enabled',
@@ -82,6 +87,8 @@ class Organization extends Model
             'loops_enabled' => 'boolean',
             'members_can_create_loops' => 'boolean',
             'ai_profiles_enabled' => 'boolean',
+            'ai_shell_enabled' => 'boolean',
+            'ai_shell_disabled_surfaces' => 'array',
             'ai_constitution_public' => 'boolean',
             // TASK-1642 : provenance sandbox de scenario. DELIBEREMENT absente
             // de `$fillable` — c'est un fait ecrit par le serveur, jamais une

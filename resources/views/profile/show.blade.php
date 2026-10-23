@@ -7,6 +7,14 @@
             ? route('organization.agent-ia.profile.chat', ['organization' => $organizationRouteParam, 'user' => $user])
             : route('agent-ia.profile.chat', $user);
 
+        // TASK-1693 bug AA — « Ecrire a cette personne » doit viser la surface
+        // de l'Organization. Sans prefixe, `ResolveUrlOrganization` lie
+        // l'Organization PAR DEFAUT et la garde inter-tenant refuse : on
+        // atterrissait sur la liste des messages sans pouvoir ecrire.
+        $ecrireUrl = $organizationRouteParam && Route::has('organization.messages.with')
+            ? route('organization.messages.with', ['organization' => $organizationRouteParam, 'user' => $user->profileRouteKey()])
+            : route('messages.with', $user->profileRouteKey());
+
         $displaySkills = $services->flatMap(fn($s) => $s->skills)->unique('id')->take(8);
         $serviceCategories = $services->pluck('category.name')->unique()->take(4);
     @endphp
@@ -226,7 +234,7 @@
                     @endif
 
                     @if(auth()->guest() || auth()->id() !== $user->id)
-                    <a href="{{ auth()->check() ? route('messages.with', $user) : route('login') }}"
+                    <a href="{{ auth()->check() ? $ecrireUrl : route('login') }}"
                        class="group flex items-start gap-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 transition hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md">
                         <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 transition group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
@@ -393,7 +401,7 @@
 
                 <!-- Write to CTA -->
                 @if(auth()->guest() || auth()->id() !== $user->id)
-                <a href="{{ auth()->check() ? route('messages.with', $user) : route('login') }}"
+                <a href="{{ auth()->check() ? $ecrireUrl : route('login') }}"
                    class="group flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 transition hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md">
                     <div class="flex items-center gap-3">
                         <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 transition group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">

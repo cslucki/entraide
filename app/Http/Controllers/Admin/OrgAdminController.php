@@ -440,12 +440,49 @@ class OrgAdminController extends Controller
      * the membership must belong to that Loop. Same governance service as the
      * global screen — the business rule is not duplicated.
      */
+    /**
+     * TASK-1693 bug O — transferer la propriete, cote admin d'Organization.
+     *
+     * Miroir exact de l'ecran global : l'admin d'Organization bute sur le MEME
+     * invariant, et le laisser sans ce geste aurait ete un arret arbitraire —
+     * le defaut est le meme, l'ecran est le meme composant. Meme service, donc
+     * aucune regle dupliquee.
+     */
+    public function transferLoopOwnership(Request $request, Organization $organization, Loop $loop, LoopMember $member): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+        abort_if($member->loop_id !== $loop->id, 404);
+
+        $data = $request->validate(['successor_id' => ['required', 'uuid']]);
+
+        $successeur = LoopMember::where('loop_id', $loop->id)
+            ->where('id', $data['successor_id'])
+            ->first();
+
+        abort_if($successeur === null, 404);
+
+        $result = app(LoopGovernanceService::class)->transferOwnership($member, $successeur);
+
+        return redirect()
+            ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])
+            ->with(
+                $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',
+                $result === LoopGovernanceService::RESULT_OK
+                    ? __('loops.governance_ownership_transferred')
+                    : __('loops.governance_refused'),
+            );
+    }
+
     public function updateLoopMemberRole(Request $request, Organization $organization, Loop $loop, LoopMember $member): RedirectResponse
     {
         abort_if($loop->organization_id !== $organization->id, 404);
         abort_if($member->loop_id !== $loop->id, 404);
 
-        $result = app(LoopGovernanceService::class)->changeRole($member, (string) $request->input('role'));
+        // TASK-1693 bug P — la derogation « dernier proprietaire » doit etre
+        // DEMANDEE par la requete, champ `allow_last_owner`. Un changement de
+        // role ordinaire continue donc de se faire refuser, et seul le bouton
+        // qui porte la confirmation explicite peut orpheliner une Boucle.
+        $result = app(LoopGovernanceService::class)->changeRole($member, (string) $request->input('role'), $request->boolean('allow_last_owner'));
 
         return redirect()
             ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])
@@ -617,7 +654,9 @@ class OrgAdminController extends Controller
         abort_if($user->organization_id !== $organization->id, 422, __('loops.not_member'));
 
         try {
-            app(LoopService::class)->addMemberByUserId($loop, $data['user_id'], $data['role'] ?? LoopRoleRegistry::MEMBER);
+            // TASK-1693 bug L — meme regle que le SuperAdmin : l'admin
+            // d'Organization qui ajoute quelqu'un decide sa demande.
+            app(LoopService::class)->addMemberByUserId($loop, $data['user_id'], $data['role'] ?? LoopRoleRegistry::MEMBER, $request->user());
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -1329,6 +1368,37 @@ class OrgAdminController extends Controller
 
         return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
             ->with('success', __('admin.organization_ai_credential_mode_saved'));
+    }
+
+    /**
+     * TASK-1693 bug AS — « Agents profil IA », rapatrie sur l'ecran de
+     * l'Organization.
+     *
+     * Ce reglage se posait depuis `/admin/ai-config`, l'administration
+     * PLATEFORME, dans une liste de toutes les Organizations — loin de
+     * l'interrupteur IA, du credential et du budget qui vivent ici. Tout ce
+     * qui concerne l'IA d'une Organization se regle desormais au meme endroit.
+     *
+     * L'AUTORITE NE CHANGE PAS : le reglage etait deja reserve au SuperAdmin
+     * puisqu'il vivait sur l'administration plateforme. La garde est donc
+     * explicite ici, cote SERVEUR — meme idiome que `updateAiCredentialMode()`
+     * (TASK-1306). La vue omet le controle pour l'admin d'Organization ; c'est
+     * un confort, jamais la protection.
+     */
+    public function updateAiProfiles(Request $request, Organization $organization): RedirectResponse
+    {
+        if (! $request->user()->is_admin) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'ai_profiles_enabled' => ['required', 'boolean'],
+        ]);
+
+        $organization->update(['ai_profiles_enabled' => $data['ai_profiles_enabled']]);
+
+        return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
+            ->with('success', __('admin.ai_profile_toggle_saved'));
     }
 
     public function identity(Organization $organization): View

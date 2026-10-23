@@ -113,7 +113,12 @@
         x-on:livewire-upload-error="uploading = false"
         x-on:livewire-upload-cancel="uploading = false">
         @if($showUpload)
-        <label class="{{ isset($leading) ? 'hidden md:flex' : 'flex' }} mb-1 flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 items-center justify-center cursor-pointer transition disabled:opacity-50">
+        {{-- TASK-1693 bug AC — ce bouton n'avait aucun intitule : ni infobulle,
+             ni libelle accessible. On ne devinait pas ce qu'il faisait. --}}
+        <label data-composer-upload
+               aria-label="{{ __('messages.send_image') }}"
+               title="{{ __('messages.send_image') }}"
+               class="{{ isset($leading) ? 'hidden md:flex' : 'flex' }} mb-1 flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 items-center justify-center cursor-pointer transition disabled:opacity-50">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
@@ -125,6 +130,27 @@
              exactement le meme chemin que la galerie. Inerte tant qu'aucun
              bouton ne l'invoque (`$refs.cameraInput`, menu mobile T1308). --}}
         <input type="file" x-ref="cameraInput" wire:model.live="photo" accept="image/*" capture="environment" class="hidden">
+
+        {{-- TASK-1693 bug AC — le declencheur de l'appareil photo, enfin pose.
+             Le champ ci-dessus existait depuis TASK-1329 mais restait INERTE
+             hors du ChatLoop : aucun bouton ne l'invoquait. Aucun pipeline
+             nouveau — le cliche suit exactement le chemin de la galerie.
+
+             `md:hidden` : `capture` n'a de sens que sur un appareil qui a une
+             camera en facade. Sur un ordinateur, le bouton ouvrirait un
+             selecteur de fichiers identique au premier, donc deux boutons pour
+             un meme geste. --}}
+        <button type="button"
+                data-composer-camera
+                x-on:click="$refs.cameraInput.click()"
+                aria-label="{{ __('messages.take_photo') }}"
+                title="{{ __('messages.take_photo') }}"
+                class="md:hidden mb-1 flex flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 items-center justify-center cursor-pointer transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+        </button>
         @endif
 
         {{-- TASK-1329 : le declencheur du menu mobile (`$leading`, le « + »)

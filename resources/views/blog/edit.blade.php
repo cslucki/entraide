@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 <x-app-layout>
     @php
         $_blogRoute = function ($name, $parameters = []) {
@@ -216,9 +217,15 @@
                     tags: '{{ old('tags', $post->tags->pluck('name')->implode(', ')) }}',
                     tagList: [],
                     tagInput: '',
+                    // TASK-1693 bug X — refuser un tag deja present : le
+                    // serveur les fait collapser par slug, l'ecran ne doit pas
+                    // promettre ce qu'il ne livrera pas.
+                    normaliserTag(t) { return t.trim().replace(/^#+/, '').toLowerCase(); },
                     addTag() {
                         let t = this.tagInput.trim();
                         if (!t || this.tagList.length >= 10) return;
+                        const vise = this.normaliserTag(t);
+                        if (!vise || this.tagList.some(x => this.normaliserTag(x) === vise)) { this.tagInput = ''; return; }
                         this.tagList.push(t);
                         this.tags = this.tagList.join(',');
                         this.tagInput = '';
@@ -1059,7 +1066,11 @@
                 {{-- /Plan card --}}
 
                 {{-- Questionner selection card --}}
+                {{-- TASK-1693 bug AF — la carte ne s'offre que si l'IA est
+                     utilisable pour cette Organization. --}}
+                @if($_aiGate->availableHere())
                 <div
+                    data-ai-selection-card
                     x-data="blogMethodSelectionCard({
                         selectionUrl: @js($_blogRoute('ai-method-selection')),
                         annotationStoreUrl: @js($_blogRoute('annotations.store', ['post' => $post])),
@@ -1160,10 +1171,25 @@
                         </div>
                     </div>
                 </div>
+                @endif
                 {{-- /Questionner selection card --}}
 
         {{-- Explorer notes card --}}
+        {{-- TASK-1693 bug AH — la carte « Questionnements » disparait quand
+             l'IA est eteinte, SAUF si elle a quelque chose a montrer.
+             Les questionnements sont produits PAR l'IA : sans elle, la carte
+             promet un contenu qui ne viendra pas. Mais masquer des notes DEJA
+             ECRITES effacerait du travail fait — c'est pourquoi la condition
+             porte sur le CONTENU, pas seulement sur l'interrupteur. --}}
+        @php
+            $_questionnementsExistants = \App\Models\BlogAnalysisNote::query()
+                ->where('blog_post_id', $post->id)
+                ->where('organization_id', $post->organization_id)
+                ->exists();
+        @endphp
+        @if($_aiGate->availableHere() || $_questionnementsExistants)
         <div
+            data-ai-explorer-notes
             x-data="blogExplorerCard({
                 indexUrl: @js($_blogRoute('explorer.notes.index', ['post' => $post])),
                 updateUrlBase: @js($_blogRoute('explorer.notes.update', ['post' => $post, 'note' => '__NOTE_ID__'])),
@@ -1275,6 +1301,7 @@
                 </div>
             </div>
         </div>
+        @endif
         {{-- /Explorer notes card --}}
 
                 {{-- Annotations card --}}
@@ -1595,6 +1622,11 @@
     </div>
 
     {{-- Explorer modal --}}
+    {{-- TASK-1693 bug AH — le panneau lui-meme suit l'interrupteur. Son
+         declencheur a disparu de la barre d'outils, mais son balisage restait
+         rendu : il porte encore le libelle « Questionner l'article » et tous
+         les reglages de methode. Une porte muree ne garde pas sa serrure. --}}
+    @if($_aiGate->availableHere())
     <div
         x-data="blogExplorerModal({
             chatUrl: @js($_blogRoute('explorer.chat', ['post' => $post])),
@@ -1796,6 +1828,7 @@
             </div>
         </div>
     </div>
+    @endif
 
     {{-- coauthors : deplacee dans un pop-up (TASK-1085). Etat Alpine inchange. --}}
     <x-editor-panel name="coauthors" :title="__('blog.sidebar_co_ecriture')" width="max-w-xl">

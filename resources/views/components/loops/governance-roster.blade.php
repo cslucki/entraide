@@ -31,10 +31,31 @@
     // Card Membres, elle, tient dans un panneau etroit et prefere un flux unique
     // ou le role se lit sur la ligne.
     'sections' => true,
+    // TASK-1693 bug N — sur les ecrans d'ADMINISTRATION, les actions de role
+    // se posent EN FACE du nom plutot que dans un menu « ... » sans libelle.
+    //
+    // On y vient precisement pour agir, et le menu rendait le changement de
+    // role introuvable : « il n'est pas commode de gerer qui est proprietaire,
+    // animateur ou membre » (recette Cyril, 21/10). La Card Membres, elle,
+    // tient dans un panneau etroit et garde son menu — c'est le meme arbitrage
+    // de largeur que `sections` juste au-dessus.
+    //
+    // Aucune regle ne change : memes gardes, memes routes, meme formulaire.
+    'inlineActions' => false,
+    // TASK-1693 bug O — fn(LoopMember): string, ou null. Quand elle est
+    // fournie, la ligne du DERNIER proprietaire offre un transfert de
+    // propriete plutot qu'une simple note expliquant qu'il est bloque.
+    'transferRoute' => null,
 ])
 
 @php
     $roles = app(\App\Support\Loops\LoopRoleRegistry::class);
+
+    // TASK-1693 bug O — qui peut reprendre la Boucle : tout membre ACTIF qui
+    // n'est pas deja proprietaire. Calcule UNE fois, pas par ligne.
+    $transferables = collect($members)
+        ->filter(fn ($m) => $roles->canonical($m->role) !== \App\Support\Loops\LoopRoleRegistry::OWNER)
+        ->values();
 
     $OWNER = \App\Support\Loops\LoopRoleRegistry::OWNER;
     $FACILITATOR = \App\Support\Loops\LoopRoleRegistry::FACILITATOR;
@@ -127,7 +148,100 @@
                         @endif
                     </span>
 
-                    @if($hasActions)
+                    @if($isLastOwner && $inlineActions && $transferRoute && $canManageOwners)
+                        {{-- TASK-1693 bug O — le dernier proprietaire n'a aucune
+                             action, et c'est juste : une Boucle sans
+                             proprietaire est l'etat qui bloque tout le reste.
+
+                             Mais la NOTE seule laissait l'administrateur se
+                             debrouiller en deux gestes, dans deux endroits de
+                             l'ecran : promouvoir quelqu'un, puis revenir
+                             retrograder celui-ci. On nomme donc la succession
+                             ici meme — c'est la question reelle : « qui reprend
+                             la Boucle ? », pas « comment contourner la
+                             garde ». --}}
+                        @if($transferables->isNotEmpty())
+                        <form method="POST" action="{{ $transferRoute($member) }}"
+                              class="flex shrink-0 items-center gap-1"
+                              data-governance-transfer="{{ $member->user_id }}"
+                              onsubmit="return confirm('{{ __('loops.governance_transfer_confirm') }}')">
+                            @csrf @method('PUT')
+                            <label class="sr-only" for="successeur-{{ $member->id }}">{{ __('loops.governance_transfer_label') }}</label>
+                            <select name="successor_id" id="successeur-{{ $member->id }}" required
+                                    class="max-w-[10rem] rounded-md border border-gray-300 px-1.5 py-1 text-[11px] text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                                <option value="">{{ __('loops.governance_transfer_placeholder') }}</option>
+                                @foreach($transferables as $candidat)
+                                <option value="{{ $candidat->id }}">{{ $candidat->user?->publicDisplayName() ?? '—' }}</option>
+                                @endforeach
+                            </select>
+                            <button type="submit"
+                                    class="rounded-md border border-indigo-300 px-2 py-1 text-[11px] font-medium text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/25">
+                                {{ __('loops.governance_transfer_submit') }}
+                            </button>
+                        </form>
+                        @endif
+
+                        {{-- TASK-1693 bug P — arbitrage MASTER du 21/10 :
+                             « option B, et on garde A ».
+
+                             Le transfert ci-contre reste la voie recommandee,
+                             parce qu'il laisse la Boucle gouvernee. Mais on
+                             peut aussi retrograder le dernier proprietaire tout
+                             simplement, et la Boucle devient alors ORPHELINE :
+                             plus personne ne la gouverne hormis
+                             l'administration.
+
+                             La consequence est donc NOMMEE dans la
+                             confirmation, et la derogation est demandee
+                             explicitement par un champ (`allow_last_owner`) :
+                             un changement de role ordinaire continue de se
+                             faire refuser par l'invariant. --}}
+                        <form method="POST" action="{{ $roleRoute($member) }}" class="shrink-0"
+                              data-governance-demote-last-owner="{{ $member->user_id }}"
+                              onsubmit="return confirm('{{ __('loops.governance_last_owner_demote_confirm') }}')">
+                            @csrf @method('PUT')
+                            <input type="hidden" name="role" value="{{ $MEMBER }}">
+                            <input type="hidden" name="allow_last_owner" value="1">
+                            <button type="submit"
+                                    class="rounded-md border border-amber-300 px-2 py-1 text-[11px] font-medium text-amber-700 transition hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/25">
+                                {{ __('loops.governance_demote_member') }}
+                            </button>
+                        </form>
+                    @elseif($hasActions && $inlineActions)
+                        <span class="flex shrink-0 flex-wrap items-center justify-end gap-1"
+                              data-governance-inline-actions="{{ $member->user_id }}">
+                            @if($canPromoteOwner)
+                                <x-loops.governance-action :action="$roleRoute($member)" role="owner"
+                                    :label="__('loops.governance_promote_owner')" variant="inline" />
+                            @endif
+                            @if($canPromoteFacilitator)
+                                <x-loops.governance-action :action="$roleRoute($member)" role="facilitator"
+                                    :label="__('loops.governance_promote_facilitator')" variant="inline" />
+                            @endif
+                            @if($canDemoteOwner)
+                                <x-loops.governance-action :action="$roleRoute($member)" role="facilitator"
+                                    :label="__('loops.governance_demote_facilitator')" variant="inline"
+                                    :confirm="$isSelf ? __('loops.governance_self_demote_confirm') : null" />
+                                <x-loops.governance-action :action="$roleRoute($member)" role="member"
+                                    :label="__('loops.governance_demote_member')" variant="inline"
+                                    :confirm="$isSelf ? __('loops.governance_self_demote_confirm') : null" />
+                            @endif
+                            @if($canDemoteFacilitator)
+                                <x-loops.governance-action :action="$roleRoute($member)" role="member"
+                                    :label="__('loops.governance_demote_member')" variant="inline" />
+                            @endif
+                            @if($canDrop)
+                                <form method="POST" action="{{ $removeRoute($member) }}"
+                                      onsubmit="return confirm('{{ __('loops.governance_remove') }} ?')" class="inline">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" data-governance-inline="remove"
+                                            class="rounded-md border border-red-200 px-2 py-1 text-[11px] font-medium text-red-600 transition hover:bg-red-50 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-900/20">
+                                        {{ __('loops.governance_remove') }}
+                                    </button>
+                                </form>
+                            @endif
+                        </span>
+                    @elseif($hasActions)
                         {{-- Les actions de gouvernance se prennent rarement et
                              jamais dans l'urgence : elles n'ont pas a occuper
                              une ligne en face de chaque nom. --}}

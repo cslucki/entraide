@@ -156,7 +156,7 @@ class TASK1685CrossTenantNoticeTest extends TestCase
         $response = $this->actingAs($this->member)
             ->get("/org/{$this->other->slug}/agenda");
 
-        $response->assertSee($this->mine->name, false);
+        $response->assertSee($this->mine->name);
         $response->assertDontSee($this->other->name, false);
     }
 

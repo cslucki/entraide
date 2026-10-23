@@ -59,7 +59,15 @@ class AdminMessageController extends Controller
             default => $this->unifiedFeed($selectedOrganizationId, $perPage),
         };
 
-        return view('admin.messages.index', compact('filter', 'messages', 'organizations', 'selectedOrganizationId', 'transactionId'));
+        // TASK-1693 bug R — la date devient un lien vers le detail, mais
+        // `show()` rend 404 hors de l'Organisation de l'administrateur
+        // (garantie ecrite, AdminMessagesTest). Avec le selecteur sur « Toutes
+        // les organisations », la liste peut donc contenir des lignes dont le
+        // detail serait refuse : la vue a besoin de savoir lesquelles, pour ne
+        // PAS offrir un lien mort.
+        $adminOrganizationId = $request->user()->organization_id;
+
+        return view('admin.messages.index', compact('filter', 'messages', 'organizations', 'selectedOrganizationId', 'transactionId', 'adminOrganizationId'));
     }
 
     private function unifiedFeed(string $organizationId, int $perPage): LengthAwarePaginator
@@ -170,7 +178,7 @@ class AdminMessageController extends Controller
             ->limit(5)
             ->get();
 
-        return view('admin.messages.show', compact('message', 'before', 'after'));
+        return view('admin.messages.show', compact('message', 'before', 'after') + ['isLoop' => false]);
     }
 
     /**
@@ -222,6 +230,188 @@ class AdminMessageController extends Controller
         });
 
         return back()->with('success', __('admin.messages_bulk_done', ['count' => $cibles->count()]));
+    }
+
+    /**
+     * TASK-1693 bug R — le detail d'un message de ChatLoop.
+     *
+     * `show()` juste au-dessus ne connait que les conversations d'ECHANGE. Or
+     * l'onglet ChatLoop est celui par DEFAUT de l'ecran : sans ce chemin, le
+     * lien demande n'aurait existe que pour une minorite de lignes.
+     *
+     * Memes bornes que son jumeau, a l'identique — y compris le 404 hors de
+     * l'Organisation de l'administrateur, qui est une garantie ecrite et non
+     * un detail d'implementation. Le voisinage se lit dans la BOUCLE, la ou
+     * celui d'un message d'echange se lit dans la transaction.
+     */
+    public function showLoopMessage(LoopMessage $loopMessage): View
+    {
+        $loopMessage->load(['sender', 'loop', 'editedBy']);
+
+        $orgId = auth()->user()->organization_id;
+
+        if (! $orgId || $loopMessage->organization_id !== $orgId) {
+            abort(404);
+        }
+
+        $before = LoopMessage::where('loop_id', $loopMessage->loop_id)
+            ->where('organization_id', $orgId)
+            ->where('created_at', '<', $loopMessage->created_at)
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get()
+            ->reverse()
+            ->values();
+
+        $after = LoopMessage::where('loop_id', $loopMessage->loop_id)
+            ->where('organization_id', $orgId)
+            ->where('created_at', '>', $loopMessage->created_at)
+            ->orderBy('created_at')
+            ->limit(5)
+            ->get();
+
+        return view('admin.messages.show', [
+            'message' => $loopMessage,
+            'before' => $before,
+            'after' => $after,
+            'isLoop' => true,
+        ]);
+    }
+
+    /**
+     * TASK-1693 bug Q — corriger le CORPS d'un message depuis l'administration.
+     *
+     * ## Ce qui manquait
+     *
+     * L'ecran de moderation ne savait que SUPPRIMER. Pour une faute de frappe,
+     * une donnee personnelle lachee dans un fil ou une phrase a retirer, le
+     * seul geste disponible detruisait le message entier — et avec lui la suite
+     * de la conversation qui lui repondait.
+     *
+     * ## Ce qui est modifiable, et ce qui ne l'est pas
+     *
+     * **Le corps, et lui seul.** Ni l'expediteur, ni la date, ni la Boucle ou
+     * l'echange : changer l'auteur d'un propos ne serait pas une moderation,
+     * ce serait un faux. Ces champs sont donc affiches en lecture seule sur
+     * l'ecran d'edition, pour que l'administrateur voie ce qu'il modifie.
+     *
+     * ## La trace est la CONDITION de la capacite
+     *
+     * Chaque edition inscrit `edited_at` et `edited_by`. Le ChatLoop affiche
+     * deja « modifie » a partir d'`edited_at` (TASK-1298), et la bulle partagee
+     * des conversations d'echange sait le faire aussi : une correction par
+     * l'administration est donc VISIBLE par les membres, exactement comme une
+     * correction par l'auteur. Un administrateur ne reecrit pas les mots de
+     * quelqu'un d'autre en silence.
+     *
+     * ## Pourquoi pas `LoopMessageService::updateUserMessage()`
+     *
+     * Ce service exige l'appartenance a la Boucle ET la qualite d'auteur
+     * (`isEditableBy()`). L'administrateur n'est ni l'un ni l'autre, et lui
+     * ouvrir une derogation dans ce chemin donnerait a un SuperAdmin l'identite
+     * d'un auteur. Le geste de moderation est donc un chemin SEPARE, qui porte
+     * son propre decideur — c'est precisement ce que `edited_by` enregistre.
+     *
+     * ## Portee
+     *
+     * Les memes bornes que la suppression voisine, sur le meme ecran : le
+     * groupe `/admin` (middleware `admin`, drapeau PLATEFORME). Modifier est
+     * strictement moins destructeur que supprimer, qui est deja offert ici
+     * sans borne d'organisation.
+     */
+    public function edit(Message $message): View
+    {
+        $message->load(['sender', 'transaction.buyer', 'transaction.seller', 'editedBy']);
+
+        return view('admin.messages.edit', [
+            'message' => $message,
+            'isLoop' => false,
+            'updateRoute' => route('admin.messages.update', $message),
+            'showRoute' => $this->lienDetail($message, false),
+        ]);
+    }
+
+    public function editLoopMessage(LoopMessage $loopMessage): View
+    {
+        $loopMessage->load(['sender', 'loop', 'editedBy']);
+
+        return view('admin.messages.edit', [
+            'message' => $loopMessage,
+            'isLoop' => true,
+            'updateRoute' => route('admin.loop-messages.update', $loopMessage),
+            'showRoute' => $this->lienDetail($loopMessage, true),
+        ]);
+    }
+
+    public function update(Request $request, Message $message): RedirectResponse
+    {
+        return $this->appliquerEdition($request, $message, route('admin.messages.edit', $message));
+    }
+
+    public function updateLoopMessage(Request $request, LoopMessage $loopMessage): RedirectResponse
+    {
+        return $this->appliquerEdition($request, $loopMessage, route('admin.loop-messages.edit', $loopMessage));
+    }
+
+    /**
+     * L'autorite UNIQUE de l'edition, pour les deux familles de messages.
+     *
+     * Les deux tables n'ont ni les memes colonnes ni les memes relations, mais
+     * la REGLE est la meme — et la dupliquer, c'est se condamner a ce qu'une
+     * moitie oublie un jour d'inscrire le decideur.
+     *
+     * `forceFill()` plutot qu'`update()` : `Message` n'a pas d'`updated_at`
+     * (`$timestamps = false`), et les deux colonnes de trace ne doivent jamais
+     * dependre de ce qu'un `$fillable` laisse passer.
+     */
+    private function appliquerEdition(Request $request, Message|LoopMessage $message, string $retour): RedirectResponse
+    {
+        $data = $request->validate([
+            'body' => 'required|string|max:5000',
+        ]);
+
+        // `required` SUFFIT a refuser un corps vide, y compris fait de seuls
+        // blancs : le middleware global `TrimStrings` les a deja ramenes a la
+        // chaine vide avant la validation. Une garde `if ($body === '')` ici
+        // serait inatteignable — contre-epreuve faite, son retrait laissait la
+        // suite entierement verte. Ne pas la re-ajouter en croyant combler un
+        // manque : pour RETIRER un message, c'est la suppression voisine.
+        $body = trim($data['body']);
+
+        // Rien a enregistrer : ne pas inscrire une trace d'edition pour un
+        // texte identique. « Modifie » doit vouloir dire quelque chose.
+        if ($body === $message->body) {
+            return redirect($retour)->with('info', __('admin.message_edit_unchanged'));
+        }
+
+        $message->forceFill([
+            'body' => $body,
+            'edited_at' => now(),
+            'edited_by' => $request->user()->id,
+        ])->save();
+
+        return redirect($retour)->with('success', __('admin.message_edit_done'));
+    }
+
+    /**
+     * TASK-1693 bug R — le lien vers le detail, ou `null` s'il serait refuse.
+     *
+     * Une capacite offerte puis refusee est un cul-de-sac : c'est exactement le
+     * defaut corrige au bug K, ou un bouton « Rejoindre » menait a un 403. Le
+     * predicat vit donc a UN endroit, et il est le MEME que celui des deux
+     * actions `show` — les faire divergere, c'est reinventer le lien mort.
+     */
+    private function lienDetail(Message|LoopMessage $message, bool $isLoop): ?string
+    {
+        $orgId = auth()->user()?->organization_id;
+
+        if (! $orgId || $message->organization_id !== $orgId) {
+            return null;
+        }
+
+        return $isLoop
+            ? route('admin.loop-messages.show', $message)
+            : route('admin.messages.show', $message);
     }
 
     public function destroy(Message $message): RedirectResponse

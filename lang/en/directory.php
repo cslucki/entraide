@@ -15,4 +15,6 @@ return [
         'Inject QA accounts:',
         'Clear the cache:',
     ],
+    // TASK-1693 bug AA
+    'write_to' => 'Write to :name',
 ];

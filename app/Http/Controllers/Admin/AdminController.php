@@ -79,6 +79,10 @@ class AdminController extends Controller
                 'banned' => $query->whereNotNull('banned_at'),
                 'admin' => $query->where('is_admin', true),
                 'available' => $query->where('is_available', true)->whereNull('banned_at'),
+                // TASK-1693 bug B — sans ce filtre, un compte bloque par la
+                // garde de verification etait introuvable : l'ecran n'exposait
+                // ni l'etat ni le moyen de le chercher.
+                'unverified' => $query->whereNull('email_verified_at'),
                 default => null,
             };
         }
@@ -165,7 +169,12 @@ class AdminController extends Controller
             .' sum(case when banned_at is null and is_available then 1 else 0 end) as disponibles,'
             .' sum(case when banned_at is not null then 1 else 0 end) as bannis,'
             .' sum(case when is_admin then 1 else 0 end) as admins,'
-            .' sum(case when created_at >= ? then 1 else 0 end) as nouveaux',
+            .' sum(case when created_at >= ? then 1 else 0 end) as nouveaux,'
+            // TASK-1693 bug C — dans la MEME requete agregee. Une seconde
+            // requete pour ce seul compteur ferait grandir le cout de l'ecran
+            // avec le nombre de compteurs, ce que la garde de cout de
+            // `/admin/users` interdit precisement.
+            .' sum(case when email_verified_at is null then 1 else 0 end) as non_verifies',
             [now()->startOfMonth()]
         )->first();
 
@@ -175,6 +184,7 @@ class AdminController extends Controller
             'bannis' => (int) $row->bannis,
             'admins' => (int) $row->admins,
             'nouveaux' => (int) $row->nouveaux,
+            'non_verifies' => (int) $row->non_verifies,
         ];
     }
 
@@ -211,6 +221,8 @@ class AdminController extends Controller
         $data = $request->validate([
             'first_name' => 'nullable|string|max:255',
             'name' => 'required|string|max:255',
+            // TASK-1693 bug Z — l'adresse publique du profil.
+            'slug' => 'nullable|string|max:60',
             'email' => 'required|email|max:255|unique:users,email,'.$user->id,
             'phone' => 'nullable|string|max:30',
             'bio' => 'nullable|string|max:500',
@@ -228,6 +240,27 @@ class AdminController extends Controller
             'is_admin' => 'boolean',
             'banned' => 'boolean',
         ]);
+
+        // TASK-1693 bug Z — l'adresse publique passe par son autorite unique,
+        // la meme que l'ecran de profil. Deux refus distincts : une FORME
+        // invalide se corrige en reecrivant, une adresse DEJA PRISE en en
+        // choisissant une autre.
+        $slugDemande = isset($data['slug']) ? trim((string) $data['slug']) : null;
+        unset($data['slug']);
+
+        if ($slugDemande !== null && $slugDemande !== '' && $slugDemande !== $user->slug) {
+            $slugs = app(\App\Services\UserSlugService::class);
+
+            if (! $slugs->formeValide($slugDemande)) {
+                return back()->withInput()->withErrors(['slug' => __('profile.slug_invalid')]);
+            }
+
+            if (! $slugs->disponiblePour($user, $slugDemande)) {
+                return back()->withInput()->withErrors(['slug' => __('profile.slug_taken')]);
+            }
+
+            $slugs->attribuer($user, $slugDemande);
+        }
 
         $update = [
             'first_name' => $data['first_name'] ?? null,
@@ -338,6 +371,67 @@ class AdminController extends Controller
         $sign = $data['delta'] > 0 ? '+' : '';
 
         return back()->with('success', "Solde ajusté de {$sign}{$data['delta']} pts pour {$user->name}.");
+    }
+
+    /**
+     * TASK-1693 bug B — valider manuellement la verification d'email.
+     *
+     * ## Pourquoi cet ecran n'existait pas
+     *
+     * Avant cette tranche, TROIS chemins seulement posaient
+     * `email_verified_at` : le parcours d'INVITATION (le jeton est arrive sur
+     * cette adresse exacte, la possession est donc prouvee), les Scenario Packs
+     * (donnees de demonstration), et le lien signe standard
+     * `verification.verify`. Un compte cree a la main par un administrateur, ou
+     * dont l'email de verification n'est jamais arrive, restait donc bloque sans
+     * aucun recours cote produit : `EnsureEmailIsVerified` le detournait vers
+     * `/verify-email` sur toute surface prefixee, et rien dans
+     * l'administration ne permettait de le debloquer.
+     *
+     * ## Ce que ce geste est, et ce qu'il n'est pas
+     *
+     * C'est un DEPANNAGE, pas un outil de gestion courante : il contourne une
+     * preuve de possession d'adresse. Il vit donc dans le groupe
+     * `['auth','admin']` — pile effective `AdminMiddleware`, le SuperAdmin
+     * PLATEFORME — et jamais a la main d'un admin d'Organization, qui pourrait
+     * sinon valider une adresse qu'il ne controle pas.
+     *
+     * Il est IDEMPOTENT et ne reverifie jamais a la baisse : un compte deja
+     * verifie conserve sa date d'origine, et aucun chemin ici ne REMET
+     * `email_verified_at` a `null` (ce que fait deja, legitimement, le
+     * changement d'adresse dans `ProfileController::update()`).
+     *
+     * `markEmailAsVerified()` plutot qu'un `forceFill()` ecrit a la main :
+     * c'est le contrat du framework pour poser cette colonne.
+     *
+     * ## Pourquoi l'evenement `Verified` n'est PAS emis ici
+     *
+     * `markEmailAsVerified()` n'emet rien par lui-meme — c'est
+     * `VerifyEmailController` qui emet `Verified` apres l'avoir appele. On ne
+     * reproduit PAS ce geste, et c'est deliberé.
+     *
+     * `ClaimGuestVisitorOnVerification` reagit a cet evenement en appelant
+     * `GuestClaimService::claim($user, request())`, qui lit le cookie
+     * `bp_guest` de la REQUETE COURANTE. Or ici la requete est celle du
+     * SuperAdmin : on lierait le visiteur anonyme de l'ADMINISTRATEUR au compte
+     * du membre, et `RecordCrmEmailVerified` consignerait les dimensions
+     * d'acquisition de l'admin comme si elles etaient celles du membre. Un fait
+     * FAUX ecrit sur une personne, pire que l'absence de fait.
+     *
+     * Consequence assumee et nommee : une validation manuelle ne produit ni
+     * claim de visiteur, ni fait CRM `email_verified`. C'est coherent — il n'y
+     * a eu aucun parcours d'acquisition a attribuer, puisque personne n'a
+     * clique de lien. Mesure par `test_the_gesture_emits_no_acquisition_event`.
+     */
+    public function verifyUserEmail(User $user): RedirectResponse
+    {
+        if ($user->hasVerifiedEmail()) {
+            return back()->with('success', "L'adresse de {$user->name} était déjà vérifiée.");
+        }
+
+        $user->markEmailAsVerified();
+
+        return back()->with('success', "Adresse email de {$user->name} marquée comme vérifiée.");
     }
 
     public function createUser(): View
@@ -570,7 +664,22 @@ class AdminController extends Controller
             ->get(['id', 'name', 'slug', 'is_default']);
     }
 
-    private function selectedAdminOrganizationId(Request $request): string
+    /**
+     * TASK-1693 bug J — le defaut devient un PARAMETRE, au lieu d'etre impose.
+     *
+     * Ce helper sert QUATRE ecrans d'administration. Changer son repli pour
+     * tous aurait modifie trois ecrans que personne n'a demandes — et un
+     * filtre qui change de defaut sans prevenir fait lire les mauvais chiffres
+     * a qui connait l'ancien comportement.
+     *
+     * Le repli historique (l'Organization par defaut de la plateforme) reste
+     * donc la valeur par defaut du parametre : les trois autres appels sont
+     * inchanges, a l'octet. Seul le grand livre passe `'all'`, parce que c'est
+     * un ecran de RECHERCHE : on y arrive sans savoir dans quel tenant se
+     * trouve la personne, et pre-filtrer sur une Organization y cache
+     * precisement ce qu'on vient chercher.
+     */
+    private function selectedAdminOrganizationId(Request $request, ?string $defaut = null): string
     {
         if ($request->input('organization_id') === 'all') {
             return 'all';
@@ -578,6 +687,10 @@ class AdminController extends Controller
 
         if ($request->filled('organization_id')) {
             return (string) $request->input('organization_id');
+        }
+
+        if ($defaut !== null) {
+            return $defaut;
         }
 
         return (string) (DefaultOrganizationResolver::resolve()?->getKey() ?? 'all');
@@ -737,12 +850,40 @@ class AdminController extends Controller
             ->with(['user', 'organization']);
 
         $organizations = $this->adminOrganizations();
-        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+        // TASK-1693 bug J — « Toutes les organisations » par DEFAUT ici.
+        //
+        // Le grand livre est un ecran de RECHERCHE : on y arrive sans savoir
+        // dans quel tenant se trouve la personne, et pre-filtrer sur une
+        // Organization y cache precisement ce qu'on vient chercher. Les trois
+        // autres ecrans qui partagent ce helper gardent leur repli historique.
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request, 'all');
 
         $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
 
         if ($request->filled('reason')) {
             $query->where('reason', $request->input('reason'));
+        }
+
+        // TASK-1693 bug I — chercher une personne par email, prenom ou nom.
+        //
+        // Le `select` de TASK-1667 charge TOUS les membres de la portee : il
+        // repond bien quand on connait deja la personne et qu'ils sont peu
+        // nombreux, mais pas a « qui est ce ofsh@… ? ». La recherche precede
+        // donc le choix, et BORNE aussi ce `select` plus bas : apres une
+        // recherche, la liste deroulante tient dans l'ecran.
+        //
+        // Le groupe `where(function ...)` n'est pas decoratif : sans lui, les
+        // `orWhere` s'echapperaient de la contrainte d'Organization posee par
+        // `applyAdminOrganizationFilter()` et la recherche RE-ELARGIRAIT la
+        // liste a toute la plateforme — un filtre qui defiltre.
+        $recherche = trim((string) $request->input('search', ''));
+
+        if ($recherche !== '') {
+            $query->whereHas('user', fn ($q) => $q->where(
+                fn ($q2) => $q2->where('email', 'like', '%'.$recherche.'%')
+                    ->orWhere('first_name', 'like', '%'.$recherche.'%')
+                    ->orWhere('name', 'like', '%'.$recherche.'%')
+            ));
         }
 
         $filteredUser = $this->applyAdminUserFilter($query, $request);
@@ -768,6 +909,14 @@ class AdminController extends Controller
         $membres = User::withoutGlobalScope(BelongsToOrganizationScope::class)
             ->when($selectedOrganizationId !== 'all',
                 fn ($q) => $q->where('organization_id', $selectedOrganizationId))
+            // TASK-1693 bug I — la recherche borne AUSSI la liste deroulante :
+            // trouver quelqu'un sans pouvoir le designer ensuite n'avancerait a
+            // rien. Meme groupe, meme raison qu'au-dessus.
+            ->when($recherche !== '', fn ($q) => $q->where(
+                fn ($q2) => $q2->where('email', 'like', '%'.$recherche.'%')
+                    ->orWhere('first_name', 'like', '%'.$recherche.'%')
+                    ->orWhere('name', 'like', '%'.$recherche.'%')
+            ))
             ->orderBy('name')
             ->get(['id', 'name', 'first_name', 'points_balance']);
 

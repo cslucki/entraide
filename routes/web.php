@@ -184,7 +184,25 @@ Route::get('/blog/categorie/{slug}', [BlogController::class, 'byCategory'])->nam
 Route::get('/blog/tag/{slug}', [BlogController::class, 'byTag'])->name('blog.tag');
 
 // Blog — authentifié (chemins fixes AVANT le wildcard /blog/{slug})
-Route::middleware(['auth', 'verified'])->group(function () {
+//
+// TASK-1693 bug E — `verified` RETIRE, decision produit de Cyril : « il n'y a
+// aucune raison de verifier l'email a ce stade. Si on doit le faire ce sera
+// lors du processus d'inscription. Mais non pas sur une page X ou Y, cela n'a
+// aucun sens. »
+//
+// Ce que la garde produisait : quelqu'un qui n'avait jamais recu — ou jamais
+// vu — son email de confirmation etait renvoye vers `/verify-email` en
+// essayant de relire SES PROPRES brouillons. Une page de contenu personnel
+// n'est pas le bon endroit pour reclamer une preuve de possession d'adresse.
+//
+// Ce qui ne change PAS : `auth` reste, donc rien ne s'ouvre a un anonyme. Les
+// routes `verification.*` et l'interface `MustVerifyEmail` du modele restent
+// en place — l'email de confirmation part toujours a l'inscription, il ne
+// BLOQUE simplement plus la lecture et l'ecriture. Les regles METIER qui
+// exigent une adresse verifiee pour un engagement (inscription a un atelier,
+// `WorkshopRegistrationService:158`) sont intouchees : ce sont des gestes, pas
+// des pages.
+Route::middleware('auth')->group(function () {
     Route::get('/blog/rediger/nouveau', [BlogController::class, 'create'])->name('blog.create');
     Route::get('/blog/mes-articles', [BlogController::class, 'myPosts'])->name('blog.my-posts');
     Route::post('/blog', [BlogController::class, 'store'])->name('blog.store');
@@ -564,6 +582,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
     Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');
     Route::post('/users/{user}/adjust-points', [AdminController::class, 'adjustPoints'])->name('users.adjust-points');
+    // TASK-1693 bug B — valider MANUELLEMENT la verification d'email d'un
+    // compte. Geste de DEPANNAGE : il contourne une preuve de possession
+    // d'adresse, et reste donc dans ce groupe `['auth','admin']`, dont la pile
+    // effective est `AdminMiddleware` — le SuperAdmin PLATEFORME, jamais un
+    // admin d'Organization.
+    Route::post('/users/{user}/verify-email', [AdminController::class, 'verifyUserEmail'])->name('users.verify-email');
     Route::post('/users/{user}/password', [AdminController::class, 'changePassword'])->name('users.password');
     Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordResetLink'])->name('users.send-password-reset');
     Route::patch('/users/{user}/assign-organization', [AdminController::class, 'assignOrganization'])->name('users.assign-organization');
@@ -699,6 +723,17 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/messages/bulk', [AdminMessageController::class, 'bulkDestroy'])->name('messages.bulk-destroy');
     Route::delete('/messages/{message}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
     Route::delete('/loop-messages/{loopMessage}', [AdminMessageController::class, 'destroyLoopMessage'])->name('loop-messages.destroy');
+    // TASK-1693 bug Q — l'ecran ne savait que supprimer. Corriger le CORPS
+    // d'un message est le geste de moderation manquant, et chaque edition
+    // inscrit son decideur (`edited_by`) : voir AdminMessageController::edit().
+    Route::get('/messages/{message}/edit', [AdminMessageController::class, 'edit'])->name('messages.edit');
+    Route::put('/messages/{message}', [AdminMessageController::class, 'update'])->name('messages.update');
+    // TASK-1693 bug R — le detail d'un message de ChatLoop. `messages.show` ne
+    // connaissait que les echanges, et l'onglet ChatLoop est celui par DEFAUT :
+    // le lien demande n'aurait existe que pour une minorite de lignes.
+    Route::get('/loop-messages/{loopMessage}', [AdminMessageController::class, 'showLoopMessage'])->name('loop-messages.show');
+    Route::get('/loop-messages/{loopMessage}/edit', [AdminMessageController::class, 'editLoopMessage'])->name('loop-messages.edit');
+    Route::put('/loop-messages/{loopMessage}', [AdminMessageController::class, 'updateLoopMessage'])->name('loop-messages.update');
 
     // Reports
     Route::get('/reports', [AdminController::class, 'reports'])->name('reports');
@@ -858,7 +893,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/ai-config', [AdminAiConfigController::class, 'index'])->name('ai-config');
     Route::post('/ai-config', [AdminAiConfigController::class, 'update'])->name('ai-config.update');
     Route::post('/ai-config/blog', [AdminAiConfigController::class, 'updateBlogConfig'])->name('ai-config.blog');
-    Route::post('/ai-config/profile', [AdminAiConfigController::class, 'updateProfileConfig'])->name('ai-config.profile');
+    // TASK-1693 bug AS : `ai-config/profile` RETIREE. « Agents profil IA » se
+    // regle sur l'ecran IA de l'Organization (organization.admin.ai.profiles.update),
+    // aupres de l'interrupteur et du credential. Deux ecrivains pour une meme
+    // colonne finissent par diverger.
+    // TASK-1693 bug AU : l'assistant « BouclePro IA » par Organization.
+    // Arbitrage de Cyril : la case vit ICI, sur l'administration plateforme,
+    // et non sur l'ecran de l'Organization — contrairement a « Agents profil
+    // IA » (bug AS). C'est sa demande explicite.
+    Route::post('/ai-config/shell', [AdminAiConfigController::class, 'updateShellConfig'])->name('ai-config.shell');
     // TASK-1429 (SW-1) : politique Shell Welcome par Organization (SuperAdmin).
     Route::post('/ai-config/guest-shell', [AdminAiConfigController::class, 'updateGuestShellConfig'])->name('ai-config.guest-shell');
     // TASK-1500 : la configuration Shell Welcome par Organization a SA page (decision Cyril 10/09) ; le POST ci-dessus reste l'unique ecriture.
@@ -914,7 +957,20 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/loops/{loop}/edit', [AdminLoopController::class, 'edit'])->name('loops.edit');
     Route::put('/loops/{loop}', [AdminLoopController::class, 'update'])->name('loops.update');
     Route::post('/loops/{loop}/members', [AdminLoopController::class, 'addMember'])->name('loops.members.add');
+    // TASK-1693 bug M — decider une demande d'adhesion depuis la fiche admin.
+    //
+    // Les routes globales `loop-join-requests.accept|reject` existent, mais
+    // renvoient toujours vers la Boucle : depuis l'administration cela ejecte
+    // le SuperAdmin de son ecran. Ces deux-la delegent au MEME service, avec la
+    // meme autorisation, et reviennent sur la fiche. La Boucle figure dans
+    // l'URL pour que le controleur puisse verifier que la demande lui
+    // appartient vraiment.
+    Route::post('/loops/{loop}/join-requests/{joinRequest}/accept', [AdminLoopController::class, 'acceptJoinRequest'])->name('loops.join-requests.accept');
+    Route::post('/loops/{loop}/join-requests/{joinRequest}/reject', [AdminLoopController::class, 'rejectJoinRequest'])->name('loops.join-requests.reject');
     Route::put('/loops/{loop}/members/{member}/role', [AdminLoopController::class, 'updateMemberRole'])->name('loops.members.role');
+    // TASK-1693 bug O — transferer la propriete : designer qui reprend, et le
+    // sortant redescend. Une seule transaction cote service.
+    Route::put('/loops/{loop}/members/{member}/transfer-ownership', [AdminLoopController::class, 'transferOwnership'])->name('loops.members.transfer-ownership');
     Route::delete('/loops/{loop}/members/{member}', [AdminLoopController::class, 'removeMember'])->name('loops.members.remove');
     Route::get('/loops/{loop}/files', [AdminLoopController::class, 'files'])->name('loops.files');
     Route::put('/loops/{loop}/type', [AdminLoopController::class, 'updateType'])->name('loops.type.update');
@@ -1267,6 +1323,18 @@ Route::prefix('/org/{organization}')
             Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.store');
 
             Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
+            // TASK-1693 bug AA — « Ecrire a cette personne », sur la surface de
+            // l'Organization.
+            //
+            // Cette route n'existait QUE sans prefixe. Or `ResolveUrlOrganization`
+            // est dans le groupe `web` global et lie l'Organization PAR DEFAUT
+            // sur une URL non prefixee ; la redirection canonique, elle, ne
+            // s'applique qu'aux URL d'UN SEUL segment (middleware:256), donc pas
+            // a `/messages/with/{user}`. La garde inter-tenant de T1289 refusait
+            // alors — a juste titre — et renvoyait vers la liste des messages.
+            // D'ou « on arrive bien sur la Messagerie, mais on ne peut pas
+            // ecrire ». Le defaut n'etait pas la garde, c'etait le LIEN.
+            Route::get('/messages/with/{user}', [MessageController::class, 'orgShowWithUser'])->name('messages.with');
             Route::get('/messages/{transaction}', [MessageController::class, 'orgShow'])->name('messages.show');
 
             Route::get('/points', [PointController::class, 'index'])->name('points.index');
@@ -1375,7 +1443,19 @@ Route::prefix('/org/{organization}')
                     ->defaults('adminScope', false)->middleware('throttle:30,1')->name('loops.plugins.configure.update');
             });
 
-            Route::middleware('verified')->group(function () {
+            // TASK-1693 bug E — `verified` RETIRE de ce groupe (dossiers + blog
+            // prefixe + likes), meme decision produit que pour le blog global
+            // plus haut : la verification d'email ne garde plus de PAGE.
+            //
+            // Le groupe lui-meme est conserve, et ce n'est pas de la timidite :
+            // il porte ses propres commentaires d'arbitrage (TASK-1629 sur les
+            // routes `dossiers.create`/`store` supprimees), et ses 132 lignes
+            // restent une unite de lecture. Seule la garde disparait.
+            //
+            // `auth` + `organization.member` continuent de s'appliquer depuis le
+            // groupe `/org/{organization}` (TASK-1692) : la frontiere de tenant
+            // est INTOUCHEE, seule l'exigence de verification tombe.
+            Route::group([], function () {
                 Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
 
                 // Dossiers (org-scoped, private foundation)
@@ -1530,7 +1610,19 @@ Route::prefix('/org/{organization}')
         // prouve : `auth` seul laisserait ce cross-tenant AUTHENTIFIE ouvert.
         Route::get('/services/{service}', [ServiceController::class, 'orgShow'])->middleware(['auth', 'organization.member'])->name('services.show')->whereUuid('service');
         Route::get('/requests/{request}', [RequestController::class, 'orgShow'])->middleware(['auth', 'organization.member'])->name('requests.show')->whereUuid('request');
-        Route::get('/profile/{user}', [ProfileController::class, 'show'])->middleware(['auth', 'organization.member'])->name('profile.show')->whereUuid('user');
+        // TASK-1693 bug Z — le segment accepte un SLUG ou un identifiant.
+        //
+        // `whereUuid('user')` faisait rendre 404 a « marie-dupont » AVANT meme
+        // d'atteindre le controleur. La contrainte servait a proteger les
+        // routes voisines du meme espace (`/profile/edit`, `/profile/ai-usage`,
+        // `/profile/availability`) — mais elles sont declarees PLUS HAUT dans
+        // ce groupe et gagnent deja la resolution. Le motif reste borne a un
+        // seul segment, et `UserSlugService::RESERVES` refuse ces mots a la
+        // saisie : on ne peut donc pas fabriquer une adresse morte.
+        //
+        // La sous-route `agent-ia` juste en dessous GARDE son `whereUuid` :
+        // elle resout par liaison implicite sur l'identifiant.
+        Route::get('/profile/{user}', [ProfileController::class, 'show'])->middleware(['auth', 'organization.member'])->name('profile.show')->where('user', '[A-Za-z0-9][A-Za-z0-9-]*');
         Route::middleware('ai-profiles.enabled')->group(function () {
             Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->middleware('consume.org')->name('agent-ia.profile.chat')->whereUuid('user');
         });
@@ -1594,6 +1686,9 @@ Route::prefix('/org/{organization}')
                 Route::patch('/composition-policy', [OrgAdminController::class, 'updateCompositionPolicy'])->name('composition-policy.update');
                 Route::post('/loops/{loop}/members', [OrgAdminController::class, 'addLoopMember'])->name('loops.members.add');
                 Route::put('/loops/{loop}/members/{member}/role', [OrgAdminController::class, 'updateLoopMemberRole'])->name('loops.members.role');
+                // TASK-1693 bug O — meme geste que sur l'ecran global : l'admin
+                // d'Organization bute sur le MEME invariant.
+                Route::put('/loops/{loop}/members/{member}/transfer-ownership', [OrgAdminController::class, 'transferLoopOwnership'])->name('loops.members.transfer-ownership');
                 Route::delete('/loops/{loop}/members/{member}', [OrgAdminController::class, 'removeLoopMember'])->name('loops.members.remove');
                 Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
                 Route::get('/users', [OrgAdminController::class, 'users'])->name('users');
@@ -1693,6 +1788,10 @@ Route::prefix('/org/{organization}')
                 // Reserve au SuperAdmin, protection serveur dans le controller —
                 // jamais seulement un masquage cote vue.
                 Route::put('/ai/credential-mode', [OrgAdminController::class, 'updateAiCredentialMode'])->name('ai.credential-mode.update');
+                // TASK-1693 bug AS : « Agents profil IA », rapatrie depuis
+                // /admin/ai-config. Reserve au SuperAdmin, garde dans le
+                // controller — jamais seulement un masquage cote vue.
+                Route::put('/ai/profiles', [OrgAdminController::class, 'updateAiProfiles'])->name('ai.profiles.update');
 
                 // Design
                 Route::get('/homepage', [OrgAdminController::class, 'homepage'])->name('homepage');

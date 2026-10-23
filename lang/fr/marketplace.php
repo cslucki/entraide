@@ -106,4 +106,7 @@ return [
         'delete_attachments' => 'pièces jointes à supprimer',
         'delete_attachments.*' => 'pièce jointe à supprimer',
     ],
+    // TASK-1693 bug X
+    'tag_duplicate' => 'Ce tag est deja dans la liste.',
+    'images_trimmed' => ':count image(s) ecartee(s) : la limite est de :max. Les :max premieres ont ete conservees.',
 ];

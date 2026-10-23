@@ -21,9 +21,11 @@ class AdminAiProfilesEnabledTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
         $org = Organization::factory()->create(['is_active' => true, 'ai_profiles_enabled' => true]);
 
+        // TASK-1693 bug AS — le reglage se pose desormais sur l'ecran IA de
+        // l'Organization. La garantie de ce test est INCHANGEE — un SuperAdmin
+        // peut basculer `ai_profiles_enabled` — seule l'adresse a bouge.
         $this->actingAs($admin)
-            ->post(route('admin.ai-config.profile'), [
-                'organization_id' => $org->id,
+            ->put(route('organization.admin.ai.profiles.update', ['organization' => $org->slug]), [
                 'ai_profiles_enabled' => '0',
             ])->assertRedirect();
 
