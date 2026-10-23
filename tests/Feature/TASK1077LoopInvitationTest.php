@@ -502,14 +502,17 @@ class TASK1077LoopInvitationTest extends TestCase
 
     public function test_the_loop_invitation_system_template_is_seeded_and_idempotent(): void
     {
-        $org = $this->org();
+        $this->org();
 
         $this->seed(SystemEmailTemplateSeeder::class);
         $this->seed(SystemEmailTemplateSeeder::class);
 
+        // TASK-1694 bug N — la ligne semee est GLOBALE, plus rattachee a une
+        // Organization. Ce que ce test mesure — l'idempotence du seeder — est
+        // inchange ; seul l'endroit ou il faut la compter a bouge.
         foreach (['fr', 'en'] as $locale) {
             $this->assertSame(1, SystemEmailTemplate::where('slug', 'loop_invitation')
-                ->where('organization_id', $org->id)
+                ->whereNull('organization_id')
                 ->where('locale', $locale)
                 ->count(), "Duplicate template for locale {$locale}");
         }

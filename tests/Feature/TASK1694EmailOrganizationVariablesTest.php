@@ -138,7 +138,8 @@ class TASK1694EmailOrganizationVariablesTest extends TestCase
 
         $gabarit = SystemEmailTemplate::query()
             ->where('slug', \App\Notifications\WelcomeNotification::SLUG)
-            ->where('organization_id', $this->organization->id)
+            // TASK-1694 bug N — le seeder seme du GLOBAL.
+            ->whereNull('organization_id')
             ->where('locale', 'fr')
             ->firstOrFail();
 
