@@ -5,7 +5,11 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
-use Illuminate\Auth\Notifications\VerifyEmail;
+// TASK-1694 bug D — la notification passe par un gabarit modifiable
+// (`/admin/system-email-templates`, global et bilingue). Elle ETEND celle du
+// framework : ces trois mesures affirment toujours « l'email de confirmation
+// part », et visent desormais la classe qui part reellement.
+use App\Notifications\VerifyEmailWithTemplate as VerifyEmail;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;

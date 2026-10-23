@@ -61,10 +61,20 @@ class SystemEmailTemplateTest extends TestCase
         // Asserted structurally rather than against a hard-coded total: the point
         // is "every active organization gets every template in both locales, and
         // inactive ones get none", which must keep holding as templates are added.
-        $slugs = SystemEmailTemplate::distinct()->count('slug');
+        // TASK-1694 bug D — le compte porte sur les lignes PAR TENANT.
+        //
+        // `email_verification` est un gabarit GLOBAL (une ligne par langue,
+        // `organization_id` nul) : il ne suit pas la regle « chaque slug x
+        // chaque Organization x deux langues », et un total sur TOUS les slugs
+        // comptait donc 4 lignes qui n'existent pas.
+        //
+        // La garantie de ce test est inchangee — chaque Organization active
+        // recoit chaque gabarit de tenant dans les deux langues, et une
+        // Organization inactive n'en recoit aucun.
+        $slugs = SystemEmailTemplate::whereNotNull('organization_id')->distinct()->count('slug');
         $inactive = Organization::where('slug', 'inactive')->sole();
 
-        $this->assertSame($slugs * 2 * 3, SystemEmailTemplate::count());
+        $this->assertSame($slugs * 2 * 3, SystemEmailTemplate::whereNotNull('organization_id')->count());
         $this->assertSame($slugs * 2, SystemEmailTemplate::where('organization_id', $this->org->id)->count());
         $this->assertSame(0, SystemEmailTemplate::where('organization_id', $inactive->id)->count());
     }
