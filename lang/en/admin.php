@@ -56,6 +56,10 @@ return [
     'ai_shell_toggle_desc' => 'When unchecked, the floating badge and its chat panel no longer appear — even if AI remains enabled for this organization. Other AI features (rewording, summaries, agents) are unaffected.',
     'ai_shell_toggle_saved' => '“BouclePro AI” assistant: setting saved for this organization.',
     'ai_shell_section_desc' => 'Where the floating button and its panel appear, organization by organization. The first box turns everything off. Private conversations, ChatLoop and discovery pages never carry it: those three are product decisions, and no box reopens them.',
+    // TASK-1694 bug J — renvoyer le lien de confirmation, depuis /admin/users.
+    'users_resend_verification' => 'Resend link',
+    'users_resend_verification_sent' => 'Confirmation link resent to :name. It is valid for 24 hours.',
+    'users_resend_verification_already' => 'The address :name is already verified: no link was resent.',
     // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
     // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
     // pas un tout-cocher : « Partout » se lisait comme une selection globale.

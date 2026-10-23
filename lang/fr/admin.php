@@ -56,6 +56,10 @@ return [
     'ai_shell_toggle_desc' => 'Quand il est décoché, la pastille flottante et son panneau de discussion n\'apparaissent plus — même si l\'IA reste activée pour cette organisation. Les autres fonctions IA (reformulation, synthèse, agents) ne sont pas touchées.',
     'ai_shell_toggle_saved' => 'Assistant « BouclePro IA » : réglage enregistré pour cette organisation.',
     'ai_shell_section_desc' => 'Où le bouton flottant et son panneau apparaissent, organisation par organisation. La première case coupe tout. Les conversations privées, le ChatLoop et les pages de découverte n\'en portent jamais : ces trois-là sont des arbitrages produit, et aucune case ne les rouvre.',
+    // TASK-1694 bug J — renvoyer le lien de confirmation, depuis /admin/users.
+    'users_resend_verification' => 'Renvoyer le lien',
+    'users_resend_verification_sent' => 'Lien de confirmation renvoyé à :name. Il est valable 24 heures.',
+    'users_resend_verification_already' => 'L\'adresse :name est déjà vérifiée : aucun lien n\'a été renvoyé.',
     // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
     // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
     // pas un tout-cocher : « Partout » se lisait comme une selection globale.

@@ -434,6 +434,43 @@ class AdminController extends Controller
         return back()->with('success', "Adresse email de {$user->name} marquée comme vérifiée.");
     }
 
+    /**
+     * TASK-1694 bug J — RENVOYER le lien de confirmation.
+     *
+     * ## Distinct de « Valider l'email », et c'est tout le point
+     *
+     * Le geste voisin CONTOURNE la preuve de possession d'adresse : c'est un
+     * depannage. Celui-ci la REDEMANDE — il renvoie le lien et laisse la
+     * personne prouver qu'elle lit bien cette boite.
+     *
+     * C'est donc le geste a tenter D'ABORD. Il vit dans le meme groupe, donc
+     * sous la meme autorite : SuperAdmin plateforme.
+     *
+     * ## La duree repart de zero, et ce n'est pas un effet de bord
+     *
+     * Le lien est SIGNE avec une expiration calculee AU MOMENT DE L'ENVOI
+     * (`auth.verification.expire`, 24 h depuis le bug C). Renvoyer, c'est donc
+     * necessairement remettre le compteur a zero — c'est la demande de Cyril,
+     * et c'est aussi la seule chose qu'un lien signe sache faire : on ne
+     * prolonge pas un lien deja emis, on en emet un neuf.
+     *
+     * ## Rien sur un compte deja verifie
+     *
+     * Le bouton n'apparait pas, et l'action refuse quand meme : une garde de
+     * vue n'est pas une protection. Renvoyer un lien a quelqu'un de deja
+     * verifie l'inviterait a un geste qui ne sert a rien.
+     */
+    public function resendUserVerification(User $user): RedirectResponse
+    {
+        if ($user->hasVerifiedEmail()) {
+            return back()->with('error', __('admin.users_resend_verification_already', ['name' => $user->email]));
+        }
+
+        $user->sendEmailVerificationNotification();
+
+        return back()->with('success', __('admin.users_resend_verification_sent', ['name' => $user->email]));
+    }
+
     public function createUser(): View
     {
         return view('admin.users.create');

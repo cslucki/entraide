@@ -367,6 +367,19 @@
                                  et un geste sans effet est un piege. Confirmation
                                  explicite, parce qu'il contourne une preuve de
                                  possession d'adresse. --}}
+                            {{-- TASK-1694 bug J — RENVOYER le lien, avant de
+                                 songer a contourner la preuve.
+                                 Pose AVANT « Valider l'email » a dessein :
+                                 l'ordre de lecture suggere le geste le moins
+                                 lourd en premier. Pas de confirmation : renvoyer
+                                 un email ne detruit rien et ne contourne rien. --}}
+                            @unless($u->hasVerifiedEmail())
+                            <form method="POST" action="{{ route('admin.users.resend-verification', $u) }}">
+                                @csrf
+                                <button class="text-xs text-indigo-600 hover:underline" data-user-resend-verification="{{ $u->id }}">{{ __('admin.users_resend_verification') }}</button>
+                            </form>
+                            @endunless
+
                             @unless($u->hasVerifiedEmail())
                             <form method="POST" action="{{ route('admin.users.verify-email', $u) }}"
                                   onsubmit="return confirm('Marquer {{ addslashes($u->email) }} comme vérifiée, sans que cette personne ait cliqué le lien de confirmation ?')">

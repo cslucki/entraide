@@ -588,6 +588,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // effective est `AdminMiddleware` — le SuperAdmin PLATEFORME, jamais un
     // admin d'Organization.
     Route::post('/users/{user}/verify-email', [AdminController::class, 'verifyUserEmail'])->name('users.verify-email');
+    // TASK-1694 bug J : RENVOYER le lien de confirmation. Distinct du geste
+    // ci-dessus — celui-la CONTOURNE la preuve de possession, celui-ci la
+    // redemande. Meme groupe, donc meme autorite : SuperAdmin plateforme.
+    Route::post('/users/{user}/resend-verification', [AdminController::class, 'resendUserVerification'])->name('users.resend-verification');
     Route::post('/users/{user}/password', [AdminController::class, 'changePassword'])->name('users.password');
     Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordResetLink'])->name('users.send-password-reset');
     Route::patch('/users/{user}/assign-organization', [AdminController::class, 'assignOrganization'])->name('users.assign-organization');
