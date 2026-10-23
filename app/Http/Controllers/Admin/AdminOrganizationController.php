@@ -164,6 +164,8 @@ class AdminOrganizationController extends Controller
             'loops_enabled' => 'nullable|boolean',
             'members_can_create_loops' => 'nullable|boolean',
             'subscriptions_enabled' => 'nullable|boolean',
+            // TASK-1694 bug R — « Possibilite modifier emails types ».
+            'system_emails_editable' => 'nullable|boolean',
             'loop_mode' => 'nullable|in:mono,multi',
             'primary_loop_id' => [
                 'nullable',
@@ -207,6 +209,7 @@ class AdminOrganizationController extends Controller
         $data['loops_enabled'] = ($data['loops_enabled'] ?? '0') === '1';
         $data['members_can_create_loops'] = ($data['members_can_create_loops'] ?? '0') === '1';
         $data['subscriptions_enabled'] = ($data['subscriptions_enabled'] ?? '0') === '1';
+        $data['system_emails_editable'] = ($data['system_emails_editable'] ?? '0') === '1';
         $data['loop_mode'] = $data['loop_mode'] ?? 'multi';
         $data['primary_loop_id'] = ($data['primary_loop_id'] ?? null) ?: null;
         $data['header_javascript_enabled'] = ($data['header_javascript_enabled'] ?? '0') === '1';

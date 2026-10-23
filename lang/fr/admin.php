@@ -531,6 +531,9 @@ return [
     'system_email_default_in_use' => 'Utilisé actuellement',
     'system_email_default_in_use_partial' => 'Utilisé pour les Organizations sans personnalisation active',
     // TASK-1694 bug O — l'ecran sait enfin designer « sans Organization ».
+    // TASK-1694 bug R — la capacite d'editer, gouvernee par Organization.
+    'org_system_emails_editable_label' => 'Possibilité de modifier les emails types',
+    'org_system_emails_editable_desc' => 'Quand décoché, cette Organization ne peut plus éditer ses gabarits d\'emails système : les modèles Global de la plateforme s\'appliquent.',
     'system_email_only_global' => 'Global uniquement',
     'system_email_scope_global' => '— Global (toutes les Organizations) —',
     'system_email_create_customization' => 'Créer une personnalisation',

@@ -2777,6 +2777,19 @@ class OrgAdminController extends Controller
 
     public function systemEmailTemplates(Request $request, Organization $organization): View
     {
+        // TASK-1694 bug R — la capacite est gouvernee par l'Organization.
+        //
+        // Demande de Cyril : « desactiver le fait qu'une organisation puisse
+        // modifier les emails types », avec une case a cocher dans la
+        // configuration. Le refus est au SERVEUR : l'entree de menu disparait,
+        // mais une garde de vue n'est pas une protection — l'adresse resterait
+        // atteignable.
+        //
+        // 403 et non 404 : l'ecran EXISTE, et la garde de tenant qui rend 404
+        // (voir plus bas) repond a une autre question. Confondre les deux
+        // rendrait illisible ce qui est refuse et pourquoi.
+        abort_unless($organization->canEditSystemEmails(), 403);
+
         $query = SystemEmailTemplate::with('organization')
             ->where('organization_id', $organization->id)
             ->orderBy('locale')
@@ -2799,6 +2812,9 @@ class OrgAdminController extends Controller
 
     public function editSystemEmailTemplate(Organization $organization, SystemEmailTemplate $systemEmailTemplate): View
     {
+        // TASK-1694 bug R — meme garde que la liste, au SERVEUR.
+        abort_unless($organization->canEditSystemEmails(), 403);
+
         abort_if($systemEmailTemplate->organization_id !== $organization->id, 404);
 
         return view('admin.org.system-email-template-edit', [
@@ -2809,6 +2825,9 @@ class OrgAdminController extends Controller
 
     public function updateSystemEmailTemplate(Request $request, Organization $organization, SystemEmailTemplate $systemEmailTemplate): RedirectResponse
     {
+        // TASK-1694 bug R — meme garde que la liste, au SERVEUR.
+        abort_unless($organization->canEditSystemEmails(), 403);
+
         abort_if($systemEmailTemplate->organization_id !== $organization->id, 404);
 
         $validated = $request->validate([

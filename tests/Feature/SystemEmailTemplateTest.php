@@ -179,6 +179,14 @@ class SystemEmailTemplateTest extends TestCase
             'preferred_locale' => 'fr',
         ]);
 
+        // TASK-1694 bug Q — « aucun gabarit » doit etre DIT, desormais.
+        //
+        // La migration de normalisation pose 18 lignes globales ACTIVES, et
+        // `RefreshDatabase` joue les migrations : la table n'est donc plus vide
+        // au depart d'un test. C'est la verite de toute base reelle — ce test
+        // modelise une absence, il doit la creer.
+        SystemEmailTemplate::query()->delete();
+
         SystemEmailTemplate::create([
             'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
@@ -213,6 +221,11 @@ class SystemEmailTemplateTest extends TestCase
      */
     public function test_global_template_is_used_when_the_org_has_none(): void
     {
+        // TASK-1694 bug Q — la migration de normalisation pose deja une ligne
+        // globale pour ce slug. L'effacer d'abord, pour que celle du test soit
+        // bien celle qui repond.
+        SystemEmailTemplate::query()->delete();
+
         SystemEmailTemplate::create([
             'slug' => WelcomeNotification::SLUG,
             'name' => 'Global Welcome',
@@ -355,6 +368,14 @@ class SystemEmailTemplateTest extends TestCase
 
     public function test_welcome_falls_back_when_no_system_template(): void
     {
+        // TASK-1694 bug Q — « aucun gabarit » doit etre DIT, desormais.
+        //
+        // La migration de normalisation pose 18 lignes globales ACTIVES, et
+        // `RefreshDatabase` joue les migrations : la table n'est donc plus vide
+        // au depart d'un test. C'est la verite de toute base reelle — ce test
+        // modelise une absence, il doit la creer.
+        SystemEmailTemplate::query()->delete();
+
         $this->user->notify(new WelcomeNotification);
 
         $this->assertDatabaseHas('email_logs', [
@@ -366,6 +387,14 @@ class SystemEmailTemplateTest extends TestCase
 
     public function test_welcome_falls_back_when_system_template_disabled(): void
     {
+        // TASK-1694 bug Q — « aucun gabarit » doit etre DIT, desormais.
+        //
+        // La migration de normalisation pose 18 lignes globales ACTIVES, et
+        // `RefreshDatabase` joue les migrations : la table n'est donc plus vide
+        // au depart d'un test. C'est la verite de toute base reelle — ce test
+        // modelise une absence, il doit la creer.
+        SystemEmailTemplate::query()->delete();
+
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
@@ -678,7 +707,11 @@ class SystemEmailTemplateTest extends TestCase
         $otherOrg = Organization::factory()->create(['is_active' => true, 'slug' => 'other-org']);
         $orgAdmin = User::factory()->create(['organization_id' => $otherOrg->id]);
 
-        $otherOrg->update(['admin_id' => $orgAdmin->id]);
+        // TASK-1694 bug R — la capacite d'editer est desormais DECOCHEE par
+        // defaut. Ce test mesure ce que voit une Organization QUI L'A : la
+        // refuser ici reviendrait a mesurer la garde du bug R, dont c'est le
+        // test dedie qui s'occupe.
+        $otherOrg->update(['admin_id' => $orgAdmin->id, 'system_emails_editable' => true]);
 
         $response = $this->actingAs($orgAdmin)->get(route('organization.admin.system-email-templates', $otherOrg));
 

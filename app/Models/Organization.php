@@ -37,6 +37,8 @@ class Organization extends Model
         'service_points_min',
         'service_points_max',
         'loops_enabled',
+        // TASK-1694 bug R — « Possibilite modifier emails types ».
+        'system_emails_editable',
         'members_can_create_loops',
         'ai_profiles_enabled',
         // TASK-1693 bug AU — l'assistant « BouclePro IA », par Organization.
@@ -85,6 +87,7 @@ class Organization extends Model
             'service_points_min' => 'integer',
             'service_points_max' => 'integer',
             'loops_enabled' => 'boolean',
+            'system_emails_editable' => 'boolean',
             'members_can_create_loops' => 'boolean',
             'ai_profiles_enabled' => 'boolean',
             'ai_shell_enabled' => 'boolean',
@@ -275,6 +278,19 @@ class Organization extends Model
     public function membersCanCreateLoops(): bool
     {
         return (bool) $this->loops_enabled && (bool) $this->members_can_create_loops;
+    }
+
+    /**
+     * TASK-1694 bug R — cette Organization peut-elle editer ses emails types ?
+     *
+     * Autorite UNIQUE de la question : la vue masque l'entree de menu, le
+     * controleur refuse l'acces, et les deux lisent ici. Une garde de vue n'est
+     * pas une protection, et deux lectures differentes de la meme question
+     * finiraient par divergir.
+     */
+    public function canEditSystemEmails(): bool
+    {
+        return (bool) $this->system_emails_editable;
     }
 
     public function isFeedPostPublishableByMembers(): bool
