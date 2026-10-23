@@ -61,9 +61,13 @@
                         {{ __('blog.btn_generate_ai') }}
                     </button>
                     @endif
-                    <button type="button" @click="writeMyself()"
+                    {{-- TASK-1693 bug AI — « L'ecrire moi-meme » s'OPPOSE a
+                         « Generer avec l'IA ». L'IA eteinte, ce bouton est le
+                         SEUL chemin : il ne doit plus annoncer un choix qui
+                         n'existe pas, seulement ce qu'il fait. --}}
+                    <button type="button" @click="writeMyself()" data-blog-start-writing
                         class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        {{ __('blog.btn_write_myself') }}
+                        {{ $_aiGate->availableHere() ? __('blog.btn_write_myself') : __('blog.btn_write_myself_without_ai') }}
                     </button>
                     <a href="{{ $_blogIndexHref }}" class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         {{ __('blog.btn_cancel') }}

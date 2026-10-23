@@ -416,9 +416,30 @@ class TASK1693AiSurfacesFollowTheSwitchTest extends TestCase
     {
         $html = $this->page($this->urlOrg('organization.blog.create'));
 
-        $this->assertStringContainsString(e(__('blog.btn_write_myself')), $html);
+        $this->assertStringContainsString('data-blog-start-writing', $html);
         $this->assertStringContainsString(e(__('blog.btn_cancel')), $html);
         $this->assertStringNotContainsString('data-ai-generate-button', $html);
+    }
+
+    /**
+     * TASK-1693 bug AI — le libelle dit ce que le bouton FAIT.
+     *
+     * « L'ecrire moi-meme » s'OPPOSE a « Generer avec l'IA ». L'IA eteinte, ce
+     * bouton est le seul chemin : il annoncait un choix qui n'existe plus.
+     */
+    public function test_the_writing_button_names_the_only_path_left(): void
+    {
+        $eteinte = $this->page($this->urlOrg('organization.blog.create'));
+
+        $this->assertStringContainsString(e(__('blog.btn_write_myself_without_ai')), $eteinte);
+        $this->assertStringNotContainsString(e(__('blog.btn_write_myself')), $eteinte);
+
+        $this->allumerLIA();
+
+        $allumee = $this->page($this->urlOrg('organization.blog.create'));
+
+        $this->assertStringContainsString(e(__('blog.btn_write_myself')), $allumee,
+            'le choix existe de nouveau : le libelle redevient celui du CHOIX');
     }
 
     /** Et le formulaire lui-meme reste utilisable sans l'IA. */
