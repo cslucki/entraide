@@ -65,6 +65,15 @@ return [
     // colonne qui porte DEUX liens envoyes par email (confirmation d'adresse
     // et mot de passe). Le libelle dit maintenant DE QUOI il s'agit.
     'users_password_reset_link' => 'Réinitialisation mdp',
+
+    // TASK-1694 bug L — le choix du gabarit, pose DANS la ligne du membre.
+    'users_send_email_submit' => 'Envoyer',
+    'users_send_email_none' => 'Aucun gabarit d\'email n\'existe encore.',
+    'users_send_email_create' => 'Créer un gabarit',
+    'users_send_email_confirm' => 'Envoyer cet email à :name ?',
+    'users_send_email_sent' => '« :template » envoyé à :name.',
+    'users_send_email_failed' => 'L\'envoi à :name a échoué. Voir les journaux d\'emails.',
+    'users_send_email_inactive' => 'Aucun email envoyé : le compte :name est banni ou inactif.',
     // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
     // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
     // pas un tout-cocher : « Partout » se lisait comme une selection globale.

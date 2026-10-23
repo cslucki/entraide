@@ -592,6 +592,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // ci-dessus — celui-la CONTOURNE la preuve de possession, celui-ci la
     // redemande. Meme groupe, donc meme autorite : SuperAdmin plateforme.
     Route::post('/users/{user}/resend-verification', [AdminController::class, 'resendUserVerification'])->name('users.resend-verification');
+    // TASK-1694 bug L — envoyer UN gabarit de l'Emailer a CETTE personne.
+    Route::post('/users/{user}/send-email', [AdminController::class, 'sendEmailToUser'])->name('users.send-email');
     Route::post('/users/{user}/password', [AdminController::class, 'changePassword'])->name('users.password');
     Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordResetLink'])->name('users.send-password-reset');
     Route::patch('/users/{user}/assign-organization', [AdminController::class, 'assignOrganization'])->name('users.assign-organization');

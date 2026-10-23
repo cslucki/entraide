@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Country;
 use App\Models\EmailLog;
+use App\Models\EmailTemplate;
 use App\Models\LoginLog;
 use App\Models\Organization;
 use App\Models\PointLedger;
@@ -19,6 +20,7 @@ use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Admin\PlatformDashboardMetrics;
+use App\Services\EmailerService;
 use App\Services\UserDataLifecycleRegistry;
 use App\Services\Users\Exceptions\UserDeletionBlockedException;
 use App\Services\Users\UserDeletionExecutor;
@@ -130,6 +132,10 @@ class AdminController extends Controller
 
         return view('admin.users', compact('users', 'organizations', 'scopedOrganization') + [
             'stats' => $this->userListStats($scopedOrganization?->id),
+            // TASK-1694 bug L — les gabarits de l'Emailer, pour le choix pose
+            // DANS la ligne. Une seule requete, constante : le test de cout de
+            // cet ecran mesure qu'il ne grandit pas avec le nombre de comptes.
+            'emailTemplates' => EmailTemplate::orderBy('name')->get(['id', 'name', 'subject']),
         ]);
     }
 
@@ -469,6 +475,55 @@ class AdminController extends Controller
         $user->sendEmailVerificationNotification();
 
         return back()->with('success', __('admin.users_resend_verification_sent', ['name' => $user->email]));
+    }
+
+    /**
+     * TASK-1694 bug L — envoyer UN gabarit de l'Emailer a UNE personne.
+     *
+     * ## Ce que remplace ce geste
+     *
+     * Le lien « Envoyer un email » de la colonne « Actions » menait au
+     * CATALOGUE (`/admin/email-templates`), sans rien savoir de la personne de
+     * la ligne : il fallait y rechoisir le destinataire. Demande de Cyril :
+     * cocher le gabarit, puis un bouton d'envoi.
+     *
+     * ## Pourquoi une route a soi, et pas `email-templates.send.execute`
+     *
+     * Ce parcours-la met le gabarit dans l'URL — donc une URL par choix, que
+     * seul du JavaScript saurait recomposer apres un clic de radio. Ici le
+     * gabarit est une DONNEE du formulaire, et la personne vient du chemin :
+     * c'est l'inverse, et c'est ce que la demande decrit.
+     *
+     * L'ENVOI, lui, n'est pas reecrit : `EmailerService::sendFromTemplate()`
+     * reste l'autorite unique — interpolation des variables, `replyTo` sur
+     * l'administrateur, et la ligne d'`EmailLog` qui en garde la trace.
+     *
+     * ## Les deux gardes de l'autre parcours sont conservees
+     *
+     * `activeAccount()` : on n'ecrit pas a un compte banni. C'est la meme borne
+     * que `sendExecute()`, pas une politique inventee ici. Le plafond de 50 n'a
+     * pas de sens pour un destinataire unique.
+     */
+    public function sendEmailToUser(Request $request, User $user): RedirectResponse
+    {
+        $validated = $request->validate([
+            'template_id' => ['required', 'uuid', Rule::exists('email_templates', 'id')],
+        ]);
+
+        if (! User::activeAccount()->whereKey($user->id)->exists()) {
+            return back()->with('error', __('admin.users_send_email_inactive', ['name' => $user->email]));
+        }
+
+        $template = EmailTemplate::findOrFail($validated['template_id']);
+
+        $log = app(EmailerService::class)->sendFromTemplate($template, $user, $request->user());
+
+        return $log->status === 'sent'
+            ? back()->with('success', __('admin.users_send_email_sent', [
+                'template' => $template->name,
+                'name' => $user->email,
+            ]))
+            : back()->with('error', __('admin.users_send_email_failed', ['name' => $user->email]));
     }
 
     public function createUser(): View
