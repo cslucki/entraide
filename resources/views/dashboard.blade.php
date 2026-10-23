@@ -156,7 +156,7 @@
 
         <div class="grid md:grid-cols-2 gap-6">
             <!-- Services -->
-            <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div x-data="{ open: true }" data-dashboard-card="services" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">
                         <span class="truncate">{{ __('dashboard.my_services') }}</span>
@@ -167,7 +167,14 @@
                         <a href="{{ $_dashServicesCreateHref }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
                     </div>
                 </div>
-                <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700">
+                {{-- TASK-1693 bug AK — un ascenseur au-dela de 3 elements : la card
+                         s'ouvre desormais seule, et une liste longue repousserait
+                         tout le reste du tableau de bord sous la ligne de flottaison.
+                         La hauteur laisse voir un 4e element coupe — c'est ce qui
+                         DIT qu'il y a de la suite. --}}
+                    <div x-show="open" x-cloak data-dashboard-list
+                         @class(['divide-y divide-gray-100 dark:divide-gray-700',
+                                  'max-h-48 overflow-y-auto' => count($myServices) > 3])>
                     @forelse($myServices as $service)
                     <div class="px-5 py-3 flex items-start gap-2">
                         <div class="min-w-0 flex-1">
@@ -198,7 +205,7 @@
             </div>
 
             <!-- Requests -->
-            <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div x-data="{ open: true }" data-dashboard-card="requests" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">
                         <span class="truncate">{{ __('dashboard.my_requests') }}</span>
@@ -209,7 +216,14 @@
                         <a href="{{ $requestCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
                     </div>
                 </div>
-                <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700">
+                {{-- TASK-1693 bug AK — un ascenseur au-dela de 3 elements : la card
+                         s'ouvre desormais seule, et une liste longue repousserait
+                         tout le reste du tableau de bord sous la ligne de flottaison.
+                         La hauteur laisse voir un 4e element coupe — c'est ce qui
+                         DIT qu'il y a de la suite. --}}
+                    <div x-show="open" x-cloak data-dashboard-list
+                         @class(['divide-y divide-gray-100 dark:divide-gray-700',
+                                  'max-h-48 overflow-y-auto' => count($myRequests) > 3])>
                     @forelse($myRequests as $req)
                     @php $reqPriseEnCharge = $req->status === 'in_progress'; @endphp
                     <div class="px-5 py-3 flex items-start gap-2" data-dashboard-request="{{ $req->id }}">
@@ -264,14 +278,21 @@
 
                  L'etat est desormais porte par la PASTILLE de chaque ligne au
                  lieu du titre de deux cards qu'il fallait savoir distinguer. --}}
-            <div x-data="{ open: true }" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden" data-dashboard-exchanges>
+            <div x-data="{ open: true }" data-dashboard-card="exchanges" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden" data-dashboard-exchanges>
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
                     <button type="button" @click="open = !open" class="flex w-full items-center justify-between gap-3 text-left font-semibold text-gray-900 dark:text-gray-100">
                         <span class="truncate">{{ __('dashboard.exchanges') }}</span>
                         <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 shrink-0 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
                     </button>
                 </div>
-                <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700">
+                {{-- TASK-1693 bug AK — un ascenseur au-dela de 3 elements : la card
+                         s'ouvre desormais seule, et une liste longue repousserait
+                         tout le reste du tableau de bord sous la ligne de flottaison.
+                         La hauteur laisse voir un 4e element coupe — c'est ce qui
+                         DIT qu'il y a de la suite. --}}
+                    <div x-show="open" x-cloak data-dashboard-list
+                         @class(['divide-y divide-gray-100 dark:divide-gray-700',
+                                  'max-h-48 overflow-y-auto' => count($exchanges) > 3])>
                     @forelse($exchanges as $tx)
                     @php
                         $other = auth()->id() === $tx->buyer_id ? $tx->seller : $tx->buyer;
@@ -307,7 +328,7 @@
             </div>
 
             <!-- Recent messages -->
-            <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div x-data="{ open: true }" data-dashboard-card="messages" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">
                         <span class="truncate">{{ __('dashboard.recent_messages') }}</span>
@@ -315,7 +336,14 @@
                     </button>
                     <a href="{{ $_dashRoute('messages.index') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
                 </div>
-                <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700">
+                {{-- TASK-1693 bug AK — un ascenseur au-dela de 3 elements : la card
+                         s'ouvre desormais seule, et une liste longue repousserait
+                         tout le reste du tableau de bord sous la ligne de flottaison.
+                         La hauteur laisse voir un 4e element coupe — c'est ce qui
+                         DIT qu'il y a de la suite. --}}
+                    <div x-show="open" x-cloak data-dashboard-list
+                         @class(['divide-y divide-gray-100 dark:divide-gray-700',
+                                  'max-h-48 overflow-y-auto' => count($recentMessages) > 3])>
                     @forelse($recentMessages as $tx)
                     @php $other = auth()->id() === $tx->buyer_id ? $tx->seller : $tx->buyer; $lastMsg = $tx->messages->first(); @endphp
                     <a href="{{ $_dashRoute('messages.show', ['transaction' => $tx]) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
