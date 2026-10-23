@@ -9,9 +9,10 @@ use Illuminate\Database\Seeder;
 class SystemEmailTemplateSeeder extends Seeder
 {
     private array $templateDefinitions = [
-        'welcome' => [
-            'name' => 'Bienvenue',
-            'name_en' => 'Welcome',
+        // TASK-1694 bug H — renomme : l'email annonce l'AFFECTATION DES POINTS.
+        'affectation-points-suite-inscription' => [
+            'name' => 'Affectation points suite inscription',
+            'name_en' => 'Points granted after signup',
             'subject_fr' => 'Bienvenue sur {{ organization }}, {{ name }} !',
             'subject_en' => 'Welcome to {{ organization }}, {{ name }}!',
             'content_html_fr' => '<h1>Bienvenue sur {{ organization }}, {{ name }} !</h1>

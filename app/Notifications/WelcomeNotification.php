@@ -9,6 +9,20 @@ use Illuminate\Notifications\Notification;
 
 class WelcomeNotification extends Notification
 {
+    /**
+     * TASK-1694 bug H — le slug dit ce que l'email ANNONCE, plus un moment.
+     *
+     * « welcome » datait d'une epoque ou il partait a l'inscription. Il annonce
+     * en realite l'AFFECTATION DES POINTS, et il part desormais apres la
+     * confirmation d'adresse (bug I). Le nouveau slug le dit, et il est
+     * symetrique de celui de la confirmation.
+     *
+     * Une CONSTANTE plutot qu'une chaine repetee : le slug vit maintenant dans
+     * le code, les seeders et les tests. Un renommage de plus ne doit pas
+     * demander de les retrouver un par un.
+     */
+    public const SLUG = 'affectation-points-suite-inscription';
+
     public function via(object $notifiable): array
     {
         return ['mail'];
@@ -16,7 +30,7 @@ class WelcomeNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $template = $this->resolveTemplate('welcome', $notifiable);
+        $template = $this->resolveTemplate(self::SLUG, $notifiable);
 
         if ($template) {
             $emailer = app(EmailerService::class);

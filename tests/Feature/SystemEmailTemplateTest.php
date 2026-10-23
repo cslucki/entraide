@@ -92,7 +92,7 @@ class SystemEmailTemplateTest extends TestCase
     {
         $this->seed(SystemEmailTemplateSeeder::class);
 
-        $template = SystemEmailTemplate::where('slug', 'welcome')
+        $template = SystemEmailTemplate::where('slug', WelcomeNotification::SLUG)
             ->where('locale', 'fr')
             ->where('organization_id', $this->org->id)
             ->first();
@@ -118,7 +118,7 @@ class SystemEmailTemplateTest extends TestCase
         ]);
 
         SystemEmailTemplate::create([
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => 'Legacy {{ name }}',
             'content_html' => '<p>Legacy {{ name }}</p>',
@@ -152,7 +152,7 @@ class SystemEmailTemplateTest extends TestCase
     public function test_global_template_is_used_when_the_org_has_none(): void
     {
         SystemEmailTemplate::create([
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Global Welcome',
             'subject' => 'Global {{ name }}',
             'content_html' => '<p>Global</p>',
@@ -173,7 +173,7 @@ class SystemEmailTemplateTest extends TestCase
     {
         $this->seed(SystemEmailTemplateSeeder::class);
 
-        $template = SystemEmailTemplate::where('slug', 'welcome')
+        $template = SystemEmailTemplate::where('slug', WelcomeNotification::SLUG)
             ->where('locale', 'fr')
             ->where('organization_id', $this->org->id)
             ->first();
@@ -225,7 +225,7 @@ class SystemEmailTemplateTest extends TestCase
         $this->seed(SystemEmailTemplateSeeder::class);
 
         SystemEmailTemplate::where('organization_id', $otherOrg->id)
-            ->where('slug', 'welcome')
+            ->where('slug', WelcomeNotification::SLUG)
             ->where('locale', 'fr')
             ->update(['subject' => 'Other org subject']);
 
@@ -253,7 +253,7 @@ class SystemEmailTemplateTest extends TestCase
     {
         $this->seed(SystemEmailTemplateSeeder::class);
 
-        SystemEmailTemplate::where('slug', 'welcome')
+        SystemEmailTemplate::where('slug', WelcomeNotification::SLUG)
             ->where('locale', 'fr')
             ->where('organization_id', $this->org->id)
             ->update(['enabled' => false]);
@@ -276,7 +276,7 @@ class SystemEmailTemplateTest extends TestCase
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => 'Bienvenue {{ name }} !',
             'content_html' => '<h1>Bienvenue {{ name }} !</h1>',
@@ -307,7 +307,7 @@ class SystemEmailTemplateTest extends TestCase
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => 'Bienvenue {{ name }} !',
             'content_html' => '<h1>Bienvenue {{ name }} !</h1>',
@@ -328,7 +328,7 @@ class SystemEmailTemplateTest extends TestCase
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => 'Bienvenue',
             'content_html' => '<p>Contenu personnalisé</p>',
@@ -469,7 +469,7 @@ class SystemEmailTemplateTest extends TestCase
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => '{{ first_name }} {{ name }} {{ email }} {{ city }}',
             'content_html' => '<p>{{ first_name }} {{ name }} {{ email }} {{ city }}</p>',
@@ -489,7 +489,7 @@ class SystemEmailTemplateTest extends TestCase
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => 'Hello {{ unknown }}',
             'content_html' => '<p>{{ unknown }}</p>',
@@ -509,7 +509,7 @@ class SystemEmailTemplateTest extends TestCase
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => 'Test',
             'content_html' => '<p>{{ first_name }}</p>',
@@ -530,11 +530,11 @@ class SystemEmailTemplateTest extends TestCase
         $orgB = Organization::factory()->create(['is_active' => true, 'slug' => 'org-b']);
 
         SystemEmailTemplate::create([
-            'organization_id' => $orgA->id, 'locale' => 'fr', 'slug' => 'welcome',
+            'organization_id' => $orgA->id, 'locale' => 'fr', 'slug' => WelcomeNotification::SLUG,
             'name' => 'A Welcome', 'subject' => 'A', 'content_html' => '<p>A</p>',
         ]);
         SystemEmailTemplate::create([
-            'organization_id' => $orgB->id, 'locale' => 'en', 'slug' => 'welcome',
+            'organization_id' => $orgB->id, 'locale' => 'en', 'slug' => WelcomeNotification::SLUG,
             'name' => 'B Welcome', 'subject' => 'B', 'content_html' => '<p>B</p>',
         ]);
 
@@ -553,11 +553,11 @@ class SystemEmailTemplateTest extends TestCase
         $orgB = Organization::factory()->create(['is_active' => true, 'slug' => 'org-b']);
 
         SystemEmailTemplate::create([
-            'organization_id' => $orgA->id, 'locale' => 'fr', 'slug' => 'welcome',
+            'organization_id' => $orgA->id, 'locale' => 'fr', 'slug' => WelcomeNotification::SLUG,
             'name' => 'Only A', 'subject' => 'A', 'content_html' => '<p>A</p>',
         ]);
         SystemEmailTemplate::create([
-            'organization_id' => $orgB->id, 'locale' => 'en', 'slug' => 'welcome',
+            'organization_id' => $orgB->id, 'locale' => 'en', 'slug' => WelcomeNotification::SLUG,
             'name' => 'Only B', 'subject' => 'B', 'content_html' => '<p>B</p>',
         ]);
 

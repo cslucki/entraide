@@ -62,7 +62,7 @@ class TASK1694WelcomeEmailNamesOrganizationTest extends TestCase
      */
     public function test_without_any_template_the_email_still_names_the_organization(): void
     {
-        SystemEmailTemplate::query()->where('slug', 'welcome')->delete();
+        SystemEmailTemplate::query()->where('slug', WelcomeNotification::SLUG)->delete();
 
         $message = (new WelcomeNotification)->toMail($this->membre);
 
@@ -73,7 +73,7 @@ class TASK1694WelcomeEmailNamesOrganizationTest extends TestCase
     /** Et le corps du repli aussi — pas seulement le sujet. */
     public function test_the_blade_fallback_body_names_the_organization(): void
     {
-        SystemEmailTemplate::query()->where('slug', 'welcome')->delete();
+        SystemEmailTemplate::query()->where('slug', WelcomeNotification::SLUG)->delete();
 
         $rendu = (new WelcomeNotification)->toMail($this->membre)->render();
 
@@ -89,10 +89,10 @@ class TASK1694WelcomeEmailNamesOrganizationTest extends TestCase
      */
     public function test_a_global_template_is_reachable_for_a_member_of_an_organization(): void
     {
-        SystemEmailTemplate::query()->where('slug', 'welcome')->delete();
+        SystemEmailTemplate::query()->where('slug', WelcomeNotification::SLUG)->delete();
 
         SystemEmailTemplate::query()->create([
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'locale' => 'fr',
             'organization_id' => null,
             'name' => 'Globale 1694G',
@@ -116,11 +116,11 @@ class TASK1694WelcomeEmailNamesOrganizationTest extends TestCase
      */
     public function test_a_tenant_template_still_wins_over_the_global_one(): void
     {
-        SystemEmailTemplate::query()->where('slug', 'welcome')->delete();
+        SystemEmailTemplate::query()->where('slug', WelcomeNotification::SLUG)->delete();
 
         foreach ([null, $this->organization->id] as $orgId) {
             SystemEmailTemplate::query()->create([
-                'slug' => 'welcome',
+                'slug' => WelcomeNotification::SLUG,
                 'locale' => 'fr',
                 'organization_id' => $orgId,
                 'name' => $orgId ? 'Tenant' : 'Globale',
@@ -137,7 +137,7 @@ class TASK1694WelcomeEmailNamesOrganizationTest extends TestCase
     /** Et sans Organization du tout, l'email part quand même. */
     public function test_a_member_without_organization_still_gets_an_email(): void
     {
-        SystemEmailTemplate::query()->where('slug', 'welcome')->delete();
+        SystemEmailTemplate::query()->where('slug', WelcomeNotification::SLUG)->delete();
 
         $orphelin = User::factory()->create(['organization_id' => null]);
 

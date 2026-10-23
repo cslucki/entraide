@@ -137,7 +137,7 @@ class TASK1694EmailOrganizationVariablesTest extends TestCase
         $this->seed(\Database\Seeders\SystemEmailTemplateSeeder::class);
 
         $gabarit = SystemEmailTemplate::query()
-            ->where('slug', 'welcome')
+            ->where('slug', \App\Notifications\WelcomeNotification::SLUG)
             ->where('organization_id', $this->organization->id)
             ->where('locale', 'fr')
             ->firstOrFail();

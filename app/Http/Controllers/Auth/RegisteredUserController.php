@@ -7,7 +7,6 @@ use App\Models\AcquisitionEvent;
 use App\Models\Country;
 use App\Models\PointLedger;
 use App\Models\User;
-use App\Notifications\WelcomeNotification;
 use App\Services\Acquisition\AcquisitionEventRecorder;
 use App\Services\Acquisition\GuestAttribution;
 use App\Services\GuestShell\GuestIdentityThrottle;
@@ -171,7 +170,16 @@ class RegisteredUserController extends Controller
         // une reference STRUCTUREE est parquee (jamais une URL) ; VerifyEmailController la consomme apres la verification.
         rescue(fn () => app(WorkshopResumption::class)->park($organization, app(GuestVisitorResolver::class)->find($request, $organization)));
 
-        rescue(fn () => $user->notify(new WelcomeNotification));
+        // TASK-1694 bug I — l'annonce des points NE PART PLUS ICI.
+        //
+        // Elle part apres la confirmation d'adresse
+        // (`SendPointsGrantedEmailOnVerification`, sur l'evenement `Verified`).
+        // La verification etant redevenue obligatoire au bug C, annoncer
+        // 100 points a quelqu'un qui ne peut pas encore entrer n'avait plus de
+        // sens — et deux emails partaient coup sur coup.
+        //
+        // Le CREDIT, lui, reste ici : `points_balance` et la ligne de
+        // `PointLedger` plus haut. Seule l'ANNONCE se deplace.
 
         Auth::login($user);
 
