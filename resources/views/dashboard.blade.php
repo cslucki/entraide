@@ -164,7 +164,11 @@
                     </button>
                     <div class="flex shrink-0 items-center gap-3">
                         <a href="{{ $_dashRoute('dashboard.services') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
-                        <a href="{{ $_dashServicesCreateHref }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                        {{-- TASK-1693 bug AL — « Nouveau » est le geste le plus
+                             utile de la card : il portait le meme poids visuel que
+                             « Voir tout », en lien souligne de 12 px. --}}
+                        <a href="{{ $_dashServicesCreateHref }}" data-dashboard-new="services"
+                           class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 whitespace-nowrap">+ {{ __('dashboard.new') }}</a>
                     </div>
                 </div>
                 {{-- TASK-1693 bug AK — un ascenseur au-dela de 3 elements : la card
@@ -213,7 +217,8 @@
                     </button>
                     <div class="flex shrink-0 items-center gap-3">
                         <a href="{{ $_dashRoute('dashboard.requests') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
-                        <a href="{{ $requestCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                        <a href="{{ $requestCreateUrl }}" data-dashboard-new="requests"
+                           class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 whitespace-nowrap">+ {{ __('dashboard.new') }}</a>
                     </div>
                 </div>
                 {{-- TASK-1693 bug AK — un ascenseur au-dela de 3 elements : la card
@@ -279,11 +284,24 @@
                  L'etat est desormais porte par la PASTILLE de chaque ligne au
                  lieu du titre de deux cards qu'il fallait savoir distinguer. --}}
             <div x-data="{ open: true }" data-dashboard-card="exchanges" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden" data-dashboard-exchanges>
-                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-                    <button type="button" @click="open = !open" class="flex w-full items-center justify-between gap-3 text-left font-semibold text-gray-900 dark:text-gray-100">
+                {{-- TASK-1693 bug AM — l'en-tete reprend la forme des autres
+                     cards : le bouton de repli cesse d'occuper toute la largeur
+                     pour laisser place a « Nouveau ».
+                     Un lien ne peut pas vivre DANS un bouton — c'est invalide en
+                     HTML et le navigateur le deplace hors de son parent (lecon
+                     du bug AA). Les deux sont donc POSES COTE A COTE. --}}
+                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">
                         <span class="truncate">{{ __('dashboard.exchanges') }}</span>
                         <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 shrink-0 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
                     </button>
+                    <div class="flex shrink-0 items-center gap-3">
+                        {{-- Un echange NAIT d'une rencontre : le geste « nouveau »
+                             est donc d'aller EXPLORER ce que la boucle propose, il
+                             n'existe pas de formulaire de creation directe. --}}
+                        <a href="{{ $_dashRoute('explorer') }}" data-dashboard-new="exchanges"
+                           class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 whitespace-nowrap">+ {{ __('dashboard.new') }}</a>
+                    </div>
                 </div>
                 {{-- TASK-1693 bug AK — un ascenseur au-dela de 3 elements : la card
                          s'ouvre desormais seule, et une liste longue repousserait
@@ -334,7 +352,11 @@
                         <span class="truncate">{{ __('dashboard.recent_messages') }}</span>
                         <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 shrink-0 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
                     </button>
-                    <a href="{{ $_dashRoute('messages.index') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
+                    <div class="flex shrink-0 items-center gap-3">
+                        <a href="{{ $_dashRoute('messages.index') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
+                        <a href="{{ $_dashRoute('messages.index') }}" data-dashboard-new="messages"
+                           class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 whitespace-nowrap">+ {{ __('dashboard.new') }}</a>
+                    </div>
                 </div>
                 {{-- TASK-1693 bug AK — un ascenseur au-dela de 3 elements : la card
                          s'ouvre desormais seule, et une liste longue repousserait

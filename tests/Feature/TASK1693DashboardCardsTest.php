@@ -126,6 +126,72 @@ class TASK1693DashboardCardsTest extends TestCase
             'une seule card est bornee : celle qui porte plus de 3 elements');
     }
 
+    // ── Les boutons « Nouveau » (bugs AL et AM) ──────────────────────────────
+
+    /**
+     * TASK-1693 bug AL — « Nouveau » cesse d'etre un lien souligne.
+     *
+     * C'est le geste le plus utile de la card ; il portait exactement le meme
+     * poids visuel que « Voir tout », en 12 px souligne.
+     */
+    public function test_the_new_buttons_are_real_buttons(): void
+    {
+        $html = $this->page();
+
+        foreach (['services', 'requests'] as $card) {
+            $this->assertMatchesRegularExpression(
+                '/data-dashboard-new="'.$card.'"\s+class="[^"]*bg-indigo-600[^"]*"/',
+                $html,
+                "le bouton « Nouveau » de la card {$card} doit porter un fond, pas un soulignement",
+            );
+        }
+    }
+
+    /**
+     * TASK-1693 bug AM — les cards Echanges et Messagerie en recoivent un.
+     *
+     * Un echange NAIT d'une rencontre : son geste « nouveau » mene a
+     * l'Explorer, il n'existe pas de formulaire de creation directe.
+     */
+    public function test_exchanges_and_messages_get_their_own_new_button(): void
+    {
+        $html = $this->page();
+        $slug = $this->organization->slug;
+
+        $this->assertMatchesRegularExpression(
+            '#href="[^"]*/org/'.$slug.'/explorer"\s+data-dashboard-new="exchanges"#',
+            $html,
+        );
+        $this->assertMatchesRegularExpression(
+            '#href="[^"]*/org/'.$slug.'/messages"\s+data-dashboard-new="messages"#',
+            $html,
+        );
+    }
+
+    /**
+     * Le bouton est POSE A COTE du repli, jamais dedans.
+     *
+     * Un lien dans un bouton est invalide en HTML : le navigateur le deplace
+     * hors de son parent, et aucun test serveur ne le voit (lecon du bug AA).
+     */
+    public function test_the_new_button_is_never_inside_the_toggle(): void
+    {
+        $html = $this->page();
+
+        foreach (['services', 'requests', 'exchanges', 'messages'] as $card) {
+            $position = strpos($html, 'data-dashboard-new="'.$card.'"');
+            $this->assertNotFalse($position);
+
+            // Le dernier `<button` AVANT le lien doit etre deja referme.
+            $avant = substr($html, 0, $position);
+            $this->assertGreaterThan(
+                strrpos($avant, '<button'),
+                strrpos($avant, '</button>'),
+                "le bouton « Nouveau » de la card {$card} est imbrique dans le repli",
+            );
+        }
+    }
+
     /** Et le contenu reste LA : deplier ne doit rien masquer. */
     public function test_the_items_are_still_rendered(): void
     {
