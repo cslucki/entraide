@@ -27,6 +27,11 @@ use Illuminate\Support\Facades\DB;
  */
 return new class extends Migration
 {
+    // TASK-1694 bug F — ce slug est renomme par une migration POSTERIEURE
+    // (2026_10_24_090000). La valeur reste celle d'ORIGINE ici : une migration
+    // raconte ce qui s'est passe a sa date, elle ne se reecrit pas apres coup.
+    // Sur une base neuve, la ligne nait avec l'ancien slug puis est renommee —
+    // le resultat final est le meme, et l'histoire reste lisible.
     private const SLUG = 'email_verification';
 
     private const LIGNES = [

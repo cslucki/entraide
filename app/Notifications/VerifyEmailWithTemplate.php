@@ -40,7 +40,13 @@ use Illuminate\Notifications\Messages\MailMessage;
  */
 class VerifyEmailWithTemplate extends FrameworkVerifyEmail
 {
-    public const SLUG = 'email_verification';
+    /**
+     * TASK-1694 bug F — slug renomme : il dit desormais le MOMENT du parcours,
+     * et il est symetrique de celui des points (« ... suite inscription »).
+     * L'ancien, `email_verification`, est migre par
+     * `2026_10_24_090000_rename_email_verification_template_slug`.
+     */
+    public const SLUG = 'confirmation-email-suite-inscription';
 
     public function toMail($notifiable): MailMessage
     {
