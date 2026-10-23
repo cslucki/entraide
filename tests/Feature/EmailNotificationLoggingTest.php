@@ -39,7 +39,8 @@ class EmailNotificationLoggingTest extends TestCase
         $this->assertDatabaseHas('email_logs', [
             'user_id' => $this->user->id,
             'to_email' => $this->user->email,
-            'subject' => 'Bienvenue sur Entraide !',
+            // TASK-1694 bug G — le repli nomme l'ORGANIZATION, plus la marque.
+            'subject' => 'Bienvenue sur '.($this->user->organization?->name ?: config('app.name')).' !',
             'status' => 'sent',
         ]);
 

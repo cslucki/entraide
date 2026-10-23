@@ -133,7 +133,23 @@ class SystemEmailTemplateTest extends TestCase
         ]);
     }
 
-    public function test_global_template_not_used_when_user_has_org(): void
+    /**
+     * TASK-1694 bug G — CETTE REGLE EST REMPLACEE, et le test avec elle.
+     *
+     * Elle disait : un gabarit GLOBAL n'est jamais employe des que la personne
+     * appartient a une Organization. Comme tout le monde en a une, la ligne
+     * globale n'etait donc LISIBLE PAR PERSONNE — l'administration l'affichait,
+     * le produit ne s'en servait jamais.
+     *
+     * Decision de Cyril : « je pense que c'est bien que l'email de verification
+     * soit Global, on ne va pas creer un email pour chaque organisation. » Le
+     * global devient donc un REPLI reel, apres les lignes du tenant.
+     *
+     * Le test est RETOURNE, pas supprime : il garde la question « qui gagne ? »,
+     * et le test voisin `..._still_wins_over_the_global_one` garde l'autre
+     * moitie — une Organization qui a personnalise n'est jamais recouverte.
+     */
+    public function test_global_template_is_used_when_the_org_has_none(): void
     {
         SystemEmailTemplate::create([
             'slug' => 'welcome',
@@ -147,7 +163,7 @@ class SystemEmailTemplateTest extends TestCase
 
         $this->assertDatabaseHas('email_logs', [
             'user_id' => $this->user->id,
-            'subject' => 'Bienvenue sur Entraide !',
+            'subject' => 'Global '.$this->user->fullName,
         ]);
     }
 
@@ -249,7 +265,8 @@ class SystemEmailTemplateTest extends TestCase
         ]);
 
         $log = EmailLog::where('user_id', $this->user->id)->first();
-        $this->assertStringContainsString('Bienvenue sur Entraide', $log->subject);
+        // TASK-1694 bug G — le repli nomme l'ORGANIZATION, plus la marque.
+        $this->assertStringContainsString('Bienvenue sur '.$this->user->organization->name, $log->subject);
     }
 
     // ── Welcome ────────────────────────────────────────
@@ -280,7 +297,8 @@ class SystemEmailTemplateTest extends TestCase
 
         $this->assertDatabaseHas('email_logs', [
             'user_id' => $this->user->id,
-            'subject' => 'Bienvenue sur Entraide !',
+            // TASK-1694 bug G — le repli nomme l'ORGANIZATION, plus la marque.
+            'subject' => 'Bienvenue sur '.($this->user->organization?->name ?: config('app.name')).' !',
         ]);
     }
 
@@ -300,7 +318,8 @@ class SystemEmailTemplateTest extends TestCase
 
         $this->assertDatabaseHas('email_logs', [
             'user_id' => $this->user->id,
-            'subject' => 'Bienvenue sur Entraide !',
+            // TASK-1694 bug G — le repli nomme l'ORGANIZATION, plus la marque.
+            'subject' => 'Bienvenue sur '.($this->user->organization?->name ?: config('app.name')).' !',
         ]);
     }
 
