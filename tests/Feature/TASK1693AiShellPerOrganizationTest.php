@@ -84,18 +84,45 @@ class TASK1693AiShellPerOrganizationTest extends TestCase
         app()->instance('current_organization', $this->organization->fresh());
     }
 
-    /** Par defaut, rien ne change : l'assistant est la. */
+    /** Par defaut, rien ne change : l'assistant est la — bouton ET panneau. */
     public function test_the_assistant_is_there_by_default(): void
     {
-        $this->assertStringContainsString('data-ai-shell', $this->tableauDeBord());
+        $html = $this->tableauDeBord();
+
+        $this->assertStringContainsString('data-ai-shell', $html);
+        $this->assertStringContainsString('data-ai-fab-toggle', $html);
     }
 
-    /** LE manque comble : on peut l'eteindre pour CETTE Organization. */
+    /**
+     * LE manque comble : on peut l'eteindre pour CETTE Organization.
+     *
+     * TASK-1693 bug AV — la mesure porte sur les DEUX objets. Ma premiere
+     * version ne visait que `data-ai-shell`, le PANNEAU : le bouton flottant
+     * restait, et le test passait vert pendant que la recette voyait la
+     * pastille. Deux objets, deux assertions.
+     */
     public function test_the_assistant_can_be_turned_off_for_one_organization(): void
     {
         $this->eteindreLAssistant();
 
-        $this->assertStringNotContainsString('data-ai-shell', $this->tableauDeBord());
+        $html = $this->tableauDeBord();
+
+        $this->assertStringNotContainsString('data-ai-shell', $html, 'le panneau doit disparaitre');
+        $this->assertStringNotContainsString('data-ai-fab-toggle', $html, 'le bouton flottant aussi');
+    }
+
+    /** Et sur une AUTRE page que le tableau de bord — la recette parlait de l'Explorer. */
+    public function test_it_is_gone_on_the_explorer_too(): void
+    {
+        $this->eteindreLAssistant();
+
+        $html = $this->actingAs($this->membre)
+            ->get(route('organization.explorer', ['organization' => $this->organization->slug]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-ai-fab-toggle', $html);
+        $this->assertStringNotContainsString('data-ai-shell', $html);
     }
 
     /**
@@ -147,6 +174,7 @@ class TASK1693AiShellPerOrganizationTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString('data-ai-shell', $html);
+        $this->assertStringContainsString('data-ai-fab-toggle', $html);
     }
 
     // ── L'ecran de reglage ───────────────────────────────────────────────────
@@ -157,6 +185,31 @@ class TASK1693AiShellPerOrganizationTest extends TestCase
 
         $this->assertStringContainsString('data-ai-shell-form="'.$this->organization->slug.'"', $html);
         $this->assertStringContainsString('data-ai-shell-enabled="1"', $html);
+    }
+
+    /**
+     * TASK-1693 bug AV — la case vit dans SA PROPRE section.
+     *
+     * Au bug AU je l'avais glissee dans le bloc « Agents profil IA » : elle
+     * paraissait appartenir a ce reglage-la. La mesure porte donc sur
+     * l'ORDRE : la section de l'assistant commence APRES la fin du bloc des
+     * profils.
+     */
+    public function test_the_checkbox_is_not_inside_the_profiles_block(): void
+    {
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+
+        $section = strpos($html, 'data-ai-shell-section');
+        $this->assertNotFalse($section, 'l\'assistant doit avoir sa propre section');
+
+        $dernierProfil = strrpos($html, 'data-ai-config-row="profile:');
+        $this->assertNotFalse($dernierProfil);
+
+        $this->assertGreaterThan($dernierProfil, $section,
+            'la section de l\'assistant ne doit pas vivre dans le bloc des profils');
+
+        $this->assertGreaterThan($section, strpos($html, 'data-ai-shell-form='),
+            'et la case vit DANS cette section');
     }
 
     /** La case dit l'etat REEL, pas le repli. */

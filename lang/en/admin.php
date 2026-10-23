@@ -55,6 +55,7 @@ return [
     'ai_shell_toggle_label' => 'Enable the “BouclePro AI” assistant for this organization',
     'ai_shell_toggle_desc' => 'When unchecked, the floating badge and its chat panel no longer appear — even if AI remains enabled for this organization. Other AI features (rewording, summaries, agents) are unaffected.',
     'ai_shell_toggle_saved' => '“BouclePro AI” assistant: setting saved for this organization.',
+    'ai_shell_section_desc' => 'The floating “BouclePro AI” button and its chat panel, organization by organization. Unchecked, the assistant no longer appears — even if AI stays enabled. Other AI features (rewording, summaries, agents) are unaffected.',
     'ai_profile_toggle_desc' => 'When disabled, AI profiles, wizard and exchanges are only accessible to subscribers of this organization.',
     // TASK-1693 bug AS — le reglage se pose desormais sur l'ecran IA de
     // l'Organization, et non plus depuis la liste de /admin/ai-config.

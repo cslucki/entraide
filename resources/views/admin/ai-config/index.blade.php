@@ -202,47 +202,54 @@
                             {{ __('admin.ai_profiles_configure_on_organization') }} →
                         </a>
                     </div>
-
-                    {{-- TASK-1693 bug AU — l'assistant « BouclePro IA » par
-                         Organization.
-                         Il n'avait qu'un interrupteur PLATEFORME
-                         (`AI_SHELL_ENABLED`) : impossible de le couper pour UNE
-                         Organization sans le couper pour toutes.
-                         DISTINCT de l'interrupteur IA de l'Organization, et
-                         c'est sa raison d'etre : disposer de l'IA sans imposer
-                         l'assistant flottant par-dessus chaque page. --}}
-                    <form method="POST" action="{{ route('admin.ai-config.shell') }}"
-                          class="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3"
-                          data-ai-shell-form="{{ $org->slug }}"
-                          data-ai-shell-enabled="{{ ($org->ai_shell_enabled ?? true) ? '1' : '0' }}">
-                        @csrf
-                        <input type="hidden" name="organization_id" value="{{ $org->id }}">
-
-                        <div>
-                            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                                <input type="hidden" name="ai_shell_enabled" value="0">
-                                <input type="checkbox" name="ai_shell_enabled" value="1"
-                                    @checked($org->ai_shell_enabled ?? true)
-                                    data-ai-shell-toggle
-                                    class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
-                                {{ __('admin.ai_shell_toggle_label') }}
-                            </label>
-                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6">{{ __('admin.ai_shell_toggle_desc') }}</p>
-                        </div>
-
-                        <div class="flex justify-end">
-                            <button type="submit"
-                                    class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">
-                                {{ __('admin.ai_save_for', ['name' => $org->name]) }}
-                            </button>
-                        </div>
-                    </form>
                     </details>
                 @empty
                     <div class="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3">
                         {{ __('admin.ai_no_profiles_config') }}
                     </div>
                 @endforelse
+            </div>
+        </div>
+
+        {{-- TASK-1693 bugs AU puis AV — l'assistant « BouclePro IA » par
+             Organization, DANS SA PROPRE SECTION.
+
+             Au bug AU je l'avais glisse dans le bloc « Agents profil IA » :
+             la case paraissait appartenir a ce reglage-la, et l'ecran devenait
+             illisible (recette de Cyril). Deux reglages distincts, deux
+             sections.
+
+             A ne pas confondre non plus avec le « Shell Welcome » juste en
+             dessous : celui-la s'adresse aux VISITEURS non connectes. --}}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5" data-ai-shell-section>
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('admin.ai_shell_section_title') }}</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-4">{{ __('admin.ai_shell_section_desc') }}</p>
+
+            <div class="space-y-2">
+                @foreach($organizations as $org)
+                    <form method="POST" action="{{ route('admin.ai-config.shell') }}"
+                          class="flex flex-wrap items-center gap-3 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5"
+                          data-ai-shell-form="{{ $org->slug }}"
+                          data-ai-shell-enabled="{{ ($org->ai_shell_enabled ?? true) ? '1' : '0' }}">
+                        @csrf
+                        <input type="hidden" name="organization_id" value="{{ $org->id }}">
+                        <input type="hidden" name="ai_shell_enabled" value="0">
+
+                        <label class="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100 cursor-pointer">
+                            <input type="checkbox" name="ai_shell_enabled" value="1"
+                                   @checked($org->ai_shell_enabled ?? true)
+                                   data-ai-shell-toggle
+                                   class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                            <span>{{ $org->name }}</span>
+                            <span class="text-gray-400 font-mono text-xs">{{ $org->slug }}</span>
+                        </label>
+
+                        <button type="submit"
+                                class="ml-auto px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">
+                            {{ __('admin.save') }}
+                        </button>
+                    </form>
+                @endforeach
             </div>
         </div>
 

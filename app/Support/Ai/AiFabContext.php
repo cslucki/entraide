@@ -256,6 +256,26 @@ final class AiFabContext
             return null;
         }
 
+        // TASK-1693 bug AV — l'assistant eteint pour cette Organization ne
+        // rend NI panneau NI bouton.
+        //
+        // MON DEFAUT AU BUG AU. J'avais compose le drapeau dans
+        // `shell_enabled`, qui ne gouverne que le MONTAGE du panneau : le
+        // bouton flottant continuait de paraitre et basculait simplement en
+        // mode « panel ». Recette de Cyril : sur `/org/ofsh/explorer`, case
+        // decochee, la pastille « BouclePro IA » etait toujours la.
+        //
+        // Et mon test ne l'a pas vu parce qu'il mesurait l'ABSENCE DU PANNEAU
+        // (`data-ai-shell`), jamais celle du bouton. Deux objets, une seule
+        // mesure.
+        //
+        // La garde vit donc ICI, a cote de celle de TASK-1685 : `forRequest()`
+        // rend `null`, et `shouldRenderFab()` comme `shouldMountShell()`
+        // tombent ensemble.
+        if (! ($organization->ai_shell_enabled ?? true)) {
+            return null;
+        }
+
         $credit = $this->guard->userCreditStatus($organization, $user);
         $routeName = (string) ($request->route()?->getName() ?? '');
 
@@ -284,13 +304,11 @@ final class AiFabContext
             // autorite qui rejoue les gardes des pages. Cette entree ne donne
             // aucun droit : elle nomme ce que la page montre deja.
             'page_context' => $this->pageContext->forRequest($request, $user, $organization),
-            // TASK-1693 bug AU — DEUX conditions, et l'une n'excuse pas
-            // l'autre : l'interrupteur PLATEFORME (`AI_SHELL_ENABLED`) et
-            // celui de l'ORGANIZATION. Le second agit meme quand l'IA est
-            // allumee pour elle — c'est precisement sa raison d'etre :
-            // disposer de l'IA sans imposer l'assistant flottant.
-            'shell_enabled' => (bool) config('ai.shell.enabled', true)
-                && (bool) ($organization?->ai_shell_enabled ?? true),
+            // L'interrupteur PLATEFORME, et lui seul : il choisit entre le
+            // Shell et l'ancien panneau, il ne retire pas le bouton.
+            // Le reglage par ORGANIZATION (bug AU) agit plus haut, en
+            // rendant `null` — il retire les DEUX.
+            'shell_enabled' => (bool) config('ai.shell.enabled', true),
         ];
     }
 
