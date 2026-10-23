@@ -171,14 +171,15 @@
                            class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 whitespace-nowrap">+ {{ __('dashboard.new') }}</a>
                     </div>
                 </div>
-                {{-- TASK-1693 bug AK — un ascenseur au-dela de 3 elements : la card
-                         s'ouvre desormais seule, et une liste longue repousserait
-                         tout le reste du tableau de bord sous la ligne de flottaison.
-                         La hauteur laisse voir un 4e element coupe — c'est ce qui
+                {{-- TASK-1693 bugs AK puis AO — un ascenseur au-dela de 4
+                         elements : la card s'ouvre desormais seule, et une liste
+                         longue repousserait tout le reste du tableau de bord sous
+                         la ligne de flottaison.
+                         La hauteur laisse voir un 5e element coupe — c'est ce qui
                          DIT qu'il y a de la suite. --}}
                     <div x-show="open" x-cloak data-dashboard-list
                          @class(['divide-y divide-gray-100 dark:divide-gray-700',
-                                  'max-h-48 overflow-y-auto' => count($myServices) > 3])>
+                                  'max-h-64 overflow-y-auto' => count($myServices) > 4])>
                     @forelse($myServices as $service)
                     <div class="px-5 py-3 flex items-start gap-2">
                         <div class="min-w-0 flex-1">
@@ -221,14 +222,15 @@
                            class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 whitespace-nowrap">+ {{ __('dashboard.new') }}</a>
                     </div>
                 </div>
-                {{-- TASK-1693 bug AK — un ascenseur au-dela de 3 elements : la card
-                         s'ouvre desormais seule, et une liste longue repousserait
-                         tout le reste du tableau de bord sous la ligne de flottaison.
-                         La hauteur laisse voir un 4e element coupe — c'est ce qui
+                {{-- TASK-1693 bugs AK puis AO — un ascenseur au-dela de 4
+                         elements : la card s'ouvre desormais seule, et une liste
+                         longue repousserait tout le reste du tableau de bord sous
+                         la ligne de flottaison.
+                         La hauteur laisse voir un 5e element coupe — c'est ce qui
                          DIT qu'il y a de la suite. --}}
                     <div x-show="open" x-cloak data-dashboard-list
                          @class(['divide-y divide-gray-100 dark:divide-gray-700',
-                                  'max-h-48 overflow-y-auto' => count($myRequests) > 3])>
+                                  'max-h-64 overflow-y-auto' => count($myRequests) > 4])>
                     @forelse($myRequests as $req)
                     @php $reqPriseEnCharge = $req->status === 'in_progress'; @endphp
                     <div class="px-5 py-3 flex items-start gap-2" data-dashboard-request="{{ $req->id }}">
@@ -303,14 +305,15 @@
                            class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 whitespace-nowrap">+ {{ __('dashboard.new') }}</a>
                     </div>
                 </div>
-                {{-- TASK-1693 bug AK — un ascenseur au-dela de 3 elements : la card
-                         s'ouvre desormais seule, et une liste longue repousserait
-                         tout le reste du tableau de bord sous la ligne de flottaison.
-                         La hauteur laisse voir un 4e element coupe — c'est ce qui
+                {{-- TASK-1693 bugs AK puis AO — un ascenseur au-dela de 4
+                         elements : la card s'ouvre desormais seule, et une liste
+                         longue repousserait tout le reste du tableau de bord sous
+                         la ligne de flottaison.
+                         La hauteur laisse voir un 5e element coupe — c'est ce qui
                          DIT qu'il y a de la suite. --}}
                     <div x-show="open" x-cloak data-dashboard-list
                          @class(['divide-y divide-gray-100 dark:divide-gray-700',
-                                  'max-h-48 overflow-y-auto' => count($exchanges) > 3])>
+                                  'max-h-64 overflow-y-auto' => count($exchanges) > 4])>
                     @forelse($exchanges as $tx)
                     @php
                         $other = auth()->id() === $tx->buyer_id ? $tx->seller : $tx->buyer;
@@ -358,14 +361,15 @@
                            class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 whitespace-nowrap">+ {{ __('dashboard.new') }}</a>
                     </div>
                 </div>
-                {{-- TASK-1693 bug AK — un ascenseur au-dela de 3 elements : la card
-                         s'ouvre desormais seule, et une liste longue repousserait
-                         tout le reste du tableau de bord sous la ligne de flottaison.
-                         La hauteur laisse voir un 4e element coupe — c'est ce qui
+                {{-- TASK-1693 bugs AK puis AO — un ascenseur au-dela de 4
+                         elements : la card s'ouvre desormais seule, et une liste
+                         longue repousserait tout le reste du tableau de bord sous
+                         la ligne de flottaison.
+                         La hauteur laisse voir un 5e element coupe — c'est ce qui
                          DIT qu'il y a de la suite. --}}
                     <div x-show="open" x-cloak data-dashboard-list
                          @class(['divide-y divide-gray-100 dark:divide-gray-700',
-                                  'max-h-48 overflow-y-auto' => count($recentMessages) > 3])>
+                                  'max-h-64 overflow-y-auto' => count($recentMessages) > 4])>
                     @forelse($recentMessages as $tx)
                     @php $other = auth()->id() === $tx->buyer_id ? $tx->seller : $tx->buyer; $lastMsg = $tx->messages->first(); @endphp
                     <a href="{{ $_dashRoute('messages.show', ['transaction' => $tx]) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">

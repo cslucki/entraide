@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
- * TASK-1693, bug AK — les cards du tableau de bord s'ouvrent, et defilent
- * au-dela de 3 elements.
+ * TASK-1693, bugs AK puis AO — les cards du tableau de bord s'ouvrent, et
+ * defilent au-dela de 4 elements.
  *
  * ## Le defaut
  *
@@ -24,8 +24,11 @@ use Tests\TestCase;
  *
  * Deplier sans borner deplacerait le defaut : quelqu'un qui porte quinze
  * propositions repousserait tout le reste du tableau de bord sous la ligne de
- * flottaison. La hauteur retenue laisse voir un 4e element coupe — c'est ce
+ * flottaison. La hauteur retenue laisse voir un 5e element coupe — c'est ce
  * qui DIT qu'il y a de la suite.
+ *
+ * Le seuil est passe de 3 a 4 elements (bug AO) : trois lignes faisaient une
+ * card trop basse pour ce que les gens y rangent.
  */
 class TASK1693DashboardCardsTest extends TestCase
 {
@@ -85,24 +88,24 @@ class TASK1693DashboardCardsTest extends TestCase
         $this->assertStringNotContainsString('{ open: false }" data-dashboard-card', $html);
     }
 
-    /** Trois elements ou moins : AUCUN ascenseur, la card respire. */
-    public function test_three_items_or_fewer_get_no_scroller(): void
-    {
-        Service::factory()->count(3)->forUser($this->membre)->create([
-            'organization_id' => $this->organization->id,
-        ]);
-
-        $this->assertStringNotContainsString('max-h-48 overflow-y-auto', $this->page());
-    }
-
-    /** Au-dela de 3, l'ascenseur apparait. */
-    public function test_more_than_three_items_get_a_scroller(): void
+    /** Quatre elements ou moins : AUCUN ascenseur, la card respire. */
+    public function test_four_items_or_fewer_get_no_scroller(): void
     {
         Service::factory()->count(4)->forUser($this->membre)->create([
             'organization_id' => $this->organization->id,
         ]);
 
-        $this->assertStringContainsString('max-h-48 overflow-y-auto', $this->page());
+        $this->assertStringNotContainsString('max-h-64 overflow-y-auto', $this->page());
+    }
+
+    /** Au-dela de 4, l'ascenseur apparait. */
+    public function test_more_than_four_items_get_a_scroller(): void
+    {
+        Service::factory()->count(5)->forUser($this->membre)->create([
+            'organization_id' => $this->organization->id,
+        ]);
+
+        $this->assertStringContainsString('max-h-64 overflow-y-auto', $this->page());
     }
 
     /**
@@ -113,7 +116,7 @@ class TASK1693DashboardCardsTest extends TestCase
      */
     public function test_the_scroller_is_per_card(): void
     {
-        Service::factory()->count(4)->forUser($this->membre)->create([
+        Service::factory()->count(5)->forUser($this->membre)->create([
             'organization_id' => $this->organization->id,
         ]);
         ServiceRequest::factory()->forUser($this->membre)->create([
@@ -122,8 +125,8 @@ class TASK1693DashboardCardsTest extends TestCase
 
         $html = $this->page();
 
-        $this->assertSame(1, substr_count($html, 'max-h-48 overflow-y-auto'),
-            'une seule card est bornee : celle qui porte plus de 3 elements');
+        $this->assertSame(1, substr_count($html, 'max-h-64 overflow-y-auto'),
+            'une seule card est bornee : celle qui porte plus de 4 elements');
     }
 
     // ── Les boutons « Nouveau » (bugs AL et AM) ──────────────────────────────
