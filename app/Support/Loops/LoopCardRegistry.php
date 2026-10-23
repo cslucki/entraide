@@ -452,8 +452,27 @@ class LoopCardRegistry
 
         $resolver = app(LoopPermissionResolver::class);
 
+        // TASK-1693 bug AP — une Card IA ne parait pas quand l'IA de
+        // l'Organization est eteinte.
+        //
+        // Le « Resume IA » restait offert alors que `ProviderResolver` refusait
+        // deja : une poignee sur une porte muree, la meme famille que les six
+        // surfaces du bug AF.
+        //
+        // La garde est posee ICI, a l'autorite UNIQUE des Cards, et non dans la
+        // vue des actions : `frameCardsFor()`, `chatActionCardsFor()` et
+        // `AiFabContext` lisent tous les trois cette methode. La poser plus haut
+        // aurait laisse la Card atteignable par les deux autres chemins.
+        //
+        // Le critere est la CATEGORIE declaree au catalogue, pas une liste de
+        // clefs ecrite a la main : une Card IA ajoutee demain sera gardee sans
+        // qu'on y pense.
+        $iaUtilisable = app(\App\Support\Ai\AiSurfaceGate::class)
+            ->availableFor($loop->organization_id);
+
         return collect(app(LoopTypeRegistry::class)->activeCardsFor($loop))
             ->filter(fn ($key) => $this->isRenderable($key))
+            ->filter(fn ($key) => $iaUtilisable || $this->categoryOf($key) !== 'ai')
             ->filter(function ($key) use ($resolver, $user, $loop) {
                 $permission = $this->viewPermissionFor($key);
 

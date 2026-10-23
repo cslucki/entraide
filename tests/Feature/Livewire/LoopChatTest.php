@@ -45,6 +45,16 @@ class LoopChatTest extends TestCase
         $this->organization = Organization::factory()->create();
         $this->otherOrganization = Organization::factory()->create();
 
+        // TASK-1693 bug AP — la Card « Resume IA » ne parait plus que si l'IA
+        // est UTILISABLE pour l'Organization. Deux tests de ce fichier
+        // affirment que le plan de travail porte ses Cards, « AI Summary »
+        // comprise : sans credential, ils mesureraient l'absence de la Card au
+        // lieu de la composition du plan de travail.
+        \App\Models\OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $this->organization->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
+
         $this->member = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->nonMember = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->crossUser = User::factory()->create(['organization_id' => $this->otherOrganization->id]);
