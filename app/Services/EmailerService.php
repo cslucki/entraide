@@ -11,7 +11,22 @@ use Throwable;
 
 class EmailerService
 {
-    public const ALLOWED_VARS = ['first_name', 'name', 'full_name', 'email', 'organization', 'city'];
+    /**
+     * TASK-1694 bug E — l'Organization et son slug, utilisables dans un gabarit.
+     *
+     * `organization` existait deja ; `organization_slug` manquait, et aucune
+     * forme FRANCAISE n'etait acceptee alors que tous les gabarits sont ecrits
+     * en francais par des gens qui ecrivent « organisation ».
+     *
+     * Les deux orthographes sont donc acceptees, et c'est delibere : renommer
+     * `organization` en `organisation` casserait les gabarits existants qui
+     * l'emploient — dont la definition du seeder. On AJOUTE, on ne deplace pas.
+     */
+    public const ALLOWED_VARS = [
+        'first_name', 'name', 'full_name', 'email', 'city',
+        'organization', 'organization_slug',
+        'organisation', 'organisation_slug',
+    ];
 
     public function availableVariables(User $user): array
     {
@@ -21,6 +36,10 @@ class EmailerService
             'full_name' => $user->fullName,
             'email' => $user->email,
             'organization' => $user->organization?->name ?? '',
+            'organization_slug' => $user->organization?->slug ?? '',
+            // TASK-1694 bug E — meme valeur, orthographe francaise.
+            'organisation' => $user->organization?->name ?? '',
+            'organisation_slug' => $user->organization?->slug ?? '',
             'city' => $user->city ?? '',
         ];
     }
@@ -38,6 +57,9 @@ class EmailerService
             'full_name' => $contact->fullName,
             'email' => $contact->email ?? '',
             'organization' => $contact->organization?->name ?? '',
+            'organization_slug' => $contact->organization?->slug ?? '',
+            'organisation' => $contact->organization?->name ?? '',
+            'organisation_slug' => $contact->organization?->slug ?? '',
             'city' => '',
             'company' => $contact->company ?? '',
         ];
