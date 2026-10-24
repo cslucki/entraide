@@ -205,6 +205,34 @@ class TASK1694LoginDeviceTest extends TestCase
         }
     }
 
+    /**
+     * TASK-1694 bug AL — la colonne « Organisation » porte le SLUG.
+     *
+     * Demande de Cyril : « ainsi on gagne de la place ». Le nom complet
+     * poussait les colonnes voisines, et la colonne « Appareil » du bug AK
+     * vient d'en ajouter une.
+     *
+     * Le nom reste en **infobulle** : un slug est court mais pas toujours
+     * parlant, et le perdre entièrement obligerait à aller le chercher
+     * ailleurs. Les deux moitiés sont mesurées — sinon « gagner de la place »
+     * se serait traduit par « perdre l'information ».
+     */
+    public function test_the_organization_column_shows_the_slug_and_keeps_the_name(): void
+    {
+        $this->organization->update(['name' => 'Nom Tres Long De Organisation 1694AL', 'slug' => 'org-1694ak']);
+        $this->journaliser(self::AGENTS['desktop_windows']);
+
+        $html = $this->html();
+
+        $this->assertStringContainsString('data-login-organization="org-1694ak"', $html);
+        $this->assertStringContainsString('title="Nom Tres Long De Organisation 1694AL"', $html);
+        $this->assertStringNotContainsString(
+            '>Nom Tres Long De Organisation 1694AL<',
+            $html,
+            'le nom ne doit plus occuper la cellule : c\'est la place qu\'on gagne',
+        );
+    }
+
     /** Une ligne sans agent appartient à « autre », et n'est perdue par aucun filtre. */
     public function test_a_row_without_user_agent_belongs_to_other(): void
     {

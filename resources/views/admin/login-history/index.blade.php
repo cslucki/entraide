@@ -81,9 +81,21 @@
                             </div>
                         </div>
                     </td>
+                    {{-- TASK-1694 bug AL — le SLUG plutot que le nom.
+                         Demande de Cyril : « ainsi on gagne de la place ». Le nom
+                         complet poussait les colonnes voisines, et la colonne
+                         « Appareil » du bug AK vient d'en ajouter une.
+
+                         Le nom reste accessible en INFOBULLE : un slug est court
+                         mais pas toujours parlant, et le perdre entierement
+                         obligerait a aller le chercher ailleurs. --}}
                     <td class="px-4 py-3">
                         @if($log->organization)
-                        <span class="text-xs text-indigo-600 dark:text-indigo-400">{{ $log->organization->name }}</span>
+                        <span class="text-xs font-mono text-indigo-600 dark:text-indigo-400"
+                              title="{{ $log->organization->name }}"
+                              data-login-organization="{{ $log->organization->slug }}">{{ $log->organization->slug }}</span>
+                        @else
+                        <span class="text-xs text-gray-400">—</span>
                         @endif
                     </td>
                     <td class="px-4 py-3">
