@@ -20,15 +20,32 @@
 
                 <div class="p-4 sm:p-6">
                     <form method="GET" class="mb-6">
-                        <div class="flex gap-2">
+                        <div class="flex flex-wrap gap-2">
                             <input type="text" name="search" value="{{ $search }}"
                                    placeholder="Rechercher par nom ou slug..."
-                                   class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                   class="flex-1 min-w-[12rem] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+
+                            {{-- TASK-1694 bug AC — « toutes les organisations » est le
+                                 DEFAUT, et « Global » une valeur du filtre : son absence
+                                 veut dire « toutes », ce qui ne permettait pas de
+                                 demander « seulement les Global ». --}}
+                            <select name="organization_id"
+                                    class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    data-emailer-scope-filter>
+                                <option value="">{{ __('admin.all_organizations') }}</option>
+                                <option value="{{ \App\Http\Controllers\Admin\AdminEmailTemplatesController::CIBLE_GLOBALE }}"
+                                        @selected($currentScope === \App\Http\Controllers\Admin\AdminEmailTemplatesController::CIBLE_GLOBALE)>
+                                    {{ __('admin.emailer_scope_global') }}
+                                </option>
+                                @foreach($organizations as $_org)
+                                    <option value="{{ $_org->id }}" @selected($currentScope === $_org->id)>{{ $_org->name }}</option>
+                                @endforeach
+                            </select>
                             <button type="submit"
                                     class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600">
                                 Rechercher
                             </button>
-                            @if($search)
+                            @if($search || $currentScope !== '')
                                 <a href="{{ route('admin.email-templates') }}"
                                    class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
                                     Effacer
@@ -41,6 +58,12 @@
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead class="bg-gray-50 dark:bg-gray-900/50">
                                 <tr>
+                                    {{-- TASK-1694 bug AC — la colonne vient AVANT le nom :
+                                         deux lignes au meme nom pouvaient venir de deux
+                                         Organizations, et rien ne les distinguait. --}}
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        {{ __('admin.organization') }}
+                                    </th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                         Nom
                                     </th>
@@ -61,8 +84,20 @@
                             <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                 @forelse($templates as $template)
                                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                            @if($template->organization)
+                                                <a href="{{ route('admin.organizations.edit', $template->organization) }}"
+                                                   class="font-mono text-indigo-600 dark:text-indigo-400 hover:underline"
+                                                   data-emailer-row-scope="{{ $template->organization->slug }}">{{ $template->organization->slug }}</a>
+                                            @else
+                                                <span class="text-gray-400 italic" data-emailer-row-scope="global">{{ __('admin.global') }}</span>
+                                            @endif
+                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
                                             {{ $template->name }}
+                                            @if($template->locale)
+                                                <span class="ml-1 inline-block rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ strtoupper($template->locale) }}</span>
+                                            @endif
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">
                                             {{ $template->slug }}
@@ -96,7 +131,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                        <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                                             Aucun template trouvé.
                                             <a href="{{ route('admin.email-templates.create') }}"
                                                class="text-indigo-600 dark:text-indigo-400 hover:underline">

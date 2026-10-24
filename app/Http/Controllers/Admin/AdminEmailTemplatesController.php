@@ -23,16 +23,63 @@ class AdminEmailTemplatesController extends Controller
      */
     public const CIBLE_GLOBALE = 'global';
 
+    /**
+     * TASK-1694 bug AC — toutes les Organizations, et de quoi en isoler une.
+     *
+     * ## La demande
+     *
+     * Cyril : « on devrait voir tous les emails types, toutes organisations
+     * confondues, et avoir un menu pour afficher "toutes les organisations"
+     * (par defaut) et pouvoir choisir une organisation donnee. Donc ajouter une
+     * colonne avec le slug de l'organisation. »
+     *
+     * ## L'ecran montrait DEJA tout — et c'est precisement le defaut
+     *
+     * Mesure du 24/10 : cette liste n'a jamais filtre par tenant. Elle
+     * affichait donc des gabarits de plusieurs Organizations **sans jamais dire
+     * a laquelle chacun appartient**. Le defaut n'etait pas ce qui manquait a
+     * la liste, c'etait ce qu'elle taisait : deux lignes au meme nom pouvaient
+     * venir de deux Organizations differentes, et rien ne les distinguait.
+     *
+     * La colonne vient donc AVANT le filtre dans l'ordre des raisons — un
+     * filtre sur une donnee invisible ne se verifie pas.
+     *
+     * ## « global » est une VALEUR du filtre
+     *
+     * Son absence veut dire « toutes », ce qui ne permettait pas de demander
+     * « seulement les Global ». Meme idiome et meme borne de type qu'aux bugs O
+     * et AA : hors de l'espace des UUID, ecarte avant d'atteindre une colonne
+     * `uuid` (`22P02`, invisible sous SQLite).
+     */
     public function index(Request $request): View
     {
         $search = $request->input('search');
-        $templates = EmailTemplate::when($search, fn ($q) => $q->where('name', 'like', "%{$search}%")
-            ->orWhere('slug', 'like', "%{$search}%"))
+        $cible = (string) $request->input('organization_id', '');
+
+        $templates = EmailTemplate::query()
+            ->with('organization:id,name,slug')
+            ->when($search, fn ($q) => $q->where(fn ($w) => $w
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('slug', 'like', "%{$search}%")))
+            ->when(
+                $cible === self::CIBLE_GLOBALE,
+                fn ($q) => $q->whereNull('organization_id'),
+                fn ($q) => $q->when(
+                    $cible !== '' && Str::isUuid($cible),
+                    fn ($qq) => $qq->where('organization_id', $cible),
+                ),
+            )
             ->withCount('logs')
             ->orderBy('name')
-            ->paginate(20);
+            ->paginate(20)
+            ->withQueryString();
 
-        return view('admin.email-templates.index', compact('templates', 'search'));
+        return view('admin.email-templates.index', [
+            'templates' => $templates,
+            'search' => $search,
+            'organizations' => Organization::orderBy('name')->get(['id', 'name', 'slug']),
+            'currentScope' => $cible,
+        ]);
     }
 
     public function create(): View
