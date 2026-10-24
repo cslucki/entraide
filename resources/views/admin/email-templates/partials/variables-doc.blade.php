@@ -39,6 +39,19 @@
 --}}
 @php
     $_vars = \App\Services\EmailerService::ALLOWED_VARS;
+
+    /*
+     * TASK-1694 bug X — la forme AFFICHEE est construite en PHP.
+     *
+     * Premiere version : `@ {{ {{ $_var }} }}` en Blade. Faux, et visible a
+     * l'ecran — `@ {{` echappe TOUTE l'expression jusqu'a son `}}`, pas
+     * seulement les accolades d'ouverture. Le lecteur voyait donc
+     * « {{ {{ $_var }} }} », littéralement.
+     *
+     * La chaine est donc assemblee ici, puis rendue par un `{{ }}` ordinaire :
+     * aucune accolade littérale a echapper, donc rien a se tromper.
+     */
+    $_formes = collect($_vars)->mapWithKeys(fn (string $v) => [$v => '{{ '.$v.' }}']);
 @endphp
 
 <div class="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-800 dark:bg-indigo-900/20"
@@ -50,12 +63,17 @@
         {{ __('admin.emailer_vars_hint') }}
     </p>
 
-    <dl class="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+    {{-- La forme a recopier ne doit JAMAIS se couper en deux lignes : le
+         screenshot du 24/10 montrait des `}}` orphelins sur la ligne suivante,
+         ce qui rend la chaine illisible pour qui vient la recopier. D'ou
+         `whitespace-nowrap`, et une colonne de largeur fixe pour que les
+         libelles s'alignent au lieu de pousser le code. --}}
+    <dl class="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
         @foreach($_vars as $_var)
-            <div class="flex items-baseline gap-2">
-                <dt>
-                    <code class="rounded bg-white px-1.5 py-0.5 text-xs font-mono text-indigo-700 dark:bg-gray-900 dark:text-indigo-300"
-                          data-emailer-variable="{{ $_var }}">@{{ {{ $_var }} }}</code>
+            <div class="flex items-baseline gap-3">
+                <dt class="shrink-0">
+                    <code class="inline-block whitespace-nowrap rounded bg-white px-2 py-1 text-xs font-mono text-indigo-700 dark:bg-gray-900 dark:text-indigo-300"
+                          data-emailer-variable="{{ $_var }}">{{ $_formes[$_var] }}</code>
                 </dt>
                 <dd class="text-xs text-gray-600 dark:text-gray-400">
                     {{ __('admin.emailer_var_'.$_var) === 'admin.emailer_var_'.$_var ? $_var : __('admin.emailer_var_'.$_var) }}

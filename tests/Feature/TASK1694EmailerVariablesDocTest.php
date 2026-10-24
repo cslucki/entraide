@@ -123,6 +123,55 @@ class TASK1694EmailerVariablesDocTest extends TestCase
     }
 
     /**
+     * TASK-1694 bug X — la forme À RECOPIER est affichée correctement.
+     *
+     * ## Ce que mes tests du bug W ne mesuraient pas
+     *
+     * Ils vérifiaient le marqueur `data-emailer-variable="first_name"` — un
+     * attribut HTML. **Pas ce qu'un humain lit.** L'écran affichait en réalité
+     * `{{ {{ $_var }} }}`, littéralement, sur les deux pages : `@` + accolades
+     * échappe **toute** l'expression Blade jusqu'à son `}}`, pas seulement les
+     * accolades d'ouverture.
+     *
+     * Cinq tests verts, et une aide inutilisable. Cyril l'a vue d'un coup d'œil
+     * sur une capture d'écran.
+     *
+     * Ce test mesure donc le **texte rendu**, celui qu'on vient recopier.
+     */
+    public function test_each_variable_is_shown_in_its_copyable_form(): void
+    {
+        foreach ($this->ecrans() as $ecran) {
+            $bloc = $this->blocDeDocumentation($this->html($ecran));
+
+            foreach (EmailerService::ALLOWED_VARS as $variable) {
+                $this->assertStringContainsString(
+                    '{{ '.$variable.' }}',
+                    $bloc,
+                    "l'ecran « {$ecran} » doit montrer la forme a recopier de « {$variable} »",
+                );
+            }
+        }
+    }
+
+    /**
+     * Et aucune trace de Blade ne fuit dans ce que lit l'humain.
+     *
+     * Sans cette moitié, un rendu qui afficherait `{{ {{ $_var }} }}`
+     * contiendrait quand même `{{ first_name }}` nulle part — mais un rendu
+     * cassé d'une autre façon pourrait contenir les deux. On nomme donc le
+     * défaut exact qu'on a eu.
+     */
+    public function test_no_blade_leftovers_are_shown(): void
+    {
+        foreach ($this->ecrans() as $ecran) {
+            $bloc = $this->blocDeDocumentation($this->html($ecran));
+
+            $this->assertStringNotContainsString('$_var', $bloc);
+            $this->assertStringNotContainsString('{{ {{', $bloc);
+        }
+    }
+
+    /**
      * Les deux noms FANTÔMES ont disparu.
      *
      * Sans cette moitié, ajouter la vraie liste **à côté** de l'ancienne aide
