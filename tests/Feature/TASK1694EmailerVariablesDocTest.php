@@ -324,6 +324,59 @@ class TASK1694EmailerVariablesDocTest extends TestCase
     }
 
     /**
+     * TASK-1694 bug AJ — plus aucune variable fantôme dans la FACTORY.
+     *
+     * Elle posait `['{{user_name}}', '{{app_name}}']` dans les métadonnées de
+     * chaque gabarit fabriqué. Aucun effet en production — et c'est ce qui le
+     * rendait facile à laisser. Mais tant que ces noms restent écrits quelque
+     * part, quelqu'un les recopie : ils étaient dans l'aide, dans les tests et
+     * dans la factory, comme s'ils étaient réels.
+     *
+     * Ils ont déjà coûté : au bug W, mon assertion les cherchait dans la page
+     * et les **trouvait** — ils venaient du gabarit fabriqué ici, pas de la
+     * documentation. Un faux rouge qui m'a fait chercher au mauvais endroit.
+     *
+     * ## `app_name` n'est PAS un fantôme partout
+     *
+     * Distinction mesurée le 24/10, et elle compte pour la suite :
+     * `LoopInvitationMailer` et `OrganizationInvitationMailer` **fournissent**
+     * `app_name` dans leurs variables supplémentaires. Il est donc **réel** pour
+     * ces deux gabarits **système**, et le seeder a raison de l'employer.
+     *
+     * Il n'est fantôme que dans **l'Emailer**, dont les variables sont bornées
+     * par `ALLOWED_VARS`. Deux contextes, deux listes — ne pas « corriger » le
+     * seeder en croyant bien faire.
+     */
+    public function test_the_factory_only_uses_real_variables(): void
+    {
+        $variables = (array) \App\Models\EmailTemplate::factory()->make()->variables;
+
+        $this->assertNotEmpty($variables);
+
+        foreach ($variables as $variable) {
+            $this->assertContains(
+                $variable,
+                EmailerService::ALLOWED_VARS,
+                "la factory ne doit poser que des variables que l'interpolation accepte",
+            );
+        }
+    }
+
+    /**
+     * Et elle les écrit NUES, sans accolades.
+     *
+     * Convention de la maison, relevée dans le catalogue du seeder
+     * (`'variables' => ['name', 'url']`). La version précédente les entourait
+     * d'accolades : troisième incohérence du même champ.
+     */
+    public function test_the_factory_writes_bare_names(): void
+    {
+        foreach ((array) \App\Models\EmailTemplate::factory()->make()->variables as $variable) {
+            $this->assertStringNotContainsString('{{', (string) $variable);
+        }
+    }
+
+    /**
      * Chaque variable porte un libellé traduit, dans les deux langues.
      *
      * Le bloc retombe sur le nom brut quand le libellé manque — mieux vaut un

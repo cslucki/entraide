@@ -46,8 +46,14 @@ class AdminEmailTemplatesTest extends TestCase
             'name' => 'Email de bienvenue',
             'organization_ids' => [\App\Http\Controllers\Admin\AdminEmailTemplatesController::CIBLE_GLOBALE],
             'subject' => 'Bienvenue sur Entraide !',
-            'content_html' => '<p>Bonjour {{user_name}}, bienvenue !</p>',
-            'variables' => ['{{user_name}}', '{{app_name}}'],
+            // TASK-1694 bug AJ — des variables qui EXISTENT.
+            //
+            // `{{user_name}}` et `{{app_name}}` ne sont dans aucune liste : une
+            // chaine qui les emploie ressort verbatim de `interpolate()` (mesure
+            // du 24/10, bug W). Les ecrire ici entretenait la croyance qu'elles
+            // etaient reelles.
+            'content_html' => '<p>Bonjour {{ first_name }}, bienvenue !</p>',
+            'variables' => ['first_name', 'organisation'],
         ];
 
         $response = $this->actingAs($this->admin)
