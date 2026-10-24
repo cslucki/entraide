@@ -9,6 +9,7 @@ use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 /**
@@ -36,6 +37,8 @@ use Tests\TestCase;
  */
 class TASK1130RealSubfoldersTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     use RefreshDatabase;
 
     private Organization $org;
@@ -186,6 +189,8 @@ class TASK1130RealSubfoldersTest extends TestCase
 
     public function test_the_share_panel_of_a_private_child_targets_that_child(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $racinePrivee = Dossier::create([
             'organization_id' => $this->org->id,
             'owner_id' => $this->owner->id,
