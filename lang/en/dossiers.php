@@ -661,4 +661,12 @@ TEXT,
     'file_share_none' => 'This file is not shared with anyone.',
     'file_share_remove' => 'Remove',
     'file_shared_badge' => 'Shared',
+
+    // TASK-1695 geste E — les fichiers partages a l'unite, dans « Partages ».
+    'shared_files_section' => 'Shared files',
+    'shared_files_badge' => 'File',
+    'shared_file_by' => 'Shared by',
+    'shared_files_none_with_me' => 'No file has been shared with you.',
+    'shared_files_none_by_me' => 'You have not shared any file yet.',
+    'shared_files_hint' => 'A shared file opens on its own: it does not grant access to the folder that contains it.',
 ];

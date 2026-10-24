@@ -7,6 +7,7 @@ use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Category;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\DossierMember;
 use App\Models\Loop;
 use App\Services\Dossiers\DossierInsightsService;
@@ -106,10 +107,13 @@ class DossierController extends Controller
                 ->latest('updated_at')
                 ->get();
 
-            // Par moi : les deux seuls partages que le backend connaisse
-            // reellement — des membres nominatifs, ou le partage avec une
-            // Boucle (CAS B). Rien n'est invente ici : il n'existe aucun
-            // partage de fichier ou d'Article isole.
+            // Par moi : des membres nominatifs, ou le partage avec une Boucle
+            // (CAS B). Cette requete ne concerne QUE les Dossiers — les
+            // fichiers partages a l'unite sont construits plus bas, dans leurs
+            // propres collections (TASK-1695 geste E). Le commentaire qui
+            // tenait ici depuis TASK-1136 (« il n'existe aucun partage de
+            // fichier isole ») etait vrai jusqu'a cette TASK ; il ne l'est
+            // plus, et c'est tout ce qui change pour les Dossiers.
             //
             // `owner_id = $userId AND parent_id IS NULL` ne decrivait pas la
             // gouvernance mais « la racine que je possede ». Un Dossier range
@@ -156,11 +160,64 @@ class DossierController extends Controller
                 ->filter(fn (Dossier $dossier) => $dossier->governingDossier()->owner_id === $userId)
                 ->values();
 
+            // TASK-1695 geste E — les fichiers partages A L'UNITE.
+            //
+            // Deliberement une collection A PART, et non fusionnee dans
+            // `$avecMoi` / `$parMoi` : ces deux-la portent des Dossiers, et la
+            // vue leur demande `governingDossier()`, `dossierMembers`,
+            // `children_count`. Y glisser un `DossierFile` casserait le rendu a
+            // la premiere ligne. Deux listes distinctes, c'est aussi ce que
+            // l'ecran doit montrer : un fichier partage seul n'est pas un
+            // Dossier, et le lire comme tel induirait en erreur sur ce a quoi
+            // on a acces.
+            //
+            // `withoutTrashed()` est EXPLICITE, pas necessaire : `DossierFile`
+            // porte `SoftDeletes`, donc la corbeille est deja hors requete.
+            // Mesure du 24/10 : retirer l'appel ne fait rougir aucun test —
+            // verifie, pas suppose. Il reste parce qu'il dit l'intention a qui
+            // lira, et qu'un `withTrashed()` ajoute plus tard entrerait alors
+            // en contradiction visible avec lui.
+            //
+            // Ce qui compte vraiment est ailleurs : une ligne de partage SURVIT
+            // au `SoftDeletes` du fichier (la cascade SQL n'agit qu'a la
+            // suppression DURE). La policy le sait — `sharedWith()` refuse un
+            // fichier `trashed()`. L'ecran et la policy disent donc la meme
+            // chose, et le test ci-dessous epingle ce resultat quelle que soit
+            // la mecanique qui l'obtient.
+            $fichiersAvecMoi = DossierFile::query()
+                ->withoutTrashed()
+                ->where('organization_id', $organization->id)
+                ->whereHas('shares', fn ($q) => $q->where('user_id', $userId))
+                ->with([
+                    'shares' => fn ($q) => $q->where('user_id', $userId),
+                    'shares.sharedBy:id,first_name,avatar,name,email,banned_at,organization_id',
+                ])
+                ->latest('updated_at')
+                ->get();
+
+            // Par moi : ce que J'AI partage. L'auteur du geste est
+            // `shared_by` — pas le televerseur du fichier. Prendre
+            // `uploaded_by` ferait apparaitre, sous « Par moi », des partages
+            // poses par quelqu'un d'autre sur un fichier que j'ai televerse.
+            $fichiersParMoi = DossierFile::query()
+                ->withoutTrashed()
+                ->where('organization_id', $organization->id)
+                ->whereHas('shares', fn ($q) => $q->where('shared_by', $userId))
+                ->with([
+                    'shares' => fn ($q) => $q->where('shared_by', $userId),
+                    'shares.user:id,first_name,avatar,name,email,banned_at,organization_id',
+                ])
+                ->withCount(['shares' => fn ($q) => $q->where('shared_by', $userId)])
+                ->latest('updated_at')
+                ->get();
+
             return view('dossiers.espaces', [
                 'espace' => 'partages',
                 'vue' => $vue,
                 'avecMoi' => $avecMoi,
                 'parMoi' => $parMoi,
+                'fichiersAvecMoi' => $fichiersAvecMoi,
+                'fichiersParMoi' => $fichiersParMoi,
                 'organizationRouteParam' => $request->route('organization'),
             ]);
         }
