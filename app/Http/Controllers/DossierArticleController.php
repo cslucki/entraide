@@ -7,6 +7,7 @@ use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
+use App\Models\Loop;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -230,11 +231,31 @@ class DossierArticleController extends Controller
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
-        $this->authorize('update', $dossier);
+        // TASK-1695 (bug 6 de Cyril) — `detachArticle`, l'ability NOMMEE, comme
+        // `move()` juste au-dessus. `update` repondait la meme chose ici, mais
+        // ne disait pas de quel geste il s'agit.
+        $this->authorize('detachArticle', $dossier);
 
         $post = $this->resolveBlogPost($request->route('post'));
         $this->ensureBlogPostBelongsToCurrentOrganization($post);
-        $this->ensureUserOwnsBlogPost($request, $post);
+
+        // TASK-1695 (bug 6) — RETIRER n'est pas ECRIRE.
+        //
+        // `ensureUserOwnsBlogPost()` exigeait ici d'etre l'AUTEUR de l'Article.
+        // Consequence mesuree sur la Boucle `ofsh` : son proprietaire, qui
+        // passe `update`, `attachArticle`, `manageFiles` et `deleteFile` sur le
+        // Dossier, ne pouvait pas en retirer un Article seme par
+        // `admin@bouclepro.test`. Il gouvernait tout le Dossier sauf son
+        // contenu.
+        //
+        // La garde confondait deux questions : « qui peut POSER un Article
+        // ici ? » (l'auteur, et elle le reste a l'attache, ligne 33) et « qui
+        // peut en RETIRER un ? » (qui tient le Dossier). Detacher ne supprime
+        // pas l'Article : il survit au Blog, et son auteur peut le rattacher.
+        //
+        // La borne reste `detachArticle` ci-dessus — proprietaire ou editeur du
+        // Dossier, ou, pour un Dossier de Boucle, la permission
+        // `dossiers.create_article`. Un simple lecteur ne passe pas.
 
         // Toutes les Series du Dossier, pas la premiere venue : depuis
         // TASK-1095 un Dossier peut en porter plusieurs, et un `->first()`
@@ -262,6 +283,7 @@ class DossierArticleController extends Controller
             if ($seriesItem) {
                 return DB::transaction(function () use ($dossier, $organization, $seriesItem, $post, $request, $indexing) {
                     $seriesItem->delete();
+                    $this->libererSiDocumentRacine($dossier, $post);
 
                     $entry = DossierBlogPost::query()
                         ->where('organization_id', $organization->id)
@@ -291,6 +313,8 @@ class DossierArticleController extends Controller
                 });
             }
         }
+
+        $this->libererSiDocumentRacine($dossier, $post);
 
         $entry = DossierBlogPost::query()
             ->where('organization_id', $organization->id)
@@ -433,6 +457,33 @@ class DossierArticleController extends Controller
         if ($post->organization_id !== $organization->id) {
             abort(404);
         }
+    }
+
+    /**
+     * TASK-1695 (bug 6) — un document RACINE detache cesse d'etre designe.
+     *
+     * `LoopRootDocumentService::designate()` pose DEUX pointeurs —
+     * `dossiers.root_blog_post_id` et le champ legacy
+     * `loops.manifesto_blog_post_id` — et n'a pas d'inverse. Sans cette
+     * liberation, detacher l'Article laissait la Boucle DESIGNER un document
+     * qui n'est plus dans son Dossier : une reference pendante, et la cause
+     * exacte de ce que Cyril a rencontre.
+     *
+     * Les deux champs sont remis a NULL ENSEMBLE : le service les maintient en
+     * phase, et n'en liberer qu'un recreerait la divergence qu'il existe pour
+     * eviter.
+     *
+     * Ne touche a RIEN si l'Article n'etait pas racine — le cas courant.
+     */
+    private function libererSiDocumentRacine(Dossier $dossier, BlogPost $post): void
+    {
+        if ($dossier->root_blog_post_id === $post->id) {
+            $dossier->forceFill(['root_blog_post_id' => null])->save();
+        }
+
+        Loop::query()
+            ->where('manifesto_blog_post_id', $post->id)
+            ->update(['manifesto_blog_post_id' => null]);
     }
 
     private function ensureUserOwnsBlogPost(Request $request, BlogPost $post): void
