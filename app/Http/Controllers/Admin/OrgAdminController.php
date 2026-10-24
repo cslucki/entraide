@@ -2775,20 +2775,74 @@ class OrgAdminController extends Controller
         ]);
     }
 
+    /**
+     * TASK-1694 bug AB — la liste montre CE QUE CETTE ORGANIZATION ENVOIE.
+     *
+     * ## L'impasse corrigee
+     *
+     * Cyril : « l'utilisateur n'a aucun bouton Creer et une liste vide — c'est
+     * donc une impasse pour lui ». C'etait exact : cet ecran ne listait que les
+     * lignes rattachees a l'Organization, et depuis le bug N le seeder n'en cree
+     * plus aucune. OFSH voyait donc un tableau vide, sans aucun geste possible.
+     *
+     * ## Une seule ligne par (slug, langue), et la SOURCE est dite
+     *
+     * Pas deux tableaux. La question que se pose un administrateur est « quel
+     * email part de chez moi, et d'ou vient-il ? » — pas « quelles lignes
+     * existent en base ». Chaque gabarit apparait donc UNE fois :
+     *
+     *   · l'Organization l'a adapte  -> sa version, action « Modifier » ;
+     *   · sinon                      -> la version Plateforme, action « Adapter ».
+     *
+     * C'est aussi ce qui rend l'ecran honnete : il montre la version qui part
+     * REELLEMENT, celle que le resolveur du bug M choisirait.
+     *
+     * ## On ne modifie pas un gabarit Global depuis ici
+     *
+     * Decision de Cyril : « on ne peut pas modifier les emails global, mais on
+     * peut les cloner ». Une Organization qui editerait la ligne globale
+     * changerait l'email de TOUTES les autres — l'ecran ne propose donc jamais
+     * ce geste.
+     */
     public function systemEmailTemplates(Request $request, Organization $organization): View
     {
-        $query = SystemEmailTemplate::with('organization')
-            ->where('organization_id', $organization->id)
-            ->orderBy('locale')
-            ->orderBy('name');
+        // TASK-1694 bug R — la capacite est gouvernee par l'Organization.
+        //
+        // Demande de Cyril : « desactiver le fait qu'une organisation puisse
+        // modifier les emails types », avec une case a cocher dans la
+        // configuration. Le refus est au SERVEUR : l'entree de menu disparait,
+        // mais une garde de vue n'est pas une protection — l'adresse resterait
+        // atteignable.
+        //
+        // 403 et non 404 : l'ecran EXISTE, et la garde de tenant qui rend 404
+        // (voir plus bas) repond a une autre question. Confondre les deux
+        // rendrait illisible ce qui est refuse et pourquoi.
+        abort_unless($organization->canEditSystemEmails(), 403);
 
         $locale = $request->input('locale', $organization->locale);
 
-        if ($locale) {
-            $query->where('locale', $locale);
-        }
+        $filtreLangue = fn ($query) => $locale ? $query->where('locale', $locale) : $query;
 
-        $templates = $query->get();
+        $propres = $filtreLangue(
+            SystemEmailTemplate::query()->where('organization_id', $organization->id)
+        )->get();
+
+        $adaptes = $propres->map(fn (SystemEmailTemplate $t) => $t->slug.'|'.$t->locale)->all();
+
+        $globaux = $filtreLangue(
+            SystemEmailTemplate::query()->whereNull('organization_id')
+        )->get()->reject(
+            fn (SystemEmailTemplate $t) => in_array($t->slug.'|'.$t->locale, $adaptes, true)
+        );
+
+        $templates = $propres
+            ->map(fn (SystemEmailTemplate $t) => ['template' => $t, 'adapte' => true])
+            ->concat($globaux->map(fn (SystemEmailTemplate $t) => ['template' => $t, 'adapte' => false]))
+            ->sortBy([
+                fn (array $a, array $b) => ($a['template']->locale ?? '') <=> ($b['template']->locale ?? ''),
+                fn (array $a, array $b) => $a['template']->name <=> $b['template']->name,
+            ])
+            ->values();
 
         return view('admin.org.system-email-templates', [
             'organization' => $organization,
@@ -2797,8 +2851,65 @@ class OrgAdminController extends Controller
         ]);
     }
 
+    /**
+     * TASK-1694 bug AB — CLONER un gabarit Global vers cette Organization.
+     *
+     * ## Ce que ce geste fait, et ne fait pas
+     *
+     * Il copie le texte de la ligne Plateforme dans une ligne propre a
+     * l'Organization. La ligne Global n'est pas touchee : la modifier changerait
+     * l'email de toutes les autres Organizations.
+     *
+     * ## Nee DESACTIVEE
+     *
+     * Invariant de TASK-1681, et il compte ici : tant que la copie est decochee,
+     * le resolveur (bug M) continue de servir la version Plateforme. L'admin
+     * relit son texte, puis l'active explicitement. Une copie active d'emblee
+     * remplacerait l'email sans que personne ne l'ait relu.
+     *
+     * ## `firstOrCreate`, et la source doit etre GLOBALE
+     *
+     * Pas de doublon si le geste est rejoue. Et la source est verifiee globale :
+     * cloner la ligne d'une AUTRE Organization ferait franchir une frontiere de
+     * tenant a un texte — 404, comme la garde voisine.
+     */
+    public function adaptSystemEmailTemplate(Organization $organization, SystemEmailTemplate $systemEmailTemplate): RedirectResponse
+    {
+        // TASK-1694 bug R — meme garde que la liste, au SERVEUR.
+        abort_unless($organization->canEditSystemEmails(), 403);
+
+        abort_if($systemEmailTemplate->organization_id !== null, 404);
+
+        $copie = SystemEmailTemplate::firstOrCreate(
+            [
+                'organization_id' => $organization->id,
+                'locale' => $systemEmailTemplate->locale,
+                'slug' => $systemEmailTemplate->slug,
+            ],
+            [
+                'name' => $systemEmailTemplate->name,
+                'subject' => $systemEmailTemplate->subject,
+                'content_html' => $systemEmailTemplate->content_html,
+                'variables' => $systemEmailTemplate->variables,
+                'enabled' => false,
+            ],
+        );
+
+        return redirect()
+            ->route('organization.admin.system-email-templates.edit', [$organization, $copie])
+            ->with(
+                $copie->wasRecentlyCreated ? 'success' : 'info',
+                $copie->wasRecentlyCreated
+                    ? __('admin.system_email_adapted')
+                    : __('admin.system_email_adapt_exists'),
+            );
+    }
+
     public function editSystemEmailTemplate(Organization $organization, SystemEmailTemplate $systemEmailTemplate): View
     {
+        // TASK-1694 bug R — meme garde que la liste, au SERVEUR.
+        abort_unless($organization->canEditSystemEmails(), 403);
+
         abort_if($systemEmailTemplate->organization_id !== $organization->id, 404);
 
         return view('admin.org.system-email-template-edit', [
@@ -2809,6 +2920,9 @@ class OrgAdminController extends Controller
 
     public function updateSystemEmailTemplate(Request $request, Organization $organization, SystemEmailTemplate $systemEmailTemplate): RedirectResponse
     {
+        // TASK-1694 bug R — meme garde que la liste, au SERVEUR.
+        abort_unless($organization->canEditSystemEmails(), 403);
+
         abort_if($systemEmailTemplate->organization_id !== $organization->id, 404);
 
         $validated = $request->validate([

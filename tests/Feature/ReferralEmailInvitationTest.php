@@ -31,6 +31,16 @@ class ReferralEmailInvitationTest extends TestCase
         ]);
 
         app()->instance('current_organization', $this->org);
+
+        // TASK-1694 bug T — la table des gabarits part VIDE pour cette classe.
+        //
+        // La migration de normalisation (bug Q) pose 18 lignes globales
+        // ACTIVES, et `RefreshDatabase` joue les migrations : la table n'est
+        // plus vide au depart d'un test. Ces tests-ci ont ete ecrits contre un
+        // monde ou aucun gabarit n'existait, et chacun cree celui dont il a
+        // besoin — plusieurs mesurent justement le REPLI Blade. Ils doivent
+        // donc creer l'absence qu'ils supposent, au lieu d'en heriter.
+        \App\Models\SystemEmailTemplate::query()->delete();
     }
 
     public function test_invitation_page_shows_invitation_tools(): void

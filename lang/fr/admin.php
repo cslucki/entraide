@@ -56,6 +56,28 @@ return [
     'ai_shell_toggle_desc' => 'Quand il est décoché, la pastille flottante et son panneau de discussion n\'apparaissent plus — même si l\'IA reste activée pour cette organisation. Les autres fonctions IA (reformulation, synthèse, agents) ne sont pas touchées.',
     'ai_shell_toggle_saved' => 'Assistant « BouclePro IA » : réglage enregistré pour cette organisation.',
     'ai_shell_section_desc' => 'Où le bouton flottant et son panneau apparaissent, organisation par organisation. La première case coupe tout. Les conversations privées, le ChatLoop et les pages de découverte n\'en portent jamais : ces trois-là sont des arbitrages produit, et aucune case ne les rouvre.',
+    // TASK-1694 bug J — renvoyer le lien de confirmation, depuis /admin/users.
+    'users_resend_verification' => 'Renvoyer le lien',
+    'users_resend_verification_sent' => 'Lien de confirmation renvoyé à :name. Il est valable 24 heures.',
+    'users_resend_verification_already' => 'L\'adresse :name est déjà vérifiée : aucun lien n\'a été renvoyé.',
+
+    // TASK-1694 bug K — « Lien de réinitialisation » etait ambigu dans une
+    // colonne qui porte DEUX liens envoyes par email (confirmation d'adresse
+    // et mot de passe). Le libelle dit maintenant DE QUOI il s'agit.
+    'users_password_reset_link' => 'Réinitialisation mdp',
+
+    // TASK-1694 bug L — le choix du gabarit, pose DANS la ligne du membre.
+    // TASK-1694 bug V — le modal centre, et son filtre.
+    'users_send_email_title' => 'Envoyer un email type',
+    'users_send_email_filter' => 'Filtrer les gabarits…',
+    'users_send_email_confirm_generic' => 'Envoyer cet email à cette personne ?',
+    'users_send_email_submit' => 'Envoyer',
+    'users_send_email_none' => 'Aucun gabarit d\'email n\'existe encore.',
+    'users_send_email_create' => 'Créer un gabarit',
+    'users_send_email_confirm' => 'Envoyer cet email à :name ?',
+    'users_send_email_sent' => '« :template » envoyé à :name.',
+    'users_send_email_failed' => 'L\'envoi à :name a échoué. Voir les journaux d\'emails.',
+    'users_send_email_inactive' => 'Aucun email envoyé : le compte :name est banni ou inactif.',
     // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
     // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
     // pas un tout-cocher : « Partout » se lisait comme une selection globale.
@@ -507,11 +529,32 @@ return [
     // TASK-1681 — dire aussi ce que signifie l'ABSENCE d'une ligne : en
     // PROD, les surcharges n'ont jamais ete semees pour les slugs recents,
     // et ce n'est pas une anomalie (le mailer retombe sur le Blade).
+    // TASK-1694 bug AB — adapter un gabarit Plateforme a son Organization.
+    // TASK-1694 bug AD — le compteur de gabarits systeme.
+    'system_email_count_shown' => '{0}Aucun gabarit affiché|{1}1 gabarit affiché|[2,*]:count gabarits affichés',
+    'system_email_count_total' => 'sur :count au total',
+    'system_email_count_breakdown' => ':globaux global(aux) · :tenants rattaché(s) à une organisation',
+    'system_email_source' => 'Source',
+    'system_email_source_org' => 'Cette organisation',
+    'system_email_source_platform' => 'Plateforme',
+    'system_email_adapt' => 'Adapter',
+    'system_email_adapted' => 'Copie créée pour votre organisation, désactivée. Relisez le texte puis activez-la : tant qu\'elle est inactive, la version Plateforme continue de partir.',
+    'system_email_adapt_exists' => 'Votre organisation a déjà une version de ce gabarit.',
+    'system_email_adapt_hint' => 'Les gabarits « Plateforme » ne sont pas modifiables ici : « Adapter » en crée une copie propre à votre organisation.',
     'system_email_desc' => 'Ces templates sont des surcharges facultatives des emails système (notifications automatiques). Un modèle absent de cette liste n\'est pas une anomalie : l\'email part alors avec le modèle par défaut de l\'application. Laissez un template désactivé pour revenir au modèle par défaut.',
     'system_email_no_override' => "Aucune surcharge personnalisée pour ce modèle. Le modèle d'email par défaut est actuellement utilisé.",
     'system_email_default_badge' => 'Modèle système par défaut',
     'system_email_default_in_use' => 'Utilisé actuellement',
     'system_email_default_in_use_partial' => 'Utilisé pour les Organizations sans personnalisation active',
+    // TASK-1694 bug O — l'ecran sait enfin designer « sans Organization ».
+    // TASK-1694 bug R — la capacite d'editer, gouvernee par Organization.
+    // TASK-1694 bug AE — la disponibilite des membres, par Organization.
+    'org_availability_enabled_label' => 'Disponibilité des membres',
+    'org_availability_enabled_desc' => 'Quand décoché, la pastille verte « disponible » et la bascule du menu disparaissent partout : annuaire, profils, fiches de service, menu utilisateur.',
+    'org_system_emails_editable_label' => 'Possibilité de modifier les emails système',
+    'org_system_emails_editable_desc' => 'Quand décoché, cette Organization ne peut plus adapter les emails système (confirmation d\'inscription, affectation de points…) : les modèles Global de la plateforme s\'appliquent. Sans rapport avec les modèles d\'email du CRM.',
+    'system_email_only_global' => 'Global uniquement',
+    'system_email_scope_global' => '— Global (toutes les Organizations) —',
     'system_email_create_customization' => 'Créer une personnalisation',
     'system_email_create_customization_hint' => 'La personnalisation est créée désactivée : relisez-la, adaptez-la, puis activez-la. Tant qu\'elle est désactivée, le modèle par défaut continue d\'être utilisé.',
     'system_email_customization_created' => 'Personnalisation créée, désactivée par défaut. Relisez-la puis activez-la.',
@@ -563,6 +606,45 @@ return [
     'emailer_max_50' => 'Maximum 50 destinataires par envoi.',
     'emailer_no_recipients' => 'Aucun destinataire valide.',
     'emailer_sent_count' => ':sent envoyé(s), :failed échoué(s) (sur :total)',
+    // TASK-1694 bug W — la documentation des variables de l'Emailer.
+    // TASK-1694 bug Z — la langue d'un gabarit de l'Emailer.
+    // TASK-1694 bug AA — creer pour plusieurs Organizations d'un coup.
+    'select_all_toggle' => 'Tout cocher / tout décocher',
+    'emailer_scope_global' => 'Global (toutes les organisations)',
+    'emailer_scope_label' => 'Organisations destinataires',
+    'emailer_scope_hint' => 'Cochez une ou plusieurs cibles. Un gabarit est créé pour chacune.',
+    'emailer_scope_unknown' => 'Cible inconnue.',
+    'emailer_created_count' => 'Gabarit créé pour :count cible(s).',
+    'emailer_created_partial' => 'Gabarit créé pour :count cible(s). Existait déjà pour : :cibles.',
+    'emailer_created_none' => 'Rien créé : ce gabarit existe déjà pour :cibles.',
+    'emailer_duplicate_triplet' => 'Un gabarit porte déjà ce slug pour cette organisation et cette langue.',
+    // TASK-1694 bug AK — le type d'appareil dans le journal de connexions.
+    // TASK-1694 bug AN — le tableau de bord de l'Organization par defaut.
+    'org_dashboard_nav' => 'Dashboard de l\'org',
+    'device_column' => 'Appareil',
+    'device_all' => 'Tous les appareils',
+    'device_phone' => 'Smartphone',
+    'device_tablet' => 'Tablette',
+    'device_desktop' => 'Ordinateur',
+    'device_other' => 'Autre / outil',
+    'emailer_locale_label' => 'Langue du gabarit',
+    'emailer_locale_unset' => '— Non précisée —',
+    'emailer_locale_any' => 'Toutes les langues',
+    'emailer_vars_title' => 'Variables disponibles',
+    'emailer_vars_hint' => 'À écrire entre accolades doubles, dans le sujet comme dans le contenu. Les espaces intérieurs sont tolérés.',
+    'emailer_vars_unknown_note' => 'Une variable inconnue n\'est pas remplacée : elle part telle quelle dans l\'email.',
+    // TASK-1694 bug Y — les alias, nommes comme tels.
+    'emailer_var_alias_badge' => 'Alias',
+    'emailer_var_alias_of' => 'Exactement la même valeur que :canonique. Les deux écritures sont acceptées.',
+    'emailer_var_first_name' => 'Prénom du destinataire',
+    'emailer_var_name' => 'Nom complet du destinataire',
+    'emailer_var_full_name' => 'Nom complet (identique à name)',
+    'emailer_var_email' => 'Adresse email du destinataire',
+    'emailer_var_city' => 'Ville du destinataire',
+    'emailer_var_organization' => 'Nom de l\'Organization du destinataire',
+    'emailer_var_organization_slug' => 'Identifiant d\'URL de l\'Organization',
+    'emailer_var_organisation' => 'Nom de l\'Organization (orthographe française)',
+    'emailer_var_organisation_slug' => 'Identifiant d\'URL (orthographe française)',
     'emailer_single_action' => 'Envoyer un email',
     'common_subject' => 'Sujet',
     'common_content' => 'Contenu',
@@ -1179,6 +1261,9 @@ return [
         'dataset_ai_credit_setting_changes_desc' => 'NULL = reglage plateforme, comme l\'indique la migration.',
         'dataset_system_email_templates' => 'Gabarits d\'e-mail systeme',
         'dataset_system_email_templates_desc' => 'Unique sur organisation + langue + slug. NULL = gabarit systeme.',
+        // TASK-1694 bug U — l'archive, declaree en HistoryNullValid.
+        'dataset_system_email_templates_archive' => 'Archive des gabarits d\'e-mail systeme',
+        'dataset_system_email_templates_archive_desc' => 'Trace des gabarits retires par la normalisation (TASK-1694). Lecture seule : rattacher une ligne reecrirait la preuve.',
         'dataset_admin_ai_interactions' => 'Interactions IA administration',
         'dataset_admin_ai_interactions_desc' => 'Console d\'administration de la plateforme, hors Organization.',
         'dataset_ai_interactions' => 'Interactions IA',

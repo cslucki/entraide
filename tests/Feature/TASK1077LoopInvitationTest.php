@@ -502,14 +502,17 @@ class TASK1077LoopInvitationTest extends TestCase
 
     public function test_the_loop_invitation_system_template_is_seeded_and_idempotent(): void
     {
-        $org = $this->org();
+        $this->org();
 
         $this->seed(SystemEmailTemplateSeeder::class);
         $this->seed(SystemEmailTemplateSeeder::class);
 
+        // TASK-1694 bug N — la ligne semee est GLOBALE, plus rattachee a une
+        // Organization. Ce que ce test mesure — l'idempotence du seeder — est
+        // inchange ; seul l'endroit ou il faut la compter a bouge.
         foreach (['fr', 'en'] as $locale) {
             $this->assertSame(1, SystemEmailTemplate::where('slug', 'loop_invitation')
-                ->where('organization_id', $org->id)
+                ->whereNull('organization_id')
                 ->where('locale', $locale)
                 ->count(), "Duplicate template for locale {$locale}");
         }
@@ -542,6 +545,13 @@ class TASK1077LoopInvitationTest extends TestCase
         $org = $this->org();
         $owner = User::factory()->create(['organization_id' => $org->id]);
         $loop = $this->ownedLoop($org, $owner);
+        // TASK-1694 bug T — aucun Global ne doit repondre ici.
+        //
+        // Ce test mesure le REPLI Blade et la raison journalisee. Depuis la
+        // normalisation (bug Q), une ligne globale active repond avant lui —
+        // c'est voulu, c'est l'objet des bugs M et Q. Sans cette ligne, le
+        // test parlerait d'autre chose que de son titre.
+        SystemEmailTemplate::query()->whereNull('organization_id')->delete();
         $this->withCurrentOrganization($org);
 
         $this->actingAs($owner)
@@ -560,6 +570,13 @@ class TASK1077LoopInvitationTest extends TestCase
         $owner = User::factory()->create(['organization_id' => $org->id]);
         $loop = $this->ownedLoop($org, $owner);
         $this->systemTemplate($org, 'NE DOIT PAS SERVIR', '<p>NE DOIT PAS SERVIR</p>', enabled: false);
+        // TASK-1694 bug T — aucun Global ne doit repondre ici.
+        //
+        // Ce test mesure le REPLI Blade et la raison journalisee. Depuis la
+        // normalisation (bug Q), une ligne globale active repond avant lui —
+        // c'est voulu, c'est l'objet des bugs M et Q. Sans cette ligne, le
+        // test parlerait d'autre chose que de son titre.
+        SystemEmailTemplate::query()->whereNull('organization_id')->delete();
         $this->withCurrentOrganization($org);
 
         $this->actingAs($owner)

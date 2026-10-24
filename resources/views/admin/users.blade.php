@@ -367,6 +367,19 @@
                                  et un geste sans effet est un piege. Confirmation
                                  explicite, parce qu'il contourne une preuve de
                                  possession d'adresse. --}}
+                            {{-- TASK-1694 bug J — RENVOYER le lien, avant de
+                                 songer a contourner la preuve.
+                                 Pose AVANT « Valider l'email » a dessein :
+                                 l'ordre de lecture suggere le geste le moins
+                                 lourd en premier. Pas de confirmation : renvoyer
+                                 un email ne detruit rien et ne contourne rien. --}}
+                            @unless($u->hasVerifiedEmail())
+                            <form method="POST" action="{{ route('admin.users.resend-verification', $u) }}">
+                                @csrf
+                                <button class="text-xs text-indigo-600 hover:underline" data-user-resend-verification="{{ $u->id }}">{{ __('admin.users_resend_verification') }}</button>
+                            </form>
+                            @endunless
+
                             @unless($u->hasVerifiedEmail())
                             <form method="POST" action="{{ route('admin.users.verify-email', $u) }}"
                                   onsubmit="return confirm('Marquer {{ addslashes($u->email) }} comme vérifiée, sans que cette personne ait cliqué le lien de confirmation ?')">
@@ -396,18 +409,40 @@
                                  inatteignable sur desktop. Voir
                                  `admin/partials/user-organization-assign.blade.php`. --}}
 
-                            <!-- Emailer -->
-                            <a href="{{ route('admin.email-templates') }}"
-                               class="text-xs text-gray-400 hover:text-indigo-500">
+                            {{-- TASK-1694 bug L puis V — « Envoyer un email » ouvre un
+                                 MODAL centre, pose hors du tableau.
+
+                                 Bug L avait mis le choix EN FLUX dans la ligne, pour
+                                 echapper au rognage de l'`overflow-x-auto` (defaut
+                                 mesure en TASK-1693 bug D). Ca marchait, mais c'etait
+                                 etroit : Cyril, le 24/10 — « certes contextualise mais
+                                 trop petit, et si on a plus de 10 messages types ce
+                                 sera ingerable ».
+
+                                 Bug V : la ligne ne porte plus que le DECLENCHEUR. Le
+                                 modal est unique pour toute la page et vit hors du
+                                 tableau — donc rien a rogner, et toute la largeur
+                                 disponible. Le bouton lui passe la personne et l'URL
+                                 d'envoi, construite cote SERVEUR par `route()` : rien
+                                 n'est recompose en JavaScript. --}}
+                            <button type="button"
+                                    @click="$dispatch('send-email-context', {
+                                        label: @js($u->email),
+                                        url: @js(route('admin.users.send-email', $u))
+                                    }); $dispatch('open-modal', 'send-email')"
+                                    class="text-xs text-gray-400 hover:text-indigo-500"
+                                    data-user-send-email-toggle="{{ $u->id }}"
+                                    data-user-send-email-url="{{ route('admin.users.send-email', $u) }}">
                                 {{ __('admin.emailer_single_action') }}
-                            </a>
+                            </button>
 
                             <!-- Envoyer lien de réinitialisation -->
                             <form method="POST" action="{{ route('admin.users.send-password-reset', $u) }}"
                                   onsubmit="return confirm('Envoyer un lien de réinitialisation à ce membre ?')">
                                 @csrf
-                                <button class="text-xs text-gray-400 hover:text-indigo-500">
-                                    Lien de réinitialisation
+                                <button class="text-xs text-gray-400 hover:text-indigo-500"
+                                        data-user-password-reset="{{ $u->id }}">
+                                    {{ __('admin.users_password_reset_link') }}
                                 </button>
                             </form>
 
@@ -457,6 +492,12 @@
          en a besoin aussi. Elle porte sa propre racine Alpine et s'ouvre
          par evenement, d'ou le `$dispatch` sur le bouton plus haut. --}}
     @include('admin.partials.user-profile-modal')
+
+    {{-- TASK-1694 bug V — UN modal « Envoyer un email » pour toute la page,
+         hors du tableau : rien a rogner, et toute la largeur disponible.
+         La ligne ne porte que le declencheur, qui lui passe la personne et son
+         URL d'envoi. --}}
+    @include('admin.partials.user-send-email-modal')
 
     {{-- TASK-1668 — la modal de suppression a laisse place a une PAGE
          (`admin/users/delete.blade.php`). Elle debordait : blocages avec leurs

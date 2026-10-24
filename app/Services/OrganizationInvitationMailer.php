@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\EmailLog;
 use App\Models\OrganizationInvitation;
-use App\Models\SystemEmailTemplate;
+use App\Support\Email\SystemEmailTemplateResolver;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -66,11 +66,21 @@ class OrganizationInvitationMailer
             ? $invitation->locale
             : OrganizationInvitation::DEFAULT_LOCALE;
 
-        $template = SystemEmailTemplate::where('slug', 'organization_invitation')
-            ->where('enabled', true)
-            ->where('organization_id', $invitation->organization_id)
-            ->where('locale', $locale)
-            ->first();
+        // TASK-1694 bug M — la resolution passe par l'autorite unique. Elle ne
+        // regardait que les lignes du tenant : une ligne « Global » lui etait
+        // invisible.
+        //
+        // La langue de REPLI passee ici est celle de ce module
+        // (`OrganizationInvitation::DEFAULT_LOCALE`), pas celle de
+        // l'Organization : le raisonnement du bloc ci-dessus vaut aussi pour le
+        // repli — l'Organization ne dit pas quelle langue lit l'invite.
+        $resolver = app(SystemEmailTemplateResolver::class);
+        $template = $resolver->resolve(
+            'organization_invitation',
+            $invitation->organization_id,
+            $locale,
+            OrganizationInvitation::DEFAULT_LOCALE,
+        );
 
         $emailer = app(EmailerService::class);
         $extraKeys = [
@@ -103,12 +113,13 @@ class OrganizationInvitationMailer
                 $fallbackReason = 'render_error: '.$e->getMessage();
             }
         } else {
-            $fallbackReason = SystemEmailTemplate::where('slug', 'organization_invitation')
-                ->where('organization_id', $invitation->organization_id)
-                ->where('locale', $locale)
-                ->exists()
-                ? 'template_disabled'
-                : 'template_missing';
+            // Le diagnostic interroge LES MEMES crans que la resolution.
+            $fallbackReason = $resolver->diagnoseAbsence(
+                'organization_invitation',
+                $invitation->organization_id,
+                $locale,
+                OrganizationInvitation::DEFAULT_LOCALE,
+            );
         }
 
         if ($fallbackReason !== null) {

@@ -11,10 +11,14 @@ class EmailTemplateSeeder extends Seeder
     {
         $templates = [
             [
-                'slug' => 'welcome',
-                'name' => 'Bienvenue (inscription)',
-                'subject' => 'Bienvenue sur Entraide, {{ name }} !',
-                'content_html' => "<h1>Bienvenue sur Entraide, {{ name }} !</h1>\n<p>Votre compte a bien été créé. Vous avez reçu <strong>100 points de bienvenue</strong> pour démarrer vos premiers échanges.</p>\n<p><a href=\"{{ url }}\">Découvrir les services</a></p>",
+                // TASK-1694 bugs E, G puis H — CE seeder etait la racine de la
+                // ligne globale qui nommait la marque : il la codait EN DUR.
+                // Le slug est renomme, et le texte nomme desormais
+                // l'Organization par sa variable.
+                'slug' => \App\Notifications\WelcomeNotification::SLUG,
+                'name' => 'Affectation points suite inscription',
+                'subject' => 'Bienvenue sur {{ organisation }}, {{ name }} !',
+                'content_html' => "<h1>Bienvenue sur {{ organisation }}, {{ name }} !</h1>\n<p>Votre compte a bien été créé. Vous avez reçu <strong>100 points de bienvenue</strong> pour démarrer vos premiers échanges.</p>\n<p><a href=\"{{ url }}\">Découvrir les services</a></p>",
                 'variables' => ['name', 'url'],
             ],
             [

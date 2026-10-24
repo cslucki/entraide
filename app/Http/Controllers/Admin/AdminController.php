@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Country;
 use App\Models\EmailLog;
+use App\Models\EmailTemplate;
 use App\Models\LoginLog;
 use App\Models\Organization;
 use App\Models\PointLedger;
@@ -19,10 +20,12 @@ use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Admin\PlatformDashboardMetrics;
+use App\Services\EmailerService;
 use App\Services\UserDataLifecycleRegistry;
 use App\Services\Users\Exceptions\UserDeletionBlockedException;
 use App\Services\Users\UserDeletionExecutor;
 use App\Support\ScenarioManifest\ManifestAvatarBank;
+use App\Support\Devices\DeviceKind;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -130,6 +133,10 @@ class AdminController extends Controller
 
         return view('admin.users', compact('users', 'organizations', 'scopedOrganization') + [
             'stats' => $this->userListStats($scopedOrganization?->id),
+            // TASK-1694 bug L — les gabarits de l'Emailer, pour le choix pose
+            // DANS la ligne. Une seule requete, constante : le test de cout de
+            // cet ecran mesure qu'il ne grandit pas avec le nombre de comptes.
+            'emailTemplates' => EmailTemplate::orderBy('name')->get(['id', 'name', 'subject', 'locale']),
         ]);
     }
 
@@ -432,6 +439,92 @@ class AdminController extends Controller
         $user->markEmailAsVerified();
 
         return back()->with('success', "Adresse email de {$user->name} marquée comme vérifiée.");
+    }
+
+    /**
+     * TASK-1694 bug J — RENVOYER le lien de confirmation.
+     *
+     * ## Distinct de « Valider l'email », et c'est tout le point
+     *
+     * Le geste voisin CONTOURNE la preuve de possession d'adresse : c'est un
+     * depannage. Celui-ci la REDEMANDE — il renvoie le lien et laisse la
+     * personne prouver qu'elle lit bien cette boite.
+     *
+     * C'est donc le geste a tenter D'ABORD. Il vit dans le meme groupe, donc
+     * sous la meme autorite : SuperAdmin plateforme.
+     *
+     * ## La duree repart de zero, et ce n'est pas un effet de bord
+     *
+     * Le lien est SIGNE avec une expiration calculee AU MOMENT DE L'ENVOI
+     * (`auth.verification.expire`, 24 h depuis le bug C). Renvoyer, c'est donc
+     * necessairement remettre le compteur a zero — c'est la demande de Cyril,
+     * et c'est aussi la seule chose qu'un lien signe sache faire : on ne
+     * prolonge pas un lien deja emis, on en emet un neuf.
+     *
+     * ## Rien sur un compte deja verifie
+     *
+     * Le bouton n'apparait pas, et l'action refuse quand meme : une garde de
+     * vue n'est pas une protection. Renvoyer un lien a quelqu'un de deja
+     * verifie l'inviterait a un geste qui ne sert a rien.
+     */
+    public function resendUserVerification(User $user): RedirectResponse
+    {
+        if ($user->hasVerifiedEmail()) {
+            return back()->with('error', __('admin.users_resend_verification_already', ['name' => $user->email]));
+        }
+
+        $user->sendEmailVerificationNotification();
+
+        return back()->with('success', __('admin.users_resend_verification_sent', ['name' => $user->email]));
+    }
+
+    /**
+     * TASK-1694 bug L — envoyer UN gabarit de l'Emailer a UNE personne.
+     *
+     * ## Ce que remplace ce geste
+     *
+     * Le lien « Envoyer un email » de la colonne « Actions » menait au
+     * CATALOGUE (`/admin/email-templates`), sans rien savoir de la personne de
+     * la ligne : il fallait y rechoisir le destinataire. Demande de Cyril :
+     * cocher le gabarit, puis un bouton d'envoi.
+     *
+     * ## Pourquoi une route a soi, et pas `email-templates.send.execute`
+     *
+     * Ce parcours-la met le gabarit dans l'URL — donc une URL par choix, que
+     * seul du JavaScript saurait recomposer apres un clic de radio. Ici le
+     * gabarit est une DONNEE du formulaire, et la personne vient du chemin :
+     * c'est l'inverse, et c'est ce que la demande decrit.
+     *
+     * L'ENVOI, lui, n'est pas reecrit : `EmailerService::sendFromTemplate()`
+     * reste l'autorite unique — interpolation des variables, `replyTo` sur
+     * l'administrateur, et la ligne d'`EmailLog` qui en garde la trace.
+     *
+     * ## Les deux gardes de l'autre parcours sont conservees
+     *
+     * `activeAccount()` : on n'ecrit pas a un compte banni. C'est la meme borne
+     * que `sendExecute()`, pas une politique inventee ici. Le plafond de 50 n'a
+     * pas de sens pour un destinataire unique.
+     */
+    public function sendEmailToUser(Request $request, User $user): RedirectResponse
+    {
+        $validated = $request->validate([
+            'template_id' => ['required', 'uuid', Rule::exists('email_templates', 'id')],
+        ]);
+
+        if (! User::activeAccount()->whereKey($user->id)->exists()) {
+            return back()->with('error', __('admin.users_send_email_inactive', ['name' => $user->email]));
+        }
+
+        $template = EmailTemplate::findOrFail($validated['template_id']);
+
+        $log = app(EmailerService::class)->sendFromTemplate($template, $user, $request->user());
+
+        return $log->status === 'sent'
+            ? back()->with('success', __('admin.users_send_email_sent', [
+                'template' => $template->name,
+                'name' => $user->email,
+            ]))
+            : back()->with('error', __('admin.users_send_email_failed', ['name' => $user->email]));
     }
 
     public function createUser(): View
@@ -1223,6 +1316,22 @@ class AdminController extends Controller
             });
         }
 
+        // TASK-1694 bug AK — filtrer par type d'appareil.
+        //
+        // Demande de Cyril : « savoir qui se connecte avec un smartphone, qui se
+        // connecte avec son ordinateur ». Rien a capturer — `user_agent` est
+        // stocke depuis toujours, donc le filtre porte retroactivement sur tout
+        // l'historique.
+        //
+        // Une valeur inconnue est IGNOREE, pas refusee : un journal qu'on
+        // consulte ne doit pas rendre une erreur parce qu'un parametre d'URL a
+        // ete mal recopie.
+        $device = DeviceKind::tryFrom((string) $request->input('device', ''));
+
+        if ($device !== null) {
+            DeviceKind::scope($query, $device);
+        }
+
         $direction = $request->direction === 'asc' ? 'asc' : 'desc';
 
         match ($request->sort) {
@@ -1241,7 +1350,10 @@ class AdminController extends Controller
         $loginLogs = $query->paginate(25)->withQueryString();
         $organizations = Organization::where('is_active', true)->orderBy('name')->get();
 
-        return view('admin.login-history.index', compact('loginLogs', 'organizations'));
+        return view('admin.login-history.index', compact('loginLogs', 'organizations') + [
+            'currentDevice' => $device?->value ?? '',
+            'deviceKinds' => DeviceKind::cases(),
+        ]);
     }
 
     public function loginHistoryUser(Request $request, User $user): View

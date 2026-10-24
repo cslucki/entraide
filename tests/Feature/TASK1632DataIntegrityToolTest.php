@@ -173,7 +173,16 @@ class TASK1632DataIntegrityToolTest extends TestCase
         $registry = app(UnprotectedReferenceRegistry::class);
 
         $this->assertSame([], $registry->unguardedTables('organization_id'));
-        $this->assertSame(['ai_provider_invocations'], $registry->protectedHistoryTables('organization_id'));
+        // TASK-1694 bug U — l'archive des gabarits rejoint la liste.
+        //
+        // Cette liste EST le sujet du test : elle doit bouger quand une
+        // omission de cle etrangere est deliberement declaree, et pas avant.
+        // L'archive doit survivre a la suppression de l'Organization dont elle
+        // garde la trace.
+        $this->assertSame(
+            ['ai_provider_invocations', 'system_email_templates_archive'],
+            $registry->protectedHistoryTables('organization_id'),
+        );
     }
 
     public function test_the_cockpit_surfaces_the_broken_reference_in_its_summary(): void

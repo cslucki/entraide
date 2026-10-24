@@ -223,12 +223,28 @@
             <x-input-error class="mt-2" :messages="$errors->get('avatar')" />
         </div>
 
-        <div class="flex items-center gap-3">
+        {{-- TASK-1694 bug AE — cinquieme surface, trouvee a l'inventaire : le
+             reglage de son propre profil. Le retirer avec la fonctionnalite evite
+             de laisser quelqu'un regler une valeur que plus aucun ecran n'affiche.
+
+             Aucun risque de perte de donnee en la masquant, et pour une raison
+             qui merite d'etre ecrite : cette case etait DEJA INERTE. Mesure du
+             24/10 — `is_available` n'est ni dans les regles de
+             `ProfileController::update()`, ni dans son traitement des cases a
+             cocher. Elle AFFICHAIT la valeur, l'enregistrement ne la touchait
+             jamais. Seule la bascule du menu (`profile.availability`) la change.
+
+             Defaut prexistant, signale a Cyril plutot que corrige ici : une case
+             qui ressemble a un reglage et n'enregistre rien est un autre geste
+             que celui demande. --}}
+        @if(availabilityIsShown())
+        <div class="flex items-center gap-3" data-availability-field>
             <input id="is_available" name="is_available" type="checkbox" value="1"
                 {{ $user->is_available ? 'checked' : '' }}
                 class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
             <x-input-label for="is_available" :value="__('profile.available_label')" />
         </div>
+        @endif
 
         <div class="flex items-center gap-4">
             <x-primary-button>{{ __('profile.save') }}</x-primary-button>

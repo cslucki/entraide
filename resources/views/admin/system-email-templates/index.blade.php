@@ -12,6 +12,29 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400">
                         {{ __('admin.system_email_desc') }}
                     </p>
+
+                    {{-- TASK-1694 bug AD — DEUX nombres, pas un.
+                         Le compte affiche seul laisserait croire que la base n'en
+                         contient pas davantage des qu'un filtre est pose. Le total
+                         porte sur la table entiere, jamais sur le filtre courant. --}}
+                    <div class="mt-3 flex flex-wrap items-center gap-2 text-xs" data-system-email-counters>
+                        <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 font-medium text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200"
+                              data-system-email-count-shown="{{ $compteurs['affiches'] }}">
+                            {{ __('admin.system_email_count_shown', ['count' => $compteurs['affiches']]) }}
+                        </span>
+
+                        @if($compteurs['affiches'] !== $compteurs['total'])
+                            <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                                  data-system-email-count-total="{{ $compteurs['total'] }}">
+                                {{ __('admin.system_email_count_total', ['count' => $compteurs['total']]) }}
+                            </span>
+                        @endif
+
+                        <span class="text-gray-500 dark:text-gray-400"
+                              data-system-email-count-breakdown="{{ $compteurs['globaux'] }}/{{ $compteurs['tenants'] }}">
+                            {{ __('admin.system_email_count_breakdown', ['globaux' => $compteurs['globaux'], 'tenants' => $compteurs['tenants']]) }}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
@@ -27,6 +50,13 @@
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.organization') }}</label>
                             <select name="organization_id" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 text-sm">
                                 <option value="">{{ __('admin.all_organizations') }}</option>
+                                {{-- TASK-1694 bug O — « Global » est une VALEUR du filtre, pas
+                                     son absence : le filtre vide veut dire « toutes », ce qui ne
+                                     permettait pas de demander « seulement les Global ». --}}
+                                <option value="{{ \App\Http\Controllers\Admin\AdminSystemEmailTemplatesController::FILTRE_GLOBAL }}"
+                                        @selected(request('organization_id') === \App\Http\Controllers\Admin\AdminSystemEmailTemplatesController::FILTRE_GLOBAL)>
+                                    {{ __('admin.system_email_only_global') }}
+                                </option>
                                 @foreach($organizations as $org)
                                     <option value="{{ $org->id }}" @selected(request('organization_id') == $org->id)>{{ $org->name }}</option>
                                 @endforeach
@@ -71,8 +101,15 @@
                             <input type="hidden" name="slug" value="{{ $defaultTemplate['slug'] }}">
                             <div>
                                 <label for="customize_organization_id" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.organization') }}</label>
-                                <select name="organization_id" id="customize_organization_id" required
-                                        class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 text-sm">
+                                {{-- TASK-1694 bug O — « Global » est le PREMIER choix, et le
+                                     defaut. Ce champ etait `required` cote serveur : l'ecran ne
+                                     SAVAIT PAS creer une ligne globale, et toute creation
+                                     naissait rattachee a une Organization. C'est la cause
+                                     mecanique du desordre constate le 23/10. --}}
+                                <select name="organization_id" id="customize_organization_id"
+                                        class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 text-sm"
+                                        data-system-email-scope>
+                                    <option value="">{{ __('admin.system_email_scope_global') }}</option>
                                     @foreach($organizations as $org)
                                         <option value="{{ $org->id }}" @selected(request('organization_id') == $org->id)>{{ $org->name }}</option>
                                     @endforeach

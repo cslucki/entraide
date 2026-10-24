@@ -114,4 +114,31 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email Verification
+    |--------------------------------------------------------------------------
+    |
+    | TASK-1694 bug D — duree de validite du lien de confirmation, en minutes.
+    |
+    | La valeur n'etait pas definie : le defaut Laravel de 60 MINUTES
+    | s'appliquait. Trop court pour une inscription — quelqu'un qui s'inscrit le
+    | soir et ouvre ses mails le lendemain trouve un lien mort, et doit
+    | comprendre qu'il faut en redemander un.
+    |
+    | 24 HEURES, decision de Cyril sur proposition. C'est la valeur usuelle des
+    | produits grand public pour une CONFIRMATION D'ADRESSE. Les liens courts
+    | (une heure) sont reserves a la REINITIALISATION DE MOT DE PASSE, juste
+    | au-dessus : l'enjeu y est bien plus lourd, et cette valeur-la ne bouge pas.
+    |
+    | Ce que la duree ne change pas : le lien reste SIGNE et a USAGE UNIQUE —
+    | `verification.verify` refuse une signature invalide, et la verification
+    | est idempotente.
+    |
+    */
+
+    'verification' => [
+        'expire' => (int) env('AUTH_VERIFICATION_EXPIRE', 1440),
+    ],
+
 ];

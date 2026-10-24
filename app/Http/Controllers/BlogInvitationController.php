@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BlogPost;
 use App\Models\BlogPostInvitation;
 use App\Models\EmailLog;
-use App\Models\SystemEmailTemplate;
+use App\Support\Email\SystemEmailTemplateResolver;
 use App\Models\User;
 use App\Services\BlogInvitationService;
 use App\Services\EmailerService;
@@ -101,11 +101,11 @@ class BlogInvitationController extends Controller
             $extraKeys[] = 'register_url';
         }
 
-        $template = SystemEmailTemplate::where('slug', 'blog_contribution_invitation')
-            ->where('enabled', true)
-            ->where('organization_id', $organization->id)
-            ->where('locale', app()->getLocale())
-            ->first();
+        // TASK-1694 bug M — la resolution passe par l'autorite unique. Elle ne
+        // regardait que les lignes du tenant : une ligne « Global » lui etait
+        // invisible.
+        $template = app(SystemEmailTemplateResolver::class)
+            ->resolve('blog_contribution_invitation', $organization->id);
 
         if ($template) {
             $emailer = app(EmailerService::class);

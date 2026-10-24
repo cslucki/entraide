@@ -262,6 +262,12 @@ class DatasetRegistry
             new Dataset('admin_ai_interactions', 'admin_ai_interactions', $g, ['id', 'user_id', 'provider', 'model', 'status', 'organization_id', 'created_at']),
 
             // ── Historique : une trace, on la garde ──────────────────────
+            // TASK-1694 bug U — l'archive des gabarits d'emails systeme.
+            // `HistoryNullValid` et non `AssignableTenant` : rattacher une
+            // ligne d'archive reecrirait une trace, c'est-a-dire detruirait la
+            // preuve meme de ce qui a ete retire. La table n'a de valeur que si
+            // personne ne la modifie.
+            new Dataset('system_email_templates_archive', 'system_email_templates_archive', $h, ['id', 'slug', 'name', 'locale', 'enabled', 'organization_id', 'archived_at']),
             new Dataset('ai_interactions', 'ai_interactions', $h, ['id', 'user_id', 'feature', 'model', 'organization_id', 'created_at']),
 
             // ── Diagnostic : montre, jamais offert ───────────────────────

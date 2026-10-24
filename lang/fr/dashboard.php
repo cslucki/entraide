@@ -99,7 +99,8 @@ return [
     'with_member' => 'avec :name',
     'no_current_exchange' => 'Aucun échange en cours.',
     // TASK-1693 bug T — la card unique qui remplace les deux precedentes.
-    'exchanges' => 'Échanges',
+    // TASK-1694 bug A — card du tableau de bord.
+    'exchanges' => 'Entraide',
     'no_exchange' => 'Aucun échange en cours.',
     'my_announcements' => 'Mes annonces',
     'untitled' => 'Sans titre',

@@ -22,7 +22,11 @@ class LocaleFallbackTranslationTest extends TestCase
     public function test_french_navigation_keys(): void
     {
         App::setLocale('fr');
-        $this->assertEquals('Échanges', __('navigation.exchanges'));
+        // TASK-1694 bug A — le terme produit est passe de « Échanges » a
+        // « Entraide » (decision Cyril). Ce test mesure que la locale FR
+        // resout bien ses clefs : la garantie est inchangee, c'est la VALEUR
+        // attendue qui suit le produit.
+        $this->assertEquals('Entraide', __('navigation.exchanges'));
         $this->assertEquals('Tableau de bord', __('navigation.dashboard'));
         $this->assertEquals('Déconnexion', __('navigation.logout'));
     }
@@ -30,7 +34,7 @@ class LocaleFallbackTranslationTest extends TestCase
     public function test_english_navigation_keys(): void
     {
         App::setLocale('en');
-        $this->assertEquals('Exchanges', __('navigation.exchanges'));
+        $this->assertEquals('Mutual aid', __('navigation.exchanges'));
         $this->assertEquals('Dashboard', __('navigation.dashboard'));
         $this->assertEquals('Log out', __('navigation.logout'));
     }

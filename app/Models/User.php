@@ -40,7 +40,11 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function sendEmailVerificationNotification(): void
     {
-        rescue(fn () => $this->notify(new \Illuminate\Auth\Notifications\VerifyEmail));
+        // TASK-1694 bug D — le gabarit vient de `/admin/system-email-templates`,
+        // global et bilingue. La classe ETEND celle du framework : l'url signee
+        // et sa duree restent calculees au meme endroit, et si le gabarit manque
+        // c'est l'email du framework qui part — jamais un email vide.
+        rescue(fn () => $this->notify(new \App\Notifications\VerifyEmailWithTemplate));
     }
 
     /** @use HasFactory<UserFactory> */

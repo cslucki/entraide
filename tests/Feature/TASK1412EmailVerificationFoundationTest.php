@@ -5,7 +5,11 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
-use Illuminate\Auth\Notifications\VerifyEmail;
+// TASK-1694 bug D — la notification passe par un gabarit modifiable
+// (`/admin/system-email-templates`, global et bilingue). Elle ETEND celle du
+// framework : ces trois mesures affirment toujours « l'email de confirmation
+// part », et visent desormais la classe qui part reellement.
+use App\Notifications\VerifyEmailWithTemplate as VerifyEmail;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -128,17 +132,28 @@ class TASK1412EmailVerificationFoundationTest extends TestCase
      * pages s'ouvrent. Une garantie qui disparait sans rien a sa place laisse un
      * trou ou personne ne regarde plus.
      */
-    public function test_an_unverified_member_now_reaches_the_pages_that_were_gated(): void
+    /**
+     * TASK-1694 bug C — ce test RETOURNE une seconde fois, et c'est assume.
+     *
+     * Il affirmait le renvoi ; le bug E de TASK-1693 l'a retourne pour
+     * affirmer l'acces (« il n'y a aucune raison de verifier l'email a ce
+     * stade ») ; Cyril revient sur cette decision — « j'avais fait une
+     * erreur ». Il affirme donc de nouveau le RENVOI.
+     *
+     * Je le retourne plutot que de le supprimer : une garantie qui disparait
+     * sans rien a sa place laisse un trou ou plus personne ne regarde.
+     */
+    public function test_an_unverified_member_is_sent_to_the_verification_notice(): void
     {
         $membre = User::factory()->unverified()->create(['organization_id' => $this->organization->id]);
 
         $this->assertFalse($membre->hasVerifiedEmail(), 'premisse : le compte est bien NON verifie');
 
-        $this->actingAs($membre)->get(route('blog.create'))->assertOk();
+        $this->actingAs($membre)->get(route('blog.create'))->assertRedirect(route('verification.notice'));
 
         $this->actingAs($membre)
             ->get(route('organization.dossiers.index', ['organization' => $this->organization->slug]))
-            ->assertOk();
+            ->assertRedirect(route('verification.notice'));
     }
 
     /**
@@ -148,7 +163,7 @@ class TASK1412EmailVerificationFoundationTest extends TestCase
      * inadvertance. On mesure donc que les deux gardes QUI COMPTENT sont
      * toujours la : `auth` et la frontiere de tenant de TASK-1692.
      */
-    public function test_removing_the_verification_guard_left_auth_and_the_tenant_boundary_intact(): void
+    public function test_auth_and_the_tenant_boundary_are_intact(): void
     {
         $url = route('organization.dossiers.index', ['organization' => $this->organization->slug]);
 
@@ -286,12 +301,12 @@ class TASK1412EmailVerificationFoundationTest extends TestCase
 
         $this->assertTrue($verifie->hasVerifiedEmail());
         $this->assertFalse($nonVerifie->hasVerifiedEmail());
-        // TASK-1693 bug E — la sonde ne peut plus s'appuyer sur une PAGE : plus
-        // aucune n'est gardee par la verification. Elle porte donc sur ce qui
-        // distingue reellement les deux comptes — l'etat du modele — et sur la
-        // regle METIER qui, elle, exige toujours une adresse verifiee.
+        // TASK-1694 bug C — la sonde reprend son appui sur une PAGE : la
+        // verification garde de nouveau les surfaces de membre. C'est une
+        // mesure plus forte que l'etat du modele seul, puisqu'elle prouve que
+        // la garde AGIT.
         $this->actingAs($verifie)->get(route('blog.create'))->assertOk();
-        $this->actingAs($nonVerifie)->get(route('blog.create'))->assertOk();
+        $this->actingAs($nonVerifie)->get(route('blog.create'))->assertRedirect(route('verification.notice'));
 
         $this->assertNotNull($verifie->email_verified_at);
         $this->assertNull($nonVerifie->email_verified_at);

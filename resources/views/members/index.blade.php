@@ -36,7 +36,8 @@
                 <div class="flex items-center gap-3">
                     <div class="relative flex-shrink-0">
                         <img src="{{ $member->avatar_url }}" class="w-12 h-12 rounded-full" alt="">
-                        @if($member->is_available)
+                        {{-- TASK-1694 bug AE — pastille conditionnee a la fonctionnalite. --}}
+                        @if(availabilityIsShown() && $member->is_available)
                         <span class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></span>
                         @endif
                     </div>

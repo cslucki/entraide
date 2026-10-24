@@ -56,6 +56,28 @@ return [
     'ai_shell_toggle_desc' => 'When unchecked, the floating badge and its chat panel no longer appear — even if AI remains enabled for this organization. Other AI features (rewording, summaries, agents) are unaffected.',
     'ai_shell_toggle_saved' => '“BouclePro AI” assistant: setting saved for this organization.',
     'ai_shell_section_desc' => 'Where the floating button and its panel appear, organization by organization. The first box turns everything off. Private conversations, ChatLoop and discovery pages never carry it: those three are product decisions, and no box reopens them.',
+    // TASK-1694 bug J — renvoyer le lien de confirmation, depuis /admin/users.
+    'users_resend_verification' => 'Resend link',
+    'users_resend_verification_sent' => 'Confirmation link resent to :name. It is valid for 24 hours.',
+    'users_resend_verification_already' => 'The address :name is already verified: no link was resent.',
+
+    // TASK-1694 bug K — « Lien de réinitialisation » etait ambigu dans une
+    // colonne qui porte DEUX liens envoyes par email (confirmation d'adresse
+    // et mot de passe). Le libelle dit maintenant DE QUOI il s'agit.
+    'users_password_reset_link' => 'Password reset',
+
+    // TASK-1694 bug L — le choix du gabarit, pose DANS la ligne du membre.
+    // TASK-1694 bug V — le modal centre, et son filtre.
+    'users_send_email_title' => 'Send a template email',
+    'users_send_email_filter' => 'Filter templates…',
+    'users_send_email_confirm_generic' => 'Send this email to this person?',
+    'users_send_email_submit' => 'Send',
+    'users_send_email_none' => 'No email template exists yet.',
+    'users_send_email_create' => 'Create a template',
+    'users_send_email_confirm' => 'Send this email to :name?',
+    'users_send_email_sent' => '“:template” sent to :name.',
+    'users_send_email_failed' => 'Sending to :name failed. See the email logs.',
+    'users_send_email_inactive' => 'No email sent: the account :name is banned or inactive.',
     // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
     // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
     // pas un tout-cocher : « Partout » se lisait comme une selection globale.
@@ -504,11 +526,32 @@ return [
 
     // System email templates
     // TASK-1681 — absence of a row is normal: the mailer falls back to Blade.
+    // TASK-1694 bug AB — adapter un gabarit Plateforme a son Organization.
+    // TASK-1694 bug AD — le compteur de gabarits systeme.
+    'system_email_count_shown' => '{0}No template shown|{1}1 template shown|[2,*]:count templates shown',
+    'system_email_count_total' => 'of :count in total',
+    'system_email_count_breakdown' => ':globaux global · :tenants attached to an organization',
+    'system_email_source' => 'Source',
+    'system_email_source_org' => 'This organization',
+    'system_email_source_platform' => 'Platform',
+    'system_email_adapt' => 'Adapt',
+    'system_email_adapted' => 'Copy created for your organization, disabled. Review the text then enable it: while it is inactive, the platform version keeps being sent.',
+    'system_email_adapt_exists' => 'Your organization already has a version of this template.',
+    'system_email_adapt_hint' => '“Platform” templates cannot be edited here: “Adapt” creates a copy that belongs to your organization.',
     'system_email_desc' => 'These templates are optional overrides of system emails (automatic notifications). A template missing from this list is not an anomaly: the email is then sent with the application default template. Leave a template disabled to fall back to the default.',
     'system_email_no_override' => 'No custom override for this template. The default email template is currently in use.',
     'system_email_default_badge' => 'Default system template',
     'system_email_default_in_use' => 'Currently in use',
     'system_email_default_in_use_partial' => 'Used for Organizations without an active customization',
+    // TASK-1694 bug O — l'ecran sait enfin designer « sans Organization ».
+    // TASK-1694 bug R — la capacite d'editer, gouvernee par Organization.
+    // TASK-1694 bug AE — la disponibilite des membres, par Organization.
+    'org_availability_enabled_label' => 'Member availability',
+    'org_availability_enabled_desc' => 'When unchecked, the green “available” dot and the menu toggle disappear everywhere: directory, profiles, service pages, user menu.',
+    'org_system_emails_editable_label' => 'May edit system emails',
+    'org_system_emails_editable_desc' => 'When unchecked, this organization can no longer adapt system emails (signup confirmation, points granted…): the platform\'s global templates apply. Unrelated to the CRM email templates.',
+    'system_email_only_global' => 'Global only',
+    'system_email_scope_global' => '— Global (all organizations) —',
     'system_email_create_customization' => 'Create a customization',
     'system_email_create_customization_hint' => 'The customization is created disabled: review it, adjust it, then enable it. While disabled, the default template keeps being used.',
     'system_email_customization_created' => 'Customization created, disabled by default. Review it, then enable it.',
@@ -560,6 +603,45 @@ return [
     'emailer_max_50' => 'Maximum 50 recipients per send.',
     'emailer_no_recipients' => 'No valid recipients.',
     'emailer_sent_count' => ':sent sent, :failed failed (of :total)',
+    // TASK-1694 bug W — la documentation des variables de l'Emailer.
+    // TASK-1694 bug Z — la langue d'un gabarit de l'Emailer.
+    // TASK-1694 bug AA — creer pour plusieurs Organizations d'un coup.
+    'select_all_toggle' => 'Select all / none',
+    'emailer_scope_global' => 'Global (all organizations)',
+    'emailer_scope_label' => 'Target organizations',
+    'emailer_scope_hint' => 'Tick one or more targets. One template is created for each.',
+    'emailer_scope_unknown' => 'Unknown target.',
+    'emailer_created_count' => 'Template created for :count target(s).',
+    'emailer_created_partial' => 'Template created for :count target(s). Already existed for: :cibles.',
+    'emailer_created_none' => 'Nothing created: this template already exists for :cibles.',
+    'emailer_duplicate_triplet' => 'A template already uses this slug for that organization and language.',
+    // TASK-1694 bug AK — le type d'appareil dans le journal de connexions.
+    // TASK-1694 bug AN — le tableau de bord de l'Organization par defaut.
+    'org_dashboard_nav' => 'Org dashboard',
+    'device_column' => 'Device',
+    'device_all' => 'All devices',
+    'device_phone' => 'Phone',
+    'device_tablet' => 'Tablet',
+    'device_desktop' => 'Computer',
+    'device_other' => 'Other / tool',
+    'emailer_locale_label' => 'Template language',
+    'emailer_locale_unset' => '— Not specified —',
+    'emailer_locale_any' => 'All languages',
+    'emailer_vars_title' => 'Available variables',
+    'emailer_vars_hint' => 'Write them in double braces, in the subject as well as the body. Inner spaces are tolerated.',
+    'emailer_vars_unknown_note' => 'An unknown variable is not replaced: it goes out in the email as written.',
+    // TASK-1694 bug Y — les alias, nommes comme tels.
+    'emailer_var_alias_badge' => 'Alias',
+    'emailer_var_alias_of' => 'Exactly the same value as :canonique. Both spellings are accepted.',
+    'emailer_var_first_name' => 'Recipient first name',
+    'emailer_var_name' => 'Recipient full name',
+    'emailer_var_full_name' => 'Full name (same as name)',
+    'emailer_var_email' => 'Recipient email address',
+    'emailer_var_city' => 'Recipient city',
+    'emailer_var_organization' => 'Name of the recipient\'s organization',
+    'emailer_var_organization_slug' => 'Organization URL identifier',
+    'emailer_var_organisation' => 'Organization name (French spelling)',
+    'emailer_var_organisation_slug' => 'URL identifier (French spelling)',
     'emailer_single_action' => 'Send email',
     'common_subject' => 'Subject',
     'common_content' => 'Content',
@@ -1168,6 +1250,9 @@ return [
         'dataset_ai_credit_setting_changes_desc' => 'NULL = platform setting, as the migration states.',
         'dataset_system_email_templates' => 'System email templates',
         'dataset_system_email_templates_desc' => 'Unique on organization + locale + slug. NULL = system template.',
+        // TASK-1694 bug U — l'archive, declaree en HistoryNullValid.
+        'dataset_system_email_templates_archive' => 'System e-mail template archive',
+        'dataset_system_email_templates_archive_desc' => 'Trace of the templates removed by the normalization (TASK-1694). Read-only: reassigning a row would rewrite the evidence.',
         'dataset_admin_ai_interactions' => 'Admin AI interactions',
         'dataset_admin_ai_interactions_desc' => 'Platform administration console, outside any Organization.',
         'dataset_ai_interactions' => 'AI interactions',

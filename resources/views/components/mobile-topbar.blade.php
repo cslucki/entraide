@@ -268,7 +268,12 @@
                     {{-- TASK-1625 — Flux a quitte ce menu : il a son onglet dans la
                          barre basse, sous le pouce. Le garder ici doublait une
                          destination deja permanente a l'ecran. --}}
-                    <form method="POST" action="{{ $routeUrl('profile.availability', 'organization.profile.availability') }}">
+                    {{-- TASK-1694 bug AE — meme bascule que le rail gauche, meme garde.
+                         Deux copies du meme geste : les oublier a moitie laisserait la
+                         fonctionnalite vivante sur smartphone. --}}
+                    @if(availabilityIsShown())
+                    <form method="POST" action="{{ $routeUrl('profile.availability', 'organization.profile.availability') }}"
+                          data-availability-toggle>
                         @csrf
                         @method('PATCH')
                         <button type="submit" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 transition duration-150 ease-in-out focus:outline-none {{ auth()->user()->is_available ? 'text-emerald-700 hover:bg-emerald-50 focus:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40 dark:focus:bg-emerald-950/40' : 'text-gray-600 hover:bg-gray-100 focus:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:bg-gray-700' }}">
@@ -276,6 +281,7 @@
                             {{ auth()->user()->is_available ? __('dashboard.available') : __('dashboard.unavailable') }}
                         </button>
                     </form>
+                    @endif
                     <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()->profileRouteKey()]) : route('profile.show', auth()->user()->profileRouteKey())">{{ __('navigation.profile') }}</x-dropdown-link>
                     @if(!$currentOrganization || $currentOrganization->ai_profiles_enabled)
                     <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>

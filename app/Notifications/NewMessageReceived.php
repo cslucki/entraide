@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use App\Models\Message;
 use App\Models\SystemEmailTemplate;
+use App\Support\Email\SystemEmailTemplateResolver;
 use App\Models\Transaction;
 use App\Services\EmailerService;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -42,7 +43,9 @@ class NewMessageReceived extends Notification
 
             return (new MailMessage)
                 ->subject($emailer->interpolateSubject($template->subject, $vars, array_keys($extraVars)))
-                ->view('emails.system-email', [
+                // TASK-1694 bug P — `markdown()` et non `view()` : c'est ce chemin
+                // qui declenche l'habillage et l'incorporation des styles.
+                ->markdown('emails.system-email', [
                     'html' => $emailer->interpolate($template->content_html, $vars, array_keys($extraVars)),
                 ]);
         }
@@ -56,41 +59,17 @@ class NewMessageReceived extends Notification
             ]);
     }
 
+    /**
+     * TASK-1694 bug M — la résolution a QUITTÉ ce fichier.
+     *
+     * Cette méthode était l'une des sept copies de la même logique, et elle ne
+     * regardait que les lignes du tenant : une ligne « Global » lui était
+     * invisible.
+     * `SystemEmailTemplateResolver` est désormais l'autorité unique — six crans,
+     * du plus spécifique au Blade. Voir sa documentation.
+     */
     private function resolveTemplate(string $slug, object $notifiable): ?SystemEmailTemplate
     {
-        $organizationId = $notifiable->organization_id ?? null;
-        $locale = $notifiable->preferred_locale ?? app()->getLocale();
-
-        if (! $organizationId) {
-            return SystemEmailTemplate::where('slug', $slug)->where('enabled', true)->first();
-        }
-
-        $organization = $notifiable->organization;
-
-        $query = SystemEmailTemplate::where('slug', $slug)->where('enabled', true);
-
-        $template = (clone $query)
-            ->where('organization_id', $organizationId)
-            ->where('locale', $locale)
-            ->first();
-
-        if ($template) {
-            return $template;
-        }
-
-        $defaultLocale = $organization?->locale ?? 'fr';
-
-        if ($locale !== $defaultLocale) {
-            $template = (clone $query)
-                ->where('organization_id', $organizationId)
-                ->where('locale', $defaultLocale)
-                ->first();
-
-            if ($template) {
-                return $template;
-            }
-        }
-
-        return null;
+        return app(SystemEmailTemplateResolver::class)->resolveForNotifiable($slug, $notifiable);
     }
 }

@@ -3,7 +3,8 @@
 return [
     'agenda' => 'Agenda',
     'agenda_hint' => 'Rencontres',
-    'exchanges' => 'Échanges',
+    // TASK-1694 bug A — le terme produit devient « Entraide » (decision Cyril).
+    'exchanges' => 'Entraide',
     'directory' => 'Annuaire',
     'blog' => 'Blog',
     'loops' => 'Boucles',

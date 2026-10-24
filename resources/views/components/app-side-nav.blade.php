@@ -374,7 +374,21 @@
                     <x-slot name="trigger">
                         <button class="relative flex h-9 w-9 items-center justify-center rounded-full ring-2 ring-white transition hover:scale-105 dark:ring-gray-800" aria-label="{{ __('navigation.user_menu') }}">
                             <img src="{{ Auth::user()->avatar_url }}" class="h-8 w-8 rounded-full object-cover" alt="{{ Auth::user()->full_name }}">
-                            <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--bp-surface)] bg-[var(--bp-progress)]"></span>
+                            {{-- TASK-1694 bug AF — la pastille de l'avatar, signalee par
+                                 Cyril le 24/10 : elle survivait a la desactivation du bug AE.
+
+                                 Et elle portait un SECOND defaut, pire : elle ne lisait PAS
+                                 `is_available`. Elle etait verte en dur, quelle que soit la
+                                 disponibilite reelle — un indicateur qui ne mesure rien, pose
+                                 a cote d'une bascule qui, elle, dit la verite. Les deux se
+                                 contredisaient a l'ecran.
+
+                                 Elle suit desormais la meme valeur et les memes couleurs que
+                                 la bascule du menu, juste en dessous. --}}
+                            @if(availabilityIsShown())
+                                <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--bp-surface)] {{ Auth::user()->is_available ? 'bg-emerald-500' : 'bg-gray-400 dark:bg-gray-500' }}"
+                                      data-availability-dot="{{ Auth::user()->is_available ? 'available' : 'unavailable' }}"></span>
+                            @endif
                         </button>
                     </x-slot>
                     <x-slot name="content">
@@ -397,7 +411,13 @@
                                     <span>{{ __('navigation.feed') }}</span>
                                 </a>
                             @endif
-                            <form method="POST" action="{{ $routeUrl('profile.availability', 'organization.profile.availability') }}">
+                            {{-- TASK-1694 bug AE — « dans le menu utilisateur ». La bascule
+                                 disparait avec la fonctionnalite : laisser un bouton qui
+                                 change une valeur que plus personne ne voit serait un
+                                 geste sans effet visible, donc un piege. --}}
+                            @if(availabilityIsShown())
+                            <form method="POST" action="{{ $routeUrl('profile.availability', 'organization.profile.availability') }}"
+                                  data-availability-toggle>
                                 @csrf
                                 @method('PATCH')
                                 <button type="submit" @click="open = false" class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm font-semibold transition {{ Auth::user()->is_available ? 'text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700' }}">
@@ -405,6 +425,7 @@
                                     <span>{{ Auth::user()->is_available ? __('dashboard.available') : __('dashboard.unavailable') }}</span>
                                 </button>
                             </form>
+                            @endif
                             <a href="{{ $organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()->profileRouteKey()]) : route('profile.show', Auth::user()->profileRouteKey()) }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/><path d="M4.5 20.25a8.25 8.25 0 1116.5 0"/></svg>
                                 <span>{{ __('navigation.profile') }}</span>

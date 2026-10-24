@@ -204,10 +204,21 @@ class TASK1692StrictHttpIsolationTest extends TestCase
         ]);
         $url = route('organization.dossiers.index', ['organization' => $this->b->slug]);
 
+        // LA GARANTIE DE SECURITE, inchangee : l'etranger recoit un 404, jamais
+        // une redirection vers /verify-email. Une redirection lui APPRENDRAIT
+        // que la surface existe — l'oracle que cette TASK a ferme.
         $this->actingAs($unverifiedA)->get($url)->assertNotFound();
 
+        // TASK-1694 bug C — la seconde moitie CHANGE DE SENS, et c'est voulu.
+        //
+        // Le membre legitime mais NON VERIFIE passait (la verification ne
+        // gardait plus rien depuis TASK-1693 bug E) ; elle est de nouveau
+        // obligatoire, il est donc renvoye vers la confirmation. Ce qui
+        // compte ici reste la DIFFERENCE entre les deux reponses : 404 pour
+        // l'etranger, redirection pour le membre. Deux refus de nature
+        // differente, et c'est precisement ce que ce test protege.
         $this->forgetOrganization();
-        $this->actingAs($unverifiedB)->get($url)->assertOk();
+        $this->actingAs($unverifiedB)->get($url)->assertRedirect(route('verification.notice'));
     }
 
     public function test_d_superadmin_keeps_transverse_access_without_membership_side_effect(): void

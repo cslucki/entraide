@@ -14,6 +14,50 @@ if (! function_exists('currentOrganization')) {
     }
 }
 
+if (! function_exists('availabilityIsShown')) {
+    /**
+     * TASK-1694 bug AE — faut-il afficher la disponibilite des membres ?
+     *
+     * Une seule lecture, pour les CINQ surfaces qui portaient la pastille.
+     * Cyril en a nomme trois et ajoute « et tous les autres endroits » :
+     * l'inventaire du 24/10 en a trouve deux de plus, dont la fiche d'un
+     * Service. Une condition recopiee cinq fois aurait fini par diverger, et
+     * c'est justement la surface oubliee qui aurait garde le point vert.
+     *
+     * La question porte sur l'Organization COURANTE — le tenant dont on
+     * regarde les pages — et non sur celle de la personne affichee : c'est
+     * l'ecran qui decide de ce qu'il montre, pas la donnee.
+     *
+     * Hors tenant (pages sans Organization), la reponse est `true` : l'absence
+     * de contexte n'est pas un « non », et faire disparaitre la fonctionnalite
+     * par accident serait pire que la laisser.
+     */
+    function availabilityIsShown(): bool
+    {
+        // TASK-1694 bug AI — hors preface d'URL, l'Organization COURANTE n'est
+        // pas celle qu'on croit.
+        //
+        // Signale par Cyril le 24/10 : la case restait visible sur
+        // `/profile/edit` alors qu'OFSH avait la fonctionnalite decochee.
+        // Mesure : `currentOrganization()` retombe sur l'Organization PAR
+        // DEFAUT (`main`) des que l'URL ne porte pas de prefixe — et `main`,
+        // elle, l'a activee. La page repondait donc pour une Organization dont
+        // la personne ne regardait pas les pages.
+        //
+        // La regle est donc : s'il y a un tenant DANS L'URL, c'est lui qui
+        // decide — c'est l'ecran d'une Organization, et c'est elle qui dit ce
+        // qu'elle montre. Sinon, c'est l'Organization de la personne connectee :
+        // sur une page sans tenant, elle ne voit que ses propres donnees.
+        $route = request()?->route();
+
+        $organization = $route?->parameter('organization')
+            ? currentOrganization()
+            : (auth()->user()?->organization ?? currentOrganization());
+
+        return $organization?->availabilityEnabled() ?? true;
+    }
+}
+
 if (! function_exists('organizationRoute')) {
     /**
      * Generate a URL for an organization route.
