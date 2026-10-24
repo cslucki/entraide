@@ -404,4 +404,46 @@ class TASK1695LoopFileShareTest extends TestCase
         $this->assertSame(0, DossierFileLoopShare::query()->count());
         $this->assertFalse($this->membre->fresh()->can('viewFiles', $this->fichier));
     }
+
+    /**
+     * On ne REÇOIT pas ce qu'on a soi-même partagé.
+     *
+     * Vu au navigateur (24/10, recette de Cyril) : user2, membre de la Boucle
+     * cible, « recevait » son propre LevantinDoc.pdf sous « Reçus ». Le
+     * partageur est destinataire de son propre geste dès qu'il est membre —
+     * c'est mécaniquement vrai et humainement absurde.
+     */
+    public function test_the_sharer_does_not_receive_their_own_loop_share(): void
+    {
+        // Le proprietaire est AUSSI membre de la Boucle (il l'a creee).
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $this->assertStringNotContainsString(
+            e($this->fichier->nomLisible()),
+            $this->espace($this->proprietaire, 'avec-moi'),
+        );
+
+        // Et le MEMBRE, lui, le recoit toujours — l'exclusion vise le geste,
+        // pas la Boucle.
+        $this->assertStringContainsString(
+            e($this->fichier->nomLisible()),
+            $this->espace($this->membre, 'avec-moi'),
+        );
+    }
+
+    /**
+     * La date de partage s'affiche AUSSI pour un partage de Boucle.
+     *
+     * Vu au navigateur : la colonne restait vide — elle ne lisait que les
+     * partages nominatifs.
+     */
+    public function test_the_share_date_shows_for_loop_shares(): void
+    {
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $date = \App\Models\DossierFileLoopShare::query()->sole()
+            ->created_at->translatedFormat('j M Y');
+
+        $this->assertStringContainsString($date, $this->espace($this->membre, 'avec-moi'));
+    }
 }

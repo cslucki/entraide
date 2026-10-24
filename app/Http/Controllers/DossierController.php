@@ -193,16 +193,25 @@ class DossierController extends Controller
                 ->where('organization_id', $organization->id)
                 ->whereHas('activeMembers', fn ($m) => $m->where('user_id', $userId));
 
+            // « Recu » exclut ce que J'AI partage : etant membre de la Boucle
+            // cible, le partageur est destinataire de son propre geste — vu au
+            // navigateur le 24/10, user2 « recevait » son propre LevantinDoc.
+            // `shared_by` NULL (auteur disparu) reste recu : le partage, lui,
+            // est toujours un partage de quelqu'un d'autre.
+            $recuDUnAutre = fn ($q) => $q
+                ->where(fn ($w) => $w->whereNull('shared_by')->orWhere('shared_by', '!=', $userId));
+
             $fichiersAvecMoi = DossierFile::query()
                 ->withoutTrashed()
                 ->where('organization_id', $organization->id)
                 ->where(fn ($q) => $q
                     ->whereHas('shares', fn ($s) => $s->where('user_id', $userId))
-                    ->orWhereHas('loopShares.loop', $mesBouclesActives))
+                    ->orWhereHas('loopShares', fn ($s) => $recuDUnAutre($s)
+                        ->whereHas('loop', $mesBouclesActives)))
                 ->with([
                     'shares' => fn ($q) => $q->where('user_id', $userId),
                     'shares.sharedBy:id,first_name,avatar,name,email,banned_at,organization_id',
-                    'loopShares' => fn ($q) => $q->whereHas('loop', $mesBouclesActives),
+                    'loopShares' => fn ($q) => $recuDUnAutre($q)->whereHas('loop', $mesBouclesActives),
                     'loopShares.loop:id,name,organization_id',
                     'loopShares.sharedBy:id,first_name,avatar,name,email,banned_at,organization_id',
                 ])

@@ -350,7 +350,11 @@
                                                 </span>
                                             @endif
                                             @if($vue === 'avec-moi')
-                                                <span class="{{ $celluleF }}">{{ $partage?->created_at?->translatedFormat('j M Y') }}</span>
+                                                {{-- La date vient du partage qui me CONCERNE :
+                                                     nominatif d'abord, de Boucle sinon. Sans le
+                                                     repli, la colonne restait VIDE pour un
+                                                     partage de Boucle (vu au navigateur, 24/10). --}}
+                                                <span class="{{ $celluleF }}">{{ ($partage?->created_at ?? $partageBoucle?->created_at)?->translatedFormat('j M Y') }}</span>
                                             @endif
                                             <span class="flex justify-end">
                                                 @if($vue === 'par-moi')
