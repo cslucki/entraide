@@ -595,6 +595,9 @@ return [
     'emailer_vars_title' => 'Variables disponibles',
     'emailer_vars_hint' => 'À écrire entre accolades doubles, dans le sujet comme dans le contenu. Les espaces intérieurs sont tolérés.',
     'emailer_vars_unknown_note' => 'Une variable inconnue n\'est pas remplacée : elle part telle quelle dans l\'email.',
+    // TASK-1694 bug Y — les alias, nommes comme tels.
+    'emailer_var_alias_badge' => 'Alias',
+    'emailer_var_alias_of' => 'Exactement la même valeur que :canonique. Les deux écritures sont acceptées.',
     'emailer_var_first_name' => 'Prénom du destinataire',
     'emailer_var_name' => 'Nom complet du destinataire',
     'emailer_var_full_name' => 'Nom complet (identique à name)',

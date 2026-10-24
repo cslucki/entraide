@@ -172,6 +172,86 @@ class TASK1694EmailerVariablesDocTest extends TestCase
     }
 
     /**
+     * TASK-1694 bug Y — la carte d'alias NE MENT PAS.
+     *
+     * C'est le test qui compte de ce correctif. Une carte fausse serait pire
+     * que pas de carte : elle ferait écrire des gabarits sur une équivalence
+     * qui n'existe pas. Chaque alias déclaré doit rendre **exactement** la même
+     * valeur que son nom canonique.
+     */
+    public function test_every_declared_alias_really_yields_the_same_value(): void
+    {
+        $vars = app(EmailerService::class)->availableVariables($this->superAdmin);
+
+        $this->assertNotEmpty(EmailerService::VAR_ALIASES);
+
+        foreach (EmailerService::VAR_ALIASES as $alias => $canonique) {
+            $this->assertArrayHasKey($alias, $vars);
+            $this->assertArrayHasKey($canonique, $vars);
+            $this->assertSame(
+                $vars[$canonique],
+                $vars[$alias],
+                "« {$alias} » est annonce comme un alias de « {$canonique} », mais les valeurs different",
+            );
+        }
+    }
+
+    /**
+     * Et un alias n'est jamais présenté comme sa propre chose.
+     *
+     * Le défaut signalé par Cyril : `organization` et `organisation` posés côte
+     * à côte, sans rien qui dise qu'ils sont identiques. Devant ça, on hésite
+     * — et hésiter devant une documentation, c'est qu'elle manque.
+     */
+    public function test_the_screens_say_which_variables_are_aliases(): void
+    {
+        foreach ($this->ecrans() as $ecran) {
+            $bloc = $this->blocDeDocumentation($this->html($ecran));
+
+            foreach (EmailerService::VAR_ALIASES as $alias => $canonique) {
+                $this->assertStringContainsString(
+                    'data-emailer-variable-alias="'.$alias.'"',
+                    $bloc,
+                    "« {$alias} » doit etre signale comme alias sur l'ecran « {$ecran} »",
+                );
+            }
+
+            $this->assertStringContainsString(
+                __('admin.emailer_var_alias_badge'),
+                $bloc,
+                'le libelle du badge doit etre rendu, pas seulement le marqueur',
+            );
+        }
+    }
+
+    /**
+     * Les variables qui NE SONT PAS des alias n'en portent pas la marque.
+     *
+     * Sans cette moitié, marquer tout le monde « alias » passerait le test
+     * précédent — et la documentation serait aussi trompeuse qu'avant, dans
+     * l'autre sens.
+     */
+    public function test_a_canonical_variable_is_not_marked_as_an_alias(): void
+    {
+        $bloc = $this->blocDeDocumentation($this->html('create'));
+
+        $canoniques = array_diff(
+            EmailerService::ALLOWED_VARS,
+            array_keys(EmailerService::VAR_ALIASES),
+        );
+
+        $this->assertNotEmpty($canoniques);
+
+        foreach ($canoniques as $variable) {
+            $this->assertStringNotContainsString(
+                'data-emailer-variable-alias="'.$variable.'"',
+                $bloc,
+                "« {$variable} » n'est pas un alias : il ne doit pas en porter la marque",
+            );
+        }
+    }
+
+    /**
      * Les deux noms FANTÔMES ont disparu.
      *
      * Sans cette moitié, ajouter la vraie liste **à côté** de l'ancienne aide

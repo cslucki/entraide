@@ -592,6 +592,9 @@ return [
     'emailer_vars_title' => 'Available variables',
     'emailer_vars_hint' => 'Write them in double braces, in the subject as well as the body. Inner spaces are tolerated.',
     'emailer_vars_unknown_note' => 'An unknown variable is not replaced: it goes out in the email as written.',
+    // TASK-1694 bug Y — les alias, nommes comme tels.
+    'emailer_var_alias_badge' => 'Alias',
+    'emailer_var_alias_of' => 'Exactly the same value as :canonique. Both spellings are accepted.',
     'emailer_var_first_name' => 'Recipient first name',
     'emailer_var_name' => 'Recipient full name',
     'emailer_var_full_name' => 'Full name (same as name)',

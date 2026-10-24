@@ -52,6 +52,20 @@
      * aucune accolade littérale a echapper, donc rien a se tromper.
      */
     $_formes = collect($_vars)->mapWithKeys(fn (string $v) => [$v => '{{ '.$v.' }}']);
+
+    /*
+     * TASK-1694 bug Y — les alias sont NOMMES comme tels.
+     *
+     * Cyril, devant la version precedente : « je ne comprends pas la difference
+     * entre organization et organisation ». Il n'y en a aucune. L'ecran les
+     * presentait cote a cote comme deux choses distinctes — une documentation
+     * qui laisse deviner une equivalence ne documente pas, elle fait hesiter.
+     *
+     * La carte vient d'`EmailerService::VAR_ALIASES`, declaree a cote de la
+     * liste et PROUVEE par un test : chaque alias rend la meme valeur que son
+     * nom canonique.
+     */
+    $_alias = \App\Services\EmailerService::VAR_ALIASES;
 @endphp
 
 <div class="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-800 dark:bg-indigo-900/20"
@@ -76,7 +90,13 @@
                           data-emailer-variable="{{ $_var }}">{{ $_formes[$_var] }}</code>
                 </dt>
                 <dd class="text-xs text-gray-600 dark:text-gray-400">
-                    {{ __('admin.emailer_var_'.$_var) === 'admin.emailer_var_'.$_var ? $_var : __('admin.emailer_var_'.$_var) }}
+                    @isset($_alias[$_var])
+                        <span class="inline-block rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                              data-emailer-variable-alias="{{ $_var }}">{{ __('admin.emailer_var_alias_badge') }}</span>
+                        {{ __('admin.emailer_var_alias_of', ['canonique' => $_formes[$_alias[$_var]]]) }}
+                    @else
+                        {{ __('admin.emailer_var_'.$_var) === 'admin.emailer_var_'.$_var ? $_var : __('admin.emailer_var_'.$_var) }}
+                    @endisset
                 </dd>
             </div>
         @endforeach
