@@ -198,6 +198,92 @@ class TASK1694OrgAvailabilityToggleTest extends TestCase
     }
 
     /**
+     * TASK-1694 bug AF — la pastille de l'AVATAR, dans le rail.
+     *
+     * ## Ce que mon test du bug AE ne mesurait pas
+     *
+     * Il vérifiait `data-availability-toggle` — le **marqueur que j'avais
+     * posé**, sur la bascule du menu déroulant. Le rail portait une **seconde**
+     * pastille, sur l'avatar lui-même, et elle survivait à la désactivation.
+     * Cyril l'a vue d'un coup d'œil sur une capture d'écran.
+     *
+     * Mesurer le marqueur qu'on vient d'ajouter ne prouve rien sur les
+     * indicateurs qu'on n'a pas vus. *(Même famille que le bug X : un marqueur
+     * prouve qu'un élément existe, jamais ce que la page affiche.)*
+     */
+    public function test_the_avatar_dot_follows_the_setting(): void
+    {
+        $url = route('organization.dashboard', ['organization' => $this->organization->slug]);
+
+        $this->actif(true);
+        $this->assertStringContainsString(
+            'data-availability-dot',
+            $this->actingAs($this->membre)->get($url)->assertOk()->getContent(),
+        );
+
+        $this->actif(false);
+        $this->assertStringNotContainsString(
+            'data-availability-dot',
+            $this->actingAs($this->membre)->get($url)->assertOk()->getContent(),
+        );
+    }
+
+    /**
+     * Et elle DIT la vérité — c'est le second défaut, et le plus grave.
+     *
+     * Avant le bug AF, cette pastille ne lisait **pas** `is_available` : elle
+     * était verte **en dur**, quelle que soit la disponibilité réelle. Un
+     * indicateur qui ne mesure rien, posé juste au-dessus d'une bascule qui,
+     * elle, dit la vérité : les deux se contredisaient à l'écran.
+     *
+     * Ce test mesure la valeur portée, pas la seule présence.
+     */
+    public function test_the_avatar_dot_reflects_the_real_value(): void
+    {
+        $url = route('organization.dashboard', ['organization' => $this->organization->slug]);
+        $this->actif(true);
+
+        $this->membre->update(['is_available' => true]);
+        $this->assertStringContainsString(
+            'data-availability-dot="available"',
+            $this->actingAs($this->membre)->get($url)->assertOk()->getContent(),
+        );
+
+        $this->membre->update(['is_available' => false]);
+        $this->assertStringContainsString(
+            'data-availability-dot="unavailable"',
+            $this->actingAs($this->membre)->get($url)->assertOk()->getContent(),
+        );
+    }
+
+    /**
+     * Et plus AUCUN indicateur de disponibilité dans le rail, désactivée.
+     *
+     * Le filet qui aurait attrapé le défaut du bug AF : il ne nomme pas un
+     * marqueur, il mesure l'absence des **couleurs** qui servent à dire
+     * « disponible » — y compris sur un élément que je n'aurais pas vu.
+     */
+    public function test_no_availability_indicator_survives_in_the_rail(): void
+    {
+        $this->actif(false);
+
+        $html = $this->actingAs($this->membre)
+            ->get(route('organization.dashboard', ['organization' => $this->organization->slug]))
+            ->assertOk()
+            ->getContent();
+
+        foreach (['data-availability-dot', 'data-availability-toggle', 'dashboard.available'] as $trace) {
+            $this->assertStringNotContainsString($trace, $html);
+        }
+
+        $this->assertStringNotContainsString(
+            __('dashboard.available'),
+            $html,
+            'aucun libelle de disponibilite ne doit subsister',
+        );
+    }
+
+    /**
      * Désactiver n'EFFACE pas la donnée.
      *
      * C'est un retrait d'affichage, pas une suppression : réactiver doit rendre

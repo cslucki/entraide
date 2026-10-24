@@ -374,7 +374,21 @@
                     <x-slot name="trigger">
                         <button class="relative flex h-9 w-9 items-center justify-center rounded-full ring-2 ring-white transition hover:scale-105 dark:ring-gray-800" aria-label="{{ __('navigation.user_menu') }}">
                             <img src="{{ Auth::user()->avatar_url }}" class="h-8 w-8 rounded-full object-cover" alt="{{ Auth::user()->full_name }}">
-                            <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--bp-surface)] bg-[var(--bp-progress)]"></span>
+                            {{-- TASK-1694 bug AF — la pastille de l'avatar, signalee par
+                                 Cyril le 24/10 : elle survivait a la desactivation du bug AE.
+
+                                 Et elle portait un SECOND defaut, pire : elle ne lisait PAS
+                                 `is_available`. Elle etait verte en dur, quelle que soit la
+                                 disponibilite reelle — un indicateur qui ne mesure rien, pose
+                                 a cote d'une bascule qui, elle, dit la verite. Les deux se
+                                 contredisaient a l'ecran.
+
+                                 Elle suit desormais la meme valeur et les memes couleurs que
+                                 la bascule du menu, juste en dessous. --}}
+                            @if(availabilityIsShown())
+                                <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--bp-surface)] {{ Auth::user()->is_available ? 'bg-emerald-500' : 'bg-gray-400 dark:bg-gray-500' }}"
+                                      data-availability-dot="{{ Auth::user()->is_available ? 'available' : 'unavailable' }}"></span>
+                            @endif
                         </button>
                     </x-slot>
                     <x-slot name="content">
