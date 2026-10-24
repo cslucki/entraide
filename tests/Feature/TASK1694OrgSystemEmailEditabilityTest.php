@@ -173,6 +173,34 @@ class TASK1694OrgSystemEmailEditabilityTest extends TestCase
     }
 
     /**
+     * TASK-1694 bug AH — le libellé nomme les emails SYSTÈME.
+     *
+     * Il disait « emails types », et Cyril l'a lu comme « modèles d'email » —
+     * ceux du CRM, sur `/admin/email-templates`. Il a donc cru que cette case
+     * gouvernait un écran qu'elle ne touche pas, et conclu à un défaut là où il
+     * n'y en avait pas.
+     *
+     * Un libellé qui fait chercher un défaut ailleurs coûte plus qu'un libellé
+     * imprécis : il envoie quelqu'un sur une fausse piste. La description le dit
+     * maintenant en toutes lettres, y compris ce que la case ne gouverne **pas**.
+     */
+    public function test_the_label_names_system_emails(): void
+    {
+        $html = $this->actingAs($this->superAdmin)
+            ->withSession(['locale' => 'fr'])
+            ->get(route('admin.organizations.edit', $this->organization))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('emails système', $html);
+        $this->assertStringNotContainsString(
+            'Possibilité de modifier les emails types',
+            $html,
+            'l\'ancien libelle envoyait chercher un defaut sur l\'ecran du CRM',
+        );
+    }
+
+    /**
      * Retirer la capacité ne détruit AUCUNE ligne.
      *
      * Un retrait de capacité n'est pas une suppression de données : les lignes

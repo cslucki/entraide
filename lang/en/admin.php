@@ -548,8 +548,8 @@ return [
     // TASK-1694 bug AE — la disponibilite des membres, par Organization.
     'org_availability_enabled_label' => 'Member availability',
     'org_availability_enabled_desc' => 'When unchecked, the green “available” dot and the menu toggle disappear everywhere: directory, profiles, service pages, user menu.',
-    'org_system_emails_editable_label' => 'May edit system email templates',
-    'org_system_emails_editable_desc' => 'When unchecked, this organization can no longer edit its system email templates: the platform\'s global templates apply.',
+    'org_system_emails_editable_label' => 'May edit system emails',
+    'org_system_emails_editable_desc' => 'When unchecked, this organization can no longer adapt system emails (signup confirmation, points granted…): the platform\'s global templates apply. Unrelated to the CRM email templates.',
     'system_email_only_global' => 'Global only',
     'system_email_scope_global' => '— Global (all organizations) —',
     'system_email_create_customization' => 'Create a customization',

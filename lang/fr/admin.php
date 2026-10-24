@@ -551,8 +551,8 @@ return [
     // TASK-1694 bug AE — la disponibilite des membres, par Organization.
     'org_availability_enabled_label' => 'Disponibilité des membres',
     'org_availability_enabled_desc' => 'Quand décoché, la pastille verte « disponible » et la bascule du menu disparaissent partout : annuaire, profils, fiches de service, menu utilisateur.',
-    'org_system_emails_editable_label' => 'Possibilité de modifier les emails types',
-    'org_system_emails_editable_desc' => 'Quand décoché, cette Organization ne peut plus éditer ses gabarits d\'emails système : les modèles Global de la plateforme s\'appliquent.',
+    'org_system_emails_editable_label' => 'Possibilité de modifier les emails système',
+    'org_system_emails_editable_desc' => 'Quand décoché, cette Organization ne peut plus adapter les emails système (confirmation d\'inscription, affectation de points…) : les modèles Global de la plateforme s\'appliquent. Sans rapport avec les modèles d\'email du CRM.',
     'system_email_only_global' => 'Global uniquement',
     'system_email_scope_global' => '— Global (toutes les Organizations) —',
     'system_email_create_customization' => 'Créer une personnalisation',
