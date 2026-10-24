@@ -1882,6 +1882,10 @@ Route::prefix('/org/{organization}')
 
                 // System email templates (org-scoped)
                 Route::get('/system-email-templates', [OrgAdminController::class, 'systemEmailTemplates'])->name('system-email-templates');
+                // TASK-1694 bug AB — cloner un gabarit Global vers cette Organization.
+                // Declaree AVANT /{systemEmailTemplate}/edit pour rester lisible a
+                // cote d'elle ; les chemins ne se recouvrent pas.
+                Route::post('/system-email-templates/{systemEmailTemplate}/adapter', [OrgAdminController::class, 'adaptSystemEmailTemplate'])->name('system-email-templates.adapt');
                 Route::get('/system-email-templates/{systemEmailTemplate}/edit', [OrgAdminController::class, 'editSystemEmailTemplate'])->name('system-email-templates.edit');
                 Route::put('/system-email-templates/{systemEmailTemplate}', [OrgAdminController::class, 'updateSystemEmailTemplate'])->name('system-email-templates.update');
             });

@@ -4,6 +4,12 @@
             <p class="text-sm text-gray-500 dark:text-gray-400">
                 {{ __('admin.system_email_desc') }}
             </p>
+            {{-- TASK-1694 bug AB — dire POURQUOI certains gabarits ne s'editent pas.
+                 Un bouton « Adapter » la ou on attend « Modifier » est une surprise
+                 si rien ne l'explique. --}}
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400" data-system-email-adapt-hint>
+                {{ __('admin.system_email_adapt_hint') }}
+            </p>
         </div>
 
         <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
@@ -36,13 +42,22 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.common_name') }}</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.slug') }}</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.common_subject') }}</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.system_email_source') }}</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.status') }}</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.outils.action') }}</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                        @forelse($templates as $template)
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        {{-- TASK-1694 bug AB — une ligne par (slug, langue), et la SOURCE est dite.
+                             L'ecran repond a « quel email part de chez moi, et d'ou
+                             vient-il ? », pas a « quelles lignes existent en base ».
+                             Un gabarit non adapte s'affiche dans sa version Plateforme,
+                             avec « Adapter » — c'est la sortie de l'impasse signalee par
+                             Cyril : liste vide et aucun bouton. --}}
+                        @forelse($templates as $_entree)
+                            @php($template = $_entree['template'])
+                            @php($_adapte = $_entree['adapte'])
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50" data-system-email-row="{{ $template->slug }}">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">
                                     {{ strtoupper($template->locale ?? '-') }}
                                 </td>
@@ -56,6 +71,19 @@
                                     {{ $template->subject }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    @if($_adapte)
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200"
+                                              data-system-email-source="organization">
+                                            {{ __('admin.system_email_source_org') }}
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                                              data-system-email-source="platform">
+                                            {{ __('admin.system_email_source_platform') }}
+                                        </span>
+                                    @endif
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
                                     @if($template->enabled)
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                                             {{ __('admin.active') }}
@@ -67,15 +95,27 @@
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <a href="{{ route('organization.admin.system-email-templates.edit', [$organization, $template]) }}"
-                                       class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300">
-                                        {{ __('admin.edit') }}
-                                    </a>
+                                    @if($_adapte)
+                                        <a href="{{ route('organization.admin.system-email-templates.edit', [$organization, $template]) }}"
+                                           class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300"
+                                           data-system-email-edit="{{ $template->id }}">
+                                            {{ __('admin.edit') }}
+                                        </a>
+                                    @else
+                                        <form method="POST" action="{{ route('organization.admin.system-email-templates.adapt', [$organization, $template]) }}">
+                                            @csrf
+                                            <button type="submit"
+                                                    class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300"
+                                                    data-system-email-adapt="{{ $template->id }}">
+                                                {{ __('admin.system_email_adapt') }}
+                                            </button>
+                                        </form>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                                     {{ __('admin.no_system_templates') }}
                                 </td>
                             </tr>

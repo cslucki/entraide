@@ -526,6 +526,14 @@ return [
 
     // System email templates
     // TASK-1681 — absence of a row is normal: the mailer falls back to Blade.
+    // TASK-1694 bug AB — adapter un gabarit Plateforme a son Organization.
+    'system_email_source' => 'Source',
+    'system_email_source_org' => 'This organization',
+    'system_email_source_platform' => 'Platform',
+    'system_email_adapt' => 'Adapt',
+    'system_email_adapted' => 'Copy created for your organization, disabled. Review the text then enable it: while it is inactive, the platform version keeps being sent.',
+    'system_email_adapt_exists' => 'Your organization already has a version of this template.',
+    'system_email_adapt_hint' => '“Platform” templates cannot be edited here: “Adapt” creates a copy that belongs to your organization.',
     'system_email_desc' => 'These templates are optional overrides of system emails (automatic notifications). A template missing from this list is not an anomaly: the email is then sent with the application default template. Leave a template disabled to fall back to the default.',
     'system_email_no_override' => 'No custom override for this template. The default email template is currently in use.',
     'system_email_default_badge' => 'Default system template',

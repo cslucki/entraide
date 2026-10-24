@@ -529,6 +529,14 @@ return [
     // TASK-1681 — dire aussi ce que signifie l'ABSENCE d'une ligne : en
     // PROD, les surcharges n'ont jamais ete semees pour les slugs recents,
     // et ce n'est pas une anomalie (le mailer retombe sur le Blade).
+    // TASK-1694 bug AB — adapter un gabarit Plateforme a son Organization.
+    'system_email_source' => 'Source',
+    'system_email_source_org' => 'Cette organisation',
+    'system_email_source_platform' => 'Plateforme',
+    'system_email_adapt' => 'Adapter',
+    'system_email_adapted' => 'Copie créée pour votre organisation, désactivée. Relisez le texte puis activez-la : tant qu\'elle est inactive, la version Plateforme continue de partir.',
+    'system_email_adapt_exists' => 'Votre organisation a déjà une version de ce gabarit.',
+    'system_email_adapt_hint' => 'Les gabarits « Plateforme » ne sont pas modifiables ici : « Adapter » en crée une copie propre à votre organisation.',
     'system_email_desc' => 'Ces templates sont des surcharges facultatives des emails système (notifications automatiques). Un modèle absent de cette liste n\'est pas une anomalie : l\'email part alors avec le modèle par défaut de l\'application. Laissez un template désactivé pour revenir au modèle par défaut.',
     'system_email_no_override' => "Aucune surcharge personnalisée pour ce modèle. Le modèle d'email par défaut est actuellement utilisé.",
     'system_email_default_badge' => 'Modèle système par défaut',
