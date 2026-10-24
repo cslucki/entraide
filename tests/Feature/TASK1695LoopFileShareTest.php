@@ -246,4 +246,67 @@ class TASK1695LoopFileShareTest extends TestCase
 
         $this->assertSame(1, DossierFileLoopShare::query()->count());
     }
+
+    /**
+     * L'entrée « Partager dans une boucle » existe — pour qui GÈRE.
+     *
+     * Elle ouvre la même fenêtre que « Partager » : une seule fenêtre porte
+     * les deux natures, deux fenêtres auraient divergé. L'entrée distincte
+     * existe parce que c'est elle qu'on cherche des yeux quand on pense
+     * « Boucle » (demande de Cyril).
+     */
+    public function test_the_menu_entry_exists_for_managers_only(): void
+    {
+        $page = fn (User $qui) => $this->actingAs($qui)
+            ->get(route('organization.dossiers.show', [
+                'organization' => $this->organization->slug,
+                'dossier' => $this->dossier->id,
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-file-share-loop-open', $page($this->proprietaire));
+        $this->assertStringContainsString('data-file-share-loops', $page($this->proprietaire));
+    }
+
+    /**
+     * La charge utile de la liste porte le compte des partages de BOUCLE.
+     *
+     * La colonne « Partagé » doit s'allumer pour un fichier partagé SEULEMENT
+     * vers une Boucle — sans ce champ, elle dirait « Aucun » sur un fichier
+     * que toute une Boucle peut lire.
+     */
+    public function test_the_file_list_carries_the_loop_share_count(): void
+    {
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $json = $this->actingAs($this->proprietaire)
+            ->getJson(route('organization.dossiers.files.index', [
+                'organization' => $this->organization->slug,
+                'dossier' => $this->dossier->id,
+            ]))
+            ->assertOk()
+            ->json();
+
+        $ligne = collect(data_get($json, 'files.data', data_get($json, 'data', [])))
+            ->firstWhere('id', $this->fichier->id);
+
+        $this->assertSame(1, $ligne['loop_shares_count']);
+        $this->assertSame(0, $ligne['shares_count']);
+    }
+
+    /** La fenêtre reçoit les partages de Boucle EN PLACE, avec le nom. */
+    public function test_the_dialog_payload_carries_current_loop_shares(): void
+    {
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $json = $this->actingAs($this->proprietaire)
+            ->getJson($this->url('index'))
+            ->assertOk()
+            ->json();
+
+        $this->assertSame('Boucle partage 1695', $json['loop_shares'][0]['name']);
+        // Et la Boucle déjà servie quitte la liste des cibles proposées.
+        $this->assertSame([], $json['loops']);
+    }
 }

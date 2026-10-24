@@ -1374,7 +1374,7 @@
                                     <button type="button" class="flex min-h-11 min-w-0 flex-1 flex-col justify-center text-left rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
                                             @click="clicElement($event, {{ $itemFichier }})" @dblclick="ouvrir({{ $itemFichier }})" @touchstart="debutAppui({{ $itemFichier }})" @touchend="finAppui()" @touchmove="finAppui()">
                                         <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="file.display_name || file.original_name"></span>
-                                        <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="((file.shares_count || 0) > 0 ? @js(__('dossiers.share_shared')) : @js($partageHerite === __('dossiers.share_private') ? __('dossiers.share_none') : $partageHerite)) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
+                                        <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="(((file.shares_count || 0) + (file.loop_shares_count || 0)) > 0 ? @js(__('dossiers.share_shared')) : @js($partageHerite === __('dossiers.share_private') ? __('dossiers.share_none') : $partageHerite)) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
                                     </button>
                                     </div>
                                     @if($colonneAjoutePar)
@@ -1413,12 +1413,12 @@
                                              voir avec qui, et arreter, avant d'ouvrir la
                                              fenetre complete. --}}
                                         <div class="hidden min-w-0 lg:block">
-                                            <template x-if="(file.shares_count || 0) > 0">
+                                            <template x-if="((file.shares_count || 0) + (file.loop_shares_count || 0)) > 0">
                                                 <button type="button" @click="ouvrirApercuPartages(file)"
                                                         class="min-w-0 max-w-full truncate rounded px-1 text-xs font-medium text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400"
                                                         data-file-share-peek>{{ __('dossiers.share_shared') }}</button>
                                             </template>
-                                            <template x-if="(file.shares_count || 0) === 0">
+                                            <template x-if="((file.shares_count || 0) + (file.loop_shares_count || 0)) === 0">
                                                 <span class="{{ $classePartage($partageHerite) }} !block">{{ $partageHerite === __('dossiers.share_private') ? __('dossiers.share_none') : $partageHerite }}</span>
                                             </template>
                                         </div>
@@ -1457,6 +1457,15 @@
                                                 <button type="button" @click="open = false; openShareModal(file)"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60"
                                                         data-file-share-open>{{ __('dossiers.file_share') }}</button>
+                                                {{-- TASK-1695 (5a) — « Partager dans une boucle »
+                                                     (Cyril). La MEME fenetre s'ouvre : elle porte
+                                                     les deux natures de partage, et deux fenetres
+                                                     auraient diverge. L'entree distincte existe
+                                                     parce que c'est elle qu'on cherche des yeux
+                                                     quand on pense « Boucle ». --}}
+                                                <button type="button" @click="open = false; openShareModal(file)"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60"
+                                                        data-file-share-loop-open>{{ __('dossiers.file_share_loops') }}</button>
                                             @endif
                                             @if($canDeleteFiles)
                                                 <button type="button" @click="open = false; openDeleteModal(file)" :disabled="saving"

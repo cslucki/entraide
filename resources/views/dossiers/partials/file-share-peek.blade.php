@@ -65,7 +65,26 @@
                                     </template>
                                 </ul>
 
-                                <template x-if="shareCurrent.length === 0">
+                                {{-- TASK-1695 (5a) — les Boucles aussi : l'apercu repond a
+                                     « partage avec qui ? », et une Boucle est un destinataire
+                                     comme un autre. Sans cette liste, la colonne dirait
+                                     « Partage » et le panneau « personne ». --}}
+                                <template x-if="shareLoopShares.length > 0">
+                                    <ul class="max-h-32 overflow-y-auto border-t border-gray-100 dark:border-gray-700">
+                                        <template x-for="s in shareLoopShares" :key="s.id">
+                                            <li class="flex items-center justify-between gap-3 py-2 text-sm" data-file-share-peek-loop-row>
+                                                <span class="flex min-w-0 items-center gap-2 text-gray-800 dark:text-gray-200">
+                                                    <svg class="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="15.5" r="3.2"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8"/></svg>
+                                                    <span class="min-w-0 truncate" x-text="s.name"></span>
+                                                </span>
+                                                <button type="button" @click="retirerPartageBoucle(s)" :disabled="shareLoading"
+                                                        class="shrink-0 text-xs font-semibold text-red-600 hover:underline disabled:opacity-50 dark:text-red-400">{{ __('dossiers.file_share_remove') }}</button>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </template>
+
+                                <template x-if="shareCurrent.length === 0 && shareLoopShares.length === 0">
                                     <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.file_share_none') }}</p>
                                 </template>
 

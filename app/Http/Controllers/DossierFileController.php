@@ -48,7 +48,9 @@ class DossierFileController extends Controller
             // partage y lisait « Prive ». Le compte voyage donc avec le
             // fichier, puisque les lignes sont rendues en Alpine depuis ce
             // JSON.
-            ->withCount('shares');
+            // Les DEUX natures : « Partage » doit s'allumer aussi pour un
+            // fichier partage seulement vers une Boucle (5a).
+            ->withCount(['shares', 'loopShares']);
 
         if ($search !== '') {
             $searchTerm = trim($search);

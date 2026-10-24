@@ -3574,6 +3574,12 @@ function registerDossierFilesCard() {
         shareQuery: '',
         shareResults: [],
         shareCurrent: [],
+        // TASK-1695 (5a) — les Boucles : celles ou je peux partager, et les
+        // partages de Boucle deja poses. Remplis par le MEME chargement que
+        // les partages nominatifs : un seul aller-retour, aucun etat qui
+        // puisse diverger de l'autre fenetre.
+        shareLoops: [],
+        shareLoopShares: [],
         shareLoading: false,
 
         /**
@@ -3628,7 +3634,29 @@ function registerDossierFilesCard() {
             this.shareLoading = true;
             const data = await this.requete(this.urlPartages());
             this.shareCurrent = data?.shares || [];
+            this.shareLoops = data?.loops || [];
+            this.shareLoopShares = data?.loop_shares || [];
             this.shareLoading = false;
+        },
+
+        async partagerAvecBoucle(loop) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            await this.requete(this.urlPartages('/loops'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ loop_id: loop.id }),
+            });
+            this.shareLoading = false;
+            await this.chargerPartages();
+        },
+
+        async retirerPartageBoucle(share) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            await this.requete(this.urlPartages('/loops/' + share.id), { method: 'DELETE' });
+            this.shareLoading = false;
+            await this.chargerPartages();
         },
 
         async chercherMembres() {
@@ -3724,6 +3752,8 @@ function registerDossierFilesCard() {
         shareQuery: '',
         shareResults: [],
         shareCurrent: [],
+        shareLoops: [],
+        shareLoopShares: [],
         showPeekModal: false,
         shareLoading: false,
         // « Retirer de cette Boucle » (CAS B) : une confirmation legere avant
@@ -4771,7 +4801,12 @@ function registerDossierFilesCard() {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 });
                 if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
-                this.shareCurrent = (await response.json()).shares || [];
+                const data = await response.json();
+                this.shareCurrent = data.shares || [];
+                // TASK-1695 (5a) — memes champs que `fileSharePanel` : le
+                // partiel est partage, le contrat de noms aussi.
+                this.shareLoops = data.loops || [];
+                this.shareLoopShares = data.loop_shares || [];
             } catch (e) {
                 this.showMessage(this.i18n.networkError, 'error');
             } finally {
@@ -4811,6 +4846,41 @@ function registerDossierFilesCard() {
                 // s'ecarter du sien.
                 this.shareQuery = '';
                 this.shareResults = [];
+                await this.chargerPartages();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async partagerAvecBoucle(loop) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages('/loops'), {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ loop_id: loop.id }),
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                await this.chargerPartages();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async retirerPartageBoucle(share) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages('/loops/' + share.id), {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
                 await this.chargerPartages();
             } catch (e) {
                 this.showMessage(this.i18n.networkError, 'error');

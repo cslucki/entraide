@@ -63,6 +63,47 @@
                                     </ul>
                                 </template>
 
+                                {{-- TASK-1695 (5a) — partager dans une BOUCLE : « une fenetre
+                                     identique a Partager ce fichier, sauf qu'on a EN PLUS la
+                                     liste des boucles dont on est membre » (Cyril). Une seule
+                                     fenetre porte donc les deux natures — pas deux fenetres a
+                                     faire diverger. La section n'apparait que si j'ai au moins
+                                     une Boucle ou un partage de Boucle : a qui n'est membre de
+                                     rien, elle n'a rien a dire. --}}
+                                <template x-if="shareLoops.length > 0 || shareLoopShares.length > 0">
+                                    <div data-file-share-loops>
+                                        <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('dossiers.file_share_loops') }}</p>
+                                        <ul class="mt-1 max-h-32 overflow-y-auto">
+                                            <template x-for="l in shareLoops" :key="l.id">
+                                                <li class="flex items-center justify-between gap-3 py-1.5 text-sm">
+                                                    <span class="flex min-w-0 items-center gap-2 text-gray-800 dark:text-gray-200">
+                                                        <svg class="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="15.5" r="3.2"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8"/></svg>
+                                                        <span class="min-w-0 truncate" x-text="l.name"></span>
+                                                    </span>
+                                                    <button type="button" @click="partagerAvecBoucle(l)" :disabled="shareLoading"
+                                                            class="shrink-0 rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                                                            data-file-share-loop-add>{{ __('dossiers.file_share') }}</button>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                        <template x-if="shareLoopShares.length > 0">
+                                            <ul class="mt-1 max-h-32 overflow-y-auto border-t border-gray-100 pt-1 dark:border-gray-700">
+                                                <template x-for="s in shareLoopShares" :key="s.id">
+                                                    <li class="flex items-center justify-between gap-3 py-1.5 text-sm" data-file-share-loop-row>
+                                                        <span class="flex min-w-0 items-center gap-2 text-gray-800 dark:text-gray-200">
+                                                            <svg class="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="15.5" r="3.2"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8"/></svg>
+                                                            <span class="min-w-0 truncate" x-text="s.name"></span>
+                                                        </span>
+                                                        <button type="button" @click="retirerPartageBoucle(s)" :disabled="shareLoading"
+                                                                class="shrink-0 text-xs font-semibold text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+                                                                data-file-share-loop-remove>{{ __('dossiers.file_share_remove') }}</button>
+                                                    </li>
+                                                </template>
+                                            </ul>
+                                        </template>
+                                    </div>
+                                </template>
+
                                 <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('dossiers.file_share_current') }}</p>
 
                                 <template x-if="shareCurrent.length === 0">
