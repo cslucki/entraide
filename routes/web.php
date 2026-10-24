@@ -1502,6 +1502,12 @@ Route::prefix('/org/{organization}')
 
                 Route::get('/dossiers/partages/{file}', [SharedDossierFileController::class, 'show'])->name('dossiers.shared.show');
                 Route::get('/dossiers/partages/{file}/apercu', [SharedDossierFileController::class, 'preview'])->name('dossiers.shared.preview');
+                // TASK-1695 (point 2 de Cyril) — retirer SES partages depuis
+                // « Partages », sans repasser par le Dossier. La route est
+                // bornee au fichier, parce que c'est tout ce que cet ecran
+                // connait : il n'affiche pas le Dossier porteur, et le
+                // destinataire n'y a aucun droit.
+                Route::delete('/dossiers/partages/{file}/retirer', [SharedDossierFileController::class, 'stop'])->name('dossiers.shared.stop');
 
                 Route::get('/dossiers/{dossier}', [DossierController::class, 'show'])->name('dossiers.show');
                 Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');

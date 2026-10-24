@@ -81,4 +81,47 @@ class SharedDossierFileController extends Controller
 
         return $file;
     }
+
+    /**
+     * Retirer TOUS les partages que J'AI poses sur ce fichier.
+     *
+     * TASK-1695 (point 2 de Cyril) — depuis « Partages », pour eviter de
+     * repasser par le Dossier.
+     *
+     * ## Pourquoi `shared_by` et non `manageFiles`
+     *
+     * On peut toujours reprendre ce qu'on a donne. Exiger `manageFiles`
+     * empecherait de revoquer un partage qu'on a soi-meme pose apres avoir
+     * perdu la gestion du fichier — on aurait ouvert un acces sans pouvoir le
+     * refermer. Revoquer ne fait que RETIRER de l'acces : c'est le sens sur,
+     * contrairement a partager.
+     *
+     * ## Pourquoi « tous » et non « un »
+     *
+     * L'ecran montre une ligne par FICHIER, pas une par partage. Un bouton qui
+     * n'en retirerait qu'un laisserait la ligne en place, apparemment inchangee
+     * — le geste semblerait sans effet. Le detail par personne vit dans le
+     * modal, qui a une ligne par destinataire.
+     *
+     * Les partages poses par QUELQU'UN D'AUTRE sur le meme fichier ne sont pas
+     * touches : ils ne sont pas a moi.
+     */
+    public function stop(Request $request): RedirectResponse
+    {
+        $file = DossierFile::query()
+            ->withoutTrashed()
+            ->whereKey($request->route('file'))
+            ->firstOrFail();
+
+        $retires = $file->shares()
+            ->where('shared_by', $request->user()->id)
+            ->where('organization_id', $file->organization_id)
+            ->delete();
+
+        if ($retires === 0) {
+            abort(404);
+        }
+
+        return back()->with('status', __('dossiers.file_share_stopped'));
+    }
 }

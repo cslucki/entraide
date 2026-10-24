@@ -94,6 +94,47 @@ class DossierFile extends Model
         return $this->display_name ?: $this->original_name;
     }
 
+    /**
+     * Le TYPE, en un mot lisible.
+     *
+     * TASK-1695 (point 2/3 de Cyril) — l'extension, pas le type MIME.
+     * « application/vnd.openxmlformats-officedocument.wordprocessingml.document »
+     * remplit une colonne de tableau sans rien apprendre a personne ; « DOCX »
+     * tient en quatre lettres et se trie.
+     *
+     * Lue sur `original_name` et non `display_name` : le renommage conserve
+     * l'extension d'origine (voir `DossierFileController::rename`), mais c'est
+     * `original_name` qui en porte la trace fiable.
+     */
+    public function typeLisible(): string
+    {
+        $extension = pathinfo((string) $this->original_name, PATHINFO_EXTENSION);
+
+        return $extension !== '' ? mb_strtoupper($extension) : '—';
+    }
+
+    /**
+     * La TAILLE, en unites lisibles.
+     *
+     * Les memes unites et le meme arrondi que `formatBytes()` dans
+     * `resources/js/app.js` : les deux rendus coexistent sur le meme fichier —
+     * le Drive en JS, « Partages » en Blade — et deux tailles differentes pour
+     * un meme fichier passeraient pour un defaut de donnee.
+     */
+    public function tailleLisible(): string
+    {
+        $octets = (int) $this->size_bytes;
+
+        if ($octets <= 0) {
+            return '0 o';
+        }
+
+        $unites = ['o', 'Ko', 'Mo', 'Go'];
+        $i = min((int) floor(log($octets, 1024)), count($unites) - 1);
+
+        return number_format($octets / (1024 ** $i), $i > 0 ? 1 : 0, ',', ' ').' '.$unites[$i];
+    }
+
     public function isImage(): bool
     {
         return str_starts_with($this->mime_type, 'image/');

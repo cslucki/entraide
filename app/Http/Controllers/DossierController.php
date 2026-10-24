@@ -211,13 +211,48 @@ class DossierController extends Controller
                 ->latest('updated_at')
                 ->get();
 
+            // TASK-1695 (points 2 et 3 de Cyril) — un vrai TABLEAU, donc des
+            // en-tetes TRIABLES.
+            //
+            // Le tri est fait au SERVEUR, pas en Alpine : les lignes sont
+            // rendues par `@foreach`, et trier en JS un balisage deja pose
+            // aurait demande de le re-rendre en `x-for` depuis du JSON. Un tri
+            // par parametre d'URL se teste, se partage par lien, et survit au
+            // rechargement.
+            //
+            // La cle est VALIDEE contre une liste blanche : `$request` nomme
+            // une colonne, il ne la choisit pas. Sans cela, `?ftri=` deviendrait
+            // une injection dans un `sortBy()`.
+            $triage = function ($fichiers) use ($request, $userId) {
+                $cles = [
+                    'nom' => fn (DossierFile $f) => mb_strtolower($f->nomLisible()),
+                    'type' => fn (DossierFile $f) => $f->typeLisible(),
+                    'taille' => fn (DossierFile $f) => (int) $f->size_bytes,
+                    // « Qui » designe l'autre partie : le destinataire sous
+                    // « Par moi », l'auteur du partage sous « Avec moi ».
+                    'qui' => fn (DossierFile $f) => mb_strtolower(
+                        (string) ($f->shares->first()?->user?->publicDisplayName()
+                            ?: $f->shares->first()?->sharedBy?->publicDisplayName()),
+                    ),
+                    'date' => fn (DossierFile $f) => $f->shares->first()?->created_at?->timestamp ?? 0,
+                ];
+
+                $cle = $request->query('ftri');
+                $cle = is_string($cle) && isset($cles[$cle]) ? $cle : 'nom';
+                $descendant = $request->query('fsens') === 'desc';
+
+                return $fichiers->sortBy($cles[$cle], SORT_REGULAR, $descendant)->values();
+            };
+
             return view('dossiers.espaces', [
                 'espace' => 'partages',
                 'vue' => $vue,
+                'fichiersTri' => $request->query('ftri') ?: 'nom',
+                'fichiersSens' => $request->query('fsens') === 'desc' ? 'desc' : 'asc',
                 'avecMoi' => $avecMoi,
                 'parMoi' => $parMoi,
-                'fichiersAvecMoi' => $fichiersAvecMoi,
-                'fichiersParMoi' => $fichiersParMoi,
+                'fichiersAvecMoi' => $triage($fichiersAvecMoi),
+                'fichiersParMoi' => $triage($fichiersParMoi),
                 'organizationRouteParam' => $request->route('organization'),
             ]);
         }

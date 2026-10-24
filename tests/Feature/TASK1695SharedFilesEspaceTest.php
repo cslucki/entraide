@@ -207,20 +207,117 @@ class TASK1695SharedFilesEspaceTest extends TestCase
     }
 
     /**
-     * L'écran dit ce qu'un fichier partagé n'ouvre PAS.
+     * La liste est un TABLEAU, à en-têtes triables.
      *
-     * Même exigence qu'au geste D : personne ne devinerait que le partage
-     * s'arrête au fichier seul, et le deviner de travers ferait croire à un
-     * accès au dossier entier.
+     * Ce test REMPLACE celui qui épinglait la mention « Un fichier partagé
+     * s'ouvre seul… ». Cyril l'a jugée trop technique, comme celle du modal,
+     * et a demandé aussi le retrait du titre « Fichiers partagés » : l'espace
+     * s'appelle déjà « Partagés » et l'onglet dit « Par moi » / « Avec moi ».
+     *
+     * Le bouton de téléchargement part également : cliquer le **nom** ouvre
+     * déjà le fichier. Deux chemins pour le même geste encombraient une
+     * colonne qui sert désormais à arrêter le partage.
+     *
+     * Les trois assertions négatives comptent autant que les positives — sans
+     * elles, ce test resterait vert sur un écran qui aurait gardé l'ancien
+     * balisage à côté du nouveau.
      */
-    public function test_the_list_states_that_a_file_opens_alone(): void
+    public function test_the_list_is_a_sortable_table(): void
+    {
+        $this->partager();
+        $html = $this->espace($this->destinataire);
+
+        foreach (['nom', 'type', 'taille', 'qui', 'date'] as $colonne) {
+            $this->assertStringContainsString(
+                'data-shared-sort="'.$colonne.'"',
+                $html,
+                "La colonne $colonne n'est pas triable.",
+            );
+        }
+
+        $this->assertStringContainsString(e(__('dossiers.col_file_type')), $html);
+        $this->assertStringContainsString(e(__('dossiers.col_file_size')), $html);
+
+        $this->assertStringNotContainsString('data-shared-file-download', $html);
+        $this->assertStringNotContainsString(e(__('dossiers.shared_files_section')), $html);
+        $this->assertStringNotContainsString(e(__('dossiers.shared_files_hint')), $html);
+    }
+
+    /**
+     * Le tri RÉORDONNE vraiment les lignes.
+     *
+     * Asserter la présence des en-têtes ne prouverait que le balisage. Deux
+     * fichiers, et l'ordre des deux noms dans la page est comparé — en
+     * croissant puis en décroissant.
+     */
+    public function test_sorting_actually_reorders_the_rows(): void
     {
         $this->partager();
 
-        $this->assertStringContainsString(
-            e(__('dossiers.shared_files_hint')),
-            $this->espace($this->destinataire),
+        $second = DossierFile::factory()->create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $this->dossier->id,
+            'uploaded_by' => $this->proprietaire->id,
+            'original_name' => 'zzz-dernier-1695.pdf',
+            'display_name' => 'zzz-dernier-1695.pdf',
+            'disk' => 'local',
+            'path' => 'dossiers/1695e/rapport.pdf',
+        ]);
+        DossierFileShare::query()->create([
+            'organization_id' => $this->organization->id,
+            'dossier_file_id' => $second->id,
+            'user_id' => $this->destinataire->id,
+            'shared_by' => $this->proprietaire->id,
+        ]);
+
+        $croissant = $this->actingAs($this->destinataire)
+            ->get(route('organization.dossiers.index', [
+                'organization' => $this->organization->slug,
+                'espace' => 'partages',
+                'ftri' => 'nom',
+                'fsens' => 'asc',
+            ]))->assertOk()->getContent();
+
+        $this->assertLessThan(
+            strpos($croissant, 'zzz-dernier-1695.pdf'),
+            strpos($croissant, 'rapport-annuel-1695.pdf'),
+            'En croissant, « rapport » doit précéder « zzz ».',
         );
+
+        $decroissant = $this->actingAs($this->destinataire)
+            ->get(route('organization.dossiers.index', [
+                'organization' => $this->organization->slug,
+                'espace' => 'partages',
+                'ftri' => 'nom',
+                'fsens' => 'desc',
+            ]))->assertOk()->getContent();
+
+        $this->assertGreaterThan(
+            strpos($decroissant, 'zzz-dernier-1695.pdf'),
+            strpos($decroissant, 'rapport-annuel-1695.pdf'),
+            'En décroissant, l\'ordre doit s\'inverser.',
+        );
+    }
+
+    /**
+     * Une clé de tri inconnue retombe sur le nom, sans lever.
+     *
+     * `?ftri=` est écrit par le client. Sans la liste blanche, il choisirait
+     * la fonction de tri appliquée — une valeur venue de l'URL deviendrait du
+     * code exécuté.
+     */
+    public function test_an_unknown_sort_key_falls_back_instead_of_breaking(): void
+    {
+        $this->partager();
+
+        $this->actingAs($this->destinataire)
+            ->get(route('organization.dossiers.index', [
+                'organization' => $this->organization->slug,
+                'espace' => 'partages',
+                'ftri' => 'n_importe_quoi',
+            ]))
+            ->assertOk()
+            ->assertSee($this->fichier->original_name);
     }
 
     /**
@@ -336,6 +433,94 @@ class TASK1695SharedFilesEspaceTest extends TestCase
         $this->assertStringNotContainsString(
             e($autreFichier->original_name),
             $this->espace($this->destinataire),
+        );
+    }
+
+    /**
+     * « Arrêter le partage » retire ce que J'AI posé, et referme l'accès.
+     */
+    public function test_stopping_sharing_closes_the_access(): void
+    {
+        $this->partager();
+        $this->assertTrue($this->destinataire->fresh()->can('viewFiles', $this->fichier));
+
+        $this->actingAs($this->proprietaire)
+            ->delete(route('organization.dossiers.shared.stop', [
+                'organization' => $this->organization->slug,
+                'file' => $this->fichier->id,
+            ]))
+            ->assertRedirect();
+
+        $this->assertFalse($this->destinataire->fresh()->can('viewFiles', $this->fichier));
+    }
+
+    /**
+     * On ne retire PAS le partage de quelqu'un d'autre.
+     *
+     * La borne est `shared_by`, et c'est la seule. Sans elle, n'importe quel
+     * membre pourrait révoquer les partages de tous les autres en connaissant
+     * un identifiant de fichier.
+     */
+    public function test_nobody_can_stop_a_share_they_did_not_create(): void
+    {
+        $this->partager();
+        $intrus = User::factory()->create(['organization_id' => $this->organization->id]);
+
+        $this->actingAs($intrus)
+            ->delete(route('organization.dossiers.shared.stop', [
+                'organization' => $this->organization->slug,
+                'file' => $this->fichier->id,
+            ]))
+            ->assertNotFound();
+
+        $this->assertTrue($this->destinataire->fresh()->can('viewFiles', $this->fichier));
+    }
+
+    /**
+     * Arrêter le mien ne touche pas celui d'un autre.
+     *
+     * Un même fichier peut avoir été partagé par deux personnes. Retirer
+     * « tous les partages de ce fichier » plutôt que « les miens » couperait
+     * l'accès ouvert par quelqu'un d'autre — un dégât invisible, puisque
+     * l'écran de celui qui agit ne montre que ses propres lignes.
+     */
+    public function test_stopping_mine_leaves_someone_elses_share_alone(): void
+    {
+        $this->partager();
+
+        $autreGestionnaire = User::factory()->create(['organization_id' => $this->organization->id]);
+        $autreDestinataire = User::factory()->create(['organization_id' => $this->organization->id]);
+        DossierFileShare::query()->create([
+            'organization_id' => $this->organization->id,
+            'dossier_file_id' => $this->fichier->id,
+            'user_id' => $autreDestinataire->id,
+            'shared_by' => $autreGestionnaire->id,
+        ]);
+
+        $this->actingAs($this->proprietaire)
+            ->delete(route('organization.dossiers.shared.stop', [
+                'organization' => $this->organization->slug,
+                'file' => $this->fichier->id,
+            ]))
+            ->assertRedirect();
+
+        $this->assertFalse($this->destinataire->fresh()->can('viewFiles', $this->fichier));
+        $this->assertTrue($autreDestinataire->fresh()->can('viewFiles', $this->fichier));
+    }
+
+    /** Le bouton n'apparaît que sous « Par moi ». */
+    public function test_the_stop_button_is_only_under_shared_by_me(): void
+    {
+        $this->partager();
+
+        $this->assertStringContainsString(
+            'data-shared-file-stop',
+            $this->espace($this->proprietaire, 'par-moi'),
+        );
+
+        $this->assertStringNotContainsString(
+            'data-shared-file-stop',
+            $this->espace($this->destinataire, 'avec-moi'),
         );
     }
 }
