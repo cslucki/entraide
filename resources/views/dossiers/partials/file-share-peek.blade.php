@@ -58,7 +58,10 @@
                                                 <span class="min-w-0 truncate text-gray-800 dark:text-gray-200"
                                                       x-text="((s.first_name || '') + ' ' + (s.name || '')).trim()"></span>
                                             </span>
-                                            <button type="button" @click="retirerPartage(s)" :disabled="shareLoading"
+                                            {{-- TASK-1695 (point 7) — retirer n'apparait qu'a qui
+                                                 GERE. Le destinataire voit avec qui le fichier est
+                                                 partage ; il ne defait pas le partage d'un autre. --}}
+                                            <button type="button" x-show="shareCanManage" @click="retirerPartage(s)" :disabled="shareLoading"
                                                     class="shrink-0 text-xs font-semibold text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
                                                     data-file-share-peek-remove>{{ __('dossiers.file_share_remove') }}</button>
                                         </li>
@@ -77,7 +80,7 @@
                                                     <svg class="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="15.5" r="3.2"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8"/></svg>
                                                     <span class="min-w-0 truncate" x-text="s.name"></span>
                                                 </span>
-                                                <button type="button" @click="retirerPartageBoucle(s)" :disabled="shareLoading"
+                                                <button type="button" x-show="shareCanManage" @click="retirerPartageBoucle(s)" :disabled="shareLoading"
                                                         class="shrink-0 text-xs font-semibold text-red-600 hover:underline disabled:opacity-50 dark:text-red-400">{{ __('dossiers.file_share_remove') }}</button>
                                             </li>
                                         </template>
@@ -89,9 +92,12 @@
                                 </template>
 
                                 <div class="mt-5 flex items-center justify-between gap-3">
-                                    <button type="button" @click="passerAuPartageComplet()"
+                                    <button type="button" x-show="shareCanManage" @click="passerAuPartageComplet()"
                                             class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
                                             data-file-share-peek-more>{{ __('dossiers.share_peek_add') }}</button>
+                                    {{-- Le pied garde sa place : sans ce vide, « Fermer »
+                                         sautait a gauche chez le destinataire. --}}
+                                    <span x-show="!shareCanManage"></span>
                                     <button type="button" @click="showPeekModal = false"
                                             class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.file_share_close') }}</button>
                                 </div>

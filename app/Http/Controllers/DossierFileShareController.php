@@ -42,12 +42,28 @@ class DossierFileShareController extends Controller
      * Les partages en place, pour peupler l'ecran.
      *
      * AUCUN email dans la charge utile — voir `search()`, meme raison.
+     *
+     * ## Lisible par le DESTINATAIRE, pas seulement par qui gere
+     *
+     * TASK-1695 (point 7 de Cyril). J'avais d'abord refuse ce panneau au
+     * destinataire, en jugeant qu'une fenetre sans aucune action serait une
+     * promesse vide. Arbitrage de Cyril : il veut le meme geste des deux cotes.
+     *
+     * La borne descend donc a `viewFiles` — qui a le fichier voit avec qui il
+     * est partage, comme dans un Drive. **Consequence assumee** : un
+     * destinataire apprend les noms des autres destinataires. C'est un
+     * elargissement reel, limite aux noms (aucun email, voir `search()`).
+     *
+     * `can_manage` voyage avec la reponse : l'ecran s'en sert pour retirer
+     * « Retirer » et « Ajouter des personnes ». ECRIRE reste `manageFiles` —
+     * `search()`, `store()` et `destroy()` n'ont pas bouge.
      */
     public function index(Request $request): JsonResponse
     {
-        $file = $this->fichierGerable($request);
+        $file = $this->fichierLisible($request);
 
         return response()->json([
+            'can_manage' => $request->user()->can('manageFiles', $file),
             // TASK-1695 (5a) — la meme fenetre montre les DEUX natures de
             // partage. Les Boucles proposees sont celles dont JE suis membre
             // actif (decision de Cyril : « la liste des boucles dont on est
@@ -280,6 +296,25 @@ class DossierFileShareController extends Controller
         $share->delete();
 
         return response()->json(['deleted' => true]);
+    }
+
+    /**
+     * Le fichier, une fois le droit de LE LIRE verifie.
+     *
+     * TASK-1695 (point 7) — `viewFiles` couvre le proprietaire, les
+     * destinataires nominatifs ET les membres d'une Boucle destinataire : la
+     * policy repond a la question « cette personne a-t-elle ce fichier ? ».
+     */
+    private function fichierLisible(Request $request): DossierFile
+    {
+        $file = DossierFile::query()
+            ->withoutTrashed()
+            ->whereKey($request->route('file'))
+            ->firstOrFail();
+
+        $this->authorize('viewFiles', $file);
+
+        return $file;
     }
 
     /**

@@ -631,20 +631,107 @@ class TASK1695SharedFilesEspaceTest extends TestCase
     }
 
     /**
-     * Sous « Avec moi », le nom n'est PAS un lien.
+     * Sous « Avec moi » AUSSI, le nom ouvre l'aperçu.
      *
-     * Le destinataire ne gère pas ce partage : un panneau où il ne pourrait
-     * rien faire serait une promesse vide. Sans cette assertion, poser le lien
-     * des deux côtés passerait inaperçu.
+     * Ce test INVERSE celui qu'il remplace. J'avais refusé ce lien au
+     * destinataire — « un panneau où il ne pourrait rien faire serait une
+     * promesse vide » — et Cyril a tranché l'inverse : le même geste des deux
+     * côtés. Le panneau n'est pas vide pour autant : il dit avec qui le
+     * fichier est partagé, et tait les actions (point 7).
      */
-    public function test_under_shared_with_me_the_name_is_not_a_link(): void
+    public function test_under_shared_with_me_the_name_also_opens_the_preview(): void
+    {
+        $this->partager();
+        $html = $this->espace($this->destinataire, 'avec-moi');
+
+        $this->assertStringContainsString('data-shared-file-who', $html);
+        $this->assertStringContainsString('data-file-share-peek-modal', $html);
+    }
+
+    /**
+     * Le DESTINATAIRE peut lire la liste des partages.
+     *
+     * Elle était bornée à `manageFiles` : le panneau aurait rendu 403 et
+     * affiché une fenêtre vide. La borne descend à `viewFiles`.
+     *
+     * **Conséquence assumée** : il apprend les noms des autres destinataires.
+     * Limitée aux noms — aucun email, la garde du bug précédent tient.
+     */
+    public function test_a_recipient_can_read_the_share_list(): void
     {
         $this->partager();
 
-        $this->assertStringNotContainsString(
-            'data-shared-file-who',
-            $this->espace($this->destinataire, 'avec-moi'),
-        );
+        $json = $this->actingAs($this->destinataire)
+            ->getJson(route('organization.dossiers.files.shares.index', [
+                'organization' => $this->organization->slug,
+                'dossier' => $this->dossier->id,
+                'file' => $this->fichier->id,
+            ]))
+            ->assertOk()
+            ->json();
+
+        $this->assertFalse($json['can_manage'], 'Le destinataire ne gère pas.');
+        $this->assertArrayNotHasKey('email', $json['shares'][0]);
+    }
+
+    /** Et celui qui gère le sait. */
+    public function test_the_manager_is_told_he_can_manage(): void
+    {
+        $this->partager();
+
+        $this->actingAs($this->proprietaire)
+            ->getJson(route('organization.dossiers.files.shares.index', [
+                'organization' => $this->organization->slug,
+                'dossier' => $this->dossier->id,
+                'file' => $this->fichier->id,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('can_manage', true);
+    }
+
+    /**
+     * ÉCRIRE reste fermé au destinataire.
+     *
+     * C'est la borne qui empêche un destinataire de se re-partager le fichier
+     * ou de révoquer les autres. Ouvrir la lecture ne devait rien ouvrir
+     * d'autre — sans cette assertion, descendre aussi `store` et `destroy`
+     * passerait inaperçu.
+     */
+    public function test_a_recipient_still_cannot_write(): void
+    {
+        $this->partager();
+        $cible = User::factory()->create(['organization_id' => $this->organization->id]);
+
+        $this->actingAs($this->destinataire)
+            ->postJson(route('organization.dossiers.files.shares.store', [
+                'organization' => $this->organization->slug,
+                'dossier' => $this->dossier->id,
+                'file' => $this->fichier->id,
+            ]), ['user_id' => $cible->id])
+            ->assertForbidden();
+
+        $this->actingAs($this->destinataire)
+            ->getJson(route('organization.dossiers.files.shares.search', [
+                'organization' => $this->organization->slug,
+                'dossier' => $this->dossier->id,
+                'file' => $this->fichier->id,
+            ]))
+            ->assertForbidden();
+    }
+
+    /** Un ÉTRANGER ne lit pas la liste des partages. */
+    public function test_a_stranger_cannot_read_the_share_list(): void
+    {
+        $this->partager();
+        $etranger = User::factory()->create(['organization_id' => $this->organization->id]);
+
+        $this->actingAs($etranger)
+            ->getJson(route('organization.dossiers.files.shares.index', [
+                'organization' => $this->organization->slug,
+                'dossier' => $this->dossier->id,
+                'file' => $this->fichier->id,
+            ]))
+            ->assertForbidden();
     }
 
     /**

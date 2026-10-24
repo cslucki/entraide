@@ -3580,6 +3580,7 @@ function registerDossierFilesCard() {
         // puisse diverger de l'autre fenetre.
         shareLoops: [],
         shareLoopShares: [],
+        shareCanManage: false,
         shareLoading: false,
 
         /**
@@ -3636,6 +3637,10 @@ function registerDossierFilesCard() {
             this.shareCurrent = data?.shares || [];
             this.shareLoops = data?.loops || [];
             this.shareLoopShares = data?.loop_shares || [];
+            // TASK-1695 (point 7) — le panneau se tait sur les actions quand
+            // on ne gere pas. Le serveur refuse de toute facon ; l'ecran ne
+            // propose pas ce qu'il refusera.
+            this.shareCanManage = data?.can_manage === true;
             this.shareLoading = false;
         },
 
@@ -3754,6 +3759,7 @@ function registerDossierFilesCard() {
         shareCurrent: [],
         shareLoops: [],
         shareLoopShares: [],
+        shareCanManage: false,
         showPeekModal: false,
         shareLoading: false,
         // « Retirer de cette Boucle » (CAS B) : une confirmation legere avant
@@ -4803,6 +4809,7 @@ function registerDossierFilesCard() {
                 if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
                 const data = await response.json();
                 this.shareCurrent = data.shares || [];
+                this.shareCanManage = data.can_manage === true;
                 // TASK-1695 (5a) — memes champs que `fileSharePanel` : le
                 // partiel est partage, le contrat de noms aussi.
                 this.shareLoops = data.loops || [];
