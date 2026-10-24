@@ -593,6 +593,16 @@ return [
     'emailer_sent_count' => ':sent envoyé(s), :failed échoué(s) (sur :total)',
     // TASK-1694 bug W — la documentation des variables de l'Emailer.
     // TASK-1694 bug Z — la langue d'un gabarit de l'Emailer.
+    // TASK-1694 bug AA — creer pour plusieurs Organizations d'un coup.
+    'select_all_toggle' => 'Tout cocher / tout décocher',
+    'emailer_scope_global' => 'Global (toutes les organisations)',
+    'emailer_scope_label' => 'Organisations destinataires',
+    'emailer_scope_hint' => 'Cochez une ou plusieurs cibles. Un gabarit est créé pour chacune.',
+    'emailer_scope_unknown' => 'Cible inconnue.',
+    'emailer_created_count' => 'Gabarit créé pour :count cible(s).',
+    'emailer_created_partial' => 'Gabarit créé pour :count cible(s). Existait déjà pour : :cibles.',
+    'emailer_created_none' => 'Rien créé : ce gabarit existe déjà pour :cibles.',
+    'emailer_duplicate_triplet' => 'Un gabarit porte déjà ce slug pour cette organisation et cette langue.',
     'emailer_locale_label' => 'Langue du gabarit',
     'emailer_locale_unset' => '— Non précisée —',
     'emailer_locale_any' => 'Toutes les langues',

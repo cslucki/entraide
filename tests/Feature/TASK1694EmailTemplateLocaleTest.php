@@ -93,6 +93,8 @@ class TASK1694EmailTemplateLocaleTest extends TestCase
             ->post(route('admin.email-templates.store'), [
                 'slug' => 'gabarit-1694z',
                 'name' => 'Gabarit 1694Z',
+                // TASK-1694 bug AA — une creation designe desormais ses cibles.
+                'organization_ids' => [\App\Http\Controllers\Admin\AdminEmailTemplatesController::CIBLE_GLOBALE],
                 'locale' => 'en',
                 'subject' => 'Sujet',
                 'content_html' => '<p>corps</p>',
@@ -150,6 +152,7 @@ class TASK1694EmailTemplateLocaleTest extends TestCase
             ->post(route('admin.email-templates.store'), [
                 'slug' => 'gabarit-de-vers',
                 'name' => 'De',
+                'organization_ids' => [\App\Http\Controllers\Admin\AdminEmailTemplatesController::CIBLE_GLOBALE],
                 'locale' => 'de',
                 'subject' => 'Sujet',
                 'content_html' => '<p>corps</p>',

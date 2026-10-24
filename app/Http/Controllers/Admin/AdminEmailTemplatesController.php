@@ -4,15 +4,25 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\EmailTemplate;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\EmailerService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminEmailTemplatesController extends Controller
 {
+    /**
+     * TASK-1694 bug AA — la valeur qui designe « sans Organization ».
+     *
+     * Hors de l'espace des UUID, comme `FILTRE_GLOBAL` au bug O : une chaine
+     * forgee ne peut pas se faire passer pour elle.
+     */
+    public const CIBLE_GLOBALE = 'global';
+
     public function index(Request $request): View
     {
         $search = $request->input('search');
@@ -27,7 +37,12 @@ class AdminEmailTemplatesController extends Controller
 
     public function create(): View
     {
-        return view('admin.email-templates.create');
+        // TASK-1694 bug AA — les cibles possibles : « Global », puis les
+        // Organizations actives. Une Organization desactivee n'est pas proposee :
+        // creer un gabarit pour elle serait un geste sans destinataire.
+        return view('admin.email-templates.create', [
+            'organizations' => Organization::where('is_active', true)->orderBy('name')->get(['id', 'name', 'slug']),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -35,20 +50,92 @@ class AdminEmailTemplatesController extends Controller
         $request->merge(['variables' => $this->parseVariables($request->input('variables'))]);
 
         $validated = $request->validate([
-            'slug' => 'required|string|max:100|unique:email_templates,slug',
+            // TASK-1694 bug AA — l'unicite porte sur le TRIPLET, plus sur le slug
+            // seul : c'est tout l'objet de l'appariement. Deux versions
+            // linguistiques partagent leur slug ; deux Organizations aussi.
+            'slug' => ['required', 'string', 'max:100'],
             'name' => 'required|string|max:255',
             // TASK-1694 bug Z — FR, EN, ou rien : « langue non precisee » est une
             // troisieme valeur legitime, et c'est l'etat des lignes anterieures.
             'locale' => ['nullable', Rule::in(EmailTemplate::LOCALES)],
+            'organization_ids' => ['required', 'array', 'min:1'],
+            'organization_ids.*' => ['required', 'string', $this->regleDeCible()],
             'subject' => 'required|string|max:255',
             'content_html' => 'required|string',
             'variables' => 'nullable|array',
         ]);
 
-        EmailTemplate::create($validated);
+        $cibles = array_unique($validated['organization_ids']);
+        $locale = $validated['locale'] ?? null;
+
+        $crees = 0;
+        $deja = [];
+
+        foreach ($cibles as $cible) {
+            $organizationId = $cible === self::CIBLE_GLOBALE ? null : $cible;
+
+            $existe = EmailTemplate::query()
+                ->where('slug', $validated['slug'])
+                ->where('locale', $locale)
+                ->when(
+                    $organizationId === null,
+                    fn ($q) => $q->whereNull('organization_id'),
+                    fn ($q) => $q->where('organization_id', $organizationId),
+                )
+                ->exists();
+
+            if ($existe) {
+                $deja[] = $organizationId === null
+                    ? __('admin.emailer_scope_global')
+                    : (Organization::whereKey($organizationId)->value('slug') ?? $organizationId);
+
+                continue;
+            }
+
+            EmailTemplate::create([
+                'slug' => $validated['slug'],
+                'name' => $validated['name'],
+                'locale' => $locale,
+                'organization_id' => $organizationId,
+                'subject' => $validated['subject'],
+                'content_html' => $validated['content_html'],
+                'variables' => $validated['variables'] ?? null,
+            ]);
+
+            $crees++;
+        }
+
+        if ($crees === 0) {
+            return back()
+                ->withInput()
+                ->withErrors(['organization_ids' => __('admin.emailer_created_none', ['cibles' => implode(', ', $deja)])]);
+        }
 
         return redirect()->route('admin.email-templates')
-            ->with('success', 'Template d\'email créé avec succès.');
+            ->with('success', $deja === []
+                ? __('admin.emailer_created_count', ['count' => $crees])
+                : __('admin.emailer_created_partial', ['count' => $crees, 'cibles' => implode(', ', $deja)]));
+    }
+
+    /**
+     * La regle de forme d'une cible : « global », ou un UUID d'Organization.
+     *
+     * Posee a part parce qu'elle garde une frontiere de TYPE : laisser passer
+     * une chaine quelconque jusqu'a un `where` sur une colonne `uuid` donne un
+     * 500 sur PostgreSQL (`22P02`), invisible sous SQLite qui compare comme du
+     * texte. Lecon TASK-1683.
+     */
+    private function regleDeCible(): \Closure
+    {
+        return function (string $attribut, mixed $valeur, \Closure $refuser): void {
+            if ($valeur === self::CIBLE_GLOBALE) {
+                return;
+            }
+
+            if (! Str::isUuid((string) $valeur) || ! Organization::whereKey($valeur)->exists()) {
+                $refuser(__('admin.emailer_scope_unknown'));
+            }
+        };
     }
 
     public function show(EmailTemplate $emailTemplate): View
@@ -68,7 +155,23 @@ class AdminEmailTemplatesController extends Controller
         $request->merge(['variables' => $this->parseVariables($request->input('variables'))]);
 
         $validated = $request->validate([
-            'slug' => 'required|string|max:100|unique:email_templates,slug,'.$emailTemplate->id,
+            // TASK-1694 bug AA — unicite sur le TRIPLET (voir `store()`).
+            //
+            // Sans cette regle, renommer un slug vers une collision remonterait
+            // jusqu'a l'index unique : une violation de contrainte, c'est-a-dire
+            // un 500, la ou il faut un message de formulaire.
+            'slug' => [
+                'required', 'string', 'max:100',
+                Rule::unique('email_templates', 'slug')
+                    ->ignore($emailTemplate->id)
+                    ->where(fn ($q) => $q
+                        ->where('locale', $request->input('locale') ?: null)
+                        ->when(
+                            $emailTemplate->organization_id === null,
+                            fn ($qq) => $qq->whereNull('organization_id'),
+                            fn ($qq) => $qq->where('organization_id', $emailTemplate->organization_id),
+                        )),
+            ],
             'name' => 'required|string|max:255',
             // TASK-1694 bug Z — FR, EN, ou rien : « langue non precisee » est une
             // troisieme valeur legitime, et c'est l'etat des lignes anterieures.

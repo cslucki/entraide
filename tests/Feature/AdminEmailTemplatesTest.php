@@ -38,9 +38,13 @@ class AdminEmailTemplatesTest extends TestCase
 
     public function test_admin_can_create_email_template()
     {
+        // TASK-1694 bug AA — une creation DESIGNE desormais ses cibles.
+        // Un gabarit sans destinataire n'existe plus : la demande 8 de Cyril
+        // fait de l'Organization (ou « Global ») une donnee du formulaire.
         $data = [
             'slug' => 'welcome_email',
             'name' => 'Email de bienvenue',
+            'organization_ids' => [\App\Http\Controllers\Admin\AdminEmailTemplatesController::CIBLE_GLOBALE],
             'subject' => 'Bienvenue sur Entraide !',
             'content_html' => '<p>Bonjour {{user_name}}, bienvenue !</p>',
             'variables' => ['{{user_name}}', '{{app_name}}'],
@@ -56,21 +60,47 @@ class AdminEmailTemplatesTest extends TestCase
         ]);
     }
 
-    public function test_email_template_slug_must_be_unique()
+    /**
+     * TASK-1694 bug AA — LA REGLE A CHANGE, par decision produit.
+     *
+     * Ce test exigeait un slug unique GLOBALEMENT. Cyril : « oui je veux un
+     * veritable appariement » — `relance` doit exister en FR et en EN sous le
+     * meme slug, et pour plusieurs Organizations. L'unicite porte donc
+     * desormais sur le TRIPLET (slug, organisation, langue).
+     *
+     * Le test garde sa question — « peut-on creer deux fois la meme chose ? » —
+     * avec la bonne definition de « la meme chose » : meme slug, meme cible,
+     * meme langue. Et il garde l'autre moitie : la MEME cible dans une AUTRE
+     * langue reste permise, sinon la regle interdirait ce que la demande
+     * reclame.
+     */
+    public function test_a_template_cannot_be_created_twice_for_the_same_target_and_locale()
     {
-        EmailTemplate::factory()->create(['slug' => 'existing_slug']);
+        $cible = \App\Http\Controllers\Admin\AdminEmailTemplatesController::CIBLE_GLOBALE;
 
         $data = [
             'slug' => 'existing_slug',
             'name' => 'Test Template',
+            'locale' => 'fr',
+            'organization_ids' => [$cible],
             'subject' => 'Test Subject',
             'content_html' => '<p>Test</p>',
         ];
 
-        $response = $this->actingAs($this->admin)
-            ->post(route('admin.email-templates.store'), $data);
+        $this->actingAs($this->admin)->post(route('admin.email-templates.store'), $data);
 
-        $response->assertSessionHasErrors('slug');
+        $this->actingAs($this->admin)
+            ->post(route('admin.email-templates.store'), $data)
+            ->assertSessionHasErrors('organization_ids');
+
+        $this->assertSame(1, EmailTemplate::where('slug', 'existing_slug')->count());
+
+        // L'autre moitie : la meme cible, dans une AUTRE langue.
+        $this->actingAs($this->admin)
+            ->post(route('admin.email-templates.store'), array_merge($data, ['locale' => 'en']))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(2, EmailTemplate::where('slug', 'existing_slug')->count());
     }
 
     public function test_admin_can_view_email_template()

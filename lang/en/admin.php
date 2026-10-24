@@ -590,6 +590,16 @@ return [
     'emailer_sent_count' => ':sent sent, :failed failed (of :total)',
     // TASK-1694 bug W — la documentation des variables de l'Emailer.
     // TASK-1694 bug Z — la langue d'un gabarit de l'Emailer.
+    // TASK-1694 bug AA — creer pour plusieurs Organizations d'un coup.
+    'select_all_toggle' => 'Select all / none',
+    'emailer_scope_global' => 'Global (all organizations)',
+    'emailer_scope_label' => 'Target organizations',
+    'emailer_scope_hint' => 'Tick one or more targets. One template is created for each.',
+    'emailer_scope_unknown' => 'Unknown target.',
+    'emailer_created_count' => 'Template created for :count target(s).',
+    'emailer_created_partial' => 'Template created for :count target(s). Already existed for: :cibles.',
+    'emailer_created_none' => 'Nothing created: this template already exists for :cibles.',
+    'emailer_duplicate_triplet' => 'A template already uses this slug for that organization and language.',
     'emailer_locale_label' => 'Template language',
     'emailer_locale_unset' => '— Not specified —',
     'emailer_locale_any' => 'All languages',
