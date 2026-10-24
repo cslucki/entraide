@@ -299,6 +299,69 @@ class TASK1695FileShareWriteTest extends TestCase
         $this->assertStringContainsString(e(__('dossiers.file_share_hint')), $html);
     }
 
+    /**
+     * L'écran de partage n'est pas un ANNUAIRE d'adresses.
+     *
+     * Signalé par Cyril le 24/10, capture à l'appui : la liste des personnes
+     * proposées affichait l'adresse de chacune. Trois lettres tapées rendaient
+     * dix adresses — le gestionnaire d'un seul fichier pouvait moissonner
+     * l'annuaire complet de l'Organization.
+     *
+     * L'assertion vise la **réponse JSON**, pas la page : masquer la colonne en
+     * Blade aurait laissé l'adresse partir sur le réseau, lisible dans l'onglet
+     * dédié du navigateur. Une donnée qu'on ne veut pas montrer ne doit pas
+     * QUITTER le serveur — c'est cela que ce test tient.
+     */
+    public function test_the_search_never_returns_the_email_addresses(): void
+    {
+        $corps = $this->actingAs($this->proprietaire)
+            ->getJson($this->url('search').'?q=Dupont')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Dupont', $corps, 'La personne doit bien être trouvée.');
+        $this->assertStringNotContainsString($this->cible->email, $corps);
+    }
+
+    /**
+     * Et la liste des partages EN PLACE ne la rend pas non plus.
+     *
+     * Deuxième charge utile du même écran. Sans ce test, fermer la recherche
+     * seule aurait laissé la porte ouverte : il suffisait de partager une fois
+     * pour relire l'adresse.
+     */
+    public function test_the_current_shares_never_return_the_email_addresses(): void
+    {
+        $this->actingAs($this->proprietaire)->postJson($this->url('store'), ['user_id' => $this->cible->id]);
+
+        $corps = $this->actingAs($this->proprietaire)
+            ->getJson($this->url('index'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Dupont', $corps);
+        $this->assertStringNotContainsString($this->cible->email, $corps);
+    }
+
+    /**
+     * Chercher PAR adresse reste possible — arbitrage explicite de Cyril.
+     *
+     * Ce que cela laisse est une VÉRIFICATION (« telle adresse est-elle
+     * membre ? »), une adresse à la fois et connue d'avance. Pas une
+     * ÉNUMÉRATION, qui était le défaut.
+     *
+     * Ce test tient donc la moitié qu'il NE fallait PAS fermer : sans lui,
+     * retirer `email` de la clause WHERE en même temps que de la projection
+     * ne ferait rougir personne.
+     */
+    public function test_searching_by_email_still_finds_the_person(): void
+    {
+        $this->actingAs($this->proprietaire)
+            ->getJson($this->url('search').'?q='.urlencode($this->cible->email))
+            ->assertOk()
+            ->assertJsonFragment(['id' => $this->cible->id]);
+    }
+
     /** On ne partage pas un fichier supprimé. */
     public function test_a_soft_deleted_file_cannot_be_shared(): void
     {

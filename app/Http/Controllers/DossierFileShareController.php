@@ -37,21 +37,24 @@ use Illuminate\Validation\Rule;
  */
 class DossierFileShareController extends Controller
 {
-    /** Les partages en place, pour peupler l'ecran. */
+    /**
+     * Les partages en place, pour peupler l'ecran.
+     *
+     * AUCUN email dans la charge utile — voir `search()`, meme raison.
+     */
     public function index(Request $request): JsonResponse
     {
         $file = $this->fichierGerable($request);
 
         return response()->json([
             'shares' => $file->shares()
-                ->with('user:id,name,first_name,email')
+                ->with('user:id,name,first_name')
                 ->get()
                 ->map(fn (DossierFileShare $share) => [
                     'id' => $share->id,
                     'user_id' => $share->user_id,
                     'name' => $share->user?->name,
                     'first_name' => $share->user?->first_name,
-                    'email' => $share->user?->email,
                 ])
                 ->values(),
         ]);
@@ -68,6 +71,24 @@ class DossierFileShareController extends Controller
      * qu'on gere deja n'ouvre rien) et les personnes DEJA destinataires
      * (proposer un partage qui existe ferait echouer l'unicite, et surtout ne
      * dirait pas pourquoi).
+     *
+     * ## L'email CHERCHE, il ne s'AFFICHE pas
+     *
+     * Signale par Cyril le 24/10, capture a l'appui : l'ecran listait l'adresse
+     * de chaque personne proposee. Trois lettres tapees rendaient donc dix
+     * adresses, et le gestionnaire d'un seul fichier pouvait moissonner
+     * l'annuaire complet de l'Organization — un usage que rien, dans le partage
+     * d'un fichier, ne demande.
+     *
+     * La correction est posee ICI, pas dans la vue : masquer la colonne en
+     * Blade aurait laisse l'adresse partir dans la reponse JSON, lisible dans
+     * l'onglet reseau du navigateur. Une donnee qu'on ne veut pas montrer ne
+     * doit pas QUITTER le serveur.
+     *
+     * `LIKE` sur `email` reste dans la clause WHERE : on cherche toujours par
+     * adresse, c'est l'arbitrage explicite de Cyril. Ce que cela laisse est
+     * une VERIFICATION (« telle adresse est-elle membre ? »), une adresse a la
+     * fois et connue d'avance — pas une ENUMERATION.
      */
     public function search(Request $request): JsonResponse
     {
@@ -89,7 +110,7 @@ class DossierFileShareController extends Controller
                     ->orWhereRaw("LOWER(name || ' ' || first_name) LIKE LOWER(?)", [$motif]);
             })
             ->limit(10)
-            ->get(['id', 'name', 'first_name', 'email']);
+            ->get(['id', 'name', 'first_name']);
 
         return response()->json(['users' => $users]);
     }

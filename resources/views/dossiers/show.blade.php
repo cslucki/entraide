@@ -1745,8 +1745,10 @@
                                         <template x-for="u in shareResults" :key="u.id">
                                             <li class="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                                                 <span class="min-w-0 truncate text-gray-800 dark:text-gray-200">
+                                                    {{-- TASK-1695 — le nom SEUL. L'adresse ne quitte plus le serveur
+                                                         (voir DossierFileShareController::search) : rien a masquer ici,
+                                                         il n'y a plus rien a afficher. --}}
                                                     <span x-text="((u.first_name || '') + ' ' + (u.name || '')).trim()"></span>
-                                                    <span class="ml-1 text-xs text-gray-400" x-text="u.email"></span>
                                                 </span>
                                                 <button type="button" @click="partagerAvec(u)" :disabled="shareLoading"
                                                         class="shrink-0 rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
@@ -1767,7 +1769,6 @@
                                         <li class="flex items-center justify-between gap-3 py-1.5 text-sm" data-file-share-row>
                                             <span class="min-w-0 truncate text-gray-800 dark:text-gray-200">
                                                 <span x-text="((s.first_name || '') + ' ' + (s.name || '')).trim()"></span>
-                                                <span class="ml-1 text-xs text-gray-400" x-text="s.email"></span>
                                             </span>
                                             <button type="button" @click="retirerPartage(s)" :disabled="shareLoading"
                                                     class="shrink-0 text-xs font-semibold text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
