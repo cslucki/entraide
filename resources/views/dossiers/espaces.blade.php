@@ -208,6 +208,10 @@
                                  destinataire n'a aucun droit sur le Dossier
                                  porteur, et ce chemin lui rendrait 403. --}}
                             @if($fichiers->isNotEmpty())
+                                <div x-data="fileSharePanel(@js([
+                                         'csrfToken' => csrf_token(),
+                                         'orgParam' => $orgParam,
+                                     ]))">
                                 {{-- TASK-1695 (points 2 et 3 de Cyril) — un vrai TABLEAU.
 
                                      Le titre « Fichiers partages » et la mention
@@ -299,6 +303,18 @@
                                             @endif
                                             <span class="flex justify-end">
                                                 @if($vue === 'par-moi')
+                                                    {{-- TASK-1695 — ajouter des personnes SANS
+                                                         revenir sur la page du Dossier
+                                                         (dernier point de Cyril). Le fichier
+                                                         porte son `dossier_id` : les lignes de
+                                                         cet ecran viennent de Dossiers
+                                                         DIFFERENTS, une valeur unique au niveau
+                                                         de l'ecran viserait le mauvais des la
+                                                         deuxieme ligne. --}}
+                                                    <button type="button"
+                                                            @click="openShareModal(@js(['id' => $fichier->getKey(), 'dossier_id' => $fichier->dossier_id, 'display_name' => $fichier->nomLisible()]))"
+                                                            class="inline-flex min-h-11 items-center rounded-lg px-2.5 text-xs font-semibold text-indigo-600 transition hover:bg-[var(--bp-panel)] dark:text-indigo-400"
+                                                            data-shared-file-add>{{ __('dossiers.share_peek_add') }}</button>
                                                     <form method="POST" action="{{ route('organization.dossiers.shared.stop', ['organization' => $orgParam, 'file' => $fichier->getKey()]) }}">
                                                         @csrf
                                                         @method('DELETE')
@@ -310,6 +326,11 @@
                                             </span>
                                         </div>
                                     @endforeach
+                                </div>
+
+                                {{-- Le MEME partiel que la page du Dossier : une
+                                     seconde copie du balisage aurait derive. --}}
+                                @include('dossiers.partials.file-share-modal')
                                 </div>
                             @endif
                         @endif

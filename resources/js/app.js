@@ -3536,6 +3536,115 @@ function registerDossierFilesCard() {
 
     FilePond.registerPlugin(FilePondPluginFileValidateType, FilePondPluginFileValidateSize);
 
+    /**
+     * TASK-1695 — partager un fichier depuis « Partages ».
+     *
+     * Dernier point de la liste de Cyril : ajouter des personnes SANS revenir
+     * sur la page du Dossier.
+     *
+     * ## Pourquoi un composant a part, et non `dossierFilesCard`
+     *
+     * Celui-ci porte le televersement, le deplacement, la corbeille, les
+     * Series, la selection multiple — tout un Drive. « Partages » n'a aucun de
+     * ces gestes et n'a meme pas de Dossier courant : l'ecran liste des
+     * fichiers venus de dossiers DIFFERENTS. L'y brancher aurait demande de
+     * neutraliser la moitie de son etat.
+     *
+     * ## Le contrat, au mot pres
+     *
+     * Les memes noms d'etat et de methodes que `dossierFilesCard`, parce que
+     * les deux rendent le MEME partiel (`partials/file-share-modal`). Toute
+     * divergence de nom casserait l'un des deux ecrans en silence.
+     *
+     * ## Le Dossier vient du FICHIER
+     *
+     * `urlPartages()` lit `shareTarget.dossier_id` et non une propriete du
+     * composant : ici chaque ligne peut appartenir a un Dossier different.
+     * Une valeur unique au niveau du composant aurait vise le mauvais Dossier
+     * des la deuxieme ligne.
+     */
+    Alpine.data('fileSharePanel', (config) => ({
+        csrfToken: config.csrfToken,
+        orgParam: config.orgParam,
+        i18n: config.i18n || {},
+
+        showShareModal: false,
+        shareTarget: null,
+        shareQuery: '',
+        shareResults: [],
+        shareCurrent: [],
+        shareLoading: false,
+
+        openShareModal(file) {
+            this.shareTarget = file;
+            this.shareQuery = '';
+            this.shareResults = [];
+            this.shareCurrent = [];
+            this.showShareModal = true;
+            this.chargerPartages();
+        },
+
+        urlPartages(suffixe = '') {
+            return `/org/${this.orgParam}/dossiers/${this.shareTarget.dossier_id}/files/${this.shareTarget.id}/shares${suffixe}`;
+        },
+
+        async requete(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        ...(options.headers || {}),
+                    },
+                    ...options,
+                });
+
+                return response.ok ? await response.json() : null;
+            } catch (e) {
+                return null;
+            }
+        },
+
+        async chargerPartages() {
+            if (!this.shareTarget) return;
+            this.shareLoading = true;
+            const data = await this.requete(this.urlPartages());
+            this.shareCurrent = data?.shares || [];
+            this.shareLoading = false;
+        },
+
+        async chercherMembres() {
+            if (!this.shareTarget) return;
+            this.shareLoading = true;
+            const data = await this.requete(this.urlPartages('/search') + '?q=' + encodeURIComponent(this.shareQuery || ''));
+            this.shareResults = data?.users || [];
+            this.shareLoading = false;
+        },
+
+        async partagerAvec(user) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            await this.requete(this.urlPartages(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: user.id }),
+            });
+            this.shareQuery = '';
+            this.shareResults = [];
+            this.shareLoading = false;
+            await this.chargerPartages();
+        },
+
+        async retirerPartage(share) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            await this.requete(this.urlPartages('/' + share.id), { method: 'DELETE' });
+            this.shareLoading = false;
+            await this.chargerPartages();
+        },
+    }));
+
     Alpine.data('dossierFilesCard', (config) => ({
         // TASK-1130 : la surface a deux angles — Documents (la liste) et
         // Series (l'editorial). Un etat d'affichage, pas un moteur.

@@ -523,4 +523,93 @@ class TASK1695SharedFilesEspaceTest extends TestCase
             $this->espace($this->destinataire, 'avec-moi'),
         );
     }
+
+    /**
+     * On peut ajouter des personnes DEPUIS « Partagés ».
+     *
+     * Dernier point de Cyril : éviter de revenir sur la page du Dossier. Le
+     * bouton et la fenêtre doivent donc être présents **sur cet écran**.
+     */
+    public function test_one_can_share_with_more_people_without_leaving_this_screen(): void
+    {
+        $this->partager();
+        $html = $this->espace($this->proprietaire, 'par-moi');
+
+        $this->assertStringContainsString('data-shared-file-add', $html);
+        $this->assertStringContainsString('data-file-share-modal', $html);
+        $this->assertStringContainsString('fileSharePanel(', $html);
+    }
+
+    /**
+     * Le bouton porte le Dossier DU FICHIER.
+     *
+     * Les lignes de cet écran viennent de Dossiers **différents**. Une valeur
+     * unique au niveau de l'écran viserait le mauvais dès la deuxième ligne —
+     * et le partage atterrirait ailleurs, ou échouerait sans dire pourquoi.
+     */
+    public function test_the_add_button_carries_the_dossier_of_its_own_file(): void
+    {
+        $autreDossier = Dossier::factory()->create([
+            'organization_id' => $this->organization->id,
+            'owner_id' => $this->proprietaire->id,
+            'visibility' => 'private',
+        ]);
+        $autreFichier = DossierFile::factory()->create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $autreDossier->id,
+            'uploaded_by' => $this->proprietaire->id,
+            'original_name' => 'second-dossier-1695.pdf',
+            'display_name' => 'second-dossier-1695.pdf',
+            'disk' => 'local',
+            'path' => 'dossiers/1695e/rapport.pdf',
+        ]);
+
+        $this->partager();
+        DossierFileShare::query()->create([
+            'organization_id' => $this->organization->id,
+            'dossier_file_id' => $autreFichier->id,
+            'user_id' => $this->destinataire->id,
+            'shared_by' => $this->proprietaire->id,
+        ]);
+
+        $html = $this->espace($this->proprietaire, 'par-moi');
+
+        // Les DEUX Dossiers doivent apparaître : un seul signifierait qu'une
+        // valeur unique a été posée pour tout l'écran.
+        foreach ([$this->dossier->id, $autreDossier->id] as $attendu) {
+            $this->assertStringContainsString(
+                $attendu,
+                $html,
+                "Le Dossier $attendu manque : le bouton vise le mauvais.",
+            );
+        }
+    }
+
+    /**
+     * La fenêtre est le MÊME partiel des deux côtés.
+     *
+     * Elle sert dans la page du Dossier et dans « Partagés ». Une seconde
+     * copie du balisage aurait dérivé — c'est déjà arrivé à l'idiome
+     * `display_name || original_name`, recopié à six endroits.
+     *
+     * Le test compare un marqueur présent dans les deux rendus : s'il
+     * disparaît d'un côté, c'est qu'on a cessé de partager le partiel.
+     */
+    public function test_the_share_dialog_is_the_same_partial_on_both_screens(): void
+    {
+        $this->partager();
+
+        $dansLeDossier = $this->actingAs($this->proprietaire)
+            ->get(route('organization.dossiers.show', [
+                'organization' => $this->organization->slug,
+                'dossier' => $this->dossier->id,
+            ]))->assertOk()->getContent();
+
+        $dansPartages = $this->espace($this->proprietaire, 'par-moi');
+
+        foreach (['data-file-share-modal', 'data-file-share-close'] as $marqueur) {
+            $this->assertStringContainsString($marqueur, $dansLeDossier, "Manque dans le Dossier : $marqueur");
+            $this->assertStringContainsString($marqueur, $dansPartages, "Manque dans Partages : $marqueur");
+        }
+    }
 }
