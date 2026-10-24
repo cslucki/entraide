@@ -82,6 +82,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DossierAnswerController;
 use App\Http\Controllers\DossierArticleController;
 use App\Http\Controllers\DossierController;
+use App\Http\Controllers\SharedDossierFileController;
 use App\Http\Controllers\DossierFileController;
 use App\Http\Controllers\DossierInsightsController;
 use App\Http\Controllers\DossierMemberController;
@@ -1475,6 +1476,20 @@ Route::prefix('/org/{organization}')
                 // racines (`LoopRootDocumentService`, `PersonalDocumentsRoot`)
                 // n'a jamais traverse ces routes et reste intact.
                 Route::get('/dossiers', [DossierController::class, 'index'])->name('dossiers.index');
+                // TASK-1695 geste C — lire un fichier qu'on vous a PARTAGE.
+                //
+                // Declarees AVANT `/dossiers/{dossier}` : « partages » n'est
+                // jamais un identifiant de Dossier. Meme idiome que
+                // `/relations/modeles` devant `/relations/{contact}`
+                // (TASK-1420), et meme raison — l'ordre dit l'intention, il ne
+                // se repose pas sur le hasard d'un format d'identifiant.
+                //
+                // Le Dossier n'apparait PAS dans ces URL : c'est la decision de
+                // conception de la TASK. Le destinataire n'emprunte jamais
+                // l'URL du Dossier d'autrui.
+                Route::get('/dossiers/partages/{file}', [SharedDossierFileController::class, 'show'])->name('dossiers.shared.show');
+                Route::get('/dossiers/partages/{file}/apercu', [SharedDossierFileController::class, 'preview'])->name('dossiers.shared.preview');
+
                 Route::get('/dossiers/{dossier}', [DossierController::class, 'show'])->name('dossiers.show');
                 Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
                 Route::post('/dossiers/{dossier}/insights', DossierInsightsController::class)->middleware('throttle:5,1')->name('dossiers.insights');
