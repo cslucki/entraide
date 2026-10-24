@@ -65,6 +65,35 @@ class DossierFile extends Model
         return $this->belongsTo(User::class, 'uploaded_by');
     }
 
+    /**
+     * Le nom que la personne LIT.
+     *
+     * TASK-1695 — bug signale par Cyril : un fichier renomme gardait son
+     * ancien nom dans « Partages », des deux cotes. Le renommage ecrit
+     * `display_name` ; `original_name` reste la trace de ce qui a ete depose
+     * et ne bouge jamais. Ma vue du geste E lisait `original_name` seul.
+     *
+     * L'idiome `display_name || original_name` etait deja repete a SIX
+     * endroits en Blade et en JS. Une septieme copie ecrite a la main aurait
+     * derive comme les autres finiront par le faire : la regle vit ici, et
+     * les rendus serveur la demandent au lieu de la reecrire.
+     *
+     * Le repli `?:` est DEFENSIF, et rien de plus — je l'avais d'abord
+     * justifie par « `display_name` est NULL pour la majorite des fichiers » :
+     * **c'etait faux**. La colonne est NOT NULL (migration du 18/07, verifie
+     * sur SQLite ET PostgreSQL), et un televersement y recopie
+     * `original_name`. Mesure du 24/10 sur la base locale : 13 fichiers,
+     * **0 NULL**, 12 identiques a `original_name` — le treizieme etant celui
+     * que Cyril venait de renommer.
+     *
+     * Il reste parce qu'une chaine vide passerait la contrainte NOT NULL et
+     * afficherait une ligne sans nom ; il ne protege pas de ce que je croyais.
+     */
+    public function nomLisible(): string
+    {
+        return $this->display_name ?: $this->original_name;
+    }
+
     public function isImage(): bool
     {
         return str_starts_with($this->mime_type, 'image/');

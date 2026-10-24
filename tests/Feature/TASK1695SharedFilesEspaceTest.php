@@ -68,6 +68,15 @@ class TASK1695SharedFilesEspaceTest extends TestCase
             'dossier_id' => $this->dossier->id,
             'uploaded_by' => $this->proprietaire->id,
             'original_name' => 'rapport-annuel-1695.pdf',
+            // La factory remplit `display_name` d'un nom ALEATOIRE, sans
+            // rapport avec `original_name`. Fixture trompeuse : mes tests
+            // passaient parce que la vue lisait `original_name`, pas parce
+            // qu'elle lisait le bon champ.
+            //
+            // L'etat REEL d'un fichier jamais renomme est `display_name ==
+            // original_name` — la colonne est NOT NULL et un televersement y
+            // recopie le nom depose (verifie sur les deux moteurs).
+            'display_name' => 'rapport-annuel-1695.pdf',
             'disk' => 'local',
             'path' => 'dossiers/1695e/rapport.pdf',
         ]);
@@ -251,6 +260,58 @@ class TASK1695SharedFilesEspaceTest extends TestCase
 
         $this->assertStringNotContainsString(
             e(__('dossiers.shared_with_me_empty')),
+            $this->espace($this->destinataire),
+        );
+    }
+
+    /**
+     * Un fichier RENOMMÉ montre son nouveau nom, des deux côtés.
+     *
+     * Bug signalé par Cyril : « Boost Patriotique du 22.png » renommé en
+     * « Boost.png » gardait son ancien nom dans « Partagés », chez le
+     * partageur **comme** chez le destinataire.
+     *
+     * La cause était dans ma vue : le renommage écrit `display_name`, et je
+     * lisais `original_name` — la trace immuable du téléversement. Les deux
+     * symptômes n'en faisaient qu'un.
+     *
+     * Le test assert aussi l'ABSENCE de l'ancien nom : sans cela, il passerait
+     * sur un écran qui afficherait les deux.
+     */
+    public function test_a_renamed_file_shows_its_new_name_on_both_sides(): void
+    {
+        $this->partager();
+        $this->fichier->update(['display_name' => 'Boost.png']);
+
+        foreach ([[$this->destinataire, 'avec-moi'], [$this->proprietaire, 'par-moi']] as [$qui, $vue]) {
+            $html = $this->espace($qui, $vue);
+
+            $this->assertStringContainsString('Boost.png', $html, "Vue $vue : le nouveau nom manque.");
+            $this->assertStringNotContainsString(
+                'rapport-annuel-1695.pdf',
+                $html,
+                "Vue $vue : l'ancien nom est encore là.",
+            );
+        }
+    }
+
+    /**
+     * Et un fichier JAMAIS renommé garde le sien.
+     *
+     * Un téléversement recopie `original_name` dans `display_name` — la
+     * colonne est NOT NULL. Ce test tient le cas de LOIN le plus courant :
+     * 12 des 13 fichiers de la base locale sont dans cet état.
+     */
+    public function test_a_file_never_renamed_still_shows_its_name(): void
+    {
+        $this->partager();
+        $this->assertSame(
+            $this->fichier->original_name,
+            $this->fichier->fresh()->display_name,
+        );
+
+        $this->assertStringContainsString(
+            'rapport-annuel-1695.pdf',
             $this->espace($this->destinataire),
         );
     }
