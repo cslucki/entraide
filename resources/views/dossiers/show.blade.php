@@ -184,6 +184,16 @@
                              'dossierId' => $dossier->getKey(),
                              'orgParam' => $orgParam,
                              'canManageFiles' => $canManageFiles,
+                             {{-- TASK-1695 — le moteur d'import (FilePond) suit
+                                  `canUploadFiles`. Cette liste de clefs est
+                                  ECRITE A LA MAIN : passer la variable a la vue
+                                  ne suffit pas, il faut l'ajouter ICI. Oubli du
+                                  24/10 — `config.canUploadFiles` valait
+                                  `undefined`, FilePond ne s'initialisait pas, et
+                                  « Importer des fichiers » ne faisait RIEN
+                                  (`browseFiles()` sort en silence sans `_pond`).
+                                  Signale par Cyril. --}}
+                             'canUploadFiles' => $canUploadFiles,
                              'canDeleteFiles' => $canDeleteFiles,
                              'moveTargets' => $moveTargets,
                              'seriesMode' => $seriesModeData,

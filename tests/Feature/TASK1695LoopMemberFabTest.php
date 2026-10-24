@@ -123,4 +123,59 @@ class TASK1695LoopMemberFabTest extends TestCase
         $this->assertStringNotContainsString('data-fab-new-article', $this->page($this->membre));
         $this->assertStringContainsString('data-fab-new-article', $this->page($this->owner));
     }
+
+    /**
+     * Le moteur d'import REÇOIT son autorisation.
+     *
+     * Bug signalé par Cyril : « Importer des fichiers » n'ouvrait plus rien.
+     * Le contrôleur passait bien `canUploadFiles` à la vue, mais la liste de
+     * clés du composant Alpine est **écrite à la main** et je ne l'y avais pas
+     * ajoutée. `config.canUploadFiles` valait `undefined`, FilePond ne
+     * s'initialisait pas, et `browseFiles()` sortait **en silence** — pas
+     * d'erreur, pas de message, rien.
+     *
+     * Mes tests du FAB ne mesuraient que la POIGNÉE. Celui-ci mesure le
+     * câblage : la valeur doit arriver jusqu'au composant.
+     */
+    public function test_the_upload_engine_receives_its_permission(): void
+    {
+        foreach ([$this->owner, $this->membre] as $qui) {
+            $html = $this->page($qui);
+
+            // La forme ECHAPPEE telle que Blade la rend dans l'attribut
+            // (`\u0022`, pas `&quot;`) — verifiee sur le rendu reel, pas
+            // supposee. Lecon T1672 : une assertion doit viser ce qui sort.
+            $this->assertStringContainsString(
+                'canUploadFiles\u0022:true',
+                $html,
+                'Le composant doit recevoir canUploadFiles, sinon FilePond ne démarre pas.',
+            );
+        }
+    }
+
+    /**
+     * Et le simple LECTEUR ne le reçoit pas.
+     *
+     * Sans cette assertion, câbler la clé en dur à `true` resterait vert.
+     */
+    public function test_a_reader_does_not_receive_the_upload_permission(): void
+    {
+        $proprietaire = User::factory()->create(['organization_id' => $this->organization->id]);
+        $lecteur = User::factory()->create(['organization_id' => $this->organization->id]);
+        $dossierOrg = Dossier::factory()->create([
+            'organization_id' => $this->organization->id,
+            'owner_id' => $proprietaire->id,
+            'visibility' => 'organization',
+        ]);
+
+        $html = $this->actingAs($lecteur)
+            ->get(route('organization.dossiers.show', [
+                'organization' => $this->organization->slug,
+                'dossier' => $dossierOrg->id,
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('canUploadFiles\u0022:false', $html);
+    }
 }
