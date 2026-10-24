@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
@@ -46,6 +47,17 @@ class DossierFile extends Model
     public function dossier(): BelongsTo
     {
         return $this->belongsTo(Dossier::class);
+    }
+
+    /**
+     * TASK-1695 — les autorisations de lecture posees sur CE fichier.
+     *
+     * Distinctes de `dossier_members`, qui porte sur le Dossier : ici l'acces
+     * ne vient ni du contenant ni d'un heritage, mais du fichier lui-meme.
+     */
+    public function shares(): HasMany
+    {
+        return $this->hasMany(DossierFileShare::class, 'dossier_file_id');
     }
 
     public function uploader(): BelongsTo
