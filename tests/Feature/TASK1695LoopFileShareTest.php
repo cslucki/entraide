@@ -448,125 +448,188 @@ class TASK1695LoopFileShareTest extends TestCase
     }
 
     /**
-     * LE point de Cyril : le fichier apparaît DANS la Boucle.
+     * LE point de Cyril : le fichier entre dans LA LISTE de la Boucle.
      *
-     * « Tu es d'accord que le document partagé dans la boucle n'est pas
-     * partagé dans la boucle ? » — il l'était : le partage ouvrait la lecture
-     * aux MEMBRES sans que la Boucle elle-même en montre rien. Pour qui
-     * ouvrait l'espace de la Boucle, le partage n'existait pas.
+     * J'avais d'abord pose une section a part, sous le tableau. Cyril :
+     * « ce ne sont pas des fichiers a part ». Une seconde surface donnait a
+     * croire a un second type de partage, alors que le composant qui sait
+     * lister, trier, chercher et paginer existait deja.
+     *
+     * Les lignes etant rendues en Alpine depuis du JSON, le test vise la
+     * CHARGE UTILE : c'est par la que l'information voyage.
      */
-    public function test_the_file_appears_in_the_loop_dossier(): void
+    public function test_the_shared_file_enters_the_loop_file_list(): void
     {
         $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
 
         $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
 
-        $html = $this->actingAs($this->membre)
-            ->get(route('organization.dossiers.show', [
+        $json = $this->actingAs($this->membre)
+            ->getJson(route('organization.dossiers.files.index', [
                 'organization' => $this->organization->slug,
                 'dossier' => $racine->id,
             ]))
             ->assertOk()
-            ->getContent();
+            ->json();
 
-        $this->assertStringContainsString('data-loop-shared-files', $html);
-        $this->assertStringContainsString(e($this->fichier->nomLisible()), $html);
+        $ligne = collect(data_get($json, 'files.data', data_get($json, 'data', [])))
+            ->firstWhere('id', $this->fichier->id);
+
+        $this->assertNotNull($ligne, 'Le fichier partage doit figurer dans la liste de la Boucle.');
+        $this->assertTrue($ligne['is_shared_here'], 'Il doit se savoir venu d\'ailleurs.');
     }
 
     /**
-     * La section dit que ces fichiers ne s'y modifient PAS.
+     * Les fichiers DEPOSES ne se disent pas partages.
      *
-     * Ils vivent chez leur propriétaire, qui peut retirer le partage à tout
-     * moment. Les mêler aux fichiers déposés laisserait croire qu'on peut les
-     * renommer, les déplacer ou les supprimer ici.
+     * Sans cette assertion, marquer toutes les lignes `is_shared_here` ferait
+     * disparaitre renommage, deplacement et suppression de TOUT le Dossier —
+     * un test vert sur une surface devenue inutilisable.
      */
-    public function test_the_section_states_these_files_are_read_only(): void
+    public function test_a_file_deposited_in_the_loop_is_not_marked_shared(): void
     {
         $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
-        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
 
-        $html = $this->actingAs($this->membre)
-            ->get(route('organization.dossiers.show', [
-                'organization' => $this->organization->slug,
-                'dossier' => $racine->id,
-            ]))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertStringContainsString(e(__('dossiers.loop_shared_files_hint')), $html);
-    }
-
-    /**
-     * Et le lien vise la route DÉDIÉE, jamais le Dossier d'origine.
-     *
-     * Le membre n'a aucun droit sur le Dossier personnel du partageur : un
-     * lien vers lui rendrait 403.
-     */
-    public function test_the_loop_section_links_to_the_dedicated_route(): void
-    {
-        $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
-        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
-
-        $html = $this->actingAs($this->membre)
-            ->get(route('organization.dossiers.show', [
-                'organization' => $this->organization->slug,
-                'dossier' => $racine->id,
-            ]))
-            ->assertOk()
-            ->getContent();
-
-        $attendu = route('organization.dossiers.shared.preview', [
-            'organization' => $this->organization->slug,
-            'file' => $this->fichier->id,
+        $depose = DossierFile::factory()->create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $racine->id,
+            'uploaded_by' => $this->proprietaire->id,
         ]);
-        $this->assertStringContainsString(e($attendu), $html);
 
-        $interdit = route('organization.dossiers.show', [
-            'organization' => $this->organization->slug,
-            'dossier' => $this->dossier->id,
-        ]);
-        $this->assertStringNotContainsString(e($interdit), $html);
-    }
-
-    /** Sans partage, la section n'existe pas. */
-    public function test_no_section_when_nothing_is_shared_with_the_loop(): void
-    {
-        $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
-
-        $html = $this->actingAs($this->membre)
-            ->get(route('organization.dossiers.show', [
+        $json = $this->actingAs($this->membre)
+            ->getJson(route('organization.dossiers.files.index', [
                 'organization' => $this->organization->slug,
                 'dossier' => $racine->id,
             ]))
             ->assertOk()
-            ->getContent();
+            ->json();
 
-        $this->assertStringNotContainsString('data-loop-shared-files', $html);
+        $ligne = collect(data_get($json, 'files.data', data_get($json, 'data', [])))
+            ->firstWhere('id', $depose->id);
+
+        $this->assertFalse($ligne['is_shared_here']);
     }
 
     /**
-     * Le partage d'une AUTRE Boucle n'apparaît pas dans celle-ci.
+     * Et dans un Dossier ORDINAIRE, la clause ne s'applique pas.
      *
-     * Sans la borne `loop_id`, la section afficherait tous les partages de
-     * l'Organization — chaque Boucle verrait ceux des autres.
+     * `isLoopDossier()` garde l'ouverture : sans elle, un Dossier personnel
+     * montrerait les partages de n'importe quelle Boucle.
      */
-    public function test_another_loops_share_never_appears_here(): void
+    public function test_an_ordinary_dossier_never_absorbs_loop_shares(): void
+    {
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $autre = Dossier::factory()->create([
+            'organization_id' => $this->organization->id,
+            'owner_id' => $this->proprietaire->id,
+            'visibility' => 'private',
+        ]);
+
+        $json = $this->actingAs($this->proprietaire)
+            ->getJson(route('organization.dossiers.files.index', [
+                'organization' => $this->organization->slug,
+                'dossier' => $autre->id,
+            ]))
+            ->assertOk()
+            ->json();
+
+        $ids = collect(data_get($json, 'files.data', data_get($json, 'data', [])))->pluck('id');
+        $this->assertFalse($ids->contains($this->fichier->id));
+    }
+
+    /** Le partage d'une AUTRE Boucle n'entre pas dans cette liste. */
+    public function test_another_loops_share_stays_out_of_this_list(): void
     {
         $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
 
-        $autreLoop = (new LoopService)->createLoop($this->proprietaire, 'Autre boucle 1695', type: 'project');
+        $autreLoop = (new LoopService)->createLoop($this->proprietaire, 'Boucle voisine 1695', type: 'project');
         $this->actingAs($this->proprietaire)
             ->postJson($this->url('loops.store'), ['loop_id' => $autreLoop->id])
             ->assertStatus(201);
 
-        $html = $this->actingAs($this->membre)
-            ->get(route('organization.dossiers.show', [
+        $json = $this->actingAs($this->membre)
+            ->getJson(route('organization.dossiers.files.index', [
                 'organization' => $this->organization->slug,
                 'dossier' => $racine->id,
             ]))
             ->assertOk()
-            ->getContent();
+            ->json();
 
-        $this->assertStringNotContainsString(e($this->fichier->nomLisible()), $html);
+        $ids = collect(data_get($json, 'files.data', data_get($json, 'data', [])))->pluck('id');
+        $this->assertFalse($ids->contains($this->fichier->id));
+    }
+
+    /**
+     * La CARTE de la Boucle rend le fichier partagé — sans lever.
+     *
+     * 500 en recette (Cyril, 24/10) : la vue faisait `$loop->organization`,
+     * mais `$loop` n'y est pas le modèle — `Undefined property:
+     * stdClass::$organization`.
+     *
+     * **Le défaut n'est pas le 500, c'est qu'aucun test ne rendait cette carte
+     * AVEC un fichier partagé.** Les tests existants passaient parce que la
+     * branche n'était jamais atteinte : une section conditionnelle non peuplée
+     * ne s'exécute pas. J'avais écrit « vérifié en test » pour une surface que
+     * mes tests ne traversaient pas.
+     */
+    public function test_the_loop_card_renders_the_shared_file(): void
+    {
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        \Livewire\Livewire::actingAs($this->membre)
+            ->test(\App\Livewire\LoopDossiersCard::class, ['loop' => $this->loop->fresh()])
+            ->assertOk()
+            ->assertSee($this->fichier->nomLisible())
+            // Dans la liste NORMALE : pas de tuile dediee.
+            ->assertSee(__('loops.cards.dossiers.recent_files'));
+    }
+
+    /**
+     * Un fichier DÉPOSÉ et un fichier PARTAGÉ cohabitent dans la même liste.
+     *
+     * C'est la demande de Cyril : « ce ne sont pas des fichiers à part ».
+     * Sans cette assertion, ne garder que l'un des deux passerait inaperçu.
+     */
+    public function test_the_loop_card_mixes_deposited_and_shared_files(): void
+    {
+        $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+
+        $depose = DossierFile::factory()->create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $racine->id,
+            'uploaded_by' => $this->proprietaire->id,
+            'original_name' => 'depose-dans-la-boucle.pdf',
+            'display_name' => 'depose-dans-la-boucle.pdf',
+        ]);
+
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        \Livewire\Livewire::actingAs($this->membre)
+            ->test(\App\Livewire\LoopDossiersCard::class, ['loop' => $this->loop->fresh()])
+            ->assertOk()
+            ->assertSee($depose->nomLisible())
+            ->assertSee($this->fichier->nomLisible());
+    }
+
+    /**
+     * La carte se rend AUSSI pour qui n'a pas accès — sans lever.
+     *
+     * La branche « pas d'accès » retourne une liste de clés distincte.
+     *
+     * Ce test ne prouve PAS les clés défensives que j'y ai ajoutées : mesuré
+     * le 24/10, les retirer le laisse vert, parce que la section partagée vit
+     * dans la branche `@else` du gabarit que `$dossier === null` n'atteint
+     * jamais. Ce qu'il tient est le RÉSULTAT — ce chemin se rend sans lever,
+     * et ne montre rien.
+     */
+    public function test_the_loop_card_renders_for_a_non_member_without_raising(): void
+    {
+        $etranger = User::factory()->create(['organization_id' => $this->organization->id]);
+
+        \Livewire\Livewire::actingAs($etranger)
+            ->test(\App\Livewire\LoopDossiersCard::class, ['loop' => $this->loop->fresh()])
+            ->assertOk()
+            ->assertDontSee($this->fichier->nomLisible());
     }
 }

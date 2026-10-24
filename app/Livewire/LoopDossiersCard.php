@@ -192,7 +192,6 @@ class LoopDossiersCard extends Component
             'articleUrls' => $this->articleUrls($articles),
             'series' => $this->recentSeries($dossier),
             'files' => $this->recentFiles($dossier),
-            'sharedFiles' => $this->sharedFiles($dossier),
             'total' => $this->totalItems($dossier),
             'canCreateArticle' => $canCreateArticle,
             'canUploadFile' => $canUploadFile,
@@ -238,7 +237,22 @@ class LoopDossiersCard extends Component
     /** @return Collection<int, DossierFile> */
     private function recentFiles(Dossier $dossier): Collection
     {
-        return $dossier->files()
+        // TASK-1695 (recette de Cyril) — les fichiers PARTAGES avec la Boucle
+        // sont dans la MEME liste que les fichiers deposes : « ce ne sont pas
+        // des fichiers a part ». Une seconde tuile donnait a croire a un
+        // second type de partage.
+        return \App\Models\DossierFile::query()
+            ->withoutTrashed()
+            ->where('organization_id', $dossier->organization_id)
+            ->where(function ($q) use ($dossier) {
+                $q->where('dossier_id', $dossier->id);
+
+                if ($dossier->isLoopDossier()) {
+                    $q->orWhereHas('loopShares', fn ($s) => $s
+                        ->where('loop_id', $dossier->loop_id)
+                        ->where('organization_id', $dossier->organization_id));
+                }
+            })
             ->with('uploader:id,name,first_name,avatar,banned_at')
             ->latest('created_at')
             ->limit(self::RECENT)
@@ -255,6 +269,36 @@ class LoopDossiersCard extends Component
      * Aucune garde ici : cette carte ne s'affiche qu'a qui peut deja voir le
      * Dossier de la Boucle, et le partage vise la Boucle entiere.
      */
+    /**
+     * Les URL de lecture des fichiers partages, construites DANS LE COMPOSANT.
+     *
+     * TASK-1695 — 500 en recette (Cyril, 24/10) : la vue faisait
+     * `$loop->organization?->slug`, mais `$loop` n'y est PAS le modele —
+     * `Undefined property: stdClass::$organization`. `$this->loop` l'est, ici.
+     *
+     * C'est exactement l'idiome de `dossierUrls()` juste au-dessus, et la
+     * lecon TASK-1103 qu'il porte : **la Boucle d'abord, la requete jamais** —
+     * une interaction Livewire arrive sur `POST /livewire/update`, qui ne
+     * porte aucun parametre `organization`.
+     *
+     * @return array<string, string> id du fichier => URL d'apercu
+     */
+    private function sharedFileUrls(Collection $fichiers): array
+    {
+        $organization = $this->loop->organization?->slug;
+
+        if (! $organization || ! Route::has('organization.dossiers.shared.preview')) {
+            return [];
+        }
+
+        return $fichiers->mapWithKeys(fn (\App\Models\DossierFile $f) => [
+            $f->id => route('organization.dossiers.shared.preview', [
+                'organization' => $organization,
+                'file' => $f->id,
+            ]),
+        ])->all();
+    }
+
     private function sharedFiles(Dossier $dossier): Collection
     {
         return \App\Models\DossierFile::query()

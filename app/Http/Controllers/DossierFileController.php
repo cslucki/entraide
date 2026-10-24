@@ -39,7 +39,31 @@ class DossierFileController extends Controller
         $direction = in_array(strtolower($directionParam), ['asc', 'desc']) ? strtolower($directionParam) : 'desc';
 
         $query = DossierFile::query()
-            ->where('dossier_id', $dossier->id)
+            // TASK-1695 (recette de Cyril, 24/10) — les fichiers PARTAGES avec
+            // cette Boucle entrent dans LA MEME liste.
+            //
+            // J'avais d'abord pose une section a part, sous le tableau. Cyril :
+            // « ce ne sont pas des fichiers a part ». Il a raison — une seconde
+            // surface donnait a croire a un second type de partage, alors que
+            // le composant qui sait lister, trier, chercher et paginer des
+            // fichiers existait deja.
+            //
+            // La clause reste UNE SEULE requete : tri, recherche et pagination
+            // continuent de fonctionner sans rien de nouveau. Un `union` ou une
+            // fusion en PHP aurait casse les trois.
+            ->where(function ($q) use ($dossier) {
+                $q->where('dossier_id', $dossier->id);
+
+                // `isLoopDossier()` EST `loop_id !== null` — je l'avais ecrit
+                // deux fois. Mesure du 24/10 : lever la garde nommee ne fait
+                // rougir aucun test, parce qu'un `loop_id` NULL ne matche
+                // jamais. La forme nommee reste, seule : elle dit l'intention.
+                if ($dossier->isLoopDossier()) {
+                    $q->orWhereHas('loopShares', fn ($s) => $s
+                        ->where('loop_id', $dossier->loop_id)
+                        ->where('organization_id', $dossier->organization_id));
+                }
+            })
             ->where('organization_id', $organization->id)
             ->with('uploader:id,organization_id,first_name,avatar,name,email,banned_at')
             // TASK-1695 (point 1 de Cyril) — la colonne « Partage » doit dire
@@ -71,7 +95,13 @@ class DossierFileController extends Controller
             // l'expose deja via `toArray()`. Mesure du 24/10 — retirer la
             // recopie ne fait rougir aucun test, retirer le `withCount()` en
             // fait rougir un. La garde est le `withCount()`, pas la recopie.
-            ['uploader' => $this->publicUserPayload($file->uploader, $organization->id)]
+            [
+                'uploader' => $this->publicUserPayload($file->uploader, $organization->id),
+                // Une ligne venue d'ailleurs : elle se LIT ici, elle ne s'y
+                // administre pas. L'ecran s'en sert pour retirer les gestes
+                // que le serveur refuserait de toute facon.
+                'is_shared_here' => $file->dossier_id !== $dossier->id,
+            ]
         ));
 
         $usedBytes = (int) DossierFile::query()
