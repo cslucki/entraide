@@ -612,4 +612,69 @@ class TASK1695SharedFilesEspaceTest extends TestCase
             $this->assertStringContainsString($marqueur, $dansPartages, "Manque dans Partages : $marqueur");
         }
     }
+
+    /**
+     * Le NOM des destinataires ouvre l'aperçu « Partagé avec ».
+     *
+     * Demande de Cyril. Sur la page du Dossier, c'est le mot « Partagé » qui
+     * porte ce lien ; ici la colonne montre déjà les personnes, donc c'est
+     * leur nom qui le porte. Le geste est le même, l'ancre suit ce que l'écran
+     * affiche.
+     */
+    public function test_the_recipient_names_open_the_share_preview(): void
+    {
+        $this->partager();
+        $html = $this->espace($this->proprietaire, 'par-moi');
+
+        $this->assertStringContainsString('data-shared-file-who', $html);
+        $this->assertStringContainsString('data-file-share-peek-modal', $html);
+    }
+
+    /**
+     * Sous « Avec moi », le nom n'est PAS un lien.
+     *
+     * Le destinataire ne gère pas ce partage : un panneau où il ne pourrait
+     * rien faire serait une promesse vide. Sans cette assertion, poser le lien
+     * des deux côtés passerait inaperçu.
+     */
+    public function test_under_shared_with_me_the_name_is_not_a_link(): void
+    {
+        $this->partager();
+
+        $this->assertStringNotContainsString(
+            'data-shared-file-who',
+            $this->espace($this->destinataire, 'avec-moi'),
+        );
+    }
+
+    /**
+     * Les en-têtes et les lignes partagent la MÊME définition de grille.
+     *
+     * Défaut signalé par Cyril : les colonnes étaient décalées. La dernière
+     * était en `auto`, qui se dimensionne sur le **contenu** — vide dans
+     * l'en-tête, deux liens dans la ligne. Les deux grilles obtenaient donc
+     * des largeurs différentes et la colonne `fr` absorbait l'écart.
+     *
+     * Ce test ne juge pas le rendu CSS, qu'un test serveur ne voit pas : il
+     * tient que les deux rangées déclarent la même grille, et qu'aucune
+     * colonne n'est laissée en `auto` sur le grand écran.
+     */
+    public function test_headers_and_rows_declare_the_same_grid(): void
+    {
+        $this->partager();
+        $html = $this->espace($this->proprietaire, 'par-moi');
+
+        preg_match_all('/lg:grid-cols-\[[^\]]+\]/', $html, $trouvees);
+        $grilles = array_values(array_unique(array_filter(
+            $trouvees[0],
+            fn (string $g) => str_contains($g, '2.2fr)_5rem_7rem'),
+        )));
+
+        $this->assertCount(1, $grilles, 'En-tête et lignes doivent déclarer la même grille.');
+        $this->assertStringNotContainsString(
+            '_auto]',
+            $grilles[0],
+            'Une colonne en `auto` se dimensionne sur son contenu : en-tête et ligne divergent.',
+        );
+    }
 }

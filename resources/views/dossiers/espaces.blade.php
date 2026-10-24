@@ -239,9 +239,16 @@
                                     // moi » porte une date de partage que « Par
                                     // moi » n'affiche pas. Une grille unique
                                     // aurait laisse une colonne vide d'un cote.
+                                    // La derniere colonne a une largeur FIXE, jamais
+                                    // `auto` : `auto` se dimensionne sur le CONTENU, et
+                                    // la cellule d'action est vide dans l'en-tete mais
+                                    // porte deux liens dans la ligne. Les deux grilles
+                                    // obtenaient donc des largeurs differentes, et la
+                                    // colonne `fr` absorbait l'ecart — en-tetes et
+                                    // lignes decalees (signale par Cyril, 24/10).
                                     $grilleF = $vue === 'par-moi'
-                                        ? 'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 lg:grid-cols-[minmax(0,2.2fr)_5rem_7rem_minmax(0,12rem)_auto]'
-                                        : 'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 lg:grid-cols-[minmax(0,2.2fr)_5rem_7rem_minmax(0,12rem)_8rem_auto]';
+                                        ? 'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 lg:grid-cols-[minmax(0,2.2fr)_5rem_7rem_minmax(0,12rem)_17rem]'
+                                        : 'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 lg:grid-cols-[minmax(0,2.2fr)_5rem_7rem_minmax(0,12rem)_8rem_2rem]';
                                     $celluleF = 'hidden min-w-0 truncate text-xs text-[var(--bp-muted)] lg:block';
                                     $lienTri = function (string $cle) use ($fichiersTri, $fichiersSens) {
                                         return request()->fullUrlWithQuery([
@@ -294,10 +301,32 @@
                                             </a>
                                             <span class="{{ $celluleF }}">{{ $fichier->typeLisible() }}</span>
                                             <span class="{{ $celluleF }}">{{ $fichier->tailleLisible() }}</span>
-                                            <span class="hidden min-w-0 items-center gap-1.5 text-xs text-[var(--bp-muted)] lg:flex">
-                                                <x-user-avatar :user="$autre" size="xs" />
-                                                <span class="min-w-0 truncate">{{ $qui }}@if($vue === 'par-moi' && ($fichier->shares_count ?? 1) > 1) +{{ $fichier->shares_count - 1 }}@endif</span>
-                                            </span>
+                                            {{-- TASK-1695 — le NOM ouvre l'apercu « Partage
+                                                 avec » (demande de Cyril). Sur la page du
+                                                 Dossier, c'est le mot « Partage » qui porte ce
+                                                 lien ; ici la colonne montre deja les
+                                                 personnes, alors c'est leur nom qui le porte —
+                                                 le geste est le meme, l'ancre suit ce que
+                                                 l'ecran affiche.
+
+                                                 Sous « Avec moi », pas de lien : le
+                                                 destinataire ne gere pas ce partage, et un
+                                                 panneau ou il ne pourrait rien faire serait
+                                                 une promesse vide. --}}
+                                            @if($vue === 'par-moi')
+                                                <button type="button"
+                                                        @click="ouvrirApercuPartages(@js(['id' => $fichier->getKey(), 'dossier_id' => $fichier->dossier_id, 'display_name' => $fichier->nomLisible()]))"
+                                                        class="hidden min-w-0 items-center gap-1.5 text-xs text-[var(--bp-muted)] hover:text-[var(--bp-text)] lg:flex"
+                                                        data-shared-file-who>
+                                                    <x-user-avatar :user="$autre" size="xs" />
+                                                    <span class="min-w-0 truncate underline-offset-2 hover:underline">{{ $qui }}@if(($fichier->shares_count ?? 1) > 1) +{{ $fichier->shares_count - 1 }}@endif</span>
+                                                </button>
+                                            @else
+                                                <span class="hidden min-w-0 items-center gap-1.5 text-xs text-[var(--bp-muted)] lg:flex">
+                                                    <x-user-avatar :user="$autre" size="xs" />
+                                                    <span class="min-w-0 truncate">{{ $qui }}</span>
+                                                </span>
+                                            @endif
                                             @if($vue === 'avec-moi')
                                                 <span class="{{ $celluleF }}">{{ $partage?->created_at?->translatedFormat('j M Y') }}</span>
                                             @endif
@@ -330,6 +359,7 @@
 
                                 {{-- Le MEME partiel que la page du Dossier : une
                                      seconde copie du balisage aurait derive. --}}
+                                @include('dossiers.partials.file-share-peek')
                                 @include('dossiers.partials.file-share-modal')
                                 </div>
                             @endif

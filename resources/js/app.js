@@ -3569,11 +3569,28 @@ function registerDossierFilesCard() {
         i18n: config.i18n || {},
 
         showShareModal: false,
+        showPeekModal: false,
         shareTarget: null,
         shareQuery: '',
         shareResults: [],
         shareCurrent: [],
         shareLoading: false,
+
+        /**
+         * Premier temps — les MEMES noms que `dossierFilesCard`, parce que les
+         * deux rendent le meme partiel `file-share-peek`.
+         */
+        ouvrirApercuPartages(file) {
+            this.shareTarget = file;
+            this.shareCurrent = [];
+            this.showPeekModal = true;
+            this.chargerPartages();
+        },
+
+        passerAuPartageComplet() {
+            this.showPeekModal = false;
+            this.openShareModal(this.shareTarget);
+        },
 
         openShareModal(file) {
             this.shareTarget = file;
