@@ -284,6 +284,50 @@ class TASK1694OrgAvailabilityToggleTest extends TestCase
     }
 
     /**
+     * TASK-1694 bug AG — « Je suis disponible pour des échanges » disparaît
+     * aussi sur la page de profil HORS TENANT.
+     *
+     * ## Pourquoi ce test, alors que le bug AE couvrait déjà le geste
+     *
+     * Cyril, le 24/10 : « il faut supprimer "Je suis disponible pour des
+     * échanges" si on a désactivé la notion de disponibilité ». Mesure faite
+     * avant d'écrire quoi que ce soit : **c'était déjà le cas**, sur les deux
+     * routes.
+     *
+     * Mais une seule des deux était **mesurée**. `/profile/edit` n'est pas
+     * préfixée par l'Organization, et `availabilityIsShown()` y lit
+     * `currentOrganization()` — qui aurait pu être nulle, donc répondre `true`
+     * et laisser le champ. Elle ne l'est pas : un middleware résout
+     * l'Organization même hors préfixe. **Vérifié, pas supposé.**
+     *
+     * Un comportement juste mais non mesuré est un comportement qui peut
+     * disparaître au prochain changement de routage sans que rien ne le dise.
+     */
+    public function test_the_availability_field_is_gone_on_the_non_tenant_profile_page(): void
+    {
+        $this->actif(false);
+
+        $html = $this->actingAs($this->membre)
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-availability-field', $html);
+        $this->assertStringNotContainsString(__('profile.available_label'), $html);
+    }
+
+    /** Et il revient quand la fonctionnalité est active, sur cette route aussi. */
+    public function test_the_availability_field_returns_when_enabled_outside_the_tenant(): void
+    {
+        $this->actif(true);
+
+        $this->actingAs($this->membre)
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('data-availability-field', false);
+    }
+
+    /**
      * Désactiver n'EFFACE pas la donnée.
      *
      * C'est un retrait d'affichage, pas une suppression : réactiver doit rendre
