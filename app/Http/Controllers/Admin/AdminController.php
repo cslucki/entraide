@@ -25,6 +25,7 @@ use App\Services\UserDataLifecycleRegistry;
 use App\Services\Users\Exceptions\UserDeletionBlockedException;
 use App\Services\Users\UserDeletionExecutor;
 use App\Support\ScenarioManifest\ManifestAvatarBank;
+use App\Support\Devices\DeviceKind;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -1315,6 +1316,22 @@ class AdminController extends Controller
             });
         }
 
+        // TASK-1694 bug AK — filtrer par type d'appareil.
+        //
+        // Demande de Cyril : « savoir qui se connecte avec un smartphone, qui se
+        // connecte avec son ordinateur ». Rien a capturer — `user_agent` est
+        // stocke depuis toujours, donc le filtre porte retroactivement sur tout
+        // l'historique.
+        //
+        // Une valeur inconnue est IGNOREE, pas refusee : un journal qu'on
+        // consulte ne doit pas rendre une erreur parce qu'un parametre d'URL a
+        // ete mal recopie.
+        $device = DeviceKind::tryFrom((string) $request->input('device', ''));
+
+        if ($device !== null) {
+            DeviceKind::scope($query, $device);
+        }
+
         $direction = $request->direction === 'asc' ? 'asc' : 'desc';
 
         match ($request->sort) {
@@ -1333,7 +1350,10 @@ class AdminController extends Controller
         $loginLogs = $query->paginate(25)->withQueryString();
         $organizations = Organization::where('is_active', true)->orderBy('name')->get();
 
-        return view('admin.login-history.index', compact('loginLogs', 'organizations'));
+        return view('admin.login-history.index', compact('loginLogs', 'organizations') + [
+            'currentDevice' => $device?->value ?? '',
+            'deviceKinds' => DeviceKind::cases(),
+        ]);
     }
 
     public function loginHistoryUser(Request $request, User $user): View

@@ -615,6 +615,13 @@ return [
     'emailer_created_partial' => 'Template created for :count target(s). Already existed for: :cibles.',
     'emailer_created_none' => 'Nothing created: this template already exists for :cibles.',
     'emailer_duplicate_triplet' => 'A template already uses this slug for that organization and language.',
+    // TASK-1694 bug AK — le type d'appareil dans le journal de connexions.
+    'device_column' => 'Device',
+    'device_all' => 'All devices',
+    'device_phone' => 'Phone',
+    'device_tablet' => 'Tablet',
+    'device_desktop' => 'Computer',
+    'device_other' => 'Other / tool',
     'emailer_locale_label' => 'Template language',
     'emailer_locale_unset' => '— Not specified —',
     'emailer_locale_any' => 'All languages',

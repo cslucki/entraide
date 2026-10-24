@@ -618,6 +618,13 @@ return [
     'emailer_created_partial' => 'Gabarit créé pour :count cible(s). Existait déjà pour : :cibles.',
     'emailer_created_none' => 'Rien créé : ce gabarit existe déjà pour :cibles.',
     'emailer_duplicate_triplet' => 'Un gabarit porte déjà ce slug pour cette organisation et cette langue.',
+    // TASK-1694 bug AK — le type d'appareil dans le journal de connexions.
+    'device_column' => 'Appareil',
+    'device_all' => 'Tous les appareils',
+    'device_phone' => 'Smartphone',
+    'device_tablet' => 'Tablette',
+    'device_desktop' => 'Ordinateur',
+    'device_other' => 'Autre / outil',
     'emailer_locale_label' => 'Langue du gabarit',
     'emailer_locale_unset' => '— Non précisée —',
     'emailer_locale_any' => 'Toutes les langues',

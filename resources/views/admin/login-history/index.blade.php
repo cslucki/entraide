@@ -15,8 +15,19 @@
             </option>
             @endforeach
         </select>
+        {{-- TASK-1694 bug AK — le menu de filtre par appareil.
+             Quatre choix et non deux : les donnees reelles portent des
+             connexions `curl` et `Symfony`, que ranger dans « ordinateur »
+             serait faux. --}}
+        <select name="device" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                data-login-device-filter>
+            <option value="">{{ __('admin.device_all') }}</option>
+            @foreach($deviceKinds as $_kind)
+                <option value="{{ $_kind->value }}" @selected($currentDevice === $_kind->value)>{{ __($_kind->labelKey()) }}</option>
+            @endforeach
+        </select>
         <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Filtrer</button>
-        @if(request()->hasAny(['search', 'organization_id', 'sort']))
+        @if(request()->hasAny(['search', 'organization_id', 'sort', 'device']))
         <a href="{{ route('admin.stats.login-history') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">Effacer</a>
         @endif
     </form>
@@ -43,6 +54,9 @@
                             @if(request('sort') === 'ip_address') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
                         </a>
                     </th>
+                    {{-- TASK-1694 bug AK — la categorie AVANT la chaine brute : elle se lit
+                         d'un coup d'oeil, et la chaine reste la pour qui veut verifier. --}}
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.device_column') }}</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Navigateur</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                         <a href="{{ route('admin.stats.login-history', array_merge(request()->query(), ['sort' => 'created_at', 'direction' => request('sort') === 'created_at' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
@@ -75,6 +89,18 @@
                     <td class="px-4 py-3">
                         <span class="text-xs text-gray-600 dark:text-gray-400 font-mono">{{ $log->ip_address ?? '—' }}</span>
                     </td>
+                    @php($_device = \App\Support\Devices\DeviceKind::fromUserAgent($log->user_agent))
+                    <td class="px-4 py-3 whitespace-nowrap text-xs">
+                        <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-medium {{ match($_device) {
+                                \App\Support\Devices\DeviceKind::Phone => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+                                \App\Support\Devices\DeviceKind::Tablet => 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200',
+                                \App\Support\Devices\DeviceKind::Desktop => 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200',
+                                default => 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+                            } }}"
+                              data-login-device="{{ $_device->value }}">
+                            {{ __($_device->labelKey()) }}
+                        </span>
+                    </td>
                     <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 max-w-xs truncate" title="{{ $log->user_agent }}">
                         {{ $log->user_agent ? \Illuminate\Support\Str::limit($log->user_agent, 80) : '—' }}
                     </td>
@@ -84,7 +110,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">Aucune connexion enregistrée.</td>
+                    <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">Aucune connexion enregistrée.</td>
                 </tr>
                 @endforelse
             </tbody>
