@@ -309,4 +309,99 @@ class TASK1695LoopFileShareTest extends TestCase
         // Et la Boucle déjà servie quitte la liste des cibles proposées.
         $this->assertSame([], $json['loops']);
     }
+
+    private function espace(User $qui, string $vue = 'avec-moi'): string
+    {
+        return $this->actingAs($qui)
+            ->get(route('organization.dossiers.index', [
+                'organization' => $this->organization->slug,
+                'espace' => 'partages',
+                'vue' => $vue,
+            ]))
+            ->assertOk()
+            ->getContent();
+    }
+
+    /**
+     * Le membre de la Boucle TROUVE le fichier dans « Partagés ».
+     *
+     * Même leçon qu'au geste E : une capacité qu'aucun écran n'expose est une
+     * capacité absente. Sans cette ligne, le membre a le droit de lire — et
+     * aucun chemin vers le fichier.
+     */
+    public function test_a_loop_member_finds_the_file_in_his_espace(): void
+    {
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $html = $this->espace($this->membre);
+
+        $this->assertStringContainsString(e($this->fichier->nomLisible()), $html);
+        // Et la colonne nomme la BOUCLE comme chemin d'accès — pas un
+        // « Utilisateur désactivé » faute de ligne nominative.
+        $this->assertStringContainsString('Boucle partage 1695', $html);
+    }
+
+    /** Celui qui a partagé le voit sous « Par moi », au nom de la Boucle. */
+    public function test_the_sharer_sees_it_under_shared_by_me(): void
+    {
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $html = $this->espace($this->proprietaire, 'par-moi');
+
+        $this->assertStringContainsString(e($this->fichier->nomLisible()), $html);
+        $this->assertStringContainsString('Boucle partage 1695', $html);
+    }
+
+    /** Un NON-membre de la Boucle ne voit rien dans son espace. */
+    public function test_a_non_member_sees_nothing(): void
+    {
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $etranger = User::factory()->create(['organization_id' => $this->organization->id]);
+
+        $this->assertStringNotContainsString(
+            e($this->fichier->nomLisible()),
+            $this->espace($etranger),
+        );
+    }
+
+    /** Et le lien du membre FONCTIONNE : la route dédiée sert le fichier. */
+    public function test_the_member_link_actually_serves_the_file(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        \Illuminate\Support\Facades\Storage::disk('local')->put('dossiers/1695l/f.pdf', 'CONTENU_1695L');
+        $this->fichier->update(['disk' => 'local', 'path' => 'dossiers/1695l/f.pdf']);
+
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $this->actingAs($this->membre)
+            ->get(route('organization.dossiers.shared.preview', [
+                'organization' => $this->organization->slug,
+                'file' => $this->fichier->id,
+            ]))
+            ->assertSuccessful();
+    }
+
+    /**
+     * « Arrêter le partage » emporte AUSSI les partages de Boucle.
+     *
+     * L'écran montre une ligne par fichier, toutes natures confondues :
+     * n'arrêter que les nominatifs rendrait 404 sur un fichier partagé
+     * seulement vers une Boucle — un bouton visible qui refuse son geste.
+     */
+    public function test_stop_sharing_also_removes_loop_shares(): void
+    {
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+        $this->assertTrue($this->membre->fresh()->can('viewFiles', $this->fichier));
+
+        $this->actingAs($this->proprietaire)
+            ->delete(route('organization.dossiers.shared.stop', [
+                'organization' => $this->organization->slug,
+                'file' => $this->fichier->id,
+            ]))
+            ->assertRedirect();
+
+        $this->assertSame(0, DossierFileLoopShare::query()->count());
+        $this->assertFalse($this->membre->fresh()->can('viewFiles', $this->fichier));
+    }
 }

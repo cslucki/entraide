@@ -184,13 +184,27 @@ class DossierController extends Controller
             // fichier `trashed()`. L'ecran et la policy disent donc la meme
             // chose, et le test ci-dessous epingle ce resultat quelle que soit
             // la mecanique qui l'obtient.
+            // TASK-1695 (5a) — « Avec moi » recoit AUSSI les fichiers partages
+            // vers une de mes Boucles : sans cet ecran, un membre n'aurait
+            // aucun chemin vers le fichier — la capacite serait absente (meme
+            // lecon qu'au geste E). Le `orWhereHas` reste borne au tenant par
+            // le `where` qui le precede.
+            $mesBouclesActives = fn ($q) => $q
+                ->where('organization_id', $organization->id)
+                ->whereHas('activeMembers', fn ($m) => $m->where('user_id', $userId));
+
             $fichiersAvecMoi = DossierFile::query()
                 ->withoutTrashed()
                 ->where('organization_id', $organization->id)
-                ->whereHas('shares', fn ($q) => $q->where('user_id', $userId))
+                ->where(fn ($q) => $q
+                    ->whereHas('shares', fn ($s) => $s->where('user_id', $userId))
+                    ->orWhereHas('loopShares.loop', $mesBouclesActives))
                 ->with([
                     'shares' => fn ($q) => $q->where('user_id', $userId),
                     'shares.sharedBy:id,first_name,avatar,name,email,banned_at,organization_id',
+                    'loopShares' => fn ($q) => $q->whereHas('loop', $mesBouclesActives),
+                    'loopShares.loop:id,name,organization_id',
+                    'loopShares.sharedBy:id,first_name,avatar,name,email,banned_at,organization_id',
                 ])
                 ->latest('updated_at')
                 ->get();
@@ -202,10 +216,14 @@ class DossierController extends Controller
             $fichiersParMoi = DossierFile::query()
                 ->withoutTrashed()
                 ->where('organization_id', $organization->id)
-                ->whereHas('shares', fn ($q) => $q->where('shared_by', $userId))
+                ->where(fn ($q) => $q
+                    ->whereHas('shares', fn ($s) => $s->where('shared_by', $userId))
+                    ->orWhereHas('loopShares', fn ($s) => $s->where('shared_by', $userId)))
                 ->with([
                     'shares' => fn ($q) => $q->where('shared_by', $userId),
                     'shares.user:id,first_name,avatar,name,email,banned_at,organization_id',
+                    'loopShares' => fn ($q) => $q->where('shared_by', $userId),
+                    'loopShares.loop:id,name,organization_id',
                 ])
                 ->withCount(['shares' => fn ($q) => $q->where('shared_by', $userId)])
                 ->latest('updated_at')
@@ -232,9 +250,12 @@ class DossierController extends Controller
                     // « Par moi », l'auteur du partage sous « Avec moi ».
                     'qui' => fn (DossierFile $f) => mb_strtolower(
                         (string) ($f->shares->first()?->user?->publicDisplayName()
-                            ?: $f->shares->first()?->sharedBy?->publicDisplayName()),
+                            ?: $f->shares->first()?->sharedBy?->publicDisplayName()
+                            ?: $f->loopShares->first()?->loop?->name),
                     ),
-                    'date' => fn (DossierFile $f) => $f->shares->first()?->created_at?->timestamp ?? 0,
+                    'date' => fn (DossierFile $f) => $f->shares->first()?->created_at?->timestamp
+                        ?? $f->loopShares->first()?->created_at?->timestamp
+                        ?? 0,
                 ];
 
                 $cle = $request->query('ftri');

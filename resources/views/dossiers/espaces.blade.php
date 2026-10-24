@@ -277,12 +277,21 @@
                                     @foreach($fichiers as $fichier)
                                         @php
                                             $partage = $fichier->shares->first();
-                                            $auteur = $partage?->sharedBy;
+                                            // TASK-1695 (5a) — un fichier peut n'etre partage
+                                            // QUE vers une Boucle : la colonne « qui » doit
+                                            // alors nommer la Boucle, pas afficher un
+                                            // « Utilisateur desactive » faute de ligne
+                                            // nominative.
+                                            $partageBoucle = $fichier->loopShares->first();
+                                            $auteur = $partage?->sharedBy ?? $partageBoucle?->sharedBy;
                                             $destinataire = $partage?->user;
                                             $autre = $vue === 'par-moi' ? $destinataire : $auteur;
-                                            $qui = $autre?->isDisplayableIn(currentOrganization())
-                                                ? $autre->publicDisplayName()
-                                                : __('profile.deactivated_user');
+                                            $nomBoucle = $partageBoucle?->loop?->name;
+                                            $qui = $autre
+                                                ? ($autre->isDisplayableIn(currentOrganization())
+                                                    ? $autre->publicDisplayName()
+                                                    : __('profile.deactivated_user'))
+                                                : ($nomBoucle ?? __('profile.deactivated_user'));
                                         @endphp
                                         <div x-show="q === '' || @js(mb_strtolower($fichier->nomLisible())).includes(q.toLowerCase())"
                                              class="{{ $grilleF }} min-h-[3.25rem] border-b border-[var(--bp-border)]/60 px-2.5 transition hover:bg-[var(--bp-panel)]"
@@ -318,13 +327,26 @@
                                                         @click="ouvrirApercuPartages(@js(['id' => $fichier->getKey(), 'dossier_id' => $fichier->dossier_id, 'display_name' => $fichier->nomLisible()]))"
                                                         class="hidden min-w-0 items-center gap-1.5 text-xs text-[var(--bp-muted)] hover:text-[var(--bp-text)] lg:flex"
                                                         data-shared-file-who>
-                                                    <x-user-avatar :user="$autre" size="xs" />
+                                                    @if($autre)
+                                                        <x-user-avatar :user="$autre" size="xs" />
+                                                    @else
+                                                        <svg class="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="15.5" r="3.2"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8"/></svg>
+                                                    @endif
                                                     <span class="min-w-0 truncate underline-offset-2 hover:underline">{{ $qui }}@if(($fichier->shares_count ?? 1) > 1) +{{ $fichier->shares_count - 1 }}@endif</span>
                                                 </button>
                                             @else
                                                 <span class="hidden min-w-0 items-center gap-1.5 text-xs text-[var(--bp-muted)] lg:flex">
-                                                    <x-user-avatar :user="$autre" size="xs" />
-                                                    <span class="min-w-0 truncate">{{ $qui }}</span>
+                                                    @if($autre)
+                                                        <x-user-avatar :user="$autre" size="xs" />
+                                                    @else
+                                                        <svg class="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="15.5" r="3.2"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8"/></svg>
+                                                    @endif
+                                                    {{-- Le CHEMIN d'acces, en plus du partageur :
+                                                         sous « Avec moi », un fichier venu par une
+                                                         Boucle doit la nommer — c'est elle qui
+                                                         explique pourquoi je le vois, et c'est en la
+                                                         quittant que je le perdrais. --}}
+                                                    <span class="min-w-0 truncate">{{ $qui }}@if($vue === 'avec-moi' && $nomBoucle) <span class="text-[var(--bp-muted)]">· {{ $nomBoucle }}</span>@endif</span>
                                                 </span>
                                             @endif
                                             @if($vue === 'avec-moi')

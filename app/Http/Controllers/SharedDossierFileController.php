@@ -118,6 +118,15 @@ class SharedDossierFileController extends Controller
             ->where('organization_id', $file->organization_id)
             ->delete();
 
+        // TASK-1695 (5a) — le geste emporte AUSSI mes partages de Boucle :
+        // l'ecran montre une ligne par fichier, toutes natures confondues.
+        // N'arreter que les nominatifs rendrait 404 sur un fichier partage
+        // seulement vers une Boucle — un bouton visible qui refuse son geste.
+        $retires += $file->loopShares()
+            ->where('shared_by', $request->user()->id)
+            ->where('organization_id', $file->organization_id)
+            ->delete();
+
         if ($retires === 0) {
             abort(404);
         }
