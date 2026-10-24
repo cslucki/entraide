@@ -384,4 +384,79 @@ class TASK1695FileShareWriteTest extends TestCase
             ->postJson($this->url('store'), ['user_id' => $this->cible->id])
             ->assertNotFound();
     }
+
+    /**
+     * La colonne « Partage » dit l'état de CETTE LIGNE.
+     *
+     * Point 1 de Cyril : un fichier réellement partagé y lisait « Privé ».
+     * La colonne affichait `$partageHerite`, calculé **une seule fois pour
+     * tout le Dossier** — elle ne regardait pas au bon endroit.
+     *
+     * Les lignes de fichier étant rendues en Alpine depuis du JSON, le test
+     * vise la charge utile de la liste : c'est par là que l'information
+     * voyage. Sans `shares_count`, la vue n'a rien à afficher.
+     */
+    public function test_the_file_list_carries_its_share_count(): void
+    {
+        $url = route('organization.dossiers.files.index', [
+            'organization' => $this->organization->slug,
+            'dossier' => $this->dossier->id,
+        ]);
+
+        $avant = $this->actingAs($this->proprietaire)->getJson($url)->assertOk()->json();
+        $ligne = collect(data_get($avant, 'files.data', data_get($avant, 'data', [])))
+            ->firstWhere('id', $this->fichier->id);
+        $this->assertNotNull($ligne, 'Le fichier doit figurer dans la liste.');
+        $this->assertSame(0, $ligne['shares_count']);
+
+        $this->actingAs($this->proprietaire)
+            ->postJson($this->url('store'), ['user_id' => $this->cible->id])
+            ->assertStatus(201);
+
+        $apres = $this->actingAs($this->proprietaire)->getJson($url)->assertOk()->json();
+        $ligne = collect(data_get($apres, 'files.data', data_get($apres, 'data', [])))
+            ->firstWhere('id', $this->fichier->id);
+        $this->assertSame(1, $ligne['shares_count']);
+    }
+
+    /**
+     * L'aperçu « avec qui » porte un VISAGE — jamais une URL tierce.
+     *
+     * `avatar_url` retombe sur un service tiers quand la personne n'a pas
+     * déposé d'avatar : on lui enverrait le nom de quelqu'un pour dessiner
+     * deux lettres que l'application sait dessiner elle-même. Le champ vaut
+     * donc `null`, et la vue rend les initiales localement.
+     *
+     * Même précaution que `DossierFileController::publicUserPayload()` — elle
+     * y était documentée, et je l'aurais manquée sans la lire.
+     */
+    public function test_the_share_list_never_leaks_a_third_party_avatar_url(): void
+    {
+        $this->cible->update(['avatar' => null]);
+        $this->actingAs($this->proprietaire)->postJson($this->url('store'), ['user_id' => $this->cible->id]);
+
+        $charge = $this->actingAs($this->proprietaire)
+            ->getJson($this->url('index'))->assertOk()->json('shares.0');
+
+        $this->assertNull($charge['avatar_url']);
+        $this->assertArrayNotHasKey('email', $charge);
+    }
+
+    /** Les deux temps de l'aperçu sont présents à l'écran. */
+    public function test_the_two_step_share_preview_is_rendered(): void
+    {
+        $html = $this->actingAs($this->proprietaire)
+            ->get(route('organization.dossiers.show', [
+                'organization' => $this->organization->slug,
+                'dossier' => $this->dossier->id,
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        // Premier temps : « Partagé » cliquable, puis le panneau.
+        $this->assertStringContainsString('data-file-share-peek', $html);
+        $this->assertStringContainsString('data-file-share-peek-modal', $html);
+        // Et le pont vers le second temps.
+        $this->assertStringContainsString('data-file-share-peek-more', $html);
+    }
 }

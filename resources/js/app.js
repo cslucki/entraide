@@ -3598,6 +3598,7 @@ function registerDossierFilesCard() {
         shareQuery: '',
         shareResults: [],
         shareCurrent: [],
+        showPeekModal: false,
         shareLoading: false,
         // « Retirer de cette Boucle » (CAS B) : une confirmation legere avant
         // le PATCH — retirer un partage n'est pas supprimer, le ton du modal
@@ -4593,6 +4594,32 @@ function registerDossierFilesCard() {
          * gardee d'une fois sur l'autre : deux onglets, ou un retrait fait
          * ailleurs, rendraient sinon un ecran qui ment sur l'etat reel.
          */
+        /**
+         * TASK-1695 (point 1 de Cyril) — PREMIER temps de l'apercu de partage.
+         *
+         * Ergonomie en deux temps, voulue par Cyril et calquee sur Drive :
+         * d'abord « avec qui, et puis-je arreter ? », et SEULEMENT si besoin la
+         * fenetre complete avec sa recherche de membres. Ouvrir d'emblee la
+         * grande fenetre pour repondre a « c'est partage avec qui ? » demande
+         * de traverser un formulaire pour lire une information.
+         *
+         * Le panneau reutilise `shareTarget` et `shareCurrent` : la meme cible
+         * et la meme liste que la grande fenetre. Deux etats separes auraient
+         * pu diverger — retirer quelqu'un dans l'un sans que l'autre le sache.
+         */
+        ouvrirApercuPartages(file) {
+            this.shareTarget = file;
+            this.shareCurrent = [];
+            this.showPeekModal = true;
+            this.chargerPartages();
+        },
+
+        /** Second temps : la fenetre complete, en gardant la cible. */
+        passerAuPartageComplet() {
+            this.showPeekModal = false;
+            this.openShareModal(this.shareTarget);
+        },
+
         openShareModal(file) {
             this.shareTarget = file;
             this.shareQuery = '';

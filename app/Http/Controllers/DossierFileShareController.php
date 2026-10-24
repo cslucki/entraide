@@ -48,14 +48,29 @@ class DossierFileShareController extends Controller
 
         return response()->json([
             'shares' => $file->shares()
-                ->with('user:id,name,first_name')
+                ->with('user:id,name,first_name,avatar,email,banned_at,organization_id')
                 ->get()
-                ->map(fn (DossierFileShare $share) => [
-                    'id' => $share->id,
-                    'user_id' => $share->user_id,
-                    'name' => $share->user?->name,
-                    'first_name' => $share->user?->first_name,
-                ])
+                ->map(function (DossierFileShare $share) use ($file) {
+                    $visible = $share->user?->isDisplayableIn($file->organization_id) ?? false;
+
+                    return [
+                        'id' => $share->id,
+                        'user_id' => $share->user_id,
+                        'name' => $visible ? $share->user?->name : __('profile.deactivated_user'),
+                        'first_name' => $visible ? $share->user?->first_name : null,
+                        // TASK-1695 (point 1 de Cyril) — le VISAGE, pour
+                        // l'apercu « partage avec qui ».
+                        //
+                        // `null` des que la personne n'a pas depose d'avatar :
+                        // `avatar_url` retombe sinon sur un service TIERS, a qui
+                        // on enverrait son nom pour dessiner deux lettres qu'on
+                        // sait dessiner ici. Meme precaution que
+                        // `DossierFileController::publicUserPayload()`.
+                        'avatar_url' => $visible && filled($share->user?->avatar)
+                            ? $share->user->avatar_url
+                            : null,
+                    ];
+                })
                 ->values(),
         ]);
     }

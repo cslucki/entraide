@@ -677,4 +677,7 @@ TEXT,
     'col_shared_at' => 'Shared on',
     'file_share_stop' => 'Stop sharing',
     'file_share_stopped' => 'Sharing has been stopped.',
+    'share_none' => 'None',
+    'share_peek_title' => 'Shared with',
+    'share_peek_add' => 'Add people',
 ];

@@ -41,7 +41,14 @@ class DossierFileController extends Controller
         $query = DossierFile::query()
             ->where('dossier_id', $dossier->id)
             ->where('organization_id', $organization->id)
-            ->with('uploader:id,organization_id,first_name,avatar,name,email,banned_at');
+            ->with('uploader:id,organization_id,first_name,avatar,name,email,banned_at')
+            // TASK-1695 (point 1 de Cyril) — la colonne « Partage » doit dire
+            // l'etat DE CETTE LIGNE. Elle affichait `$partageHerite`, une
+            // valeur calculee une seule fois pour tout le Dossier : un fichier
+            // partage y lisait « Prive ». Le compte voyage donc avec le
+            // fichier, puisque les lignes sont rendues en Alpine depuis ce
+            // JSON.
+            ->withCount('shares');
 
         if ($search !== '') {
             $searchTerm = trim($search);
@@ -58,6 +65,10 @@ class DossierFileController extends Controller
         $files = $query->paginate(20);
         $files->getCollection()->transform(fn (DossierFile $file) => array_merge(
             $file->toArray(),
+            // `shares_count` n'est PAS recopie ici : `withCount('shares')`
+            // l'expose deja via `toArray()`. Mesure du 24/10 — retirer la
+            // recopie ne fait rougir aucun test, retirer le `withCount()` en
+            // fait rougir un. La garde est le `withCount()`, pas la recopie.
             ['uploader' => $this->publicUserPayload($file->uploader, $organization->id)]
         ));
 

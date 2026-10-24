@@ -691,4 +691,7 @@ TEXT,
     'col_shared_at' => 'Date de partage',
     'file_share_stop' => 'Arrêter le partage',
     'file_share_stopped' => 'Le partage a été arrêté.',
+    'share_none' => 'Aucun',
+    'share_peek_title' => 'Partagé avec',
+    'share_peek_add' => 'Ajouter des personnes',
 ];
