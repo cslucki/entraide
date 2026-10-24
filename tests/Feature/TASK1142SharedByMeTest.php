@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\PersonalDocumentsRoot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 /**
@@ -42,6 +43,8 @@ use Tests\TestCase;
  */
 class TASK1142SharedByMeTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     use RefreshDatabase;
 
     private Organization $org;
@@ -143,6 +146,8 @@ class TASK1142SharedByMeTest extends TestCase
 
     public function test_a_child_dossier_shared_by_its_governing_owner_is_listed_in_shared_by_me(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->a, $this->m4);
 
         // Le coeur du defaut : A n'a ni `owner_id` ni `parent_id` NULL, et
@@ -156,6 +161,8 @@ class TASK1142SharedByMeTest extends TestCase
 
     public function test_the_invited_member_sees_the_dossier_in_shared_with_me(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->a, $this->m4);
 
         $this->assertContains($this->a->id, $this->lignes($this->m4, 'avec-moi'));
@@ -163,6 +170,8 @@ class TASK1142SharedByMeTest extends TestCase
 
     public function test_the_invited_member_never_sees_the_dossier_in_shared_by_me(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->a, $this->m4);
 
         // m4 recoit le partage, il ne le donne pas : la gouvernance reste m3.
@@ -175,6 +184,8 @@ class TASK1142SharedByMeTest extends TestCase
 
     public function test_a_descendant_that_only_inherits_is_not_listed(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->a, $this->m4);
 
         // B herite de l'acces via A, sans ligne `dossier_members` a lui.
@@ -187,6 +198,8 @@ class TASK1142SharedByMeTest extends TestCase
 
     public function test_a_descendant_with_its_own_explicit_share_is_listed_on_its_own(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $autreInvite = User::factory()->create(['organization_id' => $this->org->id]);
 
         $this->partager($this->a, $this->m4);
@@ -205,6 +218,8 @@ class TASK1142SharedByMeTest extends TestCase
 
     public function test_removing_the_last_direct_member_removes_the_dossier_from_shared_by_me(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->a, $this->m4);
         $this->assertContains($this->a->id, $this->lignes($this->m3, 'par-moi'));
 
@@ -220,6 +235,8 @@ class TASK1142SharedByMeTest extends TestCase
 
     public function test_governance_is_resolved_through_the_whole_ancestry(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $c = $this->sousDossier($this->b, 'Petit-fils');
         $this->partager($c, $this->m4);
 
@@ -237,6 +254,8 @@ class TASK1142SharedByMeTest extends TestCase
 
     public function test_the_personal_documents_root_is_never_listed_as_shared_by_me(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->a, $this->m4);
 
         $parMoi = $this->lignes($this->m3, 'par-moi');
@@ -262,6 +281,8 @@ class TASK1142SharedByMeTest extends TestCase
 
     public function test_a_dossier_from_another_organization_never_leaks(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $etranger = User::factory()->create(['organization_id' => $this->autreOrg->id]);
         $racineEtrangere = app(PersonalDocumentsRoot::class)->resolve($this->autreOrg->id, $etranger->id);
         $dossierEtranger = $this->sousDossier($racineEtrangere, 'Dossier etranger');
@@ -355,6 +376,8 @@ class TASK1142SharedByMeTest extends TestCase
      */
     public function test_a_listed_dossier_carries_the_shared_marker(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->a, $this->m4);
 
         foreach (['par-moi' => $this->m3, 'avec-moi' => $this->m4] as $vue => $acteur) {
@@ -376,6 +399,8 @@ class TASK1142SharedByMeTest extends TestCase
      */
     public function test_an_owned_legacy_root_stays_listed(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $racineHeritee = Dossier::create([
             'organization_id' => $this->org->id,
             'owner_id' => $this->m3->id,

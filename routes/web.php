@@ -1517,11 +1517,31 @@ Route::prefix('/org/{organization}')
                 Route::delete('/dossiers/{dossier}/articles/{post}', [DossierArticleController::class, 'destroy'])->name('dossiers.articles.destroy');
                 Route::patch('/dossiers/{dossier}/articles/reorder', [DossierArticleController::class, 'reorder'])->name('dossiers.articles.reorder');
                 Route::get('/dossiers/{dossier}/articles/search', [DossierArticleController::class, 'search'])->name('dossiers.articles.search');
-                Route::get('/dossiers/{dossier}/members', [DossierMemberController::class, 'index'])->name('dossiers.members.index');
-                Route::post('/dossiers/{dossier}/members', [DossierMemberController::class, 'store'])->name('dossiers.members.store');
-                Route::patch('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'update'])->name('dossiers.members.update');
-                Route::delete('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'destroy'])->name('dossiers.members.destroy');
-                Route::get('/dossiers/{dossier}/members/search', [DossierMemberController::class, 'search'])->name('dossiers.members.search');
+                // TASK-1695 — DESACTIVE sur decision de Cyril (24/10).
+                //
+                // Le partage d'un Dossier avec des membres nominatifs : la
+                // creation de Dossiers avait ete retiree il y a plus d'un mois
+                // (Dossiers n'est pas un Drive), mais le PARTAGE de ceux qui
+                // existaient deja etait reste atteignable — et sa recherche de
+                // membres rendait l'adresse email de chaque personne proposee.
+                //
+                // La porte est d'abord fermee a l'AUTORITE
+                // (`DossierPolicy::manageMembers`, voir son docblock) ; ces
+                // routes sont commentees EN PLUS, pour qu'une URL tapee a la
+                // main rende 404 et non 403. Une porte absente n'annonce rien.
+                //
+                // Aucun `route()` ne visait ces noms (verifie le 24/10) : les
+                // commenter ne casse aucun rendu. `DossierMemberController`
+                // n'est pas touche — intact, simplement inatteignable.
+                //
+                // Pour reactiver : decommenter ces cinq lignes ET le corps de
+                // `manageMembers`.
+                //
+                // Route::get('/dossiers/{dossier}/members', [DossierMemberController::class, 'index'])->name('dossiers.members.index');
+                // Route::post('/dossiers/{dossier}/members', [DossierMemberController::class, 'store'])->name('dossiers.members.store');
+                // Route::patch('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'update'])->name('dossiers.members.update');
+                // Route::delete('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'destroy'])->name('dossiers.members.destroy');
+                // Route::get('/dossiers/{dossier}/members/search', [DossierMemberController::class, 'search'])->name('dossiers.members.search');
                 Route::get('/dossiers/{dossier}/series', [DossierSeriesController::class, 'show'])->name('dossiers.series.show');
                 Route::post('/dossiers/{dossier}/series', [DossierSeriesController::class, 'store'])->name('dossiers.series.store');
                 Route::patch('/dossiers/{dossier}/series', [DossierSeriesController::class, 'update'])->name('dossiers.series.update');

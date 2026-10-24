@@ -15,6 +15,7 @@ use App\Services\Dossiers\PersonalDocumentsRoot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 /**
@@ -44,6 +45,8 @@ use Tests\TestCase;
  */
 class TASK1144ItemMenuActionsTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     use RefreshDatabase;
 
     private Organization $org;
@@ -171,6 +174,8 @@ class TASK1144ItemMenuActionsTest extends TestCase
 
     public function test_a_folder_row_keeps_its_own_sharing_action(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $reponse = $this->ouvrir($this->owner)->assertOk();
 
         // Un lien vers SA page a lui, avec le deep-link du panneau : l'action
@@ -184,6 +189,8 @@ class TASK1144ItemMenuActionsTest extends TestCase
 
     public function test_the_open_dossier_keeps_its_header_share_button(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $html = $this->ouvrir($this->owner)->assertOk()->getContent();
 
         // Exactement un emetteur : l'en-tete. Zero signifierait qu'on a casse
@@ -197,6 +204,8 @@ class TASK1144ItemMenuActionsTest extends TestCase
 
     public function test_the_owner_never_sees_share_the_folder_on_items(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $html = $this->ouvrir($this->owner)->assertOk()->getContent();
 
         $this->assertStringNotContainsString('Partager le dossier', $html);
@@ -229,6 +238,8 @@ class TASK1144ItemMenuActionsTest extends TestCase
      */
     public function test_no_item_menu_can_open_the_sharing_panel(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->reader, DossierMember::ROLE_READER);
         $this->partager($this->editor, DossierMember::ROLE_EDITOR);
 

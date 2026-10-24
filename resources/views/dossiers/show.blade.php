@@ -396,6 +396,17 @@
                                 @php
                                     $dejaPartage = $dossier->shared_with_loop_id !== null || $dossier->dossierMembers->isNotEmpty();
                                 @endphp
+                                {{-- TASK-1695 — la poignee suit desormais
+                                     l'AUTORITE, et non `$userRole === 'owner'`.
+
+                                     Elle etait conditionnee a un predicat
+                                     DIFFERENT de celui qui garde la porte : la
+                                     desactivation de `manageMembers` fermait
+                                     l'acces et laissait ce bouton en place,
+                                     ouvrant un panneau devenu inutile. Les deux
+                                     avaient derive sans que rien ne le dise —
+                                     trouve par le test, pas par la lecture. --}}
+                                @can('manageMembers', $dossier)
                                 <button type="button" @click="window.dispatchEvent(new CustomEvent('open-share-panel'))"
                                         class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition {{ $dejaPartage
                                             ? 'text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/40'
@@ -404,6 +415,7 @@
                                         aria-label="{{ $dejaPartage ? __('dossiers.share_manage') : __('dossiers.share_tab') }}">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z"/></svg>
                                 </button>
+                                @endcan
                             @else
                                 <span class="shrink-0 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/60 dark:text-amber-200">{{ __('dossiers.shared_badge') }}</span>
                                 {{-- Lecture seule pour un membre lecteur COMME

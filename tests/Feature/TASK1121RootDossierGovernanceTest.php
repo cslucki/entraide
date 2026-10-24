@@ -11,6 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 /**
@@ -26,6 +27,8 @@ use Tests\TestCase;
  */
 class TASK1121RootDossierGovernanceTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     use RefreshDatabase;
 
     private Organization $orgA;
@@ -127,6 +130,8 @@ class TASK1121RootDossierGovernanceTest extends TestCase
 
     public function test_the_members_api_derives_from_the_loop(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $reponse = $this->actingAs($this->proprietaire)->getJson(route('organization.dossiers.members.index', [
             'organization' => $this->orgA->slug, 'dossier' => $this->racine->id,
         ]))->assertOk();
@@ -143,6 +148,8 @@ class TASK1121RootDossierGovernanceTest extends TestCase
 
     public function test_no_parallel_member_management_on_a_root_dossier(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         // La Boucle est la source de verite : l'API de gestion refuse, meme au
         // proprietaire de la Boucle.
         $this->actingAs($this->proprietaire)->postJson(route('organization.dossiers.members.store', [
@@ -278,6 +285,8 @@ class TASK1121RootDossierGovernanceTest extends TestCase
 
     public function test_a_personal_dossier_keeps_its_own_rules(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->withSession(['locale' => 'fr']);
 
         $personnel = Dossier::create([

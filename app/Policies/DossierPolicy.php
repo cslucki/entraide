@@ -199,15 +199,60 @@ class DossierPolicy
         return $this->isOwner($user, $dossier);
     }
 
+    /**
+     * TASK-1695 — DESACTIVE sur decision de Cyril (24/10).
+     *
+     * ## Pourquoi
+     *
+     * La creation de Dossiers avait ete retiree il y a plus d'un mois : Dossiers
+     * n'est pas un Drive. Mais retirer la CREATION n'avait pas emporte le
+     * PARTAGE de ceux qui existaient deja — l'ecran restait atteignable par les
+     * liens `?partage=1`, et sa recherche de membres rendait l'adresse email de
+     * chaque personne proposee. Meme defaut que celui corrige sur le partage de
+     * fichier, sur un ecran dont plus personne ne voulait.
+     *
+     * ## Ce que la mesure disait
+     *
+     * 11 Dossiers en base, dont 5 « Mes documents » (deja refuses ici) et 5
+     * lies a une Boucle. **1 seul** etait reellement partageable, et **0** ligne
+     * `dossier_members` existait : la fonction n'avait jamais servi.
+     *
+     * ## Pourquoi ICI et pas ailleurs
+     *
+     * C'est l'AUTORITE UNIQUE : les quatre gestes de `DossierMemberController`
+     * la consultent, et les deux poignees de `show.blade.php` passent par
+     * `@can('manageMembers', ...)`. Fermer ici ferme la porte ET retire la
+     * poignee, sans qu'aucun des deux ne puisse deriver de l'autre. Les routes
+     * sont commentees en plus (`routes/web.php`), de sorte qu'une URL tapee a
+     * la main rende 404 plutot que 403 : une porte absente n'annonce rien.
+     *
+     * ## Les Boucles ne sont PAS concernees
+     *
+     * `isOwner()` exige `owner_id`, qu'un Dossier de Boucle n'a pas : il n'est
+     * jamais passe par ici. Le partage avec une Boucle (`shared_with_loop_id`)
+     * emprunte un tout autre chemin, et reste intact — c'est d'ailleurs la
+     * direction que Cyril veut developper.
+     *
+     * ## Pour reactiver
+     *
+     * Retirer le `return false` ci-dessous, decommenter le corps d'origine, et
+     * decommenter les cinq routes `dossiers.members.*`. Le controleur, lui, n'a
+     * pas ete touche : il est intact, simplement inatteignable.
+     */
     public function manageMembers(User $user, Dossier $dossier): bool
     {
-        // Inviter quelqu'un dans « Mes documents » reviendrait a partager tout
-        // l'espace personnel d'un coup, y compris ce qui n'y est pas encore.
-        if ($dossier->isPersonalDocumentsRoot()) {
-            return false;
-        }
+        return false;
 
-        return $this->isOwner($user, $dossier);
+        // --- Corps d'origine, conserve tel quel pour une reactivation ---
+        //
+        // // Inviter quelqu'un dans « Mes documents » reviendrait a partager
+        // // tout l'espace personnel d'un coup, y compris ce qui n'y est pas
+        // // encore.
+        // if ($dossier->isPersonalDocumentsRoot()) {
+        //     return false;
+        // }
+        //
+        // return $this->isOwner($user, $dossier);
     }
 
     public function attachArticle(User $user, Dossier $dossier): bool
