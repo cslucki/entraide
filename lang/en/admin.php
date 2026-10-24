@@ -545,6 +545,9 @@ return [
     'system_email_default_in_use_partial' => 'Used for Organizations without an active customization',
     // TASK-1694 bug O — l'ecran sait enfin designer « sans Organization ».
     // TASK-1694 bug R — la capacite d'editer, gouvernee par Organization.
+    // TASK-1694 bug AE — la disponibilite des membres, par Organization.
+    'org_availability_enabled_label' => 'Member availability',
+    'org_availability_enabled_desc' => 'When unchecked, the green “available” dot and the menu toggle disappear everywhere: directory, profiles, service pages, user menu.',
     'org_system_emails_editable_label' => 'May edit system email templates',
     'org_system_emails_editable_desc' => 'When unchecked, this organization can no longer edit its system email templates: the platform\'s global templates apply.',
     'system_email_only_global' => 'Global only',

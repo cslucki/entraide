@@ -63,7 +63,9 @@
                         <a href="{{ $_serviceProfileHref }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $service->user->fullName }}</a>
                         <div class="flex items-center gap-2 text-xs text-gray-500">
                             <span>{{ __('marketplace.delivery.' . $service->delivery_mode) }}</span>
-                            @if($service->user->is_available)
+                            {{-- TASK-1694 bug AE — surface trouvee a l'inventaire, que la
+                                 demande ne nommait pas (« et tous les autres endroits »). --}}
+                            @if(availabilityIsShown() && $service->user->is_available)
                             <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>{{ __('profile.available') }}</span>
                             @endif
                         </div>

@@ -57,7 +57,8 @@
                 <div class="flex-1 min-w-0 text-center sm:text-left">
                     <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                         <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">{{ $user->fullName }}</h1>
-                        @if($user->is_available)
+                        {{-- TASK-1694 bug AE — pastille conditionnee a la fonctionnalite. --}}
+                        @if(availabilityIsShown() && $user->is_available)
                         <span class="inline-flex items-center self-center gap-1.5 px-2.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium w-fit">
                             <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>{{ __('profile.available') }}
                         </span>

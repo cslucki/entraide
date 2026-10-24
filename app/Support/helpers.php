@@ -14,6 +14,30 @@ if (! function_exists('currentOrganization')) {
     }
 }
 
+if (! function_exists('availabilityIsShown')) {
+    /**
+     * TASK-1694 bug AE — faut-il afficher la disponibilite des membres ?
+     *
+     * Une seule lecture, pour les CINQ surfaces qui portaient la pastille.
+     * Cyril en a nomme trois et ajoute « et tous les autres endroits » :
+     * l'inventaire du 24/10 en a trouve deux de plus, dont la fiche d'un
+     * Service. Une condition recopiee cinq fois aurait fini par diverger, et
+     * c'est justement la surface oubliee qui aurait garde le point vert.
+     *
+     * La question porte sur l'Organization COURANTE — le tenant dont on
+     * regarde les pages — et non sur celle de la personne affichee : c'est
+     * l'ecran qui decide de ce qu'il montre, pas la donnee.
+     *
+     * Hors tenant (pages sans Organization), la reponse est `true` : l'absence
+     * de contexte n'est pas un « non », et faire disparaitre la fonctionnalite
+     * par accident serait pire que la laisser.
+     */
+    function availabilityIsShown(): bool
+    {
+        return currentOrganization()?->availabilityEnabled() ?? true;
+    }
+}
+
 if (! function_exists('organizationRoute')) {
     /**
      * Generate a URL for an organization route.

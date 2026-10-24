@@ -39,6 +39,8 @@ class Organization extends Model
         'loops_enabled',
         // TASK-1694 bug R — « Possibilite modifier emails types ».
         'system_emails_editable',
+        // TASK-1694 bug AE — la disponibilite des membres est-elle affichee ?
+        'availability_enabled',
         'members_can_create_loops',
         'ai_profiles_enabled',
         // TASK-1693 bug AU — l'assistant « BouclePro IA », par Organization.
@@ -88,6 +90,7 @@ class Organization extends Model
             'service_points_max' => 'integer',
             'loops_enabled' => 'boolean',
             'system_emails_editable' => 'boolean',
+            'availability_enabled' => 'boolean',
             'members_can_create_loops' => 'boolean',
             'ai_profiles_enabled' => 'boolean',
             'ai_shell_enabled' => 'boolean',
@@ -291,6 +294,26 @@ class Organization extends Model
     public function canEditSystemEmails(): bool
     {
         return (bool) $this->system_emails_editable;
+    }
+
+    /**
+     * TASK-1694 bug AE — cette Organization affiche-t-elle la disponibilite ?
+     *
+     * Autorite UNIQUE de la question. Cyril a nomme trois surfaces et ajoute
+     * « et tous les autres endroits » : l'inventaire du 24/10 en a trouve
+     * CINQ, dont une qu'il n'avait pas citee (la fiche d'un Service, qui
+     * affiche la pastille de son auteur).
+     *
+     * Une condition recopiee cinq fois aurait fini par diverger — et c'est
+     * exactement la surface oubliee qui aurait garde le point vert.
+     *
+     * `?? true` : une Organization absente du contexte (pages hors tenant) ne
+     * doit pas faire disparaitre la fonctionnalite par accident. L'absence de
+     * reponse n'est pas un « non ».
+     */
+    public function availabilityEnabled(): bool
+    {
+        return (bool) ($this->availability_enabled ?? true);
     }
 
     public function isFeedPostPublishableByMembers(): bool
