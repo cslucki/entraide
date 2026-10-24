@@ -619,6 +619,8 @@ return [
     'emailer_created_none' => 'Rien créé : ce gabarit existe déjà pour :cibles.',
     'emailer_duplicate_triplet' => 'Un gabarit porte déjà ce slug pour cette organisation et cette langue.',
     // TASK-1694 bug AK — le type d'appareil dans le journal de connexions.
+    // TASK-1694 bug AN — le tableau de bord de l'Organization par defaut.
+    'org_dashboard_nav' => 'Dashboard de l\'org',
     'device_column' => 'Appareil',
     'device_all' => 'Tous les appareils',
     'device_phone' => 'Smartphone',

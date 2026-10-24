@@ -616,6 +616,8 @@ return [
     'emailer_created_none' => 'Nothing created: this template already exists for :cibles.',
     'emailer_duplicate_triplet' => 'A template already uses this slug for that organization and language.',
     // TASK-1694 bug AK — le type d'appareil dans le journal de connexions.
+    // TASK-1694 bug AN — le tableau de bord de l'Organization par defaut.
+    'org_dashboard_nav' => 'Org dashboard',
     'device_column' => 'Device',
     'device_all' => 'All devices',
     'device_phone' => 'Phone',

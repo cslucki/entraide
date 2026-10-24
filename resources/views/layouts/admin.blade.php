@@ -269,6 +269,47 @@
                         Tableau de bord
                     </a>
 
+                    {{-- TASK-1694 bug AN — le tableau de bord de l'Organization PAR DEFAUT.
+                         Demande de Cyril : « un lien vers les dashboard admin organisation
+                         scopee, exemple /org/main/admin/, en dessous de Tableau de bord ».
+
+                         L'Organization vient de `DefaultOrganizationResolver` — l'autorite
+                         qui repond deja a cette question partout ailleurs. Aucune regle
+                         nouvelle ici : elle choisit l'Organization marquee par defaut, et a
+                         defaut la premiere active.
+
+                         Le lien N'EXISTE PAS si elle rend `null`. Une base sans aucune
+                         Organization — une installation neuve, un test — produirait sinon
+                         une URL a parametre manquant, c'est-a-dire une erreur de rendu sur
+                         TOUTES les pages de l'administration, pour un lien d'agrement.
+
+                         Pas d'etat « actif » : cette destination quitte l'administration
+                         plateforme. La marquer active ferait croire qu'on y est encore.
+
+                         Bloc `@php … @endphp` et JAMAIS `@php(…)` en ligne — piege deja
+                         documente dans `organization/partials/hero-next-events.blade.php`,
+                         et dans lequel je suis tombe quand meme : Blade extrait les blocs
+                         bruts AVANT les directives, avec une regex NON GOURMANDE de `@php`
+                         a `@endphp`. Un `@php(…)` en ligne pose plus haut que le premier
+                         `@endphp` du fichier OUVRE ce bloc, et tout ce qui les separe est
+                         avale en PHP brut. Mesure : la page rendait un 500
+                         « Undefined variable $groupActive » — l'erreur sortait 17 lignes
+                         plus bas, dans un bloc que je n'avais pas touche. --}}
+                    @php
+                        $_orgParDefaut = \App\Support\Tenancy\DefaultOrganizationResolver::resolve();
+                    @endphp
+                    @if($_orgParDefaut)
+                        <a href="{{ route('organization.admin.dashboard', ['organization' => $_orgParDefaut->slug]) }}"
+                           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition mb-2 text-gray-400 hover:text-white hover:bg-gray-800"
+                           data-admin-nav-org-dashboard="{{ $_orgParDefaut->slug }}"
+                           title="{{ $_orgParDefaut->name }}">
+                            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                            </svg>
+                            {{ __('admin.org_dashboard_nav') }}
+                        </a>
+                    @endif
+
                     <!-- Design group -->
                     @php $groupActive = $isGroupActive($designItems); @endphp
                     <div x-data="{ open: {{ $groupActive ? 'true' : "localStorage.getItem('sidebar_design_open') !== 'false'" }} }">
