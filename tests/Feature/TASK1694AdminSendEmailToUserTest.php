@@ -135,21 +135,122 @@ class TASK1694AdminSendEmailToUserTest extends TestCase
     }
 
     /**
-     * L'écran porte le choix, dans la ligne.
+     * TASK-1694 bug V — LE DESIGN A CHANGE, sur demande de Cyril.
      *
-     * Le marqueur du bouton d'envoi est mesuré en plus des radios : un bloc de
-     * choix sans bouton serait un écran mort.
+     * Le bug L avait mis le choix **dans la ligne**, en flux, pour échapper au
+     * rognage de l'`overflow-x-auto` du tableau. Cyril, le 24/10 : « certes
+     * contextualisé mais trop petit, et si on a plus de 10 messages types ce
+     * sera ingérable ».
+     *
+     * La ligne ne porte donc plus que le **déclencheur**, et un modal unique,
+     * posé hors du tableau, porte le choix. Les marqueurs par ligne
+     * (`...-choice="{id}"`) n'ont plus de sens — un modal par ligne aurait
+     * rendu 20 copies de la même liste sur une page de 20 membres.
+     *
+     * Ce que le test mesure désormais : chaque ligne porte son déclencheur
+     * **avec son URL d'envoi**, et la page porte **un** modal.
      */
-    public function test_the_row_carries_the_choice_and_the_send_button(): void
+    public function test_each_row_triggers_the_modal_with_its_own_send_url(): void
     {
         $html = $this->actingAs($this->superAdmin)
             ->get(route('admin.users'))
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('data-user-send-email-choice="'.$this->membre->id.'"', $html);
-        $this->assertStringContainsString('data-user-send-email-submit="'.$this->membre->id.'"', $html);
-        $this->assertStringContainsString('value="'.$this->gabarit->id.'"', $html);
+        $this->assertStringContainsString('data-user-send-email-toggle="'.$this->membre->id.'"', $html);
+        $this->assertStringContainsString(
+            'data-user-send-email-url="'.route('admin.users.send-email', $this->membre).'"',
+            $html,
+            "l'URL vient du serveur, elle n'est pas recomposee en JavaScript",
+        );
+    }
+
+    /**
+     * Et le modal est UNIQUE pour toute la page.
+     *
+     * C'est la moitié qui distingue ce design du précédent : la liste des
+     * gabarits n'est rendue qu'une fois, quel que soit le nombre de lignes.
+     */
+    public function test_the_page_carries_exactly_one_modal(): void
+    {
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.users'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertGreaterThan(
+            1,
+            substr_count($html, 'data-user-send-email-toggle='),
+            'premisse : la page doit porter plusieurs lignes',
+        );
+
+        $this->assertSame(1, substr_count($html, 'data-user-send-email-modal'));
+        $this->assertSame(1, substr_count($html, 'data-user-send-email-submit'));
+        $this->assertSame(
+            1,
+            substr_count($html, 'value="'.$this->gabarit->id.'"'),
+            'un gabarit n\'est propose QU\'UNE fois, pas une fois par ligne',
+        );
+    }
+
+    /**
+     * TASK-1694 bug V — le modal est posé HORS du tableau.
+     *
+     * C'est toute sa raison d'être, et c'est une garantie **structurelle** :
+     * en TASK-1693 bug D, un popover `absolute` dans cette colonne s'était
+     * révélé **rogné** par l'`overflow-x-auto` du tableau, donc inatteignable
+     * sur desktop. Le bug L avait contourné en restant en flux ; celui-ci sort
+     * du conteneur.
+     *
+     * Mesuré par la POSITION dans le document : un modal rendu à l'intérieur
+     * du tableau serait visuellement cassé sans qu'aucune assertion de contenu
+     * ne s'en aperçoive.
+     */
+    public function test_the_modal_sits_outside_the_scrolling_table(): void
+    {
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.users'))
+            ->assertOk()
+            ->getContent();
+
+        $finDuTableau = strrpos($html, '</table>');
+        $modal = strpos($html, 'data-user-send-email-modal');
+
+        $this->assertNotFalse($finDuTableau);
+        $this->assertNotFalse($modal);
+        $this->assertGreaterThan(
+            $finDuTableau,
+            $modal,
+            "le modal doit etre apres la fermeture du tableau, sinon l'`overflow-x-auto` le rogne",
+        );
+    }
+
+    /**
+     * Le filtre n'apparaît que quand il sert.
+     *
+     * C'est la demande même de Cyril : « si on a plus de 10 messages types, ce
+     * sera ingérable ». En dessous du seuil, un champ de plus est du bruit —
+     * les deux moitiés sont mesurées, sinon le seuil ne voudrait rien dire.
+     */
+    public function test_the_filter_appears_only_when_the_list_is_long(): void
+    {
+        $sans = $this->actingAs($this->superAdmin)
+            ->get(route('admin.users'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-user-send-email-filter', $sans);
+
+        EmailTemplate::factory()->count(9)->create([
+            'organization_id' => $this->organization->id,
+        ]);
+
+        $avec = $this->actingAs($this->superAdmin)
+            ->get(route('admin.users'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-user-send-email-filter', $avec);
     }
 
     /**
@@ -178,7 +279,7 @@ class TASK1694AdminSendEmailToUserTest extends TestCase
 
         $this->assertGreaterThan(
             1,
-            substr_count($html, 'data-user-send-email-submit='),
+            substr_count($html, 'data-user-send-email-toggle='),
             'la page doit porter plusieurs lignes, sinon le comptage ne mesure rien',
         );
 

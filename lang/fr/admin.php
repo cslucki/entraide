@@ -67,6 +67,10 @@ return [
     'users_password_reset_link' => 'Réinitialisation mdp',
 
     // TASK-1694 bug L — le choix du gabarit, pose DANS la ligne du membre.
+    // TASK-1694 bug V — le modal centre, et son filtre.
+    'users_send_email_title' => 'Envoyer un email type',
+    'users_send_email_filter' => 'Filtrer les gabarits…',
+    'users_send_email_confirm_generic' => 'Envoyer cet email à cette personne ?',
     'users_send_email_submit' => 'Envoyer',
     'users_send_email_none' => 'Aucun gabarit d\'email n\'existe encore.',
     'users_send_email_create' => 'Créer un gabarit',

@@ -67,6 +67,10 @@ return [
     'users_password_reset_link' => 'Password reset',
 
     // TASK-1694 bug L — le choix du gabarit, pose DANS la ligne du membre.
+    // TASK-1694 bug V — le modal centre, et son filtre.
+    'users_send_email_title' => 'Send a template email',
+    'users_send_email_filter' => 'Filter templates…',
+    'users_send_email_confirm_generic' => 'Send this email to this person?',
     'users_send_email_submit' => 'Send',
     'users_send_email_none' => 'No email template exists yet.',
     'users_send_email_create' => 'Create a template',

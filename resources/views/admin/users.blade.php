@@ -409,55 +409,32 @@
                                  inatteignable sur desktop. Voir
                                  `admin/partials/user-organization-assign.blade.php`. --}}
 
-                            {{-- TASK-1694 bug L — « Envoyer un email » devient un CHOIX,
-                                 ici, pour cette personne.
-                                 Le lien menait au catalogue sans rien savoir de la
-                                 ligne : il fallait y rechoisir le destinataire.
-                                 Le bloc est en FLUX NORMAL, pas un popover
-                                 `absolute` : la colonne est rognee par
-                                 l'`overflow-x-auto` du tableau — defaut mesure en
-                                 TASK-1693 bug D, qui avait force l'affectation
-                                 d'Organization a quitter cette colonne. --}}
-                            <div x-data="{ mailOpen: false }" class="w-full">
-                                <button type="button" @click="mailOpen = ! mailOpen"
-                                        class="text-xs text-gray-400 hover:text-indigo-500"
-                                        data-user-send-email-toggle="{{ $u->id }}">
-                                    {{ __('admin.emailer_single_action') }}
-                                </button>
+                            {{-- TASK-1694 bug L puis V — « Envoyer un email » ouvre un
+                                 MODAL centre, pose hors du tableau.
 
-                                @if($emailTemplates->isEmpty())
-                                    <div x-show="mailOpen" x-cloak class="mt-1">
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                                            {{ __('admin.users_send_email_none') }}
-                                        </p>
-                                        <a href="{{ route('admin.email-templates.create') }}"
-                                           class="text-xs text-indigo-600 hover:underline">
-                                            {{ __('admin.users_send_email_create') }}
-                                        </a>
-                                    </div>
-                                @else
-                                    <form x-show="mailOpen" x-cloak method="POST"
-                                          action="{{ route('admin.users.send-email', $u) }}"
-                                          onsubmit="return confirm('{{ __('admin.users_send_email_confirm', ['name' => $u->email]) }}')"
-                                          class="mt-1 space-y-1 rounded-lg border border-gray-200 dark:border-gray-700 p-2 w-56">
-                                        @csrf
-                                        @foreach($emailTemplates as $_tpl)
-                                            <label class="flex items-start gap-1.5 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
-                                                <input type="radio" name="template_id" value="{{ $_tpl->id }}"
-                                                       required
-                                                       class="mt-0.5 border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
-                                                       data-user-send-email-choice="{{ $u->id }}">
-                                                <span class="leading-tight">{{ $_tpl->name }}</span>
-                                            </label>
-                                        @endforeach
-                                        <button type="submit"
-                                                class="w-full mt-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded transition"
-                                                data-user-send-email-submit="{{ $u->id }}">
-                                            {{ __('admin.users_send_email_submit') }}
-                                        </button>
-                                    </form>
-                                @endif
-                            </div>
+                                 Bug L avait mis le choix EN FLUX dans la ligne, pour
+                                 echapper au rognage de l'`overflow-x-auto` (defaut
+                                 mesure en TASK-1693 bug D). Ca marchait, mais c'etait
+                                 etroit : Cyril, le 24/10 — « certes contextualise mais
+                                 trop petit, et si on a plus de 10 messages types ce
+                                 sera ingerable ».
+
+                                 Bug V : la ligne ne porte plus que le DECLENCHEUR. Le
+                                 modal est unique pour toute la page et vit hors du
+                                 tableau — donc rien a rogner, et toute la largeur
+                                 disponible. Le bouton lui passe la personne et l'URL
+                                 d'envoi, construite cote SERVEUR par `route()` : rien
+                                 n'est recompose en JavaScript. --}}
+                            <button type="button"
+                                    @click="$dispatch('send-email-context', {
+                                        label: @js($u->email),
+                                        url: @js(route('admin.users.send-email', $u))
+                                    }); $dispatch('open-modal', 'send-email')"
+                                    class="text-xs text-gray-400 hover:text-indigo-500"
+                                    data-user-send-email-toggle="{{ $u->id }}"
+                                    data-user-send-email-url="{{ route('admin.users.send-email', $u) }}">
+                                {{ __('admin.emailer_single_action') }}
+                            </button>
 
                             <!-- Envoyer lien de réinitialisation -->
                             <form method="POST" action="{{ route('admin.users.send-password-reset', $u) }}"
@@ -515,6 +492,12 @@
          en a besoin aussi. Elle porte sa propre racine Alpine et s'ouvre
          par evenement, d'ou le `$dispatch` sur le bouton plus haut. --}}
     @include('admin.partials.user-profile-modal')
+
+    {{-- TASK-1694 bug V — UN modal « Envoyer un email » pour toute la page,
+         hors du tableau : rien a rogner, et toute la largeur disponible.
+         La ligne ne porte que le declencheur, qui lui passe la personne et son
+         URL d'envoi. --}}
+    @include('admin.partials.user-send-email-modal')
 
     {{-- TASK-1668 — la modal de suppression a laisse place a une PAGE
          (`admin/users/delete.blade.php`). Elle debordait : blocages avec leurs
