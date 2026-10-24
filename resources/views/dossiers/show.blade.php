@@ -1698,6 +1698,57 @@
                     </template>
                     @endif
 
+                    {{-- TASK-1695 (5a, recette de Cyril) — LES FICHIERS PARTAGES
+                         AVEC CETTE BOUCLE.
+
+                         « Le document est partage dans la boucle, mais il n'y
+                         apparait pas. » C'etait exact : le partage ouvrait la
+                         lecture aux MEMBRES sans que la Boucle en montre rien.
+
+                         Section a part, en LECTURE SEULE : ces fichiers ne sont
+                         pas dans le Dossier — ils vivent chez leur proprietaire,
+                         qui peut retirer le partage a tout moment. Les meler aux
+                         fichiers deposes laisserait croire qu'on peut les
+                         renommer, les deplacer ou les supprimer ici.
+
+                         Rendue au SERVEUR, hors du `x-data` du Drive : aucun des
+                         gestes de ce composant ne s'applique a ces lignes. Les
+                         liens visent les routes dediees du geste C — le chemin
+                         du Dossier porteur rendrait 403 au membre. --}}
+                    @if($fichiersPartagesAvecLaBoucle->isNotEmpty())
+                        <section class="mt-8" data-loop-shared-files>
+                            <div class="flex items-center gap-2">
+                                <svg class="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="15.5" r="3.2"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8"/></svg>
+                                <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('dossiers.loop_shared_files_title') }}</h2>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.loop_shared_files_hint') }}</p>
+
+                            <ul class="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-gray-700/60 dark:border-gray-700">
+                                @foreach($fichiersPartagesAvecLaBoucle as $partageBoucle)
+                                    @php
+                                        $auteurPartage = $partageBoucle->loopShares->first()?->sharedBy;
+                                        $parQui = $auteurPartage?->isDisplayableIn(currentOrganization())
+                                            ? $auteurPartage->publicDisplayName()
+                                            : __('profile.deactivated_user');
+                                    @endphp
+                                    <li class="flex min-h-[3.25rem] items-center gap-3 px-4" data-loop-shared-file-row="{{ $partageBoucle->id }}">
+                                        <a href="{{ route('organization.dossiers.shared.preview', ['organization' => $orgParam, 'file' => $partageBoucle->getKey()]) }}"
+                                           class="flex min-h-11 min-w-0 flex-1 items-center gap-3">
+                                            <svg class="h-5 w-5 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H8.25m6.75 12H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+                                            <span class="min-w-0">
+                                                <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $partageBoucle->nomLisible() }}</span>
+                                                <span class="block truncate text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.loop_shared_files_by', ['nom' => $parQui]) }} · {{ $partageBoucle->typeLisible() }} · {{ $partageBoucle->tailleLisible() }}</span>
+                                            </span>
+                                        </a>
+                                        <a href="{{ route('organization.dossiers.shared.show', ['organization' => $orgParam, 'file' => $partageBoucle->getKey()]) }}"
+                                           class="inline-flex min-h-11 shrink-0 items-center rounded-lg px-2.5 text-xs font-semibold text-indigo-600 hover:bg-gray-50 dark:text-indigo-400 dark:hover:bg-gray-700/60"
+                                           title="{{ __('dossiers.file_download') }}">{{ __('dossiers.file_download') }}</a>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </section>
+                    @endif
+
                     <p class="mt-2 text-right text-xs text-gray-400 dark:text-gray-500" x-show="vue === 'documents' && quota.used_bytes > 0" x-text="quotaLabel"></p>
 
                     <div class="mt-4 flex items-center justify-center gap-2" x-show="vue === 'documents' && lastPage > 1">

@@ -698,4 +698,7 @@ TEXT,
     'file_share_loops' => 'Partager dans une boucle',
     'file_share_loops_current' => 'Partagé dans les boucles',
     'file_share_no_loop' => 'Vous n\'êtes membre d\'aucune boucle.',
+    'loop_shared_files_title' => 'Fichiers partagés avec cette boucle',
+    'loop_shared_files_hint' => 'Ces fichiers restent chez leur propriétaire : ils se lisent ici, ils ne s\'y modifient pas.',
+    'loop_shared_files_by' => 'Partagé par :nom',
 ];

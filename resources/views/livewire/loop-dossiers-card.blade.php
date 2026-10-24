@@ -213,5 +213,36 @@
                 </ul>
             </div>
         @endif
+
+        {{-- TASK-1695 (5a) — fichiers PARTAGES avec la Boucle.
+
+             Section distincte des fichiers deposes : ceux-ci vivent chez leur
+             proprietaire, qui peut retirer le partage a tout moment. Les
+             melanger laisserait croire qu'ils appartiennent au Dossier.
+
+             Le lien vise la route dediee du geste C : le membre n'a aucun
+             droit sur le Dossier porteur. --}}
+        @if($sharedFiles->isNotEmpty())
+            <div class="{{ $tile }} p-3" data-loop-card-shared-files>
+                <p class="{{ $sectionTitle }}">{{ __('dossiers.loop_shared_files_title') }}</p>
+                <ul class="divide-y divide-[var(--bp-border)]">
+                    @foreach($sharedFiles as $shared)
+                        @php $auteurPartage = $shared->loopShares->first()?->sharedBy; @endphp
+                        <li wire:key="shared-{{ $shared->id }}" class="flex items-center gap-2.5 px-1.5 py-2">
+                            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--bp-surface)] text-indigo-500">
+                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="15.5" r="3.2"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8"/></svg>
+                            </span>
+                            <a href="{{ route('organization.dossiers.shared.preview', ['organization' => $loop->organization?->slug, 'file' => $shared->id]) }}"
+                               class="min-w-0 flex-1">
+                                <span class="block truncate text-sm font-medium text-[var(--bp-text)]">{{ $shared->nomLisible() }}</span>
+                                <span class="block truncate text-[10px] leading-tight text-[var(--bp-muted)]">
+                                    {{ __('dossiers.loop_shared_files_by', ['nom' => $auteurPartage?->publicDisplayName() ?? __('profile.deactivated_user')]) }}
+                                </span>
+                            </a>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
     @endif
 </div>

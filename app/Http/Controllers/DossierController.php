@@ -469,6 +469,35 @@ class DossierController extends Controller
         // derriere `manageFiles`. La porte etait ouverte, sans poignee —
         // l'exact inverse du cas T1656.
         $canUploadFiles = $user->can('uploadFiles', $dossier);
+
+        // TASK-1695 (5a, recette de Cyril) — les fichiers PARTAGES AVEC CETTE
+        // BOUCLE.
+        //
+        // Jusqu'ici, partager un fichier « dans une Boucle » ouvrait la lecture
+        // a ses membres sans que la Boucle elle-meme en montre rien : pour qui
+        // ouvrait cet ecran, le partage n'existait pas. Cyril l'a dit en une
+        // phrase — « il n'est pas partage dans la boucle ».
+        //
+        // Lecture SEULE, et une section a part : ces fichiers ne sont PAS dans
+        // le Dossier (ils vivent chez leur proprietaire, qui peut les retirer
+        // a tout moment). Les melanger aux fichiers deposes laisserait croire
+        // qu'on peut les renommer, les deplacer ou les supprimer ici.
+        $fichiersPartagesAvecLaBoucle = collect();
+
+        if ($dossier->isLoopDossier() && $dossier->loop !== null) {
+            $fichiersPartagesAvecLaBoucle = DossierFile::query()
+                ->withoutTrashed()
+                ->where('organization_id', $dossier->organization_id)
+                ->whereHas('loopShares', fn ($q) => $q
+                    ->where('loop_id', $dossier->loop_id)
+                    ->where('organization_id', $dossier->organization_id))
+                ->with([
+                    'loopShares' => fn ($q) => $q->where('loop_id', $dossier->loop_id),
+                    'loopShares.sharedBy:id,first_name,avatar,name,email,banned_at,organization_id',
+                ])
+                ->latest('updated_at')
+                ->get();
+        }
         $canDeleteFiles = $user->can('deleteFile', $dossier);
 
         $categories = Category::where('organization_id', $organization->id)
@@ -616,6 +645,7 @@ class DossierController extends Controller
             'canManageSeries' => $canManageSeries,
             'canManageFiles' => $canManageFiles,
             'canUploadFiles' => $canUploadFiles,
+            'fichiersPartagesAvecLaBoucle' => $fichiersPartagesAvecLaBoucle,
             'canDeleteFiles' => $canDeleteFiles,
             'canUseSemanticArticleSearch' => $semanticSearchGate->isEnabledFor($organization->id),
             // TASK-1341 — Smart Dossier V1 : bouton desactive + raison

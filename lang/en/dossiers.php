@@ -684,4 +684,7 @@ TEXT,
     'file_share_loops' => 'Share into a loop',
     'file_share_loops_current' => 'Shared into loops',
     'file_share_no_loop' => 'You are not a member of any loop.',
+    'loop_shared_files_title' => 'Files shared with this loop',
+    'loop_shared_files_hint' => 'These files stay with their owner: they can be read here, not changed.',
+    'loop_shared_files_by' => 'Shared by :nom',
 ];

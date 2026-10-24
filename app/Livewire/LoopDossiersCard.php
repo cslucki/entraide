@@ -192,6 +192,7 @@ class LoopDossiersCard extends Component
             'articleUrls' => $this->articleUrls($articles),
             'series' => $this->recentSeries($dossier),
             'files' => $this->recentFiles($dossier),
+            'sharedFiles' => $this->sharedFiles($dossier),
             'total' => $this->totalItems($dossier),
             'canCreateArticle' => $canCreateArticle,
             'canUploadFile' => $canUploadFile,
@@ -240,6 +241,31 @@ class LoopDossiersCard extends Component
         return $dossier->files()
             ->with('uploader:id,name,first_name,avatar,banned_at')
             ->latest('created_at')
+            ->limit(self::RECENT)
+            ->get();
+    }
+
+    /**
+     * TASK-1695 (5a, recette de Cyril) — les fichiers PARTAGES avec la Boucle.
+     *
+     * Distincts des fichiers DEPOSES : ils vivent chez leur proprietaire, qui
+     * peut retirer le partage a tout moment. Les melanger a `recentFiles()`
+     * laisserait croire qu'ils appartiennent au Dossier de la Boucle.
+     *
+     * Aucune garde ici : cette carte ne s'affiche qu'a qui peut deja voir le
+     * Dossier de la Boucle, et le partage vise la Boucle entiere.
+     */
+    private function sharedFiles(Dossier $dossier): Collection
+    {
+        return \App\Models\DossierFile::query()
+            ->withoutTrashed()
+            ->where('organization_id', $dossier->organization_id)
+            ->whereHas('loopShares', fn ($q) => $q
+                ->where('loop_id', $dossier->loop_id)
+                ->where('organization_id', $dossier->organization_id))
+            ->with(['loopShares' => fn ($q) => $q->where('loop_id', $dossier->loop_id),
+                'loopShares.sharedBy:id,name,first_name,avatar,banned_at,organization_id'])
+            ->latest('updated_at')
             ->limit(self::RECENT)
             ->get();
     }

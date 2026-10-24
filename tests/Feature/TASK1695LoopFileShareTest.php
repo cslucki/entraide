@@ -446,4 +446,127 @@ class TASK1695LoopFileShareTest extends TestCase
 
         $this->assertStringContainsString($date, $this->espace($this->membre, 'avec-moi'));
     }
+
+    /**
+     * LE point de Cyril : le fichier apparaît DANS la Boucle.
+     *
+     * « Tu es d'accord que le document partagé dans la boucle n'est pas
+     * partagé dans la boucle ? » — il l'était : le partage ouvrait la lecture
+     * aux MEMBRES sans que la Boucle elle-même en montre rien. Pour qui
+     * ouvrait l'espace de la Boucle, le partage n'existait pas.
+     */
+    public function test_the_file_appears_in_the_loop_dossier(): void
+    {
+        $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $html = $this->actingAs($this->membre)
+            ->get(route('organization.dossiers.show', [
+                'organization' => $this->organization->slug,
+                'dossier' => $racine->id,
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-loop-shared-files', $html);
+        $this->assertStringContainsString(e($this->fichier->nomLisible()), $html);
+    }
+
+    /**
+     * La section dit que ces fichiers ne s'y modifient PAS.
+     *
+     * Ils vivent chez leur propriétaire, qui peut retirer le partage à tout
+     * moment. Les mêler aux fichiers déposés laisserait croire qu'on peut les
+     * renommer, les déplacer ou les supprimer ici.
+     */
+    public function test_the_section_states_these_files_are_read_only(): void
+    {
+        $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $html = $this->actingAs($this->membre)
+            ->get(route('organization.dossiers.show', [
+                'organization' => $this->organization->slug,
+                'dossier' => $racine->id,
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(e(__('dossiers.loop_shared_files_hint')), $html);
+    }
+
+    /**
+     * Et le lien vise la route DÉDIÉE, jamais le Dossier d'origine.
+     *
+     * Le membre n'a aucun droit sur le Dossier personnel du partageur : un
+     * lien vers lui rendrait 403.
+     */
+    public function test_the_loop_section_links_to_the_dedicated_route(): void
+    {
+        $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $html = $this->actingAs($this->membre)
+            ->get(route('organization.dossiers.show', [
+                'organization' => $this->organization->slug,
+                'dossier' => $racine->id,
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $attendu = route('organization.dossiers.shared.preview', [
+            'organization' => $this->organization->slug,
+            'file' => $this->fichier->id,
+        ]);
+        $this->assertStringContainsString(e($attendu), $html);
+
+        $interdit = route('organization.dossiers.show', [
+            'organization' => $this->organization->slug,
+            'dossier' => $this->dossier->id,
+        ]);
+        $this->assertStringNotContainsString(e($interdit), $html);
+    }
+
+    /** Sans partage, la section n'existe pas. */
+    public function test_no_section_when_nothing_is_shared_with_the_loop(): void
+    {
+        $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+
+        $html = $this->actingAs($this->membre)
+            ->get(route('organization.dossiers.show', [
+                'organization' => $this->organization->slug,
+                'dossier' => $racine->id,
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-loop-shared-files', $html);
+    }
+
+    /**
+     * Le partage d'une AUTRE Boucle n'apparaît pas dans celle-ci.
+     *
+     * Sans la borne `loop_id`, la section afficherait tous les partages de
+     * l'Organization — chaque Boucle verrait ceux des autres.
+     */
+    public function test_another_loops_share_never_appears_here(): void
+    {
+        $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+
+        $autreLoop = (new LoopService)->createLoop($this->proprietaire, 'Autre boucle 1695', type: 'project');
+        $this->actingAs($this->proprietaire)
+            ->postJson($this->url('loops.store'), ['loop_id' => $autreLoop->id])
+            ->assertStatus(201);
+
+        $html = $this->actingAs($this->membre)
+            ->get(route('organization.dossiers.show', [
+                'organization' => $this->organization->slug,
+                'dossier' => $racine->id,
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString(e($this->fichier->nomLisible()), $html);
+    }
 }
