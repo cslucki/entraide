@@ -97,6 +97,18 @@
 
                         $orgItems = [
                             ['route' => 'admin.organizations', 'label' => 'Organisations', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857A17.983 17.983 0 0112 16c-2.071 0-4.065.332-5.932.943A3 3 0 001 20h5v2a3 3 0 005.356 1.857A17.983 17.983 0 0112 18c2.071 0 4.065.332 5.932.943A3 3 0 0017 20z'],
+                            // TASK-1694 bug AM — « Utilisateurs » remonte JUSTE APRES
+                            // « Organisations », et porte une couleur a lui.
+                            //
+                            // Demande de Cyril : « j'y vais souvent, ainsi j'aurais un
+                            // repere visuel ». Un rail de dix-sept entrees se parcourt a
+                            // la forme avant de se lire : la couleur fait de celle-ci une
+                            // cible, pas une ligne de plus.
+                            //
+                            // `accent` est une DONNEE de l'entree, pas un nom de route
+                            // teste dans la vue : la meme marque pourra servir ailleurs
+                            // sans ajouter une condition de plus au rendu.
+                            ['route' => 'admin.users', 'label' => 'Utilisateurs', 'accent' => true, 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
                             // TASK-1506 : ce que sert la RACINE de la plateforme.
                             ['route' => 'admin.homepage', 'label' => __('admin.root_destination_nav'), 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'],
                             // TASK-1514 : les fichiers de toutes les Organizations.
@@ -104,7 +116,6 @@
                             // TASK-1425 (CRM-15) : agregats CRM par Organization.
                             ['route' => 'admin.crm.overview', 'label' => __('admin.crm_overview_menu'), 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'],
                             ['route' => 'admin.categories', 'label' => 'Catégories', 'icon' => 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z'],
-                            ['route' => 'admin.users', 'label' => 'Utilisateurs', 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
                             ['route' => 'admin.reports', 'label' => 'Signalements', 'icon' => 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'],
                             ['route' => 'admin.bug-reports', 'label' => 'Bugs', 'icon' => 'M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83M11.42 15.17l2.5-2.5a3.375 3.375 0 00-4.773-4.773l-2.5 2.5m4.773 4.773l-4.773-4.773m0 0L3 6.75m3.647 3.647L3 14.25'],
                             ['route' => 'admin.referrals', 'label' => 'Invitations', 'icon' => 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z'],
@@ -386,9 +397,19 @@
                              class="origin-top">
                             @foreach($orgItems as $item)
                             @php $itemActive = $isNavActive($item['route']); @endphp
+                            {{-- TASK-1694 bug AM — une entree marquee `accent` garde sa
+                                 couleur propre tant qu'elle n'est PAS active. Active, elle
+                                 reprend le fond commun : l'indication « vous etes ici »
+                                 doit rester la meme partout, sinon deux entrees actives ne
+                                 se ressembleraient plus. --}}
                             <a href="{{ route($item['route']) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
-                                      {{ $itemActive ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                                      {{ $itemActive
+                                          ? 'bg-indigo-600 text-white'
+                                          : (($item['accent'] ?? false)
+                                              ? 'text-amber-300 font-semibold hover:text-amber-200 hover:bg-amber-500/10'
+                                              : 'text-gray-400 hover:text-white hover:bg-gray-800') }}"
+                               @if($item['accent'] ?? false) data-admin-nav-accent="{{ $item['route'] }}" @endif>
                                 <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                                 </svg>
