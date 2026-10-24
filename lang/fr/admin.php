@@ -592,6 +592,10 @@ return [
     'emailer_no_recipients' => 'Aucun destinataire valide.',
     'emailer_sent_count' => ':sent envoyé(s), :failed échoué(s) (sur :total)',
     // TASK-1694 bug W — la documentation des variables de l'Emailer.
+    // TASK-1694 bug Z — la langue d'un gabarit de l'Emailer.
+    'emailer_locale_label' => 'Langue du gabarit',
+    'emailer_locale_unset' => '— Non précisée —',
+    'emailer_locale_any' => 'Toutes les langues',
     'emailer_vars_title' => 'Variables disponibles',
     'emailer_vars_hint' => 'À écrire entre accolades doubles, dans le sujet comme dans le contenu. Les espaces intérieurs sont tolérés.',
     'emailer_vars_unknown_note' => 'Une variable inconnue n\'est pas remplacée : elle part telle quelle dans l\'email.',

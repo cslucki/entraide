@@ -135,7 +135,7 @@ class AdminController extends Controller
             // TASK-1694 bug L — les gabarits de l'Emailer, pour le choix pose
             // DANS la ligne. Une seule requete, constante : le test de cout de
             // cet ecran mesure qu'il ne grandit pas avec le nombre de comptes.
-            'emailTemplates' => EmailTemplate::orderBy('name')->get(['id', 'name', 'subject']),
+            'emailTemplates' => EmailTemplate::orderBy('name')->get(['id', 'name', 'subject', 'locale']),
         ]);
     }
 

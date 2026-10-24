@@ -37,6 +37,9 @@ class AdminEmailTemplatesController extends Controller
         $validated = $request->validate([
             'slug' => 'required|string|max:100|unique:email_templates,slug',
             'name' => 'required|string|max:255',
+            // TASK-1694 bug Z — FR, EN, ou rien : « langue non precisee » est une
+            // troisieme valeur legitime, et c'est l'etat des lignes anterieures.
+            'locale' => ['nullable', Rule::in(EmailTemplate::LOCALES)],
             'subject' => 'required|string|max:255',
             'content_html' => 'required|string',
             'variables' => 'nullable|array',
@@ -67,6 +70,9 @@ class AdminEmailTemplatesController extends Controller
         $validated = $request->validate([
             'slug' => 'required|string|max:100|unique:email_templates,slug,'.$emailTemplate->id,
             'name' => 'required|string|max:255',
+            // TASK-1694 bug Z — FR, EN, ou rien : « langue non precisee » est une
+            // troisieme valeur legitime, et c'est l'etat des lignes anterieures.
+            'locale' => ['nullable', Rule::in(EmailTemplate::LOCALES)],
             'subject' => 'required|string|max:255',
             'content_html' => 'required|string',
             'variables' => 'nullable|array',

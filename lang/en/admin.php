@@ -589,6 +589,10 @@ return [
     'emailer_no_recipients' => 'No valid recipients.',
     'emailer_sent_count' => ':sent sent, :failed failed (of :total)',
     // TASK-1694 bug W — la documentation des variables de l'Emailer.
+    // TASK-1694 bug Z — la langue d'un gabarit de l'Emailer.
+    'emailer_locale_label' => 'Template language',
+    'emailer_locale_unset' => '— Not specified —',
+    'emailer_locale_any' => 'All languages',
     'emailer_vars_title' => 'Available variables',
     'emailer_vars_hint' => 'Write them in double braces, in the subject as well as the body. Inner spaces are tolerated.',
     'emailer_vars_unknown_note' => 'An unknown variable is not replaced: it goes out in the email as written.',

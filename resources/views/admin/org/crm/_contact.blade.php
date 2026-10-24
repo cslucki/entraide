@@ -184,10 +184,24 @@
                 @elseif($emailTemplates->isEmpty())
                 <p class="text-xs text-gray-500 dark:text-gray-400" data-crm-email-no-template>{{ __('crm.email.no_template') }} <a href="{{ $links['templates_create'] }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ __('crm.templates.new') }}</a></p>
                 @else
+                {{-- TASK-1694 bug Z — choisir FR ou EN ICI AUSSI.
+                     Demande de Cyril : « idem si on envoie un email depuis
+                     /org/.../admin/relations/{contact} ».
+
+                     Ici le choix se fait par un `<select>` natif, pas par un
+                     filtre : c'est la meme commande qui choisit le gabarit, et y
+                     ajouter un second controle alourdirait une fiche deja dense.
+                     La langue est donc portee par le LIBELLE de chaque option —
+                     on choisit « Relance (FR) » ou « Relance (EN) » en un geste.
+
+                     Un gabarit sans langue affiche « — » : c'est l'etat des lignes
+                     anterieures au 24/10, et le taire laisserait croire a une
+                     langue qu'on ignore. --}}
                 <form method="GET" action="{{ $r('contacts.email.pick', ['contact' => $contact->id]) }}" class="flex gap-2" data-crm-email-pick>
                     <select name="template" required class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
                         @foreach($emailTemplates as $emailTemplate)
-                        <option value="{{ $emailTemplate->id }}">{{ $emailTemplate->name }}</option>
+                        <option value="{{ $emailTemplate->id }}"
+                                data-crm-email-template-locale="{{ $emailTemplate->locale ?? '' }}">{{ $emailTemplate->name }} ({{ $emailTemplate->locale ? strtoupper($emailTemplate->locale) : '—' }})</option>
                         @endforeach
                     </select>
                     <button type="submit" class="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">{{ __('crm.email.prepare') }}</button>

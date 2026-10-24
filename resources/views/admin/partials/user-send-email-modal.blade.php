@@ -34,15 +34,28 @@
         label: '',
         url: '',
         recherche: '',
-        correspond(nom) {
-            return this.recherche === ''
+        langue: '',
+        /*
+         * TASK-1694 bug Z — un gabarit SANS langue passe les deux filtres.
+         *
+         * `null` veut dire « langue non precisee », pas « aucune langue » :
+         * c'est l'etat des lignes anterieures au 24/10. Les masquer ferait
+         * disparaitre des gabarits existants d'un ecran d'envoi, sans que rien
+         * ne le dise.
+         */
+        correspond(nom, locale) {
+            const parNom = this.recherche === ''
                 || nom.toLowerCase().includes(this.recherche.toLowerCase());
+            const parLangue = this.langue === '' || locale === '' || locale === this.langue;
+
+            return parNom && parLangue;
         },
     }"
     x-on:send-email-context.window="
         label = $event.detail.label;
         url = $event.detail.url;
         recherche = '';
+        langue = '';
         $nextTick(() => $el.querySelectorAll('input[name=template_id]').forEach(i => i.checked = false));
     "
 >
@@ -76,7 +89,23 @@
                       class="mt-4">
                     @csrf
 
-                    {{-- Le filtre n'apparait que quand il sert : au-dela de 8
+                    {{-- TASK-1694 bug Z — choisir FR ou EN AU MOMENT DE L'ENVOI.
+                         Demande de Cyril. Toujours visible, contrairement au filtre
+                         par nom : la langue est une decision qu'on prend a chaque
+                         envoi, pas un confort qui ne sert qu'au-dela d'un seuil. --}}
+                    <div class="mb-3 flex flex-wrap items-center gap-2">
+                        <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('admin.emailer_locale_label') }}</span>
+                        <select x-model="langue"
+                                class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 text-sm focus:ring-indigo-500"
+                                data-user-send-email-locale>
+                            <option value="">{{ __('admin.emailer_locale_any') }}</option>
+                            @foreach(\App\Models\EmailTemplate::LOCALES as $_loc)
+                                <option value="{{ $_loc }}">{{ strtoupper($_loc) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    {{-- Le filtre PAR NOM n'apparait que quand il sert : au-dela de 8
                          gabarits, chercher a l'oeil devient penible. En dessous,
                          un champ de plus est du bruit. --}}
                     @if($emailTemplates->count() > 8)
@@ -89,13 +118,17 @@
                     <div class="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700">
                         @foreach($emailTemplates as $_tpl)
                             <label class="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                                   x-show="correspond(@js($_tpl->name))">
+                                   x-show="correspond(@js($_tpl->name), @js((string) $_tpl->locale))">
                                 <input type="radio" name="template_id" value="{{ $_tpl->id }}"
                                        required
                                        class="mt-1 border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
                                        data-user-send-email-choice>
                                 <span>
-                                    <span class="block text-sm font-medium text-gray-900 dark:text-gray-100">{{ $_tpl->name }}</span>
+                                    <span class="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                                        {{ $_tpl->name }}
+                                        <span class="ml-1 inline-block rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                                              data-user-send-email-template-locale="{{ $_tpl->locale ?? '' }}">{{ $_tpl->locale ? strtoupper($_tpl->locale) : '—' }}</span>
+                                    </span>
                                     <span class="block text-xs text-gray-500 dark:text-gray-400">{{ $_tpl->subject }}</span>
                                 </span>
                             </label>

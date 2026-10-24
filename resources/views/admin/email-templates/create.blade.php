@@ -18,6 +18,28 @@
                              sa documentation pour pourquoi il n'y a pas deux listes. --}}
                         @include('admin.email-templates.partials.variables-doc')
 
+                        {{-- TASK-1694 bug Z — la langue du gabarit.
+                             « Non precisee » est une valeur, pas un oubli : c'est
+                             l'etat des lignes anterieures au 24/10, et un gabarit
+                             sans langue reste propose dans les DEUX langues au
+                             moment de l'envoi. --}}
+                        <div>
+                            <label for="locale" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ __('admin.emailer_locale_label') }}
+                            </label>
+                            <select name="locale" id="locale"
+                                    class="mt-1 block w-full max-w-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    data-emailer-locale>
+                                <option value="" @selected(old('locale') === null || old('locale') === '')>{{ __('admin.emailer_locale_unset') }}</option>
+                                @foreach(\App\Models\EmailTemplate::LOCALES as $_loc)
+                                    <option value="{{ $_loc }}" @selected(old('locale') === $_loc)>{{ strtoupper($_loc) }}</option>
+                                @endforeach
+                            </select>
+                            @error('locale')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
                         <div>
                             <label for="slug" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Slug *
