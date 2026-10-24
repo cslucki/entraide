@@ -650,4 +650,15 @@ A bullet list of at most THREE short questions a reader could ask next
 to go deeper, answerable from this Dossier. Plain text, no citations.
 
 TEXT,
+
+    // TASK-1695 — partage d'un fichier, au niveau du FICHIER.
+    'share_self' => 'You cannot share a file with yourself.',
+    'file_share' => 'Share',
+    'file_share_title' => 'Share this file',
+    'file_share_hint' => 'That person will be able to READ this file. They will not see the folder that contains it, nor the other files, and cannot edit or re-share it.',
+    'file_share_search' => 'Search a member…',
+    'file_share_current' => 'Shared with',
+    'file_share_none' => 'This file is not shared with anyone.',
+    'file_share_remove' => 'Remove',
+    'file_shared_badge' => 'Shared',
 ];

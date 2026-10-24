@@ -82,6 +82,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DossierAnswerController;
 use App\Http\Controllers\DossierArticleController;
 use App\Http\Controllers\DossierController;
+use App\Http\Controllers\DossierFileShareController;
 use App\Http\Controllers\SharedDossierFileController;
 use App\Http\Controllers\DossierFileController;
 use App\Http\Controllers\DossierInsightsController;
@@ -1487,6 +1488,18 @@ Route::prefix('/org/{organization}')
                 // Le Dossier n'apparait PAS dans ces URL : c'est la decision de
                 // conception de la TASK. Le destinataire n'emprunte jamais
                 // l'URL du Dossier d'autrui.
+                // TASK-1695 geste D — partager un fichier, et retirer ce partage.
+                //
+                // Imbriquees sous le Dossier, a dessein, et c'est l'INVERSE du
+                // geste C : partager est un acte de GESTION, reserve a qui gere
+                // deja le fichier. Celui-la passe donc par le chemin du
+                // Dossier ; seule la LECTURE par le destinataire a besoin d'un
+                // chemin a part.
+                Route::get('/dossiers/{dossier}/files/{file}/shares', [DossierFileShareController::class, 'index'])->name('dossiers.files.shares.index');
+                Route::get('/dossiers/{dossier}/files/{file}/shares/search', [DossierFileShareController::class, 'search'])->name('dossiers.files.shares.search');
+                Route::post('/dossiers/{dossier}/files/{file}/shares', [DossierFileShareController::class, 'store'])->name('dossiers.files.shares.store');
+                Route::delete('/dossiers/{dossier}/files/{file}/shares/{share}', [DossierFileShareController::class, 'destroy'])->name('dossiers.files.shares.destroy');
+
                 Route::get('/dossiers/partages/{file}', [SharedDossierFileController::class, 'show'])->name('dossiers.shared.show');
                 Route::get('/dossiers/partages/{file}/apercu', [SharedDossierFileController::class, 'preview'])->name('dossiers.shared.preview');
 

@@ -3589,6 +3589,16 @@ function registerDossierFilesCard() {
         showRenameModal: false,
         renameTarget: null,
         renameValue: '',
+        // TASK-1695 — partager UN fichier, en LECTURE, avec des membres de
+        // l'Organization. Le partage ne donne acces ni au Dossier qui contient
+        // le fichier, ni a ses voisins : l'ecran le dit, parce que personne ne
+        // devinerait une borne aussi etroite.
+        showShareModal: false,
+        shareTarget: null,
+        shareQuery: '',
+        shareResults: [],
+        shareCurrent: [],
+        shareLoading: false,
         // « Retirer de cette Boucle » (CAS B) : une confirmation legere avant
         // le PATCH — retirer un partage n'est pas supprimer, le ton du modal
         // n'est pas celui d'une destruction.
@@ -4574,6 +4584,99 @@ function registerDossierFilesCard() {
 
         finAppui() {
             clearTimeout(this._appuiTimer);
+        },
+
+        /**
+         * TASK-1695 — ouvrir le partage d'un fichier.
+         *
+         * La liste des partages en place est RELUE a chaque ouverture, jamais
+         * gardee d'une fois sur l'autre : deux onglets, ou un retrait fait
+         * ailleurs, rendraient sinon un ecran qui ment sur l'etat reel.
+         */
+        openShareModal(file) {
+            this.shareTarget = file;
+            this.shareQuery = '';
+            this.shareResults = [];
+            this.shareCurrent = [];
+            this.showShareModal = true;
+            this.chargerPartages();
+        },
+
+        urlPartages(suffixe = '') {
+            return `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${this.shareTarget.id}/shares${suffixe}`;
+        },
+
+        async chargerPartages() {
+            if (!this.shareTarget) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages(), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                this.shareCurrent = (await response.json()).shares || [];
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async chercherMembres() {
+            if (!this.shareTarget) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages('/search') + '?q=' + encodeURIComponent(this.shareQuery || ''), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                this.shareResults = (await response.json()).users || [];
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async partagerAvec(user) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages(), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ user_id: user.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) { this.showMessage(data.message || this.i18n.networkError, 'error'); return; }
+                // On relit plutot que de deviner : le serveur est l'autorite sur
+                // ce qui est partage, et un etat local recompose finirait par
+                // s'ecarter du sien.
+                this.shareQuery = '';
+                this.shareResults = [];
+                await this.chargerPartages();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async retirerPartage(share) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages('/' + share.id), {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                await this.chargerPartages();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
         },
 
         openRenameModal(file) {

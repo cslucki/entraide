@@ -664,4 +664,15 @@ pourrait poser ensuite pour approfondir, répondables à partir de ce
 Dossier. Texte seul, sans citation.
 
 TEXT,
+
+    // TASK-1695 — partage d'un fichier, au niveau du FICHIER.
+    'share_self' => 'On ne se partage pas un fichier qu\'on gère déjà.',
+    'file_share' => 'Partager',
+    'file_share_title' => 'Partager ce fichier',
+    'file_share_hint' => 'La personne pourra LIRE ce fichier. Elle ne verra ni le dossier qui le contient, ni les autres fichiers, et ne pourra ni le modifier ni le repartager.',
+    'file_share_search' => 'Chercher un membre…',
+    'file_share_current' => 'Partagé avec',
+    'file_share_none' => 'Ce fichier n\'est partagé avec personne.',
+    'file_share_remove' => 'Retirer',
+    'file_shared_badge' => 'Partagé',
 ];

@@ -1403,6 +1403,16 @@
                                                 <button type="button" @click="open = false; openMoveModal(file)"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
                                             @endif
+                                            {{-- TASK-1695 geste D — partager CE fichier.
+                                                 Conditionne a `canManageFiles`, pas a la simple
+                                                 lecture : un destinataire ne doit pas pouvoir
+                                                 repartager. Le serveur porte la meme garde — ceci
+                                                 n'est que la poignee. --}}
+                                            @if($canManageFiles)
+                                                <button type="button" @click="open = false; openShareModal(file)"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60"
+                                                        data-file-share-open>{{ __('dossiers.file_share') }}</button>
+                                            @endif
                                             @if($canDeleteFiles)
                                                 <button type="button" @click="open = false; openDeleteModal(file)" :disabled="saving"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.file_delete') }}</button>
@@ -1708,6 +1718,72 @@
                     {{-- Renommer un fichier : le libelle lu par les gens, pas
                          le fichier sur le disque. L'extension d'origine est
                          conservee par le serveur. --}}
+                    {{-- TASK-1695 geste D — partager un fichier, en LECTURE.
+
+                         Le texte d'aide dit ce que le partage N'OUVRE PAS : ni le
+                         Dossier qui contient le fichier, ni ses voisins, ni la
+                         modification, ni le repartage. Personne ne devinerait une
+                         borne aussi etroite, et la deviner de travers serait pire
+                         que de ne pas partager. --}}
+                    <template x-if="showShareModal && shareTarget">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                             @click.self="showShareModal = false" @keydown.escape.window="showShareModal = false"
+                             role="dialog" aria-modal="true" aria-labelledby="share-file-title"
+                             data-file-share-modal>
+                            <div class="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-800">
+                                <h3 id="share-file-title" class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.file_share_title') }}</h3>
+                                <p class="mt-1 truncate text-sm text-gray-500 dark:text-gray-400" x-text="shareTarget.display_name || shareTarget.original_name"></p>
+                                <p class="mt-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">{{ __('dossiers.file_share_hint') }}</p>
+
+                                <input type="search" x-model="shareQuery" @input.debounce.300ms="chercherMembres()"
+                                       placeholder="{{ __('dossiers.file_share_search') }}"
+                                       class="mt-4 w-full rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                                       data-file-share-search>
+
+                                <template x-if="shareResults.length > 0">
+                                    <ul class="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                                        <template x-for="u in shareResults" :key="u.id">
+                                            <li class="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                                                <span class="min-w-0 truncate text-gray-800 dark:text-gray-200">
+                                                    <span x-text="((u.first_name || '') + ' ' + (u.name || '')).trim()"></span>
+                                                    <span class="ml-1 text-xs text-gray-400" x-text="u.email"></span>
+                                                </span>
+                                                <button type="button" @click="partagerAvec(u)" :disabled="shareLoading"
+                                                        class="shrink-0 rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                                                        data-file-share-add>{{ __('dossiers.file_share') }}</button>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </template>
+
+                                <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('dossiers.file_share_current') }}</p>
+
+                                <template x-if="shareCurrent.length === 0">
+                                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.file_share_none') }}</p>
+                                </template>
+
+                                <ul class="mt-1 max-h-40 overflow-y-auto">
+                                    <template x-for="s in shareCurrent" :key="s.id">
+                                        <li class="flex items-center justify-between gap-3 py-1.5 text-sm" data-file-share-row>
+                                            <span class="min-w-0 truncate text-gray-800 dark:text-gray-200">
+                                                <span x-text="((s.first_name || '') + ' ' + (s.name || '')).trim()"></span>
+                                                <span class="ml-1 text-xs text-gray-400" x-text="s.email"></span>
+                                            </span>
+                                            <button type="button" @click="retirerPartage(s)" :disabled="shareLoading"
+                                                    class="shrink-0 text-xs font-semibold text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+                                                    data-file-share-remove>{{ __('dossiers.file_share_remove') }}</button>
+                                        </li>
+                                    </template>
+                                </ul>
+
+                                <div class="mt-5 flex justify-end">
+                                    <button type="button" @click="showShareModal = false"
+                                            class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.drive_cancel') }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
                     <template x-if="showRenameModal && renameTarget">
                         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showRenameModal = false" @keydown.escape.window="showRenameModal = false" role="dialog" aria-modal="true" aria-labelledby="rename-file-title">
                             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
