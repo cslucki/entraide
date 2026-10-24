@@ -12,6 +12,12 @@
                     <form method="POST" action="{{ route('admin.email-templates.store') }}" class="space-y-6">
                         @csrf
 
+                        {{-- TASK-1694 bug W — la documentation des variables, posee AVANT
+                             les champs qui s'en servent : le sujet et le contenu.
+                             Un bloc unique, lu dans `EmailerService::ALLOWED_VARS` — voir
+                             sa documentation pour pourquoi il n'y a pas deux listes. --}}
+                        @include('admin.email-templates.partials.variables-doc')
+
                         <div>
                             <label for="slug" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Slug *
@@ -40,9 +46,13 @@
                             <input type="text" name="subject" id="subject" required
                                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                    value="{{ old('subject') }}">
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Variables disponibles : @{{user_name}}, @{{app_name}}
-                            </p>
+                            {{-- TASK-1694 bug W — l'aide qui vivait ICI etait FAUSSE :
+                                 elle annoncait les variables `user_name` et
+                                 `app_name`, qui ne sont dans aucune liste. Mesure du
+                                 24/10 : toutes deux ressortent VERBATIM de
+                                 `interpolate()`, accolades comprises. La vraie
+                                 documentation est desormais un bloc partage, lu dans
+                                 `EmailerService::ALLOWED_VARS`. --}}
                         </div>
 
                         <div>

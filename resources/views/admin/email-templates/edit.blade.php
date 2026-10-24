@@ -19,6 +19,12 @@
                         @csrf
                         @method('PUT')
 
+                        {{-- TASK-1694 bug W — la documentation des variables, posee AVANT
+                             les champs qui s'en servent : le sujet et le contenu.
+                             Un bloc unique, lu dans `EmailerService::ALLOWED_VARS` — voir
+                             sa documentation pour pourquoi il n'y a pas deux listes. --}}
+                        @include('admin.email-templates.partials.variables-doc')
+
                         <div>
                             <label for="slug" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Slug *
