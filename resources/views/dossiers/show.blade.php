@@ -283,7 +283,13 @@
                               ],
                          ]))">
                 <x-dossiers.module :espace="$espace">
-                    @if($canManageFiles)
+                    {{-- TASK-1695 (5b) — `canUploadFiles`, pas `canManageFiles` :
+                         deposer est un geste de MEMBRE (matrice de la Boucle,
+                         T1684), administrer reste a qui gere. Les cinq surfaces
+                         de depot de cette page suivent la meme autorite que le
+                         serveur (`StoreDossierFileRequest`), sinon la porte est
+                         ouverte sans poignee. --}}
+                    @if($canUploadFiles)
                         <x-slot name="nouveau">
                             @include('dossiers.partials.nouveau', ['avecRef' => true, 'classesBouton' => 'w-full', 'ancrageMenu' => 'left-0'])
                         </x-slot>
@@ -301,14 +307,14 @@
                          d'autres etait la moitie du desequilibre HTML qui
                          faisait vivre toute la page DANS la barre d'outils. --}}
                     <div class="relative"
-                         @if($canManageFiles)
+                         @if($canUploadFiles)
                          @dragenter.prevent="if (($event.dataTransfer?.types || []).includes('Files')) survol++"
                          @dragover.prevent
                          @dragleave.prevent="survol = Math.max(0, survol - 1)"
                          @drop.prevent="survol = 0; if ($event.dataTransfer?.files?.length) handleMediaFiles({ target: { files: $event.dataTransfer.files, value: '' } }, 'drop')"
                          @endif
                          >
-                        @if($canManageFiles)
+                        @if($canUploadFiles)
                         <div x-show="survol > 0" x-cloak
                              class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center rounded-2xl border-2 border-dashed border-indigo-400 bg-indigo-50/90 dark:border-indigo-500 dark:bg-indigo-950/80">
                             <p class="text-base font-semibold text-indigo-700 dark:text-indigo-200">{{ __('dossiers.drive_drop_here') }}</p>
@@ -465,7 +471,7 @@
                              a cote de la recherche — la sidebar qui le porte au
                              bureau n'existe pas ici. Meme partial, meme etat,
                              aucun second moteur. --}}
-                        @if($canManageFiles)
+                        @if($canUploadFiles)
                             <div class="shrink-0 md:hidden max-sm:order-2">
                                 {{-- TASK-1684 — ancrage a DROITE des le mobile.
                                      En `left-0`, le panneau (`w-64`, 256 px) partait du bord
@@ -895,7 +901,7 @@
                         <span x-text="message"></span>
                     </div>
 
-                    @if($canManageFiles)
+                    @if($canUploadFiles)
                     <div class="mt-5 relative">
                         <div id="dossier-file-pond" x-ref="filePondContainer" class="hidden"></div>
                         {{-- Hidden file inputs for media types --}}

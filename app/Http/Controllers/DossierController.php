@@ -430,6 +430,15 @@ class DossierController extends Controller
         // manageSeries — decide poignees, ajout, creation et suppression.
         $canManageSeries = $user->can('manageSeries', $dossier);
         $canManageFiles = $user->can('manageFiles', $dossier);
+        // TASK-1695 (point 5b de Cyril) — DEPOSER n'est pas administrer.
+        //
+        // `uploadFiles` (T1684) ouvre le depot au membre ACTIF d'une Boucle
+        // vivante, selon la permission `dossiers.upload_file` de la matrice —
+        // et `StoreDossierFileRequest` l'autorise deja : le serveur acceptait
+        // le depot d'un membre, mais cette page gardait son FAB « Nouveau »
+        // derriere `manageFiles`. La porte etait ouverte, sans poignee —
+        // l'exact inverse du cas T1656.
+        $canUploadFiles = $user->can('uploadFiles', $dossier);
         $canDeleteFiles = $user->can('deleteFile', $dossier);
 
         $categories = Category::where('organization_id', $organization->id)
@@ -576,6 +585,7 @@ class DossierController extends Controller
             'canViewFiles' => $canViewFiles,
             'canManageSeries' => $canManageSeries,
             'canManageFiles' => $canManageFiles,
+            'canUploadFiles' => $canUploadFiles,
             'canDeleteFiles' => $canDeleteFiles,
             'canUseSemanticArticleSearch' => $semanticSearchGate->isEnabledFor($organization->id),
             // TASK-1341 — Smart Dossier V1 : bouton desactive + raison

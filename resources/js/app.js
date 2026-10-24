@@ -3775,6 +3775,10 @@ function registerDossierFilesCard() {
         dossierId: config.dossierId,
         orgParam: config.orgParam,
         canManageFiles: config.canManageFiles,
+        // TASK-1695 (5b) — le moteur de depot (FilePond) suit `uploadFiles`,
+        // l'autorite du SERVEUR pour deposer : un membre de Boucle sans
+        // `manageFiles` doit pouvoir televerser.
+        canUploadFiles: config.canUploadFiles,
         canDeleteFiles: config.canDeleteFiles,
         i18n: config.i18n,
         currentPage: 1,
@@ -4249,7 +4253,7 @@ function registerDossierFilesCard() {
                     else if (this.selectionCount) { this.viderSelection(); }
                 }
             });
-            if (this.canManageFiles && this.$refs.filePondContainer) {
+            if (this.canUploadFiles && this.$refs.filePondContainer) {
                 const self = this;
                 const acceptedTypes = [
                     'image/jpeg', 'image/png', 'image/webp', 'image/gif',
