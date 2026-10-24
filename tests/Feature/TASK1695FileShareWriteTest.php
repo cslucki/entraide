@@ -280,13 +280,21 @@ class TASK1695FileShareWriteTest extends TestCase
     }
 
     /**
-     * Et l'écran DIT ce que le partage n'ouvre pas.
+     * La fenêtre offre une CROIX pour se fermer.
      *
-     * Personne ne devinerait une borne aussi étroite — lecture seule, ni le
-     * Dossier, ni les voisins, ni le re-partage — et la deviner de travers
-     * serait pire que de ne pas partager du tout.
+     * Ce test REMPLACE celui qui épinglait la mention « La personne pourra
+     * LIRE ce fichier… ». Cyril l'a jugée trop technique pour un utilisateur
+     * lambda et demandé son retrait : je l'avais posée pour prévenir un
+     * malentendu, l'arbitrage produit est que le malentendu coûte moins cher
+     * que le jargon. Le test part avec elle, plutôt que de rester vert sur une
+     * chaîne que plus rien n'affiche.
+     *
+     * Ce qui est tenu à la place : la fermeture. Une croix en haut à droite —
+     * **et pas** un second bouton « Fermer cette fenêtre » à côté du premier,
+     * deux boutons voisins qui font la même chose obligeant à choisir entre
+     * eux. `Échap` et le clic extérieur étaient déjà là.
      */
-    public function test_the_screen_states_what_sharing_does_not_open(): void
+    public function test_the_dialog_offers_a_close_control(): void
     {
         $html = $this->actingAs($this->proprietaire)
             ->get(route('organization.dossiers.show', [
@@ -296,7 +304,12 @@ class TASK1695FileShareWriteTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString(e(__('dossiers.file_share_hint')), $html);
+        $this->assertStringContainsString('data-file-share-close', $html);
+
+        // « Fermer », jamais « Annuler » : les partages sont écrits au clic sur
+        // « Partager ». Quelqu'un qui cliquerait « Annuler » croirait avoir
+        // tout défait.
+        $this->assertStringContainsString(e(__('dossiers.file_share_close')), $html);
     }
 
     /**

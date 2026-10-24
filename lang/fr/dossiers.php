@@ -683,4 +683,5 @@ TEXT,
     'shared_files_none_with_me' => 'Aucun fichier ne vous a été partagé.',
     'shared_files_none_by_me' => 'Vous n\'avez encore partagé aucun fichier.',
     'shared_files_hint' => 'Un fichier partagé s\'ouvre seul : il ne donne pas accès au dossier qui le contient.',
+    'file_share_close' => 'Fermer',
 ];

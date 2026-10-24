@@ -669,4 +669,5 @@ TEXT,
     'shared_files_none_with_me' => 'No file has been shared with you.',
     'shared_files_none_by_me' => 'You have not shared any file yet.',
     'shared_files_hint' => 'A shared file opens on its own: it does not grant access to the folder that contains it.',
+    'file_share_close' => 'Close',
 ];

@@ -1732,20 +1732,37 @@
                          conservee par le serveur. --}}
                     {{-- TASK-1695 geste D — partager un fichier, en LECTURE.
 
-                         Le texte d'aide dit ce que le partage N'OUVRE PAS : ni le
-                         Dossier qui contient le fichier, ni ses voisins, ni la
-                         modification, ni le repartage. Personne ne devinerait une
-                         borne aussi etroite, et la deviner de travers serait pire
-                         que de ne pas partager. --}}
+                         La mention qui decrivait la borne du partage (« ni le
+                         Dossier, ni les autres fichiers, ni la modification »)
+                         a ete RETIREE sur demande de Cyril : trop technique
+                         pour un utilisateur lambda. Je l'avais posee pour
+                         prevenir un malentendu ; l'arbitrage produit est que
+                         le malentendu coute moins cher que le jargon.
+
+                         Fermeture : la croix en haut a droite, plus `Echap` et
+                         le clic a l'exterieur, deja presents. PAS de second
+                         bouton « Fermer cette fenetre » a cote du premier —
+                         deux boutons voisins qui font la meme chose obligent a
+                         choisir entre eux. --}}
                     <template x-if="showShareModal && shareTarget">
                         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
                              @click.self="showShareModal = false" @keydown.escape.window="showShareModal = false"
                              role="dialog" aria-modal="true" aria-labelledby="share-file-title"
                              data-file-share-modal>
                             <div class="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-800">
-                                <h3 id="share-file-title" class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.file_share_title') }}</h3>
-                                <p class="mt-1 truncate text-sm text-gray-500 dark:text-gray-400" x-text="shareTarget.display_name || shareTarget.original_name"></p>
-                                <p class="mt-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">{{ __('dossiers.file_share_hint') }}</p>
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <h3 id="share-file-title" class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.file_share_title') }}</h3>
+                                        <p class="mt-1 truncate text-sm text-gray-500 dark:text-gray-400" x-text="shareTarget.display_name || shareTarget.original_name"></p>
+                                    </div>
+                                    <button type="button" @click="showShareModal = false"
+                                            class="-mr-1 -mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                            title="{{ __('dossiers.file_share_close') }}"
+                                            aria-label="{{ __('dossiers.file_share_close') }}"
+                                            data-file-share-close>
+                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                                    </button>
+                                </div>
 
                                 <input type="search" x-model="shareQuery" @input.debounce.300ms="chercherMembres()"
                                        placeholder="{{ __('dossiers.file_share_search') }}"
@@ -1789,9 +1806,14 @@
                                     </template>
                                 </ul>
 
+                                {{-- « Fermer », et non « Annuler » : les partages
+                                     s'appliquent IMMEDIATEMENT, au clic sur
+                                     « Partager ». Il n'y a rien a annuler, et
+                                     quelqu'un qui clique « Annuler » croirait
+                                     avoir tout defait. --}}
                                 <div class="mt-5 flex justify-end">
                                     <button type="button" @click="showShareModal = false"
-                                            class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.drive_cancel') }}</button>
+                                            class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.file_share_close') }}</button>
                                 </div>
                             </div>
                         </div>
