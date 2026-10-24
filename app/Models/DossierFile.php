@@ -60,6 +60,15 @@ class DossierFile extends Model
         return $this->hasMany(DossierFileShare::class, 'dossier_file_id');
     }
 
+    /**
+     * TASK-1695 (point 5a) — les partages vers des BOUCLES, a cote des
+     * partages nominatifs. Deux tables, deux relations : voir la migration.
+     */
+    public function loopShares(): HasMany
+    {
+        return $this->hasMany(DossierFileLoopShare::class);
+    }
+
     public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');

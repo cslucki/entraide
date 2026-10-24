@@ -114,6 +114,12 @@ class UserDataLifecycleRegistry
             // tenant la ou il fait autorite, pas par une jointure.
             ['key' => 'dossier_file_shares', 'type' => 'sql', 'table' => 'dossier_file_shares', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'A file share is nominative access granted to one person; it cannot outlive the account.'],
             ['key' => 'dossier_file_shares_shared_by', 'type' => 'sql', 'table' => 'dossier_file_shares', 'column' => 'shared_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Share grant audit can be detached; the share itself stays valid.'],
+            // TASK-1695 (5a) — le partage vers une Boucle n'a qu'UNE colonne
+            // vers `users` : `shared_by` (le destinataire est la Boucle). Meme
+            // politique que son jumeau nominatif, et declare DANS LE MEME
+            // COMMIT que la table — la CI a deja rejete cette TASK une fois
+            // pour deux FK non declarees.
+            ['key' => 'dossier_file_loop_shares_shared_by', 'type' => 'sql', 'table' => 'dossier_file_loop_shares', 'column' => 'shared_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Loop share grant audit can be detached; the share itself stays valid.'],
             ['key' => 'dossier_files_uploaded_by', 'type' => 'sql', 'table' => 'dossier_files', 'column' => 'uploaded_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_dossier', 'justification' => 'Dossier file metadata is retained until file lifecycle policy exists.'],
             ['key' => 'dossier_members_added_by', 'type' => 'sql', 'table' => 'dossier_members', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_dossier', 'justification' => 'Membership grant audit can be detached.'],
             ['key' => 'dossier_members', 'type' => 'sql', 'table' => 'dossier_members', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'through_dossier', 'justification' => 'Dossier membership is user-specific participation.'],

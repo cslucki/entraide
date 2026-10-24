@@ -680,4 +680,8 @@ TEXT,
     'share_none' => 'None',
     'share_peek_title' => 'Shared with',
     'share_peek_add' => 'Add people',
+    'loop_share_not_member' => 'You must be a member of this loop to share a file into it.',
+    'file_share_loops' => 'Share into a loop',
+    'file_share_loops_current' => 'Shared into loops',
+    'file_share_no_loop' => 'You are not a member of any loop.',
 ];

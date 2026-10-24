@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DossierFile;
+use App\Models\DossierFileLoopShare;
 use App\Models\DossierFileShare;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -47,6 +48,28 @@ class DossierFileShareController extends Controller
         $file = $this->fichierGerable($request);
 
         return response()->json([
+            // TASK-1695 (5a) — la meme fenetre montre les DEUX natures de
+            // partage. Les Boucles proposees sont celles dont JE suis membre
+            // actif (decision de Cyril : « la liste des boucles dont on est
+            // membre ») et vivantes — on ne partage pas vers une archive, qui
+            // est en lecture seule.
+            'loop_shares' => $file->loopShares()
+                ->where('organization_id', $file->organization_id)
+                ->with('loop:id,name,organization_id')
+                ->get()
+                ->map(fn (DossierFileLoopShare $share) => [
+                    'id' => $share->id,
+                    'loop_id' => $share->loop_id,
+                    'name' => $share->loop?->name,
+                ])
+                ->values(),
+            'loops' => \App\Models\Loop::query()
+                ->where('organization_id', $file->organization_id)
+                ->where('status', '!=', 'archived')
+                ->whereHas('activeMembers', fn ($q) => $q->where('user_id', $request->user()->id))
+                ->whereNotIn('id', $file->loopShares()->pluck('loop_id'))
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'shares' => $file->shares()
                 ->with('user:id,name,first_name,avatar,email,banned_at,organization_id')
                 ->get()
@@ -180,6 +203,75 @@ class DossierFileShareController extends Controller
         $file = $this->fichierGerable($request);
 
         $share = $file->shares()->whereKey($request->route('share'))->first();
+
+        if (! $share) {
+            abort(404);
+        }
+
+        $share->delete();
+
+        return response()->json(['deleted' => true]);
+    }
+
+    /**
+     * TASK-1695 (5a) — partager le fichier avec une BOUCLE.
+     *
+     * Trois bornes, chacune refusant un chemin reel :
+     *
+     * - la Boucle appartient a l'Organization DU FICHIER (jamais au contexte) ;
+     * - le partageur en est membre ACTIF — « la liste des boucles dont on est
+     *   membre » (Cyril) : on n'expose pas un fichier a une assemblee dont on
+     *   ne fait pas partie, meme en gerant le fichier ;
+     * - la Boucle est vivante : une archive est en lecture seule.
+     */
+    public function storeLoop(Request $request): JsonResponse
+    {
+        $file = $this->fichierGerable($request);
+
+        $data = $request->validate([
+            'loop_id' => [
+                'required',
+                'uuid',
+                Rule::exists('loops', 'id')
+                    ->where('organization_id', $file->organization_id)
+                    ->whereNot('status', 'archived'),
+            ],
+        ]);
+
+        $membreActif = \App\Models\LoopMember::query()
+            ->where('loop_id', $data['loop_id'])
+            ->where('user_id', $request->user()->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $membreActif) {
+            return response()->json(['message' => __('dossiers.loop_share_not_member')], 422);
+        }
+
+        $share = DossierFileLoopShare::query()->firstOrCreate(
+            [
+                'dossier_file_id' => $file->id,
+                'loop_id' => $data['loop_id'],
+            ],
+            [
+                // Du FICHIER, pas du contexte : voir le docblock de la classe.
+                'organization_id' => $file->organization_id,
+                'shared_by' => $request->user()->id,
+            ],
+        );
+
+        return response()->json([
+            'share' => ['id' => $share->id, 'loop_id' => $share->loop_id],
+            'created' => $share->wasRecentlyCreated,
+        ], $share->wasRecentlyCreated ? 201 : 200);
+    }
+
+    /** Meme borne que `destroy` : la ligne doit appartenir a CE fichier. */
+    public function destroyLoop(Request $request): JsonResponse
+    {
+        $file = $this->fichierGerable($request);
+
+        $share = $file->loopShares()->whereKey($request->route('share'))->first();
 
         if (! $share) {
             abort(404);

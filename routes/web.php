@@ -1499,6 +1499,12 @@ Route::prefix('/org/{organization}')
                 Route::get('/dossiers/{dossier}/files/{file}/shares/search', [DossierFileShareController::class, 'search'])->name('dossiers.files.shares.search');
                 Route::post('/dossiers/{dossier}/files/{file}/shares', [DossierFileShareController::class, 'store'])->name('dossiers.files.shares.store');
                 Route::delete('/dossiers/{dossier}/files/{file}/shares/{share}', [DossierFileShareController::class, 'destroy'])->name('dossiers.files.shares.destroy');
+                // TASK-1695 (5a) — partager avec une BOUCLE : meme fenetre,
+                // meme controleur, une table a part. Le segment litteral
+                // `loops` vit a une profondeur differente de `{share}` : aucun
+                // des deux ne peut avaler l'autre.
+                Route::post('/dossiers/{dossier}/files/{file}/shares/loops', [DossierFileShareController::class, 'storeLoop'])->name('dossiers.files.shares.loops.store');
+                Route::delete('/dossiers/{dossier}/files/{file}/shares/loops/{share}', [DossierFileShareController::class, 'destroyLoop'])->name('dossiers.files.shares.loops.destroy');
 
                 Route::get('/dossiers/partages/{file}', [SharedDossierFileController::class, 'show'])->name('dossiers.shared.show');
                 Route::get('/dossiers/partages/{file}/apercu', [SharedDossierFileController::class, 'preview'])->name('dossiers.shared.preview');

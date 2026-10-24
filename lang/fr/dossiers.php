@@ -694,4 +694,8 @@ TEXT,
     'share_none' => 'Aucun',
     'share_peek_title' => 'Partagé avec',
     'share_peek_add' => 'Ajouter des personnes',
+    'loop_share_not_member' => 'Vous devez être membre de cette boucle pour y partager un fichier.',
+    'file_share_loops' => 'Partager dans une boucle',
+    'file_share_loops_current' => 'Partagé dans les boucles',
+    'file_share_no_loop' => 'Vous n\'êtes membre d\'aucune boucle.',
 ];

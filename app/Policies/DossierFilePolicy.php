@@ -81,9 +81,27 @@ class DossierFilePolicy
             return false;
         }
 
-        return $file->shares()
+        if ($file->shares()
             ->where('user_id', $user->id)
             ->where('organization_id', $file->organization_id)
+            ->exists()) {
+            return true;
+        }
+
+        // TASK-1695 (5a) — partage avec une BOUCLE : le destinataire est la
+        // Boucle, l'acces de chacun se resout ICI, a la lecture. Membre ACTIF
+        // seulement — un arrivant voit le fichier des son entree, un partant
+        // le perd en sortant, sans qu'aucune ligne ne soit ecrite ni effacee.
+        //
+        // La Boucle doit appartenir a l'Organization DU FICHIER : sans cette
+        // borne, une ligne forgee vers une Boucle d'un autre tenant ouvrirait
+        // la lecture a travers la cloison (meme garde que les partages
+        // nominatifs, prouvee par forcage au geste A).
+        return $file->loopShares()
+            ->where('organization_id', $file->organization_id)
+            ->whereHas('loop', fn ($q) => $q
+                ->where('organization_id', $file->organization_id)
+                ->whereHas('activeMembers', fn ($m) => $m->where('user_id', $user->id)))
             ->exists();
     }
 
