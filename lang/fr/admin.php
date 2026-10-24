@@ -530,6 +530,10 @@ return [
     // PROD, les surcharges n'ont jamais ete semees pour les slugs recents,
     // et ce n'est pas une anomalie (le mailer retombe sur le Blade).
     // TASK-1694 bug AB — adapter un gabarit Plateforme a son Organization.
+    // TASK-1694 bug AD — le compteur de gabarits systeme.
+    'system_email_count_shown' => '{0}Aucun gabarit affiché|{1}1 gabarit affiché|[2,*]:count gabarits affichés',
+    'system_email_count_total' => 'sur :count au total',
+    'system_email_count_breakdown' => ':globaux global(aux) · :tenants rattaché(s) à une organisation',
     'system_email_source' => 'Source',
     'system_email_source_org' => 'Cette organisation',
     'system_email_source_platform' => 'Plateforme',

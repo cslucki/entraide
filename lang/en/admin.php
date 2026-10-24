@@ -527,6 +527,10 @@ return [
     // System email templates
     // TASK-1681 — absence of a row is normal: the mailer falls back to Blade.
     // TASK-1694 bug AB — adapter un gabarit Plateforme a son Organization.
+    // TASK-1694 bug AD — le compteur de gabarits systeme.
+    'system_email_count_shown' => '{0}No template shown|{1}1 template shown|[2,*]:count templates shown',
+    'system_email_count_total' => 'of :count in total',
+    'system_email_count_breakdown' => ':globaux global · :tenants attached to an organization',
     'system_email_source' => 'Source',
     'system_email_source_org' => 'This organization',
     'system_email_source_platform' => 'Platform',

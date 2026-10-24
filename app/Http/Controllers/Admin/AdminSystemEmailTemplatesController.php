@@ -52,6 +52,21 @@ class AdminSystemEmailTemplatesController extends Controller
         $templates = $query->get();
         $organizations = Organization::orderBy('name')->get();
 
+        // TASK-1694 bug AD — combien de gabarits, et combien le filtre en cache.
+        //
+        // Demande de Cyril : « ajouter un compteur pour indiquer le nombre de
+        // messages types ». Deux nombres, pas un : le compte AFFICHE seul
+        // laisserait croire que la base n'en contient pas davantage des qu'un
+        // filtre est pose — exactement le genre de chiffre qu'on lit de travers.
+        //
+        // Le total porte sur la TABLE entiere, jamais sur le filtre courant.
+        $compteurs = [
+            'affiches' => $templates->count(),
+            'total' => SystemEmailTemplate::query()->count(),
+            'globaux' => SystemEmailTemplate::query()->whereNull('organization_id')->count(),
+            'tenants' => SystemEmailTemplate::query()->whereNotNull('organization_id')->count(),
+        ];
+
         // TASK-1681 — arrive filtre par slug, l'ecran doit montrer que le
         // MODELE SYSTEME PAR DEFAUT existe (le repli Blade du mailer), meme
         // quand aucune surcharge DB n'a jamais ete creee : une liste vide
@@ -75,7 +90,7 @@ class AdminSystemEmailTemplatesController extends Controller
             ];
         }
 
-        return view('admin.system-email-templates.index', compact('templates', 'organizations', 'defaultTemplate'));
+        return view('admin.system-email-templates.index', compact('templates', 'organizations', 'defaultTemplate', 'compteurs'));
     }
 
     /**

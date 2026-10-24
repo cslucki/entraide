@@ -12,6 +12,29 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400">
                         {{ __('admin.system_email_desc') }}
                     </p>
+
+                    {{-- TASK-1694 bug AD — DEUX nombres, pas un.
+                         Le compte affiche seul laisserait croire que la base n'en
+                         contient pas davantage des qu'un filtre est pose. Le total
+                         porte sur la table entiere, jamais sur le filtre courant. --}}
+                    <div class="mt-3 flex flex-wrap items-center gap-2 text-xs" data-system-email-counters>
+                        <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 font-medium text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200"
+                              data-system-email-count-shown="{{ $compteurs['affiches'] }}">
+                            {{ __('admin.system_email_count_shown', ['count' => $compteurs['affiches']]) }}
+                        </span>
+
+                        @if($compteurs['affiches'] !== $compteurs['total'])
+                            <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                                  data-system-email-count-total="{{ $compteurs['total'] }}">
+                                {{ __('admin.system_email_count_total', ['count' => $compteurs['total']]) }}
+                            </span>
+                        @endif
+
+                        <span class="text-gray-500 dark:text-gray-400"
+                              data-system-email-count-breakdown="{{ $compteurs['globaux'] }}/{{ $compteurs['tenants'] }}">
+                            {{ __('admin.system_email_count_breakdown', ['globaux' => $compteurs['globaux'], 'tenants' => $compteurs['tenants']]) }}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
