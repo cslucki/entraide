@@ -44,6 +44,21 @@ class TASK1694OrgAvailabilityToggleTest extends TestCase
     {
         parent::setUp();
 
+        // TASK-1694 bug AI — une Organization PAR DEFAUT existe a cote, comme
+        // dans la vraie base.
+        //
+        // C'est ce qui manquait a ce fixture, et c'est ce qui a rendu mes tests
+        // du bug AE verts sur un defaut reel : sans Organization par defaut,
+        // `currentOrganization()` ne pouvait pas retomber sur une AUTRE
+        // Organization que celle du test. Un fixture qui ne reproduit pas la
+        // topologie reelle ne mesure pas la realite.
+        Organization::factory()->create([
+            'slug' => 'org-1694ae-defaut',
+            'is_active' => true,
+            'is_default' => true,
+            'availability_enabled' => true,
+        ]);
+
         $this->organization = Organization::factory()->create([
             'slug' => 'org-1694ae',
             'is_active' => true,
@@ -305,6 +320,13 @@ class TASK1694OrgAvailabilityToggleTest extends TestCase
      */
     public function test_the_availability_field_is_gone_on_the_non_tenant_profile_page(): void
     {
+        // TASK-1694 bug AI — ce test etait VERT sur le defaut que Cyril a vu.
+        //
+        // Il ne creait pas d'Organization par defaut : `currentOrganization()`
+        // n'avait donc nulle part ou retomber, et repondait pour la bonne
+        // Organization par accident. Avec la topologie reelle (une Organization
+        // par defaut qui, elle, a la fonctionnalite active), il rougit tant que
+        // le helper ne lit pas l'Organization de la PERSONNE.
         $this->actif(false);
 
         $html = $this->actingAs($this->membre)

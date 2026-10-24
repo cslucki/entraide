@@ -34,7 +34,27 @@ if (! function_exists('availabilityIsShown')) {
      */
     function availabilityIsShown(): bool
     {
-        return currentOrganization()?->availabilityEnabled() ?? true;
+        // TASK-1694 bug AI — hors preface d'URL, l'Organization COURANTE n'est
+        // pas celle qu'on croit.
+        //
+        // Signale par Cyril le 24/10 : la case restait visible sur
+        // `/profile/edit` alors qu'OFSH avait la fonctionnalite decochee.
+        // Mesure : `currentOrganization()` retombe sur l'Organization PAR
+        // DEFAUT (`main`) des que l'URL ne porte pas de prefixe — et `main`,
+        // elle, l'a activee. La page repondait donc pour une Organization dont
+        // la personne ne regardait pas les pages.
+        //
+        // La regle est donc : s'il y a un tenant DANS L'URL, c'est lui qui
+        // decide — c'est l'ecran d'une Organization, et c'est elle qui dit ce
+        // qu'elle montre. Sinon, c'est l'Organization de la personne connectee :
+        // sur une page sans tenant, elle ne voit que ses propres donnees.
+        $route = request()?->route();
+
+        $organization = $route?->parameter('organization')
+            ? currentOrganization()
+            : (auth()->user()?->organization ?? currentOrganization());
+
+        return $organization?->availabilityEnabled() ?? true;
     }
 }
 
