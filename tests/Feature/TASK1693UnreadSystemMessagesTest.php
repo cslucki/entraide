@@ -20,8 +20,8 @@ use Tests\TestCase;
  * Messagerie » (recette Cyril, 21/10). Sur la base de recette, TOUS les
  * messages non lus etaient des messages systeme :
  *
- *     « Nouvelle échange envoyée : 20 points. »
- *     « Échange acceptée. L'échange est en cours. »
+ *     « Nouvel échange envoyé : 20 points. »
+ *     « Échange accepté. L'échange est en cours. »
  *     « L'acheteur a déclaré la prestation terminée »
  *
  * Aucun ne pouvait allumer le badge.
@@ -96,7 +96,7 @@ class TASK1693UnreadSystemMessagesTest extends TestCase
     }
 
     /** Un message systeme, tel que le produit `addSystemMessage()`. */
-    private function messageSysteme(string $body = 'Échange acceptée.'): Message
+    private function messageSysteme(string $body = 'Échange accepté.'): Message
     {
         return Message::query()->create([
             'transaction_id' => $this->transaction->id,
@@ -213,7 +213,7 @@ class TASK1693UnreadSystemMessagesTest extends TestCase
         Message::query()->create([
             'transaction_id' => $ailleurs->id,
             'sender_id' => null,
-            'body' => 'Échange acceptée.',
+            'body' => 'Échange accepté.',
             'type' => 'system',
             'organization_id' => $this->organization->id,
             'created_at' => now(),

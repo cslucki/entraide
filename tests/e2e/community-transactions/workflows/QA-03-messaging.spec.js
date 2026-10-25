@@ -307,7 +307,7 @@ test.describe('QA-03: Messaging Between Participants', () => {
             console.log('✅ System messages with class attribute found');
         } else {
             // Look for typical system message text
-            const hasSystemText = await page.locator('text=Nouvelle échange, text=acceptée, text=terminé, text=complétée').count() > 0;
+            const hasSystemText = await page.locator('text=Nouvel échange, text=accepté, text=terminé, text=complété').count() > 0;
             if (hasSystemText) {
                 console.log('✅ System messages identified by text content');
             } else {

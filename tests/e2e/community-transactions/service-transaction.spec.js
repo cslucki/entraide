@@ -102,7 +102,7 @@ test.describe('Service Transaction Workflow', () => {
         }
 
         // Verify system message
-        await expect(page.locator('text=Nouvelle échange')).toBeVisible();
+        await expect(page.locator('text=Nouvel échange')).toBeVisible();
 
         await captureScreenshot(page, 'transaction-proposed');
     });
@@ -118,7 +118,7 @@ test.describe('Service Transaction Workflow', () => {
         await acceptButton.click();
 
         // Verify status change
-        await expect(page.locator('text=acceptée')).toBeVisible();
+        await expect(page.locator('text=accepté')).toBeVisible();
         await expect(page.locator('text=En cours')).toBeVisible();
 
         await captureScreenshot(page, 'transaction-accepted');
