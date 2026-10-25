@@ -129,7 +129,11 @@ final class RootDestination
             return $stored;
         }
 
-        if ($homepageTemplate === 'bouclepro_hero_v2' || $homepageTemplate === 'artscilab_hero') {
+        // TASK-1699 — `ofsh_hero` rejoint la liste des gabarits AUTONOMES.
+        // L'oublier ici aurait servi la landing OFSH avec la destination de
+        // racine du gabarit par defaut : un ecart invisible aux tests du
+        // gabarit lui-meme, qui ne passent pas par la racine.
+        if (in_array($homepageTemplate, ['bouclepro_hero_v2', 'artscilab_hero', 'ofsh_hero'], true)) {
             return self::SHELL_WELCOME;
         }
 

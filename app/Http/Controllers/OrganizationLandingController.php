@@ -102,6 +102,20 @@ class OrganizationLandingController extends Controller
             return view('organization.hero-v2', compact('organization', 'heroAvatars', 'guestShell', 'heroSessions', 'showInternalHomepageContent'));
         }
 
+        // TASK-1699 — le gabarit OFSH.
+        //
+        // Il est servi AVANT `artscilab_hero` sans que l'ordre ait d'effet :
+        // les trois conditions portent sur la meme colonne et s'excluent. Ce
+        // qui compte est ce qu'il ne recoit PAS — ni `$heroAvatars`, ni
+        // `$heroSessions`, ni `$publicWorkshops`. Cette landing ne lit aucune
+        // donnee de tenant : quatre portes, des textes, et c'est tout. La
+        // garde `$showInternalHomepageContent` lui est passee quand meme,
+        // parce qu'elle y commande la DESTINATION des quatre portes — la
+        // surface reelle pour un membre, la connexion bornee sinon.
+        if ($organization->homepage_template === 'ofsh_hero') {
+            return view('organization.ofsh-hero', compact('organization', 'guestShell', 'showInternalHomepageContent'));
+        }
+
         if ($organization->homepage_template === 'artscilab_hero') {
             $heroAvatars = $showInternalHomepageContent
                 ? $organization->users()
