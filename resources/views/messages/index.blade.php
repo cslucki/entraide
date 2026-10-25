@@ -5,6 +5,47 @@
             padding: 0 !important;
         }
 
+        /* TASK-1703 — POURQUOI LE COMPOSEUR BOUGEAIT, et laissait une bande
+           vide sous lui.
+
+           Cyril, capture a l'appui : « il faut que le composer qui est en bas
+           soit sticky, car si on fait un geste vers le haut, le composer se
+           deplace ».
+
+           C'est MOT POUR MOT le defaut que TASK-1684 MICRO-01 avait nomme et
+           corrige sur l'espace d'une Boucle : « `100dvh` est la hauteur
+           DYNAMIQUE : elle suit l'apparition et le retrait de la barre d'URL
+           du navigateur. Sur Chrome Android, le simple geste de defilement
+           vers le haut retracte cette barre, le viewport grandit, le conteneur
+           grandit avec lui — et le composeur, ancre en bas de ce conteneur, se
+           DEPLACE sous le doigt. Rien n'etait mal ancre : c'est l'unite de
+           hauteur qui bougeait. »
+
+           La Messagerie etait restee en `dvh`. Memes deux changements, meme
+           principe — que plus rien ne bouge :
+
+             1. le document ne defile plus du tout sur cette page. Sans
+                defilement de document, Chrome n'a aucune raison de retracter
+                sa barre : le viewport reste constant. C'est aussi ce qui
+                supprime le « defilement parasite » qui decouvrait la bande
+                grise de la capture ;
+             2. la hauteur passe a `100svh`, la plus petite des hauteurs
+                possibles, celle qui ne varie JAMAIS. Le repli `100dvh` precede
+                la regle pour les navigateurs qui ignorent `svh`.
+
+           `--bp-vvh`, si le script l'a posee, prend le dessus : c'est la seule
+           mesure juste quand le clavier virtuel est ouvert.
+
+           La soustraction, elle, ne change pas : `3.5rem` est la barre haute
+           de l'application, qui RESTE sur cette page — a la difference d'une
+           Boucle, qui la masque. */
+        html:has(.messages-index-container),
+        body:has(.messages-index-container) {
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+
         .messages-index-container {
             /* TASK-1693 bug AD — `4rem` etait la hauteur de la barre d'outils,
                recopiee en dur. Le bug AC l'ayant retiree des conversations,
@@ -12,6 +53,8 @@
                sous le composeur, qui ne tenait donc plus le bas de l'ecran.
                `--bp-bottom-nav` suit la meme decision que la barre. */
             height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px) - var(--bp-bottom-nav, 0px));
+            height: calc(100svh - 3.5rem - env(safe-area-inset-top, 0px) - var(--bp-bottom-nav, 0px));
+            height: calc(var(--bp-vvh, 100svh) - 3.5rem - env(safe-area-inset-top, 0px) - var(--bp-bottom-nav, 0px));
         }
     }
 
@@ -378,4 +421,10 @@
 
         </div>
     </x-page-container>
+
+    {{-- TASK-1703 — la hauteur du viewport VISUEL, seule mesure juste quand le
+         clavier virtuel est ouvert. Meme composant que l'espace d'une Boucle. --}}
+    @once
+    <x-visual-viewport-height selector=".messages-index-container" />
+    @endonce
 </x-app-layout>

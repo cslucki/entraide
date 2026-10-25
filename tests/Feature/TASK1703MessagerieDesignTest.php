@@ -176,6 +176,73 @@ class TASK1703MessagerieDesignTest extends TestCase
         );
     }
 
+    // ── 4. Le composeur ne bouge plus sur telephone ─────────────────────────
+
+    /**
+     * Le document ne defile plus, et la hauteur ne varie plus.
+     *
+     * Cyril, capture a l'appui : « il faut que le composer qui est en bas soit
+     * sticky, car si on fait un geste vers le haut, le composer se deplace. »
+     *
+     * C'est mot pour mot le defaut que TASK-1684 MICRO-01 avait nomme sur
+     * l'espace d'une Boucle : `100dvh` SUIT la barre d'URL de Chrome Android,
+     * donc un geste vers le haut la retracte, le viewport grandit, et le
+     * composeur ancre en bas se deplace. La Messagerie etait restee en `dvh`.
+     *
+     * Les deux moities sont mesurees, et aucune ne suffit : sans le verrou du
+     * document, Chrome continue de retracter sa barre ; sans `svh`, la hauteur
+     * continue de varier.
+     */
+    public function test_sur_telephone_le_document_ne_defile_plus_et_la_hauteur_ne_varie_plus(): void
+    {
+        $html = $this->messagerie();
+
+        $this->assertSame(
+            1,
+            preg_match('/body:has\(\.messages-index-container\)\s*\{[^}]*overflow:\s*hidden/s', $html),
+            'Le document defile encore : Chrome retractera sa barre d\'URL et le composeur bougera.'
+        );
+
+        $this->assertSame(
+            1,
+            preg_match('/\.messages-index-container\s*\{[^}]*100svh/s', $html),
+            'La hauteur reste en `dvh`, l\'unite qui suit la barre d\'URL.'
+        );
+
+        // Et le repli `dvh` PRECEDE la regle `svh` : l'inverse rendrait `svh`
+        // inoperant partout, la derniere declaration gagnant.
+        $this->assertTrue(
+            strpos($html, '100dvh - 3.5rem') < strpos($html, '100svh - 3.5rem'),
+            'Le repli `dvh` est declare APRES `svh` : il l\'annule.'
+        );
+    }
+
+    /**
+     * La hauteur du viewport VISUEL est branchee, et par le MEME composant que
+     * l'espace d'une Boucle.
+     *
+     * C'est elle qui tient quand le clavier virtuel s'ouvre. Deux copies d'un
+     * calcul de viewport divergent a la premiere retouche : il n'y en a qu'une.
+     */
+    public function test_la_hauteur_du_viewport_visuel_est_branchee(): void
+    {
+        $html = $this->messagerie();
+
+        // La garde porte sur l'ECRITURE de la variable, pas sur sa seule
+        // apparition : `var(--bp-vvh, 100svh)` figure de toute facon dans la
+        // feuille de style. Un sabotage qui vidait le script est reste VERT
+        // tant que la mesure ne distinguait pas la DEFINITION de l'USAGE —
+        // meme piege qu'en TASK-1609 sur `data-bp-mobile-nav`.
+        $this->assertSame(
+            1,
+            preg_match("/setProperty\(\s*'--bp-vvh'/", $html),
+            'Le script n\'ecrit plus la hauteur du viewport visuel : le clavier virtuel la fera bouger.'
+        );
+
+        $this->assertStringContainsString("querySelector('.messages-index-container')", $html);
+        $this->assertStringContainsString('visualViewport', $html);
+    }
+
     // ── 3. Le rail ──────────────────────────────────────────────────────────
 
     /**
