@@ -30,6 +30,7 @@ use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -293,21 +294,7 @@ class AdminController extends Controller
         }
 
         if ($request->hasFile('avatar')) {
-            // TASK-1654 — l'ancien fichier ne se supprime que s'il appartient a
-            // CE compte. Un avatar de banque Scenario est publie a un chemin
-            // PARTAGE, sans discriminant d'Organization : le supprimer ici
-            // privait de son image tout persona, dans toute sandbox, qui
-            // declare la meme cle. La banque est seule a repondre de cette
-            // question ; ce controleur ne la redevine pas.
-            //
-            // Et l'inverse reste vrai : un upload individuel remplace DOIT
-            // toujours etre supprime, sans quoi on echangerait une casse
-            // globale contre une fuite de stockage.
-            if ($user->avatar && ! ManifestAvatarBank::isPublishedAsset($user->avatar)) {
-                Storage::disk('public')->delete($user->avatar);
-            }
-
-            $update['avatar'] = $request->file('avatar')->store('avatars', 'public');
+            $update['avatar'] = $this->remplacerAvatar($user, $request->file('avatar'));
         }
 
         if ($user->id !== auth()->id()) {
@@ -318,6 +305,71 @@ class AdminController extends Controller
         $user->update($update);
 
         return back()->with('success', "Profil de {$user->name} mis à jour.");
+    }
+
+    /**
+     * TASK-1705 — remplacer la photo d'un compte, une seule fois.
+     *
+     * Extrait de `updateUser()` a l'identique, parce que le bouton « Upload
+     * photos » de la liste doit faire EXACTEMENT ce que fait la page Modifier.
+     * La subtilite ci-dessous est la raison d'etre de cette extraction : la
+     * recopier aurait donne deux regles pour une idee, et c'est la copie qu'on
+     * oublie de corriger.
+     *
+     * TASK-1654 — l'ancien fichier ne se supprime que s'il appartient a CE
+     * compte. Un avatar de banque Scenario est publie a un chemin PARTAGE,
+     * sans discriminant d'Organization : le supprimer ici privait de son image
+     * tout persona, dans toute sandbox, qui declare la meme cle. La banque est
+     * seule a repondre de cette question ; ce controleur ne la redevine pas.
+     *
+     * Et l'inverse reste vrai : un upload individuel remplace DOIT toujours
+     * etre supprime, sans quoi on echangerait une casse globale contre une
+     * fuite de stockage.
+     */
+    private function remplacerAvatar(User $user, UploadedFile $fichier): string
+    {
+        if ($user->avatar && ! ManifestAvatarBank::isPublishedAsset($user->avatar)) {
+            Storage::disk('public')->delete($user->avatar);
+        }
+
+        return $fichier->store('avatars', 'public');
+    }
+
+    /**
+     * TASK-1705 — poser la photo d'un compte depuis la LISTE.
+     *
+     * Cyril : « sur /admin/users, je voudrais que tu ajoutes un bouton "Upload
+     * photos" dans la colonne action, qui permette d'indiquer la photo de
+     * l'utilisateur, comme si on allait sur [la page Modifier]. Ceci car
+     * certaines personnes ne prennent pas le temps d'uploader leur photo et je
+     * vais recuperer leur photo pour eux et la telecharger. »
+     *
+     * ## Pourquoi un point d'entree a part, et non `updateUser()`
+     *
+     * `updateUser()` valide un formulaire COMPLET : `name` et `email` y sont
+     * requis, et il reecrit une trentaine de champs. Lui envoyer un seul
+     * fichier echouerait sur la validation ; lui envoyer la ligne entiere
+     * depuis la liste reviendrait a reposter des valeurs que personne n'a
+     * voulu modifier — et a ecraser, au passage, toute modification faite
+     * ailleurs entre l'affichage de la liste et le clic.
+     *
+     * Celui-ci ne touche QUE la photo. C'est aussi ce qui le rend sur : il n'y
+     * a pas de champ a oublier de valider.
+     *
+     * Les memes regles que la page Modifier s'appliquent au fichier (type et
+     * taille), et le remplacement passe par le MEME code.
+     */
+    public function updateUserAvatar(Request $request, User $user): RedirectResponse
+    {
+        $request->validate([
+            'avatar' => 'required|image|mimes:jpeg,png,webp|max:2048',
+        ], [
+            'avatar.required' => __('admin.users_avatar_required'),
+        ]);
+
+        $user->update(['avatar' => $this->remplacerAvatar($user, $request->file('avatar'))]);
+
+        return back()->with('success', __('admin.users_avatar_updated', ['name' => $user->full_name]));
     }
 
     public function banUser(User $user): RedirectResponse

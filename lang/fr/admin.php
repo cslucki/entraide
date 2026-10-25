@@ -1732,6 +1732,13 @@ return [
     'users_status_unavailable' => 'Indisponible',
     'users_status_banned' => 'Banni',
     'users_profile_button' => 'Fiche',
+    // TASK-1705 — poser la photo d'un compte depuis la liste. Cyril : « certaines
+    // personnes ne prennent pas le temps d'uploader leur photo et je vais
+    // recuperer leur photo pour eux. »
+    'users_avatar_button' => 'Upload photos',
+    'users_avatar_button_title' => 'Choisir la photo de :name',
+    'users_avatar_updated' => 'Photo de :name mise à jour.',
+    'users_avatar_required' => 'Choisissez une image (JPEG, PNG ou WebP, 2 Mo maximum).',
     'users_title_scoped' => 'Utilisateurs — :organization',
     'users_stats_scoped_prefix' => 'Liste et compteurs limités à',
     'users_stats_scope_all' => 'Voir toutes les organisations',
