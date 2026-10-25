@@ -57,8 +57,8 @@
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
                         @if($post->category)
-                        <span class="px-2 py-0.5 rounded-full text-xs text-white" style="background-color:{{ $post->category->color ?? '#6366f1' }}">
-                            {{ $post->category->name }}
+                        <span data-blog-category class="px-2 py-0.5 rounded-full text-xs text-white" style="background-color:{{ $post->category->color ?? '#6366f1' }}">
+                            {{ $post->category->displayName('blog') }}
                         </span>
                         @else
                         <span class="text-gray-400">—</span>
