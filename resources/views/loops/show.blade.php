@@ -931,20 +931,12 @@
          mise en page en JS : le CSS garde la main, le script ne fait que lui
          dire la hauteur reelle. Sans `visualViewport` (navigateur ancien),
          rien ne s'execute et le repli `svh` s'applique. --}}
+    {{-- TASK-1703 — ce bloc est passe dans `x-visual-viewport-height`, mot
+         pour mot. La Messagerie avait le MEME defaut et appelle le meme
+         composant : deux copies d'un calcul de viewport divergent a la
+         premiere retouche. --}}
     @once
-    <script>
-        (function () {
-            var vv = window.visualViewport;
-            if (!vv || !document.querySelector('.loops-show-container')) { return; }
-
-            var apply = function () {
-                document.documentElement.style.setProperty('--bp-vvh', Math.round(vv.height) + 'px');
-            };
-
-            apply();
-            vv.addEventListener('resize', apply);
-        })();
-    </script>
+    <x-visual-viewport-height selector=".loops-show-container" />
     @endonce
 
 </x-app-layout>

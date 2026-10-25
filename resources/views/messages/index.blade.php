@@ -5,6 +5,47 @@
             padding: 0 !important;
         }
 
+        /* TASK-1703 — POURQUOI LE COMPOSEUR BOUGEAIT, et laissait une bande
+           vide sous lui.
+
+           Cyril, capture a l'appui : « il faut que le composer qui est en bas
+           soit sticky, car si on fait un geste vers le haut, le composer se
+           deplace ».
+
+           C'est MOT POUR MOT le defaut que TASK-1684 MICRO-01 avait nomme et
+           corrige sur l'espace d'une Boucle : « `100dvh` est la hauteur
+           DYNAMIQUE : elle suit l'apparition et le retrait de la barre d'URL
+           du navigateur. Sur Chrome Android, le simple geste de defilement
+           vers le haut retracte cette barre, le viewport grandit, le conteneur
+           grandit avec lui — et le composeur, ancre en bas de ce conteneur, se
+           DEPLACE sous le doigt. Rien n'etait mal ancre : c'est l'unite de
+           hauteur qui bougeait. »
+
+           La Messagerie etait restee en `dvh`. Memes deux changements, meme
+           principe — que plus rien ne bouge :
+
+             1. le document ne defile plus du tout sur cette page. Sans
+                defilement de document, Chrome n'a aucune raison de retracter
+                sa barre : le viewport reste constant. C'est aussi ce qui
+                supprime le « defilement parasite » qui decouvrait la bande
+                grise de la capture ;
+             2. la hauteur passe a `100svh`, la plus petite des hauteurs
+                possibles, celle qui ne varie JAMAIS. Le repli `100dvh` precede
+                la regle pour les navigateurs qui ignorent `svh`.
+
+           `--bp-vvh`, si le script l'a posee, prend le dessus : c'est la seule
+           mesure juste quand le clavier virtuel est ouvert.
+
+           La soustraction, elle, ne change pas : `3.5rem` est la barre haute
+           de l'application, qui RESTE sur cette page — a la difference d'une
+           Boucle, qui la masque. */
+        html:has(.messages-index-container),
+        body:has(.messages-index-container) {
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+
         .messages-index-container {
             /* TASK-1693 bug AD — `4rem` etait la hauteur de la barre d'outils,
                recopiee en dur. Le bug AC l'ayant retiree des conversations,
@@ -12,12 +53,63 @@
                sous le composeur, qui ne tenait donc plus le bas de l'ecran.
                `--bp-bottom-nav` suit la meme decision que la barre. */
             height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px) - var(--bp-bottom-nav, 0px));
+            height: calc(100svh - 3.5rem - env(safe-area-inset-top, 0px) - var(--bp-bottom-nav, 0px));
+            height: calc(var(--bp-vvh, 100svh) - 3.5rem - env(safe-area-inset-top, 0px) - var(--bp-bottom-nav, 0px));
         }
     }
 
     @media (min-width: 768px) {
+        /* TASK-1703 — la fenetre prend toute la largeur ET toute la hauteur,
+           comme l'espace de travail d'une Boucle.
+
+           ## La hauteur
+
+           `calc(100vh - 5rem)` soustrayait la barre d'en-tete de page. Or cet
+           ecran ne pose AUCUN `$header` — pas plus que `loops.show`, dont le
+           commentaire dit deja : « no top app header on this page, so the
+           workspace fills the full viewport height — otherwise ~5rem stays
+           empty ». La messagerie avait garde la soustraction : cinq rem de
+           vide sous le composeur, et une fenetre d'autant plus courte.
+
+           ## La largeur
+
+           `x-page-container` centre le contenu dans `max-w-7xl` avec ses
+           marges laterales. Sur un grand ecran, les deux colonnes se
+           retrouvaient dans une colonne etroite tandis que l'espace d'une
+           Boucle occupe tout. Memes declarations que `.loops-show-wrapper`,
+           au mot pres : c'est le meme besoin, il n'y a pas de raison d'en
+           inventer une seconde expression. */
+        .messages-index-wrapper {
+            max-width: none !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+
+            /* La hauteur est portee par le WRAPPER, pas par la fenetre.
+               Donner `100dvh` a la fenetre alors qu'une barre haute la
+               precede ferait depasser la page de la hauteur de cette barre :
+               un ascenseur, et le composeur pousse sous la ligne de
+               flottaison. C'est le montage de `loops.show` — conteneur en
+               colonne a hauteur d'ecran, barre `flex-shrink-0`, espace de
+               travail `flex: 1 1 auto; min-height: 0`. */
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages-index-topbar {
+            flex-shrink: 0;
+        }
+
         .messages-index-container {
-            height: calc(100vh - 5rem);
+            flex: 1 1 auto;
+            min-height: 0;
+            height: auto;
+            border-radius: 0 !important;
+            border-left: 0 !important;
+            border-right: 0 !important;
+            border-top: 0 !important;
         }
     }
 </style>
@@ -33,6 +125,35 @@
         };
     @endphp
     <x-page-container class="messages-index-wrapper">
+        {{-- TASK-1703 — la barre haute, sur DESKTOP uniquement.
+
+             Cyril : « une top navigation bar comme sur la version mobile ».
+             Sur telephone, `x-mobile-topbar` en pose une — titre de la page,
+             marque, menu. Sur desktop il n'y avait RIEN au-dessus des deux
+             colonnes : la page commencait a ras bord, et c'est ce qui la
+             faisait paraitre plus pauvre que l'espace d'une Boucle.
+
+             Elle est calquee sur la barre de `loops.show` : meme filet, meme
+             rythme vertical, meme jetons de theme. Pas une invention — la
+             reference que Cyril nomme.
+
+             `hidden md:flex` : sur telephone elle ferait DOUBLON avec la barre
+             de l'application, qui est deja la. --}}
+        <div class="messages-index-topbar hidden md:flex flex-nowrap items-center gap-3 border-b border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-2.5"
+             data-messages-topbar>
+            <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--bp-border)] text-[var(--bp-muted)]" aria-hidden="true">
+                {{-- `navigation_icons.messaging` est un CHEMIN `d=`, pas un
+                     `<svg>` : meme enveloppe que le rail, au trait pres. --}}
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="{{ config('navigation_icons.messaging') }}" />
+                </svg>
+            </span>
+            <div class="min-w-0 flex-1">
+                <h1 class="truncate text-base font-semibold text-[var(--bp-text)] sm:text-lg">{{ __('messages.title') }}</h1>
+                <p class="truncate text-xs text-[var(--bp-muted)]">{{ trans_choice('messages.conversation_count', $transactions->count(), ['count' => $transactions->count()]) }}</p>
+            </div>
+        </div>
+
         <div class="messages-index-container flex flex-col md:flex-row border-0 md:border border-gray-200 dark:border-gray-700 md:rounded-xl overflow-hidden bg-white dark:bg-gray-800">
 
             {{-- Mobile: conversation list when no thread selected --}}
@@ -300,4 +421,10 @@
 
         </div>
     </x-page-container>
+
+    {{-- TASK-1703 — la hauteur du viewport VISUEL, seule mesure juste quand le
+         clavier virtuel est ouvert. Meme composant que l'espace d'une Boucle. --}}
+    @once
+    <x-visual-viewport-height selector=".messages-index-container" />
+    @endonce
 </x-app-layout>
