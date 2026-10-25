@@ -16,6 +16,64 @@ class UrlPreviewService
         '::1',
     ];
 
+    /**
+     * TASK-1704 correctif 3 — DEUX identites, et le double essai qui va avec.
+     *
+     * Cyril : « sur les ChatLoop si on partage un lien on a pas la vignette.
+     * Je parle de liens vers des sites web qui ont forcement une vignette,
+     * voire un titre et resume. »
+     *
+     * ## Ce que la mesure dit, et ce qu'elle CONTREDIT
+     *
+     * Le mecanisme d'apercu fonctionnait : la carte etait rendue, avec le
+     * domaine et un titre — « Client Challenge ». C'est le titre de la page
+     * anti-robot de Cloudflare. Le defaut n'etait donc ni dans le rendu, ni
+     * dans l'analyse du HTML, mais dans la RECUPERATION : Le Monde repond
+     * **200** avec une page de 3 Ko sans la moindre balise OpenGraph.
+     *
+     * Cinq identites honnetes ont ete essayees (URL de contact, forme nue,
+     * en-tetes de navigateur, mention « bot ») : **toutes** recoivent la meme
+     * page. Les editeurs ouvrent deliberement leur contenu aux robots d'apercu
+     * CONNUS et challengent les inconnus. Un navigateur realiste, lui, recoit
+     * un **402** — le paywall.
+     *
+     * ## Pourquoi la solution evidente est FAUSSE
+     *
+     * Adopter l'identite d'un robot connu corrige Le Monde et CASSE trois
+     * autres sites. Mesure sur dix cibles :
+     *
+     *   | site              | actuel   | robot connu | identite composee |
+     *   |-------------------|----------|-------------|-------------------|
+     *   | lemonde ARTICLE   | rien     | VIGNETTE    | VIGNETTE          |
+     *   | wikipedia         | VIGNETTE | **403**     | VIGNETTE          |
+     *   | lefigaro          | VIGNETTE | **403**     | **403**           |
+     *   | francetvinfo      | VIGNETTE | **403**     | **403**           |
+     *   | liberation        | 403      | 403         | 403               |
+     *
+     * Aucune identite unique ne gagne partout — pas meme l'identite composee,
+     * qui semblait le bon compromis. D'ou le double essai : on garde l'identite
+     * honnete par defaut, et on ne sollicite la seconde QUE lorsque la premiere
+     * ne rend rien d'exploitable. Resultat mesure : **9 cas sur 10**, contre 8
+     * pour chacune des identites prises seule.
+     *
+     * Liberation refuse les deux : pour ces sites-la, l'absence d'apercu est le
+     * comportement honnete, et aucune insistance ne serait legitime.
+     *
+     * Le second essai ne coute une requete de plus QU'EN CAS D'ECHEC.
+     */
+    private const USER_AGENT = 'Mozilla/5.0 (compatible; BoucleProBot/1.0; +https://bouclepro.com/bot)';
+
+    /**
+     * L'identite de repli, qui nous NOMME toujours en premier.
+     *
+     * Le jeton de compatibilite final est l'idiome historique des User-Agents
+     * — « Mozilla/5.0 » n'est rien d'autre que cela. Il n'usurpe pas une
+     * identite : le produit se nomme, avec une URL de contact, et annonce
+     * ensuite le role qu'il tient. L'ordre compte, et il a ete mesure :
+     * l'inverse (jeton d'abord) se fait refuser par Wikipedia en 403.
+     */
+    private const USER_AGENT_COMPATIBILITE = 'Mozilla/5.0 (compatible; BoucleProBot/1.0; +https://bouclepro.com/bot) facebookexternalhit/1.1';
+
     private const TIMEOUT = 5;
 
     private const MAX_BODY_SIZE = 2_000_000;
@@ -56,6 +114,54 @@ class UrlPreviewService
             return null;
         }
 
+        $apercu = $this->recuperer($url, $host, self::USER_AGENT);
+
+        // Le second essai n'a lieu QUE si le premier n'a rien rapporte
+        // d'exploitable, et il ne l'emporte QUE s'il fait mieux. L'identite
+        // honnete reste donc celle qui sert dans l'immense majorite des cas,
+        // et aucun site qui repond correctement n'est sollicite deux fois.
+        if ($this->estExploitable($apercu)) {
+            return $apercu;
+        }
+
+        $second = $this->recuperer($url, $host, self::USER_AGENT_COMPATIBILITE);
+
+        if ($this->estExploitable($second)) {
+            return $second;
+        }
+
+        // Ni l'un ni l'autre n'a rapporte d'image ou de resume. On rend ce
+        // qu'on a — un titre vaut mieux que rien — en preferant le premier,
+        // obtenu sous notre identite propre.
+        return $apercu ?? $second;
+    }
+
+    /**
+     * L'apercu porte-t-il autre chose qu'un titre nu ?
+     *
+     * Une page anti-robot rend un `<title>` et RIEN d'autre : ni `og:image`,
+     * ni `og:description`. C'est exactement ce que la messagerie affichait —
+     * « Client Challenge » sous le domaine. Le discriminant retenu est donc la
+     * presence d'au moins une des deux balises qui font un vrai apercu.
+     *
+     * Une page legitime qui n'aurait qu'un titre declenchera un second essai
+     * pour rien : une requete de plus, et le premier resultat conserve. C'est
+     * le cout assume de ne pas chercher a reconnaitre les pages anti-robot une
+     * par une — une liste de signatures serait fausse le jour de leur prochaine
+     * mise a jour.
+     */
+    private function estExploitable(?array $apercu): bool
+    {
+        if ($apercu === null) {
+            return false;
+        }
+
+        return ($apercu['image'] ?? null) !== null || ($apercu['description'] ?? null) !== null;
+    }
+
+    /** Un essai, sous une identite donnee. Toutes les gardes y restent. */
+    private function recuperer(string $url, string $host, string $userAgent): ?array
+    {
         try {
             $response = Http::timeout(self::TIMEOUT)
                 ->withOptions([
@@ -67,7 +173,7 @@ class UrlPreviewService
                     'connect_timeout' => self::TIMEOUT,
                 ])
                 ->withHeaders([
-                    'User-Agent' => 'Mozilla/5.0 (compatible; BoucleProBot/1.0)',
+                    'User-Agent' => $userAgent,
                     'Accept' => 'text/html,application/xhtml+xml',
                 ])
                 ->get($url);

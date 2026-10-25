@@ -68,5 +68,11 @@ return [
     'cross_org' => 'You cannot start a conversation outside your organization.',
     // TASK-1693 bug AC
     'send_image' => 'Send an image',
+    // TASK-1704 — see the French file for why both labels coexist.
+    'send_file' => 'Send an image or a file',
+    'invalid_attachment' => 'This file type is not accepted, or it exceeds the maximum size.',
+    'attachment_fallback_name' => 'Attachment',
+    'attachment_open' => 'Open',
+    'attachment_download' => 'Download',
     'take_photo' => 'Take a photo',
 ];
