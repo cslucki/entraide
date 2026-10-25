@@ -4,7 +4,13 @@ namespace App\Livewire;
 
 use App\Models\BlogComment;
 use App\Models\BlogPost;
+use App\Models\User;
+use App\Support\Notifications\NotificationCatalogue;
+use App\Support\Notifications\NotificationEmissionConflict;
+use App\Support\Notifications\NotificationEmitter;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
+use Ramsey\Uuid\Uuid;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
@@ -158,13 +164,96 @@ class BlogComments extends Component
 
     private function creer(BlogPost $post, string $contenu, ?string $parentId): BlogComment
     {
-        return BlogComment::create([
+        $commentaire = BlogComment::create([
             'blog_post_id' => $post->id,
             'user_id' => auth()->id(),
             'parent_id' => $parentId,
             'content' => $contenu,
             'is_approved' => true,
         ]);
+
+        $this->prevenirLAuteur($post, $commentaire);
+
+        return $commentaire;
+    }
+
+    /**
+     * TASK-1697 — « quand un utilisateur fait un commentaire, il faut que
+     * l'auteur de l'article recoive une notification » (Cyril).
+     *
+     * Canal : **dans l'application** seulement. Arbitrage de Cyril ; un
+     * courriel par commentaire serait bruyant, et le catalogue permettra de
+     * l'ajouter en une ligne.
+     *
+     * ## Trois raisons de ne RIEN emettre, et aucune n'est une erreur
+     *
+     * - on commente son propre article : se notifier soi-meme est du bruit ;
+     * - l'auteur n'existe plus ;
+     * - l'auteur a quitte l'Organization. Les invariants refusent un
+     *   destinataire hors tenant, et le producteur doit resoudre
+     *   l'appartenance AVANT d'appeler — c'est ce que dit le docblock de
+     *   `NotificationEmitter`, pas une precaution de mon cru.
+     *
+     * ## Un echec d'emission ne defait pas le commentaire
+     *
+     * Le commentaire est ecrit et le restera. Un `NotificationEmissionConflict`
+     * signifie que l'auteur a DEJA ete prevenu de ce fait — un rejeu, pas une
+     * anomalie. Tout autre echec est journalise. Meme forme que
+     * `LoopService::notifierDecisionDAdhesion()`.
+     */
+    private function prevenirLAuteur(BlogPost $post, BlogComment $commentaire): void
+    {
+        if ((string) $post->user_id === (string) auth()->id()) {
+            return;
+        }
+
+        $auteur = User::find($post->user_id);
+
+        if ($auteur === null || (string) $auteur->organization_id !== (string) $post->organization_id) {
+            return;
+        }
+
+        $acteur = auth()->user();
+
+        try {
+            app(NotificationEmitter::class)->emit(
+                notificationKey: NotificationCatalogue::BLOG_COMMENT_CREATED,
+                organization: (string) $post->organization_id,
+                recipient: $auteur,
+                eventId: $this->identifiantEvenement($commentaire),
+                objectType: NotificationCatalogue::objectTypeFor(NotificationCatalogue::BLOG_COMMENT_CREATED),
+                objectId: (string) $commentaire->id,
+                actor: $acteur !== null && (string) $acteur->organization_id === (string) $post->organization_id ? $acteur : null,
+            );
+        } catch (NotificationEmissionConflict) {
+            // Deja prevenu de ce commentaire. Un rejeu n'est pas une anomalie.
+        } catch (\Throwable $echec) {
+            Log::warning('TASK-1697 notification de commentaire non emise', [
+                'blog_comment_id' => $commentaire->id,
+                'blog_post_id' => $post->id,
+                'raison' => $echec->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * L'identite de l'EVENEMENT, derivee de la CLE et du commentaire.
+     *
+     * MEME idiome que `LoopService::identifiantEvenementDecision()` : un
+     * `uuid5` deterministe. La cle entre dans le nom, donc un second type de
+     * notification sur le meme commentaire aurait un identifiant DIFFERENT —
+     * ce que le contrat de `NotificationEmitter` exige explicitement.
+     *
+     * Deterministe a dessein : rejouer le meme producteur sur le meme fait ne
+     * cree pas une seconde notification, il constate la premiere. Un
+     * `Str::uuid()` frais aurait, lui, duplique a chaque rejeu.
+     */
+    private function identifiantEvenement(BlogComment $commentaire): string
+    {
+        return (string) Uuid::uuid5(
+            Uuid::NAMESPACE_URL,
+            'bouclepro:notification:'.NotificationCatalogue::BLOG_COMMENT_CREATED.':'.$commentaire->id,
+        );
     }
 
     /**
