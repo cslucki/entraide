@@ -11,7 +11,26 @@
     $sectionTitle = 'mb-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--bp-muted)]';
 @endphp
 
-<div class="space-y-3">
+{{-- TASK-1697 (5) — la carte suit les depots des AUTRES.
+
+     Signale par Cyril : quand X depose un fichier, l'ecran de Y reste figé
+     jusqu'au rechargement manuel.
+
+     `wire:poll` est l'idiome DEJA en place ici — `loop-chat` et
+     `message-thread` l'emploient. L'application n'a aucune diffusion temps
+     reel (`BROADCAST_CONNECTION=log`) : introduire un websocket pour une liste
+     de fichiers aurait ajoute une infrastructure a exploiter pour un gain que
+     le sondage obtient.
+
+     **15 s, et non 3 s comme le chat.** Un depot de fichier n'est pas une
+     conversation : on n'attend pas la ligne suivante, on veut seulement ne pas
+     rester devant un ecran perime. Cinq fois moins de requetes pour une
+     attente qui reste imperceptible a l'echelle du geste.
+
+     `.visible` : la Card ne sonde que lorsqu'elle est a l'ecran. Elle vit dans
+     un panneau lateral souvent replie ou hors du viewport — sonder pour
+     personne serait du trafic pur. --}}
+<div class="space-y-3" wire:poll.visible.15s>
 
     @if(! $dossier)
         {{-- Pas de Dossier racine, ou pas le droit de le lire. Les deux cas se

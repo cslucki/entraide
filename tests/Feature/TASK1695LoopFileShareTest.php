@@ -678,4 +678,51 @@ class TASK1695LoopFileShareTest extends TestCase
 
         $rendu->assertSee('data-card-file-open', escape: false);
     }
+
+    /**
+     * TASK-1697 (5) — la carte voit le depot d'un AUTRE, sans geste de Y.
+     *
+     * Signale par Cyril : quand X depose un fichier, l'ecran de Y reste figé
+     * jusqu'au rechargement manuel.
+     *
+     * Le test reproduit la scene : Y a la carte ouverte, X depose, et le
+     * composant est re-rendu comme `wire:poll` le ferait. **Aucun appel a une
+     * methode de Y** — c'est ce qui distingue un rafraichissement automatique
+     * d'un rafraichissement provoque.
+     */
+    public function test_the_card_picks_up_a_file_deposited_by_someone_else(): void
+    {
+        $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+
+        // Y regarde la carte : le fichier n'existe pas encore.
+        $carte = \Livewire\Livewire::actingAs($this->membre)
+            ->test(\App\Livewire\LoopDossiersCard::class, ['loop' => $this->loop->fresh()])
+            ->assertOk()
+            ->assertDontSee('depot-de-X-1697.pdf');
+
+        // X depose, de son cote.
+        DossierFile::factory()->create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $racine->id,
+            'uploaded_by' => $this->proprietaire->id,
+            'original_name' => 'depot-de-X-1697.pdf',
+            'display_name' => 'depot-de-X-1697.pdf',
+        ]);
+
+        // Ce que `wire:poll` declenche : un simple re-rendu.
+        $carte->call('$refresh')->assertSee('depot-de-X-1697.pdf');
+    }
+
+    /** Et le sondage est bien arme sur la carte. */
+    public function test_the_card_declares_its_polling(): void
+    {
+        $html = \Livewire\Livewire::actingAs($this->membre)
+            ->test(\App\Livewire\LoopDossiersCard::class, ['loop' => $this->loop->fresh()])
+            ->assertOk()
+            ->html();
+
+        // `.visible` compte autant que l'intervalle : sans lui la Card sonde
+        // meme repliee ou hors du viewport, pour personne.
+        $this->assertStringContainsString('wire:poll.visible.15s', $html);
+    }
 }
