@@ -51,8 +51,33 @@
                 {{-- TASK-1605 — l'Organization PAR DEFAUT est bornee elle aussi
      (arbitrage MASTER : « main -> /org/main »). L'ancienne regle l'excluait et
      la renvoyait sur la racine. Le declencheur est desormais l'URL. --}}
-                @php $homeLink = organizationScopedUrl('home', 'organization.home'); @endphp
-                <a href="{{ $homeLink }}" class="flex items-center gap-3 group">
+                @php
+                    // TASK-1697 — le NOM et le LIEN designaient deux
+                    // Organizations differentes.
+                    //
+                    // Signale par Cyril sur `/verify-email` : l'en-tete
+                    // affichait « Organismes de formation solidaires et
+                    // humanistes » et menait a `/`. Mesure :
+                    // `AppServiceProvider` prend `brandOrganizationName` sur
+                    // l'Organization de la PERSONNE CONNECTEE quand aucune
+                    // n'est courante, tandis que `organizationScopedUrl()`
+                    // exige un prefixe `/org/...` dans l'URL — par doctrine
+                    // assumee, « le declencheur est l'URL » (T1605).
+                    //
+                    // On accorde donc les deux ICI, et pas dans le helper
+                    // partage : huit autres vues en dependent, dont des pages
+                    // PUBLIQUES (vitrines, mycelium, mentions legales) ou
+                    // basculer sur l'Organization du visiteur serait faux.
+                    //
+                    // Un visiteur anonyme ne change pas de comportement.
+                    $slugEntete = request()->route('organization')
+                        ?: (auth()->check() ? auth()->user()?->organization?->slug : null);
+
+                    $homeLink = $slugEntete && Route::has('organization.home')
+                        ? route('organization.home', ['organization' => $slugEntete])
+                        : organizationScopedUrl('home', 'organization.home');
+                @endphp
+                <a href="{{ $homeLink }}" data-guest-brand class="flex items-center gap-3 group">
                     <img src="{{ $brandLogoUrl }}" alt="" class="h-10 w-10" aria-hidden="true">
                     <div class="text-left">
                         <div class="text-xl font-bold text-gray-900 dark:text-white leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">
