@@ -16,7 +16,7 @@
                 <div>
                     <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ $service->title }}</h1>
                     @if($service->category)
-                    <span class="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: {{ $service->category->color ?? '#e5e7eb' }}20; color: {{ $service->category->color ?? '#6b7280' }}">{{ $service->category->name }}</span>
+                    <span data-service-category class="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: {{ $service->category->color ?? '#e5e7eb' }}20; color: {{ $service->category->color ?? '#6b7280' }}">{{ $service->category->displayName('transactions') }}</span>
                     @endif
                 </div>
                 <div class="flex items-center gap-3">
