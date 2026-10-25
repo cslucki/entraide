@@ -157,52 +157,6 @@
                 </div>
                 @endif
 
-                <!-- What this member can offer -->
-                @if($services->isNotEmpty() || $displaySkills->isNotEmpty() || $memberAiProfile)
-                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
-                    <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">{{ __('profile.can_offer') }}</h2>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        @if($displaySkills->isNotEmpty())
-                        <div class="flex flex-col gap-2">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                                {{ __('profile.skills') }}
-                            </span>
-                            <div class="flex flex-wrap gap-1.5">
-                                @foreach($displaySkills as $skill)
-                                <span class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium">{{ $skill->name }}</span>
-                                @endforeach
-                            </div>
-                        </div>
-                        @endif
-
-                        @if($serviceCategories->isNotEmpty())
-                        <div class="flex flex-col gap-2">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                                {{ trans_choice('profile.services_offered', $services->count()) }}
-                            </span>
-                            <div class="flex flex-wrap gap-1.5">
-                                @foreach($serviceCategories as $catName)
-                                <span class="px-2 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-lg text-xs font-medium">{{ $catName }}</span>
-                                @endforeach
-                            </div>
-                        </div>
-                        @endif
-
-                        @if($memberAiProfile)
-                        <div class="flex flex-col gap-2 sm:col-span-2">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                {{ __('profile.ai_agent_available') }}
-                            </span>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('profile.ai_agent_enabled') }}</p>
-                        </div>
-                        @endif
-                    </div>
-                </div>
-                @endif
-
                 <!-- AI profile owner -->
                 @if($memberAiProfile && auth()->check() && auth()->id() === $user->id)
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
@@ -322,16 +276,12 @@
                 @endif
 
                 <!-- Blog posts -->
+                @if($blogPosts->isNotEmpty())
                 <section>
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.blog_section') }}</h2>
-                        @if($blogPosts->isNotEmpty())
                         <span class="text-xs text-gray-400">{{ trans_choice('profile.blog_count', $blogPosts->count(), ['count' => $blogPosts->count()]) }}</span>
-                        @endif
                     </div>
-                    @if($blogPosts->isEmpty())
-                    <p class="text-gray-400 text-sm italic">{{ __('profile.no_posts') }}</p>
-                    @else
                     <div class="grid gap-3 sm:grid-cols-2">
                         @foreach($blogPosts as $post)
                         <a href="{{ route('blog.show', $post) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition">
@@ -350,8 +300,8 @@
                         </a>
                         @endforeach
                     </div>
-                    @endif
                 </section>
+                @endif
 
                 <!-- Reviews -->
                 @if($reviews->isNotEmpty())
