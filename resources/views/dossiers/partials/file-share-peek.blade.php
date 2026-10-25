@@ -24,7 +24,7 @@
                          quelqu'un ici sans que l'autre le sache. --}}
                     <template x-if="showPeekModal && shareTarget">
                         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-                             @click.self="showPeekModal = false" @keydown.escape.window="showPeekModal = false"
+                             @click.self="fermerPartage()" @keydown.escape.window="fermerPartage()"
                              role="dialog" aria-modal="true" aria-labelledby="share-peek-title"
                              data-file-share-peek-modal>
                             <div class="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-800">
@@ -33,7 +33,7 @@
                                         <h3 id="share-peek-title" class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.share_peek_title') }}</h3>
                                         <p class="mt-1 truncate text-sm text-gray-500 dark:text-gray-400" x-text="shareTarget.display_name || shareTarget.original_name"></p>
                                     </div>
-                                    <button type="button" @click="showPeekModal = false"
+                                    <button type="button" @click="fermerPartage()"
                                             class="-mr-1 -mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                                             aria-label="{{ __('dossiers.file_share_close') }}">
                                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
@@ -98,7 +98,7 @@
                                     {{-- Le pied garde sa place : sans ce vide, « Fermer »
                                          sautait a gauche chez le destinataire. --}}
                                     <span x-show="!shareCanManage"></span>
-                                    <button type="button" @click="showPeekModal = false"
+                                    <button type="button" @click="fermerPartage()"
                                             class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.file_share_close') }}</button>
                                 </div>
                             </div>

@@ -158,6 +158,30 @@
 
     </div>
 
+    {{-- TASK-1697 — le filtre par auteur est pose par une URL venue de
+         l'annuaire. Sans ce bandeau, on atterrit sur une liste filtree sans
+         savoir POURQUOI ni comment en sortir. --}}
+    @if($membreFiltre)
+    <div class="mb-5 flex flex-wrap items-center gap-2" data-member-filter="{{ $membreFiltre->id }}">
+        <span class="inline-flex items-center gap-2 rounded-full bg-indigo-50 dark:bg-indigo-900/20 px-3 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">
+            {{ __('explorer.member_filter_label', ['name' => $membreFiltre->fullName]) }}
+            <button type="button" wire:click="clearMember" data-member-filter-clear
+                    title="{{ __('explorer.member_filter_clear') }}"
+                    aria-label="{{ __('explorer.member_filter_clear') }}"
+                    class="text-indigo-500 hover:text-indigo-800 dark:hover:text-indigo-100">&times;</button>
+        </span>
+    </div>
+    @elseif($filtreImpossible)
+    <div class="mb-5" data-member-filter-unknown>
+        <span class="inline-flex items-center gap-2 rounded-full bg-amber-50 dark:bg-amber-900/20 px-3 py-1 text-xs font-medium text-amber-800 dark:text-amber-300">
+            {{ __('explorer.member_filter_unknown') }}
+            <button type="button" wire:click="clearMember" data-member-filter-clear
+                    title="{{ __('explorer.member_filter_clear') }}"
+                    class="text-amber-600 hover:text-amber-900 dark:hover:text-amber-100">&times;</button>
+        </span>
+    </div>
+    @endif
+
     <!-- Résultats -->
     <div wire:loading.class="opacity-50 transition-opacity">
         @if($tab === 'services')
@@ -166,7 +190,7 @@
             @else
                 <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     @foreach($items as $service)
-                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition overflow-hidden flex flex-col active:scale-[0.98]">
+                    <div class="{{ auth()->id() === $service->user_id ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-300 dark:border-indigo-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700' }} rounded-xl shadow-sm border hover:shadow-md transition overflow-hidden flex flex-col active:scale-[0.98]">
                         <a href="{{ $_orgSlug ? route('organization.services.show', ['organization' => $_orgSlug, 'service' => $service]) : route('services.show', $service) }}" class="block p-4 sm:p-5 flex-1">
                             <div class="flex items-center justify-between mb-3">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
@@ -235,7 +259,7 @@
             @else
                 <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     @foreach($items as $request)
-                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden active:scale-[0.98]">
+                    <div class="{{ auth()->id() === $request->user_id ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-300 dark:border-indigo-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700' }} rounded-xl shadow-sm border overflow-hidden active:scale-[0.98]">
                         <div class="p-4 sm:p-5">
                             <div class="flex items-center justify-between mb-3">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $request->category->color }}">
@@ -259,18 +283,6 @@
                                 <span class="ml-auto">⏰ {{ $request->deadline->format('d/m/Y') }}</span>
                                 @endif
                             </div>
-                            @auth
-                            @if(auth()->id() !== $request->user_id)
-                            <form method="POST" action="{{ $_orgSlug ? route('organization.transactions.store', ['organization' => $_orgSlug]) : route('transactions.store') }}">
-                                @csrf
-                                <input type="hidden" name="request_id" value="{{ $request->id }}">
-                                <input type="hidden" name="points_proposed" value="{{ $request->budget_min }}">
-                                <button type="submit" class="w-full py-2.5 sm:py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 active:scale-[0.98]">
-                                    {{ __('explorer.offer_help') }}
-                                </button>
-                            </form>
-                            @endif
-                            @endauth
                         </div>
                     </div>
                     @endforeach

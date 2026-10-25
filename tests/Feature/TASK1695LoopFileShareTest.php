@@ -632,4 +632,97 @@ class TASK1695LoopFileShareTest extends TestCase
             ->assertOk()
             ->assertDontSee($this->fichier->nomLisible());
     }
+
+    /**
+     * TASK-1697 (4) — chaque fichier récent est CLIQUABLE, par SA route.
+     *
+     * Deux natures cohabitent dans cette liste depuis T1695 : les fichiers
+     * déposés dans le Dossier de la Boucle, et ceux partagés avec elle. Les
+     * seconds ne sont pas dans ce Dossier — le chemin du Dossier leur rendrait
+     * 404.
+     *
+     * Le test tient donc les DEUX, car se tromper de route produirait un lien
+     * qui a l'air juste et ne mène nulle part.
+     */
+    public function test_each_recent_file_is_clickable_by_its_own_route(): void
+    {
+        $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+
+        $depose = DossierFile::factory()->create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $racine->id,
+            'uploaded_by' => $this->proprietaire->id,
+            'original_name' => 'depose-1697.pdf',
+            'display_name' => 'depose-1697.pdf',
+        ]);
+
+        $this->actingAs($this->proprietaire)->postJson($this->url('loops.store'), ['loop_id' => $this->loop->id]);
+
+        $rendu = \Livewire\Livewire::actingAs($this->membre)
+            ->test(\App\Livewire\LoopDossiersCard::class, ['loop' => $this->loop->fresh()])
+            ->assertOk();
+
+        // Le DÉPOSÉ passe par le chemin du Dossier.
+        $rendu->assertSee(route('organization.dossiers.files.preview', [
+            'organization' => $this->organization->slug,
+            'dossier' => $racine->id,
+            'file' => $depose->id,
+        ]), escape: false);
+
+        // Le PARTAGÉ passe par la route dédiée — son chemin dans ce Dossier
+        // n'existe pas.
+        $rendu->assertSee(route('organization.dossiers.shared.preview', [
+            'organization' => $this->organization->slug,
+            'file' => $this->fichier->id,
+        ]), escape: false);
+
+        $rendu->assertSee('data-card-file-open', escape: false);
+    }
+
+    /**
+     * TASK-1697 (5) — la carte voit le depot d'un AUTRE, sans geste de Y.
+     *
+     * Signale par Cyril : quand X depose un fichier, l'ecran de Y reste figé
+     * jusqu'au rechargement manuel.
+     *
+     * Le test reproduit la scene : Y a la carte ouverte, X depose, et le
+     * composant est re-rendu comme `wire:poll` le ferait. **Aucun appel a une
+     * methode de Y** — c'est ce qui distingue un rafraichissement automatique
+     * d'un rafraichissement provoque.
+     */
+    public function test_the_card_picks_up_a_file_deposited_by_someone_else(): void
+    {
+        $racine = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
+
+        // Y regarde la carte : le fichier n'existe pas encore.
+        $carte = \Livewire\Livewire::actingAs($this->membre)
+            ->test(\App\Livewire\LoopDossiersCard::class, ['loop' => $this->loop->fresh()])
+            ->assertOk()
+            ->assertDontSee('depot-de-X-1697.pdf');
+
+        // X depose, de son cote.
+        DossierFile::factory()->create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $racine->id,
+            'uploaded_by' => $this->proprietaire->id,
+            'original_name' => 'depot-de-X-1697.pdf',
+            'display_name' => 'depot-de-X-1697.pdf',
+        ]);
+
+        // Ce que `wire:poll` declenche : un simple re-rendu.
+        $carte->call('$refresh')->assertSee('depot-de-X-1697.pdf');
+    }
+
+    /** Et le sondage est bien arme sur la carte. */
+    public function test_the_card_declares_its_polling(): void
+    {
+        $html = \Livewire\Livewire::actingAs($this->membre)
+            ->test(\App\Livewire\LoopDossiersCard::class, ['loop' => $this->loop->fresh()])
+            ->assertOk()
+            ->html();
+
+        // `.visible` compte autant que l'intervalle : sans lui la Card sonde
+        // meme repliee ou hors du viewport, pour personne.
+        $this->assertStringContainsString('wire:poll.visible.15s', $html);
+    }
 }

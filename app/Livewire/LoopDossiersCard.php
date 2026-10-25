@@ -156,6 +156,8 @@ class LoopDossiersCard extends Component
                 'articleUrls' => collect(),
                 'series' => collect(),
                 'files' => collect(),
+                // Les deux sorties de `render()` offrent le meme contrat.
+                'fileUrls' => [],
                 'total' => 0,
                 'canCreateArticle' => false,
                 'canUploadFile' => false,
@@ -191,7 +193,8 @@ class LoopDossiersCard extends Component
             'articles' => $articles,
             'articleUrls' => $this->articleUrls($articles),
             'series' => $this->recentSeries($dossier),
-            'files' => $this->recentFiles($dossier),
+            'files' => $fichiersRecents = $this->recentFiles($dossier),
+            'fileUrls' => $this->fileUrls($fichiersRecents, $dossier),
             'total' => $this->totalItems($dossier),
             'canCreateArticle' => $canCreateArticle,
             'canUploadFile' => $canUploadFile,
@@ -283,20 +286,54 @@ class LoopDossiersCard extends Component
      *
      * @return array<string, string> id du fichier => URL d'apercu
      */
-    private function sharedFileUrls(Collection $fichiers): array
+    /**
+     * TASK-1697 (4) — chaque fichier recent devient CLIQUABLE.
+     *
+     * Signale par Cyril : la liste nommait les fichiers sans permettre de les
+     * ouvrir. Il fallait passer par « Ouvrir » et traverser tout le Dossier
+     * pour consulter un document qu'on voyait deja.
+     *
+     * ## Deux routes, parce que deux natures
+     *
+     * Depuis T1695 la liste mele les fichiers DEPOSES dans le Dossier et ceux
+     * PARTAGES avec la Boucle. Les premiers s'ouvrent par le chemin du
+     * Dossier ; les seconds n'y sont pas — leur chemin rendrait 404 — et
+     * passent par la route dediee.
+     *
+     * On choisit par ligne, pas par liste : `dossier_id` dit laquelle.
+     *
+     * ## Construites DANS le composant
+     *
+     * `$loop` n'est pas le modele dans la vue (stdClass) — 500 en recette le
+     * 24/10. `$this->loop` l'est, ici. Et « la Boucle d'abord, la requete
+     * jamais » (T1103) : une interaction Livewire arrive sur
+     * `POST /livewire/update`, qui ne porte aucun parametre `organization`.
+     *
+     * @return array<string, string> id du fichier => URL d'ouverture
+     */
+    private function fileUrls(Collection $fichiers, Dossier $dossier): array
     {
         $organization = $this->loop->organization?->slug;
 
-        if (! $organization || ! Route::has('organization.dossiers.shared.preview')) {
+        if (! $organization) {
             return [];
         }
 
-        return $fichiers->mapWithKeys(fn (\App\Models\DossierFile $f) => [
-            $f->id => route('organization.dossiers.shared.preview', [
-                'organization' => $organization,
-                'file' => $f->id,
-            ]),
-        ])->all();
+        return $fichiers->mapWithKeys(function (\App\Models\DossierFile $f) use ($organization, $dossier) {
+            $partage = $f->dossier_id !== $dossier->id;
+
+            $url = $partage
+                ? (Route::has('organization.dossiers.shared.preview')
+                    ? route('organization.dossiers.shared.preview', ['organization' => $organization, 'file' => $f->id])
+                    : null)
+                : route('organization.dossiers.files.preview', [
+                    'organization' => $organization,
+                    'dossier' => $dossier,
+                    'file' => $f->id,
+                ]);
+
+            return $url ? [$f->id => $url] : [];
+        })->all();
     }
 
     private function sharedFiles(Dossier $dossier): Collection

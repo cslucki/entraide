@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Models\Country;
+use App\Models\LoopMember;
 use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\Transaction;
@@ -107,6 +109,52 @@ class ProfileController extends Controller
             ->limit(6)
             ->get();
 
+        // TASK-1697 — les Boucles de cette personne.
+        //
+        // MEME perimetre et MEME piege qu'a l'annuaire (correctif 15) : filtre
+        // sur `loops.organization_id`, JAMAIS sur `loop_members.organization_id`
+        // qui est nullable — 3 lignes sur 24 y sont NULL en base, le filtre les
+        // perdrait en silence. Statut `active` des deux cotes, donc jamais une
+        // Boucle archivee, ni une appartenance quittee.
+        //
+        // Aucun filtre de role : `LoopRoleRegistry` en connait trois (owner,
+        // facilitator, member) plus l'alias `moderator`. « Membre, animateur ou
+        // proprietaire » les couvre tous.
+        $boucles = LoopMember::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->whereHas('loop', fn ($q) => $q->where('organization_id', $organization->id)->where('status', 'active'))
+            ->with(['loop' => fn ($q) => $q->select('id', 'name', 'slug', 'organization_id', 'status')])
+            ->get()
+            ->pluck('loop')
+            ->filter()
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
+
+        // TASK-1697 — ses derniers commentaires de blog.
+        //
+        // Ceux qu'il a ECRITS, pas ceux recus sur ses articles : la fiche
+        // presente ce que cette personne apporte (ses propositions, ses
+        // demandes, ses articles, ses Boucles), et ses commentaires s'y
+        // rangent. Signale a Cyril, inversable en une ligne.
+        //
+        // L'article d'accueil doit etre PUBLIE et de cette Organization, sinon
+        // un commentaire laisse sur un brouillon devenu invisible mènerait a un
+        // lien mort. `whereHas` plutot qu'un filtre apres coup : la limite de 5
+        // doit porter sur les lignes RETENUES.
+        $commentaires = BlogComment::query()
+            ->where('user_id', $user->id)
+            ->where('is_approved', true)
+            ->whereHas('post', fn ($q) => $q->where('organization_id', $organization->id)
+                ->where('status', 'published')
+                ->whereNotNull('published_at')
+                ->where('published_at', '<=', now()))
+            ->with(['post' => fn ($q) => $q->select('id', 'title', 'slug', 'organization_id', 'status', 'published_at')])
+            ->latest()
+            ->limit(5)
+            ->get();
+
         $ogTitle = $user->name;
         $ogDescription = $user->bio
             ? Str::limit($user->bio, 160)
@@ -120,7 +168,7 @@ class ProfileController extends Controller
             'description' => $user->bio,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'blogPosts', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd', 'memberAiProfile'));
+        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'blogPosts', 'boucles', 'commentaires', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd', 'memberAiProfile'));
     }
 
     public function aiAgentChat(User $user): View

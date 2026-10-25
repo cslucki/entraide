@@ -17,4 +17,17 @@ return [
     ],
     // TASK-1693 bug AA
     'write_to' => 'Ecrire a :name',
+    // TASK-1697 correctif 15
+    'service_label' => 'proposition|propositions',
+    'active_services_title' => 'Propositions actives',
+    'article_label' => 'article|articles',
+    'articles_title' => 'Articles publiés',
+    'loops_title' => 'Boucles',
+    'search_placeholder' => 'Rechercher par prénom ou nom…',
+    'search_label' => 'Rechercher un membre',
+    'search_submit' => 'Rechercher',
+    'search_clear' => 'Effacer',
+    'search_no_result' => 'Aucun membre ne correspond à cette recherche.',
+    'website_title' => 'Site web',
+    'linkedin_title' => 'LinkedIn',
 ];

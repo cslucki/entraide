@@ -7,14 +7,17 @@
  * Les organisations pourront surcharger ces valeurs via organization->terms (JSON).
  * Dans les vues, accéder via la variable $T partagée par AppServiceProvider.
  *
- * Exemple : {{ $T['Services'] }} → "Micro-services"
+ * Exemple : {{ $T['Services'] }} → "Propositions"
+ *
+ * TASK-1697 — « micro-service(s) » devient « proposition(s) », decision de
+ * Cyril. Les formes `request` ne sont PAS touchees : il n'a pas demande.
  */
 
 return [
-    'service' => 'micro-service',
-    'services' => 'micro-services',
-    'Service' => 'Micro-service',
-    'Services' => 'Micro-services',
+    'service' => 'proposition',
+    'services' => 'propositions',
+    'Service' => 'Proposition',
+    'Services' => 'Propositions',
 
     'request' => 'demande d\'aide',
     'requests' => 'demandes d\'aide',

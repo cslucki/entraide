@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BlogPost;
 use App\Models\Category;
+use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
@@ -11,6 +13,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Homepage\RootDestination;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class HomeController extends Controller
@@ -81,17 +84,83 @@ class HomeController extends Controller
 
         $organizationId = $organization->id;
 
+        // TASK-1697 correctif 15 — recherche simple sur le prenom et le nom.
+        //
+        // `users.name` porte le nom de FAMILLE depuis TASK-1399 et `first_name`
+        // est NULLABLE : chercher sur l'un des deux seulement laisserait la
+        // moitie des gens introuvables. La troisieme clause couvre la saisie
+        // complete (« cyril s »), que ni l'un ni l'autre des champs ne contient.
+        //
+        // `ilike` en PostgreSQL, `like` en SQLite : meme precedent que
+        // `DossierFileController`. `like` est deja insensible a la casse en
+        // SQLite, il ne l'est pas en PostgreSQL.
+        $recherche = trim((string) request()->query('q', ''));
+
         $members = User::where('organization_id', $organizationId)
             ->activeAccount()
+            ->when($recherche !== '', function ($q) use ($recherche) {
+                $like = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+                $motif = '%'.$recherche.'%';
+
+                $q->where(function ($w) use ($like, $motif) {
+                    $w->where('first_name', $like, $motif)
+                        ->orWhere('name', $like, $motif)
+                        ->orWhereRaw("COALESCE(first_name, '') || ' ' || COALESCE(name, '') ".$like.' ?', [$motif]);
+                });
+            })
             ->withCount([
                 'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->active()->where('organization_id', $organizationId),
                 'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->open()->where('organization_id', $organizationId),
             ])
             ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->active()->where('organization_id', $organizationId)->with('skills', 'category')])
             ->orderByDesc('created_at')
-            ->paginate(16);
+            ->paginate(16)
+            ->withQueryString();
 
-        return view('members.index', compact('members'));
+        $identifiants = $members->getCollection()->pluck('id');
+
+        // TASK-1697 correctif 15 — le compteur d'articles.
+        //
+        // MEME predicat que `ProfileController::show()` (lignes 100-108), pour
+        // que le compteur de l'annuaire ne contredise pas la liste du profil.
+        // Deliberement PAS `scopePublished()`, qui ajoute `listed_in_blog` : le
+        // profil l'ignore, l'annuaire doit l'ignorer aussi.
+        $articleCounts = $identifiants->isEmpty() ? collect() : BlogPost::query()
+            ->whereIn('user_id', $identifiants)
+            ->where('organization_id', $organizationId)
+            ->where('status', 'published')
+            ->whereNotNull('published_at')
+            ->where('published_at', '<=', now())
+            ->selectRaw('user_id, COUNT(*) as total')
+            ->groupBy('user_id')
+            ->pluck('total', 'user_id');
+
+        // TASK-1697 correctif 15 — les Boucles de chaque membre.
+        //
+        // Le perimetre reprend celui de `VisibleLoops` : Organization courante,
+        // Boucles `active` (donc jamais les archivees). Nommer une Boucle ne
+        // revele rien de plus que le catalogue : depuis TASK-1075, « privee »
+        // veut dire « contenu reserve aux membres », pas « cachee ».
+        //
+        // Le filtre porte sur `loops.organization_id`, JAMAIS sur
+        // `loop_members.organization_id` : cette colonne est nullable et 3
+        // lignes sur 24 y sont NULL en base — le filtre les perdrait en
+        // silence. L'organisation de la Boucle est l'autorite.
+        //
+        // Aucun filtre de role : `LoopRoleRegistry` en connait trois (owner,
+        // facilitator, member) plus l'alias historique `moderator`. « Membre,
+        // animateur ou proprietaire » les couvre tous — c'est l'appartenance
+        // ACTIVE qui est le critere, pas le role.
+        $loopsByUser = $identifiants->isEmpty() ? collect() : LoopMember::query()
+            ->whereIn('user_id', $identifiants)
+            ->where('status', 'active')
+            ->whereHas('loop', fn ($q) => $q->where('organization_id', $organizationId)->where('status', 'active'))
+            ->with(['loop' => fn ($q) => $q->select('id', 'name', 'slug', 'organization_id', 'status')])
+            ->get()
+            ->groupBy('user_id')
+            ->map(fn ($lignes) => $lignes->pluck('loop')->filter()->unique('id')->sortBy('name')->values());
+
+        return view('members.index', compact('members', 'recherche', 'articleCounts', 'loopsByUser'));
     }
 
     public function boucles(): View

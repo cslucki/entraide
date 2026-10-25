@@ -31,13 +31,20 @@ class TASK1403MobileFabLocaleLabelsTest extends TestCase
 
     private const VUE = 'resources/views/components/mobile-fab.blade.php';
 
+    // TASK-1697 — les libelles du FAB ont change : « micro-service » devient
+    // « proposition » (decision de Cyril), et « Proposer un… » devient
+    // « Publier une… » parce que « Proposer une proposition » ne se dit pas —
+    // et que « Proposer mon aide » est deja pris par le geste de REPONDRE a
+    // une demande. Ces gardes gardent leur intention intacte : le FAB doit
+    // parler la langue de qui le regarde.
+
     public function test_an_english_interface_renders_the_four_labels_in_english(): void
     {
         $rendu = $this->renderFab('en');
 
         $this->assertStringContainsString('aria-label="Add"', $rendu);
         $this->assertStringContainsString('Create a help request', $rendu);
-        $this->assertStringContainsString('Offer a micro-service', $rendu);
+        $this->assertStringContainsString('Publish a proposal', $rendu);
         $this->assertStringContainsString('Write an article', $rendu);
 
         // Et la promesse en negatif : plus aucun des libelles francais mesures
@@ -50,7 +57,7 @@ class TASK1403MobileFabLocaleLabelsTest extends TestCase
         // mesure, pas la forme source.
         $this->assertStringNotContainsString('aria-label="Ajouter"', $rendu);
         $this->assertStringNotContainsString('demande d&#039;aide', $rendu);
-        $this->assertStringNotContainsString('Proposer un micro-service', $rendu);
+        $this->assertStringNotContainsString('Publier une proposition', $rendu);
         $this->assertStringNotContainsString('Écrire un article', $rendu);
     }
 
@@ -61,7 +68,7 @@ class TASK1403MobileFabLocaleLabelsTest extends TestCase
         $this->assertStringContainsString('aria-label="Ajouter"', $rendu);
         // Forme SERVIE, apostrophe echappee par Blade.
         $this->assertStringContainsString('Faire une demande d&#039;aide', $rendu);
-        $this->assertStringContainsString('Proposer un micro-service', $rendu);
+        $this->assertStringContainsString('Publier une proposition', $rendu);
         $this->assertStringContainsString('Écrire un article', $rendu);
     }
 

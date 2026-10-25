@@ -2,6 +2,7 @@
 
 namespace App\Support\Notifications;
 
+use App\Models\BlogComment;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
@@ -47,6 +48,7 @@ class NotificationTargetResolver
         return match ($notification->object_type) {
             NotificationCatalogue::OBJECT_LOOP_INVITATION => $this->loopInvitation($notification),
             NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST => $this->loopJoinRequest($notification),
+            NotificationCatalogue::OBJECT_BLOG_COMMENT => $this->blogComment($notification),
             default => null,
         };
     }
@@ -177,5 +179,63 @@ class NotificationTargetResolver
             'organization' => $organisation,
             'loop' => $boucle,
         ]);
+    }
+
+    /**
+     * TASK-1697 — un commentaire mene au FIL de l'article, a l'ancre.
+     *
+     * Trois raisons de rendre `null`, et chacune est un cas ordinaire :
+     *
+     * - le commentaire a ete supprime (`SoftDeletes`) — il n'y a plus rien a
+     *   lire, et l'ecran le dira honnetement ;
+     * - l'article n'est plus publie — un auteur qui repasse son article en
+     *   brouillon ne doit pas voir une notification ouvrir une page que le
+     *   produit ne publie plus ;
+     * - la frontiere de tenant ne tient plus.
+     *
+     * La frontiere est reverifiee ICI, comme pour les autres branches : elle
+     * l'etait a l'ecriture, mais une notification survit a bien des
+     * changements, et une garde qui ne s'applique qu'une fois n'est pas une
+     * garde.
+     *
+     * L'URL est PREFIXEE par l'Organization quand la route scopee existe. Sans
+     * prefixe, `ResolveUrlOrganization` lierait l'Organization par defaut et
+     * la notification ferait changer de locataire — meme defaut que celui
+     * corrige trois fois sur la fiche profil.
+     */
+    private function blogComment(MemberNotification $notification): ?string
+    {
+        if ($notification->object_id === null) {
+            return null;
+        }
+
+        $comment = BlogComment::query()
+            ->whereKey($notification->object_id)
+            ->where('organization_id', $notification->organization_id)
+            ->first();
+
+        if ($comment === null) {
+            return null;
+        }
+
+        $post = $comment->post;
+
+        if ($post === null
+            || $post->organization_id !== $notification->organization_id
+            || $post->status !== 'published'
+            || $post->published_at === null
+            || $post->published_at->isFuture()) {
+            return null;
+        }
+
+        $organization = Organization::query()
+            ->whereKey($notification->organization_id)
+            ->first();
+
+        $url = $organization !== null && \Illuminate\Support\Facades\Route::has('organization.blog.show')
+            ? route('organization.blog.show', ['organization' => $organization->slug, 'post' => $post->slug])
+            : route('blog.show', $post->slug);
+
+        return $url.'#commentaires';
     }
 }

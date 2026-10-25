@@ -5,8 +5,8 @@ return [
     'title' => 'Entraide',
     'requests' => 'Demandes',
     'services' => 'Propositions',
-    'help_requests' => 'Demandes d\'aide',
-    'service_proposals' => 'Propositions d\'aide',
+    'help_requests' => 'Demandes d\'entraide',
+    'service_proposals' => 'Propositions d\'entraide',
     'request' => 'demande d\'aide',
     'service' => 'service',
     'offer_service' => 'Proposer de l\'aide',
@@ -28,5 +28,8 @@ return [
     'remove_favorite' => 'Retirer des favoris',
     'add_favorite' => 'Ajouter aux favoris',
     'load_more' => 'Charger plus',
-    'offer_help' => 'Proposer mon aide',
+    // TASK-1697 — filtre par auteur, pose depuis l'annuaire
+    'member_filter_label' => 'Membre : :name',
+    'member_filter_clear' => 'Retirer ce filtre',
+    'member_filter_unknown' => 'Ce membre ne fait pas partie de cette organisation.',
 ];

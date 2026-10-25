@@ -88,6 +88,12 @@ final class NotificationCatalogue
     public const LOOP_JOIN_REQUEST_REJECTED = 'loop.join_request.rejected';
 
     /**
+     * TASK-1697 — « quand un utilisateur fait un commentaire, il faut que
+     * l'auteur de l'article recoive une notification » (Cyril).
+     */
+    public const BLOG_COMMENT_CREATED = 'blog.comment.created';
+
+    /**
      * Le type d'objet de cette cle, expose comme constante.
      *
      * Le resolver de cible en a besoin pour brancher. Le lire ici plutot que de
@@ -102,6 +108,15 @@ final class NotificationCatalogue
      * FAIT, porte par `notification_key`, pas l'objet dont elles parlent.
      */
     public const OBJECT_LOOP_JOIN_REQUEST = 'loop_join_request';
+
+    /**
+     * TASK-1697 — un commentaire depose sur un article de blog.
+     *
+     * L'objet designe est le COMMENTAIRE, pas l'article : c'est lui qui
+     * disparait si on le supprime, et le resolver doit alors rendre `null`
+     * plutot que d'envoyer vers un fil ou il n'y a plus rien a lire.
+     */
+    public const OBJECT_BLOG_COMMENT = 'blog_comment';
 
     /**
      * Le registre.
@@ -190,6 +205,24 @@ final class NotificationCatalogue
             'object_type' => self::OBJECT_LOOP_JOIN_REQUEST,
             'channels' => [
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+            ],
+        ],
+
+        // TASK-1697 — l'auteur d'un article est prevenu qu'on l'a commente.
+        self::BLOG_COMMENT_CREATED => [
+            'category' => 'blog',
+            'object_type' => self::OBJECT_BLOG_COMMENT,
+            'channels' => [
+                // `configurable => true`, et c'est la difference avec une
+                // invitation : un commentaire ne vous est pas ADRESSE et
+                // n'appelle aucune reponse de vous. Un auteur prolifique doit
+                // pouvoir se taire. Actif par defaut, parce qu'un auteur veut
+                // savoir qu'on lui repond.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+
+                // Pas de canal EMAIL : le catalogue ne declare que ce qui
+                // EXISTE, et Cyril a tranche « dans l'application ». L'ajouter
+                // plus tard tiendra en une ligne.
             ],
         ],
     ];

@@ -7,6 +7,8 @@ use App\Models\Favorite;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use App\Models\User;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -43,6 +45,15 @@ class Explorer extends Component
     #[Url]
     public array $selectedSkills = [];
 
+    /**
+     * TASK-1697 — filtre par AUTEUR, pose depuis l'annuaire.
+     *
+     * Porte la `profileRouteKey()` de la personne : son slug, ou son uuid a
+     * defaut de slug. Meme clef que les URL de profil, donc lisible.
+     */
+    #[Url]
+    public string $member = '';
+
     public int $perPage = 15;
 
     public function updatedSearch(): void
@@ -72,6 +83,18 @@ class Explorer extends Component
 
     public function updatedMinRating(): void
     {
+        $this->resetPage();
+    }
+
+    public function updatedMember(): void
+    {
+        $this->resetPage();
+    }
+
+    /** Retirer le filtre d'auteur sans quitter l'onglet courant. */
+    public function clearMember(): void
+    {
+        $this->member = '';
         $this->resetPage();
     }
 
@@ -134,6 +157,37 @@ class Explorer extends Component
         $organization = $orgId ? Organization::find($orgId) : null;
         $categoryNameColumn = $organization?->transactions_naming === 'b2b' ? 'name_b2b' : 'name_b2c';
 
+        // TASK-1697 — resoudre l'auteur filtre, borne a l'Organization.
+        //
+        // `Str::isUuid()` AVANT de comparer a `id` : sans cette garde, un slug
+        // envoye a une colonne uuid leve `22P02` en PostgreSQL — et reste
+        // INVISIBLE en SQLite (lecons T1665 et T1683).
+        //
+        // Et si la clef ne resout personne — slug inconnu, ou membre d'une
+        // AUTRE Organization — le filtre ne doit PAS retomber sur « tout
+        // montrer ». Il echoue FERME : `$filtreImpossible` vide la liste.
+        $membreFiltre = null;
+        $filtreImpossible = false;
+
+        if ($this->member !== '') {
+            $cle = $this->member;
+
+            $membreFiltre = $orgId
+                ? User::withoutGlobalScopes()
+                    ->where('organization_id', $orgId)
+                    ->where(function ($q) use ($cle) {
+                        $q->where('slug', $cle);
+
+                        if (Str::isUuid($cle)) {
+                            $q->orWhere('id', $cle);
+                        }
+                    })
+                    ->first()
+                : null;
+
+            $filtreImpossible = $membreFiltre === null;
+        }
+
         $categories = Category::with('skills')
             ->where('organization_id', $orgId)
             ->orderBy($categoryNameColumn)
@@ -144,6 +198,12 @@ class Explorer extends Component
                 ->with(['user', 'category', 'skills', 'tags'])
                 ->active()
                 ->where('organization_id', $orgId);
+
+            if ($membreFiltre) {
+                $query->where('user_id', $membreFiltre->id);
+            } elseif ($filtreImpossible) {
+                $query->whereRaw('1 = 0');
+            }
 
             if ($this->search) {
                 $search = '%'.$this->search.'%';
@@ -201,6 +261,12 @@ class Explorer extends Component
                 ->open()
                 ->where('organization_id', $orgId);
 
+            if ($membreFiltre) {
+                $query->where('user_id', $membreFiltre->id);
+            } elseif ($filtreImpossible) {
+                $query->whereRaw('1 = 0');
+            }
+
             if ($this->search) {
                 $search = '%'.$this->search.'%';
                 $query->where(fn ($q) => $q->where('title', 'like', $search)->orWhere('description', 'like', $search));
@@ -225,6 +291,6 @@ class Explorer extends Component
             $favoritedIds = collect();
         }
 
-        return view('livewire.explorer', compact('categories', 'items', 'hasMore', 'favoritedIds', 'organization'));
+        return view('livewire.explorer', compact('categories', 'items', 'hasMore', 'favoritedIds', 'organization', 'membreFiltre', 'filtreImpossible'));
     }
 }

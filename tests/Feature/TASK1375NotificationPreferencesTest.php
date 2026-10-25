@@ -246,16 +246,11 @@ class TASK1375NotificationPreferencesTest extends TestCase
         $this->actingAs($this->alice)
             ->from(route('notifications.preferences.edit'))
             ->post(route('notifications.preferences.update'), [
-                'canaux' => [
+                'canaux' => $this->defautsSauf([
                     NotificationCatalogue::LOOP_INVITATION => [
                         NotificationCatalogue::CHANNEL_IN_APP => '0',
-                        // Le canal REGLABLE est envoye a sa valeur par defaut.
-                        // Sans lui, son absence vaudrait « decoche » — semantique
-                        // normale d'une case a cocher — et un ecart serait ecrit
-                        // pour un canal qui n'est pas le sujet de ce test.
-                        NotificationCatalogue::CHANNEL_EMAIL => '1',
                     ],
-                ],
+                ]),
             ])
             ->assertRedirect();
 
@@ -271,14 +266,9 @@ class TASK1375NotificationPreferencesTest extends TestCase
         $this->actingAs($this->alice)
             ->from(route('notifications.preferences.edit'))
             ->post(route('notifications.preferences.update'), [
-                'canaux' => [
+                'canaux' => $this->defautsSauf([
                     'loop.something_invented' => ['signal_de_fumee' => '1'],
-                    // Voir le test precedent : le canal reglable est renvoye a
-                    // son defaut pour que la mesure porte sur la cle inventee.
-                    NotificationCatalogue::LOOP_INVITATION => [
-                        NotificationCatalogue::CHANNEL_EMAIL => '1',
-                    ],
-                ],
+                ]),
             ])
             ->assertRedirect();
 
@@ -308,11 +298,20 @@ class TASK1375NotificationPreferencesTest extends TestCase
         $this->assertTrue(
             $this->resolver->allows($this->alice, NotificationCatalogue::LOOP_INVITATION, NotificationCatalogue::CHANNEL_IN_APP)
         );
-        $this->assertSame(
-            0,
-            MemberNotificationPreference::query()->where('channel', NotificationCatalogue::CHANNEL_IN_APP)->count(),
-            'Aucun ecart ne peut exister sur un canal obligatoire.'
-        );
+        // TASK-1697 — cette garde comptait les ecarts sur le canal `in_app`,
+        // en APPROXIMATION de « aucun canal obligatoire franchi ». Elle n'etait
+        // vraie que parce que tous les `in_app` du catalogue etaient alors
+        // obligatoires. `blog.comment.created` a un `in_app` REGLABLE, et la
+        // coincidence tombe.
+        //
+        // On pose donc la vraie question au catalogue, couple par couple : un
+        // ecart ne peut exister que sur un canal CONFIGURABLE.
+        foreach (MemberNotificationPreference::query()->get() as $ecart) {
+            $this->assertTrue(
+                NotificationCatalogue::channelIsConfigurable($ecart->notification_key, $ecart->channel),
+                "Un ecart est stocke sur le canal obligatoire [{$ecart->notification_key}/{$ecart->channel}]."
+            );
+        }
     }
 
     // =====================================================================
@@ -410,5 +409,41 @@ class TASK1375NotificationPreferencesTest extends TestCase
         ]);
 
         return MemberNotificationPreference::findOrFail($id);
+    }
+
+    /**
+     * TASK-1697 — le payload complet des canaux REGLABLES a leur defaut, avec
+     * les couples que le test veut changer par-dessus.
+     *
+     * Ces trois tests portaient leur payload en dur, et le fichier expliquait
+     * deja le piege : « l'absence d'un canal reglable vaut decoche ». Ajouter
+     * une quatrieme cle au catalogue les a donc fait rougir pour une raison
+     * etrangere a leur sujet. Construire le payload DEPUIS le catalogue rend la
+     * mesure stable : seul ce que le test nomme s'ecarte du defaut.
+     *
+     * @param  array<string, array<string, string>>  $ecarts
+     * @return array<string, array<string, string>>
+     */
+    private function defautsSauf(array $ecarts): array
+    {
+        $canaux = [];
+
+        // `channelsFor()` rend une LISTE de noms de canaux, pas une carte de
+        // reglages : le defaut et la configurabilite se demandent un par un.
+        foreach (NotificationCatalogue::keys() as $cle) {
+            foreach (NotificationCatalogue::channelsFor($cle) as $canal) {
+                if (NotificationCatalogue::channelIsConfigurable($cle, $canal)) {
+                    $canaux[$cle][$canal] = NotificationCatalogue::channelDefault($cle, $canal) ? '1' : '0';
+                }
+            }
+        }
+
+        foreach ($ecarts as $cle => $couples) {
+            foreach ($couples as $canal => $valeur) {
+                $canaux[$cle][$canal] = $valeur;
+            }
+        }
+
+        return $canaux;
     }
 }

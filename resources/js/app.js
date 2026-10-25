@@ -3582,6 +3582,8 @@ function registerDossierFilesCard() {
         shareLoopShares: [],
         shareCanManage: false,
         shareLoading: false,
+        // TASK-1697 (3) — ai-je touche aux partages depuis l'ouverture ?
+        shareModifie: false,
 
         /**
          * Premier temps — les MEMES noms que `dossierFilesCard`, parce que les
@@ -3644,6 +3646,26 @@ function registerDossierFilesCard() {
             this.shareLoading = false;
         },
 
+        /**
+         * TASK-1697 (3) — fermer APRES avoir modifie recharge la page.
+         *
+         * Cet ecran est rendu au SERVEUR : le tableau, la colonne « Partage
+         * avec » et la presence meme de la ligne viennent du HTML. Retirer le
+         * dernier partage doit faire SORTIR le fichier de la liste — aucun
+         * rafraichissement local ne peut l'obtenir.
+         *
+         * Le rechargement attend la FERMETURE, pas la mutation : recharger a
+         * chaque clic fermerait la fenetre au milieu d'un ajout.
+         */
+        fermerPartage() {
+            this.showShareModal = false;
+            this.showPeekModal = false;
+
+            if (this.shareModifie) {
+                window.location.reload();
+            }
+        },
+
         async partagerAvecBoucle(loop) {
             if (!this.shareTarget || this.shareLoading) return;
             this.shareLoading = true;
@@ -3653,6 +3675,7 @@ function registerDossierFilesCard() {
                 body: JSON.stringify({ loop_id: loop.id }),
             });
             this.shareLoading = false;
+            this.shareModifie = true;
             await this.chargerPartages();
         },
 
@@ -3661,6 +3684,7 @@ function registerDossierFilesCard() {
             this.shareLoading = true;
             await this.requete(this.urlPartages('/loops/' + share.id), { method: 'DELETE' });
             this.shareLoading = false;
+            this.shareModifie = true;
             await this.chargerPartages();
         },
 
@@ -3683,6 +3707,7 @@ function registerDossierFilesCard() {
             this.shareQuery = '';
             this.shareResults = [];
             this.shareLoading = false;
+            this.shareModifie = true;
             await this.chargerPartages();
         },
 
@@ -3691,6 +3716,7 @@ function registerDossierFilesCard() {
             this.shareLoading = true;
             await this.requete(this.urlPartages('/' + share.id), { method: 'DELETE' });
             this.shareLoading = false;
+            this.shareModifie = true;
             await this.chargerPartages();
         },
     }));
@@ -4786,6 +4812,32 @@ function registerDossierFilesCard() {
             this.openShareModal(this.shareTarget);
         },
 
+        /**
+         * TASK-1697 (3) — la LISTE derriere la fenetre suit les partages.
+         *
+         * Signale par Cyril : retirer un partage laissait la colonne
+         * « Partage » afficher « Partage » jusqu'au rechargement manuel.
+         * `chargerPartages()` rafraichissait la fenetre, jamais la ligne —
+         * `shares_count` et `loop_shares_count` voyagent avec le FICHIER, pas
+         * avec le partage.
+         *
+         * On recharge la page COURANTE : revenir a la page 1 ferait sauter
+         * l'ecran sous les yeux de qui gere un fichier en page 3.
+         */
+        async rafraichirLaListe() {
+            await this.loadFiles(this.currentPage || 1);
+        },
+
+        /**
+         * Meme nom que dans `fileSharePanel` : les deux rendent le MEME
+         * partiel. Ici la liste est locale et deja a jour — fermer ne fait que
+         * fermer, aucun rechargement de page.
+         */
+        fermerPartage() {
+            this.showShareModal = false;
+            this.showPeekModal = false;
+        },
+
         openShareModal(file) {
             this.shareTarget = file;
             this.shareQuery = '';
@@ -4854,6 +4906,7 @@ function registerDossierFilesCard() {
                 this.shareQuery = '';
                 this.shareResults = [];
                 await this.chargerPartages();
+                await this.rafraichirLaListe();
             } catch (e) {
                 this.showMessage(this.i18n.networkError, 'error');
             } finally {
@@ -4872,6 +4925,7 @@ function registerDossierFilesCard() {
                 });
                 if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
                 await this.chargerPartages();
+                await this.rafraichirLaListe();
             } catch (e) {
                 this.showMessage(this.i18n.networkError, 'error');
             } finally {
@@ -4889,6 +4943,7 @@ function registerDossierFilesCard() {
                 });
                 if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
                 await this.chargerPartages();
+                await this.rafraichirLaListe();
             } catch (e) {
                 this.showMessage(this.i18n.networkError, 'error');
             } finally {
@@ -4906,6 +4961,7 @@ function registerDossierFilesCard() {
                 });
                 if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
                 await this.chargerPartages();
+                await this.rafraichirLaListe();
             } catch (e) {
                 this.showMessage(this.i18n.networkError, 'error');
             } finally {

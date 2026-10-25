@@ -404,7 +404,35 @@
                                      n'existe pas — la policy `rename` refuserait
                                      de toute facon la requete. --}}
                             @elseif($governingDossier->isLoopDossier())
-                                <span class="shrink-0 rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200">{{ __('dossiers.loop_dossier_badge') }}</span>
+                                {{-- TASK-1697 (1) — « Voir la Boucle » REMPLACE le badge
+                                     « Dossier de Boucle » (demande de Cyril).
+
+                                     Le badge nommait ce que le fil d'Ariane disait
+                                     deja — « Boucles > ofsh » juste a gauche — et
+                                     n'offrait aucun geste. Le lien occupe la meme
+                                     place et MENE quelque part.
+
+                                     Exactement le lien de `?espace=boucles` : meme
+                                     route, meme libelle, meme fleche sortante. Une
+                                     seconde formulation aurait derive. --}}
+                                {{-- Ce `@if` est DEFENSIF, pas la garde : la branche
+                                     `isLoopDossier()` ci-dessus EST
+                                     `loop_id !== null`, donc la relation existe
+                                     deja. Mesure du 25/10 — lever l'un sans
+                                     l'autre ne fait rougir aucun test ; il faut
+                                     lever les DEUX. Il reste parce qu'un rendu
+                                     ne doit jamais dependre d'une relation
+                                     supposee chargee. --}}
+                                @if($governingDossier->loop)
+                                    <a href="{{ route('organization.loops.show', ['organization' => $orgParam, 'loop' => $governingDossier->loop->slug ?? $governingDossier->loop->getKey()]) }}"
+                                       class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg text-sm font-medium text-indigo-600 transition hover:underline dark:text-indigo-400"
+                                       data-loop-visit>
+                                        {{ __('dossiers.loop_visit') }}
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M7 17 17 7M9 7h8v8" />
+                                        </svg>
+                                    </a>
+                                @endif
                             @elseif($userRole === 'owner')
                                 <a href="{{ route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $dossier->getKey()]) }}" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200" title="{{ __('dossiers.rename') }}">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1103,13 +1131,42 @@
 
                     <div class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700" x-show="vue === 'documents' && viewMode === 'list' && (totalFiles > 0 || {{ ($driveFolders->count() + $dossier->dossierBlogPosts->count()) > 0 ? 'true' : 'false' }})">
                         <div class="hidden lg:block">
+                            {{-- TASK-1697 (2) — en-tetes TRIABLES (demande de Cyril).
+
+                                 Tout le moteur existait deja : `sortBy`,
+                                 `sortDirection`, `toggleSort()` et le tri serveur
+                                 dans `DossierFileController::index`. Il manquait
+                                 la POIGNEE — le tri ne se declenchait de nulle
+                                 part.
+
+                                 « Ajoute par » et « Partage » restent inertes :
+                                 l'un demanderait une jointure, l'autre se calcule
+                                 par ligne. Un en-tete cliquable qui ne trierait
+                                 rien serait pire qu'un en-tete muet. --}}
+                            @php
+                                $enteteTri = 'flex min-h-11 w-full items-center gap-1 text-left uppercase tracking-wide transition hover:text-gray-700 dark:hover:text-gray-200';
+                            @endphp
                             <div class="{{ $grilleDrive }} border-b border-gray-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:border-gray-700 dark:text-gray-500">
-                                <div>{{ __('dossiers.col_name') }}</div>
-                                @if($colonneAjoutePar)<div>{{ __('dossiers.col_added_by') }}</div>@endif
-                                <div>{{ __('dossiers.col_type') }}</div>
-                                @if($colonnePartage)<div>{{ __('dossiers.col_share') }}</div>@endif
-                                <div>{{ __('dossiers.col_modified') }}</div>
-                                <div>{{ __('dossiers.col_size') }}</div>
+                                @foreach(['name' => 'col_name', 'added_by' => 'col_added_by', 'type' => 'col_type', 'share' => 'col_share', 'date' => 'col_modified', 'size' => 'col_size'] as $cle => $libelle)
+                                    @if($cle === 'added_by' && ! $colonneAjoutePar) @continue @endif
+                                    @if($cle === 'share' && ! $colonnePartage) @continue @endif
+
+                                    @if(in_array($cle, ['name', 'type', 'date', 'size'], true))
+                                        <button type="button" @click="toggleSort(@js($cle))"
+                                                class="{{ $enteteTri }}"
+                                                :aria-sort="sortBy === @js($cle) ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'"
+                                                data-drive-sort="{{ $cle }}">
+                                            <span>{{ __('dossiers.'.$libelle) }}</span>
+                                            <svg x-show="sortBy === @js($cle)" x-cloak class="h-3 w-3 shrink-0"
+                                                 :class="sortDirection === 'desc' && 'rotate-180'"
+                                                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+                                            </svg>
+                                        </button>
+                                    @else
+                                        <div>{{ __('dossiers.'.$libelle) }}</div>
+                                    @endif
+                                @endforeach
                                 <div><span class="sr-only">{{ __('dossiers.col_name') }}</span></div>
                             </div>
                         </div>

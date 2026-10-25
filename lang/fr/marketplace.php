@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'service_term' => 'micro-service',
+    'service_term' => 'proposition',
     'request_term' => 'demande d\'aide',
     'service_create_heading' => 'Proposer de l\'aide',
     'request_create_heading' => 'Demander de l\'aide',
@@ -33,7 +33,7 @@ return [
         'both' => '🌐📍 Les deux',
     ],
     'points_help_title' => '💡 Comment fonctionne le barème de points ?',
-    'points_service_body' => ':organization utilise les points comme unité d\'échange pour évaluer la valeur d\'un micro-service entre membres.',
+    'points_service_body' => ':organization utilise les points comme unité d\'échange pour évaluer la valeur d\'une proposition entre membres.',
     'points_request_body' => ':organization utilise les points comme unité d\'échange pour évaluer la valeur d\'une demande d\'aide entre membres.',
     'points_one_minute' => '1 minute = 1 point.',
     'points_minimum_allowed' => 'Minimum autorisé dans :organization : :min points.',

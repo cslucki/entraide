@@ -246,9 +246,20 @@ class TASK1605OrganizationNavigationTest extends TestCase
             ->assertOk()
             ->getContent();
 
+        // TASK-1697 — l'assertion visait `href="..." class="..."` COLLES, donc
+        // l'ordre des attributs. Ajouter un marqueur a la balise la faisait
+        // rougir sans qu'aucun comportement ne change.
+        //
+        // Elle extrait desormais la balise par son marqueur `data-guest-brand`,
+        // unique a la marque BUREAU de ce gabarit — ce qui tient l'intention
+        // d'origine (« mesuree pour elle-meme », sans que la marque mobile la
+        // satisfasse) sans dependre de l'ordre d'ecriture.
+        $this->assertSame(1, preg_match('/<a[^>]*data-guest-brand[^>]*>/', $html, $marque),
+            'la marque BUREAU du gabarit invite est introuvable');
+
         $this->assertStringContainsString(
-            'href="'.route('organization.home', ['organization' => $this->defaultOrg->slug]).'" class="flex items-center gap-3 group"',
-            $html,
+            'href="'.route('organization.home', ['organization' => $this->defaultOrg->slug]).'"',
+            $marque[0],
             'la marque BUREAU de la page de connexion n\'est pas bornee (l\'Organization par defaut etait exclue)'
         );
     }

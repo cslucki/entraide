@@ -390,7 +390,12 @@ class DossierController extends Controller
             // que plusieurs personnes deposent dans un Dossier partage.
             'dossierBlogPosts.addedBy:id,first_name,avatar,name,email,organization_id,banned_at',
             'dossierMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
-            'loop:id,name,organization_id,status',
+            // TASK-1697 (1) — `slug` est CHARGE : le lien « Voir la Boucle »
+            // le prefere a l'uuid, et sans la colonne il retombait en silence
+            // sur `getKey()`. Une URL en uuid fonctionne, mais ce n'est pas
+            // celle que le reste du produit publie — `?espace=boucles` et le
+            // fil d'Ariane visent le slug.
+            'loop:id,name,organization_id,status,slug',
             'loop.activeMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
         ]);
 
@@ -403,7 +408,12 @@ class DossierController extends Controller
             $governingDossier->load([
                 'owner:id,first_name,avatar,name,banned_at,organization_id',
                 'dossierMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
-                'loop:id,name,organization_id,status',
+                // TASK-1697 (1) — `slug` est CHARGE : le lien « Voir la Boucle »
+            // le prefere a l'uuid, et sans la colonne il retombait en silence
+            // sur `getKey()`. Une URL en uuid fonctionne, mais ce n'est pas
+            // celle que le reste du produit publie — `?espace=boucles` et le
+            // fil d'Ariane visent le slug.
+            'loop:id,name,organization_id,status,slug',
                 'loop.activeMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
             ]);
         }

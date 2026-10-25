@@ -164,7 +164,7 @@ return [
     'view_all_services' => 'Voir toutes mes propositions',
     'my_requests_page_title' => 'Mes demandes d\'aide',
     'my_services_page_title' => 'Mes propositions d\'aide',
-    'service_proposals_title' => 'Propositions d\'aide',
+    'service_proposals_title' => 'Propositions d\'entraide',
     'help_requests_title' => 'Demandes d\'aide',
     'detail_request_title' => 'Détail de la demande',
     'detail_service_title' => 'Détail de la proposition',

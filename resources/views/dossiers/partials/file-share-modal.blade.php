@@ -22,7 +22,7 @@
 --}}
                     <template x-if="showShareModal && shareTarget">
                         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-                             @click.self="showShareModal = false" @keydown.escape.window="showShareModal = false"
+                             @click.self="fermerPartage()" @keydown.escape.window="fermerPartage()"
                              role="dialog" aria-modal="true" aria-labelledby="share-file-title"
                              data-file-share-modal>
                             <div class="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-800">
@@ -31,7 +31,7 @@
                                         <h3 id="share-file-title" class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.file_share_title') }}</h3>
                                         <p class="mt-1 truncate text-sm text-gray-500 dark:text-gray-400" x-text="shareTarget.display_name || shareTarget.original_name"></p>
                                     </div>
-                                    <button type="button" @click="showShareModal = false"
+                                    <button type="button" @click="fermerPartage()"
                                             class="-mr-1 -mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                                             title="{{ __('dossiers.file_share_close') }}"
                                             aria-label="{{ __('dossiers.file_share_close') }}"
@@ -129,7 +129,7 @@
                                      quelqu'un qui clique « Annuler » croirait
                                      avoir tout defait. --}}
                                 <div class="mt-5 flex justify-end">
-                                    <button type="button" @click="showShareModal = false"
+                                    <button type="button" @click="fermerPartage()"
                                             class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.file_share_close') }}</button>
                                 </div>
                             </div>

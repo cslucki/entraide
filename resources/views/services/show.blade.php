@@ -156,7 +156,7 @@
                         <input type="number" name="points_proposed" value="{{ $service->points_cost }}" min="1"
                             class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
                         <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
-                            {{ __('services.show.propose_exchange') }}
+                            {{ __('services.show.request_this_help') }}
                         </button>
                         <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['points' => auth()->user()->points_balance]) }}</span>
                     </form>

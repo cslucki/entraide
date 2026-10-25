@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'service_term' => 'micro-service',
+    'service_term' => 'proposal',
     'request_term' => 'help request',
     'service_create_heading' => 'Offer my help',
     'request_create_heading' => 'Ask for help',
@@ -33,7 +33,7 @@ return [
         'both' => '🌐📍 Both',
     ],
     'points_help_title' => '💡 How does the point scale work?',
-    'points_service_body' => ':organization uses points as an exchange unit to estimate the value of a micro-service between members.',
+    'points_service_body' => ':organization uses points as an exchange unit to estimate the value of a proposal between members.',
     'points_request_body' => ':organization uses points as an exchange unit to estimate the value of a help request between members.',
     'points_one_minute' => '1 minute = 1 point.',
     'points_minimum_allowed' => 'Minimum allowed in :organization: :min points.',

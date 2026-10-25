@@ -401,7 +401,7 @@
                         </div>
 
                         <div class="border-t border-gray-100 py-2 dark:border-gray-700">
-                            <a href="{{ route('dashboard') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950/40">
+                            <a href="{{ route('dashboard') }}" data-user-menu-dashboard @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950/40">
                                 <svg class="h-5 w-5 text-sky-600 dark:text-sky-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
                                 <span>{{ __('navigation.dashboard') }}</span>
                             </a>
@@ -436,7 +436,13 @@
                                 <span>{{ __('navigation.ai_profile') }}</span>
                             </a>
                             @endif
-                            <a href="{{ route('profile.edit') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                            {{-- TASK-1697 — scope. `$organizationRouteParam` porte DEJA le repli vers
+                                 l'Organization de la personne connectee (ligne 9), donc le lien
+                                 reste juste depuis une page sans prefixe. Mesure avant correctif :
+                                 sur `/profile/edit`, `currentOrganization()` vaut `main` et non
+                                 l'Organization du membre — c'est le defaut du bug AI de T1694,
+                                 jusqu'ici rustine dans un seul helper. --}}
+                            <a href="{{ $organizationRouteParam && Route::has('organization.profile.edit') ? route('organization.profile.edit', ['organization' => $organizationRouteParam]) : route('profile.edit') }}" data-user-menu-profile @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.573c1.757.426 1.757 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.065c-.426 1.757-2.924 1.757-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.573c-1.757-.426-1.757-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.065z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                                 <span>{{ __('navigation.settings') }}</span>
                             </a>
@@ -458,7 +464,11 @@
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
                                 <span>{{ __('navigation.invitations') }}</span>
                             </a>
-                            <a href="{{ route('favorites.index') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                            {{-- TASK-1697 — scope. Celui-ci n'etait pas casse : `/favorites` est deja
+                                 rattrape par la redirection canonique (mesure : 302 vers
+                                 `/org/ofsh/favorites`). Le scoper supprime simplement cet
+                                 aller-retour. --}}
+                            <a href="{{ $organizationRouteParam && Route::has('organization.favorites.index') ? route('organization.favorites.index', ['organization' => $organizationRouteParam]) : route('favorites.index') }}" data-user-menu-favorites @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111 5.52.442a.563.563 0 01.32.988l-4.205 3.602 1.285 5.385a.562.562 0 01-.84.61L12 16.75l-4.725 2.887a.562.562 0 01-.84-.61l1.285-5.385-4.205-3.602a.563.563 0 01.32-.988l5.52-.442 2.125-5.111z"/></svg>
                                 <span>{{ __('navigation.favorites') }}</span>
                             </a>
