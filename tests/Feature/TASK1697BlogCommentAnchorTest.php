@@ -80,31 +80,32 @@ class TASK1697BlogCommentAnchorTest extends TestCase
     }
 
     /**
-     * L'ancre doit etre posee AVANT le bloc `x-show` : une cible masquee ne
-     * recoit aucun defilement. On mesure donc l'ORDRE dans le document.
+     * TASK-1697 volet b — l'enonce de cette garde a CHANGE.
+     *
+     * Elle verifiait que l'ancre precedait le bloc `x-show="showComments"`,
+     * parce qu'un navigateur ne defile pas vers une cible masquee. Le bloc
+     * repliable n'existe plus : le fil est ouvert.
+     *
+     * La garde dit donc maintenant quelque chose de PLUS FORT — il n'y a plus
+     * de repli du tout. Et elle conserve ce que le sabotage avait appris :
+     * inspecter la BALISE PORTEUSE, car comparer deux `strpos()` ne distingue
+     * pas « avant cet element » de « dans cet element ».
      */
-    public function test_l_ancre_precede_le_bloc_repliable(): void
+    public function test_l_ancre_n_est_pas_masquee_et_rien_n_est_repliable(): void
     {
         $html = $this->actingAs($this->membre)
             ->get($this->urlArticle())
             ->assertOk()
             ->getContent();
 
-        // Comparer deux `strpos()` ne SUFFIT PAS : posee a l'interieur de la
-        // balise masquee, `id="commentaires"` precede `x-show` AU SEIN DU MEME
-        // TAG, et la comparaison de positions passe. Mesure par sabotage : la
-        // garde restait verte. On inspecte donc la BALISE PORTEUSE.
         $this->assertSame(1, preg_match('/<div[^>]*id="commentaires"[^>]*>/', $html, $porteuse),
             'Aucune balise ne porte l\'ancre.');
 
         $this->assertStringNotContainsString('x-show', $porteuse[0],
             "La balise de l'ancre porte `x-show` : une cible masquee ne recoit aucun defilement.");
 
-        $ancre = strpos($html, 'id="commentaires"');
-        $repli = strpos($html, 'x-show="showComments"');
-
-        $this->assertNotFalse($repli, 'bloc repliable absent');
-        $this->assertLessThan($repli, $ancre, "L'ancre est posee APRES le bloc repliable.");
+        $this->assertStringNotContainsString('showComments', $html,
+            'Le repli des commentaires est revenu : le fil doit rester ouvert.');
     }
 
     public function test_deposer_un_commentaire_redirige_vers_l_ancre(): void

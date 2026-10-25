@@ -577,4 +577,9 @@ return [
     'ai_origin_sources' => 'Appuyée sur :count source(s) documentaire(s).',
     'ai_origin_sources_title' => 'Sources documentaires',
     'ai_origin_open_source' => 'Ouvrir',
+    // TASK-1697 — le fil de commentaires devient un composant Livewire
+    'comments_heading' => 'Commentaires',
+    'comments_total' => '{0}aucun commentaire|{1}:count commentaire|[2,*]:count commentaires',
+    'comments_empty' => 'Aucun commentaire pour le moment. Lancez la discussion.',
+    'btn_cancel_reply' => 'Annuler',
 ];

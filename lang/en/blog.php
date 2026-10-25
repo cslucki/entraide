@@ -577,4 +577,9 @@ return [
     'ai_origin_sources' => 'Grounded in :count documentary source(s).',
     'ai_origin_sources_title' => 'Documentary sources',
     'ai_origin_open_source' => 'Open',
+    // TASK-1697 — the comment thread becomes a Livewire component
+    'comments_heading' => 'Comments',
+    'comments_total' => '{0}no comments|{1}:count comment|[2,*]:count comments',
+    'comments_empty' => 'No comments yet. Start the conversation.',
+    'btn_cancel_reply' => 'Cancel',
 ];
