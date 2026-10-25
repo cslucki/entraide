@@ -333,6 +333,6 @@ return [
     // Localising it generally is a dedicated post-campaign TASK.
     'mobile_fab_add' => 'Add',
     'mobile_fab_create_request' => 'Create a help request',
-    'mobile_fab_offer_service' => 'Offer a micro-service',
+    'mobile_fab_offer_service' => 'Publish a proposal',
     'mobile_fab_write_article' => 'Write an article',
 ];

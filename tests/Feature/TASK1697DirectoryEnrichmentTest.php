@@ -331,12 +331,13 @@ class TASK1697DirectoryEnrichmentTest extends TestCase
 
         $this->assertStringContainsString('1 '.trans_choice('directory.service_label', 1), $html);
 
-        // Assertion BORNEE au compteur, pas a la page : « micro-service »
-        // subsiste legitimement dans la navigation, qui lit toujours le terme
-        // global `$T['service']` de `config/terms.php`. C'est signale a Cyril,
-        // pas corrige — il n'a demande que l'annuaire.
-        $this->assertStringNotContainsString('1 '.config('terms.service'), $html);
-        $this->assertStringNotContainsString('1 '.config('terms.services'), $html);
+        // TASK-1697 — ces deux assertions lisaient `config('terms')`. Depuis
+        // que le terme GLOBAL est lui aussi « proposition », les lire
+        // reviendrait a exiger l'absence de « 1 proposition », soit l'inverse
+        // de la ligne precedente. On vise donc les mots HISTORIQUES, qui sont
+        // ce qu'elles voulaient dire depuis le debut.
+        $this->assertStringNotContainsString('micro-service', $html);
+        $this->assertStringNotContainsString('micro-services', $html);
     }
 
     // ── La rangee de compteurs disparait a zero (correctif 16) ──────────

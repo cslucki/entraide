@@ -333,6 +333,6 @@ return [
     // Sa localisation generale est une TASK dediee post-campagne.
     'mobile_fab_add' => 'Ajouter',
     'mobile_fab_create_request' => 'Faire une demande d\'aide',
-    'mobile_fab_offer_service' => 'Proposer un micro-service',
+    'mobile_fab_offer_service' => 'Publier une proposition',
     'mobile_fab_write_article' => 'Écrire un article',
 ];
