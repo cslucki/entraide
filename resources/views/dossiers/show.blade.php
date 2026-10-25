@@ -404,7 +404,35 @@
                                      n'existe pas — la policy `rename` refuserait
                                      de toute facon la requete. --}}
                             @elseif($governingDossier->isLoopDossier())
-                                <span class="shrink-0 rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200">{{ __('dossiers.loop_dossier_badge') }}</span>
+                                {{-- TASK-1697 (1) — « Voir la Boucle » REMPLACE le badge
+                                     « Dossier de Boucle » (demande de Cyril).
+
+                                     Le badge nommait ce que le fil d'Ariane disait
+                                     deja — « Boucles > ofsh » juste a gauche — et
+                                     n'offrait aucun geste. Le lien occupe la meme
+                                     place et MENE quelque part.
+
+                                     Exactement le lien de `?espace=boucles` : meme
+                                     route, meme libelle, meme fleche sortante. Une
+                                     seconde formulation aurait derive. --}}
+                                {{-- Ce `@if` est DEFENSIF, pas la garde : la branche
+                                     `isLoopDossier()` ci-dessus EST
+                                     `loop_id !== null`, donc la relation existe
+                                     deja. Mesure du 25/10 — lever l'un sans
+                                     l'autre ne fait rougir aucun test ; il faut
+                                     lever les DEUX. Il reste parce qu'un rendu
+                                     ne doit jamais dependre d'une relation
+                                     supposee chargee. --}}
+                                @if($governingDossier->loop)
+                                    <a href="{{ route('organization.loops.show', ['organization' => $orgParam, 'loop' => $governingDossier->loop->slug ?? $governingDossier->loop->getKey()]) }}"
+                                       class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg text-sm font-medium text-indigo-600 transition hover:underline dark:text-indigo-400"
+                                       data-loop-visit>
+                                        {{ __('dossiers.loop_visit') }}
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M7 17 17 7M9 7h8v8" />
+                                        </svg>
+                                    </a>
+                                @endif
                             @elseif($userRole === 'owner')
                                 <a href="{{ route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $dossier->getKey()]) }}" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200" title="{{ __('dossiers.rename') }}">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
