@@ -21,6 +21,11 @@
                         <option value="default" @selected(($organization->homepage_template ?? 'default') === 'default')>Default (existant)</option>
                         <option value="bouclepro_hero_v2" @selected($organization->homepage_template === 'bouclepro_hero_v2')>BouclePro_Hero</option>
                         <option value="artscilab_hero" @selected($organization->homepage_template === 'artscilab_hero')>ArtSciLab_Hero</option>
+                        {{-- TASK-1699 — le gabarit OFSH. Il est propose a TOUTE
+                             Organization, comme les deux autres : aucune de ces
+                             options n'est reservee a un tenant, et toutes ses
+                             URL sont bornees a l'Organization de l'URL. --}}
+                        <option value="ofsh_hero" @selected($organization->homepage_template === 'ofsh_hero')>OFSH_Hero</option>
                     </select>
                 </div>
             </div>

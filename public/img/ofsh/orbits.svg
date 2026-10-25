@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none">
+<defs>
+ <radialGradient id="aura"><stop offset="0" stop-color="#FFF9EE" stop-opacity="0.05"/><stop offset=".73" stop-color="#D9E9E4" stop-opacity=".44"/><stop offset="1" stop-color="#E5EDF1" stop-opacity="0"/></radialGradient>
+ <linearGradient id="edge" x1="62" y1="65" x2="540" y2="540" gradientUnits="userSpaceOnUse"><stop stop-color="#4B8AA9" stop-opacity=".10"/><stop offset=".34" stop-color="#A3C6AC" stop-opacity=".32"/><stop offset=".67" stop-color="#DBB18E" stop-opacity=".22"/><stop offset="1" stop-color="#7EAAC5" stop-opacity=".10"/></linearGradient>
+ <filter id="blur"><feGaussianBlur stdDeviation="17"/></filter>
+</defs>
+<circle cx="300" cy="300" r="272" fill="url(#aura)"/>
+<circle cx="300" cy="300" r="220" stroke="url(#edge)" stroke-width="50" opacity=".36" filter="url(#blur)"/>
+<circle cx="300" cy="300" r="222" stroke="url(#edge)" stroke-width="1.35"/>
+<circle cx="300" cy="300" r="174" stroke="url(#edge)" stroke-width="1.15" stroke-dasharray="2 6"/>
+<circle cx="300" cy="300" r="126" stroke="#AFCEC1" stroke-opacity=".22"/>
+</svg>

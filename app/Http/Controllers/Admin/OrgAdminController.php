@@ -2522,7 +2522,7 @@ class OrgAdminController extends Controller
     public function updateHomepage(Request $request, Organization $organization): RedirectResponse
     {
         $validated = $request->validate([
-            'homepage_template' => ['nullable', 'string', Rule::in(['default', 'bouclepro_hero_v2', 'artscilab_hero'])],
+            'homepage_template' => ['nullable', 'string', Rule::in(['default', 'bouclepro_hero_v2', 'artscilab_hero', 'ofsh_hero'])],
             'subheadline' => ['nullable', 'string', 'max:500'],
             'card_create_label' => ['nullable', 'string', 'max:100'],
             'card_meet_label' => ['nullable', 'string', 'max:100'],

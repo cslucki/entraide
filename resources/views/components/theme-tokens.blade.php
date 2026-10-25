@@ -32,7 +32,27 @@
     theme ; `.dark` puis `.dark[data-bp-theme="x"]` font de meme en sombre.
     C'est exactement l'ordre des deux layouts d'origine — la specificite CSS
     n'a pas bouge.
+
+    ## TASK-1699 — `system-dark`, et pourquoi ce n'est PAS `.dark`
+
+    Une landing autonome n'a pas de bascule clair/sombre : `.dark` est pose par
+    le JavaScript des layouts applicatifs, celui-la meme que ce composant
+    refuse d'emettre, et pour la raison ecrite plus haut. Un gabarit de landing
+    qui veut un rendu sombre n'a donc qu'une source legitime : la preference du
+    SYSTEME du visiteur, qui n'appartient a aucun tenant.
+
+    L'attribut `system-dark` ajoute un bloc `@media (prefers-color-scheme:
+    dark)` qui REJOUE les memes palettes sombres, aux memes selecteurs que les
+    blocs `.dark` ci-dessus moins la classe. Aucune valeur n'est recopiee : une
+    seule palette, deux lectures.
+
+    Il est OPT-IN, et c'est delibere. Les deux landings existantes
+    (`hero-v2`, `artscilab-hero`) et les layouts applicatifs appellent ce
+    composant SANS attribut : leur sortie est identique a l'octet pres. Un
+    rendu sombre impose a un gabarit clair qui n'a jamais ete dessine pour lui
+    serait une regression visuelle, pas une fonctionnalite.
 --}}
+@props(['systemDark' => false])
 @php
     $bp = bp_themes();
     $bpThemes = $bp['themes'];
@@ -84,4 +104,22 @@
         @endforeach
     }
     @endforeach
+
+    @if($systemDark)
+    @media (prefers-color-scheme: dark) {
+        :root {
+            @foreach($bpThemes[$bpDefaultTheme]['dark'] as $token => $value)
+            --bp-{{ $token }}: {{ $value }};
+            @endforeach
+        }
+
+        @foreach($bpThemes as $key => $theme)
+        [data-bp-theme="{{ $key }}"] {
+            @foreach($theme['dark'] as $token => $value)
+            --bp-{{ $token }}: {{ $value }};
+            @endforeach
+        }
+        @endforeach
+    }
+    @endif
 </style>
