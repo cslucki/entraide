@@ -550,19 +550,23 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
         $this->organizationA->update(['homepage_template' => 'bouclepro_hero_v2', 'is_public' => true]);
         $landing = route('organization.home', ['organization' => $this->organizationA->slug]);
 
-        // TASK-1692 — la landing reste PUBLIQUE, mais `/org/{slug}/mycelium`
-        // ne l'est plus : le lien de gouvernance n'est donc plus propose a un
-        // anonyme, qui n'aurait qu'une redirection au bout. Ce que ce test
-        // PROUVE n'a pas bouge pour autant — le credit de portage a disparu
-        // des deux pieds de page, et il doit l'etre pour TOUT LE MONDE.
+        // TASK-1698 — le lien de gouvernance est de nouveau propose a un
+        // anonyme, parce que la page bornee est de nouveau publique : l'opt-out
+        // du groupe `/org/{organization}` manquait a `mycelium` depuis T1604.
+        //
+        // Ce test retrouve ainsi son enonce complet — « le lien de gouvernance
+        // REMPLACE le credit de portage » — pour les deux viseurs : le credit a
+        // disparu, et le lien est la. T1692 ne pouvait plus mesurer que la
+        // moitie (la disparition du credit), faute de lien a constater.
         $this->get($landing)
             ->assertOk()
+            ->assertSee('data-footer-mycelium', false)
+            ->assertSee(__('mycelium.footer_link'))
             ->assertDontSee(__('footer.by_amt'))
             ->assertDontSee(__('footer.partner_artscilab'))
-            ->assertDontSee('amteletravail.fr')
-            ->assertDontSee('data-footer-mycelium', false);
+            ->assertDontSee('amteletravail.fr');
 
-        // Le lien lui-meme est servi a qui peut le suivre : un membre.
+        // Et le membre, pour qui rien n'a change.
         $this->actingAs($this->memberA)
             ->get($landing)
             ->assertOk()

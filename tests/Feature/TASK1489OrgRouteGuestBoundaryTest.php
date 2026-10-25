@@ -152,6 +152,49 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         // joignables : elles portent `guest` / `RedirectIfAuthenticated`, donc
         // une frontiere DECLAREE, et le predicat les compte a ce titre comme
         // « quelqu'un a decide ». Elles n'ont jamais eu a figurer ici.
+
+        // ─── TASK-1698 — TROIS ENTREES RENDUES, PAR DECISION MASTER ─────────
+        //
+        // Le bloc ci-dessus nomme exactement ce qui vient d'etre tranche. Il
+        // disait : « IL FAUT LE DIRE NET : aucune n'a recu de decision
+        // INDIVIDUELLE. Elles ont ete fermees collateralement, par un
+        // middleware de groupe. » Et il listait les trois contrats produits
+        // CONTREDITS par cette fermeture — le mandat T1608 (« Logigramme public
+        // PAR MANDAT »), le contrat T1604 (le Mycelium scope « sert le MEME
+        // contenu que le global ») et T1613 pour `open-source` — en laissant le
+        // soin a MASTER de « les reecrire ou de les assumer ».
+        //
+        // MASTER a tranche le 25/10, par la question qui l'a ouvert : « je ne
+        // comprends pas pourquoi le logigramme necessite une connexion ». Les
+        // trois contrats sont donc REECRITS dans leur sens d'origine, et les
+        // trois routes portent desormais l'opt-out nominatif qui leur avait
+        // manque des l'origine — jamais une TASK ne leur avait retire : elles
+        // ne l'avaient simplement jamais eu (`git log -L` sur ces lignes de
+        // `routes/web.php` ne montre que T1604, T1608 et T1613).
+        //
+        // Les trois surfaces ont ete re-mesurees avant l'ouverture, et aucune
+        // ne lit de donnee de tenant :
+        //
+        //   * `flowchart` — le controleur porte TOUJOURS sa frontiere propre,
+        //     reprise mot pour mot de la landing (inactive -> 404, non publique
+        //     + anonyme -> login borne). Son graphe consomme `VisibleLoops`,
+        //     qui exige un `User` : sans session, la branche des Boucles est le
+        //     socle public, et `FlowchartExchanges` garde les echanges sur
+        //     l'appartenance. Les 23 tests de TASK1608FlowchartVisibilityTest
+        //     mesurent les six combinaisons des deux axes, plus la frontiere de
+        //     l'Organization privee.
+        //   * `mycelium` — `MyceliumController::index()` ne prend AUCUNE
+        //     Organization en parametre : il lit la constitution de la
+        //     PLATEFORME et les Organizations qui ont choisi de publier.
+        //   * `open-source` — `OpenSourceController::page()` rend un instantane
+        //     de depot, strictement identique a celui de la route globale.
+        //
+        // Les deux routes GLOBALES jumelles (`mycelium`, `open-source.page`)
+        // sont restees publiques tout du long : l'asymetrie que T1692 avait
+        // elle-meme signalee comme appartenant a MASTER est levee.
+        'organization.flowchart' => 'Carte interactive du produit. Mandat TASK-1608, rendu par decision MASTER du 25/10 : elle explique le produit a un visiteur qui n\'a pas de compte. Socle public uniquement, frontiere Organization privee portee par le controleur.',
+        'organization.mycelium' => 'Constitution de la plateforme et Organizations qui ont choisi de publier. Contrat TASK-1604 rendu : MEME contenu que la route globale `/mycelium`, elle-meme publique. Aucune lecture de tenant.',
+        'organization.open-source' => 'Instantane du depot public. Contrat TASK-1613 rendu : MEME vue et MEME contenu que la route globale `/open-source`, elle-meme publique. Aucune lecture de tenant.',
     ];
 
     /**
@@ -266,14 +309,27 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
      * TASK-1692 / MICRO-11.2A — le predicat VOIT `withoutMiddleware()`.
      *
      * C'est la non-regression du defaut qui a desarme la garde. Elle nomme les
-     * deux routes concernees plutot qu'un compte, pour qu'un echec dise
-     * LAQUELLE a change de statut.
+     * routes concernees plutot qu'un compte, pour qu'un echec dise LAQUELLE a
+     * change de statut.
+     *
+     * TASK-1698 — elles sont CINQ : les trois surfaces rendues par decision
+     * MASTER rejoignent `home` et `mentions-legales`. Ce test est le bon
+     * endroit pour l'exiger, parce qu'il verifie les DEUX moities du montage —
+     * la route herite `auth` du groupe, ET l'excepte nominativement. Une
+     * publicite obtenue autrement (par exemple en sortant la route du groupe)
+     * rougirait ici, et c'est voulu : c'est ce montage-la qui est l'idiome.
      */
     public function test_the_predicate_sees_routes_excepted_from_the_group_guard(): void
     {
         $reachable = $this->guestReachableRoutes();
 
-        foreach (['organization.home', 'organization.mentions-legales'] as $name) {
+        foreach ([
+            'organization.home',
+            'organization.mentions-legales',
+            'organization.flowchart',
+            'organization.mycelium',
+            'organization.open-source',
+        ] as $name) {
             $route = collect($this->organizationRoutes())
                 ->first(fn (RoutingRoute $r) => $r->getName() === $name);
 
@@ -299,7 +355,12 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
     {
         $reachable = $this->guestReachableRoutes();
 
-        foreach (['organization.mycelium', 'organization.dashboard', 'organization.members.index'] as $name) {
+        // TASK-1698 — `organization.mycelium` SORT de cette liste : elle porte
+        // desormais l'opt-out nominatif, et c'est le test precedent qui la
+        // mesure. Elle est remplacee par `organization.boucles.index`, qui
+        // herite la garde du groupe SANS s'en excepter — exactement le role que
+        // `mycelium` tenait ici, et une surface qui, elle, lit du tenant.
+        foreach (['organization.boucles.index', 'organization.dashboard', 'organization.members.index'] as $name) {
             $route = collect($this->organizationRoutes())
                 ->first(fn (RoutingRoute $r) => $r->getName() === $name);
 

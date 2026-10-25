@@ -308,6 +308,32 @@ class TASK1692StrictHttpIsolationTest extends TestCase
         ], $observations[0]);
     }
 
+    /**
+     * TASK-1698 — cet inventaire gagne TROIS entrees, et c'est le bon endroit
+     * pour en rendre compte : il est l'autorite structurelle, celle qu'on ne
+     * peut pas elargir sans l'ecrire.
+     *
+     * `flowchart`, `mycelium` et `open-source` ont ete ecrites publiques et
+     * DOCUMENTEES publiques (« arbitrage MASTER : la page reste PUBLIQUE »),
+     * munies de leur garde propre, mais sans jamais s'extraire du groupe FERME
+     * PAR DEFAUT — l'appel `withoutMiddleware(['auth', 'organization.member'])`
+     * que portent `home` et `mentions-legales`. Le groupe les a refermees en
+     * silence. `git log -L` sur ces lignes ne montre que leurs TASK creatrices,
+     * T1604, T1608 et T1613 : **jamais T1692**, arrivee apres et qui a fige
+     * l'etat observe.
+     *
+     * Les trois controleurs ont ete re-mesures avant l'ouverture :
+     * `MyceliumController` lit la constitution de la PLATEFORME et les
+     * Organizations qui ont choisi de publier ; `OpenSourceController` lit un
+     * instantane de depot ; `OrganizationFlowchartController` garde sa garde
+     * propre et son graphe consomme `VisibleLoops`, qui ne rend a un invite que
+     * la structure, zero Boucle reelle. Aucun des trois ne lit de donnee de
+     * tenant.
+     *
+     * Le nom de ce test reste volontairement inchange : il dit ce que T1692 a
+     * decide, et ce qui change ici n'est pas sa decision mais le perimetre
+     * d'un accident qu'elle avait pris pour elle.
+     */
     public function test_g_only_home_legal_and_the_eight_auth_endpoints_are_public(): void
     {
         $public = [];
@@ -336,9 +362,12 @@ class TASK1692StrictHttpIsolationTest extends TestCase
 
         $this->assertSame([
             'GET org/{organization}',
+            'GET org/{organization}/flowchart',
             'GET org/{organization}/forgot-password',
             'GET org/{organization}/login',
             'GET org/{organization}/mentions-legales',
+            'GET org/{organization}/mycelium',
+            'GET org/{organization}/open-source',
             'GET org/{organization}/register',
             'GET org/{organization}/reset-password/{token}',
             'POST org/{organization}/forgot-password',
@@ -362,9 +391,6 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             route('organization.workshop.show', [$this->b, 'atelier-public']),
             route('organization.constitution', $this->b),
             route('organization.bug-reports.index', $this->b),
-            route('organization.flowchart', $this->b),
-            route('organization.open-source', $this->b),
-            route('organization.mycelium', $this->b),
             route('organization.subscriptions', $this->b),
             route('organization.boucles.index', $this->b),
             route('organization.blog.index', $this->b),
@@ -377,6 +403,23 @@ class TASK1692StrictHttpIsolationTest extends TestCase
         foreach ($formerlyPublic as $url) {
             $this->forgetOrganization();
             $this->get($url)->assertRedirect($login);
+        }
+
+        // TASK-1698 — les trois destinations du pied QUITTENT cette liste, et
+        // changent de colonne : elles rendent 200 a un anonyme. Elles n'y
+        // etaient pas par decision de T1692 mais par l'effet du groupe ferme
+        // par defaut, faute de l'opt-out que leurs TASK creatrices avaient
+        // oublie (voir le docblock de `test_g_only_home_legal_…`).
+        //
+        // La contre-epreuve est ici plutot qu'en negatif : retirer trois
+        // lignes d'une liste d'absences ne prouve rien, les voir rendre 200 si.
+        foreach ([
+            route('organization.flowchart', $this->b),
+            route('organization.mycelium', $this->b),
+            route('organization.open-source', $this->b),
+        ] as $url) {
+            $this->forgetOrganization();
+            $this->get($url)->assertOk();
         }
 
         $session = '00000000-0000-4000-8000-000000000169';
@@ -412,8 +455,13 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             $this->assertStringNotContainsString('t1692-private-member.png', $html);
             $this->assertStringNotContainsString('<div class="avatars">', $html);
             $this->assertStringNotContainsString('data-guest-shell', $html);
-            $this->assertStringNotContainsString('data-footer-mycelium', $html);
-            $this->assertStringNotContainsString('data-footer-flowchart', $html);
+            // TASK-1698 — Mycelium et le logigramme SORTENT de cette liste
+            // d'absences : ce ne sont plus des « liens internes morts », leurs
+            // pages sont publiques. Ce que ce test mesure est inchange — aucun
+            // contenu prive de tenant, aucun lien qui ne mene nulle part — et
+            // c'est precisement pourquoi ces deux-la n'y ont plus leur place :
+            // ils menent quelque part, pour tout le monde.
+            $this->assertStringContainsString('data-footer-mycelium', $html);
             $this->assertStringNotContainsString('data-bp-mobile-nav', $html);
             // TASK-1693 bug AQ — viser le MARQUEUR du rail, pas sa chaine de
             // classes : `<aside x-data class="hidden md:flex` cassait des qu'un

@@ -1215,7 +1215,24 @@ Route::prefix('/org/{organization}')
         // Pas de route globale `/flowchart` : le mandat la reserve a une
         // necessite demontree, et il n'y en a pas — une carte hors
         // Organization n'aurait ni charte, ni Boucles, ni sens.
-        Route::get('/flowchart', OrganizationFlowchartController::class)->name('flowchart');
+
+          // TASK-1698 — l'opt-out qui MANQUAIT depuis l'origine.
+          //
+          // Le groupe `/org/{organization}` est FERME PAR DEFAUT
+          // (`auth` + `organization.member`) : une route publique doit s'en
+          // extraire, comme le font `home` et `mentions-legales`. Les trois
+          // routes ci-dessous ont ete ecrites publiques, DOCUMENTEES publiques
+          // et munies de leur garde propre — mais sans cette ligne. Le groupe
+          // les a refermees en silence.
+          //
+          // Mesure : les lignes concernees n'ont jamais ete touchees que par
+          // leurs TASK creatrices (T1604, T1608, T1613). T1692 est arrive
+          // apres, a constate la fermeture, et a ecrit un test qui l'epingle
+          // comme une decision — « ses deux destinations de pied ne le sont
+          // plus ». C'etait un accident, pas un arbitrage.
+        Route::get('/flowchart', OrganizationFlowchartController::class)
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('flowchart');
 
           // TASK-1602 — les mentions legales servies DANS le contexte de
           // l'Organization : MEME vue, donc contenu unique, jamais duplique.
@@ -1238,7 +1255,9 @@ Route::prefix('/org/{organization}')
           // subsiste pour les surfaces qui n'EXPRIMENT pas d'Organization
           // (`/login`, `/about`), et `organizationScopedUrl()` choisit entre
           // les deux — jamais un tenant devine par defaut (borne TASK-1602).
-          Route::get('/open-source', [OpenSourceController::class, 'page'])->name('open-source');
+          Route::get('/open-source', [OpenSourceController::class, 'page'])
+              ->withoutMiddleware(['auth', 'organization.member'])
+              ->name('open-source');
 
           // TASK-1604 — Mycelium servi DANS le contexte de l'Organization.
           //
@@ -1258,7 +1277,9 @@ Route::prefix('/org/{organization}')
           // A ne pas confondre avec `/org/{organization}/constitution`, qui publie
           // la Constitution de CETTE Organization et reste 404 tant que personne ne
           // l'a explicitement rendue publique.
-          Route::get('/mycelium', [MyceliumController::class, 'index'])->name('mycelium');
+          Route::get('/mycelium', [MyceliumController::class, 'index'])
+              ->withoutMiddleware(['auth', 'organization.member'])
+              ->name('mycelium');
 
         Route::middleware('guest')
             ->withoutMiddleware(['auth', 'organization.member'])

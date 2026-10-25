@@ -344,12 +344,21 @@ class OpenSourceExplorerTest extends TestCase
     }
 
     /**
-     * TASK-1692 — la borne anonyme de la variante prefixee, prouvee a part.
+     * TASK-1698 — la variante prefixee est ROUVERTE, et l'enonce s'inverse.
      *
-     * La route globale reste publique : c'est elle qui porte la promesse
-     * d'ouverture du produit. Seule l'URL scopee demande une session.
+     * T1692 avait ecrit ici : « la route globale reste publique, c'est elle qui
+     * porte la promesse d'ouverture du produit ; seule l'URL scopee demande une
+     * session. » La distinction n'avait pas de fondement : MEME vue, MEME
+     * contenu, MEME instantane de depot — le test juste au-dessus le mesure
+     * depuis T1613. Rien dans cette page ne depend d'un tenant.
+     *
+     * La fermeture etait un accident de routage : `open-source` n'avait jamais
+     * pose l'opt-out du groupe `/org/{organization}`, ferme par defaut (voir
+     * `routes/web.php` et T1613, qui la documentait publique).
+     *
+     * Les deux variantes sont donc mesurees ensemble, 200 toutes les deux.
      */
-    public function test_the_prefixed_explorer_is_closed_to_an_anonymous_visitor(): void
+    public function test_the_prefixed_explorer_is_open_to_an_anonymous_visitor(): void
     {
         Organization::factory()->create([
             'slug' => 'test-open-source',
@@ -360,7 +369,8 @@ class OpenSourceExplorerTest extends TestCase
         $this->fakeGithub();
 
         $this->get('/org/test-open-source/open-source')
-            ->assertRedirect(route('organization.login', ['organization' => 'test-open-source']));
+            ->assertOk()
+            ->assertSee('BouclePro Core');
 
         $this->get('/open-source')->assertOk()->assertSee('BouclePro Core');
     }
@@ -434,10 +444,14 @@ class OpenSourceExplorerTest extends TestCase
         ]);
 
         // 1. L'ANONYME d'abord — `actingAs()` ne se defait pas, et une requete
-        //    posee apres lui n'est plus anonyme du tout. Sur une surface restee
-        //    publique il n'obtient plus le lien, la variante prefixee etant
-        //    fermee depuis TASK-1692 ; mais l'invariant de TASK-1613 tient
-        //    toujours : l'URL du depot n'apparait NULLE PART.
+        //    posee apres lui n'est plus anonyme du tout.
+        //
+        //    TASK-1698 — il obtient de nouveau le lien borne : la variante
+        //    prefixee de l'explorateur n'avait jamais pose l'opt-out du groupe
+        //    `/org/{organization}`, ferme par defaut, et T1613 la documentait
+        //    publique. C'est un viseur PLUS exigeant pour l'invariant de
+        //    T1613 : il y a maintenant un lien a inspecter sur cette page, et
+        //    l'URL du depot ne doit toujours apparaitre NULLE PART.
         $anonyme = $this->get($path);
 
         if ($publiqueEnAnonyme) {
@@ -445,7 +459,13 @@ class OpenSourceExplorerTest extends TestCase
 
             $this->assertStringNotContainsString('cslucki', $htmlAnonyme);
             $this->assertStringNotContainsString('github.com/cslucki', $htmlAnonyme);
-            $this->assertStringNotContainsString('/org/'.$organisation->slug.'/open-source', $htmlAnonyme);
+            // L'icone GitHub, elle, est sur les DEUX gabarits autonomes : c'est
+            // elle qui porte l'invariant de T1613 (une redirection BouclePro,
+            // jamais l'URL du depot). Le lien TEXTE « OpenSource » n'existe que
+            // sur `hero-v2` — `artscilab-hero` ne l'a jamais porte — et sa
+            // presence est mesuree par les tests de pied de page, pas ici : ce
+            // test-ci n'existe que pour l'URL du depot.
+            $this->assertStringContainsString('/open-source/github', $htmlAnonyme);
         } else {
             $anonyme->assertRedirect(route('organization.login', ['organization' => $organisation->slug]));
         }

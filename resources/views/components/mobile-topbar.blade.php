@@ -2,7 +2,27 @@
 
 @php
     $routeName = request()->route()?->getName() ?? '';
-    $organizationRouteParam = request()->route('organization');
+    // TASK-1698 — le repli que ce fichier n'avait pas.
+    //
+    // `$routeUrl()` ne borne que si `$organizationRouteParam` est renseigne.
+    // Il ne l'etait QUE par le parametre d'URL : sur toute page sans prefixe
+    // (`/profile/edit`, `/verify-email`, `/dashboard`…), les **20** liens de
+    // cette barre qui passent par le helper rendaient l'URL GLOBALE — et
+    // `ResolveUrlOrganization` lie alors l'Organization PAR DEFAUT.
+    //
+    // Le helper n'etait donc pas mal employe : son ENTREE etait vide. C'est
+    // pourquoi convertir trois liens de plus n'avait rien change avant cette
+    // ligne.
+    //
+    // `app-side-nav` porte ce repli depuis toujours (sa ligne 9). On l'aligne,
+    // avec une difference ASSUMEE : le rail prefere l'Organization que la
+    // personne ADMINISTRE (`$adminOrganization`), cette barre prend celle dont
+    // elle est MEMBRE — c'est deja l'expression qu'elle utilise plus bas pour
+    // les notifications (T1374). Un administrateur d'une autre Organization
+    // verra donc deux cibles differentes entre le rail et la barre : ecart
+    // connu, hors de ce correctif.
+    $organizationRouteParam = request()->route('organization')
+        ?: (auth()->check() ? auth()->user()?->organization?->slug : null);
 
     // TASK-1374 — le Centre doit etre atteignable sur mobile.
     //
@@ -284,7 +304,7 @@
                     @endif
                     <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()->profileRouteKey()]) : route('profile.show', auth()->user()->profileRouteKey())">{{ __('navigation.profile') }}</x-dropdown-link>
                     @if(!$currentOrganization || $currentOrganization->ai_profiles_enabled)
-                    <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
+                    <x-dropdown-link :href="$routeUrl('agent-ia.wizard', 'organization.agent-ia.wizard')" data-topbar-ai-wizard>{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     @endif
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     {{-- TASK-1625 — Notifications a quitte ce menu : la cloche du
@@ -292,12 +312,19 @@
                          lieu de deux. Le compteur `$mobileUnreadNotifications`
                          reste calcule en tete de fichier, il sert maintenant la
                          cloche. --}}
+                    {{-- TASK-1698 — trois entrees de ce menu appelaient `route()`
+                         NU la ou leurs voisines immediates passaient deja par
+                         `$routeUrl`. Le helper etait la, applique a trois liens
+                         et pas aux trois autres : un oubli, pas une decision.
+                         Sans prefixe, `ResolveUrlOrganization` lie
+                         l'Organization PAR DEFAUT et l'on change de locataire
+                         sans s'en apercevoir. --}}
                     <x-dropdown-link :href="$routeUrl('points.index', 'organization.points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
                     <x-dropdown-link :href="$routeUrl('invitations.index', 'organization.invitations.index')">{{ __('navigation.invitations') }}</x-dropdown-link>
-                    <x-dropdown-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-dropdown-link>
+                    <x-dropdown-link :href="$routeUrl('favorites.index', 'organization.favorites.index')" data-topbar-favorites>{{ __('navigation.favorites') }}</x-dropdown-link>
                     {{-- TASK-1281 : org-scoped, sinon « Mes articles » s'ouvre dans l'Organization par defaut --}}
                     <x-dropdown-link :href="$routeUrl('blog.my-posts', 'organization.blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
-                    <x-dropdown-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-dropdown-link>
+                    <x-dropdown-link :href="$routeUrl('profile.edit', 'organization.profile.edit')" data-topbar-settings>{{ __('navigation.settings') }}</x-dropdown-link>
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     <x-dropdown-link :href="organizationScopedUrl('mentions-legales', 'organization.mentions-legales')">{{ __('navigation.legal_notices') }}</x-dropdown-link>
                     <a href="{{ $bugReportUrl }}" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 text-amber-700 transition duration-150 ease-in-out hover:bg-amber-50 focus:bg-amber-50 focus:outline-none dark:text-amber-300 dark:hover:bg-amber-950/40 dark:focus:bg-amber-950/40">

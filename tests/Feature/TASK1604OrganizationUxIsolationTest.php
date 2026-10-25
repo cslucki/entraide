@@ -183,30 +183,30 @@ class TASK1604OrganizationUxIsolationTest extends TestCase
     }
 
     /**
-     * CHANGEMENT D'INTENTION PRODUIT — TASK-1692.
+     * TASK-1698 — LE CONTRAT D'ORIGINE EST RENDU, et ce test reprend son nom.
      *
-     * Ce test s'appelait `test_b_a_guest_sees_mycelium_inside_the_organization`
-     * et affirmait l'inverse de ce qu'il affirme aujourd'hui. TASK-1604 avait
-     * voulu le Mycelium borne AUSSI public que le Mycelium global ; TASK-1692 a
-     * pose `auth` + `organization.member` sur tout le groupe
-     * `/org/{organization}` et l'a referme.
+     * Il s'appelait `test_b_a_guest_sees_mycelium_inside_the_organization`.
+     * TASK-1692 l'a renomme en `..._is_refused_...`, en consignant qu'il
+     * s'agissait d'une « DECISION PRODUIT renversee » et que « l'asymetrie
+     * entre les deux est reelle et appartient a MASTER ».
      *
-     * Ce n'est donc pas une assertion corrigee, c'est une DECISION PRODUIT
-     * renversee, et elle est consignee comme telle. La route GLOBALE
-     * `/mycelium`, elle, reste publique — l'asymetrie entre les deux est reelle
-     * et appartient a MASTER, voir le bloc retire de `PUBLIC_BY_DECISION` dans
-     * `TASK1489OrgRouteGuestBoundaryTest`.
+     * MASTER a tranche le 25/10. Le motif de la fermeture n'etait pas un
+     * arbitrage mais l'absence, des l'origine, de l'opt-out que porte toute
+     * route publique du groupe `/org/{organization}` : T1604 avait ecrit cette
+     * route publique sans jamais lui poser `withoutMiddleware`.
+     *
+     * Les deux faits sont mesures ensemble, comme avant : la page bornee est
+     * servie, ET la route globale l'est aussi — c'est la symetrie que T1604
+     * voulait (« le MEME contenu que le global »), et elle est de nouveau vraie.
      */
-    public function test_b_a_guest_is_refused_the_scoped_mycelium_but_keeps_the_global_one(): void
+    public function test_b_a_guest_sees_mycelium_inside_the_organization(): void
     {
         $this->oublierOrganisation();
 
-        $reponse = $this->get(route('organization.mycelium', ['organization' => $this->otherOrg->slug]));
+        $this->get(route('organization.mycelium', ['organization' => $this->otherOrg->slug]))
+            ->assertOk();
 
-        $reponse->assertRedirect(route('organization.login', ['organization' => $this->otherOrg->slug]));
-        $this->assertStringNotContainsString($this->otherOrg->name, $reponse->getContent());
-
-        // La promesse de transparence n'est pas perdue : elle a change d'URL.
+        // Et la route globale, qui n'a jamais cesse de l'etre.
         $this->oublierOrganisation();
         $this->get(route('mycelium'))->assertOk();
     }
@@ -235,14 +235,25 @@ class TASK1604OrganizationUxIsolationTest extends TestCase
         $this->oublierOrganisation();
 
         // L'ANONYME d'abord : `actingAs()` ne se defait pas.
+        //
+        // TASK-1698 — il recoit le MEME lien que le membre. La page bornee est
+        // publique de nouveau, donc la poignee n'est plus « un lien vers une
+        // page fermee ». Ce que ce test mesure reste entier, et c'est son objet
+        // depuis T1604 : le lien pointe vers le Mycelium de CETTE Organization,
+        // jamais vers le Mycelium global ni vers celui d'une autre.
         $anonyme = $this->get(route('organization.home', ['organization' => $this->defaultOrg->slug]))
             ->assertOk()
             ->getContent();
 
-        $this->assertStringNotContainsString(
+        $this->assertStringContainsString(
             '/org/'.$this->defaultOrg->slug.'/mycelium',
             $anonyme,
-            'un lien vers une page fermee est propose a un visiteur anonyme'
+            'l\'accueil ne propose pas a un anonyme le Mycelium de son Organization'
+        );
+        $this->assertStringNotContainsString(
+            '/org/'.$this->otherOrg->slug.'/',
+            $anonyme,
+            'l\'accueil propose a un anonyme un lien vers une AUTRE Organization'
         );
 
         $this->oublierOrganisation();
@@ -397,32 +408,36 @@ class TASK1604OrganizationUxIsolationTest extends TestCase
     }
 
     /**
-     * CHANGEMENT D'INTENTION PRODUIT — TASK-1692.
+     * TASK-1698 — ce test reprend son nom d'origine,
+     * `test_c_the_scoped_mycelium_stays_public`.
      *
-     * S'appelait `test_c_the_scoped_mycelium_stays_public`. Le Mycelium borne
-     * est desormais reserve aux membres de SON Organization ; le Mycelium
-     * global reste public. Les trois cas sont mesures ensemble, sans quoi un
-     * `assertRedirect()` isole serait vert meme si la page avait disparu pour
-     * tout le monde.
+     * Les QUATRE viseurs sont mesures ensemble, et c'est ce qui donne sa force
+     * a l'ensemble : si la page avait disparu pour tout le monde, ou si elle
+     * s'etait ouverte en perdant sa charte d'Organization, un seul des quatre
+     * volets rougirait. Le dernier est le plus exigeant — le membre voit le NOM
+     * de son Organization, donc la page est bien servie dans SON contexte et
+     * pas comme une copie de la route globale.
      */
-    public function test_c_the_scoped_mycelium_is_member_only_while_the_global_one_stays_public(): void
+    public function test_c_the_scoped_mycelium_stays_public(): void
     {
-        // Anonyme : refuse.
+        // Anonyme : servie.
         $this->oublierOrganisation();
         $this->get(route('organization.mycelium', ['organization' => $this->otherOrg->slug]))
-            ->assertRedirect(route('organization.login', ['organization' => $this->otherOrg->slug]));
+            ->assertOk();
 
         // Global : toujours public.
         $this->oublierOrganisation();
         $this->get(route('mycelium'))->assertOk();
 
-        // Membre d'une AUTRE Organization : 404, pas d'oracle.
+        // Membre d'une AUTRE Organization : servie aussi — cette page ne lit
+        // aucune donnee de tenant, `MyceliumController::index()` ne prend meme
+        // pas d'Organization en parametre.
         $this->oublierOrganisation();
         $this->actingAs($this->defaultMember)
             ->get(route('organization.mycelium', ['organization' => $this->otherOrg->slug]))
-            ->assertNotFound();
+            ->assertOk();
 
-        // Membre de CETTE Organization : il voit sa page.
+        // Membre de CETTE Organization : il voit sa page, dans sa charte.
         $this->oublierOrganisation();
         $this->actingAs($this->otherMember->fresh())
             ->get(route('organization.mycelium', ['organization' => $this->otherOrg->slug]))

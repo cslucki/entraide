@@ -195,7 +195,11 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       <img class="foot-symbol" src="{{ asset('img/bouclepro-symbol.png') }}" alt="" aria-hidden="true">
     </div>
     <nav class="foot-right">
-      @if($showInternalHomepageContent)
+      {{-- TASK-1698 — le pied est servi EN ENTIER, connecte ou non.
+           Mycelium, le logigramme et l'explorateur Open Source etaient
+           fermes par ACCIDENT (opt-out manquant dans `routes/web.php`, voir
+           `hero-v2`). Leurs routes sont publiques : les masquer ne protegeait
+           rien, cela retirait trois entrees au visiteur anonyme. --}}
       {{-- TASK-1608, addendum vocabulaire — « Mycelium · Flowchart ».
 
            ECART ASSUME, rapporte a MASTER : ce gabarit ne portait AUCUN lien
@@ -209,9 +213,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
         <span class="foot-sep" aria-hidden="true">·</span>
         <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
       </span>
-      @endif
       <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ org_trans('artscilab.footer_terms') }}</a>
-      @if($showInternalHomepageContent)
       {{-- TASK-1613 — l'icone ouvre l'explorateur du depot, comme partout
            ailleurs. Cible : `/open-source/github`, une redirection
            BouclePro — jamais l'URL du depot, ni dans le HTML ni au survol. --}}
@@ -219,7 +221,6 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
          aria-label="{{ __('open_source.github_aria') }}">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 .1.8 1.7 2.5 1.4.1-.7.4-1.2.7-1.5-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.5 18.3 4.8 18.3 4.8c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
       </a>
-      @endif
     </nav>
   </footer>
 </div>

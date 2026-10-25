@@ -372,38 +372,48 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
     // =====================================================================
 
     /**
-     * La landing reste publique ; ses deux destinations de pied ne le sont
-     * plus. Un lien propose a un anonyme ne menerait qu'a une redirection :
-     * il n'est donc pas publie.
+     * TASK-1698 — cette garde EPINGLAIT UN ACCIDENT, et son enonce s'inverse.
      *
-     * Ce test est la moitie du contrat que le passage a un acteur membre, dans
-     * les tests ci-dessus, aurait pu faire disparaitre en silence. Il mesure
-     * les deux faits separement — le lien absent, ET la page refusee — parce
-     * que l'un n'implique pas l'autre : masquer une poignee ne ferme pas une
-     * porte, c'est la lecon de TASK-1651.
+     * Elle affirmait : « la landing reste publique ; ses deux destinations de
+     * pied ne le sont plus. Un lien propose a un anonyme ne menerait qu'a une
+     * redirection : il n'est donc pas publie. »
+     *
+     * Mesure : la fermeture n'etait pas une decision. Le groupe
+     * `/org/{organization}` est FERME PAR DEFAUT, et une route publique doit
+     * s'en extraire par `withoutMiddleware` — ce que font `home` et
+     * `mentions-legales`. `flowchart`, `mycelium` et `open-source` ont ete
+     * ecrites publiques, DOCUMENTEES publiques (« arbitrage MASTER : la page
+     * reste PUBLIQUE »), munies de leur garde propre… et sans cette ligne.
+     *
+     * Les lignes concernees n'ont jamais ete touchees que par leurs TASK
+     * creatrices — T1604, T1608, T1613 — **jamais par T1692**. Celle-ci est
+     * arrivee apres et a fige l'etat observe.
+     *
+     * Ce que la garde mesure desormais : les trois destinations sont
+     * ATTEIGNABLES par un anonyme, et son lien est publie. La moitie du
+     * contrat qui reste vraie — « masquer une poignee ne ferme pas une porte »,
+     * lecon T1651 — est tenue par le seul lien encore borne : « Un bug ? ».
      */
-    public function test_an_anonymous_landing_publishes_no_link_to_the_closed_prefixed_pages(): void
+    public function test_an_anonymous_landing_reaches_the_public_prefixed_pages(): void
     {
         foreach ([$this->main, $this->launchpals] as $organisation) {
             $this->oublierOrganisation();
 
-            $landing = $this->get('/org/'.$organisation->slug);
-            $landing->assertOk();
+            $html = $this->get('/org/'.$organisation->slug)->assertOk()->getContent();
 
-            $html = $landing->getContent();
+            $this->assertStringContainsString('data-footer-mycelium', $html, "Lien Mycelium absent pour un anonyme sur {$organisation->slug}.");
+            $this->assertStringContainsString('data-footer-flowchart', $html, "Lien Logigramme absent pour un anonyme sur {$organisation->slug}.");
 
-            $this->assertStringNotContainsString('data-footer-mycelium', $html, "Lien Mycelium propose a un anonyme sur {$organisation->slug}.");
-            $this->assertStringNotContainsString('data-footer-flowchart', $html, "Lien Logigramme propose a un anonyme sur {$organisation->slug}.");
-            $this->assertStringNotContainsString('/org/'.$organisation->slug.'/flowchart', $html);
-            $this->assertStringNotContainsString('/org/'.$organisation->slug.'/mycelium', $html);
+            // Et la porte s'ouvre vraiment, pas seulement sa poignee.
+            foreach (['flowchart', 'mycelium', 'open-source'] as $page) {
+                $this->oublierOrganisation();
+                $this->get('/org/'.$organisation->slug.'/'.$page)
+                    ->assertOk();
+            }
 
-            // Et la porte elle-meme est fermee, pas seulement sa poignee.
+            // Le seul mur restant, et il est VOULU : « Un bug ? ».
             $this->oublierOrganisation();
-            $this->get('/org/'.$organisation->slug.'/flowchart')
-                ->assertRedirect(route('organization.login', ['organization' => $organisation->slug]));
-
-            $this->oublierOrganisation();
-            $this->get('/org/'.$organisation->slug.'/mycelium')
+            $this->get('/org/'.$organisation->slug.'/bugs')
                 ->assertRedirect(route('organization.login', ['organization' => $organisation->slug]));
         }
     }
@@ -418,8 +428,18 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
      * visiteurs anonymes des pages publiques, qui sont precisement ceux a qui
      * un kit de demonstration s'adresse.
      *
-     * Les trois faits sont mesures ENSEMBLE : sans le troisieme, rendre tout
-     * le bloc public rendrait ce test vert.
+     * TASK-1698 — le troisieme fait de cette garde est RETIRE, et c'est le
+     * point delicat : il demandait que « les destinations fermees ne reviennent
+     * pas avec lui », precisement pour qu'ouvrir tout le bloc ne rende pas ce
+     * test vert par accident. Ouvrir le bloc est exactement ce que fait
+     * TASK-1698 — mais pas par relachement : l'opt-out du groupe ferme par
+     * defaut manquait aux trois routes (voir `routes/web.php`), elles sont
+     * publiques, et le pied partage n'a plus de raison de les masquer.
+     *
+     * Ce que ce test mesure donc encore, et qui reste son objet : « Kit demo »
+     * est propose a un anonyme, et il est propose AVEC ses voisins non gardes.
+     * La discrimination qu'il portait — garde tenant vs lien externe — est
+     * desormais sans objet dans ce pied, puisqu'il ne porte plus de garde.
      */
     public function test_an_anonymous_landing_keeps_the_external_demo_kit_link(): void
     {
@@ -438,11 +458,14 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
             $html
         );
 
-        // 3. Et les destinations FERMEES ne reviennent pas avec lui — sans ce
-        //    troisieme point, rendre tout le bloc public rendrait ce test vert.
-        $this->assertStringNotContainsString('data-footer-mycelium', $html);
-        $this->assertStringNotContainsString('data-footer-flowchart', $html);
-        $this->assertStringNotContainsString('/org/'.$this->partage->slug.'/open-source', $html);
+        // 3. TASK-1698 — les trois destinations rouvertes sont servies, et
+        //    BORNEES a l'Organization de l'URL. Le pied partage ne distingue
+        //    plus un anonyme d'un membre : seul « Un bug ? » garde son mur, et
+        //    sa page garde sa garde de route.
+        $this->assertStringContainsString('data-footer-mycelium', $html);
+        $this->assertStringContainsString('data-footer-flowchart', $html);
+        $this->assertStringContainsString('/org/'.$this->partage->slug.'/open-source', $html);
+        $this->assertStringContainsString('/org/'.$this->partage->slug.'/flowchart', $html);
 
         // 4. Le meme pied, hors de tout prefixe d'Organization : la page de
         //    connexion. Elle, montre tout le bloc, et c'est correct — sans

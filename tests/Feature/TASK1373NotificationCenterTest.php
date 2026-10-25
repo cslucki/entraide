@@ -608,11 +608,30 @@ class TASK1373NotificationCenterTest extends TestCase
         // avec son compte » — est tenue par une surface meilleure, pas
         // affaiblie.
         $this->assertStringContainsString('data-mobile-topbar-notifications-unread="1"', $html);
-        $this->assertGreaterThanOrEqual(
-            2,
-            substr_count($html, 'href="'.route('notifications.index').'"'),
-            'Le Centre doit etre atteignable depuis le rail ET depuis la surface mobile.'
-        );
+
+        // TASK-1698 — cette garde comptait les occurrences de l'URL NON
+        // PREFIXEE et en exigeait deux. Mesure : le rail etait deja borne
+        // (`$routeUrl` avec un repli qui fonctionne), la barre mobile ne
+        // l'etait pas — la deuxieme occurrence qu'elle comptait **etait le
+        // defaut**. L'assertion epinglait donc le bug comme une de ses deux
+        // surfaces.
+        //
+        // La garantie annoncee — « atteignable depuis le rail ET depuis la
+        // surface mobile » — est tenue PAR SURFACE, par son marqueur, et sans
+        // figer la forme de l'URL. C'est plus fort : compter des chaines ne
+        // disait pas QUI portait le lien.
+        $cible = route('organization.notifications.index', ['organization' => $this->orgMembre->slug]);
+
+        foreach ([
+            'data-side-nav-notifications' => 'le rail',
+            'data-mobile-topbar-notifications' => 'la surface mobile',
+        ] as $marqueur => $surface) {
+            $this->assertSame(1, preg_match('/<a[^>]*'.preg_quote($marqueur, '/').'[^>]*>/', $html, $lien),
+                "Le Centre n'est pas atteignable depuis {$surface}.");
+
+            $this->assertStringContainsString('href="'.$cible.'"', $lien[0],
+                "Le lien de {$surface} ne mene pas aux notifications de cette Organization.");
+        }
     }
 
     /** L'entree de navigation pointe vers le Centre. */
