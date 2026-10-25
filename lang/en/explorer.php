@@ -6,7 +6,7 @@ return [
     'requests' => 'Requests',
     'services' => 'Proposals',
     'help_requests' => 'Help requests',
-    'service_proposals' => 'Help proposals',
+    'service_proposals' => 'Mutual aid proposals',
     'request' => 'help request',
     'service' => 'service',
     'offer_service' => 'Offer my help',

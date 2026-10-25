@@ -6,7 +6,7 @@ return [
     'requests' => 'Demandes',
     'services' => 'Propositions',
     'help_requests' => 'Demandes d\'aide',
-    'service_proposals' => 'Propositions d\'aide',
+    'service_proposals' => 'Propositions d\'entraide',
     'request' => 'demande d\'aide',
     'service' => 'service',
     'offer_service' => 'Proposer de l\'aide',
