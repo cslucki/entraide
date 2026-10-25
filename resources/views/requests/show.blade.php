@@ -1,4 +1,4 @@
-<x-page :title="$request->title" width="7xl">
+<x-app-layout :title="$request->title">
     @php
         $_reqOrgSlug = request()->route('organization');
         $_reqExplorerHref = ($_reqOrgSlug && Route::has('organization.explorer') ? route('organization.explorer', ['organization' => $_reqOrgSlug]) : route('explorer')).'?tab=requests';
@@ -7,9 +7,16 @@
         $_reqTxStoreAction = $_reqOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_reqOrgSlug]) : route('transactions.store');
         $_reqEditHref = $_reqOrgSlug && Route::has('organization.requests.edit') ? route('organization.requests.edit', ['organization' => $_reqOrgSlug, 'request' => $request]) : route('requests.edit', $request);
     @endphp
-        <div class="mb-6">
-            <a href="{{ $_reqExplorerHref }}" class="text-sm text-gray-500 hover:text-indigo-600">← {{ __('explorer.help_requests') }}</a>
-        </div>
+    {{-- Desktop topbar --}}
+    <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
+        <a href="{{ $_reqExplorerHref }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="{{ __('requests.show.back') }}">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ __('explorer.help_requests') }}</span>
+        <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-medium text-white shrink-0" style="background-color:{{ $request->category->color }}">{{ $request->category->displayName('transactions') }}</span>
+    </div>
+
+    <x-page-container width="7xl">
 
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div class="p-6">
@@ -133,5 +140,5 @@
                 @endauth
             </div>
         </div>
-    </div>
-</x-page>
+    </x-page-container>
+</x-app-layout>

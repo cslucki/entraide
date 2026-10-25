@@ -5,7 +5,7 @@ return [
     'title' => 'Entraide',
     'requests' => 'Demandes',
     'services' => 'Propositions',
-    'help_requests' => 'Demandes d\'aide',
+    'help_requests' => 'Demandes d\'entraide',
     'service_proposals' => 'Propositions d\'entraide',
     'request' => 'demande d\'aide',
     'service' => 'service',

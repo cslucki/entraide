@@ -5,7 +5,7 @@ return [
     'title' => 'Mutual aid',
     'requests' => 'Requests',
     'services' => 'Proposals',
-    'help_requests' => 'Help requests',
+    'help_requests' => 'Mutual aid requests',
     'service_proposals' => 'Mutual aid proposals',
     'request' => 'help request',
     'service' => 'service',
