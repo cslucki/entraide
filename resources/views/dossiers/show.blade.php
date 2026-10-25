@@ -109,7 +109,7 @@
         $classeSelection = 'bg-indigo-50 ring-1 ring-inset ring-indigo-300 dark:bg-indigo-950/40 dark:ring-indigo-700';
         // « Prive » est le cas dominant : explicite, mais rendu le plus discret
         // des trois etats (reference canonique drive-v2).
-        $classePartage = fn (string $etat) => $etat === __('dossiers.share_private')
+        $classePartage = fn (string $etat) => $etat === __('dossiers.share_none')
             ? 'hidden lg:block min-w-0 truncate text-xs text-gray-400 dark:text-gray-500'
             : 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
 
@@ -126,7 +126,14 @@
             ? __('dossiers.share_loop')
             : (($couvertParUnPartage ?? false) || $governingDossier->dossierMembers->isNotEmpty()
                 ? __('dossiers.share_inherited')
-                : __('dossiers.share_private'));
+                // TASK-1695 (point 1 de Cyril) — « Aucun », pas « Prive ».
+                //
+                // J'avais d'abord substitue au RENDU, a trois endroits : la
+                // meme colonne disait alors « Aucun » sur une ligne de fichier
+                // et « Prive » sur une ligne de dossier. Deux mots pour un
+                // seul etat, dans un seul tableau. Le libelle se decide ICI,
+                // une fois.
+                : __('dossiers.share_none'));
 
         // Mode Serie (TASK-1130, doctrine finale) : la projection SEQUENTIELLE de
         // chaque Serie — les contenus reels du Dossier avec un rang, jamais
@@ -1166,7 +1173,7 @@
                                                 // gouvernance : sans ancre, elle
                                                 // est privee, et n'herite de
                                                 // rien du Dossier ouvert.
-                                                : ($estPartageIci ? __('dossiers.share_private') : $partageHerite));
+                                                : ($estPartageIci ? __('dossiers.share_none') : $partageHerite));
                                     @endphp
                                     <div class="flex min-w-0 items-center gap-3">
                                         {!! $gouttiereDrive(false) !!}
@@ -1384,7 +1391,7 @@
                                     <button type="button" class="flex min-h-11 min-w-0 flex-1 flex-col justify-center text-left rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
                                             @click="clicElement($event, {{ $itemFichier }})" @dblclick="ouvrir({{ $itemFichier }})" @touchstart="debutAppui({{ $itemFichier }})" @touchend="finAppui()" @touchmove="finAppui()">
                                         <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="file.display_name || file.original_name"></span>
-                                        <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="(((file.shares_count || 0) + (file.loop_shares_count || 0)) > 0 ? @js(__('dossiers.share_shared')) : @js($partageHerite === __('dossiers.share_private') ? __('dossiers.share_none') : $partageHerite)) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
+                                        <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="(((file.shares_count || 0) + (file.loop_shares_count || 0)) > 0 ? @js(__('dossiers.share_shared')) : @js($partageHerite)) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
                                     </button>
                                     </div>
                                     @if($colonneAjoutePar)
@@ -1429,7 +1436,7 @@
                                                         data-file-share-peek>{{ __('dossiers.share_shared') }}</button>
                                             </template>
                                             <template x-if="((file.shares_count || 0) + (file.loop_shares_count || 0)) === 0">
-                                                <span class="{{ $classePartage($partageHerite) }} !block">{{ $partageHerite === __('dossiers.share_private') ? __('dossiers.share_none') : $partageHerite }}</span>
+                                                <span class="{{ $classePartage($partageHerite) }} !block">{{ $partageHerite }}</span>
                                             </template>
                                         </div>
                                     @endif

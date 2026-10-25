@@ -206,6 +206,23 @@ class TASK1143SharedContentReadabilityTest extends TestCase
         $this->ouvrir($this->m3, $this->a)->assertOk()->assertSee(__('dossiers.share_inherited'));
     }
 
+    /**
+     * L'etat « pas de partage », tel qu'il apparait DANS UNE CELLULE.
+     *
+     * TASK-1695 — `assertDontSee('Aucun')` est un piege : la page contient
+     * « Aucun fichier », « Aucun autre dossier accessible ici. » et « Aucun
+     * resultat pour cette recherche. ». Mesure du 25/10 — l'assertion etait
+     * donc TOUJOURS fausse, pour une raison etrangere a ce qu'elle teste.
+     *
+     * Les chevrons bornent le texte complet de la cellule : `>Aucun<` ne
+     * matche pas `>Aucun fichier<`. (Lecon T1672, deuxieme visage : viser la
+     * forme telle qu'elle SORT.)
+     */
+    private function celluleSansPartage(): string
+    {
+        return '>'.__('dossiers.share_none').'<';
+    }
+
     public function test_a_never_shared_sibling_stays_private(): void
     {
         $this->partager($this->a, $this->m4);
@@ -214,8 +231,13 @@ class TASK1143SharedContentReadabilityTest extends TestCase
 
         // Le frere ne tient son acces d'aucune ancre : il reste prive, et le
         // correctif ne repeint pas tout l'espace en « partage ».
+        //
+        // TASK-1695 (point 1 de Cyril) — la colonne nomme cet etat « Aucun »
+        // et non plus « Prive ». La SUBSTANCE de ce test n'a pas bouge : un
+        // frere jamais partage n'affiche aucun acces. Seul le mot a change,
+        // et `share_none` est devenu l'unique nom de cet etat.
         $this->assertFalse($reponse->viewData('couvertParUnPartage'));
-        $reponse->assertSee(__('dossiers.share_private'));
+        $reponse->assertSee($this->celluleSansPartage(), escape: false);
     }
 
     // =====================================================================
@@ -232,7 +254,7 @@ class TASK1143SharedContentReadabilityTest extends TestCase
 
         $this->assertTrue($reponse->viewData('couvertParUnPartage'));
         $this->assertTrue($reponse->viewData('isSharedSurface'));
-        $reponse->assertDontSee(__('dossiers.share_private'));
+        $reponse->assertDontSee($this->celluleSansPartage(), escape: false);
     }
 
     public function test_the_reader_sees_an_access_on_a_descendant_too(): void
@@ -245,7 +267,7 @@ class TASK1143SharedContentReadabilityTest extends TestCase
         // Le descendant est couvert par l'ancre A, sans ligne a lui.
         $this->assertTrue($reponse->viewData('couvertParUnPartage'));
         $this->assertSame(0, $this->b->dossierMembers()->count());
-        $reponse->assertDontSee(__('dossiers.share_private'));
+        $reponse->assertDontSee($this->celluleSansPartage(), escape: false);
     }
 
     // =====================================================================
