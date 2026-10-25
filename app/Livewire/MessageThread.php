@@ -8,6 +8,7 @@ use App\Models\Reaction;
 use App\Models\Transaction;
 use App\Notifications\NewMessageReceived;
 use App\Services\UrlPreviewService;
+use App\Support\Files\TypesDeFichiersAcceptes;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -55,6 +56,23 @@ class MessageThread extends Component
 
     public ?array $replyingTo = null;
 
+    /**
+     * TASK-1704 — deux plafonds, et c'est VOULU.
+     *
+     * Une image est re-encodee en WebP et reduite a 1200x800 : son poids final
+     * ne depend pas de celui du depot, et le plafond ne protege que la memoire
+     * de l'etape de decodage. 10 Mo y suffisaient, et le changer modifierait un
+     * comportement que personne n'a demande de modifier.
+     *
+     * Un fichier, lui, est conserve tel quel. Son plafond est celui des
+     * Dossiers — 50 Mo — parce que c'est deja la reponse que le produit donne
+     * a la meme question, et qu'en inventer une seconde creerait deux regles
+     * contradictoires a expliquer aux membres.
+     */
+    public const TAILLE_MAX_IMAGE_KO = 10240;
+
+    public const TAILLE_MAX_FICHIER_KO = 51200;
+
     public $photo = null;
 
     public function mount(Transaction $transaction): void
@@ -97,18 +115,61 @@ class MessageThread extends Component
         if (! $this->photo) {
             return;
         }
-        $validator = validator(['photo' => $this->photo], ['photo' => 'image|max:10240']);
+        $validator = validator(['photo' => $this->photo], ['photo' => $this->reglesDePieceJointe($this->photo)]);
         if ($validator->fails()) {
             $this->photo = null;
-            $this->addError('photo', __('messages.invalid_file'));
+            $this->addError('photo', __('messages.invalid_attachment'));
         }
+    }
+
+    /**
+     * TASK-1704 — ce qu'on accepte, et jusqu'a quel poids.
+     *
+     * La liste des types vient de `TypesDeFichiersAcceptes`, partagee avec les
+     * Dossiers : le produit ne doit pas avoir deux reponses a « de quoi sais-je
+     * faire quelque chose ? ».
+     *
+     * Le plafond, lui, depend du type devine SUR LE CONTENU — jamais de
+     * l'extension ni de ce que le navigateur annonce, qui sont tous deux sous
+     * le controle de celui qui depose.
+     *
+     * @return list<string>
+     */
+    private function reglesDePieceJointe($file): array
+    {
+        return [
+            'file',
+            TypesDeFichiersAcceptes::regleMimetypes(),
+            'max:'.($this->estUneImage($file) ? self::TAILLE_MAX_IMAGE_KO : self::TAILLE_MAX_FICHIER_KO),
+        ];
+    }
+
+    /**
+     * Le depot est-il une image, au sens du pipeline WebP ?
+     *
+     * `getMimeType()` devine a partir du CONTENU. Un `.pdf` renomme en `.jpg`
+     * repond donc « application/pdf » et part sur le chemin fichier, au lieu
+     * d'etre confie a `Image::decode()` qui echouerait.
+     *
+     * Une absence de type est traitee comme « pas une image » : le chemin
+     * fichier conserve l'octet tel quel, la ou le chemin image le detruirait.
+     */
+    private function estUneImage($file): bool
+    {
+        try {
+            $mime = $file?->getMimeType();
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return $mime !== null && in_array($mime, TypesDeFichiersAcceptes::IMAGES, true);
     }
 
     public function sendMessage(): void
     {
         $this->validate([
             'newMessage' => 'required_without:photo|string|max:5000',
-            'photo' => 'nullable|image|max:10240',
+            'photo' => $this->photo ? $this->reglesDePieceJointe($this->photo) : ['nullable'],
         ], [
             'newMessage.required_without' => __('messages.body_or_image_required'),
         ]);
@@ -138,8 +199,16 @@ class MessageThread extends Component
 
         $imagePath = null;
 
+        $piece = [];
+
         if ($this->photo) {
-            $imagePath = $this->storeImage($this->photo);
+            // Une image suit son chemin d'origine, INCHANGE : re-encodage WebP
+            // et disque public. Tout autre type part sur le disque prive.
+            if ($this->estUneImage($this->photo)) {
+                $imagePath = $this->storeImage($this->photo);
+            } else {
+                $piece = $this->storeFile($this->photo);
+            }
             $this->photo = null;
         }
 
@@ -152,6 +221,11 @@ class MessageThread extends Component
             'reply_to_id' => $replyToId,
             'body' => $this->newMessage,
             'image_path' => $imagePath,
+            'file_path' => $piece['path'] ?? null,
+            'file_disk' => $piece['disk'] ?? null,
+            'file_name' => $piece['name'] ?? null,
+            'file_mime' => $piece['mime'] ?? null,
+            'file_size' => $piece['size'] ?? null,
             'metadata' => $preview !== null ? ['url_preview' => $preview] : null,
             'type' => 'user',
             'organization_id' => $transaction->organization_id,
@@ -285,6 +359,67 @@ class MessageThread extends Component
         Storage::disk('public')->put($relativePath, (string) $img->encode(new WebpEncoder(quality: 80)));
 
         return $relativePath;
+    }
+
+    /**
+     * TASK-1704 — deposer un fichier sur le disque PRIVE.
+     *
+     * ## Le chemin ne porte PAS le nom d'origine
+     *
+     * `dossier_files` accole le nom au UUID ; ici le chemin est un UUID nu, et
+     * le nom vit en base. Deux raisons :
+     *
+     * 1. Le nom vient de celui qui depose. Le faire entrer dans un chemin de
+     *    systeme de fichiers, c'est devoir prouver qu'aucun `..`, aucun `/`,
+     *    aucun octet nul, aucun nom reserve ne passe — une preuve qu'il faut
+     *    refaire a chaque evolution. Un UUID n'a pas ce probleme.
+     * 2. Le nom affiche doit pouvoir changer sans deplacer le fichier.
+     *
+     * ## Le type est DEVINE, pas annonce
+     *
+     * `getMimeType()` lit le contenu ; `getClientMimeType()` repete ce que le
+     * navigateur a dit. Seul le premier a une valeur : c'est lui qu'on
+     * enregistre, et c'est lui que la route gardee renverra en en-tete.
+     *
+     * @return array{path: string, disk: string, name: string, mime: string, size: int}
+     */
+    private function storeFile($file): array
+    {
+        $disque = 'message_files';
+
+        $chemin = $this->organizationId.'/'.$this->transactionId.'/'.Str::uuid()->toString();
+
+        Storage::disk($disque)->put($chemin, $file->get());
+
+        return [
+            'path' => $chemin,
+            'disk' => $disque,
+            'name' => $this->nomDeDepot($file),
+            'mime' => $file->getMimeType() ?: 'application/octet-stream',
+            'size' => (int) $file->getSize(),
+        ];
+    }
+
+    /**
+     * Le nom d'origine, rendu inoffensif pour un en-tete HTTP.
+     *
+     * Il ne sert qu'a l'affichage et au `Content-Disposition`. `basename()`
+     * ecarte tout segment de chemin ; les caracteres de controle sont retires
+     * parce qu'un retour a la ligne dans un en-tete le COUPE, ce qui permet
+     * d'en injecter un autre derriere. La longueur est bornee parce que la
+     * colonne l'est.
+     */
+    private function nomDeDepot($file): string
+    {
+        $nom = basename((string) $file->getClientOriginalName());
+        $nom = preg_replace('/[\x00-\x1F\x7F]/u', '', $nom) ?? '';
+        $nom = trim($nom);
+
+        if ($nom === '' || $nom === '.' || $nom === '..') {
+            return __('messages.attachment_fallback_name');
+        }
+
+        return mb_substr($nom, 0, 200);
     }
 
     /**

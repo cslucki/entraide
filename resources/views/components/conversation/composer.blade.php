@@ -9,6 +9,21 @@
     'onCancelReply' => null,
     'showUpload' => false,
     'photo' => null,
+    // TASK-1704 — ce que le bouton de la GALERIE propose.
+    //
+    // Le defaut reste `image/*`, et c'est deliberement conservateur : ce
+    // composant est partage avec le ChatLoop et le chat agent, dont les
+    // serveurs ne valident que des images. Elargir ici pour tout le monde
+    // aurait fait proposer aux membres un geste que le serveur refuse — le
+    // defaut exact que TASK-1684 avait corrige sur les Dossiers, ou l'ecran
+    // offrait « Filmer une video » pendant que la regle la rejetait.
+    //
+    // Seule la Messagerie passe la liste elargie, parce que seule elle sait
+    // stocker autre chose qu'une image. Le bouton APPAREIL PHOTO, lui, garde
+    // `image/*` en toute circonstance : `capture` n'a de sens que pour un
+    // cliche.
+    'uploadAccept' => 'image/*',
+    'uploadLabel' => null,
     // TASK-1308 : moteur du prochain tour ('ia'|'dossiers'|null), affiche en
     // chip compact au-dessus du composeur — jamais un verrou (voir $onClearMode).
     // TASK-1309 : quatrieme etat 'ia_dossiers' (IA + Dossiers).
@@ -19,6 +34,7 @@
 
 @php
     $placeholder ??= __('messages.write_message');
+    $uploadLabel ??= __('messages.send_image');
 @endphp
 
 {{-- Le gabarit compact mobile est SCOPE au ChatLoop (seul appelant qui
@@ -116,13 +132,13 @@
         {{-- TASK-1693 bug AC — ce bouton n'avait aucun intitule : ni infobulle,
              ni libelle accessible. On ne devinait pas ce qu'il faisait. --}}
         <label data-composer-upload
-               aria-label="{{ __('messages.send_image') }}"
-               title="{{ __('messages.send_image') }}"
+               aria-label="{{ $uploadLabel }}"
+               title="{{ $uploadLabel }}"
                class="{{ isset($leading) ? 'hidden md:flex' : 'flex' }} mb-1 flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 items-center justify-center cursor-pointer transition disabled:opacity-50">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
-            <input type="file" x-ref="uploadInput" wire:model.live="photo" accept="image/*" class="hidden">
+            <input type="file" x-ref="uploadInput" wire:model.live="photo" accept="{{ $uploadAccept }}" class="hidden">
         </label>
         {{-- TASK-1329 : second declencheur du MEME upload (`photo`), avec
              `capture` — sur mobile, il ouvre directement l'appareil photo au

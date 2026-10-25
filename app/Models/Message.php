@@ -16,7 +16,9 @@ class Message extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['transaction_id', 'sender_id', 'reply_to_id', 'body', 'image_path', 'metadata', 'type', 'read_at', 'organization_id', 'pinned_at', 'pinned_by_id', 'edited_at', 'edited_by'];
+    protected $fillable = ['transaction_id', 'sender_id', 'reply_to_id', 'body', 'image_path', 'metadata', 'type', 'read_at', 'organization_id', 'pinned_at', 'pinned_by_id', 'edited_at', 'edited_by',
+        // TASK-1704 — une piece jointe qui n'est pas une image.
+        'file_path', 'file_disk', 'file_name', 'file_mime', 'file_size'];
 
     public function organization(): BelongsTo
     {
@@ -66,6 +68,77 @@ class Message extends Model
     public function imageUrl(): ?string
     {
         return $this->image_path ? Storage::disk('public')->url($this->image_path) : null;
+    }
+
+    /**
+     * TASK-1704 — ce message porte-t-il un fichier (hors image) ?
+     *
+     * La question porte sur le CHEMIN, pas sur le nom : un message dont le nom
+     * aurait ete perdu porte quand meme son fichier, et doit rester
+     * telechargeable.
+     */
+    public function hasFile(): bool
+    {
+        return $this->file_path !== null && $this->file_path !== '';
+    }
+
+    /**
+     * Le nom a AFFICHER, qui n'est jamais celui du chemin.
+     *
+     * Le fichier est stocke sous un UUID nu (voir `MessageThread::storeFile`).
+     * Si `file_name` manquait — une ligne ecrite a la main, un import — mieux
+     * vaut un libelle generique qu'un UUID brut presente comme un nom de
+     * fichier.
+     */
+    public function fileDisplayName(): string
+    {
+        $nom = trim((string) $this->file_name);
+
+        return $nom !== '' ? $nom : __('messages.attachment_fallback_name');
+    }
+
+    /**
+     * Le poids, en unites lisibles.
+     *
+     * Il s'affiche AVANT le telechargement, parce que sur un telephone en
+     * donnees mobiles, savoir qu'une piece pese 40 Mo change la decision de
+     * l'ouvrir.
+     */
+    public function fileSizeForHumans(): ?string
+    {
+        $octets = (int) $this->file_size;
+
+        if ($octets <= 0) {
+            return null;
+        }
+
+        foreach ([['Go', 1073741824], ['Mo', 1048576], ['Ko', 1024]] as [$unite, $seuil]) {
+            if ($octets >= $seuil) {
+                return round($octets / $seuil, $octets / $seuil >= 10 ? 0 : 1).' '.$unite;
+            }
+        }
+
+        return $octets.' o';
+    }
+
+    /**
+     * Le navigateur sait-il AFFICHER cette piece, plutot que la telecharger ?
+     *
+     * La liste est volontairement courte : les types dont tout navigateur
+     * courant embarque un moteur de rendu. Proposer « ouvrir » pour un `.docx`
+     * declencherait un telechargement malgre l'intitule — un bouton qui ne
+     * fait pas ce qu'il annonce.
+     *
+     * Le Markdown y figure parce que `DossierFileTransport::typeAffichable()`
+     * le sert en `text/plain`, et devient donc lisible dans l'onglet.
+     */
+    public function fileIsPreviewable(): bool
+    {
+        return in_array($this->file_mime, [
+            'application/pdf',
+            'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+            'text/plain', 'text/markdown', 'text/csv',
+        ], true);
     }
 
     public function isSystem(): bool

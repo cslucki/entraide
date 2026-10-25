@@ -68,5 +68,13 @@ return [
     'cross_org' => 'Vous ne pouvez pas démarrer une conversation en dehors de votre organisation.',
     // TASK-1693 bug AC
     'send_image' => 'Envoyer une image',
+    // TASK-1704 â la Messagerie accepte desormais des fichiers. La ChatLoop,
+    // elle, n'accepte toujours que des images : les deux intitules coexistent
+    // parce que les deux surfaces ne promettent pas la meme chose.
+    'send_file' => 'Envoyer une image ou un fichier',
+    'invalid_attachment' => 'Ce type de fichier n’est pas accepté, ou il dépasse la taille maximale.',
+    'attachment_fallback_name' => 'Pièce jointe',
+    'attachment_open' => 'Ouvrir',
+    'attachment_download' => 'Télécharger',
     'take_photo' => 'Prendre une photo',
 ];

@@ -85,6 +85,7 @@ use App\Http\Controllers\DossierController;
 use App\Http\Controllers\DossierFileShareController;
 use App\Http\Controllers\SharedDossierFileController;
 use App\Http\Controllers\DossierFileController;
+use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\DossierInsightsController;
 use App\Http\Controllers\DossierMemberController;
 use App\Http\Controllers\DossierSemanticSearchController;
@@ -399,6 +400,11 @@ Route::middleware('auth')->group(function () {
     // Messages
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
     Route::get('/messages/with/{user}', [MessageController::class, 'showWithUser'])->name('messages.with');
+    // TASK-1704 — la piece jointe d'une conversation. Elle DOIT etre declaree
+    // avant `/messages/{transaction}`, sinon « pieces » serait capture comme
+    // un identifiant d'echange.
+    Route::get('/messages/{transaction}/pieces/{message}', [MessageAttachmentController::class, 'download'])->name('messages.attachments.download');
+    Route::get('/messages/{transaction}/pieces/{message}/apercu', [MessageAttachmentController::class, 'preview'])->name('messages.attachments.preview');
     Route::get('/messages/{transaction}', [MessageController::class, 'show'])->name('messages.show');
 
     // Points history
@@ -1388,6 +1394,9 @@ Route::prefix('/org/{organization}')
             // D'ou « on arrive bien sur la Messagerie, mais on ne peut pas
             // ecrire ». Le defaut n'etait pas la garde, c'etait le LIEN.
             Route::get('/messages/with/{user}', [MessageController::class, 'orgShowWithUser'])->name('messages.with');
+            // TASK-1704 — meme raison d'ordre que sur la surface courte.
+            Route::get('/messages/{transaction}/pieces/{message}', [MessageAttachmentController::class, 'orgDownload'])->name('messages.attachments.download');
+            Route::get('/messages/{transaction}/pieces/{message}/apercu', [MessageAttachmentController::class, 'orgPreview'])->name('messages.attachments.preview');
             Route::get('/messages/{transaction}', [MessageController::class, 'orgShow'])->name('messages.show');
 
             Route::get('/points', [PointController::class, 'index'])->name('points.index');

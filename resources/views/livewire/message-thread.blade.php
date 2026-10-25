@@ -8,6 +8,28 @@
                 ? route($organizationRouteName, array_merge(['organization' => $_threadOrgSlug], $params))
                 : route($routeName, $params);
         };
+
+        /* TASK-1704 — ce qu'une bulle doit savoir d'une piece jointe.
+           Les URL passent par `$_threadRoute` : la conversation vit sur deux
+           surfaces (courte et prefixee), et une piece doit rester sur celle
+           ou le membre se trouve. */
+        $_threadAttachment = function ($message) use ($_threadRoute) {
+            if (! $message->hasFile()) {
+                return null;
+            }
+
+            $params = ['transaction' => $message->transaction_id, 'message' => $message->id];
+
+            return [
+                'name' => $message->fileDisplayName(),
+                'size' => $message->fileSizeForHumans(),
+                'mime' => $message->file_mime,
+                'downloadUrl' => $_threadRoute('messages.attachments.download', 'organization.messages.attachments.download', $params),
+                'previewUrl' => $message->fileIsPreviewable()
+                    ? $_threadRoute('messages.attachments.preview', 'organization.messages.attachments.preview', $params)
+                    : null,
+            ];
+        };
     @endphp
 
     {{-- TASK-1693 bug AC — pour une DISCUSSION, cette bande ne portait plus
@@ -138,6 +160,7 @@
                         :my-reaction="$myReactions[$message->id] ?? null"
                         :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => $replySenderName] : null"
                         :image-path="$message->imageUrl()"
+                        :attachment="$_threadAttachment($message)"
                         :url-preview="$meta['url_preview'] ?? null"
                     >
                         {!! $message->body !!}
@@ -159,6 +182,7 @@
                         :my-reaction="$myReactions[$message->id] ?? null"
                         :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => $replySenderName] : null"
                         :image-path="$message->imageUrl()"
+                        :attachment="$_threadAttachment($message)"
                         :url-preview="$meta['url_preview'] ?? null"
                     >
                         {!! $message->body !!}
@@ -217,6 +241,10 @@
             on-cancel-reply="cancelReply"
             show-upload="true"
             :photo="$photo ?? null"
+            {{-- TASK-1704 — seule la Messagerie sait stocker autre chose
+                 qu'une image : elle seule elargit le selecteur. --}}
+            :upload-accept="\App\Support\Files\TypesDeFichiersAcceptes::pourAttributAccept()"
+            :upload-label="__('messages.send_file')"
         >
             @error('newMessage')
                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
