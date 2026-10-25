@@ -15,16 +15,23 @@
             ? route('organization.messages.with', ['organization' => $organizationRouteParam, 'user' => $user->profileRouteKey()])
             : route('messages.with', $user->profileRouteKey());
 
+        // TASK-1697 correctif 13 — meme defaut que le bug AA ci-dessus : sans
+        // prefixe d'Organization, `ResolveUrlOrganization` lie l'Organization
+        // PAR DEFAUT et la fleche ramenait a l'annuaire d'un AUTRE tenant.
+        $annuaireUrl = $organizationRouteParam && Route::has('organization.members.index')
+            ? route('organization.members.index', ['organization' => $organizationRouteParam])
+            : route('members.index');
+
         $displaySkills = $services->flatMap(fn($s) => $s->skills)->unique('id')->take(8);
         $serviceCategories = $services->pluck('category.name')->unique()->take(4);
     @endphp
 
     <!-- Desktop topbar -->
     <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
-        <a href="{{ route('members.index') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="{{ __('profile.back_to_directory') }}">
+        <a href="{{ $annuaireUrl }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="{{ __('profile.back_to_directory') }}">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         </a>
-        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $user->fullName }}</span>
+        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ __('navigation.directory') }}</span>
     </div>
 
     <x-page-container>
@@ -173,7 +180,7 @@
                         <div class="flex flex-col gap-2">
                             <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                                {{ __('profile.services_offered') }}
+                                {{ trans_choice('profile.services_offered', $services->count()) }}
                             </span>
                             <div class="flex flex-wrap gap-1.5">
                                 @foreach($serviceCategories as $catName)
@@ -252,7 +259,7 @@
                 <!-- Services -->
                 <section>
                     <div class="flex items-center justify-between mb-3">
-                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.services_offered') }}</h2>
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ trans_choice('profile.services_offered', $services->count()) }}</h2>
                         @if($services->isNotEmpty())
                         <span class="text-xs text-gray-400">{{ trans_choice('profile.services_count', $services->count(), ['count' => $services->count()]) }}</span>
                         @endif
@@ -290,7 +297,7 @@
                 @if($openRequests->isNotEmpty())
                 <section>
                     <div class="flex items-center justify-between mb-3">
-                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.help_section') }}</h2>
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ trans_choice('profile.help_section', $openRequests->count()) }}</h2>
                         <span class="text-xs text-gray-400">{{ trans_choice('profile.requests_count', $openRequests->count(), ['count' => $openRequests->count()]) }}</span>
                     </div>
                     <div class="grid gap-3 sm:grid-cols-2">
