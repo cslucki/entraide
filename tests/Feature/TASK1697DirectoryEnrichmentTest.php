@@ -382,9 +382,14 @@ class TASK1697DirectoryEnrichmentTest extends TestCase
         $this->assertStringNotContainsString('0 '.trans_choice('directory.request_label', 0), $texte);
     }
 
-    // ── Les compteurs menent aux listes (correctif 17) ──────────────────
+    // ── Les compteurs menent aux listes (correctifs 17 puis 19) ─────────
 
-    public function test_le_compteur_de_propositions_mene_a_la_section_du_profil(): void
+    /**
+     * TASK-1697 correctif 19 — le lien mene a la LISTE, plus a une ancre de la
+     * fiche profil. Arbitrage de Cyril : « beaucoup plus ergonomique, car la
+     * fiche de l'utilisateur peut etre chargee ».
+     */
+    public function test_le_compteur_de_propositions_mene_a_l_explorateur_filtre(): void
     {
         $membre = $this->membre();
         $this->proposition($membre);
@@ -393,15 +398,15 @@ class TASK1697DirectoryEnrichmentTest extends TestCase
 
         $this->assertStringContainsString('data-member-services="'.$membre->id.'"', $html);
         $this->assertStringContainsString(
-            e(route('organization.profile.show', [
-                'organization' => $this->organization->slug,
-                'user' => $membre->profileRouteKey(),
-            ]).'#propositions'),
+            e(route('organization.explorer', ['organization' => $this->organization->slug])
+                .'?tab=services&member='.$membre->profileRouteKey()),
             $html
         );
+
+        $this->assertStringNotContainsString('#propositions', $html);
     }
 
-    public function test_le_compteur_de_demandes_mene_a_la_section_du_profil(): void
+    public function test_le_compteur_de_demandes_mene_a_l_explorateur_filtre(): void
     {
         $membre = $this->membre();
         $this->demande($membre);
@@ -410,12 +415,12 @@ class TASK1697DirectoryEnrichmentTest extends TestCase
 
         $this->assertStringContainsString('data-member-requests="'.$membre->id.'"', $html);
         $this->assertStringContainsString(
-            e(route('organization.profile.show', [
-                'organization' => $this->organization->slug,
-                'user' => $membre->profileRouteKey(),
-            ]).'#demandes'),
+            e(route('organization.explorer', ['organization' => $this->organization->slug])
+                .'?tab=requests&member='.$membre->profileRouteKey()),
             $html
         );
+
+        $this->assertStringNotContainsString('#demandes', $html);
     }
 
     /** Un compteur a zero ne promet rien : il n'est pas lie. */
@@ -428,25 +433,6 @@ class TASK1697DirectoryEnrichmentTest extends TestCase
 
         $this->assertStringContainsString('data-member-requests="'.$membre->id.'"', $html);
         $this->assertStringNotContainsString('data-member-services="'.$membre->id.'"', $html);
-    }
-
-    /** Les ancres existent reellement sur la fiche profil. */
-    public function test_les_ancres_visees_existent_sur_le_profil(): void
-    {
-        $membre = $this->membre();
-        $this->proposition($membre);
-        $this->demande($membre);
-
-        $html = $this->actingAs($membre)
-            ->get(route('organization.profile.show', [
-                'organization' => $this->organization->slug,
-                'user' => $membre->profileRouteKey(),
-            ]))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertStringContainsString('id="propositions"', $html);
-        $this->assertStringContainsString('id="demandes"', $html);
     }
 
     // ── Fixtures ────────────────────────────────────────────────────────────

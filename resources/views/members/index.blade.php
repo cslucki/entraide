@@ -51,18 +51,32 @@
                     ? route('organization.messages.with', ['organization' => request()->route('organization'), 'user' => $member->profileRouteKey()])
                     : route('messages.with', $member->profileRouteKey());
 
-                // TASK-1697 correctif 17 — les compteurs menent aux listes.
+                // TASK-1697 correctif 19 — les compteurs menent a la LISTE,
+                // pas au profil.
                 //
-                // L'explorateur n'a AUCUN filtre par auteur (`Explorer.php` :
-                // tab, search, categories, mode, tri, tag, note, competences —
-                // pas d'auteur). Le seul ecran qui liste les propositions et
-                // les demandes d'UNE personne est sa fiche profil, d'ou les
-                // ancres. Meme raisonnement que pour les articles.
+                // Au correctif 17 ils visaient une ancre de la fiche profil,
+                // faute de filtre par auteur dans l'explorateur. Cyril a
+                // tranche : « c'est beaucoup plus ergonomique » d'arriver sur
+                // la page des propositions ou des demandes, car la fiche peut
+                // etre chargee. Le filtre `member` a donc ete AJOUTE a
+                // `Explorer`, et c'est lui qu'on pose ici.
                 //
-                // Un compteur a zero n'est PAS lie : la section d'arrivee
-                // serait vide, le lien ne promettrait rien.
-                $lienPropositions = $member->active_services_count > 0 ? $profileRoute.'#propositions' : null;
-                $lienDemandes = $member->open_requests_count > 0 ? $profileRoute.'#demandes' : null;
+                // La clef est `profileRouteKey()` — le slug, l'uuid a defaut :
+                // la meme que les URL de profil, donc lisible.
+                //
+                // Un compteur a zero n'est PAS lie : la liste d'arrivee serait
+                // vide, le lien ne promettrait rien.
+                $explorateurUrl = $orgParamAnnuaire && Route::has('organization.explorer')
+                    ? route('organization.explorer', ['organization' => $orgParamAnnuaire])
+                    : route('explorer');
+                $cleMembre = $member->profileRouteKey();
+
+                $lienPropositions = $member->active_services_count > 0
+                    ? $explorateurUrl.'?tab=services&member='.urlencode($cleMembre)
+                    : null;
+                $lienDemandes = $member->open_requests_count > 0
+                    ? $explorateurUrl.'?tab=requests&member='.urlencode($cleMembre)
+                    : null;
             @endphp
             {{-- TASK-1697 correctif 15 — la carte n'est PLUS un seul lien.
                  Elle en portait un, englobant tout ; elle doit desormais porter

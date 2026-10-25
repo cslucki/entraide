@@ -234,8 +234,7 @@
                 </div>
 
                 <!-- Services -->
-                {{-- `id` : cible de l'ancre posee par l'annuaire (T1697 correctif 17). --}}
-                <section id="propositions">
+                <section>
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ trans_choice('profile.services_offered', $services->count()) }}</h2>
                         @if($services->isNotEmpty())
@@ -273,8 +272,7 @@
 
                 <!-- Open requests -->
                 @if($openRequests->isNotEmpty())
-                {{-- `id` : cible de l'ancre posee par l'annuaire (T1697 correctif 17). --}}
-                <section id="demandes">
+                <section>
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ trans_choice('profile.help_section', $openRequests->count()) }}</h2>
                         <span class="text-xs text-gray-400">{{ trans_choice('profile.requests_count', $openRequests->count(), ['count' => $openRequests->count()]) }}</span>

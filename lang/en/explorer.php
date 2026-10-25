@@ -29,4 +29,8 @@ return [
     'add_favorite' => 'Add to favorites',
     'load_more' => 'Load more',
     'offer_help' => 'Offer my help',
+    // TASK-1697 — author filter, set from the directory
+    'member_filter_label' => 'Member: :name',
+    'member_filter_clear' => 'Clear this filter',
+    'member_filter_unknown' => 'This member does not belong to this organization.',
 ];

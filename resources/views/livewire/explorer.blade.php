@@ -158,6 +158,30 @@
 
     </div>
 
+    {{-- TASK-1697 — le filtre par auteur est pose par une URL venue de
+         l'annuaire. Sans ce bandeau, on atterrit sur une liste filtree sans
+         savoir POURQUOI ni comment en sortir. --}}
+    @if($membreFiltre)
+    <div class="mb-5 flex flex-wrap items-center gap-2" data-member-filter="{{ $membreFiltre->id }}">
+        <span class="inline-flex items-center gap-2 rounded-full bg-indigo-50 dark:bg-indigo-900/20 px-3 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">
+            {{ __('explorer.member_filter_label', ['name' => $membreFiltre->fullName]) }}
+            <button type="button" wire:click="clearMember" data-member-filter-clear
+                    title="{{ __('explorer.member_filter_clear') }}"
+                    aria-label="{{ __('explorer.member_filter_clear') }}"
+                    class="text-indigo-500 hover:text-indigo-800 dark:hover:text-indigo-100">&times;</button>
+        </span>
+    </div>
+    @elseif($filtreImpossible)
+    <div class="mb-5" data-member-filter-unknown>
+        <span class="inline-flex items-center gap-2 rounded-full bg-amber-50 dark:bg-amber-900/20 px-3 py-1 text-xs font-medium text-amber-800 dark:text-amber-300">
+            {{ __('explorer.member_filter_unknown') }}
+            <button type="button" wire:click="clearMember" data-member-filter-clear
+                    title="{{ __('explorer.member_filter_clear') }}"
+                    class="text-amber-600 hover:text-amber-900 dark:hover:text-amber-100">&times;</button>
+        </span>
+    </div>
+    @endif
+
     <!-- Résultats -->
     <div wire:loading.class="opacity-50 transition-opacity">
         @if($tab === 'services')
