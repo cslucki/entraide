@@ -259,18 +259,6 @@
                                 <span class="ml-auto">⏰ {{ $request->deadline->format('d/m/Y') }}</span>
                                 @endif
                             </div>
-                            @auth
-                            @if(auth()->id() !== $request->user_id)
-                            <form method="POST" action="{{ $_orgSlug ? route('organization.transactions.store', ['organization' => $_orgSlug]) : route('transactions.store') }}">
-                                @csrf
-                                <input type="hidden" name="request_id" value="{{ $request->id }}">
-                                <input type="hidden" name="points_proposed" value="{{ $request->budget_min }}">
-                                <button type="submit" class="w-full py-2.5 sm:py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 active:scale-[0.98]">
-                                    {{ __('explorer.offer_help') }}
-                                </button>
-                            </form>
-                            @endif
-                            @endauth
                         </div>
                     </div>
                     @endforeach
