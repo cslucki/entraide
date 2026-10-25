@@ -203,17 +203,32 @@ return [
         /*
          * TASK-1699 — le theme de l'Organization OFSH, clair ET sombre.
          *
-         * ## Pourquoi il vit ICI et pas seulement en base
+         * ## Ce fichier est la SEMENCE, la base est la SOURCE
          *
-         * `Theme::regenerateCache()` FUSIONNE les deux sources : la ligne de la
-         * table `themes` surcharge, token par token, celle de ce fichier. Une
-         * cle presente seulement en base disparait de tout environnement ou
-         * cette ligne n'a pas ete creee — une suite de tests fraiche, un
-         * `migrate:fresh`, une PROD ou la migration n'a pas tourne. Ecrire la
-         * palette ici, c'est la rendre lisible dans l'historique git et la
-         * garantir partout ; la ligne en base n'a plus qu'un seul role, celui
-         * que ce fichier ne peut pas tenir : porter l'`id` auquel
-         * `organizations.theme_id` se rattache.
+         * TASK-1699 avait ecrit l'inverse : la palette ici, la ligne en base
+         * volontairement VIDE, au motif que `Theme::regenerateCache()` fusionne
+         * la base par-dessus la configuration et qu'y recopier la palette la
+         * figerait. Le raisonnement etait juste et ratait l'essentiel —
+         * l'ecran d'administration des themes edite la LIGNE EN BASE, pas ce
+         * fichier. Avec une ligne vide, ses vingt selecteurs de couleur
+         * etaient lies a `undefined` (mesure : les sept autres themes de la
+         * table portaient tous 20 jetons clairs et 20 sombres ; seul `ofsh`
+         * etait a 0/0).
+         *
+         * TASK-1701 a donc inscrit la palette en base, et le modele est
+         * desormais celui-ci :
+         *
+         *   * la LIGNE EN BASE est la source — c'est elle que l'administration
+         *     edite, et une couleur changee a l'ecran doit l'emporter ;
+         *   * ce FICHIER est la semence — il alimente la migration qui remplit
+         *     la ligne, et sert de repli dans tout environnement ou la ligne
+         *     n'existerait pas (suite de tests fraiche, `migrate:fresh`).
+         *
+         * Corollaire a connaitre avant de corriger une couleur ici : sur une
+         * base ou la ligne est deja remplie, modifier ce fichier ne change
+         * RIEN. La migration ne remplit que ce qui est vide, pour ne jamais
+         * ecraser un reglage fait a l'ecran. Passer par l'administration, ou
+         * ecrire une migration dediee.
          *
          * ## La charte
          *
@@ -228,7 +243,7 @@ return [
          */
         'ofsh' => [
             'label' => 'OFSH',
-            'description' => 'Theme de l\'Organization OFSH : bleu oceanique, vert solidaire, ambre et corail sur encre marine. Decline en clair et en sombre.',
+            'description' => 'Theme de l\'Organization OFSH : bleu oceanique, vert solidaire, ambre et corail sur encre marine. Decline en clair et en sombre. REGLE : du petit texte blanc va sur `primary-deep`, jamais sur `primary`, `accent` ou `warning` nus — ces trois-la sont sous 4,5:1 avec du blanc (4,19 / 4,21 / 3,05).',
             'tokens' => [
                 'page' => '#F8FBFA',
                 'surface' => '#F8FBFA',
@@ -257,6 +272,10 @@ return [
              * eclaircies juste assez pour tenir le contraste sur ce fond. Le
              * bleu passe de #097FD5 a #3FA3E8, le vert de #158C68 a #2FB183 ;
              * l'ambre #FFC247 est deja lisible sur fond sombre et ne bouge pas.
+             *
+             * Contrastes mesures sur ce volet : texte sur fond 16,72:1, texte
+             * secondaire sur surface 8,49:1, `primary` sur fond 6,50:1,
+             * `accent` sur fond 6,60:1. Tous au-dessus de AA.
              */
             'dark' => [
                 'page' => '#04182C',
