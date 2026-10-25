@@ -56,6 +56,11 @@ class MessageThread extends Component
 
     public ?array $replyingTo = null;
 
+    /** TASK-1704 correctif 2 — le message en cours de modification, s'il y en a un. */
+    public ?string $editingMessageId = null;
+
+    public string $editingBody = '';
+
     /**
      * TASK-1704 — deux plafonds, et c'est VOULU.
      *
@@ -163,6 +168,128 @@ class MessageThread extends Component
         }
 
         return $mime !== null && in_array($mime, TypesDeFichiersAcceptes::IMAGES, true);
+    }
+
+    /**
+     * TASK-1704 correctif 2 — modifier un message texte.
+     *
+     * Cyril : « il faudrait aussi pouvoir modifier les messages textes, on
+     * peut le faire sur la chatloop. »
+     *
+     * Le mecanisme est celui du ChatLoop, repris sans etre reinvente : memes
+     * noms de methodes (la bulle partagee appelle deja `editMessage(...)`),
+     * meme regle d'editabilite, meme recalcul de l'apercu de lien. Ecrire un
+     * second mecanisme aurait donne deux comportements a maintenir pour un
+     * seul geste.
+     *
+     * ## Les gardes, et pourquoi chacune
+     *
+     * - **Participation et statut de l'echange** : on ne modifie pas un
+     *   message dans une conversation ou l'on ne peut plus ecrire. C'est la
+     *   meme borne que `sendMessage()`, et l'omettre laisserait reecrire
+     *   l'historique d'un echange cloture.
+     * - **Le message appartient a CET echange** — et a cette Organization.
+     *   Sans elle, un identifiant suffirait a modifier le message d'autrui.
+     * - **`isEditableBy()`** : l'auteur seul, et jamais un message systeme.
+     */
+    public function editMessage(string $messageId): void
+    {
+        $message = $this->messageModifiable($messageId);
+
+        if (! $message) {
+            return;
+        }
+
+        $this->editingMessageId = $message->id;
+        $this->editingBody = $message->body;
+    }
+
+    public function cancelEdit(): void
+    {
+        $this->editingMessageId = null;
+        $this->editingBody = '';
+    }
+
+    public function saveEdit(): void
+    {
+        $this->validate([
+            'editingBody' => 'required|string|max:5000',
+        ]);
+
+        if ($this->editingMessageId === null) {
+            return;
+        }
+
+        $message = $this->messageModifiable($this->editingMessageId);
+
+        if (! $message) {
+            $this->cancelEdit();
+
+            return;
+        }
+
+        // `required` trime deja les chaines : une saisie d'espaces seuls est
+        // rejetee par la validation ci-dessus, et ne parvient jamais ici. Une
+        // seconde verification de vacuite serait du code mort — un sabotage
+        // qui la supprimait est reste VERT, et c'est ce qui l'a montre.
+        $corps = trim($this->editingBody);
+
+        // L'apercu de lien est RECALCULE : un membre qui corrige l'URL de son
+        // message doit en voir la vignette changer. Le ChatLoop fait de meme
+        // dans `saveEdit()`.
+        $url = UrlPreviewService::extractFirstUrl($corps);
+        $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
+
+        $message->forceFill([
+            'body' => $corps,
+            'metadata' => $preview !== null ? ['url_preview' => $preview] : null,
+            'edited_at' => now(),
+            'edited_by' => auth()->id(),
+        ])->save();
+
+        $this->cancelEdit();
+    }
+
+    /**
+     * Le message designe, s'il est bien modifiable par le demandeur ICI.
+     *
+     * Les quatre conditions sont reunies en un seul endroit pour qu'`editMessage()`
+     * et `saveEdit()` ne puissent pas diverger : ouvrir le formulaire et
+     * enregistrer doivent repondre a la MEME question. Une garde posee a
+     * l'ouverture seule laisserait enregistrer ce qu'on n'a plus le droit de
+     * modifier.
+     */
+    private function messageModifiable(string $messageId): ?Message
+    {
+        $user = auth()->user();
+        $transaction = $this->transaction();
+
+        if (! $user || ! in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
+            return null;
+        }
+
+        if (in_array($transaction->status, ['completed', 'refused', 'cancelled'])) {
+            return null;
+        }
+
+        // `messages.id` est un UUID. Comparer une chaine quelconque a une
+        // colonne uuid leve `22P02` en PostgreSQL — et reste INVISIBLE en
+        // SQLite, ou la colonne est du texte. Le piege a deja coute une
+        // correction en TASK-1665.
+        if (! Str::isUuid($messageId)) {
+            return null;
+        }
+
+        $message = Message::where('id', $messageId)
+            ->where('transaction_id', $transaction->id)
+            ->where('organization_id', $transaction->organization_id)
+            ->first();
+
+        if (! $message || ! $message->isEditableBy($user)) {
+            return null;
+        }
+
+        return $message;
     }
 
     public function sendMessage(): void

@@ -141,6 +141,32 @@ class Message extends Model
         ], true);
     }
 
+    /**
+     * TASK-1704 correctif 2 — qui peut modifier ce message ?
+     *
+     * Cyril : « il faudrait aussi pouvoir modifier les messages textes, on peut
+     * le faire sur la chatloop. »
+     *
+     * La regle est reprise MOT POUR MOT de `LoopMessage::isEditableBy()` :
+     * seul l'auteur, seulement un message de membre, et jamais un message
+     * supprime. Elle n'est pas reinventee — deux surfaces qui repondent
+     * differemment a « puis-je corriger ma faute de frappe ? » seraient
+     * impossibles a expliquer.
+     *
+     * Les messages SYSTEME en sont exclus par le `type` : ils relatent un fait
+     * (un echange accepte, des points verses) et ne sont la parole de
+     * personne. Les reecrire falsifierait l'historique de l'echange.
+     *
+     * Aucune fenetre de temps : le ChatLoop n'en a pas, et en introduire une
+     * ici serait un RETRAIT de capacite par rapport a ce que Cyril demande.
+     */
+    public function isEditableBy(User $user): bool
+    {
+        return $this->type === 'user'
+            && ! $this->isDeleted()
+            && $this->sender_id === $user->id;
+    }
+
     public function isSystem(): bool
     {
         return $this->type === 'system';

@@ -141,10 +141,41 @@
                             {{ $message->body }}
                         </span>
                     </div>
+                @elseif($editingMessageId === $message->id)
+                    {{-- TASK-1704 correctif 2 — le formulaire de modification,
+                         de la meme forme que celui du ChatLoop : il PREND LA
+                         PLACE de la bulle, plutot que de s'ouvrir a cote. --}}
+                    <div class="flex justify-end" data-message-edit-form>
+                        <form wire:submit="saveEdit" class="w-full max-w-[90%] sm:max-w-md md:max-w-lg rounded-2xl rounded-br-sm bg-indigo-600 p-3 text-white shadow-sm">
+                            <textarea
+                                wire:model="editingBody"
+                                rows="3"
+                                class="w-full rounded-lg border-indigo-400 bg-white/95 text-sm text-gray-900 focus:border-white focus:ring-white"
+                            ></textarea>
+                            @error('editingBody')
+                                <p class="mt-1 text-xs text-indigo-100">{{ $message }}</p>
+                            @enderror
+                            <div class="mt-2 flex justify-end gap-2">
+                                <button type="button" wire:click="cancelEdit" class="text-xs font-medium text-indigo-100 hover:text-white">
+                                    {{ __('messages.cancel_edit') }}
+                                </button>
+                                <button type="submit" class="rounded-lg bg-white px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">
+                                    {{ __('messages.save') }}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 @elseif($message->sender_id === auth()->id())
                     @php $meta = $message->metadata ?? []; @endphp
                     <x-conversation.message-bubble
                         type="sent"
+                        {{-- TASK-1704 correctif 2 — « il faudrait aussi pouvoir
+                             modifier les messages textes, on peut le faire sur
+                             la chatloop ». L'autorite reste au serveur : cette
+                             prop ne fait qu'AFFICHER le bouton, et
+                             `messageModifiable()` reevalue le droit au clic
+                             comme a l'enregistrement. --}}
+                        :show-edit-button="$message->isEditableBy(auth()->user())"
                         :time="$message->created_at->format('H:i')"
                         {{-- TASK-1693 bug Q — une correction par la moderation
                              doit se voir ici, exactement comme elle se voit
