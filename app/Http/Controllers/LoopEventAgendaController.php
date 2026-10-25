@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Loop;
 use App\Models\LoopEvent;
 use App\Models\LoopEventResponse;
 use App\Models\Organization;
@@ -17,9 +18,15 @@ use Illuminate\View\View;
  * L'agenda d'une Organization : les rencontres de mes Boucles, plus celles
  * ouvertes a tout le monde.
  *
- * La page ne CREE rien — organiser se fait dans la Boucle. Elle lit, a travers le
- * meme service et le meme presentateur que la Card, pour que les deux ecrans ne
- * puissent pas diverger.
+ * TASK-1706 — cette page ORGANISE desormais, et cette phrase remplace celle qui
+ * disait l'inverse : « la page ne CREE rien — organiser se fait dans la
+ * Boucle ». Cyril : « ceci n'est pas pratique, car il faut donc passer par une
+ * boucle. Pas de bouton pour creer un evenement. » La decision est revisee,
+ * pas contredite en silence.
+ *
+ * Ce qui n'a PAS change : elle n'ecrit rien elle-meme. Elle lit et elle delegue,
+ * a travers le meme service et le meme presentateur que la Card, pour que les
+ * deux ecrans ne puissent pas diverger.
  *
  * TASK-1656 : elle porte desormais UN geste, celui de REPONDRE a une invitation.
  * Ce n'est pas organiser. `LoopEventService::canRespondTo()` autorisait deja
@@ -76,14 +83,107 @@ class LoopEventAgendaController extends Controller
             ? $filtered->sortByDesc('starts_at')
             : $filtered->sortBy('starts_at');
 
+        // TASK-1706 — ou cette personne peut-elle organiser, et sinon pourquoi.
+        // Le service tranche ; cette page ne redevine rien.
+        $creation = $service->creationContextFor($user, $organization->id);
+
         return view('loops.agenda', [
             'organization' => $organization,
+            'creationLoops' => $creation['loops'],
+            'creationRefus' => $creation['refus'],
             'events' => $filtered->values(),
             'loops' => $loops,
             'when' => $when,
             'loopFilter' => $loopFilter,
             'formatFilter' => $formatFilter,
         ]);
+    }
+
+    /**
+     * TASK-1706 — le formulaire de creation, depuis l'agenda.
+     *
+     * Cyril : « pas de bouton pour creer un evenement. Il faudrait avoir un
+     * bouton, qui permet de creer un nouvel evenement, ceci comme sur une
+     * boucle. Et bien entendu on selectionne la boucle. »
+     *
+     * ## Ce que cette methode NUANCE
+     *
+     * Le docblock de cette classe disait : « La page ne CREE rien — organiser
+     * se fait dans la Boucle. » C'etait vrai, et c'est precisement ce que Cyril
+     * demande de changer : passer par une Boucle pour organiser n'est pas
+     * pratique quand on arrive par l'agenda. La decision est donc revisee ici,
+     * explicitement, et non contredite en silence.
+     *
+     * Ce qui ne change PAS : l'Evenement appartient toujours a une Boucle.
+     * `loop_events.loop_id` est NOT NULL, et aucune ecriture ne contourne
+     * `LoopEventService`.
+     */
+    public function create(Request $request): View|RedirectResponse
+    {
+        $user = $request->user();
+        $organization = $this->resolveOrganization($user);
+
+        abort_unless($user->canAccessOrganization($organization), 404);
+
+        $contexte = app(LoopEventService::class)->creationContextFor($user, $organization->id);
+
+        // Le droit est REEVALUE ici, et pas seulement a l'affichage du bouton.
+        // Une URL tapee a la main doit rencontrer la meme reponse qu'un clic.
+        if ($contexte['loops']->isEmpty()) {
+            return $this->versAgenda($organization)
+                ->with('error', __('events.'.($contexte['refus'] ?? 'role').'_refus'));
+        }
+
+        return view('loops.agenda-create', [
+            'organization' => $organization,
+            'loops' => $contexte['loops'],
+            'canPublishToOrganization' => $contexte['loops']
+                ->contains(fn ($loop) => app(LoopEventService::class)->canPublishToOrganization($user, $loop)),
+        ]);
+    }
+
+    /**
+     * Enregistrer la rencontre.
+     *
+     * Aucune regle n'est ecrite ici : `LoopEventService::create()` porte tout —
+     * le droit de creer, l'appartenance active, le fuseau, la coherence des
+     * dates, le lieu ou l'URL selon le format, et le refus de publier une
+     * Boucle privee a l'Organization. Dupliquer ici le moindre predicat ferait
+     * exister deux verites.
+     *
+     * La Boucle est resolue A LA MAIN avec sa frontiere de tenant, pour la
+     * raison exposee sur `respond()` : un identifiant connu d'une autre
+     * Organization ne doit jamais atteindre le service.
+     */
+    public function store(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $organization = $this->resolveOrganization($user);
+
+        abort_unless($user->canAccessOrganization($organization), 404);
+
+        $loop = Loop::query()
+            ->whereKey((string) $request->input('loop_id'))
+            ->where('organization_id', $organization->id)
+            ->first();
+
+        abort_if($loop === null, 404);
+
+        try {
+            app(LoopEventService::class)->create($user, $loop, $request->all());
+        } catch (EventException $e) {
+            return back()->withInput()->with('error', __($e->getMessage()));
+        }
+
+        return $this->versAgenda($organization)->with('status', __('events.created'));
+    }
+
+    /** L'agenda, sur la surface ou l'on se trouve. */
+    private function versAgenda(Organization $organization): RedirectResponse
+    {
+        return \Illuminate\Support\Facades\Route::has('organization.events.agenda')
+            ? redirect()->route('organization.events.agenda', ['organization' => $organization->slug])
+            : redirect()->route('events.agenda');
     }
 
     /**

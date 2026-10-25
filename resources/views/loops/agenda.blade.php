@@ -1,17 +1,80 @@
 {{--
     L'agenda d'une Organization.
 
-    Une page de lecture : elle rassemble, elle n'organise pas. Proposer une
-    rencontre se fait dans la Boucle, la ou vivent les gens qui y viendront.
+    TASK-1706 — elle ORGANISE desormais, et cette phrase remplace celle qui
+    disait l'inverse. Cyril : « il faut donc passer par une boucle. Ce n'est
+    pas pratique. Pas de bouton pour creer un evenement. »
+
+    La rencontre appartient toujours a une Boucle — `loop_events.loop_id` est
+    NOT NULL —, mais on la choisit ici au lieu d'aller la chercher.
 
     Chaque ligne est le meme partiel que dans la Card, en mode non interactif :
     les deux ecrans montrent la meme chose parce qu'ils partagent le balisage.
 --}}
 <x-app-layout :title="__('events.agenda_title')">
     <x-page-container>
-        <div class="mb-6">
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('events.agenda_title') }}</h1>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('events.agenda_subtitle') }}</p>
+        <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('events.agenda_title') }}</h1>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('events.agenda_subtitle') }}</p>
+            </div>
+
+            {{-- TASK-1706 — organiser depuis l'agenda.
+
+                 Le bouton EXISTE TOUJOURS, meme quand la personne ne peut pas
+                 creer : c'est ce que Cyril a demande explicitement (« le bouton
+                 existe, mais renvoie une erreur »). Un bouton absent ne dit pas
+                 ce qu'il faut faire pour l'obtenir ; un bouton qui s'explique,
+                 oui.
+
+                 TROIS refus distincts, et aucun n'est interchangeable : chacun
+                 nomme un geste different. Se replier sur un message unique
+                 afficherait un texte FAUX pour deux personnes sur trois — un
+                 proprietaire a bien le role, c'est l'outil qui lui manque.
+
+                 La decision vient du SERVEUR (`creationContextFor`) : cette vue
+                 ne redevine aucun droit. --}}
+            @if($creationLoops->isNotEmpty())
+                <a href="{{ route('organization.events.agenda.create', ['organization' => $organization->slug]) }}"
+                   data-agenda-create
+                   class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                    </svg>
+                    {{ __('events.agenda_create_button') }}
+                </a>
+            @else
+                <div x-data="{ ouvert: false }" class="relative">
+                    <button type="button"
+                            data-agenda-create-refused="{{ $creationRefus }}"
+                            x-on:click="ouvert = ! ouvert"
+                            class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                        </svg>
+                        {{ __('events.agenda_create_button') }}
+                    </button>
+
+                    <div x-show="ouvert"
+                         x-cloak
+                         x-transition
+                         x-on:click.outside="ouvert = false"
+                         data-agenda-create-message
+                         class="absolute right-0 z-20 mt-2 w-80 rounded-xl border border-amber-200 bg-white p-4 text-sm shadow-lg dark:border-amber-900/50 dark:bg-gray-800">
+                        <p class="text-gray-700 dark:text-gray-200">
+                            {{ __('events.'.$creationRefus.'_refus') }}
+                        </p>
+
+                        @if($creationRefus === 'no_loop')
+                            <a href="{{ route('organization.loops.index', ['organization' => $organization->slug]) }}"
+                               data-agenda-create-cta
+                               class="mt-3 inline-flex text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
+                                {{ __('events.no_loop_refus_cta') }}
+                            </a>
+                        @endif
+                    </div>
+                </div>
+            @endif
         </div>
 
         {{-- TASK-1656 — l'agenda porte desormais un geste : il lui faut donc un
