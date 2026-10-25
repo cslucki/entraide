@@ -322,17 +322,29 @@ $secondaryCtaUrl = $showInternalHomepageContent
          Meme emplacement, meme rang visuel que les autres liens du pied : le
          footer ne s'allonge pas, une entree en remplace une. --}}
     <div class="foot-credit">
+      {{-- TASK-1698 — le pied est SERVI EN ENTIER, connecte ou non (decision
+           de Cyril, capture a l'appui). Ce qui varie, c'est la CIBLE :
+
+             - Mycelium et OpenSource ont une version PUBLIQUE (`mycelium`,
+               `open-source.page`) : hors connexion on la sert, meme libelle
+               sans mur ;
+             - Logigramme et « Un bug ? » n'en ont AUCUNE. Leurs routes exigent
+               `auth` + `EnsureOrganizationMember` : un visiteur anonyme qui
+               clique atterrit sur la page de connexion. Signale a Cyril, qui a
+               tranche pour la parite visuelle. --}}
       @if($showInternalHomepageContent)
       <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
       {{-- TASK-1608 — le logigramme, immediatement a droite de Mycelium,
            separe par « · ». La landing est TOUJOURS servie sous `/org/{slug}` :
            la cible est donc bornee sans repli possible, et n'a aucun besoin de
            `organizationScopedUrl()`. --}}
+      @else
+      {{-- Le lien « BouclePro » qui occupait ce creneau menait a la page
+           COURANTE : il ne servait a rien, Cyril l'a signale. --}}
+      <a href="{{ route('mycelium') }}" data-footer-mycelium-public>{{ __('mycelium.footer_link') }}</a>
+      @endif
       <span class="foot-sep" aria-hidden="true">·</span>
       <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
-      @else
-      <a href="{{ route('organization.home', $organization) }}">{{ $organization->name }}</a>
-      @endif
     </div>
     <nav class="foot-links">
       <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
@@ -354,13 +366,24 @@ $secondaryCtaUrl = $showInternalHomepageContent
              - l'icone GitHub mene au DEPOT, via `/open-source/github`, une
                redirection serveur qui atterrit sur le depot public sans
                jamais poser son URL dans le HTML ni dans la barre d'etat. --}}
-      <a href="{{ route('organization.open-source', ['organization' => $organization->slug]) }}">{{ __('footer.opensource') }}</a>
-      <a href="{{ route('organization.bug-reports.index', $organization) }}">{{ __('footer.bug') }}</a>
+      <a href="{{ route('organization.open-source', ['organization' => $organization->slug]) }}" data-footer-opensource>{{ __('footer.opensource') }}</a>
+      @else
+      {{-- TASK-1698 — OpenSource a une version PUBLIQUE (`open-source.page`),
+           la bornee exigeant `auth` + membre. « Un bug ? » n'en a pas : il
+           reste absent. --}}
+      <a href="{{ route('open-source.page') }}" data-footer-opensource-public>{{ __('footer.opensource') }}</a>
+      @endif
+      <a href="{{ route('organization.bug-reports.index', $organization) }}" data-footer-bug>{{ __('footer.bug') }}</a>
+
+      {{-- TASK-1698 — l'icone GitHub n'exige RIEN (`open-source.github` n'a ni
+           `auth` ni `EnsureOrganizationMember`). Elle etait pourtant enfermee
+           dans la garde interne : masquee pour un visiteur anonyme sans que
+           cela protege quoi que ce soit. --}}
       <a href="{{ route('open-source.github') }}" target="_blank" rel="noopener"
+         data-footer-github
          aria-label="{{ __('open_source.github_aria') }}">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 .1.8 1.7 2.5 1.4.1-.7.4-1.2.7-1.5-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.5 18.3 4.8 18.3 4.8c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
       </a>
-      @endif
       <span>{{ config('app.version') }}</span>
     </nav>
   </footer>
