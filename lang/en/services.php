@@ -23,7 +23,7 @@ return [
         'report_other' => 'Other',
         'report_details' => 'Details (optional)...',
         'report_submit' => 'Send report',
-        'propose_exchange' => 'Request this help',
+        'request_this_help' => 'Request this help',
         'your_balance' => 'Your balance: :points pts',
     ],
 

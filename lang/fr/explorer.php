@@ -28,7 +28,6 @@ return [
     'remove_favorite' => 'Retirer des favoris',
     'add_favorite' => 'Ajouter aux favoris',
     'load_more' => 'Charger plus',
-    'offer_help' => 'Proposer mon aide',
     // TASK-1697 — filtre par auteur, pose depuis l'annuaire
     'member_filter_label' => 'Membre : :name',
     'member_filter_clear' => 'Retirer ce filtre',

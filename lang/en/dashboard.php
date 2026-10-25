@@ -164,7 +164,7 @@ return [
     'view_all_services' => 'View all my services',
     'my_requests_page_title' => 'My help requests',
     'my_services_page_title' => 'My help proposals',
-    'service_proposals_title' => 'Help proposals',
+    'service_proposals_title' => 'Mutual aid proposals',
     'help_requests_title' => 'Help requests',
     'detail_request_title' => 'Request details',
     'detail_service_title' => 'Service details',
