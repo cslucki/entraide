@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Theme;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\PreservesThemeCache;
 use Tests\TestCase;
 
 /**
@@ -60,6 +61,10 @@ use Tests\TestCase;
 class TASK1701OfshThemePaletteTest extends TestCase
 {
     use RefreshDatabase;
+    // TASK-1705 — `regenerateCache()` ecrit un FICHIER, que `RefreshDatabase`
+    // n'annule pas. Sans cela, ce fichier laisse derriere lui des couleurs
+    // qui contaminent toute page rendue ensuite dans le meme processus.
+    use PreservesThemeCache;
 
     private const CLE = 'ofsh';
 
