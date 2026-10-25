@@ -15,6 +15,29 @@
             ? route('organization.messages.with', ['organization' => $organizationRouteParam, 'user' => $user->profileRouteKey()])
             : route('messages.with', $user->profileRouteKey());
 
+        // TASK-1697 — les SEPT derniers liens de cette page qui sortaient du
+        // locataire.
+        //
+        // Troisieme passage du MEME defaut sur ce seul fichier : le bug AA de
+        // T1693 (« Ecrire a cette personne »), puis la fleche de l'annuaire au
+        // correctif 13, et maintenant les sept restants. Sans prefixe
+        // d'Organization, `ResolveUrlOrganization` lie l'Organization PAR
+        // DEFAUT de la plateforme : on change de locataire sans s'en
+        // apercevoir. Le dernier des sept est un `<form method="POST">`
+        // (signalement) — c'est une ECRITURE qui partait au mauvais endroit.
+        //
+        // MEME idiome que `mobile-topbar.blade.php` : un helper, pas sept
+        // ternaires recopiees.
+        $urlOrg = function (string $route, array $params = []) use ($organizationRouteParam): string {
+            $scopee = 'organization.'.$route;
+
+            if ($organizationRouteParam && Route::has($scopee)) {
+                return route($scopee, ['organization' => $organizationRouteParam] + $params);
+            }
+
+            return route($route, $params);
+        };
+
         // TASK-1697 correctif 13 — meme defaut que le bug AA ci-dessus : sans
         // prefixe d'Organization, `ResolveUrlOrganization` lie l'Organization
         // PAR DEFAUT et la fleche ramenait a l'annuaire d'un AUTRE tenant.
@@ -39,7 +62,7 @@
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-7 mb-5 relative">
             @if(auth()->check() && auth()->id() === $user->id)
             <div class="absolute top-4 right-4 z-10">
-                <a href="{{ route('profile.edit') }}"
+                <a href="{{ $urlOrg('profile.edit') }}" data-profile-edit
                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                     {{ __('profile.edit_profile') }}
@@ -52,7 +75,7 @@
                 <div class="relative flex-shrink-0 mx-auto sm:mx-0">
                     <img src="{{ $user->avatar_url }}" class="h-20 w-20 sm:h-24 sm:w-24 rounded-full object-cover ring-2 ring-gray-200 dark:ring-gray-600" alt="">
                     @if(auth()->check() && auth()->id() === $user->id)
-                    <a href="{{ route('profile.edit') }}"
+                    <a href="{{ $urlOrg('profile.edit') }}" data-profile-edit
                        class="absolute bottom-0 right-0 w-6 h-6 bg-indigo-600 hover:bg-indigo-700 rounded-full flex items-center justify-center shadow-md transition"
                        title="{{ __('profile.edit_profile') }}">
                         <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
@@ -172,7 +195,7 @@
                                 <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('profile.ai_agent_enabled') }}</p>
                             </div>
                         </div>
-                        <a href="{{ route('agent-ia.interactions') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <a href="{{ $urlOrg('agent-ia.interactions') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                             {{ __('profile.view_exchanges') }}
                         </a>
                     </div>
@@ -224,7 +247,7 @@
                     @else
                     <div class="grid gap-3 sm:grid-cols-2">
                         @foreach($services as $service)
-                        <a href="{{ route('services.show', $service) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-700 transition">
+                        <a href="{{ $urlOrg('services.show', ['service' => $service]) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-700 transition">
                             <div class="flex items-start justify-between mb-2">
                                 <span class="px-2.5 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
                                     {{ $service->category->displayName('transactions') }}
@@ -258,7 +281,7 @@
                     </div>
                     <div class="grid gap-3 sm:grid-cols-2">
                         @foreach($openRequests as $req)
-                        <a href="{{ route('requests.show', $req) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md hover:border-green-200 dark:hover:border-green-700 transition">
+                        <a href="{{ $urlOrg('requests.show', ['request' => $req]) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md hover:border-green-200 dark:hover:border-green-700 transition">
                             <div class="flex items-start justify-between mb-2">
                                 <span class="px-2.5 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $req->category->color }}">
                                     {{ $req->category->displayName('transactions') }}
@@ -287,7 +310,7 @@
                     </div>
                     <div class="grid gap-3 sm:grid-cols-2">
                         @foreach($blogPosts as $post)
-                        <a href="{{ route('blog.show', $post) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition">
+                        <a href="{{ $urlOrg('blog.show', ['post' => $post]) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition">
                             <div class="flex items-center justify-between mb-2">
                                 @if($post->category)
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $post->category->color }}">
@@ -383,7 +406,7 @@
                         {{ __('profile.report') }}
                     </button>
                     <div x-show="open" x-cloak class="mt-2 rounded-xl border border-red-200 bg-red-50 p-4 text-left shadow-lg dark:border-red-800 dark:bg-red-900/20">
-                        <form method="POST" action="{{ route('reports.user', $user) }}">
+                        <form method="POST" action="{{ $urlOrg('reports.user', ['user' => $user]) }}">
                             @csrf
                             <p class="mb-2 text-xs font-semibold text-red-700 dark:text-red-300">{{ __('profile.report_user') }}</p>
                             <select name="reason" required class="mb-2 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-red-700 dark:bg-gray-800 dark:text-gray-100">
