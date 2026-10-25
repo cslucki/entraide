@@ -87,6 +87,25 @@ return [
     'agenda_title' => 'Agenda',
     'agenda_subtitle' => 'Les rencontres de vos Boucles, et celles ouvertes à toute l\'Organization.',
     'agenda_empty' => 'Aucune rencontre à afficher.',
+
+    // TASK-1706 — organiser depuis l'agenda. Cyril : « il faut donc passer par
+    // une boucle. Ce n'est pas pratique. »
+    'agenda_create_button' => 'Créer un évènement',
+    'agenda_create_title' => 'Nouvelle rencontre',
+    'agenda_create_intro' => 'La rencontre appartiendra à la Boucle que vous choisissez : c\'est elle qui en réunit les participants.',
+    'agenda_create_loop' => 'Dans quelle Boucle ?',
+    'agenda_create_visibility' => 'Qui peut la voir ?',
+    'agenda_create_visibility_loop' => 'Les membres de la Boucle',
+    'agenda_create_visibility_organization' => 'Toute l\'Organization',
+    'created' => 'La rencontre est créée.',
+
+    // Les TROIS refus. Ils ne se confondent pas : chacun dit un geste
+    // different a faire, et se replier sur un message generique afficherait un
+    // texte FAUX pour deux personnes sur trois.
+    'no_loop_refus' => 'Il faut être membre d\'une Boucle pour créer un évènement.',
+    'no_loop_refus_cta' => 'Voir les Boucles',
+    'role_refus' => 'Vous devez avoir le rôle de propriétaire ou animateur d\'une boucle pour pouvoir créer un nouvel évènement.',
+    'card_refus' => 'Aucune de vos Boucles n\'a l\'outil « Événements » activé. Activez-le dans les réglages d\'une Boucle pour y organiser des rencontres.',
     'filter_all_loops' => 'Toutes les Boucles',
     'filter_all_formats' => 'Tous les formats',
     'filter_upcoming' => 'À venir',

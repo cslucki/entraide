@@ -71,6 +71,98 @@ class LoopEventService
             && $this->permissions->can($user, $loop, 'events.create');
     }
 
+    /**
+     * TASK-1706 — ou cette personne peut-elle organiser une rencontre, et si
+     * nulle part, POURQUOI.
+     *
+     * Cyril : « sur l'agenda, pas de bouton pour creer un evenement. Il
+     * faudrait avoir un bouton […] et bien entendu on selectionne la boucle. »
+     *
+     * ## Pourquoi cette methode vit ICI
+     *
+     * L'agenda ne doit pas redeviner qui peut creer. `canCreate()` porte deja
+     * TOUTE la regle — la card `core.events`, le role, l'autorite de l'admin
+     * d'Organization, la Boucle archivee. La page a seulement besoin de savoir
+     * sur quelles Boucles cette reponse est OUI, et quoi dire quand elle est
+     * NON partout.
+     *
+     * ## Les trois raisons, et pourquoi elles ne se confondent pas
+     *
+     * Cyril en a nomme deux. La mesure en a revele une TROISIEME, et il a
+     * tranche qu'elle merite son propre message : etre proprietaire d'une
+     * Boucle dont la card « Evenements » est desactivee. Se replier sur le
+     * message de role afficherait un texte FAUX pour cette personne — elle a
+     * le role, c'est l'outil qui manque.
+     *
+     * L'ordre d'examen n'est pas indifferent : si au moins une Boucle candidate
+     * PORTE la card, alors la card n'est pas ce qui bloque sur celle-la, et
+     * c'est bien le role qu'il faut nommer.
+     *
+     * ## Qui sont les Boucles candidates, et pourquoi l'appartenance compte
+     *
+     * Celles ou l'adhesion est ACTIVE — **y compris pour un administrateur**.
+     * C'est contre-intuitif, et c'est pourtant la seule reponse honnete :
+     * `create()` exige `isActiveMember()` en plus de `canCreate()`. Offrir a
+     * un administrateur une Boucle dont il n'est pas membre lui ferait remplir
+     * un formulaire que le service refuserait ensuite — exactement le defaut
+     * que TASK-1684 a corrige sur les Dossiers, ou l'ecran proposait un geste
+     * que la regle rejetait.
+     *
+     * Son autorite s'exerce ailleurs, et pleinement : sur les Boucles dont il
+     * est membre, `canPublishToOrganization()` lui ouvre la visibilite « toute
+     * l'Organization ». Et c'est bien de cela qu'il s'agit : `loop_events.loop_id`
+     * est **NOT NULL**, donc un Evenement appartient TOUJOURS a une Boucle.
+     * « Pour toute l'organisation » ne designe pas un Evenement sans Boucle —
+     * cela n'existe pas — mais sa VISIBILITE.
+     *
+     * @return array{loops: Collection<int, Loop>, refus: ?string}
+     *                                             `refus` vaut `no_loop`,
+     *                                             `card` ou `role`, et n'est
+     *                                             pose que si `loops` est vide.
+     */
+    public function creationContextFor(User $user, string $organizationId): array
+    {
+        $candidates = $this->candidateLoopsFor($user, $organizationId);
+
+        $creatables = $candidates->filter(fn (Loop $loop) => $this->canCreate($user, $loop))->values();
+
+        if ($creatables->isNotEmpty()) {
+            return ['loops' => $creatables, 'refus' => null];
+        }
+
+        if ($candidates->isEmpty()) {
+            return ['loops' => $creatables, 'refus' => 'no_loop'];
+        }
+
+        $registry = app(\App\Support\Loops\LoopTypeRegistry::class);
+
+        $avecLaCard = $candidates->filter(
+            fn (Loop $loop) => in_array('core.events', $registry->activeCardsFor($loop), true)
+        );
+
+        return ['loops' => $creatables, 'refus' => $avecLaCard->isEmpty() ? 'card' : 'role'];
+    }
+
+    /**
+     * Les Boucles sur lesquelles la question « peut-elle creer ? » a un sens.
+     *
+     * Ce n'est PAS une autorisation : `canCreate()` tranche ensuite, Boucle par
+     * Boucle. C'est seulement l'ensemble a examiner — et le restreindre aux
+     * adhesions pour un administrateur lui cacherait les Boucles qu'il
+     * administre sans en etre membre.
+     *
+     * @return Collection<int, Loop>
+     */
+    private function candidateLoopsFor(User $user, string $organizationId): Collection
+    {
+        return Loop::where('organization_id', $organizationId)
+            ->whereIn('id', LoopMember::where('user_id', $user->id)
+                ->where('status', 'active')
+                ->pluck('loop_id'))
+            ->orderBy('name')
+            ->get();
+    }
+
     // ── Ecritures ───────────────────────────────────────────────────────────
 
     /**

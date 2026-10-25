@@ -487,6 +487,12 @@ Route::middleware('auth')->group(function () {
         // sans appartenance a la Boucle. Aucune interface ne l'offrait : c'est
         // la dette `ORG_WIDE_EVENT_HAS_NO_RSVP_SURFACE_FOR_NON_MEMBERS` de T1655.
         Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
+        // TASK-1706 — organiser depuis l'agenda. Declare AVANT la route de
+        // reponse : « nouveau » ne doit pas etre lu comme un identifiant.
+        Route::get('/agenda/nouveau', [LoopEventAgendaController::class, 'create'])->name('events.agenda.create');
+        Route::post('/agenda', [LoopEventAgendaController::class, 'store'])
+            ->middleware('throttle:20,1')
+            ->name('events.agenda.store');
         Route::post('/agenda/{event}/repondre', [LoopEventAgendaController::class, 'respond'])
             ->whereUuid('event')
             ->name('events.agenda.respond');
@@ -1450,6 +1456,12 @@ Route::prefix('/org/{organization}')
                 // L'agenda de l'Organization. Voir la note sur la route courte :
                 // depuis TASK-1656 il porte le geste de REPONSE a une invitation.
                 Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
+                // TASK-1706 — organiser depuis l'agenda. Declare AVANT la route de
+                // reponse : « nouveau » ne doit pas etre lu comme un identifiant.
+                Route::get('/agenda/nouveau', [LoopEventAgendaController::class, 'create'])->name('events.agenda.create');
+                Route::post('/agenda', [LoopEventAgendaController::class, 'store'])
+                    ->middleware('throttle:20,1')
+                    ->name('events.agenda.store');
                 Route::post('/agenda/{event}/repondre', [LoopEventAgendaController::class, 'respond'])
                     ->whereUuid('event')
                     ->name('events.agenda.respond');
