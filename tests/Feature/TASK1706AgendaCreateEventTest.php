@@ -214,6 +214,30 @@ class TASK1706AgendaCreateEventTest extends TestCase
         $this->assertStringContainsString(e(__('events.role_refus')), $html);
     }
 
+    /**
+     * La surface COURTE rend elle aussi, dans les deux cas.
+     *
+     * `/agenda` et `/org/{slug}/agenda` servent la MEME vue. Le bouton y
+     * construit des URL prefixees — comme le fait deja le formulaire de
+     * reponse de cette page —, mais la vue doit d'abord ne pas PLANTER : une
+     * variable attendue et non passee donnerait un 500, et aucune des gardes
+     * ci-dessus ne le verrait puisqu'elles interrogent toutes la surface
+     * prefixee.
+     *
+     * Les DEUX cas sont mesures : celui qui peut organiser (branche du lien) et
+     * celui qui ne peut pas (branche du message Alpine). Une seule des deux
+     * laisserait l'autre branche jamais rendue sur cette surface.
+     */
+    public function test_la_surface_courte_rend_aussi(): void
+    {
+        foreach ([$this->membre, $this->membreDeLOrg()] as $qui) {
+            app()->forgetInstance('current_organization');
+            app()->instance('current_organization', $this->org);
+
+            $this->actingAs($qui)->get('/agenda')->assertOk();
+        }
+    }
+
     // ── 2. Le formulaire ────────────────────────────────────────────────────
 
     private function formulaire(User $qui): \Illuminate\Testing\TestResponse
