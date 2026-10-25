@@ -424,6 +424,8 @@ return [
     'sidebar_plan_placeholder' => 'Extraire les titres de l\'article',
     'plan_title' => 'Plan',
     'plan_empty' => 'Aucun titre trouvé.',
+    'annotation_empty_hint' => 'Pour en créer une, sélectionnez un passage puis cliquez sur :bouton dans la barre d’édition.',
+    'plan_empty_hint' => 'Le plan se construit tout seul à partir de vos titres. Pour en poser un, placez le curseur dans une ligne puis choisissez un niveau avec :bouton dans la barre d’édition.',
     'plan_toggle' => 'Afficher sur l\'article publié',
     'plan_collapse' => 'Réduire',
     'plan_expand' => 'Développer',

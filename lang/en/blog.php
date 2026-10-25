@@ -424,6 +424,8 @@ return [
     'sidebar_plan_placeholder' => 'Extract headings from the article',
     'plan_title' => 'Plan',
     'plan_empty' => 'No headings found.',
+    'annotation_empty_hint' => 'To create one, select a passage then click :bouton in the editor toolbar.',
+    'plan_empty_hint' => 'The outline builds itself from your headings. To add one, place the cursor in a line then pick a level with :bouton in the editor toolbar.',
     'plan_toggle' => 'Show on published article',
     'plan_collapse' => 'Collapse',
     'plan_expand' => 'Expand',

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\BlogPost;
+use App\Models\OrganizationAiSetting;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -150,6 +151,141 @@ class TASK1702EditorPanelsWiringTest extends TestCase
         foreach (self::PANNEAUX as $nom => $composant) {
             $this->assertStringContainsString($composant.'(', $html, "La Card « {$composant} » a disparu.");
             $this->assertStringContainsString("toggle('".$nom."')", $html, "Le bouton « {$nom} » a disparu.");
+        }
+    }
+
+    // ── Correctif 2 : les filtres de source suivent l'interrupteur IA ───────
+
+    /**
+     * Allume l'IA de l'Organization, comme le fait TASK-1693.
+     *
+     * `AiSurfaceGate` memorise sa reponse par Organization : sans l'instance
+     * fraiche, le test mesurerait la reponse d'avant.
+     */
+    private function allumerLIA(): void
+    {
+        OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $this->organization->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
+
+        app()->forgetInstance(\App\Support\Ai\AiSurfaceGate::class);
+    }
+
+    /**
+     * Sans IA, les trois filtres de source disparaissent.
+     *
+     * Cyril : « sauf erreur sans l'IA, il n'y a plus qu'un seul type
+     * d'annotation ». Exact : « Toutes », « Humains » et « Questionnement »
+     * designent alors le meme ensemble — trois boutons pour une seule realite.
+     *
+     * Les DEUX etats sont mesures. Une garde qui ne verifierait que l'absence
+     * resterait verte si les filtres disparaissaient pour tout le monde : c'est
+     * la lecon ecrite en tete de `TASK1693AiSurfacesFollowTheSwitchTest`.
+     */
+    public function test_les_filtres_de_source_des_annotations_suivent_l_interrupteur_ia(): void
+    {
+        $eteint = $this->editeur();
+        $this->assertStringNotContainsString('data-annotation-source-filters', $eteint, 'Les filtres de source sont servis alors que l\'IA est eteinte.');
+
+        $this->allumerLIA();
+
+        $allume = $this->editeur();
+        $this->assertStringContainsString('data-annotation-source-filters', $allume, 'Les filtres de source ont disparu alors que l\'IA est allumee.');
+    }
+
+    /**
+     * Et les annotations DEJA ECRITES restent visibles.
+     *
+     * C'est le point delicat : une Organization qui eteint l'IA apres coup
+     * garde ses questionnements. Retirer les filtres ne doit pas les masquer —
+     * lecon de TASK-1693 bug AH, « masquer des notes DEJA ECRITES effacerait du
+     * travail fait ». Ici rien n'est masque, parce que le tri par defaut est
+     * « toutes » : on le prouve en verifiant que le filtre par defaut n'a pas
+     * change de valeur.
+     */
+    public function test_retirer_les_filtres_ne_masque_aucune_annotation(): void
+    {
+        // Le tri par defaut est declare dans le composant Alpine, pas dans la
+        // page : c'est donc la source qu'on interroge. Meme procede que
+        // `TASK1698NavigationFurnitureTenantTest`, qui lit les vues pour
+        // prouver qu'un gabarit n'est reference nulle part.
+        $source = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertSame(
+            1,
+            preg_match("/sourceFilter:\s*'all'/", $source),
+            'Le tri par defaut des annotations n\'est plus « toutes » : retirer les filtres masquerait des annotations existantes.'
+        );
+    }
+
+    /**
+     * Le drapeau transmis a la Card dit la MEME chose que le rendu des filtres.
+     *
+     * C'est la consequence la moins evidente du correctif, et la plus genante :
+     * `openForAnnotation()` bascule le filtre sur `ai_method` quand on ouvre une
+     * annotation d'origine IA. Une Organization qui eteint l'IA APRES COUP
+     * garde ses questionnements ; cliquer l'un d'eux poserait donc un filtre
+     * que plus aucun bouton ne permet de retirer — l'ecran se figerait sur une
+     * vue partielle.
+     *
+     * Les deux etats sont mesures, et avec eux la COHERENCE entre le drapeau et
+     * les boutons : les separer ferait de l'un le mensonge de l'autre.
+     */
+    public function test_le_drapeau_des_filtres_suit_le_rendu_des_filtres(): void
+    {
+        $eteint = $this->editeur();
+        $this->assertStringContainsString('sourceFiltersAvailable: false', $eteint);
+        $this->assertStringNotContainsString('data-annotation-source-filters', $eteint);
+
+        $this->allumerLIA();
+
+        $allume = $this->editeur();
+        $this->assertStringContainsString('sourceFiltersAvailable: true', $allume);
+        $this->assertStringContainsString('data-annotation-source-filters', $allume);
+    }
+
+    // ── Correctifs 2 et 3 : le vide dit OU se trouve l'outil ────────────────
+
+    /**
+     * Les deux messages de vide montrent le bouton de la barre d'edition.
+     *
+     * Cyril : « montre-le dans la phrase, ainsi la personne pourrait rapidement
+     * le reperer dans la barre d'edition tiptap ».
+     *
+     * La garde porte sur le PICTOGRAMME, pas sur la phrase : un texte qui
+     * mentionnerait le bouton sans le montrer passerait une assertion de
+     * libelle, et c'est precisement ce que la demande ecarte.
+     */
+    public function test_les_deux_messages_de_vide_montrent_le_bouton_de_la_barre(): void
+    {
+        $html = $this->editeur();
+
+        // Le pictogramme est cherche DANS le bloc, pas dans la page : ce meme
+        // trace apparait aussi dans la barre d'edition et ailleurs, et une
+        // mesure a l'echelle du document serait verte sans rien prouver.
+        // C'est la lecon des quatre faux verts de TASK-1697.
+        $trace = 'M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z';
+
+        $this->assertSame(
+            1,
+            preg_match('/data-annotation-empty-hint.*?'.preg_quote($trace, '/').'/s', $html),
+            'Le message de vide ne montre pas le pictogramme de la barre d\'edition : le reconnaitre est tout l\'interet.'
+        );
+
+        // Et il est bien dans CE bloc, pas repris d'un voisin : la portion
+        // mesuree s'arrete au premier `</div>` fermant du bloc.
+        $this->assertSame(1, preg_match('/data-annotation-empty-hint(.*?)<\/template>/s', $html, $bloc));
+        $this->assertStringContainsString($trace, $bloc[1]);
+
+        // Plan : le repere de la barre est un LIBELLE, pas une icone.
+        $this->assertStringContainsString('data-plan-empty-hint', $html);
+        $this->assertSame(1, preg_match('/data-plan-empty-hint(.*?)<\/template>/s', $html, $blocPlan));
+        $this->assertStringContainsString('>H2<', $blocPlan[1], 'Le message de vide du Plan ne montre pas le selecteur de niveau.');
+
+        // Et les phrases elles-memes sont servies, pas leur clef.
+        foreach (['annotation_empty_hint', 'plan_empty_hint'] as $clef) {
+            $this->assertStringNotContainsString('blog.'.$clef, $html, "La clef « {$clef} » est servie telle quelle.");
         }
     }
 

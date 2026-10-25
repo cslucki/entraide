@@ -6642,6 +6642,25 @@ window.blogAnnotationCard = function (config) {
         success: '',
         filterTab: 'open',
         sourceFilter: 'all',
+
+        /**
+         * TASK-1702 — les trois filtres de SOURCE sont-ils offerts ?
+         *
+         * Ils disparaissent quand l'IA est eteinte sur l'Organization : sans
+         * elle il n'existe qu'un seul type d'annotation, et trois boutons pour
+         * un seul ensemble ne trient rien.
+         *
+         * Ce drapeau est la pour une consequence MOINS evidente, et plus
+         * genante : `openForAnnotation()` bascule le filtre sur `ai_method`
+         * quand on ouvre une annotation d'origine IA. Une Organization qui
+         * eteint l'IA APRES COUP garde ses questionnements ; cliquer l'un
+         * d'eux dans le texte poserait donc un filtre que plus aucun bouton ne
+         * permet de retirer. L'ecran se figerait sur une vue partielle.
+         *
+         * Par defaut `true` : un appelant qui ne passe rien garde le
+         * comportement d'avant.
+         */
+        sourceFiltersAvailable: config.sourceFiltersAvailable !== false,
         selectedAnnotationId: null,
         deletedFeedbackAnnotationId: null,
         replyContents: {},
@@ -6768,7 +6787,7 @@ window.blogAnnotationCard = function (config) {
             window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
             this._dispatching = false;
 
-            if (origin === 'ai_method') {
+            if (this.sourceFiltersAvailable && origin === 'ai_method') {
                 this.sourceFilter = 'ai_method';
             }
 
@@ -6776,7 +6795,7 @@ window.blogAnnotationCard = function (config) {
                 const annotation = this.annotations.find(a => a.id === id);
                 if (annotation) {
                     this.filterTab = annotation.status || 'open';
-                    if ((annotation.origin || origin) === 'ai_method') {
+                    if (this.sourceFiltersAvailable && (annotation.origin || origin) === 'ai_method') {
                         this.sourceFilter = 'ai_method';
                     }
                 }
