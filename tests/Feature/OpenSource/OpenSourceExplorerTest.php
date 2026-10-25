@@ -424,12 +424,22 @@ class OpenSourceExplorerTest extends TestCase
     public static function autonomousLandings(): array
     {
         // TASK-1692 — le troisieme element dit si le chemin reste joignable
-        // par un ANONYME. La landing l'est ; `/about` est passe membre avec
+        // par un ANONYME. La landing l'est ; `/about` etait passe membre avec
         // tout le groupe `/org/{organization}`.
+        //
+        // TASK-1700 — « A propos » redevient PUBLIQUE, et ce troisieme element
+        // repasse donc a `true`. La fermeture etait collaterale : `git log -L`
+        // sur sa ligne de route ne montre que T371 et T1450, jamais T1692.
+        //
+        // Ce n'est pas un relachement pour ce test-ci, au contraire : il gagne
+        // un viseur. L'invariant de T1613 — l'URL du depot n'apparait NULLE
+        // PART — etait mesure sur une reponse de REDIRECTION, qui ne contient
+        // rien par construction. Il est desormais mesure sur un rendu reel,
+        // qui porte l'icone GitHub.
         return [
             'homepage hero-v2' => ['bouclepro_hero_v2', '/org/test-open-source', true],
             'landing artscilab' => ['artscilab_hero', '/org/test-open-source', true],
-            'a propos de l\'Organization' => ['bouclepro_hero_v2', '/org/test-open-source/about', false],
+            'a propos de l\'Organization' => ['bouclepro_hero_v2', '/org/test-open-source/about', true],
         ];
     }
 

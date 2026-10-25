@@ -194,6 +194,27 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         // elle-meme signalee comme appartenant a MASTER est levee.
         'organization.flowchart' => 'Carte interactive du produit. Mandat TASK-1608, rendu par decision MASTER du 25/10 : elle explique le produit a un visiteur qui n\'a pas de compte. Socle public uniquement, frontiere Organization privee portee par le controleur.',
         'organization.mycelium' => 'Constitution de la plateforme et Organizations qui ont choisi de publier. Contrat TASK-1604 rendu : MEME contenu que la route globale `/mycelium`, elle-meme publique. Aucune lecture de tenant.',
+        // ─── TASK-1700 — UNE QUATRIEME ENTREE RENDUE ────────────────────────
+        //
+        // Meme mesure que les trois ci-dessous : `git log -L` sur la ligne de
+        // route d'« A propos » ne montre que T371 (28/06, « org-scoped about
+        // page ») et T1450. Jamais T1692.
+        //
+        // Deux dispositifs du produit disaient deja que cette page s'adresse a
+        // quelqu'un qui ne connait PAS encore le collectif, et tous deux etaient
+        // rendus inutiles par la fermeture :
+        //
+        //   * son CTA est « Rejoindre » — un bouton sans objet pour un membre ;
+        //   * `discovery-bottom-nav` l'affiche en PREMIERE position, et son
+        //     docblock dit « QUE L'ON SOIT CONNECTE OU NON : c'est une aide a
+        //     la decouverte, pas un etat de session ».
+        //
+        // La frontiere n'est pas perdue : elle est passee dans le controleur,
+        // ou elle est PLUS FORTE qu'avant — `about()` ne regardait pas
+        // `is_public`, et une Organization privee serait devenue un oracle
+        // d'existence. Mesure : `TASK1692StrictHttpIsolationTest::test_g_bis`.
+        'organization.about' => 'Page de presentation du collectif. Editoriale : aucune lecture de tenant au-dela du nom et des routes. Frontiere portee par le controleur — Organization inactive -> 404, non publique + anonyme -> login borne.',
+
         'organization.open-source' => 'Instantane du depot public. Contrat TASK-1613 rendu : MEME vue et MEME contenu que la route globale `/open-source`, elle-meme publique. Aucune lecture de tenant.',
     ];
 
@@ -313,7 +334,8 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
      * change de statut.
      *
      * TASK-1698 — elles sont CINQ : les trois surfaces rendues par decision
-     * MASTER rejoignent `home` et `mentions-legales`. Ce test est le bon
+     * MASTER rejoignent `home` et `mentions-legales`. TASK-1700 en ajoute une
+     * SIXIEME, « A propos », par la meme mesure. Ce test est le bon
      * endroit pour l'exiger, parce qu'il verifie les DEUX moities du montage —
      * la route herite `auth` du groupe, ET l'excepte nominativement. Une
      * publicite obtenue autrement (par exemple en sortant la route du groupe)
@@ -329,6 +351,7 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
             'organization.flowchart',
             'organization.mycelium',
             'organization.open-source',
+            'organization.about',
         ] as $name) {
             $route = collect($this->organizationRoutes())
                 ->first(fn (RoutingRoute $r) => $r->getName() === $name);

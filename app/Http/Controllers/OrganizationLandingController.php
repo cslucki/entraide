@@ -136,10 +136,52 @@ class OrganizationLandingController extends Controller
         return view('organization.home', compact('organization', 'defaultOrganization', 'guestShell', 'publicWorkshops', 'showInternalHomepageContent'));
     }
 
-    public function about(string $organization): View
+    /**
+     * TASK-1700 — « A propos », et sa frontiere d'acces.
+     *
+     * ## La frontiere, d'abord
+     *
+     * Elle est celle de la landing ci-dessus, reprise mot pour mot, comme
+     * `OrganizationFlowchartController` l'a fait avant : Organization inactive
+     * -> 404 ; Organization non publique et visiteur anonyme -> la page de
+     * connexion BORNEE de cette Organization.
+     *
+     * Elle est posee ICI parce que la route sort desormais de la garde du
+     * groupe (TASK-1700, voir `routes/web.php`). Et elle est plus FORTE que ce
+     * qui existait : cette methode ne regardait pas `is_public` du tout. Tant
+     * que le groupe exigeait `auth` + `organization.member`, personne ne
+     * pouvait atteindre la page d'une Organization privee sans en etre membre ;
+     * rouvrir la route sans ce test aurait fait de « A propos » un oracle
+     * d'existence sur les Organizations privees.
+     *
+     * ## Le gabarit, ensuite
+     *
+     * Cette methode rendait `about-launchpals` a TOUTE Organization, sans
+     * jamais regarder laquelle. Ce n'etait pas un defaut de resolution de
+     * tenant — `$organization` etait juste — mais une vue codee en dur : `ofsh`
+     * et `main` recevaient la page anglaise de LaunchPals.
+     *
+     * Le discriminant est `homepage_template`, la colonne qui dit DEJA quelle
+     * identite visuelle une Organization a choisie. Aucune structure de donnees
+     * n'est creee pour ca, et le choix reste fait a un seul endroit :
+     * `/admin/homepages`. Une Organization qui prend le gabarit OFSH prend sa
+     * page « A propos » avec, ce qui est le comportement attendu.
+     *
+     * Toute autre valeur garde `about-launchpals`, a l'octet : `main` et
+     * `launchpals` ne bougent pas.
+     */
+    public function about(string $organization): View|RedirectResponse
     {
         $organization = Organization::findBySlug($organization);
         abort_if(! $organization || ! $organization->is_active, 404);
+
+        if (! $organization->is_public && ! auth()->check()) {
+            return redirect()->route('organization.login', ['organization' => $organization->slug]);
+        }
+
+        if ($organization->homepage_template === 'ofsh_hero') {
+            return view('organization.about-ofsh', compact('organization'));
+        }
 
         return view('organization.about-launchpals', compact('organization'));
     }

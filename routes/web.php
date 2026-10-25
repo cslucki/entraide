@@ -1189,7 +1189,31 @@ Route::prefix('/org/{organization}')
         // TASK-1442 — SW-8a : la surface publique du Shell Welcome (lecture pure + premier geste). Distincte du Shell membre.
         Route::get('/shell', [GuestShellController::class, 'show'])->middleware('throttle:60,1')->name('shell.show');
         Route::post('/shell/message', [GuestShellController::class, 'message'])->middleware('throttle:30,1')->name('shell.message');
-        Route::get('/about', [OrganizationLandingController::class, 'about'])->name('about');
+        // TASK-1700 — l'opt-out qui manquait a « A propos », exactement comme
+        // aux trois routes de TASK-1698.
+        //
+        // Le groupe `/org/{organization}` est FERME PAR DEFAUT : une route
+        // publique doit s'en extraire. `git log -L` sur cette ligne ne montre
+        // que T371 (28/06, « org-scoped about page ») et T1450 : **jamais
+        // T1692**, dont le middleware de groupe l'a refermee collateralement.
+        // T1489 l'avait consigne noir sur blanc — « aucune n'a recu de decision
+        // INDIVIDUELLE ».
+        //
+        // Le signe le plus net que la fermeture n'etait pas voulue : le CTA de
+        // cette page est « Rejoindre », et `discovery-bottom-nav` — la barre
+        // basse des pages de DECOUVERTE, montee « que l'on soit connecte ou
+        // non » — y mene en premiere position. Deux dispositifs destines a
+        // quelqu'un qui ne connait pas encore le produit, derriere un mur de
+        // connexion.
+        //
+        // La frontiere d'acces n'est pas perdue pour autant : elle passe dans
+        // le controleur, ou `OrganizationFlowchartController` a deja mis la
+        // sienne — Organization inactive -> 404, Organization non publique et
+        // visiteur anonyme -> login borne. Elle y est MEILLEURE qu'avant, car
+        // `about()` ne regardait pas `is_public` du tout.
+        Route::get('/about', [OrganizationLandingController::class, 'about'])
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('about');
         // TASK-1450 — Workshop domain foundation : la page PUBLIQUE d'un atelier publie de CETTE Organization (404 sinon). Pas de Shell ici.
         Route::get('/ateliers/{workshop}', [WorkshopPageController::class, 'show'])->name('workshop.show')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}');
         // TASK-1452 (B4-B) : « je choisis cette session » — geste Guest (interet != inscription), throttle anti-rafale.

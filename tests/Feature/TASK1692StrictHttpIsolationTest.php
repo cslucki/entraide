@@ -362,6 +362,19 @@ class TASK1692StrictHttpIsolationTest extends TestCase
 
         $this->assertSame([
             'GET org/{organization}',
+            // TASK-1700 — « A propos » rejoint les surfaces publiques, par la
+            // meme mesure que les trois de TASK-1698 : `git log -L` sur sa
+            // ligne de route ne montre que T371 et T1450, jamais T1692. Le
+            // signe le plus net que la fermeture n'etait pas voulue est que son
+            // CTA est « Rejoindre » et que `discovery-bottom-nav` — la barre
+            // des pages de DECOUVERTE, montee « que l'on soit connecte ou
+            // non » — y mene en premiere position.
+            //
+            // Sa frontiere n'a pas disparu, elle a change de place : le
+            // controleur porte desormais celle de la landing, mot pour mot. Et
+            // elle est plus forte qu'avant — `about()` ne regardait pas
+            // `is_public`, voir `test_g_bis` ci-dessous.
+            'GET org/{organization}/about',
             'GET org/{organization}/flowchart',
             'GET org/{organization}/forgot-password',
             'GET org/{organization}/login',
@@ -387,7 +400,6 @@ class TASK1692StrictHttpIsolationTest extends TestCase
 
         $formerlyPublic = [
             route('organization.shell.show', $this->b),
-            route('organization.about', $this->b),
             route('organization.workshop.show', [$this->b, 'atelier-public']),
             route('organization.constitution', $this->b),
             route('organization.bug-reports.index', $this->b),
@@ -417,6 +429,9 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             route('organization.flowchart', $this->b),
             route('organization.mycelium', $this->b),
             route('organization.open-source', $this->b),
+            // TASK-1700 — « A propos » rejoint la meme colonne, et pour la
+            // meme raison.
+            route('organization.about', $this->b),
         ] as $url) {
             $this->forgetOrganization();
             $this->get($url)->assertOk();
@@ -432,6 +447,38 @@ class TASK1692StrictHttpIsolationTest extends TestCase
         $this->forgetOrganization();
         $this->delete(route('organization.workshop.session.interest.withdraw', [$this->b, 'atelier-public', $session]))
             ->assertRedirect($login);
+    }
+
+    /**
+     * TASK-1700 — rouvrir « A propos » ne la transforme pas en oracle
+     * d'existence sur les Organizations PRIVEES.
+     *
+     * C'est le trou reel qu'il fallait boucher : `about()` ne regardait pas
+     * `is_public`. Tant que le groupe exigeait `auth` + `organization.member`,
+     * personne ne pouvait l'atteindre sans etre membre et le manque ne se
+     * voyait pas. L'opt-out seul aurait servi la page — et le NOM — de toute
+     * Organization privee a n'importe qui.
+     *
+     * La frontiere du controleur est donc mesuree ici, sur les deux axes
+     * qu'elle porte : non publique -> login borne, inactive -> 404.
+     */
+    public function test_g_bis_about_refuses_an_anonymous_visitor_on_a_private_organization(): void
+    {
+        $this->b->update(['is_public' => false]);
+        $this->forgetOrganization();
+
+        $reponse = $this->get(route('organization.about', $this->b));
+        $reponse->assertRedirect(route('organization.login', ['organization' => $this->b->slug]));
+        $this->assertStringNotContainsString($this->b->name, $reponse->getContent());
+
+        // Et son membre, lui, continue d'y acceder.
+        $this->forgetOrganization();
+        $this->actingAs($this->memberB)->get(route('organization.about', $this->b))->assertOk();
+
+        // Inactive : 404, et pour tout le monde.
+        $this->b->update(['is_public' => true, 'is_active' => false]);
+        $this->forgetOrganization();
+        $this->get(route('organization.about', $this->b))->assertNotFound();
     }
 
     public function test_h_the_public_homepage_contains_no_private_tenant_content_or_dead_internal_links(): void
@@ -563,10 +610,21 @@ class TASK1692StrictHttpIsolationTest extends TestCase
         $this->assertSame($this->a->id, $admin->fresh()->organization_id);
     }
 
+    /**
+     * TASK-1700 — « A propos » SORT de cette liste.
+     *
+     * Ce test mesure qu'une surface MEMBRE est bornee dans les deux sens : son
+     * membre l'obtient, un etranger recoit 404. « A propos » n'est plus une
+     * surface membre, la question n'a donc plus d'objet pour elle — et la
+     * garder ici aurait fige sa fermeture une troisieme fois.
+     *
+     * Les deux autres restent, et c'est ce qui compte : si l'ouverture avait
+     * deborde sur le Blog ou le Shell, ce test rougirait. Il devient la
+     * contre-epreuve du perimetre de TASK-1700.
+     */
     public function test_i_former_public_features_are_tenant_scoped_in_both_directions(): void
     {
         $surfaces = [
-            fn (Organization $organization) => route('organization.about', $organization),
             fn (Organization $organization) => route('organization.blog.index', $organization),
             fn (Organization $organization) => route('organization.shell.show', $organization),
         ];
