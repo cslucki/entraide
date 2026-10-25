@@ -264,11 +264,22 @@
                 </select>
             </div>
 
-            <!-- Compétences -->
-            <div class="mb-5" x-show="selectedCategory">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('marketplace.skills') }}</label>
-                @foreach($categories as $cat)
-                <div x-show="selectedCategory === '{{ $cat->id }}'">
+            {{-- Competences — TASK-1707 F2.
+
+                 Meme defaut que les fourchettes : le titre « Competences »
+                 etait pose AU-DESSUS de la boucle et montre des qu'une
+                 categorie etait choisie, sans demander si CETTE categorie avait
+                 des competences. La categorie neuve d'OFSH n'en a aucune, d'ou
+                 un titre suivi de rien en recette.
+
+                 A la difference des fourchettes, les competences SONT gerables
+                 depuis l'administration de l'Organization
+                 (`organization.admin.categories.skills.store`) : le bloc
+                 apparaitra des que l'administrateur en aura ajoute. --}}
+            @foreach($categories as $cat)
+                @continue($cat->skills->isEmpty())
+                <div data-category-skills="{{ $cat->id }}" x-show="selectedCategory === '{{ $cat->id }}'" class="mb-5">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('marketplace.skills') }}</label>
                     <div class="flex flex-wrap gap-2">
                         @foreach($cat->skills as $skill)
                         <label class="flex items-center gap-2 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:border-indigo-400 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 text-sm dark:text-gray-300">
@@ -280,8 +291,7 @@
                         @endforeach
                     </div>
                 </div>
-                @endforeach
-            </div>
+            @endforeach
 
             <!-- Images -->
             {{-- TASK-1693 bug X — `slice(0, 5)` ne tronquait que l'APERCU.
