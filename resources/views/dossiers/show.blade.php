@@ -1131,13 +1131,42 @@
 
                     <div class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700" x-show="vue === 'documents' && viewMode === 'list' && (totalFiles > 0 || {{ ($driveFolders->count() + $dossier->dossierBlogPosts->count()) > 0 ? 'true' : 'false' }})">
                         <div class="hidden lg:block">
+                            {{-- TASK-1697 (2) — en-tetes TRIABLES (demande de Cyril).
+
+                                 Tout le moteur existait deja : `sortBy`,
+                                 `sortDirection`, `toggleSort()` et le tri serveur
+                                 dans `DossierFileController::index`. Il manquait
+                                 la POIGNEE — le tri ne se declenchait de nulle
+                                 part.
+
+                                 « Ajoute par » et « Partage » restent inertes :
+                                 l'un demanderait une jointure, l'autre se calcule
+                                 par ligne. Un en-tete cliquable qui ne trierait
+                                 rien serait pire qu'un en-tete muet. --}}
+                            @php
+                                $enteteTri = 'flex min-h-11 w-full items-center gap-1 text-left uppercase tracking-wide transition hover:text-gray-700 dark:hover:text-gray-200';
+                            @endphp
                             <div class="{{ $grilleDrive }} border-b border-gray-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:border-gray-700 dark:text-gray-500">
-                                <div>{{ __('dossiers.col_name') }}</div>
-                                @if($colonneAjoutePar)<div>{{ __('dossiers.col_added_by') }}</div>@endif
-                                <div>{{ __('dossiers.col_type') }}</div>
-                                @if($colonnePartage)<div>{{ __('dossiers.col_share') }}</div>@endif
-                                <div>{{ __('dossiers.col_modified') }}</div>
-                                <div>{{ __('dossiers.col_size') }}</div>
+                                @foreach(['name' => 'col_name', 'added_by' => 'col_added_by', 'type' => 'col_type', 'share' => 'col_share', 'date' => 'col_modified', 'size' => 'col_size'] as $cle => $libelle)
+                                    @if($cle === 'added_by' && ! $colonneAjoutePar) @continue @endif
+                                    @if($cle === 'share' && ! $colonnePartage) @continue @endif
+
+                                    @if(in_array($cle, ['name', 'type', 'date', 'size'], true))
+                                        <button type="button" @click="toggleSort(@js($cle))"
+                                                class="{{ $enteteTri }}"
+                                                :aria-sort="sortBy === @js($cle) ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'"
+                                                data-drive-sort="{{ $cle }}">
+                                            <span>{{ __('dossiers.'.$libelle) }}</span>
+                                            <svg x-show="sortBy === @js($cle)" x-cloak class="h-3 w-3 shrink-0"
+                                                 :class="sortDirection === 'desc' && 'rotate-180'"
+                                                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+                                            </svg>
+                                        </button>
+                                    @else
+                                        <div>{{ __('dossiers.'.$libelle) }}</div>
+                                    @endif
+                                @endforeach
                                 <div><span class="sr-only">{{ __('dossiers.col_name') }}</span></div>
                             </div>
                         </div>

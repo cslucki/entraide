@@ -31,11 +31,31 @@ class DossierFileController extends Controller
             'size' => 'size_bytes',
             'date' => 'created_at',
         ];
+
+        // TASK-1697 (2) — trier sur « Type », c'est-a-dire sur l'EXTENSION.
+        //
+        // La colonne affiche l'extension du nom lu (`typeDeFichier()` dans
+        // `app.js`), pas le type MIME. Trier sur `mime_type` aurait rendu une
+        // colonne visiblement desordonnee — « PDF » avant « DOCX », parce que
+        // `application/pdf` precede `application/vnd.openxml…`. On trie donc
+        // sur ce qui est AFFICHE.
+        //
+        // L'expression depend du moteur : il n'existe pas de fonction portable
+        // pour la derniere extension. Meme forme de branchement que le `ilike`
+        // de la recherche, quelques lignes plus bas.
+        $nomLu = "COALESCE(NULLIF(display_name, ''), original_name)";
+        $extension = DB::connection()->getDriverName() === 'pgsql'
+            ? "LOWER(SUBSTRING($nomLu FROM '\\.([^.]*)$'))"
+            // SQLite n'a ni SUBSTRING-regex ni SPLIT_PART : on retire du nom
+            // tout ce qui precede le dernier point. `rtrim(nom, nom_sans_points)`
+            // rend le prefixe jusqu'au dernier point inclus.
+            : "LOWER(REPLACE($nomLu, RTRIM($nomLu, REPLACE($nomLu, '.', '')), ''))";
         $sortParam = $request->input('sort', 'date');
         $directionParam = $request->input('direction', 'desc');
         $search = $request->input('search', '');
 
         $column = $sortAllowlist[$sortParam] ?? 'created_at';
+        $triParExtension = $sortParam === 'type';
         $direction = in_array(strtolower($directionParam), ['asc', 'desc']) ? strtolower($directionParam) : 'desc';
 
         $query = DossierFile::query()
@@ -85,8 +105,16 @@ class DossierFileController extends Controller
             });
         }
 
-        $query->orderBy($column, $direction)
-            ->orderBy('created_at', 'desc');
+        if ($triParExtension) {
+            $query->orderByRaw("$extension $direction");
+        } else {
+            $query->orderBy($column, $direction);
+        }
+
+        // Le second critere, toujours : deux fichiers de meme type ou de meme
+        // taille gardent sinon un ordre arbitraire, qui change d'une page a
+        // l'autre et fait « sauter » des lignes a la pagination.
+        $query->orderBy('created_at', 'desc');
 
         $files = $query->paginate(20);
         $files->getCollection()->transform(fn (DossierFile $file) => array_merge(
