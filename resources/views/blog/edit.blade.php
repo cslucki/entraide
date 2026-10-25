@@ -1027,7 +1027,17 @@
                         </template>
 
                         <template x-if="!loading && headings.length === 0">
-                            <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.empty"></p>
+                            <div class="py-2 text-center" data-plan-empty-hint>
+                                <p class="text-xs text-gray-400 dark:text-gray-500" x-text="i18n.empty"></p>
+                                {{-- TASK-1702 — meme geste que pour les annotations : le
+                                     vide dit OU se trouve l'outil. Ici le repere de la
+                                     barre n'est pas un pictogramme mais un libelle —
+                                     « P » qui devient « H2 » — et c'est lui qu'on
+                                     montre, pas une icone inventee pour l'occasion. --}}
+                                <p class="mx-auto mt-1.5 max-w-[22rem] text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+                                    {!! __('blog.plan_empty_hint', ['bouton' => '<span class="mx-0.5 inline-flex translate-y-[2px] items-center gap-0.5 rounded-lg border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"><span>H2</span><svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></span>']) !!}
+                                </p>
+                            </div>
                         </template>
 
                         <template x-if="!loading && headings.length > 0">
@@ -1307,6 +1317,11 @@
                 {{-- Annotations card --}}
                 <div
                     x-data="blogAnnotationCard({
+                        {{-- TASK-1702 — la MEME condition que celle qui rend les
+                             filtres plus bas. Les separer ferait de l'une le
+                             mensonge de l'autre : des boutons absents mais un
+                             filtre qui se pose quand meme, ou l'inverse. --}}
+                        sourceFiltersAvailable: @js($_aiGate->availableHere()),
                         indexUrl: @js($_blogRoute('annotations.index', ['post' => $post])),
                         updateUrlBase: @js($_blogRoute('annotations.update', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
                         destroyUrlBase: @js($_blogRoute('annotations.destroy', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
@@ -1376,7 +1391,26 @@
                         </div>
 
                         {{-- Source filters --}}
-                        <div class="flex flex-wrap gap-1">
+                        {{-- TASK-1702 — les trois filtres de SOURCE disparaissent
+                             quand l'IA est eteinte sur l'Organization.
+
+                             Sans IA il n'existe qu'UN type d'annotation, l'annotation
+                             humaine : « Toutes », « Humains » et « Questionnement »
+                             designent alors tous les trois le meme ensemble. Trois
+                             boutons pour une seule realite, c'est une interface qui
+                             promet un tri qui n'existe pas.
+
+                             Ce qui a DEJA ete ecrit n'est pas masque pour autant, et
+                             c'est le point delicat : une Organization qui eteint l'IA
+                             apres coup garde ses questionnements. Ils restent visibles,
+                             parce que `sourceFilter` vaut « all » par defaut et que le
+                             retrait des filtres ne le change pas. La lecon de TASK-1693
+                             bug AH — « masquer des notes DEJA ECRITES effacerait du
+                             travail fait » — est donc tenue ici sans condition sur le
+                             contenu : il n'y a rien a masquer, seulement un tri a ne
+                             pas proposer. --}}
+                        @if($_aiGate->availableHere())
+                        <div class="flex flex-wrap gap-1" data-annotation-source-filters>
                             <button type="button" @click="sourceFilter = 'all'"
                                 :class="sourceFilter === 'all' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'bg-gray-50 text-gray-500 hover:text-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:text-gray-200'"
                                 class="px-2 py-1 text-[10px] font-semibold rounded transition"
@@ -1390,6 +1424,7 @@
                                 class="px-2 py-1 text-[10px] font-semibold rounded transition"
                                 x-text="i18n.sourceAiMethod"></button>
                         </div>
+                        @endif
 
                         {{-- Loading --}}
                         <template x-if="loading && annotations.length === 0">
@@ -1399,8 +1434,19 @@
                         </template>
 
                         {{-- Empty states --}}
+                        {{-- TASK-1702 — le vide explique OU est le geste.
+                             Cyril : « ajoute un message pour indiquer qu'il y a un
+                             bouton dans la barre d'edition et montre-le dans la phrase,
+                             ainsi la personne pourrait rapidement le reperer ».
+                             Le pictogramme est celui de la barre, au trait pres : le
+                             reconnaitre est tout l'interet. --}}
                         <template x-if="!loading && filteredAnnotations.length === 0 && filterTab === 'open'">
-                            <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.noOpen"></p>
+                            <div class="py-2 text-center" data-annotation-empty-hint>
+                                <p class="text-xs text-gray-400 dark:text-gray-500" x-text="i18n.noOpen"></p>
+                                <p class="mx-auto mt-1.5 max-w-[22rem] text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+                                    {!! __('blog.annotation_empty_hint', ['bouton' => '<span class="mx-0.5 inline-flex translate-y-[3px] items-center rounded-lg border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300"><svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg></span>']) !!}
+                                </p>
+                            </div>
                         </template>
                         <template x-if="!loading && filteredAnnotations.length === 0 && filterTab === 'resolved'">
                             <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.noResolved"></p>

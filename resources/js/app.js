@@ -2,6 +2,7 @@ import './bootstrap';
 import { createEditor } from './blog-editor';
 import './markdown-wysiwyg-editor';
 import { extractEmbedUrl } from './tiptap/media-embed-node.js';
+import { annoncerLePanneau, brancherCarteSurSonPanneau } from './editor/panneaux.js';
 import * as FilePond from 'filepond';
 import 'filepond/dist/filepond.min.css';
 import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
@@ -1437,7 +1438,6 @@ function registerBlogCoAuthorCard() {
 
         toggle() {
             this.open = !this.open;
-            localStorage.setItem('editor_sidebar_card_coecriture', this.open ? '1' : '0');
             if (this.open) {
                 this._dispatching = true;
                 window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
@@ -1446,14 +1446,16 @@ function registerBlogCoAuthorCard() {
         },
 
         init() {
-            const stored = localStorage.getItem('editor_sidebar_card_coecriture');
-            if (stored !== null) this.open = stored === '1';
             this.loadCoAuthors();
+
+            // TASK-1702 — voir `brancherCarteSurSonPanneau`. L'etat `open`
+            // n'est plus restaure depuis `localStorage` : un pop-up est
+            // toujours ferme au chargement.
+            brancherCarteSurSonPanneau(this, 'coauthors', window);
 
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
                 this.open = false;
-                localStorage.setItem('editor_sidebar_card_coecriture', '0');
             });
         },
 
@@ -1706,7 +1708,6 @@ function registerBlogDossierCard() {
 
         toggle() {
             this.open = !this.open;
-            localStorage.setItem('editor_sidebar_card_dossier', this.open ? '1' : '0');
             if (this.open) {
                 this.loadCurrent();
                 this.loadDossiers();
@@ -1717,17 +1718,14 @@ function registerBlogDossierCard() {
         },
 
         init() {
-            const stored = localStorage.getItem('editor_sidebar_card_dossier');
-            if (stored !== null) this.open = stored === '1';
-            if (this.open) {
-                this.loadCurrent();
-                this.loadDossiers();
-            }
+            // TASK-1702 — voir `brancherCarteSurSonPanneau`. L'etat `open`
+            // n'est plus restaure depuis `localStorage` : un pop-up est
+            // toujours ferme au chargement.
+            brancherCarteSurSonPanneau(this, 'dossier', window);
 
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
                 this.open = false;
-                localStorage.setItem('editor_sidebar_card_dossier', '0');
             });
         },
 
@@ -5940,13 +5938,6 @@ function registerBlogLoopCard() {
         _pollInterval: null,
         _fingerprint: '',
 
-        init() {
-            // Le badge de la barre est alimente des l'ouverture de la page, puis
-            // a chaque liaison ou deliaison.
-            this.publishBadge();
-            this.$watch('linkedLoops', () => this.publishBadge());
-        },
-
         get availableLoops() {
             const linkedIds = new Set(this.linkedLoops.map(l => l.id));
             return this.userLoops.filter(l => !linkedIds.has(l.id));
@@ -5954,7 +5945,6 @@ function registerBlogLoopCard() {
 
         toggle() {
             this.open = !this.open;
-            localStorage.setItem('editor_sidebar_card_boucle', this.open ? '1' : '0');
             if (this.open) {
                 this.loadMessages();
                 this._startPolling();
@@ -5966,16 +5956,38 @@ function registerBlogLoopCard() {
             }
         },
 
+        /**
+         * TASK-1702 — UN SEUL `init()`.
+         *
+         * Cet objet en portait DEUX, et en JavaScript la seconde clef ecrase la
+         * premiere en silence : `publishBadge()` et son `$watch` n'ont jamais
+         * tourne. Les deux corps sont ici fusionnes.
+         *
+         * A connaitre : rien ne lit encore `store.loopName` dans les vues, donc
+         * ce rattrapage ne change aucun pixel aujourd'hui. Il est fait parce
+         * que la Card doit cesser de mentir sur ce qu'elle execute — et parce
+         * qu'un `init()` fantome est un piege pour le prochain qui y ajoutera
+         * une ligne, comme le branchement ci-dessous.
+         */
         init() {
-            const stored = localStorage.getItem('editor_sidebar_card_boucle');
-            if (stored !== null) this.open = stored === '1';
+            // Le badge de la barre est alimente des l'ouverture de la page, puis
+            // a chaque liaison ou deliaison.
+            this.publishBadge();
+            this.$watch('linkedLoops', () => this.publishBadge());
+
             this.loadMessages();
-            if (this.open) this._startPolling();
+
+            // TASK-1702 — la Card suit desormais son pop-up. L'etat `open`
+            // n'est plus restaure depuis `localStorage` : cette memoire datait
+            // du bloc repliable d'avant TASK-1085 et n'a plus d'objet, un
+            // pop-up etant toujours ferme au chargement de la page. Pire, un
+            // `'1'` laisse par l'ancienne interface aurait desynchronise le
+            // pont des la premiere ouverture.
+            brancherCarteSurSonPanneau(this, 'boucle', window);
 
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
                 this.open = false;
-                localStorage.setItem('editor_sidebar_card_boucle', '0');
                 this._stopPolling();
             });
 
@@ -6186,7 +6198,6 @@ function registerBlogTodoCard() {
 
         toggle() {
             this.open = !this.open;
-            localStorage.setItem('editor_sidebar_card_todo', this.open ? '1' : '0');
             if (this.open) {
                 this.loadTodos();
                 this.startPolling();
@@ -6199,15 +6210,14 @@ function registerBlogTodoCard() {
         },
 
         init() {
-            if (localStorage.getItem('editor_sidebar_card_todo') === '1') {
-                this.open = true;
-                this.loadTodos();
-                this.startPolling();
-            }
+            // TASK-1702 — voir `brancherCarteSurSonPanneau`. L'etat `open`
+            // n'est plus restaure depuis `localStorage` : un pop-up est
+            // toujours ferme au chargement.
+            brancherCarteSurSonPanneau(this, 'todo', window);
+
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
                 this.open = false;
-                localStorage.setItem('editor_sidebar_card_todo', '0');
                 this.stopPolling();
             });
             window.addEventListener('snapshot-restore', () => {
@@ -6632,6 +6642,25 @@ window.blogAnnotationCard = function (config) {
         success: '',
         filterTab: 'open',
         sourceFilter: 'all',
+
+        /**
+         * TASK-1702 — les trois filtres de SOURCE sont-ils offerts ?
+         *
+         * Ils disparaissent quand l'IA est eteinte sur l'Organization : sans
+         * elle il n'existe qu'un seul type d'annotation, et trois boutons pour
+         * un seul ensemble ne trient rien.
+         *
+         * Ce drapeau est la pour une consequence MOINS evidente, et plus
+         * genante : `openForAnnotation()` bascule le filtre sur `ai_method`
+         * quand on ouvre une annotation d'origine IA. Une Organization qui
+         * eteint l'IA APRES COUP garde ses questionnements ; cliquer l'un
+         * d'eux dans le texte poserait donc un filtre que plus aucun bouton ne
+         * permet de retirer. L'ecran se figerait sur une vue partielle.
+         *
+         * Par defaut `true` : un appelant qui ne passe rien garde le
+         * comportement d'avant.
+         */
+        sourceFiltersAvailable: config.sourceFiltersAvailable !== false,
         selectedAnnotationId: null,
         deletedFeedbackAnnotationId: null,
         replyContents: {},
@@ -6758,7 +6787,7 @@ window.blogAnnotationCard = function (config) {
             window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
             this._dispatching = false;
 
-            if (origin === 'ai_method') {
+            if (this.sourceFiltersAvailable && origin === 'ai_method') {
                 this.sourceFilter = 'ai_method';
             }
 
@@ -6766,7 +6795,7 @@ window.blogAnnotationCard = function (config) {
                 const annotation = this.annotations.find(a => a.id === id);
                 if (annotation) {
                     this.filterTab = annotation.status || 'open';
-                    if ((annotation.origin || origin) === 'ai_method') {
+                    if (this.sourceFiltersAvailable && (annotation.origin || origin) === 'ai_method') {
                         this.sourceFilter = 'ai_method';
                     }
                 }
@@ -8217,17 +8246,32 @@ document.addEventListener('alpine:init', () => {
 
         toggle(name) {
             this.open = this.open === name ? null : name;
+            this.annoncer();
         },
 
         close() {
             this.open = null;
+            this.annoncer();
         },
 
         isOpen(name) {
             return this.open === name;
         },
+
+        /**
+         * TASK-1702 — le store DIT quand il change.
+         *
+         * Sans cette annonce, il ne gouvernait que l'enveloppe du pop-up : les
+         * quatre Cards, elles, gardaient leur propre `open` a `false` et leur
+         * corps restait masque. Voir `editor/panneaux.js`.
+         */
+        annoncer() {
+            annoncerLePanneau(this.open, window);
+        },
     });
 });
+
+
 
 document.addEventListener('alpine:init', () => {
     registerAlpineStores();
