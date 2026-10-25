@@ -425,8 +425,23 @@
                 @endif
 
                 @php $commentCount = $post->comments->count(); $lastComment = $commentCount > 0 ? $post->comments->first() : null; @endphp
+                {{-- TASK-1697 — l'ancre que le controleur visait sans qu'elle
+                     existe.
+                     `BlogCommentController` redirige depuis toujours vers
+                     `URL::previous().'#commentaires'` — mais AUCUN element de
+                     cette page ne portait cet identifiant. Le fragment ne
+                     designait rien, et le navigateur restait donc en haut de
+                     l'article : c'est le defaut que Cyril decrit.
+                     Elle est posee sur l'enveloppe VISIBLE, pas sur le bloc
+                     replie : un navigateur ne defile pas vers une cible
+                     masquee. Et arriver avec ce fragment OUVRE la section,
+                     sans quoi on atterrirait devant un bloc ferme contenant le
+                     commentaire qu'on vient d'ecrire. --}}
                 <!-- Action bar compact (comments + likes) -->
-                <div x-data="{ showComments: false }" class="mb-6">
+                <div id="commentaires"
+                     x-data="{ showComments: window.location.hash === '#commentaires' }"
+                     x-init="if (showComments) $nextTick(() => $el.scrollIntoView({ block: 'start' }))"
+                     class="mb-6 scroll-mt-24">
                     <div class="flex items-center gap-4 py-4 border-t border-b border-gray-200 dark:border-gray-700">
                         @auth
                         <button type="button" @click="showComments = !showComments"
