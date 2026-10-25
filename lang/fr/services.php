@@ -23,7 +23,7 @@ return [
         'report_other' => 'Autre',
         'report_details' => 'Détails (optionnel)...',
         'report_submit' => 'Envoyer le signalement',
-        'propose_exchange' => 'Proposer cet échange',
+        'propose_exchange' => 'Demander une entraide',
         'your_balance' => 'Votre solde : :points pts',
     ],
 
