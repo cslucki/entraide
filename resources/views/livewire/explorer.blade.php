@@ -166,7 +166,7 @@
             @else
                 <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     @foreach($items as $service)
-                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition overflow-hidden flex flex-col active:scale-[0.98]">
+                    <div class="{{ auth()->id() === $service->user_id ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-300 dark:border-indigo-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700' }} rounded-xl shadow-sm border hover:shadow-md transition overflow-hidden flex flex-col active:scale-[0.98]">
                         <a href="{{ $_orgSlug ? route('organization.services.show', ['organization' => $_orgSlug, 'service' => $service]) : route('services.show', $service) }}" class="block p-4 sm:p-5 flex-1">
                             <div class="flex items-center justify-between mb-3">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
@@ -235,7 +235,7 @@
             @else
                 <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     @foreach($items as $request)
-                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden active:scale-[0.98]">
+                    <div class="{{ auth()->id() === $request->user_id ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-300 dark:border-indigo-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700' }} rounded-xl shadow-sm border overflow-hidden active:scale-[0.98]">
                         <div class="p-4 sm:p-5">
                             <div class="flex items-center justify-between mb-3">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $request->category->color }}">
