@@ -320,12 +320,7 @@ class TASK1697DirectoryEnrichmentTest extends TestCase
     public function test_le_libelle_dit_proposition_et_plus_micro_service(): void
     {
         $membre = $this->membre();
-        Service::factory()->create([
-            'user_id' => $membre->id,
-            'organization_id' => $this->organization->id,
-            'category_id' => Category::factory()->create(['organization_id' => $this->organization->id])->id,
-            'status' => 'active',
-        ]);
+        $this->proposition($membre);
 
         // Le nombre et le libelle sont separes par un `</span>` : sur le HTML
         // brut, « 1 proposition » n'existe pas. Meme normalisation que
@@ -341,6 +336,48 @@ class TASK1697DirectoryEnrichmentTest extends TestCase
         // pas corrige — il n'a demande que l'annuaire.
         $this->assertStringNotContainsString('1 '.config('terms.service'), $html);
         $this->assertStringNotContainsString('1 '.config('terms.services'), $html);
+    }
+
+    // ── La rangee de compteurs disparait a zero (correctif 16) ──────────
+
+    public function test_zero_proposition_et_zero_demande_font_disparaitre_la_mention(): void
+    {
+        $membre = $this->membre();
+
+        $html = $this->annuaire();
+
+        $this->assertStringContainsString(e($membre->fullName), $html);
+        $this->assertStringNotContainsString('data-member-counters="'.$membre->id.'"', $html);
+    }
+
+    public function test_une_seule_proposition_suffit_a_faire_apparaitre_la_mention(): void
+    {
+        $membre = $this->membre();
+        $this->proposition($membre);
+
+        $html = $this->annuaire();
+
+        $this->assertStringContainsString('data-member-counters="'.$membre->id.'"', $html);
+    }
+
+    /**
+     * Le piege du correctif 16 : le lien « articles » vit dans la MEME rangee.
+     * Il doit survivre a la disparition des deux compteurs d'echange.
+     */
+    public function test_le_lien_articles_survit_a_la_disparition_des_compteurs(): void
+    {
+        $membre = $this->membre();
+        $this->article($membre, 'published');
+
+        $html = $this->annuaire();
+
+        $this->assertStringContainsString('data-member-counters="'.$membre->id.'"', $html);
+        $this->assertStringContainsString('data-member-articles="'.$membre->id.'"', $html);
+
+        $texte = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $texte = preg_replace('/\s+/u', ' ', $texte);
+        $this->assertStringNotContainsString('0 '.trans_choice('directory.service_label', 0), $texte);
+        $this->assertStringNotContainsString('0 '.trans_choice('directory.request_label', 0), $texte);
     }
 
     // ── Fixtures ────────────────────────────────────────────────────────────
@@ -372,6 +409,16 @@ class TASK1697DirectoryEnrichmentTest extends TestCase
             'role' => $role,
             'status' => $statut,
             'organization_id' => $boucle->organization_id,
+        ]);
+    }
+
+    private function proposition(User $membre): Service
+    {
+        return Service::factory()->create([
+            'user_id' => $membre->id,
+            'organization_id' => $this->organization->id,
+            'category_id' => Category::factory()->create(['organization_id' => $this->organization->id])->id,
+            'status' => 'active',
         ]);
     }
 

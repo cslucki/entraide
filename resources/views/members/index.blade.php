@@ -33,6 +33,10 @@
                 $orgParamAnnuaire = request()->route('organization');
                 $nombreArticles = (int) ($articleCounts[$member->id] ?? 0);
                 $boucles = $loopsByUser[$member->id] ?? collect();
+                // TASK-1697 correctif 16 — zero proposition ET zero demande :
+                // la mention entiere disparait. Mais le lien « articles » vit
+                // dans la MEME rangee : il doit survivre a cette disparition.
+                $aEchanges = $member->active_services_count > 0 || $member->open_requests_count > 0;
             @endphp
             @php $profileRoute = request()->route('organization')
                 ? route('organization.profile.show', ['organization' => request()->route('organization'), 'user' => $member->profileRouteKey()])
@@ -126,7 +130,9 @@
                 @endif
 
                 <!-- Compteurs + catégories -->
-                <div class="mt-auto pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3 text-xs text-gray-400">
+                @if($aEchanges || $nombreArticles > 0)
+                <div class="mt-auto pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3 text-xs text-gray-400" data-member-counters="{{ $member->id }}">
+                    @if($aEchanges)
                     {{-- TASK-1697 correctif 15 — « micro-services » devient
                          « propositions ». Le terme global `$T['service']` vient
                          de `config/terms.php`, surchargeable par Organization :
@@ -140,13 +146,16 @@
                     <span title="{{ __('directory.open_requests') }}">
                         <span class="font-semibold text-green-600 dark:text-green-400">{{ $member->open_requests_count }}</span> {{ trans_choice('directory.request_label', $member->open_requests_count) }}
                     </span>
+                    @endif
                     {{-- TASK-1697 correctif 15 — articles publies, et le lien
                          qui y mene. Le produit n'a AUCUNE page « articles de
                          cet auteur » : le seul ecran qui les liste est la
                          section « Articles publies » de sa fiche profil, d'ou
                          l'ancre. Affiche seulement s'il en a. --}}
                     @if($nombreArticles > 0)
+                    @if($aEchanges)
                     <span class="text-gray-300 dark:text-gray-600">·</span>
+                    @endif
                     <a href="{{ $profileRoute }}#articles" data-member-articles="{{ $member->id }}"
                        title="{{ __('directory.articles_title') }}"
                        class="hover:text-indigo-600 dark:hover:text-indigo-400">
@@ -154,6 +163,7 @@
                     </a>
                     @endif
                 </div>
+                @endif
 
                 {{-- TASK-1697 correctif 15 — les Boucles dont cette personne
                      est membre, animateur ou proprietaire.

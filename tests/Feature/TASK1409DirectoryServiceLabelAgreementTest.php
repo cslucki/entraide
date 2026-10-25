@@ -58,28 +58,32 @@ class TASK1409DirectoryServiceLabelAgreementTest extends TestCase
     }
 
     /**
-     * TASK-1697 correctif 15 — le REGIME DU ZERO a change, deliberement.
+     * TASK-1697 correctif 16 — le cas ZERO n'est plus OBSERVABLE.
      *
-     * Jusqu'ici ce compteur lisait `config('terms')`, ou le pluriel etait
-     * choisi a la main : « 0 micro-services ». Le libelle vient desormais de
-     * `directory.service_label`, resolu par `trans_choice()` — qui rend le
-     * SINGULIER sur zero en francais (« 0 proposition ») et le pluriel en
-     * anglais (« 0 proposals »).
+     * Decision produit de Cyril : « si le membre a zero proposition et zero
+     * demande d'aide, on supprime cette mention ». La rangee entiere disparait,
+     * donc aucun libelle n'est rendu pour zero : il n'y a plus d'accord a
+     * verifier.
      *
-     * Ce n'est pas une regression : c'est exactement ce que rend, depuis
-     * toujours, le compteur de demandes POSE SUR LA MEME RANGEE
-     * (`directory.request_label`). La page affichait « 0 demande » a cote de
-     * « 0 micro-services » ; les deux s'accordent maintenant pareil.
+     * Cette garde ne peut donc plus asserter une FORME. Elle asserte ce que le
+     * produit promet desormais : l'ABSENCE. Ce n'est pas un affaiblissement —
+     * c'est le seul enonce encore vrai, et il est plus FORT que l'ancien,
+     * puisqu'il interdit les deux formes a la fois.
+     *
+     * Son ancetre avait un sens : il gelait « 0 micro-services » pour que
+     * TASK-1409 ne reecrive pas la regle d'accord en corrigeant le cas 1. Ce
+     * gel a servi ; il n'a plus d'objet.
      */
-    public function test_zero_service_keeps_the_plural_label(): void
+    public function test_zero_service_no_longer_renders_any_label(): void
     {
         $texte = $this->renderDirectory(services: 0);
 
-        // La MEME forme que le compteur voisin de la meme rangee, qui lit
-        // `directory.request_label` depuis toujours : « 0 proposition » a cote
-        // de « 0 demande ».
-        $this->assertStringContainsString('0 '.trans_choice('directory.service_label', 0), $texte);
-        $this->assertStringContainsString('0 '.trans_choice('directory.request_label', 0), $texte);
+        $this->assertStringNotContainsString('0 '.trans_choice('directory.service_label', 0), $texte);
+        $this->assertStringNotContainsString('0 '.trans_choice('directory.service_label', 3), $texte);
+        $this->assertStringNotContainsString('0 '.trans_choice('directory.request_label', 0), $texte);
+
+        // Temoin d'instrument : la page a bien ete rendue.
+        $this->assertStringContainsString(__('directory.title'), $texte);
     }
 
     /**
