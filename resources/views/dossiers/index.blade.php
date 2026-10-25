@@ -31,7 +31,11 @@
                 'renommable' => true,
                 'supprimable' => true,
                 'proprietaire' => __('dossiers.owner_me'),
-                'partage' => $d->dossier_members_count > 0 ? __('dossiers.share_shared') : __('dossiers.share_private'),
+                // TASK-1695 (point 1 de Cyril) — « Aucun », pas « Prive ».
+                // Le badge porte la MEME information que la colonne « Partage »
+                // de l'ecran enfant : deux mots pour un seul etat se verraient
+                // en passant de l'un a l'autre.
+                'partage' => $d->dossier_members_count > 0 ? __('dossiers.share_shared') : __('dossiers.share_none'),
                 'partagePar' => null,
                 'lectureSeule' => false,
                 'boucle' => false,
@@ -228,7 +232,7 @@
                             <div class="{{ $celluleLg }}">{{ __('dossiers.drive_type_folder') }}</div>
                             {{-- 3. Partage --}}
                             <div class="{{ $celluleLg }}">
-                                <span class="inline-flex items-center rounded-full px-2 py-0.5 {{ $ligne['boucle'] ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200' : ($ligne['partage'] === __('dossiers.share_private') ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200') }}">{{ $ligne['partage'] }}</span>
+                                <span class="inline-flex items-center rounded-full px-2 py-0.5 {{ $ligne['boucle'] ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200' : ($ligne['partage'] === __('dossiers.share_none') ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200') }}">{{ $ligne['partage'] }}</span>
                             </div>
                             {{-- 4. Proprietaire --}}
                             <div class="{{ $celluleXl }}">{{ $ligne['proprietaire'] }}</div>

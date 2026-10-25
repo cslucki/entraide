@@ -94,6 +94,32 @@ class UserDataLifecycleRegistry
             ['key' => 'bug_reports', 'type' => 'sql', 'table' => 'bug_reports', 'column' => 'reporter_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Bug reports are platform support records.'],
             ['key' => 'community_requests', 'type' => 'sql', 'table' => 'community_requests', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'legacy', 'justification' => 'Legacy table only; do not add Community code.'],
             ['key' => 'dossier_blog_posts_added_by', 'type' => 'sql', 'table' => 'dossier_blog_posts', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_dossier', 'justification' => 'Dossier article audit can be detached.'],
+            // TASK-1695 — le partage d'un fichier, par ses DEUX axes.
+            //
+            // Les deux politiques ne sont pas choisies : elles RECOPIENT ce que
+            // le schema fait deja (`cascadeOnDelete` / `nullOnDelete`). Si elles
+            // divergeaient, l'ecran de suppression annoncerait une chose et la
+            // base en ferait une autre.
+            //
+            // `user_id` DELETE — une autorisation est nominative. La garder
+            // apres le compte laisserait une ligne qui ouvre un fichier a
+            // personne, et qu'un futur compte reprenant l'uuid heriterait.
+            //
+            // `shared_by` DETACH — la trace de QUI a partage survit au depart de
+            // celui qui a partage ; le partage, lui, reste valide. Meme
+            // arbitrage que `dossier_members_added_by`.
+            //
+            // `org_scope` est 'direct' et non 'through_dossier' : la table PORTE
+            // `organization_id`, pose d'apres le fichier (geste D). On lit le
+            // tenant la ou il fait autorite, pas par une jointure.
+            ['key' => 'dossier_file_shares', 'type' => 'sql', 'table' => 'dossier_file_shares', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'A file share is nominative access granted to one person; it cannot outlive the account.'],
+            ['key' => 'dossier_file_shares_shared_by', 'type' => 'sql', 'table' => 'dossier_file_shares', 'column' => 'shared_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Share grant audit can be detached; the share itself stays valid.'],
+            // TASK-1695 (5a) — le partage vers une Boucle n'a qu'UNE colonne
+            // vers `users` : `shared_by` (le destinataire est la Boucle). Meme
+            // politique que son jumeau nominatif, et declare DANS LE MEME
+            // COMMIT que la table — la CI a deja rejete cette TASK une fois
+            // pour deux FK non declarees.
+            ['key' => 'dossier_file_loop_shares_shared_by', 'type' => 'sql', 'table' => 'dossier_file_loop_shares', 'column' => 'shared_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Loop share grant audit can be detached; the share itself stays valid.'],
             ['key' => 'dossier_files_uploaded_by', 'type' => 'sql', 'table' => 'dossier_files', 'column' => 'uploaded_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_dossier', 'justification' => 'Dossier file metadata is retained until file lifecycle policy exists.'],
             ['key' => 'dossier_members_added_by', 'type' => 'sql', 'table' => 'dossier_members', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_dossier', 'justification' => 'Membership grant audit can be detached.'],
             ['key' => 'dossier_members', 'type' => 'sql', 'table' => 'dossier_members', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'through_dossier', 'justification' => 'Dossier membership is user-specific participation.'],

@@ -7,6 +7,7 @@ use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Category;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\DossierMember;
 use App\Models\Loop;
 use App\Services\Dossiers\DossierInsightsService;
@@ -106,10 +107,13 @@ class DossierController extends Controller
                 ->latest('updated_at')
                 ->get();
 
-            // Par moi : les deux seuls partages que le backend connaisse
-            // reellement — des membres nominatifs, ou le partage avec une
-            // Boucle (CAS B). Rien n'est invente ici : il n'existe aucun
-            // partage de fichier ou d'Article isole.
+            // Par moi : des membres nominatifs, ou le partage avec une Boucle
+            // (CAS B). Cette requete ne concerne QUE les Dossiers — les
+            // fichiers partages a l'unite sont construits plus bas, dans leurs
+            // propres collections (TASK-1695 geste E). Le commentaire qui
+            // tenait ici depuis TASK-1136 (« il n'existe aucun partage de
+            // fichier isole ») etait vrai jusqu'a cette TASK ; il ne l'est
+            // plus, et c'est tout ce qui change pour les Dossiers.
             //
             // `owner_id = $userId AND parent_id IS NULL` ne decrivait pas la
             // gouvernance mais « la racine que je possede ». Un Dossier range
@@ -156,11 +160,129 @@ class DossierController extends Controller
                 ->filter(fn (Dossier $dossier) => $dossier->governingDossier()->owner_id === $userId)
                 ->values();
 
+            // TASK-1695 geste E — les fichiers partages A L'UNITE.
+            //
+            // Deliberement une collection A PART, et non fusionnee dans
+            // `$avecMoi` / `$parMoi` : ces deux-la portent des Dossiers, et la
+            // vue leur demande `governingDossier()`, `dossierMembers`,
+            // `children_count`. Y glisser un `DossierFile` casserait le rendu a
+            // la premiere ligne. Deux listes distinctes, c'est aussi ce que
+            // l'ecran doit montrer : un fichier partage seul n'est pas un
+            // Dossier, et le lire comme tel induirait en erreur sur ce a quoi
+            // on a acces.
+            //
+            // `withoutTrashed()` est EXPLICITE, pas necessaire : `DossierFile`
+            // porte `SoftDeletes`, donc la corbeille est deja hors requete.
+            // Mesure du 24/10 : retirer l'appel ne fait rougir aucun test —
+            // verifie, pas suppose. Il reste parce qu'il dit l'intention a qui
+            // lira, et qu'un `withTrashed()` ajoute plus tard entrerait alors
+            // en contradiction visible avec lui.
+            //
+            // Ce qui compte vraiment est ailleurs : une ligne de partage SURVIT
+            // au `SoftDeletes` du fichier (la cascade SQL n'agit qu'a la
+            // suppression DURE). La policy le sait — `sharedWith()` refuse un
+            // fichier `trashed()`. L'ecran et la policy disent donc la meme
+            // chose, et le test ci-dessous epingle ce resultat quelle que soit
+            // la mecanique qui l'obtient.
+            // TASK-1695 (5a) — « Avec moi » recoit AUSSI les fichiers partages
+            // vers une de mes Boucles : sans cet ecran, un membre n'aurait
+            // aucun chemin vers le fichier — la capacite serait absente (meme
+            // lecon qu'au geste E). Le `orWhereHas` reste borne au tenant par
+            // le `where` qui le precede.
+            $mesBouclesActives = fn ($q) => $q
+                ->where('organization_id', $organization->id)
+                ->whereHas('activeMembers', fn ($m) => $m->where('user_id', $userId));
+
+            // « Recu » exclut ce que J'AI partage : etant membre de la Boucle
+            // cible, le partageur est destinataire de son propre geste — vu au
+            // navigateur le 24/10, user2 « recevait » son propre LevantinDoc.
+            // `shared_by` NULL (auteur disparu) reste recu : le partage, lui,
+            // est toujours un partage de quelqu'un d'autre.
+            $recuDUnAutre = fn ($q) => $q
+                ->where(fn ($w) => $w->whereNull('shared_by')->orWhere('shared_by', '!=', $userId));
+
+            $fichiersAvecMoi = DossierFile::query()
+                ->withoutTrashed()
+                ->where('organization_id', $organization->id)
+                ->where(fn ($q) => $q
+                    ->whereHas('shares', fn ($s) => $s->where('user_id', $userId))
+                    ->orWhereHas('loopShares', fn ($s) => $recuDUnAutre($s)
+                        ->whereHas('loop', $mesBouclesActives)))
+                ->with([
+                    'shares' => fn ($q) => $q->where('user_id', $userId),
+                    'shares.sharedBy:id,first_name,avatar,name,email,banned_at,organization_id',
+                    'loopShares' => fn ($q) => $recuDUnAutre($q)->whereHas('loop', $mesBouclesActives),
+                    'loopShares.loop:id,name,organization_id',
+                    'loopShares.sharedBy:id,first_name,avatar,name,email,banned_at,organization_id',
+                ])
+                ->latest('updated_at')
+                ->get();
+
+            // Par moi : ce que J'AI partage. L'auteur du geste est
+            // `shared_by` — pas le televerseur du fichier. Prendre
+            // `uploaded_by` ferait apparaitre, sous « Par moi », des partages
+            // poses par quelqu'un d'autre sur un fichier que j'ai televerse.
+            $fichiersParMoi = DossierFile::query()
+                ->withoutTrashed()
+                ->where('organization_id', $organization->id)
+                ->where(fn ($q) => $q
+                    ->whereHas('shares', fn ($s) => $s->where('shared_by', $userId))
+                    ->orWhereHas('loopShares', fn ($s) => $s->where('shared_by', $userId)))
+                ->with([
+                    'shares' => fn ($q) => $q->where('shared_by', $userId),
+                    'shares.user:id,first_name,avatar,name,email,banned_at,organization_id',
+                    'loopShares' => fn ($q) => $q->where('shared_by', $userId),
+                    'loopShares.loop:id,name,organization_id',
+                ])
+                ->withCount(['shares' => fn ($q) => $q->where('shared_by', $userId)])
+                ->latest('updated_at')
+                ->get();
+
+            // TASK-1695 (points 2 et 3 de Cyril) — un vrai TABLEAU, donc des
+            // en-tetes TRIABLES.
+            //
+            // Le tri est fait au SERVEUR, pas en Alpine : les lignes sont
+            // rendues par `@foreach`, et trier en JS un balisage deja pose
+            // aurait demande de le re-rendre en `x-for` depuis du JSON. Un tri
+            // par parametre d'URL se teste, se partage par lien, et survit au
+            // rechargement.
+            //
+            // La cle est VALIDEE contre une liste blanche : `$request` nomme
+            // une colonne, il ne la choisit pas. Sans cela, `?ftri=` deviendrait
+            // une injection dans un `sortBy()`.
+            $triage = function ($fichiers) use ($request, $userId) {
+                $cles = [
+                    'nom' => fn (DossierFile $f) => mb_strtolower($f->nomLisible()),
+                    'type' => fn (DossierFile $f) => $f->typeLisible(),
+                    'taille' => fn (DossierFile $f) => (int) $f->size_bytes,
+                    // « Qui » designe l'autre partie : le destinataire sous
+                    // « Par moi », l'auteur du partage sous « Avec moi ».
+                    'qui' => fn (DossierFile $f) => mb_strtolower(
+                        (string) ($f->shares->first()?->user?->publicDisplayName()
+                            ?: $f->shares->first()?->sharedBy?->publicDisplayName()
+                            ?: $f->loopShares->first()?->loop?->name),
+                    ),
+                    'date' => fn (DossierFile $f) => $f->shares->first()?->created_at?->timestamp
+                        ?? $f->loopShares->first()?->created_at?->timestamp
+                        ?? 0,
+                ];
+
+                $cle = $request->query('ftri');
+                $cle = is_string($cle) && isset($cles[$cle]) ? $cle : 'nom';
+                $descendant = $request->query('fsens') === 'desc';
+
+                return $fichiers->sortBy($cles[$cle], SORT_REGULAR, $descendant)->values();
+            };
+
             return view('dossiers.espaces', [
                 'espace' => 'partages',
                 'vue' => $vue,
+                'fichiersTri' => $request->query('ftri') ?: 'nom',
+                'fichiersSens' => $request->query('fsens') === 'desc' ? 'desc' : 'asc',
                 'avecMoi' => $avecMoi,
                 'parMoi' => $parMoi,
+                'fichiersAvecMoi' => $triage($fichiersAvecMoi),
+                'fichiersParMoi' => $triage($fichiersParMoi),
                 'organizationRouteParam' => $request->route('organization'),
             ]);
         }
@@ -338,6 +460,44 @@ class DossierController extends Controller
         // manageSeries — decide poignees, ajout, creation et suppression.
         $canManageSeries = $user->can('manageSeries', $dossier);
         $canManageFiles = $user->can('manageFiles', $dossier);
+        // TASK-1695 (point 5b de Cyril) — DEPOSER n'est pas administrer.
+        //
+        // `uploadFiles` (T1684) ouvre le depot au membre ACTIF d'une Boucle
+        // vivante, selon la permission `dossiers.upload_file` de la matrice —
+        // et `StoreDossierFileRequest` l'autorise deja : le serveur acceptait
+        // le depot d'un membre, mais cette page gardait son FAB « Nouveau »
+        // derriere `manageFiles`. La porte etait ouverte, sans poignee —
+        // l'exact inverse du cas T1656.
+        $canUploadFiles = $user->can('uploadFiles', $dossier);
+
+        // TASK-1695 (5a, recette de Cyril) — les fichiers PARTAGES AVEC CETTE
+        // BOUCLE.
+        //
+        // Jusqu'ici, partager un fichier « dans une Boucle » ouvrait la lecture
+        // a ses membres sans que la Boucle elle-meme en montre rien : pour qui
+        // ouvrait cet ecran, le partage n'existait pas. Cyril l'a dit en une
+        // phrase — « il n'est pas partage dans la boucle ».
+        //
+        // Lecture SEULE, et une section a part : ces fichiers ne sont PAS dans
+        // le Dossier (ils vivent chez leur proprietaire, qui peut les retirer
+        // a tout moment). Les melanger aux fichiers deposes laisserait croire
+        // qu'on peut les renommer, les deplacer ou les supprimer ici.
+        $fichiersPartagesAvecLaBoucle = collect();
+
+        if ($dossier->isLoopDossier() && $dossier->loop !== null) {
+            $fichiersPartagesAvecLaBoucle = DossierFile::query()
+                ->withoutTrashed()
+                ->where('organization_id', $dossier->organization_id)
+                ->whereHas('loopShares', fn ($q) => $q
+                    ->where('loop_id', $dossier->loop_id)
+                    ->where('organization_id', $dossier->organization_id))
+                ->with([
+                    'loopShares' => fn ($q) => $q->where('loop_id', $dossier->loop_id),
+                    'loopShares.sharedBy:id,first_name,avatar,name,email,banned_at,organization_id',
+                ])
+                ->latest('updated_at')
+                ->get();
+        }
         $canDeleteFiles = $user->can('deleteFile', $dossier);
 
         $categories = Category::where('organization_id', $organization->id)
@@ -484,6 +644,8 @@ class DossierController extends Controller
             'canViewFiles' => $canViewFiles,
             'canManageSeries' => $canManageSeries,
             'canManageFiles' => $canManageFiles,
+            'canUploadFiles' => $canUploadFiles,
+            'fichiersPartagesAvecLaBoucle' => $fichiersPartagesAvecLaBoucle,
             'canDeleteFiles' => $canDeleteFiles,
             'canUseSemanticArticleSearch' => $semanticSearchGate->isEnabledFor($organization->id),
             // TASK-1341 — Smart Dossier V1 : bouton desactive + raison

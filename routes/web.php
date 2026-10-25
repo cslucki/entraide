@@ -82,6 +82,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DossierAnswerController;
 use App\Http\Controllers\DossierArticleController;
 use App\Http\Controllers\DossierController;
+use App\Http\Controllers\DossierFileShareController;
+use App\Http\Controllers\SharedDossierFileController;
 use App\Http\Controllers\DossierFileController;
 use App\Http\Controllers\DossierInsightsController;
 use App\Http\Controllers\DossierMemberController;
@@ -1475,6 +1477,44 @@ Route::prefix('/org/{organization}')
                 // racines (`LoopRootDocumentService`, `PersonalDocumentsRoot`)
                 // n'a jamais traverse ces routes et reste intact.
                 Route::get('/dossiers', [DossierController::class, 'index'])->name('dossiers.index');
+                // TASK-1695 geste C — lire un fichier qu'on vous a PARTAGE.
+                //
+                // Declarees AVANT `/dossiers/{dossier}` : « partages » n'est
+                // jamais un identifiant de Dossier. Meme idiome que
+                // `/relations/modeles` devant `/relations/{contact}`
+                // (TASK-1420), et meme raison — l'ordre dit l'intention, il ne
+                // se repose pas sur le hasard d'un format d'identifiant.
+                //
+                // Le Dossier n'apparait PAS dans ces URL : c'est la decision de
+                // conception de la TASK. Le destinataire n'emprunte jamais
+                // l'URL du Dossier d'autrui.
+                // TASK-1695 geste D — partager un fichier, et retirer ce partage.
+                //
+                // Imbriquees sous le Dossier, a dessein, et c'est l'INVERSE du
+                // geste C : partager est un acte de GESTION, reserve a qui gere
+                // deja le fichier. Celui-la passe donc par le chemin du
+                // Dossier ; seule la LECTURE par le destinataire a besoin d'un
+                // chemin a part.
+                Route::get('/dossiers/{dossier}/files/{file}/shares', [DossierFileShareController::class, 'index'])->name('dossiers.files.shares.index');
+                Route::get('/dossiers/{dossier}/files/{file}/shares/search', [DossierFileShareController::class, 'search'])->name('dossiers.files.shares.search');
+                Route::post('/dossiers/{dossier}/files/{file}/shares', [DossierFileShareController::class, 'store'])->name('dossiers.files.shares.store');
+                Route::delete('/dossiers/{dossier}/files/{file}/shares/{share}', [DossierFileShareController::class, 'destroy'])->name('dossiers.files.shares.destroy');
+                // TASK-1695 (5a) — partager avec une BOUCLE : meme fenetre,
+                // meme controleur, une table a part. Le segment litteral
+                // `loops` vit a une profondeur differente de `{share}` : aucun
+                // des deux ne peut avaler l'autre.
+                Route::post('/dossiers/{dossier}/files/{file}/shares/loops', [DossierFileShareController::class, 'storeLoop'])->name('dossiers.files.shares.loops.store');
+                Route::delete('/dossiers/{dossier}/files/{file}/shares/loops/{share}', [DossierFileShareController::class, 'destroyLoop'])->name('dossiers.files.shares.loops.destroy');
+
+                Route::get('/dossiers/partages/{file}', [SharedDossierFileController::class, 'show'])->name('dossiers.shared.show');
+                Route::get('/dossiers/partages/{file}/apercu', [SharedDossierFileController::class, 'preview'])->name('dossiers.shared.preview');
+                // TASK-1695 (point 2 de Cyril) — retirer SES partages depuis
+                // « Partages », sans repasser par le Dossier. La route est
+                // bornee au fichier, parce que c'est tout ce que cet ecran
+                // connait : il n'affiche pas le Dossier porteur, et le
+                // destinataire n'y a aucun droit.
+                Route::delete('/dossiers/partages/{file}/retirer', [SharedDossierFileController::class, 'stop'])->name('dossiers.shared.stop');
+
                 Route::get('/dossiers/{dossier}', [DossierController::class, 'show'])->name('dossiers.show');
                 Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
                 Route::post('/dossiers/{dossier}/insights', DossierInsightsController::class)->middleware('throttle:5,1')->name('dossiers.insights');
@@ -1489,11 +1529,31 @@ Route::prefix('/org/{organization}')
                 Route::delete('/dossiers/{dossier}/articles/{post}', [DossierArticleController::class, 'destroy'])->name('dossiers.articles.destroy');
                 Route::patch('/dossiers/{dossier}/articles/reorder', [DossierArticleController::class, 'reorder'])->name('dossiers.articles.reorder');
                 Route::get('/dossiers/{dossier}/articles/search', [DossierArticleController::class, 'search'])->name('dossiers.articles.search');
-                Route::get('/dossiers/{dossier}/members', [DossierMemberController::class, 'index'])->name('dossiers.members.index');
-                Route::post('/dossiers/{dossier}/members', [DossierMemberController::class, 'store'])->name('dossiers.members.store');
-                Route::patch('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'update'])->name('dossiers.members.update');
-                Route::delete('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'destroy'])->name('dossiers.members.destroy');
-                Route::get('/dossiers/{dossier}/members/search', [DossierMemberController::class, 'search'])->name('dossiers.members.search');
+                // TASK-1695 — DESACTIVE sur decision de Cyril (24/10).
+                //
+                // Le partage d'un Dossier avec des membres nominatifs : la
+                // creation de Dossiers avait ete retiree il y a plus d'un mois
+                // (Dossiers n'est pas un Drive), mais le PARTAGE de ceux qui
+                // existaient deja etait reste atteignable — et sa recherche de
+                // membres rendait l'adresse email de chaque personne proposee.
+                //
+                // La porte est d'abord fermee a l'AUTORITE
+                // (`DossierPolicy::manageMembers`, voir son docblock) ; ces
+                // routes sont commentees EN PLUS, pour qu'une URL tapee a la
+                // main rende 404 et non 403. Une porte absente n'annonce rien.
+                //
+                // Aucun `route()` ne visait ces noms (verifie le 24/10) : les
+                // commenter ne casse aucun rendu. `DossierMemberController`
+                // n'est pas touche — intact, simplement inatteignable.
+                //
+                // Pour reactiver : decommenter ces cinq lignes ET le corps de
+                // `manageMembers`.
+                //
+                // Route::get('/dossiers/{dossier}/members', [DossierMemberController::class, 'index'])->name('dossiers.members.index');
+                // Route::post('/dossiers/{dossier}/members', [DossierMemberController::class, 'store'])->name('dossiers.members.store');
+                // Route::patch('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'update'])->name('dossiers.members.update');
+                // Route::delete('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'destroy'])->name('dossiers.members.destroy');
+                // Route::get('/dossiers/{dossier}/members/search', [DossierMemberController::class, 'search'])->name('dossiers.members.search');
                 Route::get('/dossiers/{dossier}/series', [DossierSeriesController::class, 'show'])->name('dossiers.series.show');
                 Route::post('/dossiers/{dossier}/series', [DossierSeriesController::class, 'store'])->name('dossiers.series.store');
                 Route::patch('/dossiers/{dossier}/series', [DossierSeriesController::class, 'update'])->name('dossiers.series.update');

@@ -16,7 +16,7 @@
 
 <div class="relative">
     <button @if($avecRef) x-ref="fabButton" @endif
-            @click="showImportMenu = !showImportMenu" type="button"
+            @click="showImportMenu = !showImportMenu" type="button" data-dossier-fab
             class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 {{ $classesBouton }}">
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
         {{ __('dossiers.fab_action') }}
@@ -61,10 +61,18 @@
              le produit provisionne, on n'en fabrique plus l'arborescence.
              L'entree DISPARAIT plutot que de s'afficher grisee : une action
              absente ne demande pas d'explication. --}}
-        <button @click="showImportMenu = false; openArticleModal()" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
+        {{-- TASK-1695 (5b) — depuis que le FAB s'ouvre au membre deposant
+             (`canUploadFiles`), chaque entree porte SA garde. Ecrire un
+             Article releve de `attachArticle`, pas du depot : sans ce @if, le
+             membre verrait une poignee vers une porte que le serveur lui
+             ferme. La note markdown, elle, EST un depot (un `File` cree au vol
+             passe par `StoreDossierFileRequest`) : elle reste visible. --}}
+        @if($canManageArticles)
+        <button @click="showImportMenu = false; openArticleModal()" type="button" data-fab-new-article class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
             <svg class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             {{ __('dossiers.fab_new_article') }}
         </button>
+        @endif
         <button @click="showImportMenu = false; openMdModal()" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
             <svg class="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             {{ __('dossiers.fab_markdown_note') }}

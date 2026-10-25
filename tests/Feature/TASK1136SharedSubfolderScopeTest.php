@@ -15,6 +15,7 @@ use App\Services\Dossiers\PersonalDocumentsRoot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 /**
@@ -45,6 +46,8 @@ use Tests\TestCase;
  */
 class TASK1136SharedSubfolderScopeTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     use RefreshDatabase;
 
     private Organization $org;
@@ -160,6 +163,8 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
 
     public function test_a_membership_lands_on_the_shared_folder_never_on_the_root(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partagerAvecLInvite()->assertSuccessful();
 
         $this->assertDatabaseHas('dossier_members', [
@@ -177,6 +182,8 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
 
     public function test_b_the_guest_sees_the_shared_folder(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partagerAvecLInvite()->assertSuccessful();
 
         $this->assertTrue($this->invite->can('view', $this->partage->fresh()));
@@ -184,6 +191,8 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
 
     public function test_c_the_guest_sees_a_descendant_of_the_shared_folder(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partagerAvecLInvite()->assertSuccessful();
 
         // Un descendant herite du partage de ses ANCETRES.
@@ -194,6 +203,8 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
 
     public function test_d_the_guest_never_sees_the_personal_root(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partagerAvecLInvite()->assertSuccessful();
 
         $this->assertFalse($this->invite->can('view', $this->racine->fresh()));
@@ -202,6 +213,8 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
 
     public function test_e_the_guest_never_sees_a_sibling(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partagerAvecLInvite()->assertSuccessful();
 
         $this->assertFalse($this->invite->can('view', $this->frere->fresh()));
@@ -209,6 +222,8 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
 
     public function test_f_the_guest_never_reaches_a_sibling_content(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->fichier($this->frere, 'prive.txt');
         $this->article($this->frere, 'Note privee');
         $this->partagerAvecLInvite()->assertSuccessful();
@@ -228,6 +243,8 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
 
     public function test_g_the_shared_space_lists_only_the_shared_folder(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partagerAvecLInvite()->assertSuccessful();
 
         $html = $this->actingAs($this->invite)
@@ -246,6 +263,8 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
 
     public function test_h_removing_the_share_cuts_the_whole_subtree(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partagerAvecLInvite()->assertSuccessful();
         $this->retirerLePartage($this->partage);
 
@@ -255,6 +274,8 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
 
     public function test_i_an_explicit_share_on_a_descendant_survives(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partagerAvecLInvite()->assertSuccessful();
         $this->partagerAvecLInvite($this->descendant)->assertSuccessful();
 
@@ -282,6 +303,8 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
 
     public function test_k_the_personal_root_can_never_be_shared(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partagerAvecLInvite($this->racine)->assertForbidden();
 
         $this->assertSame(0, DossierMember::where('dossier_id', $this->racine->getKey())->count());
@@ -319,6 +342,8 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
 
     public function test_l_bis_a_plain_private_root_still_shares_normally(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         // Les Dossiers d'avant « Mes documents » sont des racines a part
         // entiere : les partager doit continuer de fonctionner tel quel.
         $racineOrdinaire = Dossier::create([

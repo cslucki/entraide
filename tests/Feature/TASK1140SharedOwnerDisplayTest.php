@@ -13,6 +13,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\PersonalDocumentsRoot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 /**
@@ -47,6 +48,8 @@ use Tests\TestCase;
  */
 class TASK1140SharedOwnerDisplayTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     use RefreshDatabase;
 
     private Organization $org;
@@ -165,6 +168,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_a_shared_child_names_its_real_owner(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage);
 
         $html = $this->pagePartages();
@@ -187,6 +192,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_a_level_two_child_names_the_same_owner(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->descendant);
 
         $html = $this->pagePartages();
@@ -198,6 +205,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_a_level_three_child_names_the_same_owner(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $petitFils = $this->sousDossier($this->descendant, 'Niveau trois');
         $this->partager($petitFils);
 
@@ -232,6 +241,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_an_owner_from_another_organization_is_not_named(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         // `isDisplayableIn` protege aussi le cloisonnement : un proprietaire
         // d'une autre Organization ne doit pas etre nomme ici.
         $this->partager($this->partage);
@@ -246,6 +257,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_a_plain_private_root_keeps_its_direct_owner(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $racineOrdinaire = Dossier::create([
             'organization_id' => $this->org->id,
             'owner_id' => $this->proprietaire->id,
@@ -265,6 +278,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_a_direct_shared_url_uses_the_shared_surface(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage);
 
         $this->ouvrirCommeInvite($this->partage)
@@ -274,6 +289,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_a_shared_breadcrumb_never_contains_the_owners_personal_root(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage);
 
         $response = $this->ouvrirCommeInvite($this->partage)->assertOk();
@@ -284,6 +301,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_a_share_on_a_projects_shared_a_b_c_breadcrumb(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $b = $this->sousDossier($this->partage, 'B partage descendant');
         $c = $this->sousDossier($b, 'C partage descendant');
         $this->partager($this->partage);
@@ -296,6 +315,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_a_share_only_on_b_projects_shared_b_c_and_omits_a(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $b = $this->sousDossier($this->partage, 'B seule ancre');
         $c = $this->sousDossier($b, 'C sous B');
         $this->partager($b);
@@ -309,6 +330,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_every_visible_shared_breadcrumb_link_is_accessible(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $b = $this->sousDossier($this->partage, 'B accessible');
         $c = $this->sousDossier($b, 'C accessible');
         $this->partager($this->partage);
@@ -322,6 +345,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_the_owner_keeps_the_documents_surface_for_the_same_child(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage);
 
         $this->actingAs($this->proprietaire)
@@ -334,6 +359,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_a_reader_reads_but_neither_writes_nor_shares(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage, 'reader');
         $partage = $this->partage->fresh();
 
@@ -345,6 +372,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_an_editor_writes_but_still_does_not_share(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage, 'editor');
         $partage = $this->partage->fresh();
 
@@ -356,6 +385,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_an_editor_shared_on_a_updates_its_descendant_b_but_not_private_ancestors_or_siblings(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage, 'editor');
 
         $this->assertTrue($this->invite->can('update', $this->partage->fresh()));
@@ -366,6 +397,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_removing_an_editor_share_cuts_update_on_a_and_its_descendants(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage, 'editor');
         $this->retirer($this->partage);
 
@@ -375,6 +408,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_an_explicit_descendant_editor_share_survives_the_parent_share_removal(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $petitFils = $this->sousDossier($this->descendant, 'Petit-fils editable');
         $this->partager($this->partage, 'editor');
         $this->partager($this->descendant, 'editor');
@@ -390,6 +425,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_removing_the_share_removes_the_row_and_the_access(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage);
         $this->assertStringContainsString('Dossier test 3', $this->pagePartages());
 
@@ -404,6 +441,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_an_explicit_share_on_a_descendant_survives_the_parent_removal(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage);
         $this->partager($this->descendant);
 
@@ -423,6 +462,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_a_file_in_a_descendant_is_reachable(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage, 'editor');
 
         $fichier = DossierFile::create([
@@ -444,6 +485,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_an_article_in_a_descendant_is_reachable(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage, 'editor');
 
         $article = BlogPost::create([
@@ -468,6 +511,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_a_sibling_never_shared_stays_closed(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage);
 
         $this->assertFalse($this->invite->can('view', $this->frere->fresh()));
@@ -476,6 +521,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_the_personal_root_of_the_owner_stays_closed(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         // Le coeur de TASK-1136, reverifie ici : nommer le proprietaire via la
         // gouvernance ne doit pas rouvrir la racine.
         $this->partager($this->partage);
@@ -524,6 +571,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_cross_organization_never_leaks(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage);
 
         $etranger = User::factory()->create(['organization_id' => $this->autreOrg->id]);
@@ -543,6 +592,8 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     public function test_shared_with_me_and_shared_by_me_agree(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->partager($this->partage);
 
         // Cote invite : le dossier partage, nomme par son vrai proprietaire.

@@ -109,7 +109,7 @@
         $classeSelection = 'bg-indigo-50 ring-1 ring-inset ring-indigo-300 dark:bg-indigo-950/40 dark:ring-indigo-700';
         // « Prive » est le cas dominant : explicite, mais rendu le plus discret
         // des trois etats (reference canonique drive-v2).
-        $classePartage = fn (string $etat) => $etat === __('dossiers.share_private')
+        $classePartage = fn (string $etat) => $etat === __('dossiers.share_none')
             ? 'hidden lg:block min-w-0 truncate text-xs text-gray-400 dark:text-gray-500'
             : 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
 
@@ -126,7 +126,14 @@
             ? __('dossiers.share_loop')
             : (($couvertParUnPartage ?? false) || $governingDossier->dossierMembers->isNotEmpty()
                 ? __('dossiers.share_inherited')
-                : __('dossiers.share_private'));
+                // TASK-1695 (point 1 de Cyril) — « Aucun », pas « Prive ».
+                //
+                // J'avais d'abord substitue au RENDU, a trois endroits : la
+                // meme colonne disait alors « Aucun » sur une ligne de fichier
+                // et « Prive » sur une ligne de dossier. Deux mots pour un
+                // seul etat, dans un seul tableau. Le libelle se decide ICI,
+                // une fois.
+                : __('dossiers.share_none'));
 
         // Mode Serie (TASK-1130, doctrine finale) : la projection SEQUENTIELLE de
         // chaque Serie — les contenus reels du Dossier avec un rang, jamais
@@ -184,6 +191,16 @@
                              'dossierId' => $dossier->getKey(),
                              'orgParam' => $orgParam,
                              'canManageFiles' => $canManageFiles,
+                             {{-- TASK-1695 — le moteur d'import (FilePond) suit
+                                  `canUploadFiles`. Cette liste de clefs est
+                                  ECRITE A LA MAIN : passer la variable a la vue
+                                  ne suffit pas, il faut l'ajouter ICI. Oubli du
+                                  24/10 — `config.canUploadFiles` valait
+                                  `undefined`, FilePond ne s'initialisait pas, et
+                                  « Importer des fichiers » ne faisait RIEN
+                                  (`browseFiles()` sort en silence sans `_pond`).
+                                  Signale par Cyril. --}}
+                             'canUploadFiles' => $canUploadFiles,
                              'canDeleteFiles' => $canDeleteFiles,
                              'moveTargets' => $moveTargets,
                              'seriesMode' => $seriesModeData,
@@ -283,7 +300,13 @@
                               ],
                          ]))">
                 <x-dossiers.module :espace="$espace">
-                    @if($canManageFiles)
+                    {{-- TASK-1695 (5b) — `canUploadFiles`, pas `canManageFiles` :
+                         deposer est un geste de MEMBRE (matrice de la Boucle,
+                         T1684), administrer reste a qui gere. Les cinq surfaces
+                         de depot de cette page suivent la meme autorite que le
+                         serveur (`StoreDossierFileRequest`), sinon la porte est
+                         ouverte sans poignee. --}}
+                    @if($canUploadFiles)
                         <x-slot name="nouveau">
                             @include('dossiers.partials.nouveau', ['avecRef' => true, 'classesBouton' => 'w-full', 'ancrageMenu' => 'left-0'])
                         </x-slot>
@@ -301,14 +324,14 @@
                          d'autres etait la moitie du desequilibre HTML qui
                          faisait vivre toute la page DANS la barre d'outils. --}}
                     <div class="relative"
-                         @if($canManageFiles)
+                         @if($canUploadFiles)
                          @dragenter.prevent="if (($event.dataTransfer?.types || []).includes('Files')) survol++"
                          @dragover.prevent
                          @dragleave.prevent="survol = Math.max(0, survol - 1)"
                          @drop.prevent="survol = 0; if ($event.dataTransfer?.files?.length) handleMediaFiles({ target: { files: $event.dataTransfer.files, value: '' } }, 'drop')"
                          @endif
                          >
-                        @if($canManageFiles)
+                        @if($canUploadFiles)
                         <div x-show="survol > 0" x-cloak
                              class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center rounded-2xl border-2 border-dashed border-indigo-400 bg-indigo-50/90 dark:border-indigo-500 dark:bg-indigo-950/80">
                             <p class="text-base font-semibold text-indigo-700 dark:text-indigo-200">{{ __('dossiers.drive_drop_here') }}</p>
@@ -396,6 +419,17 @@
                                 @php
                                     $dejaPartage = $dossier->shared_with_loop_id !== null || $dossier->dossierMembers->isNotEmpty();
                                 @endphp
+                                {{-- TASK-1695 — la poignee suit desormais
+                                     l'AUTORITE, et non `$userRole === 'owner'`.
+
+                                     Elle etait conditionnee a un predicat
+                                     DIFFERENT de celui qui garde la porte : la
+                                     desactivation de `manageMembers` fermait
+                                     l'acces et laissait ce bouton en place,
+                                     ouvrant un panneau devenu inutile. Les deux
+                                     avaient derive sans que rien ne le dise —
+                                     trouve par le test, pas par la lecture. --}}
+                                @can('manageMembers', $dossier)
                                 <button type="button" @click="window.dispatchEvent(new CustomEvent('open-share-panel'))"
                                         class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition {{ $dejaPartage
                                             ? 'text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/40'
@@ -404,6 +438,7 @@
                                         aria-label="{{ $dejaPartage ? __('dossiers.share_manage') : __('dossiers.share_tab') }}">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z"/></svg>
                                 </button>
+                                @endcan
                             @else
                                 <span class="shrink-0 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/60 dark:text-amber-200">{{ __('dossiers.shared_badge') }}</span>
                                 {{-- Lecture seule pour un membre lecteur COMME
@@ -453,7 +488,7 @@
                              a cote de la recherche — la sidebar qui le porte au
                              bureau n'existe pas ici. Meme partial, meme etat,
                              aucun second moteur. --}}
-                        @if($canManageFiles)
+                        @if($canUploadFiles)
                             <div class="shrink-0 md:hidden max-sm:order-2">
                                 {{-- TASK-1684 — ancrage a DROITE des le mobile.
                                      En `left-0`, le panneau (`w-64`, 256 px) partait du bord
@@ -883,7 +918,7 @@
                         <span x-text="message"></span>
                     </div>
 
-                    @if($canManageFiles)
+                    @if($canUploadFiles)
                     <div class="mt-5 relative">
                         <div id="dossier-file-pond" x-ref="filePondContainer" class="hidden"></div>
                         {{-- Hidden file inputs for media types --}}
@@ -1138,7 +1173,7 @@
                                                 // gouvernance : sans ancre, elle
                                                 // est privee, et n'herite de
                                                 // rien du Dossier ouvert.
-                                                : ($estPartageIci ? __('dossiers.share_private') : $partageHerite));
+                                                : ($estPartageIci ? __('dossiers.share_none') : $partageHerite));
                                     @endphp
                                     <div class="flex min-w-0 items-center gap-3">
                                         {!! $gouttiereDrive(false) !!}
@@ -1356,7 +1391,7 @@
                                     <button type="button" class="flex min-h-11 min-w-0 flex-1 flex-col justify-center text-left rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
                                             @click="clicElement($event, {{ $itemFichier }})" @dblclick="ouvrir({{ $itemFichier }})" @touchstart="debutAppui({{ $itemFichier }})" @touchend="finAppui()" @touchmove="finAppui()">
                                         <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="file.display_name || file.original_name"></span>
-                                        <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="@js($partageHerite) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
+                                        <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="(((file.shares_count || 0) + (file.loop_shares_count || 0)) > 0 ? @js(__('dossiers.share_shared')) : @js($partageHerite)) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
                                     </button>
                                     </div>
                                     @if($colonneAjoutePar)
@@ -1376,7 +1411,34 @@
                                          elle distingue ce que le type MIME confond. --}}
                                     <div class="{{ $celluleLgDrive }} uppercase" x-text="typeDeFichier(file)"></div>
                                     @if($colonnePartage)
-                                        <div class="{{ $classePartage($partageHerite) }}">{{ $partageHerite }}</div>
+                                        {{-- TASK-1695 (point 1 de Cyril) — la colonne dit
+                                             l'etat de CETTE LIGNE.
+
+                                             Elle affichait `$partageHerite`, calcule UNE
+                                             fois pour tout le Dossier : un fichier
+                                             reellement partage y lisait « Prive ». La
+                                             colonne ne regardait pas au bon endroit.
+
+                                             Le repli garde l'heritage quand il existe (un
+                                             Dossier de Boucle partage bel et bien ses
+                                             fichiers) : afficher « Aucun » dessus serait
+                                             faux a son tour. On ne remplace donc pas un
+                                             mensonge par l'inverse.
+
+                                             « Partage » est CLIQUABLE : premier temps de
+                                             l'ergonomie en deux temps voulue par Cyril —
+                                             voir avec qui, et arreter, avant d'ouvrir la
+                                             fenetre complete. --}}
+                                        <div class="hidden min-w-0 lg:block">
+                                            <template x-if="((file.shares_count || 0) + (file.loop_shares_count || 0)) > 0">
+                                                <button type="button" @click="ouvrirApercuPartages(file)"
+                                                        class="min-w-0 max-w-full truncate rounded px-1 text-xs font-medium text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400"
+                                                        data-file-share-peek>{{ __('dossiers.share_shared') }}</button>
+                                            </template>
+                                            <template x-if="((file.shares_count || 0) + (file.loop_shares_count || 0)) === 0">
+                                                <span class="{{ $classePartage($partageHerite) }} !block">{{ $partageHerite }}</span>
+                                            </template>
+                                        </div>
                                     @endif
                                     <div class="{{ $celluleLgDrive }} tabular-nums" x-text="file.updatedAtFormatted"></div>
                                     <div class="{{ $celluleLgDrive }} tabular-nums" x-text="file.sizeFormatted"></div>
@@ -1391,20 +1453,49 @@
                                             <button type="button" @click="open = false; openPreview(file)"
                                                     x-show="file.mime_type?.startsWith('image/') || file.mime_type === 'application/pdf' || file.mime_type === 'text/plain' || file.mime_type === 'text/markdown'"
                                                     class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_preview') }}</button>
-                                            <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
+                                            {{-- Une ligne partagee se telecharge par la route
+                                                 DEDIEE : le chemin de CE Dossier rendrait 404,
+                                                 le fichier n'y est pas. --}}
+                                            <a :href="file.is_shared_here
+                                                    ? '{{ route('organization.dossiers.shared.show', ['organization' => $orgParam, 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)
+                                                    : '{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
                                                class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_download') }}</a>
                                             @if($canManageFiles)
-                                                <button type="button" x-show="estMarkdown(file)" @click="open = false; openMarkdownEdit(file)"
+                                                {{-- TASK-1695 — un fichier PARTAGE avec la Boucle
+                                                     se lit ici, il ne s'y administre pas : il vit
+                                                     chez son proprietaire. Le serveur refuse deja
+                                                     (`manageFiles` vise le Dossier d'origine) ;
+                                                     l'ecran ne propose pas ce qu'il refusera. --}}
+                                                <button type="button" x-show="estMarkdown(file) && !file.is_shared_here" @click="open = false; openMarkdownEdit(file)"
                                                     class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_markdown') }}</button>
-                                                <button type="button" @click="open = false; openRenameModal(file)"
+                                                <button type="button" x-show="!file.is_shared_here" @click="open = false; openRenameModal(file)"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_rename') }}</button>
                                             @endif
                                             @if($canDeleteFiles && $moveTargets->isNotEmpty())
-                                                <button type="button" @click="open = false; openMoveModal(file)"
+                                                <button type="button" x-show="!file.is_shared_here" @click="open = false; openMoveModal(file)"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
                                             @endif
+                                            {{-- TASK-1695 geste D — partager CE fichier.
+                                                 Conditionne a `canManageFiles`, pas a la simple
+                                                 lecture : un destinataire ne doit pas pouvoir
+                                                 repartager. Le serveur porte la meme garde — ceci
+                                                 n'est que la poignee. --}}
+                                            @if($canManageFiles)
+                                                <button type="button" x-show="!file.is_shared_here" @click="open = false; openShareModal(file)"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60"
+                                                        data-file-share-open>{{ __('dossiers.file_share') }}</button>
+                                                {{-- TASK-1695 (5a) — « Partager dans une boucle »
+                                                     (Cyril). La MEME fenetre s'ouvre : elle porte
+                                                     les deux natures de partage, et deux fenetres
+                                                     auraient diverge. L'entree distincte existe
+                                                     parce que c'est elle qu'on cherche des yeux
+                                                     quand on pense « Boucle ». --}}
+                                                <button type="button" x-show="!file.is_shared_here" @click="open = false; openShareModal(file)"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60"
+                                                        data-file-share-loop-open>{{ __('dossiers.file_share_loops') }}</button>
+                                            @endif
                                             @if($canDeleteFiles)
-                                                <button type="button" @click="open = false; openDeleteModal(file)" :disabled="saving"
+                                                <button type="button" x-show="!file.is_shared_here" @click="open = false; openDeleteModal(file)" :disabled="saving"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.file_delete') }}</button>
                                             @endif
                                         </div>
@@ -1708,6 +1799,27 @@
                     {{-- Renommer un fichier : le libelle lu par les gens, pas
                          le fichier sur le disque. L'extension d'origine est
                          conservee par le serveur. --}}
+                    {{-- TASK-1695 geste D — partager un fichier, en LECTURE.
+
+                         La mention qui decrivait la borne du partage (« ni le
+                         Dossier, ni les autres fichiers, ni la modification »)
+                         a ete RETIREE sur demande de Cyril : trop technique
+                         pour un utilisateur lambda. Je l'avais posee pour
+                         prevenir un malentendu ; l'arbitrage produit est que
+                         le malentendu coute moins cher que le jargon.
+
+                         Fermeture : la croix en haut a droite, plus `Echap` et
+                         le clic a l'exterieur, deja presents. PAS de second
+                         bouton « Fermer cette fenetre » a cote du premier —
+                         deux boutons voisins qui font la meme chose obligent a
+                         choisir entre eux. --}}
+                    @include('dossiers.partials.file-share-peek')
+
+                    {{-- TASK-1695 — extrait en partiel, pour servir aussi dans
+                         « Partages ». Voir son en-tete pour le contrat qu'il
+                         attend du composant Alpine englobant. --}}
+                    @include('dossiers.partials.file-share-modal')
+
                     <template x-if="showRenameModal && renameTarget">
                         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showRenameModal = false" @keydown.escape.window="showRenameModal = false" role="dialog" aria-modal="true" aria-labelledby="rename-file-title">
                             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>

@@ -650,4 +650,41 @@ A bullet list of at most THREE short questions a reader could ask next
 to go deeper, answerable from this Dossier. Plain text, no citations.
 
 TEXT,
+
+    // TASK-1695 — partage d'un fichier, au niveau du FICHIER.
+    'share_self' => 'You cannot share a file with yourself.',
+    'file_share' => 'Share',
+    'file_share_title' => 'Share this file',
+    'file_share_hint' => 'That person will be able to READ this file. They will not see the folder that contains it, nor the other files, and cannot edit or re-share it.',
+    'file_share_search' => 'Search a member…',
+    'file_share_current' => 'Shared with',
+    'file_share_none' => 'This file is not shared with anyone.',
+    'file_share_remove' => 'Remove',
+    'file_shared_badge' => 'Shared',
+
+    // TASK-1695 geste E — les fichiers partages a l'unite, dans « Partages ».
+    'shared_files_section' => 'Shared files',
+    'shared_files_badge' => 'File',
+    'shared_file_by' => 'Shared by',
+    'shared_files_none_with_me' => 'No file has been shared with you.',
+    'shared_files_none_by_me' => 'You have not shared any file yet.',
+    'shared_files_hint' => 'A shared file opens on its own: it does not grant access to the folder that contains it.',
+    'file_share_close' => 'Close',
+    'col_file_name' => 'File name',
+    'col_file_type' => 'Type',
+    'col_file_size' => 'Size',
+    'col_shared_by' => 'Shared by',
+    'col_shared_at' => 'Shared on',
+    'file_share_stop' => 'Stop sharing',
+    'file_share_stopped' => 'Sharing has been stopped.',
+    'share_none' => 'None',
+    'share_peek_title' => 'Shared with',
+    'share_peek_add' => 'Add people',
+    'loop_share_not_member' => 'You must be a member of this loop to share a file into it.',
+    'file_share_loops' => 'Share into a loop',
+    'file_share_loops_current' => 'Shared into loops',
+    'file_share_no_loop' => 'You are not a member of any loop.',
+    'loop_shared_files_title' => 'Files shared with this loop',
+    'loop_shared_files_hint' => 'These files stay with their owner: they can be read here, not changed.',
+    'loop_shared_files_by' => 'Shared by :nom',
 ];

@@ -3536,6 +3536,165 @@ function registerDossierFilesCard() {
 
     FilePond.registerPlugin(FilePondPluginFileValidateType, FilePondPluginFileValidateSize);
 
+    /**
+     * TASK-1695 — partager un fichier depuis « Partages ».
+     *
+     * Dernier point de la liste de Cyril : ajouter des personnes SANS revenir
+     * sur la page du Dossier.
+     *
+     * ## Pourquoi un composant a part, et non `dossierFilesCard`
+     *
+     * Celui-ci porte le televersement, le deplacement, la corbeille, les
+     * Series, la selection multiple — tout un Drive. « Partages » n'a aucun de
+     * ces gestes et n'a meme pas de Dossier courant : l'ecran liste des
+     * fichiers venus de dossiers DIFFERENTS. L'y brancher aurait demande de
+     * neutraliser la moitie de son etat.
+     *
+     * ## Le contrat, au mot pres
+     *
+     * Les memes noms d'etat et de methodes que `dossierFilesCard`, parce que
+     * les deux rendent le MEME partiel (`partials/file-share-modal`). Toute
+     * divergence de nom casserait l'un des deux ecrans en silence.
+     *
+     * ## Le Dossier vient du FICHIER
+     *
+     * `urlPartages()` lit `shareTarget.dossier_id` et non une propriete du
+     * composant : ici chaque ligne peut appartenir a un Dossier different.
+     * Une valeur unique au niveau du composant aurait vise le mauvais Dossier
+     * des la deuxieme ligne.
+     */
+    Alpine.data('fileSharePanel', (config) => ({
+        csrfToken: config.csrfToken,
+        orgParam: config.orgParam,
+        i18n: config.i18n || {},
+
+        showShareModal: false,
+        showPeekModal: false,
+        shareTarget: null,
+        shareQuery: '',
+        shareResults: [],
+        shareCurrent: [],
+        // TASK-1695 (5a) — les Boucles : celles ou je peux partager, et les
+        // partages de Boucle deja poses. Remplis par le MEME chargement que
+        // les partages nominatifs : un seul aller-retour, aucun etat qui
+        // puisse diverger de l'autre fenetre.
+        shareLoops: [],
+        shareLoopShares: [],
+        shareCanManage: false,
+        shareLoading: false,
+
+        /**
+         * Premier temps — les MEMES noms que `dossierFilesCard`, parce que les
+         * deux rendent le meme partiel `file-share-peek`.
+         */
+        ouvrirApercuPartages(file) {
+            this.shareTarget = file;
+            this.shareCurrent = [];
+            this.showPeekModal = true;
+            this.chargerPartages();
+        },
+
+        passerAuPartageComplet() {
+            this.showPeekModal = false;
+            this.openShareModal(this.shareTarget);
+        },
+
+        openShareModal(file) {
+            this.shareTarget = file;
+            this.shareQuery = '';
+            this.shareResults = [];
+            this.shareCurrent = [];
+            this.showShareModal = true;
+            this.chargerPartages();
+        },
+
+        urlPartages(suffixe = '') {
+            return `/org/${this.orgParam}/dossiers/${this.shareTarget.dossier_id}/files/${this.shareTarget.id}/shares${suffixe}`;
+        },
+
+        async requete(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        ...(options.headers || {}),
+                    },
+                    ...options,
+                });
+
+                return response.ok ? await response.json() : null;
+            } catch (e) {
+                return null;
+            }
+        },
+
+        async chargerPartages() {
+            if (!this.shareTarget) return;
+            this.shareLoading = true;
+            const data = await this.requete(this.urlPartages());
+            this.shareCurrent = data?.shares || [];
+            this.shareLoops = data?.loops || [];
+            this.shareLoopShares = data?.loop_shares || [];
+            // TASK-1695 (point 7) — le panneau se tait sur les actions quand
+            // on ne gere pas. Le serveur refuse de toute facon ; l'ecran ne
+            // propose pas ce qu'il refusera.
+            this.shareCanManage = data?.can_manage === true;
+            this.shareLoading = false;
+        },
+
+        async partagerAvecBoucle(loop) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            await this.requete(this.urlPartages('/loops'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ loop_id: loop.id }),
+            });
+            this.shareLoading = false;
+            await this.chargerPartages();
+        },
+
+        async retirerPartageBoucle(share) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            await this.requete(this.urlPartages('/loops/' + share.id), { method: 'DELETE' });
+            this.shareLoading = false;
+            await this.chargerPartages();
+        },
+
+        async chercherMembres() {
+            if (!this.shareTarget) return;
+            this.shareLoading = true;
+            const data = await this.requete(this.urlPartages('/search') + '?q=' + encodeURIComponent(this.shareQuery || ''));
+            this.shareResults = data?.users || [];
+            this.shareLoading = false;
+        },
+
+        async partagerAvec(user) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            await this.requete(this.urlPartages(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: user.id }),
+            });
+            this.shareQuery = '';
+            this.shareResults = [];
+            this.shareLoading = false;
+            await this.chargerPartages();
+        },
+
+        async retirerPartage(share) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            await this.requete(this.urlPartages('/' + share.id), { method: 'DELETE' });
+            this.shareLoading = false;
+            await this.chargerPartages();
+        },
+    }));
+
     Alpine.data('dossierFilesCard', (config) => ({
         // TASK-1130 : la surface a deux angles — Documents (la liste) et
         // Series (l'editorial). Un etat d'affichage, pas un moteur.
@@ -3589,6 +3748,20 @@ function registerDossierFilesCard() {
         showRenameModal: false,
         renameTarget: null,
         renameValue: '',
+        // TASK-1695 — partager UN fichier, en LECTURE, avec des membres de
+        // l'Organization. Le partage ne donne acces ni au Dossier qui contient
+        // le fichier, ni a ses voisins : l'ecran le dit, parce que personne ne
+        // devinerait une borne aussi etroite.
+        showShareModal: false,
+        shareTarget: null,
+        shareQuery: '',
+        shareResults: [],
+        shareCurrent: [],
+        shareLoops: [],
+        shareLoopShares: [],
+        shareCanManage: false,
+        showPeekModal: false,
+        shareLoading: false,
         // « Retirer de cette Boucle » (CAS B) : une confirmation legere avant
         // le PATCH — retirer un partage n'est pas supprimer, le ton du modal
         // n'est pas celui d'une destruction.
@@ -3638,6 +3811,10 @@ function registerDossierFilesCard() {
         dossierId: config.dossierId,
         orgParam: config.orgParam,
         canManageFiles: config.canManageFiles,
+        // TASK-1695 (5b) — le moteur de depot (FilePond) suit `uploadFiles`,
+        // l'autorite du SERVEUR pour deposer : un membre de Boucle sans
+        // `manageFiles` doit pouvoir televerser.
+        canUploadFiles: config.canUploadFiles,
         canDeleteFiles: config.canDeleteFiles,
         i18n: config.i18n,
         currentPage: 1,
@@ -4112,7 +4289,7 @@ function registerDossierFilesCard() {
                     else if (this.selectionCount) { this.viderSelection(); }
                 }
             });
-            if (this.canManageFiles && this.$refs.filePondContainer) {
+            if (this.canUploadFiles && this.$refs.filePondContainer) {
                 const self = this;
                 const acceptedTypes = [
                     'image/jpeg', 'image/png', 'image/webp', 'image/gif',
@@ -4574,6 +4751,166 @@ function registerDossierFilesCard() {
 
         finAppui() {
             clearTimeout(this._appuiTimer);
+        },
+
+        /**
+         * TASK-1695 — ouvrir le partage d'un fichier.
+         *
+         * La liste des partages en place est RELUE a chaque ouverture, jamais
+         * gardee d'une fois sur l'autre : deux onglets, ou un retrait fait
+         * ailleurs, rendraient sinon un ecran qui ment sur l'etat reel.
+         */
+        /**
+         * TASK-1695 (point 1 de Cyril) — PREMIER temps de l'apercu de partage.
+         *
+         * Ergonomie en deux temps, voulue par Cyril et calquee sur Drive :
+         * d'abord « avec qui, et puis-je arreter ? », et SEULEMENT si besoin la
+         * fenetre complete avec sa recherche de membres. Ouvrir d'emblee la
+         * grande fenetre pour repondre a « c'est partage avec qui ? » demande
+         * de traverser un formulaire pour lire une information.
+         *
+         * Le panneau reutilise `shareTarget` et `shareCurrent` : la meme cible
+         * et la meme liste que la grande fenetre. Deux etats separes auraient
+         * pu diverger — retirer quelqu'un dans l'un sans que l'autre le sache.
+         */
+        ouvrirApercuPartages(file) {
+            this.shareTarget = file;
+            this.shareCurrent = [];
+            this.showPeekModal = true;
+            this.chargerPartages();
+        },
+
+        /** Second temps : la fenetre complete, en gardant la cible. */
+        passerAuPartageComplet() {
+            this.showPeekModal = false;
+            this.openShareModal(this.shareTarget);
+        },
+
+        openShareModal(file) {
+            this.shareTarget = file;
+            this.shareQuery = '';
+            this.shareResults = [];
+            this.shareCurrent = [];
+            this.showShareModal = true;
+            this.chargerPartages();
+        },
+
+        urlPartages(suffixe = '') {
+            return `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${this.shareTarget.id}/shares${suffixe}`;
+        },
+
+        async chargerPartages() {
+            if (!this.shareTarget) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages(), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                const data = await response.json();
+                this.shareCurrent = data.shares || [];
+                this.shareCanManage = data.can_manage === true;
+                // TASK-1695 (5a) — memes champs que `fileSharePanel` : le
+                // partiel est partage, le contrat de noms aussi.
+                this.shareLoops = data.loops || [];
+                this.shareLoopShares = data.loop_shares || [];
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async chercherMembres() {
+            if (!this.shareTarget) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages('/search') + '?q=' + encodeURIComponent(this.shareQuery || ''), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                this.shareResults = (await response.json()).users || [];
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async partagerAvec(user) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages(), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ user_id: user.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) { this.showMessage(data.message || this.i18n.networkError, 'error'); return; }
+                // On relit plutot que de deviner : le serveur est l'autorite sur
+                // ce qui est partage, et un etat local recompose finirait par
+                // s'ecarter du sien.
+                this.shareQuery = '';
+                this.shareResults = [];
+                await this.chargerPartages();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async partagerAvecBoucle(loop) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages('/loops'), {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ loop_id: loop.id }),
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                await this.chargerPartages();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async retirerPartageBoucle(share) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages('/loops/' + share.id), {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                await this.chargerPartages();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async retirerPartage(share) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages('/' + share.id), {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                await this.chargerPartages();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
         },
 
         openRenameModal(file) {

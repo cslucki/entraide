@@ -76,14 +76,25 @@
                         @endforeach
                     </nav>
 
-                    @php $lignes = $vue === 'avec-moi' ? $avecMoi : $parMoi; @endphp
+                    @php
+                        $lignes = $vue === 'avec-moi' ? $avecMoi : $parMoi;
+                        // TASK-1695 geste E — les fichiers partages a l'unite.
+                        // Une liste A PART : les lignes ci-dessus sont des
+                        // Dossiers, et le rendu leur demande
+                        // `governingDossier()` et `dossierMembers`.
+                        $fichiers = $vue === 'avec-moi' ? $fichiersAvecMoi : $fichiersParMoi;
+                    @endphp
 
                     <div class="mt-4">
-                        @if($lignes->isEmpty())
+                        {{-- Le vide se juge sur les DEUX listes : un espace qui
+                             ne contient que des fichiers partages annoncait
+                             « aucun dossier partage » au-dessus d'eux. --}}
+                        @if($lignes->isEmpty() && $fichiers->isEmpty())
                             <p class="py-14 text-center text-sm text-[var(--bp-muted)]">
                                 {{ $vue === 'avec-moi' ? __('dossiers.shared_with_me_empty') : __('dossiers.shared_by_me_empty') }}
                             </p>
                         @else
+                            @if($lignes->isNotEmpty())
                             <div class="{{ $grille }} border-b border-[var(--bp-border)] px-2.5 pb-2 text-xs text-[var(--bp-muted)]">
                                 <span>{{ __('dossiers.col_name') }}</span>
                                 <span class="{{ $cellule }}">{{ $vue === 'avec-moi' ? __('dossiers.col_owner') : __('dossiers.col_shared_with') }}</span>
@@ -180,6 +191,198 @@
                                     </span>
                                 </div>
                             @endforeach
+                            @endif
+
+                            {{-- TASK-1695 geste E — les fichiers partages a l'unite.
+
+                                 Section distincte, et non des lignes melees aux
+                                 Dossiers : un fichier partage seul N'EST PAS un
+                                 dossier, et le presenter comme tel ferait croire
+                                 a un acces qu'on n'a pas. L'encart le dit en
+                                 toutes lettres, parce que personne ne devinerait
+                                 une borne aussi etroite.
+
+                                 Les liens visent les routes DEDIEES du geste C
+                                 (`dossiers.shared.*`), jamais le chemin du
+                                 Dossier : c'est toute leur raison d'etre — le
+                                 destinataire n'a aucun droit sur le Dossier
+                                 porteur, et ce chemin lui rendrait 403. --}}
+                            @if($fichiers->isNotEmpty())
+                                <div x-data="fileSharePanel(@js([
+                                         'csrfToken' => csrf_token(),
+                                         'orgParam' => $orgParam,
+                                     ]))">
+                                {{-- TASK-1695 (points 2 et 3 de Cyril) — un vrai TABLEAU.
+
+                                     Le titre « Fichiers partages » et la mention
+                                     « Un fichier partage s'ouvre seul… » ont ete
+                                     RETIRES : l'espace s'appelle deja « Partages »
+                                     et l'onglet dit « Par moi » / « Avec moi » —
+                                     un troisieme titre ne repetait que cela. La
+                                     mention, elle, etait jugee trop technique
+                                     (meme arbitrage que dans le modal).
+
+                                     Le bouton de telechargement est retire aussi :
+                                     cliquer le NOM ouvre deja le fichier. Deux
+                                     chemins pour le meme geste encombraient une
+                                     colonne qui sert desormais a arreter le
+                                     partage.
+
+                                     Les en-tetes trient par LIEN (parametre d'URL)
+                                     et non en JS : cela se teste, se partage, et
+                                     survit au rechargement. --}}
+                                @php
+                                    $colonnes = $vue === 'par-moi'
+                                        ? ['nom' => 'col_file_name', 'type' => 'col_file_type', 'taille' => 'col_file_size', 'qui' => 'col_shared_with']
+                                        : ['nom' => 'col_file_name', 'type' => 'col_file_type', 'taille' => 'col_file_size', 'qui' => 'col_shared_by', 'date' => 'col_shared_at'];
+                                    // Le nombre de colonnes SUIT la vue : « Avec
+                                    // moi » porte une date de partage que « Par
+                                    // moi » n'affiche pas. Une grille unique
+                                    // aurait laisse une colonne vide d'un cote.
+                                    // La derniere colonne a une largeur FIXE, jamais
+                                    // `auto` : `auto` se dimensionne sur le CONTENU, et
+                                    // la cellule d'action est vide dans l'en-tete mais
+                                    // porte deux liens dans la ligne. Les deux grilles
+                                    // obtenaient donc des largeurs differentes, et la
+                                    // colonne `fr` absorbait l'ecart — en-tetes et
+                                    // lignes decalees (signale par Cyril, 24/10).
+                                    $grilleF = $vue === 'par-moi'
+                                        ? 'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 lg:grid-cols-[minmax(0,2.2fr)_5rem_7rem_minmax(0,12rem)_17rem]'
+                                        : 'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 lg:grid-cols-[minmax(0,2.2fr)_5rem_7rem_minmax(0,12rem)_8rem_2rem]';
+                                    $celluleF = 'hidden min-w-0 truncate text-xs text-[var(--bp-muted)] lg:block';
+                                    $lienTri = function (string $cle) use ($fichiersTri, $fichiersSens) {
+                                        return request()->fullUrlWithQuery([
+                                            'ftri' => $cle,
+                                            'fsens' => ($fichiersTri === $cle && $fichiersSens === 'asc') ? 'desc' : 'asc',
+                                        ]);
+                                    };
+                                @endphp
+
+                                <div class="mt-8 {{ $grilleF }} border-b border-[var(--bp-border)] px-2.5 pb-2 text-xs font-semibold uppercase tracking-wide text-[var(--bp-muted)]">
+                                    @foreach($colonnes as $cle => $libelle)
+                                        <a href="{{ $lienTri($cle) }}"
+                                           class="{{ $loop->first ? 'flex' : 'hidden lg:flex' }} min-w-0 items-center gap-1 hover:text-[var(--bp-text)]"
+                                           data-shared-sort="{{ $cle }}"
+                                           @if($fichiersTri === $cle) aria-sort="{{ $fichiersSens === 'asc' ? 'ascending' : 'descending' }}" @endif>
+                                            <span class="truncate">{{ __('dossiers.'.$libelle) }}</span>
+                                            @if($fichiersTri === $cle)
+                                                <svg class="h-3 w-3 shrink-0 {{ $fichiersSens === 'desc' ? 'rotate-180' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5"/></svg>
+                                            @endif
+                                        </a>
+                                    @endforeach
+                                    <span></span>
+                                </div>
+
+                                <div>
+                                    @foreach($fichiers as $fichier)
+                                        @php
+                                            $partage = $fichier->shares->first();
+                                            // TASK-1695 (5a) — un fichier peut n'etre partage
+                                            // QUE vers une Boucle : la colonne « qui » doit
+                                            // alors nommer la Boucle, pas afficher un
+                                            // « Utilisateur desactive » faute de ligne
+                                            // nominative.
+                                            $partageBoucle = $fichier->loopShares->first();
+                                            $auteur = $partage?->sharedBy ?? $partageBoucle?->sharedBy;
+                                            $destinataire = $partage?->user;
+                                            $autre = $vue === 'par-moi' ? $destinataire : $auteur;
+                                            $nomBoucle = $partageBoucle?->loop?->name;
+                                            $qui = $autre
+                                                ? ($autre->isDisplayableIn(currentOrganization())
+                                                    ? $autre->publicDisplayName()
+                                                    : __('profile.deactivated_user'))
+                                                : ($nomBoucle ?? __('profile.deactivated_user'));
+                                        @endphp
+                                        <div x-show="q === '' || @js(mb_strtolower($fichier->nomLisible())).includes(q.toLowerCase())"
+                                             class="{{ $grilleF }} min-h-[3.25rem] border-b border-[var(--bp-border)]/60 px-2.5 transition hover:bg-[var(--bp-panel)]"
+                                             data-shared-file-row="{{ $fichier->id }}">
+                                            {{-- Le NOM ouvre le fichier : c'est le seul
+                                                 chemin, et il vise la route dediee du
+                                                 geste C — jamais le Dossier porteur, sur
+                                                 lequel le destinataire n'a aucun droit. --}}
+                                            <a href="{{ route('organization.dossiers.shared.preview', ['organization' => $orgParam, 'file' => $fichier->getKey()]) }}"
+                                               class="flex min-h-11 min-w-0 items-center gap-3" data-shared-file-link>
+                                                <svg class="h-5 w-5 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H8.25m6.75 12H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+                                                <span class="min-w-0">
+                                                    <span class="block truncate text-sm font-medium text-[var(--bp-text)]">{{ $fichier->nomLisible() }}</span>
+                                                    <span class="block truncate text-xs text-[var(--bp-muted)] lg:hidden">{{ $fichier->typeLisible() }} · {{ $fichier->tailleLisible() }} · {{ $qui }}</span>
+                                                </span>
+                                            </a>
+                                            <span class="{{ $celluleF }}">{{ $fichier->typeLisible() }}</span>
+                                            <span class="{{ $celluleF }}">{{ $fichier->tailleLisible() }}</span>
+                                            {{-- TASK-1695 — le NOM ouvre l'apercu « Partage
+                                                 avec » (demande de Cyril). Sur la page du
+                                                 Dossier, c'est le mot « Partage » qui porte ce
+                                                 lien ; ici la colonne montre deja les
+                                                 personnes, alors c'est leur nom qui le porte —
+                                                 le geste est le meme, l'ancre suit ce que
+                                                 l'ecran affiche.
+
+                                                 Sous « Avec moi », pas de lien : le
+                                                 destinataire ne gere pas ce partage, et un
+                                                 panneau ou il ne pourrait rien faire serait
+                                                 une promesse vide. --}}
+                                            {{-- TASK-1695 (point 7 de Cyril) — le nom ouvre
+                                                 l'apercu DES DEUX COTES.
+
+                                                 J'avais refuse ce lien sous « Avec moi », en
+                                                 jugeant qu'un panneau sans action serait une
+                                                 promesse vide. Arbitrage de Cyril : le meme geste
+                                                 partout. Le panneau s'adapte — il montre avec qui
+                                                 le fichier est partage, et TAIT « Retirer » et
+                                                 « Ajouter des personnes » a qui ne gere pas
+                                                 (`can_manage`, pose par le serveur). --}}
+                                            <button type="button"
+                                                    @click="ouvrirApercuPartages(@js(['id' => $fichier->getKey(), 'dossier_id' => $fichier->dossier_id, 'display_name' => $fichier->nomLisible()]))"
+                                                    class="hidden min-w-0 items-center gap-1.5 text-xs text-[var(--bp-muted)] hover:text-[var(--bp-text)] lg:flex"
+                                                    data-shared-file-who>
+                                                @if($autre)
+                                                    <x-user-avatar :user="$autre" size="xs" />
+                                                @else
+                                                    <svg class="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="15.5" r="3.2"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8"/></svg>
+                                                @endif
+                                                <span class="min-w-0 truncate underline-offset-2 hover:underline">{{ $qui }}@if($vue === 'par-moi' && ($fichier->shares_count ?? 1) > 1) +{{ $fichier->shares_count - 1 }}@endif@if($vue === 'avec-moi' && $nomBoucle) <span class="text-[var(--bp-muted)]">· {{ $nomBoucle }}</span>@endif</span>
+                                            </button>
+                                            @if($vue === 'avec-moi')
+                                                {{-- La date vient du partage qui me CONCERNE :
+                                                     nominatif d'abord, de Boucle sinon. Sans le
+                                                     repli, la colonne restait VIDE pour un
+                                                     partage de Boucle (vu au navigateur, 24/10). --}}
+                                                <span class="{{ $celluleF }}">{{ ($partage?->created_at ?? $partageBoucle?->created_at)?->translatedFormat('j M Y') }}</span>
+                                            @endif
+                                            <span class="flex justify-end">
+                                                @if($vue === 'par-moi')
+                                                    {{-- TASK-1695 — ajouter des personnes SANS
+                                                         revenir sur la page du Dossier
+                                                         (dernier point de Cyril). Le fichier
+                                                         porte son `dossier_id` : les lignes de
+                                                         cet ecran viennent de Dossiers
+                                                         DIFFERENTS, une valeur unique au niveau
+                                                         de l'ecran viserait le mauvais des la
+                                                         deuxieme ligne. --}}
+                                                    <button type="button"
+                                                            @click="openShareModal(@js(['id' => $fichier->getKey(), 'dossier_id' => $fichier->dossier_id, 'display_name' => $fichier->nomLisible()]))"
+                                                            class="inline-flex min-h-11 items-center rounded-lg px-2.5 text-xs font-semibold text-indigo-600 transition hover:bg-[var(--bp-panel)] dark:text-indigo-400"
+                                                            data-shared-file-add>{{ __('dossiers.share_peek_add') }}</button>
+                                                    <form method="POST" action="{{ route('organization.dossiers.shared.stop', ['organization' => $orgParam, 'file' => $fichier->getKey()]) }}">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit"
+                                                                class="inline-flex min-h-11 items-center rounded-lg px-2.5 text-xs font-semibold text-red-600 transition hover:bg-[var(--bp-panel)] dark:text-red-400"
+                                                                data-shared-file-stop>{{ __('dossiers.file_share_stop') }}</button>
+                                                    </form>
+                                                @endif
+                                            </span>
+                                        </div>
+                                    @endforeach
+                                </div>
+
+                                {{-- Le MEME partiel que la page du Dossier : une
+                                     seconde copie du balisage aurait derive. --}}
+                                @include('dossiers.partials.file-share-peek')
+                                @include('dossiers.partials.file-share-modal')
+                                </div>
+                            @endif
                         @endif
                     </div>
                 @else

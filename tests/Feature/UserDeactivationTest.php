@@ -18,10 +18,13 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Livewire\Livewire;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 class UserDeactivationTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     private Organization $organization;
 
     protected function setUp(): void
@@ -341,6 +344,8 @@ class UserDeactivationTest extends TestCase
 
     public function test_dossier_members_api_neutralizes_deactivated_existing_member(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $owner = $this->createUser();
         $deactivatedMember = $this->createUser([
             'first_name' => 'Hidden',
