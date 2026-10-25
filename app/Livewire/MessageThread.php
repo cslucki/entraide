@@ -236,6 +236,35 @@ class MessageThread extends Component
         $transaction->touch();
         $this->markRead();
 
+        /*
+         * TASK-1704 correctif 4 — annoncer l'envoi au composeur.
+         *
+         * Cyril : « apres avoir partage un lien, le composer chat reste
+         * agrandi. »
+         *
+         * Le composeur partage ecoute `message-sent.window` pour recalculer sa
+         * hauteur et son etat `hasText`. Le ChatLoop emet cet evenement
+         * (`LoopChat::send()`) ; la Messagerie ne l'a JAMAIS emis. D'ou un
+         * defaut visible ici et nulle part ailleurs.
+         *
+         * Une seule cause, trois symptomes — c'est ce qui rend cette ligne
+         * suffisante :
+         *
+         * 1. La hauteur reste celle du texte envoye. Sur une URL longue, elle
+         *    occupe la moitie de l'ecran d'un telephone.
+         * 2. `hasText` reste VRAI, donc le bouton d'envoi garde son apparence
+         *    active alors que le champ est vide.
+         * 3. Ce bouton invite alors a un second appui, qui declenche
+         *    « Ajoutez un message ou une image. » — l'erreur visible sous un
+         *    champ vide sur la capture de Cyril. Elle n'etait pas un defaut
+         *    de validation : la validation avait raison, c'est le bouton qui
+         *    mentait sur son etat.
+         *
+         * `wire:model` (sans `.live`) ne reecrit pas le champ tant que rien ne
+         * le declenche : vider la propriete cote serveur ne suffit donc pas.
+         */
+        $this->dispatch('message-sent');
+
         $recipient = $transaction->buyer_id === $user->id
             ? $transaction->seller
             : $transaction->buyer;
