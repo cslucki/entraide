@@ -387,19 +387,21 @@
                 <input type="number" name="points_cost" value="{{ old('points_cost') }}" @if($pointMin !== null) min="{{ $pointMin }}" @endif @if($pointMax !== null) max="{{ $pointMax }}" @endif required
                     class="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
 
-                <!-- Guidelines par catégorie -->
-                <div x-show="selectedCategory" class="mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                    <p class="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2">{{ __('marketplace.recommended_ranges_category') }}</p>
-                    @foreach($categories as $cat)
-                    <div x-show="selectedCategory === '{{ $cat->id }}'" class="flex gap-4">
-                        @foreach($cat->pointGuidelines as $g)
-                        <div class="text-xs text-indigo-600 dark:text-indigo-400">
-                            <span class="font-medium">{{ ucfirst($g->level) }}</span> : {{ $g->points_min }}–{{ $g->points_max }} pts <span class="text-indigo-400">({{ $g->duration_label }})</span>
+                {{-- Fourchettes par categorie — TASK-1707 F1, meme defaut et
+                     meme correctif que sur le formulaire de demande. --}}
+                @foreach($categories as $cat)
+                    @continue($cat->pointGuidelines->isEmpty())
+                    <div data-point-ranges="{{ $cat->id }}" x-show="selectedCategory === '{{ $cat->id }}'" class="mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+                        <p class="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2">{{ __('marketplace.recommended_ranges_category') }}</p>
+                        <div class="flex gap-4">
+                            @foreach($cat->pointGuidelines as $g)
+                            <div class="text-xs text-indigo-600 dark:text-indigo-400">
+                                <span class="font-medium">{{ ucfirst($g->level) }}</span> : {{ $g->points_min }}–{{ $g->points_max }} pts <span class="text-indigo-400">({{ $g->duration_label }})</span>
+                            </div>
+                            @endforeach
                         </div>
-                        @endforeach
                     </div>
-                    @endforeach
-                </div>
+                @endforeach
             </div>
 
             <div class="flex gap-3">
