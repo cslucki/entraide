@@ -3,6 +3,7 @@
 namespace App\Support\Notifications;
 
 use App\Models\BlogComment;
+use App\Models\BlogPost;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
@@ -49,6 +50,7 @@ class NotificationTargetResolver
             NotificationCatalogue::OBJECT_LOOP_INVITATION => $this->loopInvitation($notification),
             NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST => $this->loopJoinRequest($notification),
             NotificationCatalogue::OBJECT_BLOG_COMMENT => $this->blogComment($notification),
+            NotificationCatalogue::OBJECT_BLOG_POST => $this->blogPost($notification),
             default => null,
         };
     }
@@ -237,5 +239,62 @@ class NotificationTargetResolver
             : route('blog.show', $post->slug);
 
         return $url.'#commentaires';
+    }
+
+    /**
+     * TASK-1702 — une co-ecriture mene a l'EDITEUR de l'article.
+     *
+     * Et pas a sa page publique, contrairement a un commentaire : un article
+     * co-ecrit est le plus souvent un BROUILLON. `blogComment()` juste au-dessus
+     * exige `status === 'published'` — appliquer la meme regle ici rendrait la
+     * notification morte dans le cas le plus courant.
+     *
+     * ## La cible est reevaluee au CLIC, et elle est fail-closed
+     *
+     * C'est la doctrine de ce resolveur : la notification ne detient aucune
+     * autorite, elle designe seulement un objet. On verifie donc ici, au moment
+     * ou le membre clique, qu'il est TOUJOURS co-auteur — on peut l'avoir
+     * retire entre-temps. S'il ne l'est plus, la notification ne mene nulle
+     * part plutot que vers un 403.
+     *
+     * Le proprietaire de l'article n'est pas traite a part : il ne recoit
+     * jamais cette notification, personne ne l'ajoutant comme co-auteur de son
+     * propre article.
+     */
+    private function blogPost(MemberNotification $notification): ?string
+    {
+        if ($notification->object_id === null) {
+            return null;
+        }
+
+        $post = BlogPost::query()
+            ->whereKey($notification->object_id)
+            ->where('organization_id', $notification->organization_id)
+            ->first();
+
+        if ($post === null) {
+            return null;
+        }
+
+        $estEncoreCoAuteur = $post->coAuthors()
+            ->where('users.id', $notification->recipient_id)
+            ->exists();
+
+        if (! $estEncoreCoAuteur) {
+            return null;
+        }
+
+        $organization = Organization::query()
+            ->whereKey($notification->organization_id)
+            ->first();
+
+        if ($organization === null || ! \Illuminate\Support\Facades\Route::has('organization.blog.edit')) {
+            return null;
+        }
+
+        return route('organization.blog.edit', [
+            'organization' => $organization->slug,
+            'post' => $post->slug,
+        ]);
     }
 }

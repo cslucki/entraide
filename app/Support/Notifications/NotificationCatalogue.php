@@ -94,6 +94,14 @@ final class NotificationCatalogue
     public const BLOG_COMMENT_CREATED = 'blog.comment.created';
 
     /**
+     * TASK-1702 — on vient de vous ajouter comme CO-AUTEUR d'un article.
+     *
+     * Cyril : « quand on ajoute un auteur X en co-ecriture, il doit recevoir
+     * une notification dans l'application pour l'informer de cela. »
+     */
+    public const BLOG_CO_AUTHOR_ADDED = 'blog.co_author.added';
+
+    /**
      * Le type d'objet de cette cle, expose comme constante.
      *
      * Le resolver de cible en a besoin pour brancher. Le lire ici plutot que de
@@ -117,6 +125,16 @@ final class NotificationCatalogue
      * plutot que d'envoyer vers un fil ou il n'y a plus rien a lire.
      */
     public const OBJECT_BLOG_COMMENT = 'blog_comment';
+
+    /**
+     * TASK-1702 — l'ARTICLE lui-meme.
+     *
+     * Distinct de `OBJECT_BLOG_COMMENT`, et la difference porte : un
+     * commentaire mene a l'article PUBLIE, une co-ecriture mene a son
+     * EDITEUR. Un article co-ecrit est le plus souvent un brouillon — l'envoyer
+     * sur la page publique ne menerait nulle part.
+     */
+    public const OBJECT_BLOG_POST = 'blog_post';
 
     /**
      * Le registre.
@@ -223,6 +241,20 @@ final class NotificationCatalogue
                 // Pas de canal EMAIL : le catalogue ne declare que ce qui
                 // EXISTE, et Cyril a tranche « dans l'application ». L'ajouter
                 // plus tard tiendra en une ligne.
+            ],
+        ],
+
+        // TASK-1702 — on vous a ajoute comme co-auteur d'un article.
+        self::BLOG_CO_AUTHOR_ADDED => [
+            'category' => 'blog',
+            'object_type' => self::OBJECT_BLOG_POST,
+            'channels' => [
+                // `configurable => false`, comme une invitation et a la
+                // DIFFERENCE d'un commentaire : etre ajoute a l'ecriture d'un
+                // article vous est ADRESSE personnellement et appelle un geste
+                // de vous. Le commentaire, lui, se desactive — son entree
+                // au-dessus l'explique.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
             ],
         ],
     ];
