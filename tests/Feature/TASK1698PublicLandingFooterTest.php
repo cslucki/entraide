@@ -21,22 +21,32 @@ use Tests\TestCase;
  * test « Connexion » (**deconnecte**). Une partie de l'ecart s'explique par
  * l'etat d'authentification, pas par une regression.
  *
- * Mesure des six destinations du pied :
+ * ## La cause, et ce qu'elle a invalide d'un premier correctif
  *
- * | lien | `auth` | membre | equivalent PUBLIC |
- * |---|---|---|---|
- * | Mycelium | OUI | OUI | **`mycelium`** |
- * | Logigramme | OUI | OUI | aucun |
- * | Mentions legales | non | non | — |
- * | OpenSource | OUI | OUI | **`open-source.page`** |
- * | Un bug ? | OUI | OUI | aucun |
- * | icone GitHub | **non** | **non** | — |
+ * Premiere mesure : quatre des six destinations exigeaient `auth` +
+ * `EnsureOrganizationMember`, et j'en avais conclu que leur absence n'etait pas
+ * un defaut — d'ou un pied a DEUX versions, servant un equivalent public quand
+ * il en existait un.
  *
- * **Quatre sur six exigent d'etre connecte ET membre.** Les montrer a un
- * visiteur anonyme l'enverrait sur une page de connexion : leur absence n'etait
- * donc PAS un defaut.
+ * Cette lecture etait fausse, et la vraie cause est plus simple : le groupe
+ * `/org/{organization}` est FERME PAR DEFAUT, et une route publique doit s'en
+ * extraire par `withoutMiddleware` — ce que font `home` et `mentions-legales`.
+ * `flowchart`, `mycelium` et `open-source` ont ete ecrites publiques,
+ * DOCUMENTEES publiques (« arbitrage MASTER : la page reste PUBLIQUE »), munies
+ * de leur garde propre… et sans cette ligne. Le groupe les a refermees en
+ * silence. `git log -L` le prouve : ces lignes n'ont jamais ete touchees que par
+ * leurs TASK creatrices — T1604, T1608, T1613 — **jamais par T1692**, arrivee
+ * apres et qui a fige l'etat observe.
  *
- * Deux choses l'etaient :
+ * L'opt-out pose, il n'y a plus de double version a servir : **UN** pied,
+ * identique pour tout le monde, borne a l'Organization de l'URL. Les trois
+ * tests de « version publique » de la premiere passe sont donc supprimes : leur
+ * objet n'existe plus.
+ *
+ * Reste exactement un mur de connexion, et il est VOULU : « Un bug ? »
+ * (`organization.bug-reports.index` est legitimement membre-only).
+ *
+ * Et deux defauts de la premiere mesure tenaient bon :
  *
  * 1. le creneau de gauche rendait un lien vers la page COURANTE — le
  *    « BouclePro qui ne sert a rien » ;
@@ -91,20 +101,29 @@ class TASK1698PublicLandingFooterTest extends TestCase
         );
     }
 
-    public function test_mycelium_est_servi_dans_sa_version_publique(): void
+    /**
+     * Les trois destinations rouvertes sont servies BORNEES a l'Organization de
+     * l'URL, et atteignables par un anonyme. Les deux faits sont mesures
+     * ensemble : une poignee qui mene a une redirection n'est pas un lien, et
+     * une porte ouverte sans poignee n'est pas une entree.
+     */
+    public function test_les_trois_destinations_rouvertes_sont_bornees_et_ouvertes(): void
     {
         $html = $this->landing();
 
-        $this->assertStringContainsString('data-footer-mycelium-public', $html);
-        $this->assertStringContainsString('href="'.route('mycelium').'"', $html);
-    }
+        foreach ([
+            'mycelium' => 'organization.mycelium',
+            'flowchart' => 'organization.flowchart',
+            'open-source' => 'organization.open-source',
+        ] as $chemin => $route) {
+            $url = route($route, ['organization' => 'main']);
 
-    public function test_opensource_est_servi_dans_sa_version_publique(): void
-    {
-        $html = $this->landing();
+            $this->assertStringContainsString('href="'.$url.'"', $html, "[{$chemin}] n'est pas borne a l'Organization de l'URL.");
 
-        $this->assertStringContainsString('data-footer-opensource-public', $html);
-        $this->assertStringContainsString('href="'.route('open-source.page').'"', $html);
+            app()->forgetInstance('current_organization');
+            $this->get($url)->assertOk();
+            app()->instance('current_organization', $this->organization);
+        }
     }
 
     /** L'icone n'exige rien : elle n'avait aucune raison d'etre masquee. */
@@ -136,9 +155,9 @@ class TASK1698PublicLandingFooterTest extends TestCase
         $html = $this->landing();
 
         foreach ([
-            'data-footer-mycelium-public' => 'Mycelium (public)',
+            'data-footer-mycelium' => 'Mycelium',
             'data-footer-flowchart' => 'Logigramme',
-            'data-footer-opensource-public' => 'OpenSource (public)',
+            'data-footer-opensource' => 'OpenSource',
             'data-footer-bug' => 'Un bug ?',
             'data-footer-github' => 'icone GitHub',
         ] as $marqueur => $quoi) {
@@ -152,37 +171,30 @@ class TASK1698PublicLandingFooterTest extends TestCase
     }
 
     /**
-     * Mycelium et OpenSource ont une version PUBLIQUE : hors connexion, c'est
-     * elle qu'on sert — meme libelle, sans mur de connexion.
+     * Un SEUL mur de connexion dans le pied, et il est voulu : « Un bug ? ».
      *
-     * Logigramme et « Un bug ? » n'en ont AUCUNE : leurs routes exigent `auth`
-     * + `EnsureOrganizationMember`. Un anonyme qui clique atterrit sur la page
-     * de connexion. Cyril a tranche pour la parite visuelle ; cette garde fige
-     * la distinction pour que personne ne croie plus tard qu'il s'agit d'un
-     * oubli.
+     * Cette garde est la contre-epreuve du correctif : si une prochaine TASK
+     * referme l'une des trois routes rouvertes — ou oublie son opt-out en
+     * deplacant une ligne — le pied se remettrait a proposer des redirections,
+     * et c'est ici que cela rougira.
      */
-    public function test_les_versions_publiques_sont_preferees_quand_elles_existent(): void
+    public function test_un_seul_lien_du_pied_exige_encore_une_connexion(): void
     {
         $html = $this->landing();
 
-        // servies en PUBLIC
-        $this->assertStringContainsString('href="'.route('mycelium').'"', $html);
-        $this->assertStringContainsString('href="'.route('open-source.page').'"', $html);
-        $this->assertStringNotContainsString(
-            'href="'.route('organization.mycelium', ['organization' => 'main']).'"', $html);
-        $this->assertStringNotContainsString(
-            'href="'.route('organization.open-source', ['organization' => 'main']).'"', $html);
+        $bugs = route('organization.bug-reports.index', ['organization' => 'main']);
+        $this->assertStringContainsString('href="'.$bugs.'"', $html);
 
-        // servies BORNEES, faute d'equivalent public : mur de connexion assume
-        $this->assertStringContainsString(
-            'href="'.route('organization.flowchart', ['organization' => 'main']).'"', $html);
-        $this->assertStringContainsString(
-            'href="'.route('organization.bug-reports.index', ['organization' => 'main']).'"', $html);
+        app()->forgetInstance('current_organization');
+        $this->get($bugs)->assertRedirect(
+            route('organization.login', ['organization' => 'main'])
+        );
+        app()->instance('current_organization', $this->organization);
     }
 
     // ── Membre connecte : rien ne doit avoir ete perdu ──────────────────────
 
-    public function test_un_membre_garde_les_six_liens(): void
+    public function test_un_membre_voit_le_meme_pied_que_l_anonyme(): void
     {
         $membre = User::factory()->complete()->create([
             'organization_id' => $this->organization->id,
@@ -201,10 +213,8 @@ class TASK1698PublicLandingFooterTest extends TestCase
             $this->assertStringContainsString($marqueur, $html, "[{$marqueur}] a disparu pour un membre.");
         }
 
-        // et pas les versions publiques, qui n'ont de sens que hors connexion
-        $this->assertStringNotContainsString('data-footer-mycelium-public', $html);
-        $this->assertStringNotContainsString('data-footer-opensource-public', $html);
-        $this->assertStringContainsString('data-footer-flowchart', $html);
-        $this->assertStringContainsString('data-footer-bug', $html);
+        // TASK-1698 — et le pied est le MEME que celui de l'anonyme : plus de
+        // double version, donc aucun marqueur en `-public` a servir ici.
+        $this->assertStringNotContainsString('-public', $html);
     }
 }

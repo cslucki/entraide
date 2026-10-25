@@ -322,57 +322,25 @@ $secondaryCtaUrl = $showInternalHomepageContent
          Meme emplacement, meme rang visuel que les autres liens du pied : le
          footer ne s'allonge pas, une entree en remplace une. --}}
     <div class="foot-credit">
-      {{-- TASK-1698 — le pied est SERVI EN ENTIER, connecte ou non (decision
-           de Cyril, capture a l'appui). Ce qui varie, c'est la CIBLE :
+      {{-- TASK-1698 — le pied est servi EN ENTIER, connecte ou non.
+           Plus de double version : `flowchart`, `mycelium` et `open-source`
+           etaient fermes par ACCIDENT (opt-out manquant, voir `routes/web.php`).
+           Les routes bornees sont publiques, donc l'URL reste coherente avec la
+           page d'ou l'on vient, pour tout le monde.
 
-             - Mycelium et OpenSource ont une version PUBLIQUE (`mycelium`,
-               `open-source.page`) : hors connexion on la sert, meme libelle
-               sans mur ;
-             - Logigramme et « Un bug ? » n'en ont AUCUNE. Leurs routes exigent
-               `auth` + `EnsureOrganizationMember` : un visiteur anonyme qui
-               clique atterrit sur la page de connexion. Signale a Cyril, qui a
-               tranche pour la parite visuelle. --}}
-      @if($showInternalHomepageContent)
-      <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
-      {{-- TASK-1608 — le logigramme, immediatement a droite de Mycelium,
-           separe par « · ». La landing est TOUJOURS servie sous `/org/{slug}` :
-           la cible est donc bornee sans repli possible, et n'a aucun besoin de
-           `organizationScopedUrl()`. --}}
-      @else
-      {{-- Le lien « BouclePro » qui occupait ce creneau menait a la page
-           COURANTE : il ne servait a rien, Cyril l'a signale. --}}
-      <a href="{{ route('mycelium') }}" data-footer-mycelium-public>{{ __('mycelium.footer_link') }}</a>
-      @endif
+           Seul « Un bug ? » exige encore d'etre membre : c'est voulu, et c'est
+           le seul mur de connexion du pied. --}}
+      <a href="{{ route('organization.mycelium', ['organization' => $organization->slug]) }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
       <span class="foot-sep" aria-hidden="true">·</span>
       <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
     </div>
     <nav class="foot-links">
       <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
-      @if($showInternalHomepageContent)
-      {{-- TASK-1613 — « OpenSource » et l'icone ouvrent l'explorateur du
-           depot, comme partout ailleurs dans le produit.
-
-           TASK-1612 avait laisse cette landing de cote : c'est un document
-           autonome, et le drawer y etait alors habille en Tailwind et
-           pilote depuis `app.js`, deux choses absentes ici. Mesure en
-           production apres la release 1.612 : ces deux liens partaient
-           encore sur GitHub, et l'URL du depot restait dans le HTML de la
-           HOMEPAGE. Le drawer est desormais autoportant, il vit donc ici
-           aussi.
-
-           Deux cibles DIFFERENTES, et c'est deliberé :
-             - le libelle « OpenSource » mene a `/open-source`, la page
-               BouclePro qui donne a voir la racine du depot ;
-             - l'icone GitHub mene au DEPOT, via `/open-source/github`, une
-               redirection serveur qui atterrit sur le depot public sans
-               jamais poser son URL dans le HTML ni dans la barre d'etat. --}}
+      {{-- TASK-1613 — deux cibles DIFFERENTES, et c'est delibere : le libelle
+           « OpenSource » mene a la page BouclePro qui donne a voir la racine du
+           depot ; l'icone GitHub mene au DEPOT, via une redirection serveur qui
+           n'en pose jamais l'URL dans le HTML. --}}
       <a href="{{ route('organization.open-source', ['organization' => $organization->slug]) }}" data-footer-opensource>{{ __('footer.opensource') }}</a>
-      @else
-      {{-- TASK-1698 — OpenSource a une version PUBLIQUE (`open-source.page`),
-           la bornee exigeant `auth` + membre. « Un bug ? » n'en a pas : il
-           reste absent. --}}
-      <a href="{{ route('open-source.page') }}" data-footer-opensource-public>{{ __('footer.opensource') }}</a>
-      @endif
       <a href="{{ route('organization.bug-reports.index', $organization) }}" data-footer-bug>{{ __('footer.bug') }}</a>
 
       {{-- TASK-1698 — l'icone GitHub n'exige RIEN (`open-source.github` n'a ni
