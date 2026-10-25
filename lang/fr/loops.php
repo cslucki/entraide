@@ -855,7 +855,7 @@ return [
     // TASK-1684 : le fichier va dans le Dossier de la Boucle, pas dans le message.
     'composer_add_file' => 'Ajouter un fichier',
     'composer_file_uploaded' => 'Fichier ajoute au Dossier de la Boucle.',
-    'composer_file_failed' => "Echec de l'envoi du fichier.",
+    'composer_file_failed' => "Échec de l'envoi du fichier.",
     'composer_take_photo' => 'Prendre une photo',
     'ai_answer_requested' => 'L\'IA rédige sa réponse...',
     // TASK-1311 : le verrou est desormais scope par membre, plus par Boucle
@@ -962,7 +962,7 @@ return [
     'root_document_sections.audience' => 'Pour qui',
     'root_document_sections.how' => 'Comment contribuer',
     'root_document_sections.principles' => 'Principes de fonctionnement',
-    'root_document_sections.next' => 'Prochaines etapes',
+    'root_document_sections.next' => 'Prochaines étapes',
     'root_document_intro_placeholder' => 'Cette Boucle s\'appelle :name. Decrivez ici ce qui vous reunit.',
     'root_document_edit' => 'Modifier',
     'root_document_replace' => 'Remplacer',
@@ -978,7 +978,7 @@ return [
     'root_document_repaired' => 'Document recree.',
     'root_document_replaced' => 'Document remplace.',
     'cards_composition_title' => 'Cards de cette Boucle',
-    'cards_composition_help' => 'Le type fournit un socle de depart. Vous pouvez ensuite adapter la composition de cette Boucle. Desactiver une Card ne supprime aucune donnee : elle reapparait telle quelle a la reactivation. ChatLoop n\'est pas une Card et reste toujours present.',
+    'cards_composition_help' => 'Le type fournit un socle de depart. Vous pouvez ensuite adapter la composition de cette Boucle. Desactiver une Card ne supprime aucune donnée : elle reapparait telle quelle a la reactivation. ChatLoop n\'est pas une Card et reste toujours present.',
     'cards_origin_preset' => 'socle du type',
     'cards_origin_local' => 'ajoutee ici',
     'cards_origin_disabled' => 'desactivee ici',
@@ -989,7 +989,7 @@ return [
     'cards_disable' => 'Desactiver',
     'cards_disable_title' => 'Desactiver cette Card',
     'cards_disable_confirm' => 'Desactiver',
-    'cards_disable_has_data' => 'Cette Card contient deja des donnees. Elles seront conservees mais ne seront plus visibles dans le workspace tant que la Card restera desactivee.',
+    'cards_disable_has_data' => 'Cette Card contient déjà des données. Elles seront conservees mais ne seront plus visibles dans le workspace tant que la Card restera désactivée.',
     'cards_disable_no_data' => 'La Card disparaitra du workspace de cette Boucle. Rien n\'est supprime, et vous pouvez la reactiver a tout moment.',
     'cards_data_count' => '{1} 1 element|[2,*] :count elements',
 
@@ -1057,8 +1057,8 @@ return [
     'preset_data_count' => ':count élément(s)',
     'preset_requires_label' => 'Nécessite : :cards',
 
-    'cards_enabled' => 'Card activee.',
-    'cards_disabled' => 'Card desactivee. Aucune donnee n\'a ete supprimee.',
+    'cards_enabled' => 'Card activée.',
+    'cards_disabled' => 'Card désactivée. Aucune donnée n\'a ete supprimée.',
     'types_admin_title' => 'Types de Boucles',
     'types_admin_intro' => 'Ce dont chaque type est composé, et s\'il peut être choisi. Un type définit les Cards d\'une Boucle à sa création et lors d\'un changement de type.',
     'types_admin_not_retroactive' => 'Rien ici n\'est rétroactif : modifier un socle change ce avec quoi les prochaines Boucles seront construites, et ce qu\'un changement de type applique. Aucune Card n\'est jamais retirée d\'une Boucle qui l\'a déjà.',
@@ -1453,8 +1453,8 @@ return [
                 // suffit pas a deplacer un modele qui, par defaut, equilibre.
                 //
                 // L'instruction dit donc ce qu'il faut PRODUIRE, et combien.
-                'aperio' => "Tu DEFENDS le camp que le socle t'assigne : la proposition posee par la question, ou la premiere option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta reponse defend le tien — elle ne se contente jamais d'attaquer. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
-                'traverse' => "Tu DEFENDS le camp que le socle t'assigne : la position inverse de la proposition posee par la question, ou la seconde option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta reponse defend le tien — elle ne se contente jamais d'attaquer, et elle n'attaque JAMAIS ton propre camp. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
+                'aperio' => "Tu DEFENDS le camp que le socle t'assigne : la proposition posee par la question, ou la première option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta réponse defend le tien — elle ne se contente jamais d'attaquer. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
+                'traverse' => "Tu DEFENDS le camp que le socle t'assigne : la position inverse de la proposition posee par la question, ou la seconde option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta réponse defend le tien — elle ne se contente jamais d'attaquer, et elle n'attaque JAMAIS ton propre camp. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
                 'limen' => 'Comparer les positions, distinguer accords et desaccords et proposer des compromis ou options possibles sans decider a la place du groupe.',
             ],
         ],
