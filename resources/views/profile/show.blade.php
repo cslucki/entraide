@@ -277,7 +277,8 @@
 
                 <!-- Blog posts -->
                 @if($blogPosts->isNotEmpty())
-                <section>
+                {{-- `id` : cible de l'ancre posee par l'annuaire (T1697 correctif 15). --}}
+                <section id="articles">
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.blog_section') }}</h2>
                         <span class="text-xs text-gray-400">{{ trans_choice('profile.blog_count', $blogPosts->count(), ['count' => $blogPosts->count()]) }}</span>

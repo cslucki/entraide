@@ -6,11 +6,34 @@
             <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">{{ trans_choice('directory.member_count', $members->total(), ['count' => $members->total()]) }}</p>
         </div>
 
+        {{-- TASK-1697 correctif 15 — recherche sur le prenom et le nom.
+             Formulaire GET : l'URL porte la recherche, donc elle se partage,
+             se recharge et se pagine (`withQueryString()` au controleur). --}}
+        <form method="GET" action="{{ url()->current() }}" class="mb-6 flex flex-wrap items-center gap-2" data-directory-search>
+            <label for="directory-q" class="sr-only">{{ __('directory.search_label') }}</label>
+            <input id="directory-q" type="search" name="q" value="{{ $recherche }}"
+                   placeholder="{{ __('directory.search_placeholder') }}"
+                   class="w-full sm:w-80 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">{{ __('directory.search_submit') }}</button>
+            @if($recherche !== '')
+            <a href="{{ url()->current() }}" class="text-sm text-gray-500 hover:text-indigo-600">{{ __('directory.search_clear') }}</a>
+            @endif
+        </form>
+
+        @if($recherche !== '' && $members->total() === 0)
+        <p class="py-16 text-center text-sm text-gray-500 dark:text-gray-400" data-directory-empty>{{ __('directory.search_no_result') }}</p>
+        @endif
+
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             @foreach($members as $member)
             {{-- TASK-1693 bug AA — l'annuaire fabriquait son URL A LA MAIN, avec
                  l'identifiant, en contournant `route()`. C'est pour cela qu'il
                  est reste en UUID la ou les autres ecrans suivaient. --}}
+            @php
+                $orgParamAnnuaire = request()->route('organization');
+                $nombreArticles = (int) ($articleCounts[$member->id] ?? 0);
+                $boucles = $loopsByUser[$member->id] ?? collect();
+            @endphp
             @php $profileRoute = request()->route('organization')
                 ? route('organization.profile.show', ['organization' => request()->route('organization'), 'user' => $member->profileRouteKey()])
                 : route('profile.show', $member->profileRouteKey()); @endphp
@@ -24,16 +47,18 @@
                     ? route('organization.messages.with', ['organization' => request()->route('organization'), 'user' => $member->profileRouteKey()])
                     : route('messages.with', $member->profileRouteKey());
             @endphp
-            {{-- La carte entiere est un lien : le bouton « ecrire » se pose
-                 A COTE, en superposition, jamais DEDANS. Un lien imbrique dans
-                 un lien est invalide en HTML et le navigateur le deplace —
-                 meme famille que le formulaire imbrique corrige en T1668. --}}
-            <div class="relative">
-            <a href="{{ $profileRoute }}"
-               class="h-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition group flex flex-col gap-3">
+            {{-- TASK-1697 correctif 15 — la carte n'est PLUS un seul lien.
+                 Elle en portait un, englobant tout ; elle doit desormais porter
+                 des liens internes (site web, LinkedIn, articles, Boucles). Un
+                 lien imbrique dans un lien est invalide en HTML et le
+                 navigateur le deplace — meme famille que le formulaire
+                 imbrique corrige en T1668. Le lien vers le profil se resserre
+                 donc sur l'avatar et le nom, et le bouton « ecrire » reste
+                 pose A COTE, en superposition. --}}
+            <div class="relative h-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition flex flex-col gap-3">
 
                 <!-- Avatar + nom -->
-                <div class="flex items-center gap-3">
+                <a href="{{ $profileRoute }}" class="flex items-center gap-3 group">
                     <div class="relative flex-shrink-0">
                         <img src="{{ $member->avatar_url }}" class="w-12 h-12 rounded-full" alt="">
                         {{-- TASK-1694 bug AE — pastille conditionnee a la fonctionnalite. --}}
@@ -47,7 +72,7 @@
                         <p class="text-xs text-gray-400 truncate">📍 {{ $member->public_location }}</p>
                         @endif
                     </div>
-                </div>
+                </a>
 
                 <!-- Bio tronquée -->
                 @if($member->bio)
@@ -72,16 +97,82 @@
                 </div>
                 @endif
 
+                {{-- TASK-1697 correctif 15 — site web et LinkedIn.
+                     Deja affiches PUBLIQUEMENT sur la fiche profil
+                     (`profile/show.blade.php:98-110`) : aucune donnee nouvelle
+                     n'est exposee ici. Meme idiome, `parse_url()` pour ne
+                     montrer que l'hote, et `rel="noopener noreferrer"`. --}}
+                @if($member->website || $member->linkedin_url)
+                <div class="flex flex-wrap items-center gap-3 text-xs">
+                    @if($member->website)
+                    <a href="{{ $member->website }}" target="_blank" rel="noopener noreferrer"
+                       data-member-website="{{ $member->id }}"
+                       title="{{ __('directory.website_title') }}"
+                       class="inline-flex items-center gap-1 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 truncate">
+                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18 15 15 0 010-18z"/></svg>
+                        {{ parse_url($member->website, PHP_URL_HOST) ?: $member->website }}
+                    </a>
+                    @endif
+                    @if($member->linkedin_url)
+                    <a href="{{ $member->linkedin_url }}" target="_blank" rel="noopener noreferrer"
+                       data-member-linkedin="{{ $member->id }}"
+                       title="{{ __('directory.linkedin_title') }}"
+                       class="inline-flex items-center gap-1 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400">
+                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.03-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.47-.9 1.63-1.85 3.36-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29zM5.34 7.43a2.07 2.07 0 110-4.14 2.07 2.07 0 010 4.14zM7.12 20.45H3.55V9h3.57v11.45z"/></svg>
+                        {{ __('directory.linkedin_title') }}
+                    </a>
+                    @endif
+                </div>
+                @endif
+
                 <!-- Compteurs + catégories -->
                 <div class="mt-auto pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3 text-xs text-gray-400">
-                    <span title="{{ __('directory.active_services', ['label' => $T['Services']]) }}">
-                        <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $member->active_services_count }}</span> {{ $member->active_services_count === 1 ? $T['service'] : $T['services'] }}
+                    {{-- TASK-1697 correctif 15 — « micro-services » devient
+                         « propositions ». Le terme global `$T['service']` vient
+                         de `config/terms.php`, surchargeable par Organization :
+                         le changer ici aurait renomme QUATRE autres surfaces que
+                         Cyril n'a pas demandees. L'annuaire porte donc sa propre
+                         clef. --}}
+                    <span title="{{ __('directory.active_services_title') }}">
+                        <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $member->active_services_count }}</span> {{ trans_choice('directory.service_label', $member->active_services_count) }}
                     </span>
                     <span class="text-gray-300 dark:text-gray-600">·</span>
                     <span title="{{ __('directory.open_requests') }}">
                         <span class="font-semibold text-green-600 dark:text-green-400">{{ $member->open_requests_count }}</span> {{ trans_choice('directory.request_label', $member->open_requests_count) }}
                     </span>
+                    {{-- TASK-1697 correctif 15 — articles publies, et le lien
+                         qui y mene. Le produit n'a AUCUNE page « articles de
+                         cet auteur » : le seul ecran qui les liste est la
+                         section « Articles publies » de sa fiche profil, d'ou
+                         l'ancre. Affiche seulement s'il en a. --}}
+                    @if($nombreArticles > 0)
+                    <span class="text-gray-300 dark:text-gray-600">·</span>
+                    <a href="{{ $profileRoute }}#articles" data-member-articles="{{ $member->id }}"
+                       title="{{ __('directory.articles_title') }}"
+                       class="hover:text-indigo-600 dark:hover:text-indigo-400">
+                        <span class="font-semibold text-amber-600 dark:text-amber-400">{{ $nombreArticles }}</span> {{ trans_choice('directory.article_label', $nombreArticles) }}
+                    </a>
+                    @endif
                 </div>
+
+                {{-- TASK-1697 correctif 15 — les Boucles dont cette personne
+                     est membre, animateur ou proprietaire.
+                     Perimetre et confidentialite : voir le commentaire du
+                     controleur. Nommer une Boucle ne revele rien de plus que
+                     le catalogue (TASK-1075). --}}
+                @if($boucles->isNotEmpty())
+                <div class="flex flex-wrap gap-1" title="{{ __('directory.loops_title') }}">
+                    @foreach($boucles as $boucle)
+                    <a href="{{ $orgParamAnnuaire && Route::has('organization.loops.show')
+                            ? route('organization.loops.show', ['organization' => $orgParamAnnuaire, 'loop' => $boucle->slug ?: $boucle->getKey()])
+                            : route('loops.show', $boucle->slug ?: $boucle->getKey()) }}"
+                       data-member-loop="{{ $boucle->id }}"
+                       class="px-2 py-0.5 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded text-xs font-medium hover:bg-violet-100 dark:hover:bg-violet-900/40 transition">
+                        {{ $boucle->name }}
+                    </a>
+                    @endforeach
+                </div>
+                @endif
 
                 <!-- Top skills -->
                 @php
@@ -95,7 +186,6 @@
                 </div>
                 @endif
 
-            </a>
             @auth
             @if(auth()->id() !== $member->id)
             <a href="{{ $ecrireUrl }}"

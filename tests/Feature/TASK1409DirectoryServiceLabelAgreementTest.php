@@ -26,6 +26,14 @@ use Tests\TestCase;
  * correctif ne touche donc ni la config ni le systeme de termes — c'est
  * expressement hors scope.
  *
+ * ## TASK-1697 correctif 15 — l'autorite du libelle a CHANGE
+ *
+ * Decision produit de Cyril : sur l'annuaire, « micro-services » devient
+ * « propositions ». Le libelle ne vient plus de `config('terms')` mais de
+ * `directory.service_label`, resolu par `trans_choice()`. Ces gardes lisent
+ * donc la nouvelle autorite — leur INTENTION est intacte : le libelle doit
+ * s'accorder avec le compteur, et « 1 <mot>s » reste interdit.
+ *
  * Ces gardes mesurent le TEXTE NORMALISE servi : un `</span>` separe le nombre
  * du libelle, si bien qu'une assertion sur le HTML brut ne verrait jamais la
  * signature « 1 micro-services ».
@@ -38,29 +46,40 @@ class TASK1409DirectoryServiceLabelAgreementTest extends TestCase
     {
         $texte = $this->renderDirectory(services: 1);
 
-        $this->assertStringContainsString('1 '.config('terms.service'), $texte);
-        $this->assertStringNotContainsString('1 '.config('terms.services'), $texte);
+        $this->assertStringContainsString('1 '.trans_choice('directory.service_label', 1), $texte);
+        $this->assertStringNotContainsString('1 '.trans_choice('directory.service_label', 3), $texte);
     }
 
     public function test_several_services_keep_the_plural_label(): void
     {
         $texte = $this->renderDirectory(services: 3);
 
-        $this->assertStringContainsString('3 '.config('terms.services'), $texte);
+        $this->assertStringContainsString('3 '.trans_choice('directory.service_label', 3), $texte);
     }
 
     /**
-     * Zero prend le PLURIEL en francais comme en anglais dans cette
-     * terminologie — « 0 micro-services ». C'est la forme deja servie
-     * aujourd'hui, et le correctif ne doit pas la changer : il ne s'agit pas
-     * de reecrire la regle d'accord, seulement de cesser de forcer le pluriel
-     * sur 1.
+     * TASK-1697 correctif 15 — le REGIME DU ZERO a change, deliberement.
+     *
+     * Jusqu'ici ce compteur lisait `config('terms')`, ou le pluriel etait
+     * choisi a la main : « 0 micro-services ». Le libelle vient desormais de
+     * `directory.service_label`, resolu par `trans_choice()` — qui rend le
+     * SINGULIER sur zero en francais (« 0 proposition ») et le pluriel en
+     * anglais (« 0 proposals »).
+     *
+     * Ce n'est pas une regression : c'est exactement ce que rend, depuis
+     * toujours, le compteur de demandes POSE SUR LA MEME RANGEE
+     * (`directory.request_label`). La page affichait « 0 demande » a cote de
+     * « 0 micro-services » ; les deux s'accordent maintenant pareil.
      */
     public function test_zero_service_keeps_the_plural_label(): void
     {
         $texte = $this->renderDirectory(services: 0);
 
-        $this->assertStringContainsString('0 '.config('terms.services'), $texte);
+        // La MEME forme que le compteur voisin de la meme rangee, qui lit
+        // `directory.request_label` depuis toujours : « 0 proposition » a cote
+        // de « 0 demande ».
+        $this->assertStringContainsString('0 '.trans_choice('directory.service_label', 0), $texte);
+        $this->assertStringContainsString('0 '.trans_choice('directory.request_label', 0), $texte);
     }
 
     /**
@@ -95,7 +114,7 @@ class TASK1409DirectoryServiceLabelAgreementTest extends TestCase
         $texte = $this->renderDirectory(services: 3);
 
         $this->assertStringContainsString(__('directory.title'), $texte);
-        $this->assertStringContainsString('3 '.config('terms.services'), $texte);
+        $this->assertStringContainsString('3 '.trans_choice('directory.service_label', 3), $texte);
 
         // Et la garde generique doit savoir rougir : jouee a l'identique sur
         // la signature exacte du defaut.
