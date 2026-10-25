@@ -2,6 +2,9 @@
 
 return [
     'title' => 'Messages',
+
+    // TASK-1703 — le sous-titre de la barre haute de la messagerie.
+    'conversation_count' => '{0}No conversation|{1}1 conversation|[2,*]:count conversations',
     'no_conversations' => 'No conversations',
     'back_to_conversations' => 'Back to conversations',
     'select_conversation' => 'Select a conversation',

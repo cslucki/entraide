@@ -137,7 +137,17 @@
         ],
         [
             'url' => $routeUrl('messages.index', 'organization.messages.index'),
-            'active' => ['messages'],
+            // TASK-1703 — `organization.messages` MANQUAIT, et c'est tout le
+            // defaut : sous `/org/{slug}/messages` la route courante est
+            // `organization.messages.index`, qui n'apparie pas « messages ».
+            // L'icone etait donc la seule du rail a ne jamais s'allumer.
+            //
+            // Toutes les autres entrees nomment leurs DEUX variantes
+            // (`['flux', 'organization.flux']`, `['loops', 'organization.loops']`…) :
+            // celle-ci n'en nommait qu'une. La barre basse mobile, elle, prefixe
+            // automatiquement — d'ou une messagerie correctement surlignee sur
+            // telephone et jamais sur desktop.
+            'active' => ['messages', 'organization.messages'],
             'label' => __('navigation.messaging'),
             'hint' => __('navigation.messages'),
             'icon' => config('navigation_icons.messaging'),
@@ -291,7 +301,21 @@
                         : ($active ? 'bg-[color-mix(in_srgb,var(--bp-primary)_14%,transparent)] text-[var(--bp-primary)] shadow-sm' : 'bg-transparent group-hover:bg-[var(--bp-panel)] group-hover:shadow-sm');
                     $activeIndicatorClass = $isFlux ? 'bg-emerald-500' : 'bg-[var(--bp-primary)]';
                 @endphp
+                {{-- TASK-1703 — l'etat ACTIF devient mesurable.
+                     Jusqu'ici il ne vivait que dans une chaine de classes
+                     Tailwind. L'asserter la-dessus est fragile — lecon du bug
+                     AQ de TASK-1693 : « viser le MARQUEUR du rail, pas sa
+                     chaine de classes, qui cassait des qu'un attribut etait
+                     ajoute ». Meme idiome que `data-nav-badge-*`, deja ici.
+                     `key` n'est renseigne que sur la messagerie aujourd'hui ;
+                     les autres entrees ne portent donc pas le marqueur, et
+                     c'est sans consequence : il n'y a rien a mesurer ou il n'y
+                     a pas de clef. --}}
                 <a href="{{ $item['url'] }}"
+                   @isset($item['key'])
+                       data-side-nav-item="{{ $item['key'] }}"
+                       data-side-nav-active="{{ $active ? '1' : '0' }}"
+                   @endisset
                    class="group relative flex w-full shrink-0 flex-col items-center px-1 py-0.5 text-[9px] font-medium leading-none transition {{ $itemTextClass }}"
                    title="{{ $item['label'] }}">
                     <span class="relative flex h-8 w-8 items-center justify-center rounded-lg transition {{ $iconClass }}">
