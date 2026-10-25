@@ -327,6 +327,64 @@
                 </section>
                 @endif
 
+                {{-- TASK-1697 — les Boucles dont cette personne est membre,
+                     animateur ou proprietaire. Perimetre : voir le controleur.
+                     Nommer une Boucle ne revele rien de plus que le catalogue
+                     (T1075 : « privee » veut dire « contenu reserve aux
+                     membres », pas « cachee »). Masquee si vide, comme « Avis »
+                     et « Demandes ». --}}
+                @if($boucles->isNotEmpty())
+                <section data-profile-loops>
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.loops_section') }}</h2>
+                        <span class="text-xs text-gray-400">{{ trans_choice('profile.loops_count', $boucles->count(), ['count' => $boucles->count()]) }}</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($boucles as $boucle)
+                        <a href="{{ $urlOrg('loops.show', ['loop' => $boucle->slug ?: $boucle->getKey()]) }}"
+                           data-profile-loop="{{ $boucle->id }}"
+                           class="px-3 py-1.5 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded-lg text-sm font-medium hover:bg-violet-100 dark:hover:bg-violet-900/40 transition">
+                            {{ $boucle->name }}
+                        </a>
+                        @endforeach
+                    </div>
+                </section>
+                @endif
+
+                {{-- TASK-1697 — ses derniers commentaires de blog, avec le lien
+                     vers l'article. Ceux qu'il a ECRITS : la fiche presente ce
+                     que cette personne apporte. Les articles d'accueil sont
+                     filtres publies au controleur, donc aucun lien mort. --}}
+                @if($commentaires->isNotEmpty())
+                <section data-profile-comments>
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.comments_section') }}</h2>
+                        <span class="text-xs text-gray-400">{{ trans_choice('profile.comments_count', $commentaires->count(), ['count' => $commentaires->count()]) }}</span>
+                    </div>
+                    <div class="space-y-3">
+                        @foreach($commentaires as $commentaire)
+                        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                            <p class="text-sm text-gray-700 dark:text-gray-300 line-clamp-3">{{ $commentaire->content }}</p>
+                            <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+                                <span>{{ $commentaire->created_at->diffForHumans() }}</span>
+                                <span class="text-gray-300 dark:text-gray-600">·</span>
+                                {{-- Pas d'ancre vers le commentaire : la section des
+                                     commentaires de l'article est encore MASQUEE par
+                                     defaut (`showComments: false`), un fragment n'y
+                                     mene a rien. L'ancre arrive avec le chantier des
+                                     commentaires. --}}
+                                <a href="{{ $urlOrg('blog.show', ['post' => $commentaire->post]) }}"
+                                   data-profile-comment="{{ $commentaire->id }}"
+                                   class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+                                    {{ $commentaire->post->title }}
+                                </a>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                </section>
+                @endif
+
                 <!-- Reviews -->
                 @if($reviews->isNotEmpty())
                 <section>

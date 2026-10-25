@@ -27,7 +27,7 @@ return [
     'help_section' => '{0} Requests|{1} Request|[2,*] Requests',
     'requests_count' => ':count request|:count requests',
     'before_deadline' => 'Before :date',
-    'blog_section' => 'Published articles',
+    'blog_section' => 'Blog',
     'blog_count' => ':count article|:count articles',
     'no_posts' => "This user hasn't published any articles yet.",
     'reviews_section' => 'Reviews received',
@@ -106,4 +106,10 @@ return [
     'slug_change_notice' => 'Your previous address will keep working and stays reserved: no shared link is ever lost.',
     'slug_taken' => 'That address is already taken in your Organization. Please pick another one.',
     'slug_invalid' => 'That address cannot be used: lowercase letters, digits and hyphens only, and some words are reserved.',
+    // TASK-1697 — les deux cards ajoutees a la fiche profil
+    'loops_section' => 'Loops',
+    'loops_count' => ':count Loop|:count Loops',
+    'comments_section' => 'Latest comments',
+    'comments_count' => ':count comment|:count comments',
+    'comments_read_article' => 'Read the article',
 ];
