@@ -585,6 +585,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users', [AdminController::class, 'storeUser'])->name('users.store');
     Route::get('/users/{user}/edit', [AdminController::class, 'editUser'])->name('users.edit');
     Route::put('/users/{user}', [AdminController::class, 'updateUser'])->name('users.update');
+    // TASK-1705 — poser la photo d'un compte depuis la LISTE, sans passer par
+    // le formulaire complet de la page Modifier.
+    Route::post('/users/{user}/avatar', [AdminController::class, 'updateUserAvatar'])->name('users.avatar.update');
     Route::patch('/users/{user}/toggle-availability', [AdminController::class, 'toggleUserAvailability'])->name('users.toggle-availability');
     Route::patch('/users/{user}/toggle-admin', [AdminController::class, 'toggleUserAdmin'])->name('users.toggle-admin');
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');

@@ -1717,6 +1717,11 @@ return [
     'users_status_unavailable' => 'Unavailable',
     'users_status_banned' => 'Banned',
     'users_profile_button' => 'Profile',
+    // TASK-1705 — see the French file.
+    'users_avatar_button' => 'Upload photo',
+    'users_avatar_button_title' => 'Choose a photo for :name',
+    'users_avatar_updated' => 'Photo updated for :name.',
+    'users_avatar_required' => 'Choose an image (JPEG, PNG or WebP, 2 MB maximum).',
     'users_title_scoped' => 'Users — :organization',
     'users_stats_scoped_prefix' => 'List and counters limited to',
     'users_stats_scope_all' => 'See all organizations',

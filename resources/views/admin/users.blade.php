@@ -314,6 +314,29 @@
                             </form>
                             @endif
                             <a href="{{ route('admin.users.edit', $u) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
+
+                            {{-- TASK-1705 — poser la photo d'un compte sans passer par la page
+                                 Modifier. Cyril : « certaines personnes ne prennent pas le temps
+                                 d'uploader leur photo et je vais recuperer leur photo pour eux ».
+
+                                 Ce formulaire est un FRERE de celui de « Se connecter sous »,
+                                 jamais un imbrique : un `<form>` dans un `<form>` est invalide en
+                                 HTML et reste invisible aux tests serveur (TASK-1668).
+
+                                 Le champ se declenche au choix du fichier : un second clic sur un
+                                 bouton « Envoyer » n'apporterait rien ici, l'intention etant deja
+                                 exprimee par le choix de l'image. --}}
+                            <form method="POST" action="{{ route('admin.users.avatar.update', $u) }}"
+                                  enctype="multipart/form-data" class="inline">
+                                @csrf
+                                <label data-user-avatar-upload="{{ $u->id }}"
+                                       title="{{ __('admin.users_avatar_button_title', ['name' => $u->full_name]) }}"
+                                       class="cursor-pointer text-xs font-medium text-emerald-600 hover:underline">
+                                    {{ __('admin.users_avatar_button') }}
+                                    <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp"
+                                           x-on:change="$el.form.submit()" class="hidden">
+                                </label>
+                            </form>
                             {{-- TASK-1666 — `profile.show` est une route FRONT, bornee au tenant
                                  courant : elle fait `abort(404)` des que `organization_id`
                                  differe, et aussi sur un compte banni. Un SuperAdmin n'y
