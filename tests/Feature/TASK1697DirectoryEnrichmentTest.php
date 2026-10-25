@@ -8,6 +8,7 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\Service;
+use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -380,6 +381,73 @@ class TASK1697DirectoryEnrichmentTest extends TestCase
         $this->assertStringNotContainsString('0 '.trans_choice('directory.request_label', 0), $texte);
     }
 
+    // ── Les compteurs menent aux listes (correctif 17) ──────────────────
+
+    public function test_le_compteur_de_propositions_mene_a_la_section_du_profil(): void
+    {
+        $membre = $this->membre();
+        $this->proposition($membre);
+
+        $html = $this->annuaire();
+
+        $this->assertStringContainsString('data-member-services="'.$membre->id.'"', $html);
+        $this->assertStringContainsString(
+            e(route('organization.profile.show', [
+                'organization' => $this->organization->slug,
+                'user' => $membre->profileRouteKey(),
+            ]).'#propositions'),
+            $html
+        );
+    }
+
+    public function test_le_compteur_de_demandes_mene_a_la_section_du_profil(): void
+    {
+        $membre = $this->membre();
+        $this->demande($membre);
+
+        $html = $this->annuaire();
+
+        $this->assertStringContainsString('data-member-requests="'.$membre->id.'"', $html);
+        $this->assertStringContainsString(
+            e(route('organization.profile.show', [
+                'organization' => $this->organization->slug,
+                'user' => $membre->profileRouteKey(),
+            ]).'#demandes'),
+            $html
+        );
+    }
+
+    /** Un compteur a zero ne promet rien : il n'est pas lie. */
+    public function test_un_compteur_a_zero_n_est_pas_lie(): void
+    {
+        $membre = $this->membre();
+        $this->demande($membre);          // 0 proposition, 1 demande
+
+        $html = $this->annuaire();
+
+        $this->assertStringContainsString('data-member-requests="'.$membre->id.'"', $html);
+        $this->assertStringNotContainsString('data-member-services="'.$membre->id.'"', $html);
+    }
+
+    /** Les ancres existent reellement sur la fiche profil. */
+    public function test_les_ancres_visees_existent_sur_le_profil(): void
+    {
+        $membre = $this->membre();
+        $this->proposition($membre);
+        $this->demande($membre);
+
+        $html = $this->actingAs($membre)
+            ->get(route('organization.profile.show', [
+                'organization' => $this->organization->slug,
+                'user' => $membre->profileRouteKey(),
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('id="propositions"', $html);
+        $this->assertStringContainsString('id="demandes"', $html);
+    }
+
     // ── Fixtures ────────────────────────────────────────────────────────────
 
     private function membre(array $attributs = []): User
@@ -419,6 +487,16 @@ class TASK1697DirectoryEnrichmentTest extends TestCase
             'organization_id' => $this->organization->id,
             'category_id' => Category::factory()->create(['organization_id' => $this->organization->id])->id,
             'status' => 'active',
+        ]);
+    }
+
+    private function demande(User $membre): ServiceRequest
+    {
+        return ServiceRequest::factory()->create([
+            'user_id' => $membre->id,
+            'organization_id' => $this->organization->id,
+            'category_id' => Category::factory()->create(['organization_id' => $this->organization->id])->id,
+            'status' => 'open',
         ]);
     }
 

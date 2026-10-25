@@ -50,6 +50,19 @@
                 $ecrireUrl = request()->route('organization') && Route::has('organization.messages.with')
                     ? route('organization.messages.with', ['organization' => request()->route('organization'), 'user' => $member->profileRouteKey()])
                     : route('messages.with', $member->profileRouteKey());
+
+                // TASK-1697 correctif 17 — les compteurs menent aux listes.
+                //
+                // L'explorateur n'a AUCUN filtre par auteur (`Explorer.php` :
+                // tab, search, categories, mode, tri, tag, note, competences —
+                // pas d'auteur). Le seul ecran qui liste les propositions et
+                // les demandes d'UNE personne est sa fiche profil, d'ou les
+                // ancres. Meme raisonnement que pour les articles.
+                //
+                // Un compteur a zero n'est PAS lie : la section d'arrivee
+                // serait vide, le lien ne promettrait rien.
+                $lienPropositions = $member->active_services_count > 0 ? $profileRoute.'#propositions' : null;
+                $lienDemandes = $member->open_requests_count > 0 ? $profileRoute.'#demandes' : null;
             @endphp
             {{-- TASK-1697 correctif 15 — la carte n'est PLUS un seul lien.
                  Elle en portait un, englobant tout ; elle doit desormais porter
@@ -139,13 +152,18 @@
                          le changer ici aurait renomme QUATRE autres surfaces que
                          Cyril n'a pas demandees. L'annuaire porte donc sa propre
                          clef. --}}
-                    <span title="{{ __('directory.active_services_title') }}">
+                    {{-- Un `<a>` sans `href` est valide et se rend en texte :
+                         une seule structure pour les deux cas, plutot que le
+                         balisage duplique dans un @if/@else. --}}
+                    <a @if($lienPropositions) href="{{ $lienPropositions }}" data-member-services="{{ $member->id }}" class="hover:text-indigo-600 dark:hover:text-indigo-400" @endif
+                       title="{{ __('directory.active_services_title') }}">
                         <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $member->active_services_count }}</span> {{ trans_choice('directory.service_label', $member->active_services_count) }}
-                    </span>
+                    </a>
                     <span class="text-gray-300 dark:text-gray-600">·</span>
-                    <span title="{{ __('directory.open_requests') }}">
+                    <a @if($lienDemandes) href="{{ $lienDemandes }}" data-member-requests="{{ $member->id }}" class="hover:text-indigo-600 dark:hover:text-indigo-400" @endif
+                       title="{{ __('directory.open_requests') }}">
                         <span class="font-semibold text-green-600 dark:text-green-400">{{ $member->open_requests_count }}</span> {{ trans_choice('directory.request_label', $member->open_requests_count) }}
-                    </span>
+                    </a>
                     @endif
                     {{-- TASK-1697 correctif 15 — articles publies, et le lien
                          qui y mene. Le produit n'a AUCUNE page « articles de
