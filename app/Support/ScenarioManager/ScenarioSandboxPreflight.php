@@ -113,6 +113,15 @@ class ScenarioSandboxPreflight
         'member_notification_preferences',
         'organization_requests',
         'organizations',
+        // TASK-1711 — archive d'un rollback de la release 1.709, hors
+        // portee du Scenario Manager par nature : elle ne porte pas
+        // d'`organization_id`, et ses lignes ne sont pas des donnees de
+        // sandbox mais la preuve de ce qu'un `down()` s'apprete a
+        // detruire. Elle est vide hors rollback. Sa cle etrangere vers
+        // `users` est en `cascadeOnDelete` et declaree
+        // `POLICY_DELETE` dans `UserDataLifecycleRegistry` : la
+        // suppression d'un compte y est donc deja traitee.
+        'rollback_conservation',
         'platform_ai_constitutions',
         'scenario_manifest_versions',
         'usage_references',
