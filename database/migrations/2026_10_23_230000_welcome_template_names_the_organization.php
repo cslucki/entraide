@@ -198,10 +198,24 @@ return new class extends Migration
      *
      * Deux colonnes le demandent, et aucune des deux n'est un ecart de donnee :
      * `created_at` est un `timestamp` des deux cotes mais le pilote peut rendre
-     * des precisions differentes, et `enabled` est dit `true`, `1`, `'1'` ou
-     * `'t'` selon le moteur. Comparer les chaines brutes ferait repondre NON a
-     * ce predicat pour une raison qui ne concerne pas la fidelite — et la ligne
-     * serait horodatee `now()` alors qu'elle est bien rendue.
+     * des precisions differentes, et `enabled` est un booleen que les moteurs
+     * et les pilotes expriment differemment. Comparer les chaines brutes ferait
+     * repondre NON a ce predicat pour une raison qui ne concerne pas la
+     * fidelite — et la ligne serait horodatee `now()` alors qu'elle est bien
+     * rendue.
+     *
+     * `enabled` ne passe PAS par `filter_var(…, FILTER_VALIDATE_BOOLEAN)` :
+     * cette fonction rend `false` pour `'t'` **comme pour** `'f'`, donc deux
+     * valeurs opposees se normaliseraient en `'0'` et le predicat les jugerait
+     * egales — c'est-a-dire qu'il antidaterait une ligne qui a change. La
+     * colonne est un `boolean` des deux cotes, donc la liste ci-dessous est
+     * exhaustive, et tout ce qui n'y figure pas est faux.
+     *
+     * Avec le pilote de ce projet (`PostgresConnector` pose
+     * `ATTR_STRINGIFY_FETCHES => false`), la valeur arrive en `bool` natif et
+     * `'t'` ne se produit pas. Ce n'est donc pas un defaut observable qu'on
+     * corrige ici, et aucun test ne peut le rougir : c'est le docblock
+     * precedent qui promettait de couvrir `'t'` sans le faire.
      */
     private function normaliser(string $colonne, mixed $valeur): string
     {
@@ -214,7 +228,7 @@ return new class extends Migration
         }
 
         if ($colonne === 'enabled') {
-            return filter_var($valeur, FILTER_VALIDATE_BOOLEAN) ? '1' : '0';
+            return in_array($valeur, [true, 1, '1', 't', 'true'], true) ? '1' : '0';
         }
 
         return (string) $valeur;
