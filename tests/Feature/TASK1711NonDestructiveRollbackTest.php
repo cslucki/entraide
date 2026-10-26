@@ -9,6 +9,7 @@ use App\Models\Message;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\UserDataLifecycleRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -391,6 +392,99 @@ class TASK1711NonDestructiveRollbackTest extends TestCase
                 );
             }
         }
+    }
+
+    // ── RGPD : la conservation ne survit pas a la suppression d'un compte ──
+
+    /**
+     * Supprimer un compte efface SES lignes conservees, et PRESERVE les autres.
+     *
+     * Le finding qui a motive cette garde : `rollback_conservation` garde des
+     * slugs publics derives des noms et prenoms — des donnees personnelles. La
+     * garde `every user foreign key is declared in lifecycle registry` etait
+     * verte, mais pour une raison qu'il fallait nommer : la table stockait les
+     * identifiants dans du JSON, sans cle etrangere, et echappait donc au
+     * critere du registre au lieu d'y etre conforme.
+     *
+     * La correction passe par le mecanisme CANONIQUE, et par lui seul : une
+     * vraie cle etrangere `user_id` en `cascadeOnDelete`, plus une entree
+     * `POLICY_DELETE` dans `UserDataLifecycleRegistry`. Aucun code
+     * d'execution nouveau — `UserDeletionExecutor` applique deja les
+     * politiques du registre.
+     *
+     * Les DEUX moities sont mesurees, et aucune ne suffit : un `delete` trop
+     * large effacerait la conservation des autres membres, et c'est
+     * exactement la perte de donnees que ce lot existe pour empecher.
+     */
+    public function test_supprimer_un_compte_efface_ses_lignes_conservees_et_preserve_les_autres(): void
+    {
+        $organisation = Organization::factory()->create();
+        $partant = User::factory()->create(['organization_id' => $organisation->id]);
+        $restant = User::factory()->create(['organization_id' => $organisation->id]);
+
+        $autreOrganisation = Organization::factory()->create();
+        $tiers = User::factory()->create(['organization_id' => $autreOrganisation->id]);
+
+        $this->migration(0)->up();
+
+        // Les SLUGS, captures avant le rollback : c'est la donnee personnelle,
+        // et c'est elle qu'il faut chercher ensuite.
+        $slugs = DB::table('users')->whereNotNull('slug')->pluck('slug', 'id');
+
+        $this->migration(0)->down();
+
+        // La mesure porte sur le CONTENU conserve, pas sur la colonne `user_id`.
+        //
+        // Ma premiere version comptait `where('user_id', $id)`, et un sabotage
+        // qui remplacait `cascadeOnDelete` par `nullOnDelete` restait VERT : la
+        // ligne survivait, son `user_id` passait a NULL, et le compteur rendait
+        // zero — avec le slug toujours dans le JSON. Je mesurais l'index, pas la
+        // donnee.
+        $presence = fn (string $slug) => DB::table(self::CONSERVATION)
+            ->where('donnees', 'like', '%"'.$slug.'"%')
+            ->count();
+
+        $this->assertGreaterThan(0, $presence($slugs[$partant->id]), 'Rien n\'est conserve pour ce compte : le test ne mesurerait rien.');
+        $this->assertGreaterThan(0, $presence($slugs[$restant->id]));
+        $this->assertGreaterThan(0, $presence($slugs[$tiers->id]));
+
+        $avantRestant = $presence($slugs[$restant->id]);
+        $avantTiers = $presence($slugs[$tiers->id]);
+
+        // La cle etrangere `cascadeOnDelete` fait le travail : c'est le
+        // mecanisme de la base, pas un geste applicatif qu'on pourrait oublier.
+        DB::table('users')->where('id', $partant->id)->delete();
+
+        $this->assertSame(
+            0,
+            $presence($slugs[$partant->id]),
+            'Le slug du compte supprime survit dans la conservation : une donnee personnelle apres suppression.'
+        );
+
+        $this->assertSame($avantRestant, $presence($slugs[$restant->id]), 'La conservation d\'un autre membre a ete effacee.');
+        $this->assertSame($avantTiers, $presence($slugs[$tiers->id]), 'La conservation d\'une autre Organization a ete effacee.');
+    }
+
+    /**
+     * Le registre canonique declare bien cette table, en POLICY_DELETE.
+     *
+     * La cle etrangere suffirait a la base ; cette entree sert a l'OUTIL — la
+     * previsualisation de suppression de compte doit annoncer ces lignes, sinon
+     * un administrateur signerait une suppression dont il ne voit pas la
+     * portee.
+     */
+    public function test_la_conservation_est_declaree_au_registre_de_cycle_de_vie(): void
+    {
+        $entree = collect(UserDataLifecycleRegistry::entries())
+            ->first(fn (array $e) => ($e['table'] ?? null) === self::CONSERVATION);
+
+        $this->assertNotNull($entree, 'La conservation n\'est pas declaree dans `UserDataLifecycleRegistry`.');
+        $this->assertSame('user_id', $entree['column']);
+        $this->assertSame(
+            UserDataLifecycleRegistry::POLICY_DELETE,
+            $entree['policy'],
+            'La politique doit etre DELETE : conserver des slugs apres suppression du compte serait le defaut d\'origine.'
+        );
     }
 
     // ── Outillage ───────────────────────────────────────────────────────────

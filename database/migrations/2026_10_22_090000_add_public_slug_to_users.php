@@ -96,6 +96,7 @@ return new class extends Migration
                 'user_slugs',
                 DB::table('user_slugs')->orderBy('id')->get(),
                 'id',
+                'user_id',
             );
         }
 
@@ -104,6 +105,9 @@ return new class extends Migration
                 'users.slug',
                 DB::table('users')->whereNotNull('slug')->orderBy('id')
                     ->get(['id', 'organization_id', 'slug']),
+                'id',
+                // Le sujet EST la ligne : `users.id`. C'est la surface la plus
+                // sensible des cinq, puisqu'un slug derive du nom.
                 'id',
             );
         }
@@ -131,6 +135,15 @@ return new class extends Migration
      * colonne `migration`. Si la conservation ne peut pas etre prouvee, le
      * `down()` ECHOUE et ne detruit rien.
      *
+     * La colonne `user_id` porte le SUJET de la ligne conservee. Elle existe
+     * pour une raison precise : `rollback_conservation` garde des slugs publics
+     * derives des noms et prenoms, donc des donnees personnelles, et le
+     * mecanisme canonique de suppression de compte (`UserDeletionExecutor`)
+     * applique les politiques du registre par
+     * `DB::table($table)->where($column, $user->id)->delete()`. Un identifiant
+     * noye dans le JSON lui serait invisible : la table aurait survecu a la
+     * suppression du compte avec les slugs de la personne dedans.
+     *
      * Le bloc est recopie dans les quatre fichiers, deliberement : une
      * migration ne doit pas dependre d'une classe applicative qui peut changer,
      * ou disparaitre, apres son execution. Meme doctrine qu'en TASK-1709.
@@ -138,6 +151,21 @@ return new class extends Migration
     private function assurerLaConservation(): void
     {
         if (Schema::hasTable(self::CONSERVATION)) {
+            // Une base qui porte deja la table sans la colonne `user_id` la
+            // recoit ici : sans cela, l'insertion echouerait sur un
+            // environnement ou un rollback a eu lieu avant TASK-1711.
+            if (! Schema::hasColumn(self::CONSERVATION, 'user_id')) {
+                Schema::table(self::CONSERVATION, function (Blueprint $table) {
+                    // Sans la contrainte : SQLite refuse
+                    // `ALTER TABLE ... ADD CONSTRAINT FOREIGN KEY` (mesure
+                    // TASK-1633). Ce chemin ne concerne qu'une base ou un
+                    // rollback a eu lieu AVANT TASK-1711 — jamais la CI, qui
+                    // part d'un schema neuf et passe donc par `create()`.
+                    $table->uuid('user_id')->nullable()->after('surface');
+                    $table->index('user_id');
+                });
+            }
+
             return;
         }
 
@@ -145,6 +173,23 @@ return new class extends Migration
             $table->bigIncrements('conservation_id');
             $table->string('migration');
             $table->string('surface');
+
+            // Le SUJET de la ligne conservee, en cle etrangere CASCADE.
+            //
+            // `cascadeOnDelete` peut surprendre sur une table d'archive, et
+            // c'est pourtant exactement le comportement voulu : la conservation
+            // garde des slugs publics derives des noms. Quand un compte est
+            // supprime, ses slugs doivent partir avec lui — et on ne doit
+            // surtout pas pouvoir les restaurer.
+            //
+            // Une COLONNE, et pas un identifiant noye dans le JSON, parce que
+            // c'est ce que le mecanisme canonique sait lire :
+            // `UserDeletionExecutor` applique les politiques du registre par
+            // `DB::table($table)->where($column, $user->id)->delete()`. Et une
+            // vraie cle etrangere, parce que la garde du registre l'exige —
+            // « registered SQL entries must still be real FKs to users.id ».
+            $table->foreignUuid('user_id')->nullable()->constrained('users')->cascadeOnDelete();
+
             $table->string('cle')->nullable();
             $table->json('donnees');
             $table->timestamp('archived_at');
@@ -181,7 +226,7 @@ return new class extends Migration
      *
      * @param  Collection<int, object>  $lignes
      */
-    private function conserverOuEchouer(string $surface, Collection $lignes, string $clef): void
+    private function conserverOuEchouer(string $surface, Collection $lignes, string $clef, ?string $colonneSujet = null): void
     {
         if ($lignes->isEmpty()) {
             return;
@@ -205,6 +250,7 @@ return new class extends Migration
             DB::table(self::CONSERVATION)->insert($lot->map(fn (object $ligne) => [
                 'migration' => self::MARQUE,
                 'surface' => $surface,
+                'user_id' => $colonneSujet === null ? null : ($ligne->{$colonneSujet} ?? null),
                 'cle' => (string) ($ligne->{$clef} ?? ''),
                 'donnees' => json_encode((array) $ligne, JSON_UNESCAPED_UNICODE),
                 'archived_at' => now(),
