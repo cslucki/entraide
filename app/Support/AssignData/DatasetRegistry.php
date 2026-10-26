@@ -268,6 +268,12 @@ class DatasetRegistry
             // preuve meme de ce qui a ete retire. La table n'a de valeur que si
             // personne ne la modifie.
             new Dataset('system_email_templates_archive', 'system_email_templates_archive', $h, ['id', 'slug', 'name', 'locale', 'enabled', 'organization_id', 'archived_at']),
+            // TASK-1709 — la trace des gabarits mutes par trois migrations.
+            // `HistoryNullValid` pour la meme raison que l'archive ci-dessus :
+            // rattacher une ligne de trace reecrirait l'etat qu'elle conserve,
+            // donc detruirait la seule preuve de ce qui a ete change. Elle n'a
+            // de valeur que si personne ne la modifie.
+            new Dataset('system_email_templates_trace', 'system_email_templates_trace', $h, ['trace_id', 'migration', 'template_id', 'geste', 'slug', 'locale', 'organization_id', 'archived_at']),
             new Dataset('ai_interactions', 'ai_interactions', $h, ['id', 'user_id', 'feature', 'model', 'organization_id', 'created_at']),
 
             // ── Diagnostic : montre, jamais offert ───────────────────────

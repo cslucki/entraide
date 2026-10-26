@@ -315,7 +315,7 @@ class TASK1633ReferralForeignKeyConvergenceTest extends TestCase
         // tourne QUE sur PostgreSQL : le gate SQLite l'exclut, et l'ecart ne se
         // voyait donc qu'en lancant les deux moteurs.
         $this->assertSame(
-            ['ai_provider_invocations', 'system_email_templates_archive'],
+            ['ai_provider_invocations', 'system_email_templates_archive', 'system_email_templates_trace'],
             $sansContrainte,
         );
     }
