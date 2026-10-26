@@ -1453,8 +1453,15 @@ return [
                 // suffit pas a deplacer un modele qui, par defaut, equilibre.
                 //
                 // L'instruction dit donc ce qu'il faut PRODUIRE, et combien.
-                'aperio' => "Tu DEFENDS le camp que le socle t'assigne : la proposition posee par la question, ou la première option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta réponse defend le tien — elle ne se contente jamais d'attaquer. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
-                'traverse' => "Tu DEFENDS le camp que le socle t'assigne : la position inverse de la proposition posee par la question, ou la seconde option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta réponse defend le tien — elle ne se contente jamais d'attaquer, et elle n'attaque JAMAIS ton propre camp. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
+                //
+                // TASK-1707 — ces trois entrees ne sont PAS des libelles : elles
+                // sont envoyees au MODELE, et le commentaire ci-dessus le dit.
+                // Ma passe d'accents du lot L1 y avait accentue « reponse », et
+                // c'est exactement la meme erreur de classe que sur
+                // `guest_shell.instruction_continuing`. Une passe d'accents
+                // n'entre pas ici.
+                'aperio' => "Tu DEFENDS le camp que le socle t'assigne : la proposition posee par la question, ou la premiere option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta reponse defend le tien — elle ne se contente jamais d'attaquer. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
+                'traverse' => "Tu DEFENDS le camp que le socle t'assigne : la position inverse de la proposition posee par la question, ou la seconde option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta reponse defend le tien — elle ne se contente jamais d'attaquer, et elle n'attaque JAMAIS ton propre camp. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
                 'limen' => 'Comparer les positions, distinguer accords et desaccords et proposer des compromis ou options possibles sans decider a la place du groupe.',
             ],
         ],
