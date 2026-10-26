@@ -38,6 +38,7 @@ class UserDataLifecycleRegistry
             // durabilite economique n'est pas le role de cette table mais celui
             // du ledger `ai_provider_invocations` (sans contenu, sans FK).
             ['key' => 'ai_interactions', 'type' => 'sql', 'table' => 'ai_interactions', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'User AI interactions carry the full personal prompt and response; the FK cascades (NOT NULL, ON DELETE CASCADE) and the registry says so. The economic fact of each call lives in the content-free ledger ai_provider_invocations, which survives (TASK-1254).'],
+            ['key' => 'rollback_conservation', 'type' => 'sql', 'table' => 'rollback_conservation', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'none', 'justification' => 'A rollback of release 1.709 stores public slugs derived from names, so personal data. The archive has no organization_id, hence org_scope none; deleting the account must delete its rows here too (TASK-1711).'],
             // TASK-1315 : le fil du Shell « BouclePro IA ». Meme raison, meme
             // regime que `ai_interactions` juste au-dessus — la ligne porte la
             // question et la reponse PERSONNELLES d'une conversation de travail
