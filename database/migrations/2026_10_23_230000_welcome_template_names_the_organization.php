@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -135,27 +136,88 @@ return new class extends Migration
                 continue;
             }
 
-            // TASK-1709 — l'horodatage suit la FIDELITE de la restauration.
+            // TASK-1709 — l'horodatage suit la FIDELITE de la restauration,
+            // jugee sur la LIGNE ENTIERE et non sur les seuls champs mutes ici.
             //
-            // Quand les DEUX champs mutes reviennent, la ligne redevient
-            // exactement celle d'avant l'aller : lui laisser `now()` la ferait
-            // passer pour fraichement editee alors que personne ne l'a touchee,
-            // et c'est le dernier ecart que la garde de fidelite globale a
-            // trouve.
+            // Une ligne rendue a l'identique ne doit pas se declarer modifiee :
+            // c'est le dernier ecart que la garde de fidelite globale a trouve.
+            // Mais une ligne qui porte encore la retouche de quelqu'un ne doit
+            // pas non plus etre ANTIDATEE a son etat d'avant l'aller, sans quoi
+            // cette decision devient invisible.
             //
-            // Quand un seul revient, la ligne est un MELANGE — la retouche
-            // humaine de l'autre champ est conservee, c'est tout le propos du
-            // rendu champ par champ ci-dessus. Elle a donc bien change
-            // maintenant, et son horodatage doit le dire.
-            $integrale = array_key_exists('subject', $aRendre)
-                && array_key_exists('content_html', $aRendre);
-
+            // Ce `down()` tourne en DERNIER des trois, donc c'est lui qui
+            // gouverne l'horodatage final — y compris quand c'est une AUTRE
+            // migration du lot qui a conserve une valeur humaine. Juger sur
+            // `$aRendre` seul ne le voyait pas : il faut comparer la ligne
+            // projetee a l'instantane, champ par champ.
             DB::table('system_email_templates')
                 ->where('id', $instantane->template_id)
                 ->update($aRendre + [
-                    'updated_at' => $integrale ? $instantane->updated_at : now(),
+                    'updated_at' => $this->redevientIdentique($vivante, $aRendre, $instantane)
+                        ? $instantane->updated_at
+                        : now(),
                 ]);
         }
+    }
+
+    /**
+     * La ligne, une fois `$aRendre` applique, redevient-elle INTEGRALEMENT
+     * celle de l'instantane ?
+     *
+     * `updated_at` est exclu de la comparaison : c'est precisement lui qu'on
+     * decide. Tout le reste entre, y compris les champs que cette migration ne
+     * mute pas — un `name` laisse en place par le `down()` de `rename` parce
+     * qu'un humain l'avait choisi est exactement le cas que ce predicat doit
+     * voir.
+     *
+     * La comparaison est faite sur la ligne PROJETEE, pas relue apres coup : un
+     * second `select` couterait un aller-retour par ligne et ne dirait rien de
+     * plus.
+     */
+    private function redevientIdentique(object $vivante, array $aRendre, object $instantane): bool
+    {
+        foreach (self::COLONNES as $colonne) {
+            if ($colonne === 'updated_at') {
+                continue;
+            }
+
+            $apres = array_key_exists($colonne, $aRendre)
+                ? $aRendre[$colonne]
+                : ($vivante->{$colonne} ?? null);
+
+            if ($this->normaliser($colonne, $apres) !== $this->normaliser($colonne, $instantane->{$colonne} ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Une valeur sous une forme comparable entre la table et la trace.
+     *
+     * Deux colonnes le demandent, et aucune des deux n'est un ecart de donnee :
+     * `created_at` est un `timestamp` des deux cotes mais le pilote peut rendre
+     * des precisions differentes, et `enabled` est dit `true`, `1`, `'1'` ou
+     * `'t'` selon le moteur. Comparer les chaines brutes ferait repondre NON a
+     * ce predicat pour une raison qui ne concerne pas la fidelite — et la ligne
+     * serait horodatee `now()` alors qu'elle est bien rendue.
+     */
+    private function normaliser(string $colonne, mixed $valeur): string
+    {
+        if ($valeur === null) {
+            return '<NULL>';
+        }
+
+        if ($colonne === 'created_at') {
+            return Carbon::parse((string) $valeur)->format('Y-m-d H:i:s');
+        }
+
+        if ($colonne === 'enabled') {
+            return filter_var($valeur, FILTER_VALIDATE_BOOLEAN) ? '1' : '0';
+        }
+
+        return (string) $valeur;
     }
 
     /**

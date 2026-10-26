@@ -363,6 +363,52 @@ class TASK1709EmailTemplateRollbackFidelityTest extends TestCase
     }
 
     /**
+     * Cas A — un nom choisi apres l'aller n'est pas ANTIDATE.
+     *
+     * Le volet precedent prouve que la VALEUR survit. Celui-ci porte sur
+     * l'horodatage, et il a fallu une mesure sur jumeau pour le voir : la
+     * branche partielle de `rename` laisse bien `now()`, mais
+     * `names_the_organization` tourne APRES elle au retour, et sa propre
+     * restauration est integrale — l'humain n'a touche ni le sujet ni le corps.
+     * Elle reecrivait donc `updated_at` depuis son instantane, et la ligne
+     * ressortait en annoncant « rien n'a change depuis un an » alors qu'elle
+     * portait le nom de quelqu'un.
+     *
+     * **La derniere migration a ecrire gouverne.** Aucune ne peut donc juger la
+     * fidelite sur les seuls champs qu'elle a mutes : il faut que la LIGNE
+     * ENTIERE retrouve l'instantane.
+     *
+     * Les deux moities sont mesurees, et aucune ne suffit : rendre le sujet
+     * sans proteger l'horodatage efface une decision humaine ; proteger
+     * l'horodatage sans rendre le sujet laisserait l'aller en place.
+     */
+    public function test_un_nom_choisi_apres_l_aller_n_est_pas_antidate(): void
+    {
+        $sujetDOrigine = (string) DB::table('system_email_templates')->where('id', 1)->value('subject');
+        $horodatageDOrigine = $this->horodatageDeMiseAJour(1);
+
+        $this->aller();
+
+        DB::table('system_email_templates')->where('id', 1)->update(['name' => 'Nom decide par un humain']);
+
+        $this->retour();
+
+        $ligne = DB::table('system_email_templates')->where('id', 1)->first();
+
+        // La valeur humaine survit, et le reste est bien rendu.
+        $this->assertSame('Nom decide par un humain', $ligne->name, 'Le nom choisi a la main a ete ecrase.');
+        $this->assertSame('welcome', $ligne->slug, 'Le slug n\'a pas ete rendu.');
+        $this->assertSame($sujetDOrigine, (string) $ligne->subject, 'Le sujet n\'a pas ete rendu.');
+
+        // Et la ligne ne pretend pas etre restee inchangee depuis un an.
+        $this->assertNotSame(
+            $horodatageDOrigine,
+            $this->horodatageDeMiseAJour(1),
+            'Une ligne qui porte le nom de quelqu\'un d\'autre est antidatee a son etat d\'avant l\'aller : la decision humaine devient invisible.'
+        );
+    }
+
+    /**
      * Un `id` occupe n'est jamais ecrase : on renonce a restaurer.
      *
      * Mieux vaut un retour incomplet qu'un retour destructeur.
