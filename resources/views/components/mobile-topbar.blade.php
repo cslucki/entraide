@@ -196,7 +196,15 @@
 
     // Pose APRES la chaine ci-dessus, et hors du `! $isLevelOne` : la fleche
     // doit exister meme sur une route de niveau un.
-    if ($titrePorteParLaPage) {
+    // TASK-1707 M6 — le Blog garde SON titre dans la barre (c'est l'unique
+    // occurrence desormais : le `<h1>` de la page ne se rend plus qu'a partir
+    // de `md`, la ou cette barre disparait) et gagne le meme retour.
+    //
+    // D'ou la separation des deux predicats : « la page porte le titre » et
+    // « la barre mene a l'accueil » ne sont pas la meme chose.
+    $retourVersAccueil = $titrePorteParLaPage || request()->routeIs('blog.index', 'organization.blog.index');
+
+    if ($retourVersAccueil) {
         $backHref = auth()->check() ? $routeUrl('home', 'organization.home') : route('home');
     }
 @endphp
