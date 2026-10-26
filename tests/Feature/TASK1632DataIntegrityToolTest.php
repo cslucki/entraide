@@ -180,7 +180,7 @@ class TASK1632DataIntegrityToolTest extends TestCase
         // L'archive doit survivre a la suppression de l'Organization dont elle
         // garde la trace.
         $this->assertSame(
-            ['ai_provider_invocations', 'system_email_templates_archive'],
+            ['ai_provider_invocations', 'system_email_templates_archive', 'system_email_templates_trace'],
             $registry->protectedHistoryTables('organization_id'),
         );
     }

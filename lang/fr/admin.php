@@ -1264,6 +1264,8 @@ return [
         // TASK-1694 bug U — l'archive, declaree en HistoryNullValid.
         'dataset_system_email_templates_archive' => 'Archive des gabarits d\'e-mail système',
         'dataset_system_email_templates_archive_desc' => 'Trace des gabarits retires par la normalisation (TASK-1694). Lecture seule : rattacher une ligne reecrirait la preuve.',
+        'dataset_system_email_templates_trace' => 'Trace des gabarits d\'e-mail système',
+        'dataset_system_email_templates_trace_desc' => 'Etat d\'un gabarit AVANT qu\'une migration ne le modifie, pour pouvoir le rendre au retour en arriere (TASK-1709). Lecture seule : rattacher une ligne reecrirait la preuve.',
         'dataset_admin_ai_interactions' => 'Interactions IA administration',
         'dataset_admin_ai_interactions_desc' => 'Console d\'administration de la plateforme, hors Organization.',
         'dataset_ai_interactions' => 'Interactions IA',
