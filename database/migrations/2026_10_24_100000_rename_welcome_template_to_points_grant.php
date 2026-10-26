@@ -124,6 +124,12 @@ return new class extends Migration
 
             if ((string) $vivante->name !== $nomPose) {
                 // Le nom a ete change depuis : on rend le slug, pas le nom.
+                //
+                // TASK-1709 — et l'horodatage reste `now()`, a la difference de
+                // la branche complete ci-dessous. La ligne ne redevient PAS
+                // celle d'avant l'aller : elle garde le nom qu'un humain a
+                // choisi. Lui rendre l'horodatage de l'instantane effacerait la
+                // trace de cette decision, qui est posterieure.
                 DB::table('system_email_templates')
                     ->where('id', $instantane->template_id)
                     ->update(['slug' => $instantane->slug, 'updated_at' => now()]);
@@ -131,12 +137,15 @@ return new class extends Migration
                 continue;
             }
 
+            // TASK-1709 — restauration INTEGRALE : les deux seules colonnes
+            // que l'aller a mutees reviennent, donc l'horodatage aussi. Une
+            // ligne rendue a l'identique ne doit pas se declarer modifiee.
             DB::table('system_email_templates')
                 ->where('id', $instantane->template_id)
                 ->update([
                     'slug' => $instantane->slug,
                     'name' => $instantane->name,
-                    'updated_at' => now(),
+                    'updated_at' => $instantane->updated_at,
                 ]);
         }
     }

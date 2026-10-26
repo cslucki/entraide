@@ -135,9 +135,26 @@ return new class extends Migration
                 continue;
             }
 
+            // TASK-1709 — l'horodatage suit la FIDELITE de la restauration.
+            //
+            // Quand les DEUX champs mutes reviennent, la ligne redevient
+            // exactement celle d'avant l'aller : lui laisser `now()` la ferait
+            // passer pour fraichement editee alors que personne ne l'a touchee,
+            // et c'est le dernier ecart que la garde de fidelite globale a
+            // trouve.
+            //
+            // Quand un seul revient, la ligne est un MELANGE — la retouche
+            // humaine de l'autre champ est conservee, c'est tout le propos du
+            // rendu champ par champ ci-dessus. Elle a donc bien change
+            // maintenant, et son horodatage doit le dire.
+            $integrale = array_key_exists('subject', $aRendre)
+                && array_key_exists('content_html', $aRendre);
+
             DB::table('system_email_templates')
                 ->where('id', $instantane->template_id)
-                ->update($aRendre + ['updated_at' => now()]);
+                ->update($aRendre + [
+                    'updated_at' => $integrale ? $instantane->updated_at : now(),
+                ]);
         }
     }
 

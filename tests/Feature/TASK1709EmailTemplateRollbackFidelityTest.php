@@ -111,7 +111,19 @@ class TASK1709EmailTemplateRollbackFidelityTest extends TestCase
         $this->origine = $this->empreinte();
     }
 
-    /** @return array<int, string> id => empreinte complete de la ligne */
+    /**
+     * L'empreinte complete d'une ligne — horodatages COMPRIS.
+     *
+     * `created_at` ET `updated_at` en font partie : un retour en arriere fidele
+     * rend l'etat « comme si la migration n'avait pas tourne », et `updated_at`
+     * est une donnee comme une autre. Laisser une ligne restauree avec un
+     * `updated_at` au moment de la restauration la ferait passer pour
+     * fraichement editee alors qu'elle vient d'etre RAMENEE a un etat ancien —
+     * ce que lirait de travers tout ce qui se synchronise dessus : une purge de
+     * cache, un export incremental, un ecran « modifies recemment ».
+     *
+     * @return array<int, string> id => empreinte complete de la ligne
+     */
     private function empreinte(): array
     {
         return DB::table('system_email_templates')
@@ -121,6 +133,8 @@ class TASK1709EmailTemplateRollbackFidelityTest extends TestCase
                 $l->slug, $l->locale ?? '<NULL>', $l->organization_id ?? 'GLOBAL',
                 $l->name, $l->subject, md5((string) $l->content_html),
                 (string) $l->enabled, (string) $l->variables,
+                'cree='.($l->created_at ?? '<NULL>'),
+                'maj='.($l->updated_at ?? '<NULL>'),
             ])])
             ->all();
     }
@@ -137,6 +151,11 @@ class TASK1709EmailTemplateRollbackFidelityTest extends TestCase
         foreach (array_reverse(self::MIGRATIONS) as $nom) {
             (require database_path('migrations/'.$nom.'.php'))->down();
         }
+    }
+
+    private function migration(int $rang): object
+    {
+        return require database_path('migrations/'.self::MIGRATIONS[$rang].'.php');
     }
 
     // ── La fidelite ─────────────────────────────────────────────────────────
@@ -166,6 +185,81 @@ class TASK1709EmailTemplateRollbackFidelityTest extends TestCase
         $this->retour();
 
         $this->assertSame($this->origine, $this->empreinte(), 'Le second cycle diverge du premier.');
+    }
+
+    /**
+     * Rollbacker la SEULE migration `normalize` rend aussi son horodatage.
+     *
+     * Pourquoi cette garde existe, et pourquoi elle ne ressemble pas aux
+     * autres : dans un retour COMPLET, l'horodatage que `normalize` restaure
+     * est aussitot reecrit par les deux `down()` qui la suivent — l'ordre
+     * inverse les fait finir par la plus ancienne. Remettre `now()` dans
+     * `normalize` laissait donc les huit autres gardes VERTES. Un sabotage qui
+     * ne rougit pas ne prouve pas que le code est inutile : il dit que
+     * l'observable choisi ne le traverse pas.
+     *
+     * Le cas ou il le traverse est reel et c'est le plus courant en
+     * exploitation : `migrate:rollback --step=1` ne defait qu'UN batch. On
+     * l'exerce donc tel quel.
+     *
+     * La valeur attendue n'est PAS celle du depart — `names_the_organization`
+     * et `rename` ont legitimement touche la ligne avant — et elle n'est pas
+     * lue dans la trace, ce qui ne prouverait que la recopie de la trace par
+     * elle-meme. Elle est OBSERVEE dans la table, juste avant que `normalize`
+     * ne mute la ligne.
+     */
+    public function test_rollbacker_la_seule_migration_normalize_rend_son_horodatage(): void
+    {
+        $this->migration(0)->up();
+        $this->migration(1)->up();
+
+        // L'horodatage attendu est POSE, et lointain.
+        //
+        // Le lire apres les deux premieres migrations ne marchait pas : les
+        // trois `up()` tombent dans la MEME seconde, donc `now()` rend deux
+        // fois la meme chaine et la pre-condition « l'aller a bien change
+        // l'horodatage » etait fausse sans qu'aucun defaut n'existe. Un test
+        // qui ne separe pas deux instants ne prouve pas lequel est lu.
+        //
+        // Cette valeur represente un etat legitime — la ligne a ete editee ce
+        // jour-la — et elle est observee dans la table, pas lue dans la trace,
+        // ce qui ne prouverait que la recopie de la trace par elle-meme.
+        $avantNormalize = '2024-03-07 09:15:00';
+
+        DB::table('system_email_templates')->where('id', 1)->update(['updated_at' => $avantNormalize]);
+
+        $this->migration(2)->up();
+
+        // L'aller a bien mute la ligne : sinon la suite ne mesurerait rien.
+        $this->assertSame('fr', DB::table('system_email_templates')->where('id', 1)->value('locale'));
+        $this->assertNotSame($avantNormalize, $this->horodatageDeMiseAJour(1));
+
+        $this->migration(2)->down();
+
+        $this->assertNull(
+            DB::table('system_email_templates')->where('id', 1)->value('locale'),
+            'La langue n\'est pas revenue a NULL.'
+        );
+        $this->assertSame(
+            $avantNormalize,
+            $this->horodatageDeMiseAJour(1),
+            'Le rollback d\'un seul batch laisse la ligne promue avec l\'horodatage de la restauration.'
+        );
+    }
+
+    /**
+     * L'horodatage d'une ligne sous une forme comparable sur les DEUX moteurs.
+     *
+     * SQLite rend la chaine stockee, PostgreSQL un `timestamp` que le pilote
+     * presente autrement : comparer les valeurs brutes ferait rougir ce test
+     * sur un seul des deux moteurs, pour une raison qui ne concerne pas le
+     * correctif.
+     */
+    private function horodatageDeMiseAJour(int $id): string
+    {
+        $valeur = DB::table('system_email_templates')->where('id', $id)->value('updated_at');
+
+        return \Illuminate\Support\Carbon::parse((string) $valeur)->format('Y-m-d H:i:s');
     }
 
     /**
@@ -239,6 +333,8 @@ class TASK1709EmailTemplateRollbackFidelityTest extends TestCase
      */
     public function test_un_nom_choisi_apres_l_aller_n_est_pas_ecrase(): void
     {
+        $horodatageDOrigine = (string) DB::table('system_email_templates')->where('id', 6)->value('updated_at');
+
         $this->aller();
 
         DB::table('system_email_templates')->where('id', 6)->update(['name' => 'Nom choisi a la main']);
@@ -251,6 +347,19 @@ class TASK1709EmailTemplateRollbackFidelityTest extends TestCase
             'Le retour a ecrase un nom choisi depuis l\'administration.'
         );
         $this->assertSame('welcome', DB::table('system_email_templates')->where('id', 6)->value('slug'));
+
+        // Et l'horodatage NE revient PAS a celui de l'instantane.
+        //
+        // C'est l'autre moitie de l'arbitrage de TASK-1709 sur `updated_at`,
+        // et sans elle rien n'empecherait de « simplifier » les trois `down()`
+        // en restaurant toujours l'instantane : cette ligne-ci est un MELANGE
+        // — notre slug, le nom de quelqu'un d'autre — et se declarer inchangee
+        // depuis un an effacerait la trace d'une decision humaine posterieure.
+        $this->assertNotSame(
+            $horodatageDOrigine,
+            (string) DB::table('system_email_templates')->where('id', 6)->value('updated_at'),
+            'Une restauration PARTIELLE rend l\'horodatage d\'origine : la retouche humaine qu\'elle conserve devient invisible.'
+        );
     }
 
     /**

@@ -354,9 +354,17 @@ return new class extends Migration
                 continue;
             }
 
+            // TASK-1709 — `locale` est la SEULE colonne que l'etape 1 a mutee
+            // sur une ligne promue : la rendre, c'est rendre la ligne entiere,
+            // donc l'horodatage revient avec elle. Les lignes `supprimee`
+            // ci-dessus n'ont jamais eu ce probleme — elles sont reinserees
+            // depuis l'instantane, dont `COLONNES` porte les deux horodatages.
             DB::table('system_email_templates')
                 ->where('id', $instantane->template_id)
-                ->update(['locale' => $instantane->locale, 'updated_at' => now()]);
+                ->update([
+                    'locale' => $instantane->locale,
+                    'updated_at' => $instantane->updated_at,
+                ]);
         }
     }
 
