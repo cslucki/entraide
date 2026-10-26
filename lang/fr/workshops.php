@@ -31,7 +31,7 @@ return [
     'col_published' => 'Publié le',
     // TASK-1611 — LE visuel facultatif de l'atelier (flyer + apercu de partage).
     'col_flyer' => 'Visuel (flyer)',
-    'flyer_hint' => 'Facultatif, un seul visuel. JPEG, PNG ou WebP, :max Mo maximum. Il illustre l\'atelier sur l\'accueil et sert de vignette quand la page est partagée sur les reseaux. Un format proche de 1200 x 630 px donne le meilleur apercu ; une autre proportion reste acceptée.',
+    'flyer_hint' => 'Facultatif, un seul visuel. JPEG, PNG ou WebP, :max Mo maximum. Il illustre l\'atelier sur l\'accueil et sert de vignette quand la page est partagée sur les réseaux. Un format proche de 1200 x 630 px donne le meilleur aperçu ; une autre proportion reste acceptée.',
     'flyer_remove' => 'Retirer le visuel',
     'flyer_alt' => 'Flyer - :title',
     'col_actions' => 'Actions',

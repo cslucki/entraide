@@ -22,7 +22,7 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
- * TASK-1632 — le cockpit « Integrite des données ».
+ * TASK-1632 — le cockpit « Intégrité des données ».
  *
  * Deux exigences qui se contredisent en apparence, et que ces tests tiennent
  * ensemble :

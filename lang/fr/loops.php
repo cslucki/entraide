@@ -978,7 +978,7 @@ return [
     'root_document_repaired' => 'Document recree.',
     'root_document_replaced' => 'Document remplace.',
     'cards_composition_title' => 'Cards de cette Boucle',
-    'cards_composition_help' => 'Le type fournit un socle de depart. Vous pouvez ensuite adapter la composition de cette Boucle. Desactiver une Card ne supprime aucune donnée : elle reapparait telle quelle a la reactivation. ChatLoop n\'est pas une Card et reste toujours present.',
+    'cards_composition_help' => 'Le type fournit un socle de départ. Vous pouvez ensuite adapter la composition de cette Boucle. Désactiver une Card ne supprime aucune donnée : elle réapparaît telle quelle à la réactivation. ChatLoop n\'est pas une Card et reste toujours présent.',
     'cards_origin_preset' => 'socle du type',
     'cards_origin_local' => 'ajoutee ici',
     'cards_origin_disabled' => 'desactivee ici',
@@ -989,7 +989,7 @@ return [
     'cards_disable' => 'Desactiver',
     'cards_disable_title' => 'Desactiver cette Card',
     'cards_disable_confirm' => 'Desactiver',
-    'cards_disable_has_data' => 'Cette Card contient déjà des données. Elles seront conservees mais ne seront plus visibles dans le workspace tant que la Card restera désactivée.',
+    'cards_disable_has_data' => 'Cette Card contient déjà des données. Elles seront conservées mais ne seront plus visibles dans le workspace tant que la Card restera désactivée.',
     'cards_disable_no_data' => 'La Card disparaitra du workspace de cette Boucle. Rien n\'est supprime, et vous pouvez la reactiver a tout moment.',
     'cards_data_count' => '{1} 1 element|[2,*] :count elements',
 
@@ -1058,7 +1058,7 @@ return [
     'preset_requires_label' => 'Nécessite : :cards',
 
     'cards_enabled' => 'Card activée.',
-    'cards_disabled' => 'Card désactivée. Aucune donnée n\'a ete supprimée.',
+    'cards_disabled' => 'Card désactivée. Aucune donnée n\'a été supprimée.',
     'types_admin_title' => 'Types de Boucles',
     'types_admin_intro' => 'Ce dont chaque type est composé, et s\'il peut être choisi. Un type définit les Cards d\'une Boucle à sa création et lors d\'un changement de type.',
     'types_admin_not_retroactive' => 'Rien ici n\'est rétroactif : modifier un socle change ce avec quoi les prochaines Boucles seront construites, et ce qu\'un changement de type applique. Aucune Card n\'est jamais retirée d\'une Boucle qui l\'a déjà.',

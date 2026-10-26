@@ -815,10 +815,10 @@ return [
     // auxquelles vous appartenez » — c'est de la NAVIGATION vers ses propres
     // Boucles, pas une adhesion. Il trompait precisement sur la question la
     // plus frequente d'un nouvel arrivant.
-    'self_knowledge_capability_loops' => 'retrouver les boucles dont vous êtes membre, et decouvrir celles que vous pouvez rejoindre',
+    'self_knowledge_capability_loops' => 'retrouver les boucles dont vous êtes membre, et découvrir celles que vous pouvez rejoindre',
     'self_knowledge_get_started_intro' => 'Pour vous installer sur BouclePro, il vous reste :',
     'self_knowledge_get_started_outro' => 'Dites-moi par laquelle vous voulez commencer, je vous explique ou aller.',
-    'self_knowledge_get_started_complete' => 'Vous avez déjà complete toutes les étapes d\'installation. Dites-moi ce que vous cherchez, et je vous explique ou aller.',
+    'self_knowledge_get_started_complete' => 'Vous avez déjà complété toutes les étapes d\'installation. Dites-moi ce que vous cherchez, et je vous explique où aller.',
     'self_knowledge_join_loop' => 'Ouvrez la liste des Boucles de votre organisation : vous y voyez toutes les Boucles actives, y compris celles dont vous n\'etes pas encore membre. Selon la Boucle, vous la rejoignez directement, ou vous envoyez une demande d\'adhesion qu\'un animateur valide.',
     // TASK-1364 — « quelles Boucles sont dispo ? ». Le Shell nomme exactement
     // ce que le catalogue montre deja. L'etat vide ne dit RIEN du nombre de
@@ -1078,7 +1078,7 @@ return [
     'people_reason' => '« :label »',
     'people_reason_separator' => ', ',
     'people_refused_loop_not_active' => 'La Boucle « :loop » n\'est plus active : je ne cherche pas de personnes dessus.',
-    'people_refused_ai_profiles_disabled' => 'Les profils IA sont desactives dans cette organisation : je n\'ai aucun profil a lire pour répondre.',
+    'people_refused_ai_profiles_disabled' => 'Les profils IA sont désactivés dans cette organisation : je n\'ai aucun profil à lire pour répondre.',
     'people_refused_not_authorized' => 'Je ne peux pas chercher de personnes sur la Boucle « :loop ».',
     'self_fit' => 'Sur la Boucle « :loop », voici ce que votre profil publie declare et qui correspond :',
     'self_no_match' => 'Rien de ce que votre profil publie declare ne correspond a la Boucle « :loop ».',
