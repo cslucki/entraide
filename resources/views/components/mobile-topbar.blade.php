@@ -128,7 +128,53 @@
         }
     }
 
-    $displayTitle = $levelOneTitles[$routeName] ?? ($routeTitle ?: ($title ?? config('app.name')));
+    // TASK-1707 M5 — « BouclePro » au lieu d'un retour.
+    //
+    // Cyril, captures a l'appui : « Sur Dossiers et Agenda, la barre haute
+    // affiche BouclePro. Un simple ‹ renvoyant vers la homepage, comme sur les
+    // autres ecrans. »
+    //
+    // Ces deux routes ne figurent ni dans `$levelOneTitles` ni dans la chaine
+    // des `$routeTitle` : le repli terminal `config('app.name')` s'appliquait,
+    // et aucune branche ne leur donnait de `$backHref`. La barre n'etait donc
+    // ni un titre ni une navigation — juste le nom de la plateforme.
+    //
+    // Ces deux pages portent DEJA leur propre `<h1>` (« Documents »,
+    // « Agenda »), a tous les calibres. Y remettre un titre dans la barre
+    // creerait le doublon que M6 demande justement de supprimer sur le Blog.
+    // La barre ne porte donc ici QUE la fleche — ce que demande le « juste
+    // un ‹ ».
+    $titrePorteParLaPage = request()->routeIs(
+        'organization.dossiers.index',
+        'events.agenda',
+        'organization.events.agenda',
+        // TASK-1707 — les deux pages de detail d'un Dossier. Leur retour va a
+        // l'INDEX et non a l'accueil, d'ou la separation des deux listes
+        // ci-dessous.
+        //
+        // `edit` porte son propre `<h1>` (« Modifier le dossier »).
+        //
+        // `show` n'en porte pas, et la barre ne le titre pourtant PAS — c'est
+        // delibere, et c'est une correction de mon premier jet. Titrer cette
+        // page obligeait a CHARGER le Dossier ici, or `dossiers.show` rend
+        // aussi la page d'acces refuse, sur la MEME route. Le controleur dit
+        // en clair ce que cela casse : « La vue ne recoit PAS `$dossier` :
+        // elle ne peut donc rien divulguer de ce qui a ete demande, et
+        // `driveSurface()` n'est jamais atteint, donc rien du Dossier n'est
+        // meme charge pour l'ecran. » Ma branche affichait son nom a qui on
+        // venait de refuser l'acces ; les deux gardes de TASK-1145 ont rougi.
+        //
+        // Le nom du Dossier reste visible dans le CORPS de la page
+        // (`dossiers/show.blade.php:395`), ou il n'est rendu que pour qui y a
+        // droit. C'est la bonne place : l'autorisation appartient a la vue que
+        // le controleur choisit, pas a une barre commune a toutes les pages.
+        'organization.dossiers.show',
+        'organization.dossiers.edit',
+    );
+
+    $displayTitle = $titrePorteParLaPage
+        ? null
+        : ($levelOneTitles[$routeName] ?? ($routeTitle ?: ($title ?? config('app.name'))));
     $backHref = null;
 
     if (! $isLevelOne) {
@@ -167,7 +213,35 @@
             $backHref = auth()->check() ? $routeUrl('dashboard', 'organization.dashboard') : route('home');
         } elseif (request()->routeIs('bug-reports.*', 'organization.bug-reports.*')) {
             $backHref = $routeUrl('home', 'organization.home');
+        } elseif (request()->routeIs('dossiers.show', 'dossiers.edit', 'organization.dossiers.show', 'organization.dossiers.edit')) {
+            // Un cran, pas deux : depuis un Dossier on remonte a la liste des
+            // Dossiers, et c'est de la liste que l'on rejoint l'accueil (M5).
+            // La route n'existe QUE bornee a l'Organization, donc pas de
+            // `$routeUrl()` ici : son repli vers la route courte leverait.
+            $backHref = $organizationRouteParam && Route::has('organization.dossiers.index')
+                ? route('organization.dossiers.index', ['organization' => $organizationRouteParam])
+                : null;
         }
+    }
+
+    // Pose APRES la chaine ci-dessus, et hors du `! $isLevelOne` : la fleche
+    // doit exister meme sur une route de niveau un.
+    // TASK-1707 M6 — le Blog garde SON titre dans la barre (c'est l'unique
+    // occurrence desormais : le `<h1>` de la page ne se rend plus qu'a partir
+    // de `md`, la ou cette barre disparait) et gagne le meme retour.
+    //
+    // D'ou la separation des deux predicats : « la page porte le titre » et
+    // « la barre mene a l'accueil » ne sont pas la meme chose.
+    $retourVersAccueil = request()->routeIs(
+        'organization.dossiers.index',
+        'events.agenda',
+        'organization.events.agenda',
+        'blog.index',
+        'organization.blog.index',
+    );
+
+    if ($retourVersAccueil) {
+        $backHref = auth()->check() ? $routeUrl('home', 'organization.home') : route('home');
     }
 @endphp
 
@@ -216,9 +290,9 @@
                 </svg>
             </a>
             @endif
-            @unless(request()->routeIs('login', 'organization.login'))
+            @if(filled($displayTitle) && ! request()->routeIs('login', 'organization.login'))
             <h1 class="truncate text-lg font-semibold text-gray-900 dark:text-gray-100 tracking-tight">{{ $displayTitle }}</h1>
-            @endunless
+            @endif
         </div>
         <div class="flex items-center gap-2.5">
              @if(auth()->check() && $showInternalNavigation)

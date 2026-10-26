@@ -103,7 +103,7 @@ test.describe('QA-02: Alice & Cyril Logo Exchange (Service Request)', () => {
         const transactionId = match ? match[1] : null;
         expect(transactionId).not.toBeNull();
 
-        await expect(page.getByText('Nouvelle échange envoyée').first()).toBeVisible();
+        await expect(page.getByText('Nouvel échange envoyé').first()).toBeVisible();
         await captureScreenshot(page, 'cyril-proposed-help');
 
         // ============ STEP 3: Cyril (seller) approves the proposal ============

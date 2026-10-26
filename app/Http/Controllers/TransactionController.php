@@ -73,7 +73,7 @@ class TransactionController extends Controller
 
         // Check buyer balance
         if ($buyer->points_balance < $data['points_proposed']) {
-            return back()->with('error', 'Solde insuffisant pour cette échange.');
+            return back()->with('error', 'Solde insuffisant pour cet échange.');
         }
 
         // TASK-1693 bug S — « VOUS avez deja une transaction en cours » doit
@@ -114,7 +114,7 @@ class TransactionController extends Controller
             'status' => 'pending',
         ]);
 
-        $this->addSystemMessage($transaction, 'Nouvelle échange envoyée : '.$data['points_proposed'].' points.');
+        $this->addSystemMessage($transaction, 'Nouvel échange envoyé : '.$data['points_proposed'].' points.');
 
         // TASK-1693 bug W — la demande ne quitte PLUS l'explorateur ici.
         //
@@ -128,7 +128,7 @@ class TransactionController extends Controller
         // (`requests/show.blade.php:111`) la montrent sans qu'on ait a les
         // toucher — les deux verrous tombent d'eux-memes.
 
-        return $this->redirectToMessage($transaction)->with('success', 'Échange envoyée !');
+        return $this->redirectToMessage($transaction)->with('success', 'Échange envoyé !');
     }
 
     public function orgStore(Request $request, string $org): RedirectResponse
@@ -157,7 +157,7 @@ class TransactionController extends Controller
             'points_agreed' => $transaction->points_proposed,
         ]);
 
-        $this->addSystemMessage($transaction, 'Échange acceptée. L\'échange est en cours.');
+        $this->addSystemMessage($transaction, 'Échange accepté. L\'échange est en cours.');
 
         // La demande est pourvue, et les propositions concurrentes closes.
         app(ServiceRequestLifecycle::class)->markHandled($transaction);
@@ -174,7 +174,7 @@ class TransactionController extends Controller
             false,
         );
 
-        return $this->redirectToMessage($transaction)->with('success', 'Échange acceptée.');
+        return $this->redirectToMessage($transaction)->with('success', 'Échange accepté.');
     }
 
     public function orgApprove(string $org, Transaction $transaction): RedirectResponse
@@ -188,7 +188,7 @@ class TransactionController extends Controller
 
         $transaction->update(['status' => 'refused']);
 
-        $this->addSystemMessage($transaction, 'Échange refusée.');
+        $this->addSystemMessage($transaction, 'Échange refusé.');
 
         rescue(
             fn () => $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh())),
@@ -208,7 +208,7 @@ class TransactionController extends Controller
         // proposition pouvait exister, plus du tout aujourd'hui.
         app(ServiceRequestLifecycle::class)->releaseIfNothingHolds($transaction);
 
-        return $this->redirectToMessage($transaction)->with('success', 'Échange refusée.');
+        return $this->redirectToMessage($transaction)->with('success', 'Échange refusé.');
     }
 
     public function orgRefuse(string $org, Transaction $transaction): RedirectResponse

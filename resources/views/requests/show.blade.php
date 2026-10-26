@@ -117,7 +117,12 @@
 
                 @if($request->status === 'open')
                 <div class="border-t border-gray-100 dark:border-gray-700 pt-6">
-                    <form method="POST" action="{{ $_reqTxStoreAction }}" class="flex items-center gap-4">
+                    {{-- TASK-1707 M1 — sur 390px, `w-32` + un bouton `px-6` + le solde
+                         depassaient la largeur : le solde sortait de
+                         l'ecran. `flex-wrap` le fait passer a la ligne
+                         au lieu de le pousser dehors ; a partir de `sm`
+                         la rangee tient et rien ne change. --}}
+                    <form method="POST" action="{{ $_reqTxStoreAction }}" class="flex flex-wrap items-center gap-3 sm:gap-4">
                         @csrf
                         <input type="hidden" name="request_id" value="{{ $request->id }}">
                         <input type="number" name="points_proposed" value="{{ $request->budget_min }}" min="1"

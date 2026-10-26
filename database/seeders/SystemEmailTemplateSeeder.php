@@ -18,14 +18,24 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Email confirmation after signup',
             'subject_fr' => 'Confirmez votre adresse email',
             'subject_en' => 'Confirm your email address',
+            // TASK-1707 L1 + F5 — les accents, et l'URL EN CLAIR.
+            //
+            // La table ne stocke que `content_html` : la version texte brut de
+            // l'email est derivee en retirant les balises, ce qui fait
+            // disparaitre le `href`. Le destinataire dont le client affiche le
+            // texte brut lisait donc « Confirmer mon adresse » SANS adresse, et
+            // ne pouvait pas valider son compte. L'URL ecrite en toutes lettres
+            // survit au deshabillage des balises.
             'content_html_fr' => '<h1>Bonjour {{ name }},</h1>
-<p>Il ne reste qu\'une etape : confirmer votre adresse email.</p>
+<p>Il ne reste qu\'une étape : confirmer votre adresse email.</p>
 <p><a href="{{ url }}">Confirmer mon adresse</a></p>
-<p>Ce lien est valable <strong>24 heures</strong>. Passe ce delai, vous pourrez en demander un nouveau depuis la page d\'attente.</p>
-<p>Si vous n\'etes pas a l\'origine de cette inscription, vous pouvez ignorer ce message.</p>',
+<p>Si le lien ci-dessus ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ url }}</p>
+<p>Ce lien est valable <strong>24 heures</strong>. Passé ce délai, vous pourrez en demander un nouveau depuis la page d\'attente.</p>
+<p>Si vous n\'êtes pas à l\'origine de cette inscription, vous pouvez ignorer ce message.</p>',
             'content_html_en' => '<h1>Hello {{ name }},</h1>
 <p>One last step: confirm your email address.</p>
 <p><a href="{{ url }}">Confirm my address</a></p>
+<p>If the link above does not work, copy this address into your browser:<br>{{ url }}</p>
 <p>This link is valid for <strong>24 hours</strong>. After that, you can request a new one from the waiting page.</p>
 <p>If you did not create this account, you can ignore this message.</p>',
             'variables' => ['name', 'url'],

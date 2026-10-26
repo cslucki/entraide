@@ -211,9 +211,9 @@ test.describe('QA-01: Service Transaction Complete Workflow', () => {
         }
 
         // Verify system message is visible
-        const hasSystemMessage = await page.locator('text=Nouvelle échange, text=proposé, text=proposition').count() > 0;
+        const hasSystemMessage = await page.locator('text=Nouvel échange, text=proposé, text=proposition').count() > 0;
         if (hasSystemMessage) {
-            await expect(page.locator('text=Nouvelle échange, text=proposé, text=proposition').first()).toBeVisible();
+            await expect(page.locator('text=Nouvel échange, text=proposé, text=proposition').first()).toBeVisible();
         }
 
         // Verify status shows as pending
@@ -261,10 +261,10 @@ test.describe('QA-01: Service Transaction Complete Workflow', () => {
         await page.waitForTimeout(500);
 
         // Verify status changed to accepted
-        await expect(page.locator('text=acceptée, text=Acceptée, text=En cours').first()).toBeVisible();
+        await expect(page.locator('text=accepté, text=Accepté, text=En cours').first()).toBeVisible();
 
         // Verify system message about acceptance
-        const hasAcceptMessage = await page.locator('text=acceptée, text=accepté').count() > 0;
+        const hasAcceptMessage = await page.locator('text=accepté').count() > 0;
 
         await captureScreenshot(page, 'QA-01-step3-transaction-accepted');
 

@@ -86,7 +86,7 @@ class TransactionController extends Controller
             'status' => 'pending',
         ]);
 
-        $this->addSystemMessage($transaction, 'Nouvelle échange envoyée : '.$data['points_proposed'].' points.');
+        $this->addSystemMessage($transaction, 'Nouvel échange envoyé : '.$data['points_proposed'].' points.');
 
         // TASK-1693 bug W — la demande ne quitte plus l'explorateur a la
         // proposition, mais a l'ACCEPTATION. Meme regle que le web : voir
@@ -136,7 +136,7 @@ class TransactionController extends Controller
             'points_agreed' => $transaction->points_proposed,
         ]);
 
-        $this->addSystemMessage($transaction, "Échange acceptée. L'échange est en cours.");
+        $this->addSystemMessage($transaction, "Échange accepté. L'échange est en cours.");
 
         app(ServiceRequestLifecycle::class)->markHandled($transaction);
 
@@ -156,7 +156,7 @@ class TransactionController extends Controller
         }
 
         $transaction->update(['status' => 'refused']);
-        $this->addSystemMessage($transaction, 'Échange refusée.');
+        $this->addSystemMessage($transaction, 'Échange refusé.');
 
         app(ServiceRequestLifecycle::class)->releaseIfNothingHolds($transaction);
 

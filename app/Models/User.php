@@ -353,8 +353,8 @@ class User extends Authenticatable implements MustVerifyEmail
      * ## Deux exclusions se cumulaient, et la seconde etait invisible
      *
      * 1. `type = 'user'` ecartait deliberement les messages SYSTEME. Or ce sont
-     *    eux qui portent les nouvelles qui comptent : « Nouvelle échange
-     *    envoyée », « Échange acceptée », « L'acheteur a déclaré la prestation
+     *    eux qui portent les nouvelles qui comptent : « Nouvel échange
+     *    envoyé », « Échange accepté », « L'acheteur a déclaré la prestation
      *    terminée ». Arbitrage Cyril du 21/10 : « il faut le mettre car cela
      *    attire l'attention ».
      *

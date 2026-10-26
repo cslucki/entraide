@@ -88,7 +88,7 @@ class TASK1656ProductConsolidationTest extends TestCase
         $resultat = app(ScenarioManifestValidator::class)->validate($json);
 
         // Un modele propose en premier rang dans l'interface ne peut pas etre
-        // invalide : l'utilisateur qui clique « Utiliser ce modele » recevrait
+        // invalide : l'utilisateur qui clique « Utiliser ce modèle » recevrait
         // un brouillon rouge sans avoir rien fait de mal.
         $this->assertTrue(
             $resultat->isValid(),

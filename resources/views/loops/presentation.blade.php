@@ -127,7 +127,12 @@
                                 @csrf
                                 <div>
                                     <label for="message" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('loops.join_request_message_label') }}</label>
-                                    <textarea name="message" id="message" rows="2" maxlength="500"
+                                    {{-- TASK-1707 M2 — `rows="2"` coupait le
+                                         texte d'aide en plein milieu : sur
+                                         390px le placeholder « Pourquoi
+                                         souhaitez-vous rejoindre cette
+                                         Boucle ? » tient sur trois lignes. --}}
+                                    <textarea name="message" id="message" rows="4" maxlength="500"
                                               placeholder="{{ __('loops.join_request_message_placeholder') }}"
                                               class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">{{ old('message') }}</textarea>
                                 </div>
