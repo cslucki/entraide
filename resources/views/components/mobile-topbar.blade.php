@@ -128,7 +128,31 @@
         }
     }
 
-    $displayTitle = $levelOneTitles[$routeName] ?? ($routeTitle ?: ($title ?? config('app.name')));
+    // TASK-1707 M5 — « BouclePro » au lieu d'un retour.
+    //
+    // Cyril, captures a l'appui : « Sur Dossiers et Agenda, la barre haute
+    // affiche BouclePro. Un simple ‹ renvoyant vers la homepage, comme sur les
+    // autres ecrans. »
+    //
+    // Ces deux routes ne figurent ni dans `$levelOneTitles` ni dans la chaine
+    // des `$routeTitle` : le repli terminal `config('app.name')` s'appliquait,
+    // et aucune branche ne leur donnait de `$backHref`. La barre n'etait donc
+    // ni un titre ni une navigation — juste le nom de la plateforme.
+    //
+    // Ces deux pages portent DEJA leur propre `<h1>` (« Documents »,
+    // « Agenda »), a tous les calibres. Y remettre un titre dans la barre
+    // creerait le doublon que M6 demande justement de supprimer sur le Blog.
+    // La barre ne porte donc ici QUE la fleche — ce que demande le « juste
+    // un ‹ ».
+    $titrePorteParLaPage = request()->routeIs(
+        'organization.dossiers.index',
+        'events.agenda',
+        'organization.events.agenda',
+    );
+
+    $displayTitle = $titrePorteParLaPage
+        ? null
+        : ($levelOneTitles[$routeName] ?? ($routeTitle ?: ($title ?? config('app.name'))));
     $backHref = null;
 
     if (! $isLevelOne) {
@@ -168,6 +192,12 @@
         } elseif (request()->routeIs('bug-reports.*', 'organization.bug-reports.*')) {
             $backHref = $routeUrl('home', 'organization.home');
         }
+    }
+
+    // Pose APRES la chaine ci-dessus, et hors du `! $isLevelOne` : la fleche
+    // doit exister meme sur une route de niveau un.
+    if ($titrePorteParLaPage) {
+        $backHref = auth()->check() ? $routeUrl('home', 'organization.home') : route('home');
     }
 @endphp
 
@@ -216,9 +246,9 @@
                 </svg>
             </a>
             @endif
-            @unless(request()->routeIs('login', 'organization.login'))
+            @if(filled($displayTitle) && ! request()->routeIs('login', 'organization.login'))
             <h1 class="truncate text-lg font-semibold text-gray-900 dark:text-gray-100 tracking-tight">{{ $displayTitle }}</h1>
-            @endunless
+            @endif
         </div>
         <div class="flex items-center gap-2.5">
              @if(auth()->check() && $showInternalNavigation)
