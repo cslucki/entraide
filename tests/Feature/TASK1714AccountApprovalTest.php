@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
+use App\Models\OrganizationInvitation;
 use App\Models\User;
+use App\Services\OrganizationInvitationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -73,21 +75,39 @@ class TASK1714AccountApprovalTest extends TestCase
      */
     public function test_un_compte_en_attente_est_refuse_sur_l_api(): void
     {
-        Sanctum::actingAs($this->membre());
+        $attente = $this->membre(['email' => 'api-attente-1714@example.test']);
+        Sanctum::actingAs($attente);
 
         $this->getJson('/api/profile')
             ->assertStatus(403)
             ->assertJson(['message' => __('auth.account_pending_approval')]);
+
+        // L'IDENTITE est verifiee separement, et ce n'est pas du luxe : un 403
+        // rendu a un visiteur ANONYME aurait la meme forme, et le test serait
+        // vert sans rien prouver. On leve l'attente, on rejoue, et la reponse
+        // doit nommer CETTE personne.
+        $attente->forceFill(['approved_at' => now()])->save();
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($attente->fresh());
+
+        $this->getJson('/api/profile')
+            ->assertSuccessful()
+            ->assertJson(['id' => $attente->id, 'email' => 'api-attente-1714@example.test']);
     }
 
     public function test_un_compte_approuve_passe_sur_les_deux_surfaces(): void
     {
-        $approuve = $this->membre(['approved_at' => now()]);
+        $approuve = $this->membre(['approved_at' => now(), 'email' => 'approuve-1714@example.test']);
 
         $this->actingAs($approuve)->get('/dashboard')->assertSuccessful();
 
+        $this->app['auth']->forgetGuards();
         Sanctum::actingAs($approuve);
-        $this->getJson('/api/profile')->assertSuccessful();
+
+        // L'identite est asserte, pas supposee : un 200 ne dit pas QUI a repondu.
+        $this->getJson('/api/profile')
+            ->assertSuccessful()
+            ->assertJson(['id' => $approuve->id, 'email' => 'approuve-1714@example.test']);
     }
 
     // ───────────────────────────────────────────────────────────────────────
@@ -257,6 +277,31 @@ class TASK1714AccountApprovalTest extends TestCase
             ->assertSuccessful();
 
         $this->assertNull(User::where('email', 'api-1714@example.test')->first()?->approved_at);
+    }
+
+    /**
+     * Une invitation EST une approbation (arbitrage MASTER A2).
+     *
+     * Quelqu'un de l'interieur a deja vouche : faire attendre une personne
+     * explicitement conviee n'ajouterait aucune decision. Le chemin passe par
+     * le MEME `forceFill()` que `email_verified_at` et `must_set_password`.
+     */
+    public function test_un_compte_ne_d_une_invitation_est_approuve_d_office(): void
+    {
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $this->organisation->id,
+            'recipient_email' => 'invite-1714@example.test',
+            'status' => OrganizationInvitation::STATUS_PENDING,
+            'expires_at' => now()->addWeek(),
+        ]);
+
+        app(OrganizationInvitationService::class)->accept($invitation->token);
+
+        $invite = User::where('email', 'invite-1714@example.test')->first();
+
+        $this->assertNotNull($invite, 'L\'invitation n\'a cree aucun compte.');
+        $this->assertNotNull($invite->approved_at, 'Un compte ne d\'une invitation attend a tort.');
+        $this->assertFalse($invite->attendApprobation());
     }
 
     public function test_un_compte_cree_par_un_administrateur_est_approuve_d_office(): void
