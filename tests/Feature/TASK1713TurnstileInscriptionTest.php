@@ -370,6 +370,32 @@ class TASK1713TurnstileInscriptionTest extends TestCase
         $this->assertSame(['verification-unavailable'], $motifs);
     }
 
+    /**
+     * Un statut non-2xx est une PANNE, meme quand le corps dit « succes ».
+     *
+     * Garde ajoutee apres un sabotage reste VERT. Remplacer
+     * `if (! $reponse->successful())` par `if (false)` ne rougissait rien :
+     * toutes les reponses mesurees jusque-la (500 « boom », 403 vide, texte,
+     * json sans `success`) retombaient sur la branche « corps illisible », qui
+     * rendait le meme motif. Le test de statut n'etait donc load-bearing pour
+     * AUCUN cas couvert.
+     *
+     * Il l'est pour celui-ci, et c'est le seul qui compte : une passerelle, un
+     * proxy ou une page d'erreur peut rendre un 502 dont le corps est un JSON
+     * parfaitement forme. Sans le test de statut, ce corps serait cru — et le
+     * captcha laisserait passer sur une reponse que Cloudflare n'a jamais
+     * emise.
+     */
+    public function test_un_statut_non_2xx_est_une_panne_meme_si_le_corps_dit_succes(): void
+    {
+        $this->allumer();
+        Http::fake([self::URL_SITEVERIFY => Http::response(['success' => true], 502)]);
+
+        $motifs = app(TurnstileVerifier::class)->verify(self::JETON_FACTICE);
+
+        $this->assertSame(['verification-unavailable'], $motifs, 'Un 502 au corps bien forme a ete cru.');
+    }
+
     public function test_un_jeton_vide_est_refuse_sans_appeler_cloudflare(): void
     {
         $this->allumer();
