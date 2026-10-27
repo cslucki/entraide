@@ -96,35 +96,6 @@
                 @endif
             </div>
 
-            {{-- TASK-1714 volet 2 — sa PROPRE section, en tete de page.
-
-                 Elle vivait d'abord dans « Appartenance », au motif que c'etait
-                 « la meme question : qui entre ». Mauvais raisonnement, corrige
-                 apres que Cyril n'a pas trouve la case : cette section configure
-                 un CHAMP DE PROFIL libre (« ex : Situe en France ? »), pas
-                 l'adhesion. Le reglage s'y retrouvait a 91 % d'une page de
-                 4957 px, entre un libelle francais et un libelle anglais.
-
-                 Un reglage qui FERME l'acces a l'organisation n'est pas un
-                 detail de profil : il se voit, et il se voit en premier. --}}
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4"
-                 data-marqueur="section-acces">
-                <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">{{ __('admin.org_access_section') }}</h2>
-                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.org_access_section_hint') }}</p>
-
-                <label class="flex items-start gap-3 cursor-pointer">
-                    <input type="hidden" name="requires_account_approval" value="0">
-                    <input type="checkbox" name="requires_account_approval" value="1"
-                        data-marqueur="reglage-approbation"
-                        {{ old('requires_account_approval', $organization->requires_account_approval) ? 'checked' : '' }}
-                        class="mt-0.5 w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                    <span>
-                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.org_requires_account_approval') }}</span>
-                        <span class="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.org_requires_account_approval_hint') }}</span>
-                    </span>
-                </label>
-            </div>
-
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
                 <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Informations</h2>
 
@@ -350,6 +321,37 @@
                         <div>
                             <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Visible sans connexion</span>
                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">La page d'accueil et l'explorateur sont accessibles aux visiteurs (vitrine). Les actions nécessitent toujours un compte.</p>
+                        </div>
+                    </label>
+                </div>
+
+                {{-- TASK-1714 volet 2 — dans « Configuration », juste apres
+                     « Visible sans connexion ».
+
+                     Deux emplacements ont ete essayes avant celui-ci, et les
+                     deux etaient mauvais :
+
+                     - « Appartenance » d'abord, au motif que c'etait « la meme
+                       question : qui entre ». Faux : cette section configure un
+                       champ de PROFIL libre. La case s'y retrouvait a 91 % d'une
+                       page de 4957 px, et Cyril ne la trouvait pas ;
+                     - puis une carte dediee en tete. Visible, mais une carte
+                       entiere pour une seule case prend de la place pour rien
+                       (retour Cyril).
+
+                     Ici elle est a sa place : « Visible sans connexion » dit qui
+                     peut REGARDER, celle-ci dit qui peut ENTRER. Meme carte,
+                     meme nature, aucune place perdue. --}}
+                <div>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="hidden" name="requires_account_approval" value="0">
+                        <input type="checkbox" name="requires_account_approval" value="1"
+                            data-marqueur="reglage-approbation"
+                            {{ old('requires_account_approval', $organization->requires_account_approval) ? 'checked' : '' }}
+                            class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.org_requires_account_approval') }}</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.org_requires_account_approval_hint') }}</p>
                         </div>
                     </label>
                 </div>

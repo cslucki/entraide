@@ -397,33 +397,41 @@ class TASK1714AccountApprovalTest extends TestCase
     }
 
     /**
-     * Le reglage est dans SA section, en tete de page — et le reglage REPOND.
+     * Le reglage vit dans la carte « Configuration », aupres de ses pareils.
      *
-     * La premiere version ne verifiait que la presence du marqueur, et elle
-     * etait VERTE alors que Cyril ne trouvait pas la case : elle vivait a 91 %
-     * d'une page de 4957 px, enfouie dans la section « Appartenance » — qui
-     * configure en realite un champ de profil libre, pas l'adhesion.
+     * Trois emplacements ont ete essayes, et les deux premiers etaient mauvais :
      *
-     * Une garde de presence ne dit rien de la trouvabilite. Celle-ci mesure
-     * donc la PLACE : une section dediee, et avant « Informations ».
+     * - « Appartenance », au motif que c'etait « la meme question : qui entre ».
+     *   Faux — cette section configure un champ de PROFIL libre. La case s'y
+     *   retrouvait a 91 % d'une page de 4957 px, et restait introuvable ;
+     * - une carte dediee en tete. Visible, mais une carte entiere pour une seule
+     *   case prend de la place pour rien (retour Cyril).
+     *
+     * Ici elle est a sa place : « Visible sans connexion » dit qui peut
+     * REGARDER, celle-ci dit qui peut ENTRER.
+     *
+     * La garde mesure la PLACE, pas la seule presence : une garde de presence
+     * etait VERTE pendant que la case restait introuvable (lecon T1667).
      */
-    public function test_le_reglage_a_sa_propre_section_en_tete_de_page(): void
+    public function test_le_reglage_vit_dans_la_carte_configuration(): void
     {
         $admin = $this->membre(['is_admin' => true, 'approved_at' => now()]);
         $cible = Organization::factory()->create(['slug' => 'reglage-1714', 'requires_account_approval' => false]);
 
         $html = $this->actingAs($admin)->get(route('admin.organizations.edit', $cible))->assertOk()->getContent();
 
-        $section = strpos($html, 'data-marqueur="section-acces"');
+        $configuration = strpos($html, '>Configuration</h2>');
+        $visibleSansConnexion = strpos($html, 'name="is_public"');
         $reglage = strpos($html, 'data-marqueur="reglage-approbation"');
-        $informations = strpos($html, '>Informations</h2>');
 
-        $this->assertNotFalse($section, 'Le reglage n\'a pas de section dediee.');
+        $this->assertNotFalse($configuration, 'La carte « Configuration » est introuvable.');
         $this->assertNotFalse($reglage, 'Le reglage est absent.');
-        $this->assertNotFalse($informations, 'La section « Informations » est introuvable.');
 
-        $this->assertGreaterThan($section, $reglage, 'Le reglage est hors de sa section.');
-        $this->assertLessThan($informations, $reglage, 'Le reglage est enfoui sous « Informations ».');
+        $this->assertGreaterThan($configuration, $reglage, 'Le reglage est hors de la carte « Configuration ».');
+        $this->assertGreaterThan($visibleSansConnexion, $reglage, 'Le reglage ne suit pas « Visible sans connexion ».');
+
+        // Et AUCUNE carte n'a ete creee pour lui : c'est ce que Cyril a refuse.
+        $this->assertStringNotContainsString('data-marqueur="section-acces"', $html);
     }
 
     /**
