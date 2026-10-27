@@ -523,6 +523,18 @@ return [
     'org_membership_section_hint' => 'Set up an optional membership field for member profiles.',
     'org_membership_enabled' => 'Enable membership field',
     'org_membership_enabled_hint' => 'When enabled, a « Membership » input field appears in member profiles.',
+
+    // TASK-1714 volet 2 — administrator approval of accounts.
+    'org_requires_account_approval' => 'Administrator must approve the account after email confirmation',
+    'org_requires_account_approval_hint' => 'New sign-ups wait for your approval, even after confirming their address. Existing accounts are not affected.',
+    'users_approve_account' => 'Approve account',
+    'users_more_actions' => 'More actions',
+    'users_columns_show_detail' => 'Show points, services, exchanges, status and rating',
+    'users_columns_hide_detail' => 'Hide detailed columns',
+    'users_approve_confirm' => 'Approve this account and grant access?',
+    'users_approved_flash' => ':name\'s account is now approved.',
+    'users_pending_approval_badge' => 'awaiting approval',
+    'users_pending_approval_title' => 'This account is waiting for your approval to access its organization',
     'org_membership_label_fr' => 'Label (French)',
     'org_membership_label_en' => 'Label (English)',
 

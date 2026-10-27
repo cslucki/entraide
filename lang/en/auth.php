@@ -24,6 +24,12 @@ return [
     'register_subtitle' => 'Join the Entraide community',
     'register_subtitle_org' => 'Create your account on :name',
     'register_button' => 'Create my account',
+
+    // TASK-1714 volet 1 — the organization menu, after the first name.
+    'organization_choice_label' => 'Your organization',
+    'organization_choice_placeholder' => 'Choose your organization…',
+    'organization_choice_current' => 'you are here',
+    'organization_choice_hint' => 'Not sure which one? Stay on BouclePro — you can join an organization later.',
     'first_name_label' => 'Your first name',
     'first_name_placeholder' => 'John',
     'name_label' => 'Your last name',
@@ -54,6 +60,14 @@ return [
     'forgot_password_button' => 'Send reset link',
     'back_to_login' => 'Back to sign in',
     'logout' => 'Logout',
+
+    // TASK-1714 volet 2 — waiting for an administrator's approval.
+    'approval_pending_title' => 'Your account is awaiting approval',
+    'approval_pending_intro' => 'An administrator must approve your account before you can access the platform.',
+    'approval_pending_intro_org' => 'An administrator of :name must approve your account before you can access it.',
+    'approval_pending_email_done' => 'Your email address is confirmed: you have not missed anything, and nothing else is required from you.',
+    'approval_pending_next' => 'You will receive an email as soon as your account is approved. You will then be able to sign in normally.',
+    'account_pending_approval' => 'Your account is awaiting an administrator\'s approval.',
 
     // Reset password
     'reset_password_title' => 'New password',

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\AccountApprovalPromptController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -46,6 +47,15 @@ Route::middleware('auth')->group(function () {
     Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
         ->middleware('throttle:6,1')
         ->name('verification.send');
+
+    // TASK-1714 volet 2 — l'ecran d'un compte en attente de validation.
+    //
+    // Route GLOBALE, comme `verification.notice` : l'attente concerne le
+    // COMPTE, pas la surface d'ou il vient. Une route par Organization
+    // obligerait la garde a en choisir une, et elle n'a pas toujours le
+    // contexte pour le faire.
+    Route::get('approbation-en-attente', AccountApprovalPromptController::class)
+        ->name('approval.notice');
 
     Route::get('confirm-password', [ConfirmablePasswordController::class, 'show'])
         ->name('password.confirm');

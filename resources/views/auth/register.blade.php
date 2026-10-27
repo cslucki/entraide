@@ -21,6 +21,16 @@
             <input type="hidden" name="attribution[utm_campaign]" value="{{ request()->query('utm_campaign') }}">
 
             <div class="space-y-5">
+                {{-- TASK-1714 volet 1 — le menu d'organisation, EN TETE du
+                     formulaire (arbitrage Cyril, 27/10 : « avant le champ
+                     prenom »).
+
+                     C'est la bonne place : on choisit OU l'on s'inscrit avant
+                     de dire QUI l'on est. Place apres le prenom, le menu
+                     coupait la saisie d'identite en deux et pouvait faire
+                     perdre ce qui venait d'etre tape, puisqu'il navigue. --}}
+                <x-auth.organization-selector :organizations="$organizationsOuvertes" :courante="$currentOrganization" />
+
                 <!-- Prénom -->
                 <div>
                     <label for="first_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

@@ -179,6 +179,10 @@ return [
     */
 
     'custom' => [
+        'organisation_confirmee' => [
+            'required' => 'Please choose your organization.',
+            'in' => 'This organization is not open to sign-ups.',
+        ],
         // TASK-1693 bug X — "The images field must not have more than 5 items"
         // is programmer language; people are attaching photos.
         'images' => [

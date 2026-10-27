@@ -370,9 +370,15 @@ class OrganizationInvitationService
             // must_set_password: the account was born with a random secret
             // nobody knows, so the person must choose one before going
             // anywhere (Cyril, 30/09) — otherwise they never would.
+            // TASK-1714 volet 2 (arbitrage MASTER A2) : `approved_at` rejoint
+            // ces deux-la, pour la meme raison et par le meme chemin. Une
+            // invitation EST une approbation — quelqu'un de l'interieur a deja
+            // vouche, et faire attendre une personne explicitement conviee
+            // n'ajouterait aucune decision.
             $user->forceFill([
                 'email_verified_at' => now(),
                 'must_set_password' => true,
+                'approved_at' => now(),
             ])->save();
 
             PointLedger::create([
