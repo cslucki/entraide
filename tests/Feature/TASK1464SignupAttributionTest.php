@@ -82,7 +82,12 @@ class TASK1464SignupAttributionTest extends TestCase
     {
         $this->forgetAuth();
         $client = $raw === null ? $this->withCredentials() : $this->withCredentials()->withUnencryptedCookie(GuestVisitorResolver::COOKIE, $this->encryptedCookie($raw));
-        $payload = ['name' => 'Nouvelle', 'first_name' => 'Membre', 'email' => $email, 'phone' => '+33600000000', 'country_code' => 'FR', 'password' => 'password-solide-1464', 'password_confirmation' => 'password-solide-1464'];
+        // `organisation_confirmee` : TASK-1714 a rendu le menu d'organisation
+        // obligatoire sur l'organisation principale, et `org-a-1464` en tient
+        // le role ici (aucune `main` dans ce banc). Le test mesure
+        // l'ATTRIBUTION, pas la selection d'organisation : il poste donc ce que
+        // le formulaire poste, sinon il mesurerait la validation.
+        $payload = ['name' => 'Nouvelle', 'first_name' => 'Membre', 'email' => $email, 'phone' => '+33600000000', 'country_code' => 'FR', 'organisation_confirmee' => $this->a->slug, 'password' => 'password-solide-1464', 'password_confirmation' => 'password-solide-1464'];
         if ($attribution !== []) {
             $payload['attribution'] = $attribution;
         }
