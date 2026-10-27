@@ -529,6 +529,8 @@ return [
     'org_requires_account_approval_hint' => 'New sign-ups wait for your approval, even after confirming their address. Existing accounts are not affected.',
     'users_approve_account' => 'Approve account',
     'users_more_actions' => 'More actions',
+    'users_columns_show_detail' => 'Show points, services, exchanges and status',
+    'users_columns_hide_detail' => 'Hide detailed columns',
     'users_approve_confirm' => 'Approve this account and grant access?',
     'users_approved_flash' => ':name\'s account is now approved.',
     'users_pending_approval_badge' => 'awaiting approval',

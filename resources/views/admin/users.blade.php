@@ -121,9 +121,40 @@
         @endif
     </form>
 
-    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
-        {{ __('admin.users_results_count', ['count' => $users->total()]) }}
-    </p>
+    @php
+        // TASK-1714 (demande Cyril, 27/10) — quatre colonnes passent en vue
+        // DETAILLEE : Points, Services, Echanges et Statut. Elles occupaient de
+        // la largeur sans servir au geste courant, qui est de retrouver
+        // quelqu'un et d'agir sur son compte.
+        //
+        // Un parametre d'URL, et non un reglage en base ni du JavaScript : la
+        // vue se partage par copier-coller, survit a un rechargement, et
+        // `array_merge(request()->query(), ...)` la conserve a travers les
+        // filtres et les tris deja en place.
+        $vueDetaillee = request()->boolean('detail');
+        $colonnesVisibles = $vueDetaillee ? 9 : 5;
+    @endphp
+
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+            {{ __('admin.users_results_count', ['count' => $users->total()]) }}
+        </p>
+
+        {{-- TASK-1714 (demande Cyril, 27/10) — la bascule vers la vue detaillee.
+
+             Un LIEN, pas un bouton a JavaScript : l'etat vit dans l'URL, donc il
+             se partage, survit au rechargement et se conserve a travers les
+             filtres et les tris grace a `array_merge(request()->query(), ...)`,
+             idiome deja utilise par les en-tetes triables de ce tableau. --}}
+        <a href="{{ route('admin.users', array_merge(request()->query(), ['detail' => $vueDetaillee ? null : 1])) }}"
+           data-marqueur="bascule-colonnes"
+           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition
+                  {{ $vueDetaillee
+                     ? 'border-indigo-400 text-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-500'
+                     : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+            {{ $vueDetaillee ? __('admin.users_columns_hide_detail') : __('admin.users_columns_show_detail') }}
+        </a>
+    </div>
 
     {{-- TASK-1640 — `overflow-hidden` COUPAIT les colonnes hors cadre : sur
          telephone, les dernieres colonnes (dont Actions) etaient inatteignables,
@@ -160,36 +191,44 @@
                             @if(request('sort') === 'organization_id') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
                         </a>
                     </th>
+                    @if($vueDetaillee)
                     <th class="hidden lg:table-cell px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                         <a href="{{ route('admin.users', array_merge(request()->query(), ['sort' => 'points_balance', 'direction' => request('sort') === 'points_balance' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
                             Points
                             @if(request('sort') === 'points_balance') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
                         </a>
                     </th>
+                    @endif
+                    @if($vueDetaillee)
                     <th class="hidden lg:table-cell px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                         <a href="{{ route('admin.users', array_merge(request()->query(), ['sort' => 'services_count', 'direction' => request('sort') === 'services_count' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
                             Services
                             @if(request('sort') === 'services_count') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
                         </a>
                     </th>
+                    @endif
+                    @if($vueDetaillee)
                     <th class="hidden xl:table-cell px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                         <a href="{{ route('admin.users', array_merge(request()->query(), ['sort' => 'exchange_count', 'direction' => request('sort') === 'exchange_count' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
                             Échanges
                             @if(request('sort') === 'exchange_count') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
                         </a>
                     </th>
+                    @endif
                     <th class="hidden xl:table-cell px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                         <a href="{{ route('admin.users', array_merge(request()->query(), ['sort' => 'rating', 'direction' => request('sort') === 'rating' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
                             Note
                             @if(request('sort') === 'rating') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
                         </a>
                     </th>
+                    @if($vueDetaillee)
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                         <a href="{{ route('admin.users', array_merge(request()->query(), ['sort' => 'status', 'direction' => request('sort') === 'status' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
                             Statut
                             @if(request('sort') === 'status') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
                         </a>
                     </th>
+                    @endif
                     <th class="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                         <a href="{{ route('admin.users', array_merge(request()->query(), ['sort' => 'created_at', 'direction' => request('sort') === 'created_at' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
                             Inscrit le
@@ -325,6 +364,7 @@
                             @include('admin.partials.user-organization-assign', ['u' => $u, 'organizations' => $organizations, 'context' => 'desktop'])
                         @endif
                     </td>
+                    @if($vueDetaillee)
                     <td class="hidden lg:table-cell px-4 py-3">
                         <div x-data="{ open: false }" class="relative">
                             <button @click="open = !open" class="text-gray-700 dark:text-gray-300 hover:text-indigo-600 font-medium">{{ $u->points_balance }}</button>
@@ -341,22 +381,29 @@
                             </div>
                         </div>
                     </td>
+                    @endif
+                    @if($vueDetaillee)
                     <td class="hidden lg:table-cell px-4 py-3 text-gray-700 dark:text-gray-300">{{ $u->services_count }}</td>
+                    @endif
+                    @if($vueDetaillee)
                     <td class="hidden xl:table-cell px-4 py-3 text-gray-700 dark:text-gray-300">
                         {{ $u->buyer_transactions_count + $u->seller_transactions_count }}
                     </td>
+                    @endif
                     <td class="hidden xl:table-cell px-4 py-3 text-gray-700 dark:text-gray-300">
                         {{ $u->rating ? number_format($u->rating, 1).'/5' : '—' }}
                         @if($u->reviews_received_count > 0)
                         <span class="text-xs text-gray-400">({{ $u->reviews_received_count }})</span>
                         @endif
                     </td>
+                    @if($vueDetaillee)
                     <td class="px-4 py-3">
                         <span class="inline-flex items-center gap-1 text-xs">
                             <span class="w-1.5 h-1.5 rounded-full {{ $u->banned_at ? 'bg-red-500' : ($u->is_available ? 'bg-green-500' : 'bg-gray-400') }}"></span>
                             {{ $u->banned_at ? 'Banni' : ($u->is_available ? 'Disponible' : 'Indisponible') }}
                         </span>
                     </td>
+                    @endif
                     <td class="hidden sm:table-cell px-4 py-3 text-xs text-gray-400">{{ $u->created_at->format('d/m/Y') }}</td>
                     <td class="sticky right-0 z-10 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 px-4 py-3 align-top">
                         {{-- TASK-1714 volet 3 — ONZE actions tenaient dans une colonne
@@ -592,7 +639,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="px-4 py-8 text-center text-sm text-gray-400">Aucun utilisateur trouvé.</td>
+                    <td colspan="{{ $colonnesVisibles }}" class="px-4 py-8 text-center text-sm text-gray-400">Aucun utilisateur trouvé.</td>
                 </tr>
                 @endforelse
             </tbody>

@@ -530,6 +530,8 @@ return [
     'org_requires_account_approval_hint' => 'Les nouvelles inscriptions attendent votre validation, même après confirmation de leur adresse. Les comptes existants ne sont pas affectés.',
     'users_approve_account' => 'Valider compte',
     'users_more_actions' => 'Autres actions',
+    'users_columns_show_detail' => 'Afficher points, services, échanges et statut',
+    'users_columns_hide_detail' => 'Masquer les colonnes détaillées',
     'users_approve_confirm' => 'Valider ce compte et lui ouvrir l\'accès ?',
     'users_approved_flash' => 'Le compte de :name est validé.',
     'users_pending_approval_badge' => 'en attente de validation',

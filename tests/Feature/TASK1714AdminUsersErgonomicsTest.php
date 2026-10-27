@@ -150,6 +150,86 @@ class TASK1714AdminUsersErgonomicsTest extends TestCase
         $this->assertGreaterThan($repli, $bannir, '« Bannir » n\'est pas replie.');
     }
 
+    // ── Les quatre colonnes detaillees (demande Cyril, 27/10) ───────────────
+
+    /** @return list<string> les intitules de colonne presents dans le `<thead>` */
+    private function colonnes(string $html): array
+    {
+        $debut = strpos($html, '<thead');
+        $fin = strpos($html, '</thead>', (int) $debut);
+        $entete = substr($html, (int) $debut, (int) $fin - (int) $debut);
+
+        $trouvees = [];
+        foreach (['Points', 'Services', 'Échanges', 'Note', 'Statut', 'Organisation'] as $nom) {
+            if (str_contains($entete, '>'.$nom) || str_contains($entete, $nom."\n")) {
+                $trouvees[] = $nom;
+            }
+        }
+
+        return $trouvees;
+    }
+
+    public function test_les_quatre_colonnes_detaillees_sont_absentes_par_defaut(): void
+    {
+        $colonnes = $this->colonnes($this->ecranAdmin());
+
+        foreach (['Points', 'Services', 'Échanges', 'Statut'] as $masquee) {
+            $this->assertNotContains($masquee, $colonnes, "La colonne « {$masquee} » parait alors qu'elle devrait etre repliee.");
+        }
+
+        // Et celles qui RESTENT, sinon la garde passerait sur un tableau vide.
+        $this->assertContains('Organisation', $colonnes);
+        $this->assertContains('Note', $colonnes);
+    }
+
+    public function test_la_vue_detaillee_ramene_les_quatre_colonnes(): void
+    {
+        $organisation = Organization::factory()->create(['slug' => 'ergo-detail-1714', 'is_active' => true]);
+        app()->instance('current_organization', $organisation);
+        $admin = User::factory()->create([
+            'organization_id' => $organisation->id, 'is_admin' => true,
+            'email_verified_at' => now(), 'approved_at' => now(),
+        ]);
+
+        $html = $this->actingAs($admin)->get('/admin/users?detail=1')->assertOk()->getContent();
+        $colonnes = $this->colonnes($html);
+
+        foreach (['Points', 'Services', 'Échanges', 'Statut'] as $rendue) {
+            $this->assertContains($rendue, $colonnes, "La colonne « {$rendue} » manque en vue detaillee.");
+        }
+    }
+
+    /**
+     * La bascule CONSERVE les filtres et les tris en place.
+     *
+     * Une bascule qui repart d'une page vierge ferait perdre une recherche en
+     * cours — et serait donc inutilisable precisement quand elle sert, c'est-a-dire
+     * au milieu d'un depannage.
+     */
+    public function test_la_bascule_conserve_les_filtres_en_place(): void
+    {
+        $organisation = Organization::factory()->create(['slug' => 'ergo-filtre-1714', 'is_active' => true]);
+        app()->instance('current_organization', $organisation);
+        $admin = User::factory()->create([
+            'organization_id' => $organisation->id, 'is_admin' => true,
+            'email_verified_at' => now(), 'approved_at' => now(),
+        ]);
+
+        $html = $this->actingAs($admin)->get('/admin/users?detail=1&search=dupont')->assertOk()->getContent();
+
+        $debut = strpos($html, 'data-marqueur="bascule-colonnes"');
+        $this->assertNotFalse($debut, 'La bascule est absente.');
+
+        // On lit le `href` de CE lien, pas de la page : plusieurs liens portent
+        // des parametres de requete.
+        $avant = substr($html, 0, $debut);
+        $href = substr($avant, (int) strrpos($avant, 'href="') + 6);
+        $href = substr($href, 0, (int) strpos($href, '"'));
+
+        $this->assertStringContainsString('search=dupont', $href, 'La bascule perd la recherche en cours.');
+        $this->assertStringNotContainsString('detail=1', $href, 'La bascule ne revient pas a la vue compacte.');
+    }
+
     /**
      * La largeur minimale du tableau ne s'applique qu'a partir de `md`.
      *
