@@ -179,7 +179,11 @@
         <table class="w-full md:min-w-[46rem] text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    {{-- TASK-1714 — plafond sur la colonne Utilisateur (retour Cyril).
+                         Sans lui, elle absorbe toute la largeur disponible et la
+                         colonne Actions reste etroite : mesure avant, Utilisateur
+                         414 px pour Actions 368. --}}
+                    <th class="px-4 py-3 md:max-w-[22rem] text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                         <a href="{{ route('admin.users', array_merge(request()->query(), ['sort' => 'name', 'direction' => request('sort') === 'name' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
                             Utilisateur
                             @if(request('sort') === 'name') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
@@ -247,13 +251,13 @@
 
                          Le fond opaque est INDISPENSABLE : sans lui, le contenu des
                          autres colonnes defilerait VISIBLEMENT sous celle-ci. --}}
-                    <th class="sticky right-0 z-10 w-[23rem] min-w-[23rem] bg-gray-50 dark:bg-gray-700 border-l border-gray-200 dark:border-gray-600 px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
+                    <th class="sticky right-0 z-10 w-[32rem] min-w-[32rem] bg-gray-50 dark:bg-gray-700 border-l border-gray-200 dark:border-gray-600 px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($users as $u)
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 {{ $u->banned_at ? 'opacity-60' : '' }}">
-                    <td class="px-4 py-3 max-w-0 w-full">
+                    <td class="px-4 py-3 max-w-0 w-full md:max-w-[22rem]">
                         {{-- TASK-1714 volet 3 — `min-w-0` sur le conteneur flex, et
                              `max-w-0 w-full` sur la cellule.
 
@@ -405,7 +409,7 @@
                     </td>
                     @endif
                     <td class="hidden sm:table-cell px-4 py-3 text-xs text-gray-400">{{ $u->created_at->format('d/m/Y') }}</td>
-                    <td class="sticky right-0 z-10 w-[23rem] min-w-[23rem] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 px-4 py-3 align-top">
+                    <td class="sticky right-0 z-10 w-[32rem] min-w-[32rem] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 px-4 py-3 align-top">
                         {{-- TASK-1714 volet 3 — ONZE actions tenaient dans une colonne
                              sans largeur : `flex-wrap` les empilait une par ligne, chacune
                              repliee sur deux. Mesure avant correction : lignes de 245 a
