@@ -6,7 +6,10 @@ use App\Models\Organization;
 use App\Models\OrganizationInvitation;
 use App\Models\User;
 use App\Services\OrganizationInvitationService;
+use App\Notifications\WelcomeNotification;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -379,7 +382,79 @@ class TASK1714AccountApprovalTest extends TestCase
     }
 
     // ───────────────────────────────────────────────────────────────────────
-    // 6. Gardes architecturales
+    // 6. L'email de bienvenue part au SECOND evenement
+    // ───────────────────────────────────────────────────────────────────────
+
+    /**
+     * Sans approbation exigee : rien ne change, l'email part a la verification.
+     *
+     * Cette garde est la plus importante des quatre — c'est elle qui protege le
+     * comportement de TASK-1694 bug I pour toutes les organisations qui
+     * n'activent pas le reglage, c'est-a-dire la quasi-totalite.
+     */
+    public function test_sans_approbation_exigee_l_email_part_a_la_verification(): void
+    {
+        Notification::fake();
+        $this->organisation->forceFill(['requires_account_approval' => false])->save();
+        $membre = $this->membre(['email_verified_at' => null, 'approved_at' => now()]);
+
+        event(new Verified($membre->fresh()));
+
+        Notification::assertSentTo($membre, WelcomeNotification::class);
+    }
+
+    /**
+     * Approbation exigee : la verification N'ENVOIE PAS.
+     *
+     * Annoncer « bienvenue, voici vos 100 points » a quelqu'un qui ne peut pas
+     * encore entrer repeterait l'erreur que T1694 bug I avait corrigee en
+     * deplacant cet email de l'inscription vers la verification. Une adresse
+     * confirmee n'est pas un acces ouvert.
+     */
+    public function test_approbation_exigee_la_verification_n_envoie_pas(): void
+    {
+        Notification::fake();
+        $attente = $this->membre(['email_verified_at' => null]);
+
+        event(new Verified($attente->fresh()));
+
+        Notification::assertNotSentTo($attente, WelcomeNotification::class);
+    }
+
+    public function test_l_email_part_quand_l_administrateur_valide_le_compte(): void
+    {
+        Notification::fake();
+        $admin = $this->membre(['is_admin' => true, 'approved_at' => now()]);
+        $attente = $this->membre(['email' => 'bienvenue-1714@example.test', 'email_verified_at' => now()]);
+
+        $this->actingAs($admin)->post(route('admin.users.approve', $attente));
+
+        Notification::assertSentTo($attente, WelcomeNotification::class);
+    }
+
+    /**
+     * Valider AVANT la verification : l'email part a la verification.
+     *
+     * L'ordre des deux evenements n'est pas garanti — un administrateur peut
+     * valider un compte dont l'adresse n'est pas encore confirmee. La regle est
+     * symetrique : chaque declencheur n'envoie que si l'AUTRE condition est
+     * deja remplie, donc l'email part exactement une fois, au SECOND.
+     */
+    public function test_valider_avant_la_verification_differe_l_email_jusqu_a_la_verification(): void
+    {
+        Notification::fake();
+        $admin = $this->membre(['is_admin' => true, 'approved_at' => now()]);
+        $attente = $this->membre(['email' => 'ordre-1714@example.test', 'email_verified_at' => null]);
+
+        $this->actingAs($admin)->post(route('admin.users.approve', $attente));
+        Notification::assertNotSentTo($attente, WelcomeNotification::class);
+
+        event(new Verified($attente->fresh()));
+        Notification::assertSentTo($attente, WelcomeNotification::class);
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // 7. Gardes architecturales
     // ───────────────────────────────────────────────────────────────────────
 
     /**

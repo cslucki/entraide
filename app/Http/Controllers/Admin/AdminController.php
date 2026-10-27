@@ -18,6 +18,7 @@ use App\Models\ServiceRequest;
 use App\Models\Skill;
 use App\Models\Tag;
 use App\Models\Transaction;
+use App\Notifications\WelcomeNotification;
 use App\Models\User;
 use App\Services\Admin\PlatformDashboardMetrics;
 use App\Services\EmailerService;
@@ -521,6 +522,26 @@ class AdminController extends Controller
         // dans `User::$fillable`, comme les autres drapeaux qui ouvrent un
         // acces.
         $user->forceFill(['approved_at' => now()])->save();
+
+        // TASK-1714 (demande Cyril, 27/10) — l'email de bienvenue part ICI
+        // quand l'organisation exige une validation.
+        //
+        // Condition symetrique de celle de `SendPointsGrantedEmailOnVerification` :
+        // on n'envoie que si l'adresse est DEJA verifiee. Un administrateur peut
+        // valider un compte avant que la personne n'ait clique son lien ; dans
+        // ce cas c'est la verification qui enverra, en trouvant l'approbation
+        // deja acquise. L'email part donc exactement UNE fois, au moment du
+        // SECOND evenement, quel que soit leur ordre.
+        //
+        // Le court-circuit d'idempotence plus haut (`approved_at !== null`)
+        // protege du double envoi : valider deux fois ne repasse pas ici.
+        //
+        // `rescue()`, comme partout ailleurs sur ce chemin : une panne de
+        // transport mail ne doit pas transformer une validation reussie en
+        // erreur. Le compte est valide ; l'email est un accessoire.
+        if ($user->hasVerifiedEmail()) {
+            rescue(fn () => $user->notify(new WelcomeNotification));
+        }
 
         return back()->with('success', __('admin.users_approved_flash', ['name' => $user->full_name ?? $user->name]));
     }
