@@ -223,4 +223,10 @@ return [
         'title' => 'title',
     ],
 
+    'nom_trop_long' => 'This name is too long: :max characters maximum.',
+    'nom_caracteres_invisibles' => 'This name contains invisible or control characters.',
+    'nom_chevrons' => 'This name cannot contain the characters "<" or ">".',
+    'nom_adresse_web' => 'This name cannot contain a web address.',
+    'nom_suite_de_chiffres' => 'This name cannot contain more than :max consecutive digits.',
+    'nom_trop_de_chiffres' => 'This name contains more digits than letters.',
 ];

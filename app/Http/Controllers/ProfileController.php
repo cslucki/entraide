@@ -10,6 +10,7 @@ use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Rules\NomDePersonneAcceptable;
 use App\Services\UserSlugService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -265,8 +266,14 @@ class ProfileController extends Controller
         $organization = $this->profileOrganization($request);
 
         $rules = [
-            'first_name' => ['nullable', 'string', 'max:255'],
-            'name' => ['required', 'string', 'max:255'],
+            'first_name' => ['nullable', 'string', 'max:255', new NomDePersonneAcceptable],
+            // TASK-1712 — un nom de personne, pas un support publicitaire.
+            //
+            // `ProfileUpdateRequest` existe mais AUCUN controleur ne l'utilise :
+            // c'est ici que la validation du profil se joue reellement. Sans
+            // cette regle, il suffirait de s'inscrire proprement puis de se
+            // renommer.
+            'name' => ['required', 'string', 'max:255', new NomDePersonneAcceptable],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email,'.$request->user()->id],
             'phone' => ['required', 'string', 'max:30'],
             'show_email' => ['nullable', 'boolean'],
