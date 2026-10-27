@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\AcquisitionEvent;
 use App\Models\Country;
+use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\User;
 use App\Rules\NomDePersonneAcceptable;
@@ -23,6 +24,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -69,7 +71,59 @@ class RegisteredUserController extends Controller
             'ref' => $request->input('ref'),
             'countries' => $allCountries,
             'defaultCountryCode' => $defaultCountry?->code,
+            // TASK-1714 volet 1 — le choix d'Organization n'est propose que
+            // depuis le point d'entree GENERIQUE. Voir `organizationsOuvertes()`.
+            'organizationsOuvertes' => $this->organizationsOuvertes($organization),
         ]);
+    }
+
+    /**
+     * TASK-1714 volet 1 — les Organizations ou l'on peut s'inscrire.
+     *
+     * ## Quand la liste est proposee, et pourquoi pas toujours
+     *
+     * Uniquement depuis le point d'entree GENERIQUE : `/register` et
+     * `/org/<defaut>/register`. Quelqu'un qui arrive sur `/org/ofsh/register`
+     * y est venu deliberement — souvent par une invitation ou un lien de
+     * campagne — et lui proposer de partir ailleurs serait le detourner de ce
+     * qu'il cherchait. La liste rend donc `[]` ailleurs, et la vue n'affiche
+     * rien du tout.
+     *
+     * ## Ce qui rend une Organization « ouverte »
+     *
+     * Trois conditions, et aucune n'est nouvelle :
+     *
+     * - `is_active` et `is_public` — le couple deja utilise par
+     *   `GuestShellGate`, `WorkshopResumption`, `GuestPageContextResolver` et
+     *   `OrganizationLandingController`. Inventer ici un quatrieme critere
+     *   ferait diverger ce que « publique » veut dire.
+     * - **pas une sandbox de scenario** : `store()` refuse deja l'inscription
+     *   dans un monde de demonstration (TASK-1650). Lister une Organization
+     *   dont l'inscription est fermee quelques lignes plus bas enverrait les
+     *   gens dans un mur.
+     *
+     * Les Organizations supprimees sont exclues par le SoftDeletes du modele.
+     *
+     * @return \Illuminate\Support\Collection<int, Organization>
+     */
+    private function organizationsOuvertes(?Organization $courante): Collection
+    {
+        $defaut = DefaultOrganizationResolver::resolve();
+
+        if ($defaut === null || ($courante !== null && ! $courante->is($defaut))) {
+            return collect();
+        }
+
+        return Organization::query()
+            ->where('is_active', true)
+            ->where('is_public', true)
+            ->whereNull('scenario_sandbox_created_at')
+            // Departage par `id` derriere le nom : deux Organizations
+            // homonymes laisseraient sinon PostgreSQL choisir au gre du plan
+            // (meme lecon que DefaultOrganizationResolver).
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get();
     }
 
     /**

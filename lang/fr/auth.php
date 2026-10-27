@@ -12,6 +12,14 @@ return [
     'register_subtitle' => 'Rejoignez la boucle Entraide',
     'register_subtitle_org' => 'Créez votre compte sur :name',
     'register_button' => 'Créer mon compte',
+
+    // TASK-1714 volet 1 — le choix d'Organization depuis l'entree generique.
+    'organization_choice_intro' => 'Vous cherchez une autre communauté ?',
+    'organization_choice_link' => 'Choisir une organisation',
+    'organization_choice_title' => 'Où souhaitez-vous vous inscrire ?',
+    'organization_choice_subtitle' => 'Chaque organisation a ses propres membres, échanges et activités. Vous pouvez aussi rester ici.',
+    'organization_choice_current' => 'Vous êtes ici',
+    'organization_choice_close' => 'Rester ici',
     'first_name_label' => 'Votre prénom',
     'first_name_placeholder' => 'Jean',
     'name_label' => 'Votre nom',

@@ -24,6 +24,14 @@ return [
     'register_subtitle' => 'Join the Entraide community',
     'register_subtitle_org' => 'Create your account on :name',
     'register_button' => 'Create my account',
+
+    // TASK-1714 volet 1 — organization choice from the generic entry point.
+    'organization_choice_intro' => 'Looking for another community?',
+    'organization_choice_link' => 'Choose an organization',
+    'organization_choice_title' => 'Where would you like to sign up?',
+    'organization_choice_subtitle' => 'Each organization has its own members, exchanges and activities. You can also stay here.',
+    'organization_choice_current' => 'You are here',
+    'organization_choice_close' => 'Stay here',
     'first_name_label' => 'Your first name',
     'first_name_placeholder' => 'John',
     'name_label' => 'Your last name',

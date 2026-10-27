@@ -125,6 +125,13 @@
         </form>
     </div>
 
+    {{-- TASK-1714 volet 1 — le choix d'Organization, sous le formulaire :
+         s'inscrire ICI reste l'action principale, changer d'Organization est
+         l'alternative. L'ordre visuel dit lequel est lequel. --}}
+    <div class="px-8">
+        <x-auth.organization-selector :organizations="$organizationsOuvertes" :courante="$currentOrganization" />
+    </div>
+
     <!-- Lien connexion -->
     <div class="px-8 py-5 bg-gray-50 dark:bg-gray-700/40 border-t border-gray-100 dark:border-gray-700 text-center">
         <p class="text-sm text-gray-600 dark:text-gray-400">
