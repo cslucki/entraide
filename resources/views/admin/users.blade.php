@@ -130,13 +130,22 @@
          pas seulement serrees. Le defilement horizontal est borne a ce conteneur,
          donc le corps de page ne defile jamais lateralement. --}}
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-x-auto">
-        {{-- `min-w-[46rem]` n'est pas cosmetique : sans largeur minimale, la colonne
+        {{-- TASK-1714 volet 3 — la largeur minimale devient `md:`.
+
+             Elle protege la colonne Organisation, qui est elle-meme
+             `hidden md:table-cell` : en dessous de `md` elle n'existe pas, et
+             la largeur ne protegeait donc plus rien — elle forcait 736 px sur
+             un telephone de 390, soit 396 px de debordement pour TROIS
+             colonnes visibles. L'intention de TASK-1640 est conservee
+             exactement la ou elle s'applique.
+
+             Note d'origine (TASK-1640) : `min-w-[46rem]` n'est pas cosmetique : sans largeur minimale, la colonne
              Actions est ecrasee a ~130 px sur telephone et empile ses dix liens
              verticalement, ce qui porte chaque ligne a ~350 px — une ligne par
              ecran. Mesure a 375 px. Avec ce plancher, la colonne retrouve la place
              de disposer ses actions et les lignes reviennent a une hauteur normale ;
              le defilement horizontal, lui, est deja borne au conteneur. --}}
-        <table class="w-full min-w-[46rem] text-sm">
+        <table class="w-full md:min-w-[46rem] text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
@@ -187,14 +196,35 @@
                             @if(request('sort') === 'created_at') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
                         </a>
                     </th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
+                    {{-- TASK-1714 volet 3 — la colonne Actions est COLLANTE a droite.
+
+                         Priorite MASTER : « colonne Actions toujours accessible ». La
+                         largeur du tableau depend de son contenu — nom, adresse,
+                         selecteur d'Organization — et aucun reglage de largeur ne la
+                         ramenera sous 390 px sans mutiler la colonne Utilisateur. Plutot
+                         que de lutter contre l'algorithme de table, on sort la colonne du
+                         defilement : `sticky right-0` la garde a l'ecran quelle que soit
+                         la position horizontale.
+
+                         Le fond opaque est INDISPENSABLE : sans lui, le contenu des
+                         autres colonnes defilerait VISIBLEMENT sous celle-ci. --}}
+                    <th class="sticky right-0 z-10 bg-gray-50 dark:bg-gray-700 border-l border-gray-200 dark:border-gray-600 px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($users as $u)
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 {{ $u->banned_at ? 'opacity-60' : '' }}">
-                    <td class="px-4 py-3">
-                        <div class="flex items-center gap-3">
+                    <td class="px-4 py-3 max-w-0 w-full">
+                        {{-- TASK-1714 volet 3 — `min-w-0` sur le conteneur flex, et
+                             `max-w-0 w-full` sur la cellule.
+
+                             Sans eux, un enfant flex refuse de descendre sous la largeur
+                             de son contenu : `truncate` etait pose sur le nom et l'email
+                             depuis TASK-1640 et ne s'appliquait JAMAIS — la colonne
+                             poussait le tableau a 535 px sur un telephone de 390, et la
+                             colonne Actions sortait du cadre. Mesure avant : UTILISATEUR
+                             a 301 px pour un viewport de 390. --}}
+                        <div class="flex items-center gap-3 min-w-0">
                             <img src="{{ $u->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                             <div class="min-w-0">
                                 <p class="font-medium text-gray-900 dark:text-gray-100 truncate">
@@ -202,8 +232,19 @@
                                     @if($u->is_admin)<span class="ml-1 text-xs text-purple-600 dark:text-purple-400">[admin]</span>@endif
                                     @if($u->banned_at)<span class="ml-1 text-xs text-red-500">[banni]</span>@endif
                                 </p>
-                                <p class="text-xs text-gray-500 truncate">
+                                {{-- TASK-1714 volet 3 — l'adresse et ses pastilles sont
+                                     SEPAREES. Elles vivaient dans le meme `<p class="truncate">`,
+                                     et `truncate` etant `white-space: nowrap` + `overflow: hidden`,
+                                     une adresse longue emportait les pastilles avec elle : l'etat
+                                     « email non verifie » disparaissait sans que rien ne le dise.
+
+                                     `title` donne acces au texte complet — au survol, et lu par les
+                                     lecteurs d'ecran. Une troncature sans recours n'est pas une
+                                     troncature, c'est une perte. --}}
+                                <p class="text-xs text-gray-500 truncate" title="{{ $u->email }}" data-marqueur="email-complet">
                                     {{ $u->email }}
+                                </p>
+                                <p class="text-xs text-gray-500">
                                     {{-- TASK-1693 bug B — l'etat se lit a cote de
                                          l'adresse qu'il qualifie. Seul le cas NON
                                          verifie porte une pastille : signaler
@@ -251,7 +292,7 @@
                                      n'etait casse que sur desktop. MEME partiel
                                      dans les deux cas : rien n'est duplique. --}}
                                 @if($u->id !== auth()->id())
-                                <div class="md:hidden mt-1 max-w-xs">
+                                <div class="md:hidden mt-1 w-full max-w-full min-w-0">
                                     @include('admin.partials.user-organization-assign', ['u' => $u, 'organizations' => $organizations, 'context' => 'mobile'])
                                 </div>
                                 @endif
@@ -317,17 +358,31 @@
                         </span>
                     </td>
                     <td class="hidden sm:table-cell px-4 py-3 text-xs text-gray-400">{{ $u->created_at->format('d/m/Y') }}</td>
-                    <td class="px-4 py-3">
-                        <div class="flex gap-2 items-center flex-wrap">
-                            {{-- TASK-1714 volet 2 — en TETE de la colonne, et seulement
-                                 pour un compte en attente : c'est le seul geste qui
-                                 compte pour lui, et le noyer au milieu de huit autres
-                                 le rendrait invisible. --}}
+                    <td class="sticky right-0 z-10 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 px-4 py-3 align-top">
+                        {{-- TASK-1714 volet 3 — ONZE actions tenaient dans une colonne
+                             sans largeur : `flex-wrap` les empilait une par ligne, chacune
+                             repliee sur deux. Mesure avant correction : lignes de 245 a
+                             437 px (mediane 367), colonne Actions HORS CADRE des 1440 px,
+                             et 396 px de debordement sur mobile. On voyait deux
+                             utilisateurs par ecran.
+
+                             `<details>` natif, et non un popover : un menu positionne en
+                             `absolute` serait rogne par l'`overflow-x-auto` du tableau —
+                             c'est exactement le defaut de TASK-1693 bug D. Celui-ci
+                             s'ouvre EN FLUX : la ligne ne grandit que pour celle qu'on
+                             ouvre, rien n'est rogne, et il fonctionne sans JavaScript,
+                             donc aussi sur le layout invite ou Alpine est absent
+                             (mesure du volet 1).
+
+                             Deux actions restent DEHORS : « Valider compte », urgente et
+                             rare, et « Modifier », la plus frequente. Les enfouir ferait
+                             payer un clic de plus a ce qu'on fait tout le temps. --}}
+                        <div class="flex flex-col gap-1 items-start">
                             @if($u->attendApprobation())
                             <form method="POST" action="{{ route('admin.users.approve', $u) }}"
                                   onsubmit="return confirm(@js(__('admin.users_approve_confirm')))">
                                 @csrf
-                                <button class="text-xs font-semibold text-emerald-600 hover:underline"
+                                <button class="text-xs font-semibold text-emerald-600 hover:underline whitespace-nowrap"
                                         data-user-approve="{{ $u->id }}">
                                     {{ __('admin.users_approve_account') }}
                                 </button>
@@ -337,12 +392,19 @@
                             @if($u->id !== auth()->id() && !$u->banned_at)
                             <form method="POST" action="{{ route('admin.users.login-as', $u) }}">
                                 @csrf
-                                <button class="text-xs font-medium text-amber-600 hover:underline">
+                                <button class="text-xs font-medium text-amber-600 hover:underline whitespace-nowrap">
                                     Se connecter sous
                                 </button>
                             </form>
                             @endif
-                            <a href="{{ route('admin.users.edit', $u) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
+
+                            <a href="{{ route('admin.users.edit', $u) }}" class="text-xs font-medium text-indigo-600 hover:underline whitespace-nowrap">Modifier</a>
+
+                            <details class="w-full" data-marqueur="autres-actions">
+                                <summary class="text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 cursor-pointer select-none whitespace-nowrap marker:text-gray-400">
+                                    {{ __('admin.users_more_actions') }}
+                                </summary>
+                                <div class="mt-2 flex flex-col gap-1.5 items-start">
 
                             {{-- TASK-1705 — poser la photo d'un compte sans passer par la page
                                  Modifier. Cyril : « certaines personnes ne prennent pas le temps
@@ -523,6 +585,8 @@
                                     </form>
                                 </div>
                             </div>
+                                </div>
+                            </details>
                         </div>
                     </td>
                 </tr>

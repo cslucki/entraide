@@ -529,6 +529,7 @@ return [
     'org_requires_account_approval' => 'L\'administrateur doit valider le compte après confirmation email',
     'org_requires_account_approval_hint' => 'Les nouvelles inscriptions attendent votre validation, même après confirmation de leur adresse. Les comptes existants ne sont pas affectés.',
     'users_approve_account' => 'Valider compte',
+    'users_more_actions' => 'Autres actions',
     'users_approve_confirm' => 'Valider ce compte et lui ouvrir l\'accès ?',
     'users_approved_flash' => 'Le compte de :name est validé.',
     'users_pending_approval_badge' => 'en attente de validation',

@@ -528,6 +528,7 @@ return [
     'org_requires_account_approval' => 'Administrator must approve the account after email confirmation',
     'org_requires_account_approval_hint' => 'New sign-ups wait for your approval, even after confirming their address. Existing accounts are not affected.',
     'users_approve_account' => 'Approve account',
+    'users_more_actions' => 'More actions',
     'users_approve_confirm' => 'Approve this account and grant access?',
     'users_approved_flash' => ':name\'s account is now approved.',
     'users_pending_approval_badge' => 'awaiting approval',
