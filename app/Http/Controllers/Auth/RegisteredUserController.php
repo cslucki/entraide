@@ -8,12 +8,14 @@ use App\Models\Country;
 use App\Models\PointLedger;
 use App\Models\User;
 use App\Rules\NomDePersonneAcceptable;
+use App\Rules\TurnstileValide;
 use App\Services\Acquisition\AcquisitionEventRecorder;
 use App\Services\Acquisition\GuestAttribution;
 use App\Services\GuestShell\GuestIdentityThrottle;
 use App\Services\GuestShell\GuestVisitorResolver;
 use App\Services\InvitationResumption;
 use App\Services\ReferralService;
+use App\Services\Security\TurnstileVerifier;
 use App\Services\Workshops\WorkshopResumption;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Auth\Events\Registered;
@@ -75,7 +77,7 @@ class RegisteredUserController extends Controller
      *
      * @throws ValidationException
      */
-    public function store(Request $request, GuestVisitorResolver $visitors, GuestAttribution $attribution, GuestIdentityThrottle $identities, AcquisitionEventRecorder $events): RedirectResponse
+    public function store(Request $request, GuestVisitorResolver $visitors, GuestAttribution $attribution, GuestIdentityThrottle $identities, AcquisitionEventRecorder $events, TurnstileVerifier $turnstile): RedirectResponse
     {
         $request->validate([
             'attribution' => ['sometimes', 'array:shortcut,utm_source,utm_medium,utm_campaign'],
@@ -93,6 +95,24 @@ class RegisteredUserController extends Controller
             'phone' => ['required', 'string', 'max:30'],
             'country_code' => ['required', 'string', 'size:2', 'exists:countries,code'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+
+            // TASK-1713 — Cloudflare Turnstile. S'AJOUTE aux regles de nom de
+            // TASK-1712 au-dessus, ne les remplace pas : un robot qui
+            // resoudrait le defi reste soumis a `NomDePersonneAcceptable`, et
+            // un humain qui ecrit une publicite dans son nom reste refuse.
+            //
+            // Le branchement est CONDITIONNEL et c'est delibere : captcha
+            // eteint, le champ n'a aucune regle et le formulaire se comporte
+            // exactement comme avant. C'est ce qui permet aux 39 POST
+            // `/register` des tests existants de rester verts, et a la PROD de
+            // recevoir ce code sans que l'inscription change.
+            //
+            // `required` est implicite : un jeton absent est refuse SANS appel
+            // reseau. `TurnstileValide` ne tourne donc que sur un jeton
+            // present, et c'est lui seul qui parle a Cloudflare.
+            'cf-turnstile-response' => $turnstile->enabled()
+                ? ['required', 'string', 'max:2048', new TurnstileValide($turnstile)]
+                : [],
         ]);
 
         $organization = currentOrganization() ?? DefaultOrganizationResolver::resolve();
