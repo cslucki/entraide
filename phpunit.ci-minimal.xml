@@ -53,5 +53,12 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- TASK-1713 — l'etat du captcha est une propriete DECLAREE du banc de
+             test, jamais un reflet du `.env` de qui le lance. `force="true"`
+             parce que c'est exactement le piege rencontre : un `.env` local
+             portant `TURNSTILE_ENABLED=true` a rougi 111 tests d'inscription
+             sans rapport, pendant que la CI, elle, serait restee verte. Les
+             gardes de TASK-1713 posent leur propre valeur par `config()->set()`. -->
+        <env name="TURNSTILE_ENABLED" value="false" force="true"/>
     </php>
 </phpunit>
