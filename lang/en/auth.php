@@ -27,6 +27,8 @@ return [
 
     // TASK-1714 volet 1 — the organization menu, after the first name.
     'organization_choice_label' => 'Your organization',
+    'organization_choice_placeholder' => 'Choose your organization…',
+    'organization_choice_current' => 'you are here',
     'organization_choice_hint' => 'Changing organization takes you to its sign-up page.',
     'first_name_label' => 'Your first name',
     'first_name_placeholder' => 'John',

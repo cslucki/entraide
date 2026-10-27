@@ -15,6 +15,8 @@ return [
 
     // TASK-1714 volet 1 — le menu d'organisation, apres le prenom.
     'organization_choice_label' => 'Votre organisation',
+    'organization_choice_placeholder' => 'Choisissez votre organisation…',
+    'organization_choice_current' => 'vous êtes ici',
     'organization_choice_hint' => 'Changer d\'organisation vous emmène sur sa page d\'inscription.',
     'first_name_label' => 'Votre prénom',
     'first_name_placeholder' => 'Jean',

@@ -132,6 +132,37 @@ class TASK1714OrganizationSelectorTest extends TestCase
     }
 
     /**
+     * AUCUNE organisation n'est pre-selectionnee (arbitrage Cyril, 27/10).
+     *
+     * Une valeur pre-selectionnee se laisse traverser sans etre lue : la
+     * personne heriterait de l'organisation ou le lien l'a menee au lieu de la
+     * designer. Le premier choix est donc un placeholder vide, et c'est LUI qui
+     * porte `selected`.
+     */
+    public function test_aucune_organisation_n_est_preselectionnee(): void
+    {
+        $defaut = $this->defaut();
+        Organization::factory()->create(['slug' => 'autre-sel-1714', 'name' => 'Autre', 'is_active' => true, 'is_public' => true]);
+
+        $region = $this->regionSelecteur('/org/'.$defaut->slug.'/register');
+        $this->assertNotNull($region);
+
+        // Le placeholder porte `selected`, et sa valeur est VIDE : le menu ne
+        // peut donc pas naviguer tant que rien n'est choisi.
+        $this->assertMatchesRegularExpression(
+            '/<option value=""[^>]*data-marqueur="organisation-aucune"[^>]*selected/',
+            $region,
+            'Le choix vide n\'est pas celui qui est selectionne.',
+        );
+
+        // Et AUCUNE organisation reelle ne porte `selected`, pas meme la
+        // courante — c'est precisement ce qui a ete corrige.
+        $apresPlaceholder = substr($region, (int) strpos($region, 'data-marqueur="organisation-aucune"'));
+        $apresPlaceholder = substr($apresPlaceholder, (int) strpos($apresPlaceholder, '</option>'));
+        $this->assertStringNotContainsString('selected', $apresPlaceholder);
+    }
+
+    /**
      * Le menu precede le champ « prenom » (arbitrage Cyril, 27/10).
      *
      * Ce n'est pas qu'une preference de mise en page : le menu NAVIGUE. Place

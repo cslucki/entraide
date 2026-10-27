@@ -9,8 +9,17 @@
     digression — et cela supprime au passage toute la mecanique d'ouverture.
 
     Le menu reste visible sur TOUTES les organisations : se tromper d'adresse
-    est au moins aussi frequent que viser juste, et le menu dit de toute facon
-    ou l'on se trouve.
+    est au moins aussi frequent que viser juste.
+
+    AUCUN choix par defaut (arbitrage Cyril, 27/10) : la personne DESIGNE son
+    organisation. Une valeur pre-selectionnee se laisse traverser sans etre lue
+    — c'est tout l'interet d'un placeholder vide. L'organisation courante reste
+    identifiable, suffixee « vous etes ici », mais elle ne s'impose plus.
+
+    A SAVOIR, et c'est une limite assumee : ne rien choisir n'empeche pas de
+    s'inscrire. L'organisation reste determinee par l'URL, cote serveur — c'est
+    la garde qui empeche de la forger depuis le formulaire. Le menu vide invite
+    a choisir ; il ne bloque pas l'envoi.
 
     ## Il ne porte pas de `name`, et c'est delibere
 
@@ -38,11 +47,17 @@
         <select id="organisation-inscription"
                 data-marqueur="menu-organisations"
                 class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
+            {{-- Aucun choix par defaut (arbitrage Cyril, 27/10) : la personne
+                 DESIGNE son organisation, elle n'herite pas de celle ou le lien
+                 l'a menee. Une valeur pre-selectionnee se laisse traverser sans
+                 etre lue. --}}
+            <option value="" data-marqueur="organisation-aucune" selected>
+                {{ __('auth.organization_choice_placeholder') }}
+            </option>
             @foreach ($organizations as $organisation)
                 <option value="{{ route('organization.register', ['organization' => $organisation->slug]) }}"
-                        data-marqueur="organisation-{{ $organisation->slug }}"
-                        @selected($courante && $courante->is($organisation))>
-                    {{ $organisation->name }}
+                        data-marqueur="organisation-{{ $organisation->slug }}">
+                    {{ $organisation->name }}@if ($courante && $courante->is($organisation)) — {{ __('auth.organization_choice_current') }}@endif
                 </option>
             @endforeach
         </select>
@@ -57,12 +72,12 @@
             var menu = document.getElementById('organisation-inscription');
             if (!menu) { return; }
 
-            // L'adresse d'OU l'on vient, pour ne pas recharger la meme page
-            // quand on revient sur l'option deja selectionnee.
-            var depart = menu.value;
+            // L'adresse courante, pour ne pas recharger la meme page quand on
+            // choisit l'organisation ou l'on se trouve deja.
+            var ici = window.location.href.split('?')[0];
 
             menu.addEventListener('change', function () {
-                if (menu.value && menu.value !== depart) {
+                if (menu.value && menu.value.split('?')[0] !== ici) {
                     window.location.href = menu.value;
                 }
             });
