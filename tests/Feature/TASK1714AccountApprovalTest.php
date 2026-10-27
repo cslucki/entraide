@@ -396,14 +396,58 @@ class TASK1714AccountApprovalTest extends TestCase
         $this->assertNotContains('approved_at', (new User)->getFillable());
     }
 
-    public function test_le_reglage_se_persiste_depuis_l_ecran_d_administration(): void
+    /**
+     * Le reglage est dans SA section, en tete de page — et le reglage REPOND.
+     *
+     * La premiere version ne verifiait que la presence du marqueur, et elle
+     * etait VERTE alors que Cyril ne trouvait pas la case : elle vivait a 91 %
+     * d'une page de 4957 px, enfouie dans la section « Appartenance » — qui
+     * configure en realite un champ de profil libre, pas l'adhesion.
+     *
+     * Une garde de presence ne dit rien de la trouvabilite. Celle-ci mesure
+     * donc la PLACE : une section dediee, et avant « Informations ».
+     */
+    public function test_le_reglage_a_sa_propre_section_en_tete_de_page(): void
     {
         $admin = $this->membre(['is_admin' => true, 'approved_at' => now()]);
         $cible = Organization::factory()->create(['slug' => 'reglage-1714', 'requires_account_approval' => false]);
 
-        $this->actingAs($admin)
-            ->get(route('admin.organizations.edit', $cible))
-            ->assertOk()
-            ->assertSee('data-marqueur="reglage-approbation"', false);
+        $html = $this->actingAs($admin)->get(route('admin.organizations.edit', $cible))->assertOk()->getContent();
+
+        $section = strpos($html, 'data-marqueur="section-acces"');
+        $reglage = strpos($html, 'data-marqueur="reglage-approbation"');
+        $informations = strpos($html, '>Informations</h2>');
+
+        $this->assertNotFalse($section, 'Le reglage n\'a pas de section dediee.');
+        $this->assertNotFalse($reglage, 'Le reglage est absent.');
+        $this->assertNotFalse($informations, 'La section « Informations » est introuvable.');
+
+        $this->assertGreaterThan($section, $reglage, 'Le reglage est hors de sa section.');
+        $this->assertLessThan($informations, $reglage, 'Le reglage est enfoui sous « Informations ».');
+    }
+
+    /**
+     * Et il RÉPOND : cocher la case se persiste, et change le comportement.
+     *
+     * Une case qui s'affiche sans rien commander serait pire qu'une case
+     * absente.
+     */
+    public function test_cocher_le_reglage_met_l_organisation_en_approbation(): void
+    {
+        $admin = $this->membre(['is_admin' => true, 'approved_at' => now()]);
+        $cible = Organization::factory()->create([
+            'slug' => 'persiste-1714', 'name' => 'Persiste', 'requires_account_approval' => false,
+        ]);
+
+        $this->actingAs($admin)->put(route('admin.organizations.update', $cible), [
+            'name' => $cible->name,
+            'slug' => $cible->slug,
+            // Champs exiges par le formulaire d'edition : le test poste ce que
+            // la page poste, sinon il mesure la validation et non le reglage.
+            'welcome_points' => 100,
+            'requires_account_approval' => '1',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertTrue($cible->fresh()->requires_account_approval, 'Le reglage ne s\'est pas persiste.');
     }
 }

@@ -526,6 +526,8 @@ return [
     'org_membership_enabled_hint' => 'Quand activé, un champ de saisie « Appartenance » apparaît dans le profil des membres.',
 
     // TASK-1714 volet 2 — approbation des comptes par un administrateur.
+    'org_access_section' => 'Accès à l\'organisation',
+    'org_access_section_hint' => 'Qui peut entrer, et à quelle condition.',
     'org_requires_account_approval' => 'L\'administrateur doit valider le compte après confirmation email',
     'org_requires_account_approval_hint' => 'Les nouvelles inscriptions attendent votre validation, même après confirmation de leur adresse. Les comptes existants ne sont pas affectés.',
     'users_approve_account' => 'Valider compte',
