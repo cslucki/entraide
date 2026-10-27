@@ -40,10 +40,13 @@ class TASK1714AdminUsersErgonomicsTest extends TestCase
             'email_verified_at' => now(), 'approved_at' => now(),
         ]);
 
+        // Adresse longue ET pastille : sans la pastille, la garde d'absence
+        // ci-dessous serait VACANTE — elle serait vraie avec ou sans le
+        // correctif. Ce compte n'a pas verifie son email, il en porte donc une.
         User::factory()->create([
             'organization_id' => $organisation->id,
             'email' => 'une-adresse-vraiment-tres-longue-qui-deborde@sous-domaine.example.test',
-            'email_verified_at' => now(), 'approved_at' => now(),
+            'email_verified_at' => null, 'approved_at' => now(),
         ]);
 
         return $this->actingAs($admin)->get('/admin/users')->assertOk()->getContent();
@@ -77,12 +80,18 @@ class TASK1714AdminUsersErgonomicsTest extends TestCase
     {
         $html = $this->ecranAdmin();
 
+        // D'ABORD : la pastille EXISTE. C'est ce qui rend l'absence mesurable
+        // plus bas — une garde posee sur l'absence d'un marqueur qui n'est
+        // jamais rendu est vacante, et reste verte sous sabotage.
+        $this->assertStringContainsString('data-user-email-unverified', $html, 'Le banc ne produit aucune pastille a separer.');
+
         $debut = strpos($html, 'data-marqueur="email-complet"');
         $this->assertNotFalse($debut, 'Le porteur de l\'adresse complete est absent.');
 
-        // La REGION de l'element, et non la page : on verifie que le `<p>`
-        // tronque se FERME avant que les pastilles ne commencent.
-        $region = substr($html, $debut, (int) (strpos($html, '</p>', $debut) - $debut));
+        // ENSUITE : le `<p>` tronque se FERME avant que la pastille ne commence.
+        $fin = strpos($html, '</p>', $debut);
+        $this->assertNotFalse($fin);
+        $region = substr($html, $debut, $fin - $debut);
 
         $this->assertStringNotContainsString('data-user-email-unverified', $region);
         $this->assertStringNotContainsString('data-user-pending-approval', $region);
