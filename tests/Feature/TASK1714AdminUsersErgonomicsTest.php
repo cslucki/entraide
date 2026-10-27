@@ -32,7 +32,12 @@ class TASK1714AdminUsersErgonomicsTest extends TestCase
 
     private function ecranAdmin(): string
     {
-        $organisation = Organization::factory()->create(['slug' => 'ergo-1714', 'is_active' => true]);
+        // L'organisation exige une validation : c'est ce qui rend la pastille
+        // « en attente d'approbation » RENDABLE plus bas. Sans elle, la garde
+        // de separation posee sur cette pastille serait vacante.
+        $organisation = Organization::factory()->create([
+            'slug' => 'ergo-1714', 'is_active' => true, 'requires_account_approval' => true,
+        ]);
         app()->instance('current_organization', $organisation);
 
         $admin = User::factory()->create([
@@ -40,7 +45,7 @@ class TASK1714AdminUsersErgonomicsTest extends TestCase
             'email_verified_at' => now(), 'approved_at' => now(),
         ]);
 
-        // Adresse longue ET pastille : sans la pastille, la garde d'absence
+        // Adresse longue ET pastille : sans la pastille, la garde de separation
         // ci-dessous serait VACANTE — elle serait vraie avec ou sans le
         // correctif. Ce compte n'a pas verifie son email, il en porte donc une.
         User::factory()->create([
@@ -49,7 +54,42 @@ class TASK1714AdminUsersErgonomicsTest extends TestCase
             'email_verified_at' => null, 'approved_at' => now(),
         ]);
 
+        // Et un second porteur, pour l'AUTRE pastille.
+        User::factory()->create([
+            'organization_id' => $organisation->id,
+            'email' => 'une-autre-adresse-tout-aussi-longue-en-attente@sous-domaine.example.test',
+            'email_verified_at' => now(), 'approved_at' => null,
+        ]);
+
         return $this->actingAs($admin)->get('/admin/users')->assertOk()->getContent();
+    }
+
+    /**
+     * La pastille `$attribut` vit-elle HORS de l'element tronque de SA ligne ?
+     *
+     * Le point delicat est « de sa ligne ». La premiere version de cette garde
+     * mesurait la region du PREMIER porteur d'adresse du tableau — celui de
+     * l'administrateur, qui est verifie et approuve, et ne porte donc aucune
+     * pastille. L'absence etait vraie des deux cotes : le sabotage qui reunit
+     * les deux elements restait VERT (lecon T1707, deux fois).
+     *
+     * On part donc de la PASTILLE, et on remonte au porteur le plus proche
+     * AVANT elle. Entre les deux, la fermeture `</p>` du porteur doit
+     * apparaitre : sinon la pastille est dedans, et `truncate` l'emporte.
+     */
+    private function assertPastilleHorsDuTronque(string $html, string $attribut): void
+    {
+        $pastille = strpos($html, $attribut);
+        $this->assertNotFalse($pastille, "Le banc ne rend aucune pastille « {$attribut} » a separer.");
+
+        $porteur = strrpos(substr($html, 0, $pastille), 'data-marqueur="email-complet"');
+        $this->assertNotFalse($porteur, 'Aucun porteur d\'adresse complete ne precede la pastille.');
+
+        $this->assertStringContainsString(
+            '</p>',
+            substr($html, $porteur, $pastille - $porteur),
+            "La pastille « {$attribut} » vit DANS l'element tronque : une adresse longue l'emporte avec elle.",
+        );
     }
 
     /**
@@ -80,21 +120,8 @@ class TASK1714AdminUsersErgonomicsTest extends TestCase
     {
         $html = $this->ecranAdmin();
 
-        // D'ABORD : la pastille EXISTE. C'est ce qui rend l'absence mesurable
-        // plus bas — une garde posee sur l'absence d'un marqueur qui n'est
-        // jamais rendu est vacante, et reste verte sous sabotage.
-        $this->assertStringContainsString('data-user-email-unverified', $html, 'Le banc ne produit aucune pastille a separer.');
-
-        $debut = strpos($html, 'data-marqueur="email-complet"');
-        $this->assertNotFalse($debut, 'Le porteur de l\'adresse complete est absent.');
-
-        // ENSUITE : le `<p>` tronque se FERME avant que la pastille ne commence.
-        $fin = strpos($html, '</p>', $debut);
-        $this->assertNotFalse($fin);
-        $region = substr($html, $debut, $fin - $debut);
-
-        $this->assertStringNotContainsString('data-user-email-unverified', $region);
-        $this->assertStringNotContainsString('data-user-pending-approval', $region);
+        $this->assertPastilleHorsDuTronque($html, 'data-user-email-unverified');
+        $this->assertPastilleHorsDuTronque($html, 'data-user-pending-approval');
     }
 
     /**

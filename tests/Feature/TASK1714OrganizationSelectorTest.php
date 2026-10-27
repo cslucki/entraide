@@ -150,6 +150,12 @@ class TASK1714OrganizationSelectorTest extends TestCase
         $region = $this->regionSelecteur('/org/'.$defaut->slug.'/register');
         $this->assertNotNull($region);
 
+        // Le champ est `required` : rien de pre-selectionne SANS cela, c'est un
+        // formulaire qu'on peut soumettre sans avoir choisi. Le refus serveur
+        // existe (`test_sans_confirmation_l_inscription_est_refusee`), mais il
+        // arrive apres un aller-retour et la perte du focus.
+        $this->assertMatchesRegularExpression('/<select[^>]*\brequired\b/', $region, 'Le menu n\'est pas obligatoire.');
+
         // Le placeholder porte `selected`, et sa valeur est VIDE : le menu ne
         // peut donc pas naviguer tant que rien n'est choisi.
         $this->assertMatchesRegularExpression(
