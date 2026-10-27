@@ -139,9 +139,25 @@ class TASK1714AdminUsersErgonomicsTest extends TestCase
 
         $this->assertStringNotContainsString('data-marqueur="autres-actions"', $html, 'Un repli d\'actions subsiste.');
 
-        // La colonne porte une largeur REELLE : sans elle, la place recuperee
-        // repart dans la colonne Utilisateur — c'est ce que la mesure a montre.
-        $this->assertStringContainsString('min-w-[23rem]', $html, 'La colonne Actions n\'a pas de largeur propre.');
+        // DEUX decisions, et il faut les deux : elargir Actions ne suffit pas.
+        //
+        // La colonne Actions porte une largeur plancher, ET la colonne
+        // Utilisateur un plafond. Sans le plafond, toute largeur rendue par les
+        // colonnes repliees repart chez Utilisateur — c'est ce que la mesure a
+        // montre (414 px pour Actions a 368).
+        //
+        // La valeur exacte n'est pas figee : c'est un reglage visuel qui peut
+        // bouger. Ce qui ne doit pas bouger, c'est qu'elles EXISTENT.
+        $this->assertMatchesRegularExpression(
+            '/<td class="sticky right-0[^"]*min-w-\[\d+rem\]/',
+            $html,
+            'La colonne Actions n\'a pas de largeur plancher.',
+        );
+        $this->assertMatchesRegularExpression(
+            '/<td class="px-4 py-3[^"]*md:max-w-\[\d+rem\]/',
+            $html,
+            'La colonne Utilisateur n\'a pas de plafond : elle absorbera la place rendue.',
+        );
 
         // Et les actions de bout de liste sont rendues, pas seulement les
         // premieres : une garde qui ne verifie que « Modifier » passerait sur
