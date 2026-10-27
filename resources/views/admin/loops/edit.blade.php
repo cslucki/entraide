@@ -9,13 +9,24 @@
                  jamais sur son type ni sur les autres. Visible seulement si la
                  capacité est réelle (canConfigure + Boucle non archivée) :
                  pas de bouton que le serveur refuserait. --}}
-            @if($canConfigureCards)
-            <a href="{{ route('admin.loops.configure', $boucle) }}"
-               class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085"/></svg>
-                {{ __('loops.edit_tools_action') }}
-            </a>
-            @endif
+            <div class="flex flex-wrap items-center gap-2">
+                {{-- TASK-1679 — acces direct a la Boucle qu'on vient de creer ou
+                     qu'on administre. workspaceUrl() et non route('loops.show') :
+                     l'admin plateforme regarde des Boucles d'AUTRES Organizations,
+                     et la route courte resoudrait la sienne. --}}
+                <a href="{{ $boucle->workspaceUrl() }}" target="_blank" rel="noopener"
+                   class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
+                    {{ __('admin.loop_view_front') }}
+                </a>
+                @if($canConfigureCards)
+                <a href="{{ route('admin.loops.configure', $boucle) }}"
+                   class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085"/></svg>
+                    {{ __('loops.edit_tools_action') }}
+                </a>
+                @endif
+            </div>
         </div>
 
         @if(session('success'))
@@ -83,7 +94,79 @@
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
                 <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Membres ({{ $boucle->members->count() }})</h2>
 
-                {{-- Ajouter un membre --}}
+                {{-- TASK-1693 bug M — les DEMANDES EN ATTENTE, que cette fiche
+                     ne montrait pas du tout.
+
+                     Elle affichait les membres et laissait en ajouter, mais
+                     taisait les personnes qui en avaient fait la demande : un
+                     administrateur venu regler le cas d'un demandeur ne voyait
+                     aucune trace de lui, et l'ajoutait « a la main » sans
+                     savoir qu'une demande existait. C'est ainsi que la Boucle
+                     `ofsh` s'est retrouvee avec des membres actifs portant
+                     encore une demande ouverte.
+
+                     Le bloc n'apparait que s'il y a quelque chose a decider :
+                     un cadre vide ferait croire a une attente permanente. --}}
+                @if($demandesEnAttente->isNotEmpty())
+                <div class="rounded-xl border border-amber-300 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-3"
+                     data-loop-join-requests="{{ $demandesEnAttente->count() }}">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+                        {{ trans_choice('admin.loop_join_requests_pending', $demandesEnAttente->count(), ['count' => $demandesEnAttente->count()]) }}
+                    </p>
+
+                    @foreach($demandesEnAttente as $demande)
+                    <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white dark:bg-gray-800 px-3 py-2"
+                         data-loop-join-request="{{ $demande->id }}">
+                        <div class="min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $demande->user?->full_name ?? '—' }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                {{ $demande->user?->email }} · {{ $demande->created_at?->diffForHumans() }}
+                            </p>
+                            @if(filled($demande->message))
+                            <p class="mt-1 text-xs italic text-gray-600 dark:text-gray-300">« {{ $demande->message }} »</p>
+                            @endif
+                        </div>
+                        <div class="flex flex-shrink-0 gap-2">
+                            <form method="POST" action="{{ route('admin.loops.join-requests.accept', [$boucle, $demande]) }}">
+                                @csrf
+                                <button type="submit" data-loop-join-request-accept="{{ $demande->id }}"
+                                        class="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition">
+                                    {{ __('admin.loop_join_request_accept') }}
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ route('admin.loops.join-requests.reject', [$boucle, $demande]) }}">
+                                @csrf
+                                <button type="submit" data-loop-join-request-reject="{{ $demande->id }}"
+                                        class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                                    {{ __('admin.loop_join_request_reject') }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+                @endif
+
+                {{-- Ajouter un membre — TASK-1681 : la liste ne contient plus
+                     que les utilisateurs de l'Organization de la Boucle (le
+                     controller filtre), chacun affiche avec son identite
+                     complete « Prenom NOM — email · Organization ». --}}
+                {{-- L'erreur vit HORS du @if : une requete forgee doit rester
+                     expliquee meme quand l'Organization n'a aucun utilisateur
+                     assignable (le selecteur laisse alors place a l'etat vide). --}}
+                @error('user_id')<p class="text-red-500 text-xs">{{ $message }}</p>@enderror
+                @if($users->isEmpty())
+                <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                    <p>{{ __('admin.loop_no_assignable_users') }}</p>
+                    {{-- Le workflow canonique existant, jamais un second circuit :
+                         les invitations en masse savent deja pre-selectionner
+                         l'Organization via la query string. --}}
+                    <a href="{{ route('admin.users.bulk-create', ['organization_id' => $boucle->organization_id]) }}"
+                       class="mt-1 inline-block font-semibold text-amber-900 underline dark:text-amber-200">
+                        {{ __('admin.loop_invite_users_cta') }}
+                    </a>
+                </div>
+                @else
                 <form method="POST" action="{{ route('admin.loops.members.add', $boucle) }}" class="flex gap-2 items-end">
                     @csrf
                     <div class="flex-1">
@@ -91,22 +174,10 @@
                         <select name="user_id" id="user_id" required
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
                             <option value="">{{ __('admin.owner_select_placeholder') }}</option>
-                            @php
-                                $grouped = $users->groupBy(fn ($u) => $u->organization->name ?? __('admin.organizations'));
-                                $hasMultipleOrgs = $grouped->count() > 1;
-                            @endphp
-                            @foreach($grouped as $orgName => $orgUsers)
-                                @if($hasMultipleOrgs)
-                                <optgroup label="{{ $orgName }}">
-                                @endif
-                                @foreach($orgUsers as $u)
-                                <option value="{{ $u->id }}" @disabled($boucle->members->pluck('user_id')->contains($u->id))>
-                                    {{ $u->full_name }} — {{ $u->email }}@if($hasMultipleOrgs) · {{ $orgName }}@endif
-                                </option>
-                                @endforeach
-                                @if($hasMultipleOrgs)
-                                </optgroup>
-                                @endif
+                            @foreach($users as $u)
+                            <option value="{{ $u->id }}" @disabled($boucle->members->pluck('user_id')->contains($u->id))>
+                                {{ $u->full_name }} — {{ $u->email }} · {{ $u->organization?->name }}
+                            </option>
                             @endforeach
                         </select>
                     </div>
@@ -124,6 +195,7 @@
                         Ajouter
                     </button>
                 </form>
+                @endif
 
                 {{-- Gouvernance : propriétaires, Animateurs, membres --}}
                 <x-loops.governance-roster
@@ -134,7 +206,9 @@
                     :can-manage-facilitators="true"
                     :can-remove="true"
                     :creator-id="$boucle->created_by"
-                    :current-user-id="auth()->id()" />
+                    :current-user-id="auth()->id()"
+                    :inline-actions="true"
+                    :transfer-route="fn($m) => route('admin.loops.members.transfer-ownership', [$boucle, $m])" />
             </div>
 
             {{-- Status / Archive / Restore --}}

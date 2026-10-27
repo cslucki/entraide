@@ -8,9 +8,37 @@
                 ? route($organizationRouteName, array_merge(['organization' => $_threadOrgSlug], $params))
                 : route($routeName, $params);
         };
+
+        /* TASK-1704 — ce qu'une bulle doit savoir d'une piece jointe.
+           Les URL passent par `$_threadRoute` : la conversation vit sur deux
+           surfaces (courte et prefixee), et une piece doit rester sur celle
+           ou le membre se trouve. */
+        $_threadAttachment = function ($message) use ($_threadRoute) {
+            if (! $message->hasFile()) {
+                return null;
+            }
+
+            $params = ['transaction' => $message->transaction_id, 'message' => $message->id];
+
+            return [
+                'name' => $message->fileDisplayName(),
+                'size' => $message->fileSizeForHumans(),
+                'mime' => $message->file_mime,
+                'downloadUrl' => $_threadRoute('messages.attachments.download', 'organization.messages.attachments.download', $params),
+                'previewUrl' => $message->fileIsPreviewable()
+                    ? $_threadRoute('messages.attachments.preview', 'organization.messages.attachments.preview', $params)
+                    : null,
+            ];
+        };
     @endphp
 
-    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+    {{-- TASK-1693 bug AC — pour une DISCUSSION, cette bande ne portait plus
+         que le badge : les actions y sont masquees et il n'y a pas de points.
+         Le badge ayant rejoint la ligne du pseudo, la bande entiere disparait
+         — une ligne de gagnee sur un ecran de telephone. Pour un ECHANGE elle
+         reste : elle y porte le statut, les points et les boutons. --}}
+    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 {{ $isDirectConversation ? 'hidden' : '' }}"
+         data-thread-status-banner>
         <div class="flex items-center justify-between flex-wrap gap-2">
             <div class="flex items-center gap-2">
                 @if($isDirectConversation)
@@ -38,7 +66,11 @@
             <div class="flex flex-wrap gap-2 {{ $isDirectConversation ? 'hidden' : '' }}">
                 @php $user = auth()->user(); @endphp
 
-                @if($transaction->status === 'pending' && $user->id === $transaction->seller_id)
+                {{-- TASK-1693 bug S — « Accepter » s'affiche pour celui qui
+                     n'a PAS propose. En dur sur `seller_id`, le bouton
+                     revenait au proposant lui-meme des que l'echange naissait
+                     d'une demande d'aide. --}}
+                @if($transaction->status === 'pending' && $user->id === $transaction->decisionMakerId())
                     <form method="POST" action="{{ $_threadRoute('transactions.approve', 'organization.transactions.approve', ['transaction' => $transaction]) }}">
                         @csrf @method('PATCH')
                         <button class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">{{ __('messages.actions.accept') }}</button>
@@ -109,11 +141,47 @@
                             {{ $message->body }}
                         </span>
                     </div>
+                @elseif($editingMessageId === $message->id)
+                    {{-- TASK-1704 correctif 2 — le formulaire de modification,
+                         de la meme forme que celui du ChatLoop : il PREND LA
+                         PLACE de la bulle, plutot que de s'ouvrir a cote. --}}
+                    <div class="flex justify-end" data-message-edit-form>
+                        <form wire:submit="saveEdit" class="w-full max-w-[90%] sm:max-w-md md:max-w-lg rounded-2xl rounded-br-sm bg-indigo-600 p-3 text-white shadow-sm">
+                            <textarea
+                                wire:model="editingBody"
+                                rows="3"
+                                class="w-full rounded-lg border-indigo-400 bg-white/95 text-sm text-gray-900 focus:border-white focus:ring-white"
+                            ></textarea>
+                            @error('editingBody')
+                                <p class="mt-1 text-xs text-indigo-100">{{ $message }}</p>
+                            @enderror
+                            <div class="mt-2 flex justify-end gap-2">
+                                <button type="button" wire:click="cancelEdit" class="text-xs font-medium text-indigo-100 hover:text-white">
+                                    {{ __('messages.cancel_edit') }}
+                                </button>
+                                <button type="submit" class="rounded-lg bg-white px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">
+                                    {{ __('messages.save') }}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 @elseif($message->sender_id === auth()->id())
                     @php $meta = $message->metadata ?? []; @endphp
                     <x-conversation.message-bubble
                         type="sent"
+                        {{-- TASK-1704 correctif 2 — « il faudrait aussi pouvoir
+                             modifier les messages textes, on peut le faire sur
+                             la chatloop ». L'autorite reste au serveur : cette
+                             prop ne fait qu'AFFICHER le bouton, et
+                             `messageModifiable()` reevalue le droit au clic
+                             comme a l'enregistrement. --}}
+                        :show-edit-button="$message->isEditableBy(auth()->user())"
                         :time="$message->created_at->format('H:i')"
+                        {{-- TASK-1693 bug Q — une correction par la moderation
+                             doit se voir ici, exactement comme elle se voit
+                             dans le ChatLoop. La bulle partagee le sait deja
+                             faire ; seul ce fil ne le lui disait pas. --}}
+                        :is-edited="$message->edited_at !== null"
                         :message-id="$message->id"
                         :show-reply-button="true"
                         :show-pin-button="$canPin"
@@ -123,6 +191,7 @@
                         :my-reaction="$myReactions[$message->id] ?? null"
                         :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => $replySenderName] : null"
                         :image-path="$message->imageUrl()"
+                        :attachment="$_threadAttachment($message)"
                         :url-preview="$meta['url_preview'] ?? null"
                     >
                         {!! $message->body !!}
@@ -134,6 +203,7 @@
                         :time="$message->created_at->format('H:i')"
                         :name="$senderName"
                         :avatar="$senderDisplayable ? $message->sender?->avatar_url : null"
+                        :is-edited="$message->edited_at !== null"
                         :message-id="$message->id"
                         :show-reply-button="true"
                         :show-pin-button="$canPin"
@@ -143,6 +213,7 @@
                         :my-reaction="$myReactions[$message->id] ?? null"
                         :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => $replySenderName] : null"
                         :image-path="$message->imageUrl()"
+                        :attachment="$_threadAttachment($message)"
                         :url-preview="$meta['url_preview'] ?? null"
                     >
                         {!! $message->body !!}
@@ -201,6 +272,10 @@
             on-cancel-reply="cancelReply"
             show-upload="true"
             :photo="$photo ?? null"
+            {{-- TASK-1704 — seule la Messagerie sait stocker autre chose
+                 qu'une image : elle seule elargit le selecteur. --}}
+            :upload-accept="\App\Support\Files\TypesDeFichiersAcceptes::pourAttributAccept()"
+            :upload-label="__('messages.send_file')"
         >
             @error('newMessage')
                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>

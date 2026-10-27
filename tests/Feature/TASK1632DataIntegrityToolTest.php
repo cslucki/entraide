@@ -22,7 +22,7 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
- * TASK-1632 — le cockpit « Integrite des donnees ».
+ * TASK-1632 — le cockpit « Intégrité des données ».
  *
  * Deux exigences qui se contredisent en apparence, et que ces tests tiennent
  * ensemble :
@@ -173,7 +173,16 @@ class TASK1632DataIntegrityToolTest extends TestCase
         $registry = app(UnprotectedReferenceRegistry::class);
 
         $this->assertSame([], $registry->unguardedTables('organization_id'));
-        $this->assertSame(['ai_provider_invocations'], $registry->protectedHistoryTables('organization_id'));
+        // TASK-1694 bug U — l'archive des gabarits rejoint la liste.
+        //
+        // Cette liste EST le sujet du test : elle doit bouger quand une
+        // omission de cle etrangere est deliberement declaree, et pas avant.
+        // L'archive doit survivre a la suppression de l'Organization dont elle
+        // garde la trace.
+        $this->assertSame(
+            ['ai_provider_invocations', 'system_email_templates_archive', 'system_email_templates_trace'],
+            $registry->protectedHistoryTables('organization_id'),
+        );
     }
 
     public function test_the_cockpit_surfaces_the_broken_reference_in_its_summary(): void
@@ -319,11 +328,17 @@ class TASK1632DataIntegrityToolTest extends TestCase
 
         $this->assertSame(IntegrityStatus::Ok, $check->status);
         $this->assertSame(0, $check->count);
-        // 25 tables portent `loop_id`, aucune sans contrainte.
+        // 26 tables portent `loop_id`, aucune sans contrainte.
         // TASK-1659 ajoute `organization_invitations.loop_id` (Boucle cible
-        // d'une invitation), avec sa FK `nullOnDelete` — d'ou 24 -> 25, et
-        // `unprotected` qui reste a 0.
-        $this->assertSame(25, $check->replacements['tables']);
+        // d'une invitation), avec sa FK `nullOnDelete` — d'ou 24 -> 25.
+        // TASK-1695 ajoute `dossier_file_loop_shares.loop_id` (un fichier
+        // partage avec une Boucle), avec sa FK `cascadeOnDelete` — 25 -> 26.
+        //
+        // `unprotected` reste a 0 : c'est la VRAIE assertion de ce test. Le
+        // compte de tables n'est qu'un garde-fou contre une table ajoutee
+        // sans contrainte, et il DOIT etre mis a jour sciemment — jamais pour
+        // faire taire la CI.
+        $this->assertSame(26, $check->replacements['tables']);
         $this->assertSame(0, $check->replacements['unprotected']);
     }
 

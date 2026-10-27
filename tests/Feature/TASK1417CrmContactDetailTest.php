@@ -71,7 +71,7 @@ class TASK1417CrmContactDetailTest extends TestCase
     {
         $this->actingAs($this->memberA)->get($this->show($this->orgA, $this->contactA))->assertForbidden();
         $this->actingAs($this->adminA)->get($this->show($this->orgA, $this->contactB))->assertNotFound();
-        $this->actingAs($this->adminB)->get($this->show($this->orgA, $this->contactA))->assertForbidden();
+        $this->actingAs($this->adminB)->get($this->show($this->orgA, $this->contactA))->assertNotFound();
 
         $this->actingAs($this->adminA)->get($this->show($this->orgA, $this->contactA))
             ->assertOk()

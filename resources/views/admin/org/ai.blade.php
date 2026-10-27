@@ -60,6 +60,44 @@
         @endif
 
         @if($isSuperAdmin)
+            {{-- TASK-1693 bug AS — « Agents profil IA », rapatrie depuis
+                 /admin/ai-config.
+                 Il se posait dans une liste de TOUTES les Organizations, loin
+                 de l'interrupteur IA, du credential et du budget qui vivent
+                 ici. L'autorite ne change pas : le reglage etait deja reserve
+                 au SuperAdmin puisqu'il vivait sur l'administration
+                 plateforme. La garde reelle est cote serveur
+                 (`updateAiProfiles()`) ; cette condition n'est qu'un
+                 confort. --}}
+            <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4"
+                     data-ai-profiles-section data-ai-profiles-enabled="{{ $organization->ai_profiles_enabled ? '1' : '0' }}">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.ai_profiles_section_title') }}</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('admin.ai_profile_toggle_desc') }}</p>
+                </div>
+
+                <form method="POST" action="{{ route('organization.admin.ai.profiles.update', $organization) }}" class="space-y-4" data-ai-profiles-form>
+                    @csrf
+                    @method('PUT')
+
+                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                        <input type="hidden" name="ai_profiles_enabled" value="0">
+                        <input type="checkbox" name="ai_profiles_enabled" value="1"
+                               @checked($organization->ai_profiles_enabled)
+                               data-ai-profiles-toggle
+                               class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                        {{ __('admin.ai_profile_toggle_label') }}
+                    </label>
+
+                    <div class="flex justify-end">
+                        <button type="submit"
+                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+                            {{ __('admin.save') }}
+                        </button>
+                    </div>
+                </form>
+            </section>
+
             {{-- TASK-1306 : qui gere ce credential — reserve au SuperAdmin, la
                  vue ne fait qu'omettre le controle pour l'admin d'Organization ;
                  la garde reelle est cote serveur (updateAiCredentialMode()). --}}

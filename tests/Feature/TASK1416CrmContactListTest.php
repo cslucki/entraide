@@ -75,7 +75,7 @@ class TASK1416CrmContactListTest extends TestCase
     {
         $this->get($this->url($this->orgA))->assertRedirect();
         $this->actingAs($this->memberA)->get($this->url($this->orgA))->assertForbidden();
-        $this->actingAs($this->adminB)->get($this->url($this->orgA))->assertForbidden();
+        $this->actingAs($this->adminB)->get($this->url($this->orgA))->assertNotFound();
         $this->actingAs($this->adminA)->get($this->url($this->orgA))->assertOk();
         $this->actingAs($this->superAdmin)->get($this->url($this->orgA))->assertOk();
         $this->actingAs($this->superAdmin)->get($this->url($this->orgB))->assertOk();

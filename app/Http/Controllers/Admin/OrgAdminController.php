@@ -440,12 +440,49 @@ class OrgAdminController extends Controller
      * the membership must belong to that Loop. Same governance service as the
      * global screen — the business rule is not duplicated.
      */
+    /**
+     * TASK-1693 bug O — transferer la propriete, cote admin d'Organization.
+     *
+     * Miroir exact de l'ecran global : l'admin d'Organization bute sur le MEME
+     * invariant, et le laisser sans ce geste aurait ete un arret arbitraire —
+     * le defaut est le meme, l'ecran est le meme composant. Meme service, donc
+     * aucune regle dupliquee.
+     */
+    public function transferLoopOwnership(Request $request, Organization $organization, Loop $loop, LoopMember $member): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+        abort_if($member->loop_id !== $loop->id, 404);
+
+        $data = $request->validate(['successor_id' => ['required', 'uuid']]);
+
+        $successeur = LoopMember::where('loop_id', $loop->id)
+            ->where('id', $data['successor_id'])
+            ->first();
+
+        abort_if($successeur === null, 404);
+
+        $result = app(LoopGovernanceService::class)->transferOwnership($member, $successeur);
+
+        return redirect()
+            ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])
+            ->with(
+                $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',
+                $result === LoopGovernanceService::RESULT_OK
+                    ? __('loops.governance_ownership_transferred')
+                    : __('loops.governance_refused'),
+            );
+    }
+
     public function updateLoopMemberRole(Request $request, Organization $organization, Loop $loop, LoopMember $member): RedirectResponse
     {
         abort_if($loop->organization_id !== $organization->id, 404);
         abort_if($member->loop_id !== $loop->id, 404);
 
-        $result = app(LoopGovernanceService::class)->changeRole($member, (string) $request->input('role'));
+        // TASK-1693 bug P — la derogation « dernier proprietaire » doit etre
+        // DEMANDEE par la requete, champ `allow_last_owner`. Un changement de
+        // role ordinaire continue donc de se faire refuser, et seul le bouton
+        // qui porte la confirmation explicite peut orpheliner une Boucle.
+        $result = app(LoopGovernanceService::class)->changeRole($member, (string) $request->input('role'), $request->boolean('allow_last_owner'));
 
         return redirect()
             ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])
@@ -617,7 +654,9 @@ class OrgAdminController extends Controller
         abort_if($user->organization_id !== $organization->id, 422, __('loops.not_member'));
 
         try {
-            app(LoopService::class)->addMemberByUserId($loop, $data['user_id'], $data['role'] ?? LoopRoleRegistry::MEMBER);
+            // TASK-1693 bug L — meme regle que le SuperAdmin : l'admin
+            // d'Organization qui ajoute quelqu'un decide sa demande.
+            app(LoopService::class)->addMemberByUserId($loop, $data['user_id'], $data['role'] ?? LoopRoleRegistry::MEMBER, $request->user());
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -1329,6 +1368,37 @@ class OrgAdminController extends Controller
 
         return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
             ->with('success', __('admin.organization_ai_credential_mode_saved'));
+    }
+
+    /**
+     * TASK-1693 bug AS — « Agents profil IA », rapatrie sur l'ecran de
+     * l'Organization.
+     *
+     * Ce reglage se posait depuis `/admin/ai-config`, l'administration
+     * PLATEFORME, dans une liste de toutes les Organizations — loin de
+     * l'interrupteur IA, du credential et du budget qui vivent ici. Tout ce
+     * qui concerne l'IA d'une Organization se regle desormais au meme endroit.
+     *
+     * L'AUTORITE NE CHANGE PAS : le reglage etait deja reserve au SuperAdmin
+     * puisqu'il vivait sur l'administration plateforme. La garde est donc
+     * explicite ici, cote SERVEUR — meme idiome que `updateAiCredentialMode()`
+     * (TASK-1306). La vue omet le controle pour l'admin d'Organization ; c'est
+     * un confort, jamais la protection.
+     */
+    public function updateAiProfiles(Request $request, Organization $organization): RedirectResponse
+    {
+        if (! $request->user()->is_admin) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'ai_profiles_enabled' => ['required', 'boolean'],
+        ]);
+
+        $organization->update(['ai_profiles_enabled' => $data['ai_profiles_enabled']]);
+
+        return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
+            ->with('success', __('admin.ai_profile_toggle_saved'));
     }
 
     public function identity(Organization $organization): View
@@ -2452,7 +2522,7 @@ class OrgAdminController extends Controller
     public function updateHomepage(Request $request, Organization $organization): RedirectResponse
     {
         $validated = $request->validate([
-            'homepage_template' => ['nullable', 'string', Rule::in(['default', 'bouclepro_hero_v2', 'artscilab_hero'])],
+            'homepage_template' => ['nullable', 'string', Rule::in(['default', 'bouclepro_hero_v2', 'artscilab_hero', 'ofsh_hero'])],
             'subheadline' => ['nullable', 'string', 'max:500'],
             'card_create_label' => ['nullable', 'string', 'max:100'],
             'card_meet_label' => ['nullable', 'string', 'max:100'],
@@ -2705,20 +2775,74 @@ class OrgAdminController extends Controller
         ]);
     }
 
+    /**
+     * TASK-1694 bug AB — la liste montre CE QUE CETTE ORGANIZATION ENVOIE.
+     *
+     * ## L'impasse corrigee
+     *
+     * Cyril : « l'utilisateur n'a aucun bouton Creer et une liste vide — c'est
+     * donc une impasse pour lui ». C'etait exact : cet ecran ne listait que les
+     * lignes rattachees a l'Organization, et depuis le bug N le seeder n'en cree
+     * plus aucune. OFSH voyait donc un tableau vide, sans aucun geste possible.
+     *
+     * ## Une seule ligne par (slug, langue), et la SOURCE est dite
+     *
+     * Pas deux tableaux. La question que se pose un administrateur est « quel
+     * email part de chez moi, et d'ou vient-il ? » — pas « quelles lignes
+     * existent en base ». Chaque gabarit apparait donc UNE fois :
+     *
+     *   · l'Organization l'a adapte  -> sa version, action « Modifier » ;
+     *   · sinon                      -> la version Plateforme, action « Adapter ».
+     *
+     * C'est aussi ce qui rend l'ecran honnete : il montre la version qui part
+     * REELLEMENT, celle que le resolveur du bug M choisirait.
+     *
+     * ## On ne modifie pas un gabarit Global depuis ici
+     *
+     * Decision de Cyril : « on ne peut pas modifier les emails global, mais on
+     * peut les cloner ». Une Organization qui editerait la ligne globale
+     * changerait l'email de TOUTES les autres — l'ecran ne propose donc jamais
+     * ce geste.
+     */
     public function systemEmailTemplates(Request $request, Organization $organization): View
     {
-        $query = SystemEmailTemplate::with('organization')
-            ->where('organization_id', $organization->id)
-            ->orderBy('locale')
-            ->orderBy('name');
+        // TASK-1694 bug R — la capacite est gouvernee par l'Organization.
+        //
+        // Demande de Cyril : « desactiver le fait qu'une organisation puisse
+        // modifier les emails types », avec une case a cocher dans la
+        // configuration. Le refus est au SERVEUR : l'entree de menu disparait,
+        // mais une garde de vue n'est pas une protection — l'adresse resterait
+        // atteignable.
+        //
+        // 403 et non 404 : l'ecran EXISTE, et la garde de tenant qui rend 404
+        // (voir plus bas) repond a une autre question. Confondre les deux
+        // rendrait illisible ce qui est refuse et pourquoi.
+        abort_unless($organization->canEditSystemEmails(), 403);
 
         $locale = $request->input('locale', $organization->locale);
 
-        if ($locale) {
-            $query->where('locale', $locale);
-        }
+        $filtreLangue = fn ($query) => $locale ? $query->where('locale', $locale) : $query;
 
-        $templates = $query->get();
+        $propres = $filtreLangue(
+            SystemEmailTemplate::query()->where('organization_id', $organization->id)
+        )->get();
+
+        $adaptes = $propres->map(fn (SystemEmailTemplate $t) => $t->slug.'|'.$t->locale)->all();
+
+        $globaux = $filtreLangue(
+            SystemEmailTemplate::query()->whereNull('organization_id')
+        )->get()->reject(
+            fn (SystemEmailTemplate $t) => in_array($t->slug.'|'.$t->locale, $adaptes, true)
+        );
+
+        $templates = $propres
+            ->map(fn (SystemEmailTemplate $t) => ['template' => $t, 'adapte' => true])
+            ->concat($globaux->map(fn (SystemEmailTemplate $t) => ['template' => $t, 'adapte' => false]))
+            ->sortBy([
+                fn (array $a, array $b) => ($a['template']->locale ?? '') <=> ($b['template']->locale ?? ''),
+                fn (array $a, array $b) => $a['template']->name <=> $b['template']->name,
+            ])
+            ->values();
 
         return view('admin.org.system-email-templates', [
             'organization' => $organization,
@@ -2727,8 +2851,65 @@ class OrgAdminController extends Controller
         ]);
     }
 
+    /**
+     * TASK-1694 bug AB — CLONER un gabarit Global vers cette Organization.
+     *
+     * ## Ce que ce geste fait, et ne fait pas
+     *
+     * Il copie le texte de la ligne Plateforme dans une ligne propre a
+     * l'Organization. La ligne Global n'est pas touchee : la modifier changerait
+     * l'email de toutes les autres Organizations.
+     *
+     * ## Nee DESACTIVEE
+     *
+     * Invariant de TASK-1681, et il compte ici : tant que la copie est decochee,
+     * le resolveur (bug M) continue de servir la version Plateforme. L'admin
+     * relit son texte, puis l'active explicitement. Une copie active d'emblee
+     * remplacerait l'email sans que personne ne l'ait relu.
+     *
+     * ## `firstOrCreate`, et la source doit etre GLOBALE
+     *
+     * Pas de doublon si le geste est rejoue. Et la source est verifiee globale :
+     * cloner la ligne d'une AUTRE Organization ferait franchir une frontiere de
+     * tenant a un texte — 404, comme la garde voisine.
+     */
+    public function adaptSystemEmailTemplate(Organization $organization, SystemEmailTemplate $systemEmailTemplate): RedirectResponse
+    {
+        // TASK-1694 bug R — meme garde que la liste, au SERVEUR.
+        abort_unless($organization->canEditSystemEmails(), 403);
+
+        abort_if($systemEmailTemplate->organization_id !== null, 404);
+
+        $copie = SystemEmailTemplate::firstOrCreate(
+            [
+                'organization_id' => $organization->id,
+                'locale' => $systemEmailTemplate->locale,
+                'slug' => $systemEmailTemplate->slug,
+            ],
+            [
+                'name' => $systemEmailTemplate->name,
+                'subject' => $systemEmailTemplate->subject,
+                'content_html' => $systemEmailTemplate->content_html,
+                'variables' => $systemEmailTemplate->variables,
+                'enabled' => false,
+            ],
+        );
+
+        return redirect()
+            ->route('organization.admin.system-email-templates.edit', [$organization, $copie])
+            ->with(
+                $copie->wasRecentlyCreated ? 'success' : 'info',
+                $copie->wasRecentlyCreated
+                    ? __('admin.system_email_adapted')
+                    : __('admin.system_email_adapt_exists'),
+            );
+    }
+
     public function editSystemEmailTemplate(Organization $organization, SystemEmailTemplate $systemEmailTemplate): View
     {
+        // TASK-1694 bug R — meme garde que la liste, au SERVEUR.
+        abort_unless($organization->canEditSystemEmails(), 403);
+
         abort_if($systemEmailTemplate->organization_id !== $organization->id, 404);
 
         return view('admin.org.system-email-template-edit', [
@@ -2739,6 +2920,9 @@ class OrgAdminController extends Controller
 
     public function updateSystemEmailTemplate(Request $request, Organization $organization, SystemEmailTemplate $systemEmailTemplate): RedirectResponse
     {
+        // TASK-1694 bug R — meme garde que la liste, au SERVEUR.
+        abort_unless($organization->canEditSystemEmails(), 403);
+
         abort_if($systemEmailTemplate->organization_id !== $organization->id, 404);
 
         $validated = $request->validate([

@@ -42,7 +42,7 @@
                     </td>
                     <td class="px-4 py-3">
                         @if($post->user)
-                        <a href="{{ route('profile.show', $post->user) }}" class="text-indigo-600 hover:underline text-xs">{{ $post->user->fullName }}</a>
+                        <a href="{{ route('profile.show', $post->user->profileRouteKey()) }}" class="text-indigo-600 hover:underline text-xs">{{ $post->user->fullName }}</a>
                         @else
                         <span class="text-xs text-gray-400">—</span>
                         @endif
@@ -57,8 +57,8 @@
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
                         @if($post->category)
-                        <span class="px-2 py-0.5 rounded-full text-xs text-white" style="background-color:{{ $post->category->color ?? '#6366f1' }}">
-                            {{ $post->category->name }}
+                        <span data-blog-category class="px-2 py-0.5 rounded-full text-xs text-white" style="background-color:{{ $post->category->color ?? '#6366f1' }}">
+                            {{ $post->category->displayName('blog') }}
                         </span>
                         @else
                         <span class="text-gray-400">—</span>

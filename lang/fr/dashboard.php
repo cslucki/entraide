@@ -89,12 +89,19 @@ return [
     'my_requests' => 'Mes demandes d\'aide',
     'close_request' => 'Fermer',
     'no_open_request' => 'Aucune demande ouverte.',
+    // TASK-1693 bug U — l'etat d'une demande, porte par la pastille.
+    'request_open' => 'Ouverte',
+    'request_in_progress' => 'Prise en charge',
     'ask_help' => 'Demander de l\'aide',
     'my_current_exchanges' => 'Mes échanges en cours',
     'current_exchanges' => 'Échanges en cours',
     'to_member' => 'à :name',
     'with_member' => 'avec :name',
     'no_current_exchange' => 'Aucun échange en cours.',
+    // TASK-1693 bug T — la card unique qui remplace les deux precedentes.
+    // TASK-1694 bug A — card du tableau de bord.
+    'exchanges' => 'Entraide',
+    'no_exchange' => 'Aucun échange en cours.',
     'my_announcements' => 'Mes annonces',
     'untitled' => 'Sans titre',
     'published' => 'Publiée',
@@ -102,7 +109,11 @@ return [
     'no_announcement' => 'Aucune annonce pour le moment.',
     'create_announcement' => 'Créer une annonce',
     'view_all_announcements' => 'Voir toutes mes annonces',
-    'recent_messages' => 'Messages récents',
+    // TASK-1693 bug AM — « Messagerie » et non « Messages recents » : la card
+    // porte desormais un bouton « Nouveau » qui mene a TOUTE la messagerie,
+    // pas aux seuls derniers echanges. La clef garde son nom pour ne pas
+    // toucher ses autres lecteurs eventuels.
+    'recent_messages' => 'Messagerie',
     'view_all' => 'Voir tout',
     'no_recent_message' => 'Aucun message récent.',
     'points_history' => 'Mes points',
@@ -153,7 +164,7 @@ return [
     'view_all_services' => 'Voir toutes mes propositions',
     'my_requests_page_title' => 'Mes demandes d\'aide',
     'my_services_page_title' => 'Mes propositions d\'aide',
-    'service_proposals_title' => 'Propositions d\'aide',
+    'service_proposals_title' => 'Propositions d\'entraide',
     'help_requests_title' => 'Demandes d\'aide',
     'detail_request_title' => 'Détail de la demande',
     'detail_service_title' => 'Détail de la proposition',

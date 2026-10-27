@@ -1,6 +1,28 @@
+@props(['showInternalNavigation' => true])
+
 @php
     $routeName = request()->route()?->getName() ?? '';
-    $organizationRouteParam = request()->route('organization');
+    // TASK-1698 — le repli que ce fichier n'avait pas.
+    //
+    // `$routeUrl()` ne borne que si `$organizationRouteParam` est renseigne.
+    // Il ne l'etait QUE par le parametre d'URL : sur toute page sans prefixe
+    // (`/profile/edit`, `/verify-email`, `/dashboard`…), les **20** liens de
+    // cette barre qui passent par le helper rendaient l'URL GLOBALE — et
+    // `ResolveUrlOrganization` lie alors l'Organization PAR DEFAUT.
+    //
+    // Le helper n'etait donc pas mal employe : son ENTREE etait vide. C'est
+    // pourquoi convertir trois liens de plus n'avait rien change avant cette
+    // ligne.
+    //
+    // `app-side-nav` porte ce repli depuis toujours (sa ligne 9). On l'aligne,
+    // avec une difference ASSUMEE : le rail prefere l'Organization que la
+    // personne ADMINISTRE (`$adminOrganization`), cette barre prend celle dont
+    // elle est MEMBRE — c'est deja l'expression qu'elle utilise plus bas pour
+    // les notifications (T1374). Un administrateur d'une autre Organization
+    // verra donc deux cibles differentes entre le rail et la barre : ecart
+    // connu, hors de ce correctif.
+    $organizationRouteParam = request()->route('organization')
+        ?: (auth()->check() ? auth()->user()?->organization?->slug : null);
 
     // TASK-1374 — le Centre doit etre atteignable sur mobile.
     //
@@ -106,7 +128,53 @@
         }
     }
 
-    $displayTitle = $levelOneTitles[$routeName] ?? ($routeTitle ?: ($title ?? config('app.name')));
+    // TASK-1707 M5 — « BouclePro » au lieu d'un retour.
+    //
+    // Cyril, captures a l'appui : « Sur Dossiers et Agenda, la barre haute
+    // affiche BouclePro. Un simple ‹ renvoyant vers la homepage, comme sur les
+    // autres ecrans. »
+    //
+    // Ces deux routes ne figurent ni dans `$levelOneTitles` ni dans la chaine
+    // des `$routeTitle` : le repli terminal `config('app.name')` s'appliquait,
+    // et aucune branche ne leur donnait de `$backHref`. La barre n'etait donc
+    // ni un titre ni une navigation — juste le nom de la plateforme.
+    //
+    // Ces deux pages portent DEJA leur propre `<h1>` (« Documents »,
+    // « Agenda »), a tous les calibres. Y remettre un titre dans la barre
+    // creerait le doublon que M6 demande justement de supprimer sur le Blog.
+    // La barre ne porte donc ici QUE la fleche — ce que demande le « juste
+    // un ‹ ».
+    $titrePorteParLaPage = request()->routeIs(
+        'organization.dossiers.index',
+        'events.agenda',
+        'organization.events.agenda',
+        // TASK-1707 — les deux pages de detail d'un Dossier. Leur retour va a
+        // l'INDEX et non a l'accueil, d'ou la separation des deux listes
+        // ci-dessous.
+        //
+        // `edit` porte son propre `<h1>` (« Modifier le dossier »).
+        //
+        // `show` n'en porte pas, et la barre ne le titre pourtant PAS — c'est
+        // delibere, et c'est une correction de mon premier jet. Titrer cette
+        // page obligeait a CHARGER le Dossier ici, or `dossiers.show` rend
+        // aussi la page d'acces refuse, sur la MEME route. Le controleur dit
+        // en clair ce que cela casse : « La vue ne recoit PAS `$dossier` :
+        // elle ne peut donc rien divulguer de ce qui a ete demande, et
+        // `driveSurface()` n'est jamais atteint, donc rien du Dossier n'est
+        // meme charge pour l'ecran. » Ma branche affichait son nom a qui on
+        // venait de refuser l'acces ; les deux gardes de TASK-1145 ont rougi.
+        //
+        // Le nom du Dossier reste visible dans le CORPS de la page
+        // (`dossiers/show.blade.php:395`), ou il n'est rendu que pour qui y a
+        // droit. C'est la bonne place : l'autorisation appartient a la vue que
+        // le controleur choisit, pas a une barre commune a toutes les pages.
+        'organization.dossiers.show',
+        'organization.dossiers.edit',
+    );
+
+    $displayTitle = $titrePorteParLaPage
+        ? null
+        : ($levelOneTitles[$routeName] ?? ($routeTitle ?: ($title ?? config('app.name'))));
     $backHref = null;
 
     if (! $isLevelOne) {
@@ -131,11 +199,49 @@
                 // vers les Boucles d'une autre Organization.
                 $backHref = auth()->check() && Route::has('loops.index') ? $routeUrl('loops.index', 'organization.loops.index') : route('boucles.index');
             }
+        } elseif (request()->routeIs('messages.show', 'organization.messages.show')) {
+            // TASK-1693 bug AQ — depuis une conversation, le retour mene a la
+            // LISTE des conversations, pas au tableau de bord.
+            //
+            // La conversation est le second niveau de la Messagerie : renvoyer
+            // au tableau de bord sautait un cran, et c'est ce qui rendait
+            // indispensable la seconde fleche posee dans l'en-tete du fil.
+            // Une seule fleche desormais, celle de la barre du haut, et elle
+            // remonte d'UN niveau.
+            $backHref = $routeUrl('messages.index', 'organization.messages.index');
         } elseif (request()->routeIs('messages.*', 'points.*', 'favorites.*', 'profile.*', 'invitations.*', 'agent-ia.*', 'organization.messages.*', 'organization.points.*', 'organization.favorites.*', 'organization.profile.*', 'organization.invitations.*', 'organization.agent-ia.*')) {
             $backHref = auth()->check() ? $routeUrl('dashboard', 'organization.dashboard') : route('home');
         } elseif (request()->routeIs('bug-reports.*', 'organization.bug-reports.*')) {
             $backHref = $routeUrl('home', 'organization.home');
+        } elseif (request()->routeIs('dossiers.show', 'dossiers.edit', 'organization.dossiers.show', 'organization.dossiers.edit')) {
+            // Un cran, pas deux : depuis un Dossier on remonte a la liste des
+            // Dossiers, et c'est de la liste que l'on rejoint l'accueil (M5).
+            // La route n'existe QUE bornee a l'Organization, donc pas de
+            // `$routeUrl()` ici : son repli vers la route courte leverait.
+            $backHref = $organizationRouteParam && Route::has('organization.dossiers.index')
+                ? route('organization.dossiers.index', ['organization' => $organizationRouteParam])
+                : null;
         }
+    }
+
+    // Pose APRES la chaine ci-dessus, et hors du `! $isLevelOne` : la fleche
+    // doit exister meme sur une route de niveau un.
+    // TASK-1707 M6 — le Blog garde SON titre dans la barre (c'est l'unique
+    // occurrence desormais : le `<h1>` de la page ne se rend plus qu'a partir
+    // de `md`, la ou cette barre disparait) et gagne le meme retour.
+    //
+    // D'ou la separation des deux predicats : « la page porte le titre » et
+    // « la barre mene a l'accueil » ne sont pas la meme chose.
+    $retourVersAccueil = request()->routeIs(
+        'organization.dossiers.index',
+        'events.agenda',
+        'organization.events.agenda',
+        'blog.index',
+        'organization.blog.index',
+    );
+
+    if ($retourVersAccueil) {
+        $backHref = auth()->check() ? $routeUrl('home', 'organization.home') : route('home');
     }
 @endphp
 
@@ -173,18 +279,23 @@
                 <span class="truncate text-base font-bold text-gray-900 dark:text-gray-100">{{ $brandOrganizationName ?? config('app.name') }}</span>
             </a>
             @elseif($backHref)
-            <a href="{{ $backHref }}" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300 dark:hover:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('ui.back') }}">
+            {{-- TASK-1693 bug AQ — `data-bp-topbar-back` porte la DESTINATION.
+                 Sans lui, une assertion ne peut que chercher l'adresse quelque
+                 part dans la page : elle y figure aussi via le rail et les
+                 liens de la liste, donc elle resterait verte avec une fleche
+                 pointant ailleurs. Mon premier test faisait exactement cela. --}}
+            <a href="{{ $backHref }}" data-bp-topbar-back="{{ $backHref }}" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300 dark:hover:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('ui.back') }}">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
             </a>
             @endif
-            @unless(request()->routeIs('login', 'organization.login'))
+            @if(filled($displayTitle) && ! request()->routeIs('login', 'organization.login'))
             <h1 class="truncate text-lg font-semibold text-gray-900 dark:text-gray-100 tracking-tight">{{ $displayTitle }}</h1>
-            @endunless
+            @endif
         </div>
         <div class="flex items-center gap-2.5">
-             @auth
+             @if(auth()->check() && $showInternalNavigation)
              <div class="flex shrink-0 items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
                  @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                       <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
@@ -251,7 +362,12 @@
                     {{-- TASK-1625 — Flux a quitte ce menu : il a son onglet dans la
                          barre basse, sous le pouce. Le garder ici doublait une
                          destination deja permanente a l'ecran. --}}
-                    <form method="POST" action="{{ $routeUrl('profile.availability', 'organization.profile.availability') }}">
+                    {{-- TASK-1694 bug AE — meme bascule que le rail gauche, meme garde.
+                         Deux copies du meme geste : les oublier a moitie laisserait la
+                         fonctionnalite vivante sur smartphone. --}}
+                    @if(availabilityIsShown())
+                    <form method="POST" action="{{ $routeUrl('profile.availability', 'organization.profile.availability') }}"
+                          data-availability-toggle>
                         @csrf
                         @method('PATCH')
                         <button type="submit" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 transition duration-150 ease-in-out focus:outline-none {{ auth()->user()->is_available ? 'text-emerald-700 hover:bg-emerald-50 focus:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40 dark:focus:bg-emerald-950/40' : 'text-gray-600 hover:bg-gray-100 focus:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:bg-gray-700' }}">
@@ -259,9 +375,10 @@
                             {{ auth()->user()->is_available ? __('dashboard.available') : __('dashboard.unavailable') }}
                         </button>
                     </form>
-                    <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()]) : route('profile.show', auth()->user())">{{ __('navigation.profile') }}</x-dropdown-link>
+                    @endif
+                    <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()->profileRouteKey()]) : route('profile.show', auth()->user()->profileRouteKey())">{{ __('navigation.profile') }}</x-dropdown-link>
                     @if(!$currentOrganization || $currentOrganization->ai_profiles_enabled)
-                    <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
+                    <x-dropdown-link :href="$routeUrl('agent-ia.wizard', 'organization.agent-ia.wizard')" data-topbar-ai-wizard>{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     @endif
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     {{-- TASK-1625 — Notifications a quitte ce menu : la cloche du
@@ -269,12 +386,19 @@
                          lieu de deux. Le compteur `$mobileUnreadNotifications`
                          reste calcule en tete de fichier, il sert maintenant la
                          cloche. --}}
+                    {{-- TASK-1698 — trois entrees de ce menu appelaient `route()`
+                         NU la ou leurs voisines immediates passaient deja par
+                         `$routeUrl`. Le helper etait la, applique a trois liens
+                         et pas aux trois autres : un oubli, pas une decision.
+                         Sans prefixe, `ResolveUrlOrganization` lie
+                         l'Organization PAR DEFAUT et l'on change de locataire
+                         sans s'en apercevoir. --}}
                     <x-dropdown-link :href="$routeUrl('points.index', 'organization.points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
                     <x-dropdown-link :href="$routeUrl('invitations.index', 'organization.invitations.index')">{{ __('navigation.invitations') }}</x-dropdown-link>
-                    <x-dropdown-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-dropdown-link>
+                    <x-dropdown-link :href="$routeUrl('favorites.index', 'organization.favorites.index')" data-topbar-favorites>{{ __('navigation.favorites') }}</x-dropdown-link>
                     {{-- TASK-1281 : org-scoped, sinon « Mes articles » s'ouvre dans l'Organization par defaut --}}
                     <x-dropdown-link :href="$routeUrl('blog.my-posts', 'organization.blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
-                    <x-dropdown-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-dropdown-link>
+                    <x-dropdown-link :href="$routeUrl('profile.edit', 'organization.profile.edit')" data-topbar-settings>{{ __('navigation.settings') }}</x-dropdown-link>
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     <x-dropdown-link :href="organizationScopedUrl('mentions-legales', 'organization.mentions-legales')">{{ __('navigation.legal_notices') }}</x-dropdown-link>
                     <a href="{{ $bugReportUrl }}" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 text-amber-700 transition duration-150 ease-in-out hover:bg-amber-50 focus:bg-amber-50 focus:outline-none dark:text-amber-300 dark:hover:bg-amber-950/40 dark:focus:bg-amber-950/40">
@@ -314,7 +438,7 @@
                 {{ __('navigation.login') }}
             </a>
             @endunless
-            @endauth
+             @endif
         </div>
     </div>
 </header>

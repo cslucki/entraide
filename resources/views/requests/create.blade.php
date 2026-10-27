@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 @php
     $requestTerm = app()->getLocale() === 'en' ? __('marketplace.request_term') : ($T['request'] ?? __('marketplace.request_term'));
     $_reqOrgSlug = request()->route('organization');
@@ -21,7 +22,10 @@
             </div>
         </div>
 
-        <div x-data="{
+        {{-- TASK-1693 bug AF — meme garde que sur Proposer de l'aide : l'aide
+             a reformuler ne s'offre que si l'IA est utilisable ici. --}}
+        @if($_aiGate->availableHere())
+        <div data-ai-formulate-block x-data="{
             loading: false,
             suggestion: null,
             error: null,
@@ -121,6 +125,7 @@
 
             <div x-show="error" x-transition class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300" x-text="error"></div>
         </div>
+        @endif
 
         @if($errors->any())
         <div class="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
@@ -278,19 +283,29 @@
                 </div>
             </div>
 
-            <!-- Fourchettes indicatives -->
-            <div x-show="selectedCategory" class="mb-5 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <p class="text-xs font-semibold text-green-700 dark:text-green-300 mb-2">{{ __('marketplace.indicative_ranges_level') }}</p>
-                @foreach($categories as $cat)
-                <div x-show="selectedCategory === '{{ $cat->id }}'" class="flex gap-4 flex-wrap">
-                    @foreach($cat->pointGuidelines as $g)
-                    <div class="text-xs text-green-600 dark:text-green-400">
-                        <span class="font-medium">{{ ucfirst($g->level) }}</span> : {{ $g->points_min }}–{{ $g->points_max }} pts <span class="text-green-400">({{ $g->duration_label }})</span>
+            {{-- Fourchettes indicatives — TASK-1707 F1.
+
+                 Le titre etait POSE AU-DESSUS de la boucle et montre des qu'une
+                 categorie etait choisie, sans jamais demander si CETTE
+                 categorie avait des fourchettes. Resultat en recette OFSH :
+                 « Fourchettes indicatives par niveau : » suivi de rien.
+
+                 Le titre descend donc DANS le bloc de chaque categorie, et une
+                 categorie sans fourchette n'en produit aucun. Il n'y a plus de
+                 balisage a cacher : l'absence est decidee au serveur. --}}
+            @foreach($categories as $cat)
+                @continue($cat->pointGuidelines->isEmpty())
+                <div data-point-ranges="{{ $cat->id }}" x-show="selectedCategory === '{{ $cat->id }}'" class="mb-5 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                    <p class="text-xs font-semibold text-green-700 dark:text-green-300 mb-2">{{ __('marketplace.indicative_ranges_level') }}</p>
+                    <div class="flex gap-4 flex-wrap">
+                        @foreach($cat->pointGuidelines as $g)
+                        <div class="text-xs text-green-600 dark:text-green-400">
+                            <span class="font-medium">{{ ucfirst($g->level) }}</span> : {{ $g->points_min }}–{{ $g->points_max }} pts <span class="text-green-400">({{ $g->duration_label }})</span>
+                        </div>
+                        @endforeach
                     </div>
-                    @endforeach
                 </div>
-                @endforeach
-            </div>
+            @endforeach
 
             {{-- Pièces jointes --}}
             <div class="mb-5"

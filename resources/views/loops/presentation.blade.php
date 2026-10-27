@@ -92,7 +92,16 @@
                     </section>
                 @endif
 
-                {{-- CTA --}}
+                {{-- CTA — participation : membres du tenant SEULEMENT.
+                     Avant T1679, seuls eux atteignaient cette page et le bloc
+                     pouvait se rendre sans condition. Depuis, le SuperAdmin
+                     hors tenant la consulte aussi (garde d'inspection) : lui
+                     montrer « Rejoindre » ou « Demander a rejoindre » offrait
+                     un geste que le backend refuse deja deux fois (garde
+                     d'appartenance de storeJoinRequest + policy
+                     requestToJoin). Administration != participation : on
+                     n'affiche pas une porte qu'on garde fermee. --}}
+                @if(auth()->user()?->organization_id === $loop->organization_id)
                 <div class="rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-900/40">
                     @if($loop->isOpenAccess())
                         <form method="POST" action="{{ $_loopRoute('join', ['loop' => $loop]) }}">
@@ -118,7 +127,12 @@
                                 @csrf
                                 <div>
                                     <label for="message" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('loops.join_request_message_label') }}</label>
-                                    <textarea name="message" id="message" rows="2" maxlength="500"
+                                    {{-- TASK-1707 M2 — `rows="2"` coupait le
+                                         texte d'aide en plein milieu : sur
+                                         390px le placeholder « Pourquoi
+                                         souhaitez-vous rejoindre cette
+                                         Boucle ? » tient sur trois lignes. --}}
+                                    <textarea name="message" id="message" rows="4" maxlength="500"
                                               placeholder="{{ __('loops.join_request_message_placeholder') }}"
                                               class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">{{ old('message') }}</textarea>
                                 </div>
@@ -137,6 +151,7 @@
                         </p>
                     @endif
                 </div>
+                @endif
 
                 <div class="mt-6 flex items-start gap-2 text-xs text-gray-400 dark:text-gray-500">
                     <svg class="mt-0.5 h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

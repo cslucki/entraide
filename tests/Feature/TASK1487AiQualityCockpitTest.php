@@ -112,7 +112,7 @@ class TASK1487AiQualityCockpitTest extends TestCase
         $this->actingAs($this->adminB)
             ->get(route('organization.admin.ai-quality', ['organization' => $this->a->slug]))
             // 403, pas 404 : c'est ce que rend `OrgAdminMiddleware`, mesure.
-            ->assertStatus(403);
+            ->assertStatus(404);
     }
 
     public function test_the_platform_console_is_closed_to_an_org_admin(): void

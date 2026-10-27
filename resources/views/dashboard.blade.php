@@ -30,12 +30,25 @@
 
         <!-- Onboarding accordion -->
         @php $stepsDoneCount = collect($onboardingSteps)->filter(fn($s) => $s['status'] === 'done')->count(); @endphp
+        {{-- TASK-1693 bug AJ — le panneau d'accueil DISPARAIT quand il n'a plus
+             rien a demander.
+             Il guide une installation ; une fois celle-ci faite il n'enseigne
+             plus rien et occupe le haut du tableau de bord a perpetuite. La
+             condition porte sur CE QUI RESTE et non sur un compte fige : une
+             etape « verrouillee mais vendable » (profil IA avec abonnements)
+             n'est pas faite, donc le panneau reste — il y a encore un geste
+             possible. --}}
+        @if($stepsDoneCount < count($onboardingSteps))
         <div x-data="{ open: false }" class="mb-8 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <button type="button" @click="open = !open"
                 class="w-full flex items-center justify-between gap-4 px-5 sm:px-6 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                 <div class="flex items-center gap-3 min-w-0">
-                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 text-xs font-bold">
-                        {{ $stepsDoneCount }}/4
+                    <div data-onboarding-total="{{ count($onboardingSteps) }}" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 text-xs font-bold">
+                        {{-- TASK-1693 bug AG — le total se COMPTE : une etape
+                             retiree (profil IA sans IA ni abonnement) ne doit
+                             plus figurer au denominateur, sinon la progression
+                             annonce une cible inatteignable. --}}
+                        {{ $stepsDoneCount }}/{{ count($onboardingSteps) }}
                     </div>
                     <div class="min-w-0">
                         <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">{{ __('dashboard.onboarding_badge') }}</p>
@@ -96,6 +109,7 @@
                 @endforeach
             </div>
         </div>
+        @endif
 
         @if(session('success'))
         <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
@@ -142,7 +156,7 @@
 
         <div class="grid md:grid-cols-2 gap-6">
             <!-- Services -->
-            <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div x-data="{ open: true }" data-dashboard-card="services" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">
                         <span class="truncate">{{ __('dashboard.my_services') }}</span>
@@ -150,10 +164,22 @@
                     </button>
                     <div class="flex shrink-0 items-center gap-3">
                         <a href="{{ $_dashRoute('dashboard.services') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
-                        <a href="{{ $_dashServicesCreateHref }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                        {{-- TASK-1693 bug AL — « Nouveau » est le geste le plus
+                             utile de la card : il portait le meme poids visuel que
+                             « Voir tout », en lien souligne de 12 px. --}}
+                        <a href="{{ $_dashServicesCreateHref }}" data-dashboard-new="services"
+                           class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 whitespace-nowrap">+ {{ __('dashboard.new') }}</a>
                     </div>
                 </div>
-                <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700">
+                {{-- TASK-1693 bugs AK puis AO — un ascenseur au-dela de 4
+                         elements : la card s'ouvre desormais seule, et une liste
+                         longue repousserait tout le reste du tableau de bord sous
+                         la ligne de flottaison.
+                         La hauteur laisse voir un 5e element coupe — c'est ce qui
+                         DIT qu'il y a de la suite. --}}
+                    <div x-show="open" x-cloak data-dashboard-list
+                         @class(['divide-y divide-gray-100 dark:divide-gray-700',
+                                  'max-h-64 overflow-y-auto' => count($myServices) > 4])>
                     @forelse($myServices as $service)
                     <div class="px-5 py-3 flex items-start gap-2">
                         <div class="min-w-0 flex-1">
@@ -184,7 +210,7 @@
             </div>
 
             <!-- Requests -->
-            <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div x-data="{ open: true }" data-dashboard-card="requests" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">
                         <span class="truncate">{{ __('dashboard.my_requests') }}</span>
@@ -192,17 +218,44 @@
                     </button>
                     <div class="flex shrink-0 items-center gap-3">
                         <a href="{{ $_dashRoute('dashboard.requests') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
-                        <a href="{{ $requestCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                        <a href="{{ $requestCreateUrl }}" data-dashboard-new="requests"
+                           class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 whitespace-nowrap">+ {{ __('dashboard.new') }}</a>
                     </div>
                 </div>
-                <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700">
+                {{-- TASK-1693 bugs AK puis AO — un ascenseur au-dela de 4
+                         elements : la card s'ouvre desormais seule, et une liste
+                         longue repousserait tout le reste du tableau de bord sous
+                         la ligne de flottaison.
+                         La hauteur laisse voir un 5e element coupe — c'est ce qui
+                         DIT qu'il y a de la suite. --}}
+                    <div x-show="open" x-cloak data-dashboard-list
+                         @class(['divide-y divide-gray-100 dark:divide-gray-700',
+                                  'max-h-64 overflow-y-auto' => count($myRequests) > 4])>
                     @forelse($myRequests as $req)
-                    <div class="px-5 py-3 flex items-start gap-2">
+                    @php $reqPriseEnCharge = $req->status === 'in_progress'; @endphp
+                    <div class="px-5 py-3 flex items-start gap-2" data-dashboard-request="{{ $req->id }}">
                         <div class="min-w-0 flex-1">
                             <a href="{{ $_dashRoute('requests.show', ['request' => $req]) }}" class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600">{{ $req->title }}</a>
                             <p class="text-xs text-gray-500">{{ $req->budget_min }}{{ $req->budget_max ? '–'.$req->budget_max : '+' }} pts</p>
                         </div>
-                        <form method="POST" action="{{ $_dashRoute('requests.destroy', ['request' => $req]) }}" class="flex-shrink-0" x-data="{ asked: false }">
+                        {{-- TASK-1693 bug U — la pastille dit l'etat, puisque la
+                             card porte desormais les deux. --}}
+                        <span class="shrink-0 rounded-full px-2 py-0.5 text-xs
+                            {{ $reqPriseEnCharge
+                                ? 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
+                                : 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300' }}"
+                              data-dashboard-request-state="{{ $req->status }}">
+                            {{ $reqPriseEnCharge ? __('dashboard.request_in_progress') : __('dashboard.request_open') }}
+                        </span>
+                        {{-- « Fermer » n'est offert que sur une demande encore
+                             OUVERTE. Fermer une demande deja prise en charge
+                             laisserait une proposition en attente pointant sur
+                             une demande close, sans rien dire a la personne qui
+                             l'a faite : ce serait offrir un geste dont la
+                             consequence n'est pas nommee. --}}
+                        @if(! $reqPriseEnCharge)
+                        <form method="POST" action="{{ $_dashRoute('requests.destroy', ['request' => $req]) }}" class="flex-shrink-0" x-data="{ asked: false }"
+                              data-dashboard-request-close="{{ $req->id }}">
                             @csrf @method('DELETE')
                             <template x-if="!asked">
                                 <button type="button" @click="asked = true" class="text-xs text-red-500 hover:text-red-700 whitespace-nowrap">{{ __('dashboard.close_request') }}</button>
@@ -215,6 +268,7 @@
                                 </span>
                             </template>
                         </form>
+                        @endif
                     </div>
                     @empty
                     <p class="px-5 py-8 text-sm text-gray-400 text-center">{!! __('dashboard.no_open_request') !!}<br><a href="{{ $requestCreateUrl }}" class="text-indigo-600 hover:underline">{{ __('dashboard.ask_help') }}</a></p>
@@ -222,22 +276,60 @@
                 </div>
             </div>
 
-            <!-- Buyer proposals -->
-            @if($myProposals->isNotEmpty())
-            <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-                    <button type="button" @click="open = !open" class="flex w-full items-center justify-between gap-3 text-left font-semibold text-gray-900 dark:text-gray-100">
-                        <span class="truncate">{{ __('dashboard.my_current_exchanges') }}</span>
+            {{-- TASK-1693 bug T — UNE seule card « Échanges ».
+
+                 Deux cards se chevauchaient : un echange dont j'etais
+                 acheteur et qui etait accepte figurait dans les deux, meme
+                 titre, meme lien. Et la premiere se masquant quand elle etait
+                 vide, le tableau de bord changeait de FORME selon la personne.
+
+                 L'etat est desormais porte par la PASTILLE de chaque ligne au
+                 lieu du titre de deux cards qu'il fallait savoir distinguer. --}}
+            <div x-data="{ open: true }" data-dashboard-card="exchanges" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden" data-dashboard-exchanges>
+                {{-- TASK-1693 bug AM — l'en-tete reprend la forme des autres
+                     cards : le bouton de repli cesse d'occuper toute la largeur
+                     pour laisser place a « Nouveau ».
+                     Un lien ne peut pas vivre DANS un bouton — c'est invalide en
+                     HTML et le navigateur le deplace hors de son parent (lecon
+                     du bug AA). Les deux sont donc POSES COTE A COTE. --}}
+                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">
+                        <span class="truncate">{{ __('dashboard.exchanges') }}</span>
                         <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 shrink-0 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
                     </button>
+                    <div class="flex shrink-0 items-center gap-3">
+                        {{-- Un echange NAIT d'une rencontre : le geste « nouveau »
+                             est donc d'aller EXPLORER ce que la boucle propose, il
+                             n'existe pas de formulaire de creation directe. --}}
+                        <a href="{{ $_dashRoute('explorer') }}" data-dashboard-new="exchanges"
+                           class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 whitespace-nowrap">+ {{ __('dashboard.new') }}</a>
+                    </div>
                 </div>
-                <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700">
-                    @foreach($myProposals as $tx)
-                    <a href="{{ $_dashRoute('messages.show', ['transaction' => $tx]) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        <img src="{{ $tx->seller->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0 self-start sm:self-center" alt="">
+                {{-- TASK-1693 bugs AK puis AO — un ascenseur au-dela de 4
+                         elements : la card s'ouvre desormais seule, et une liste
+                         longue repousserait tout le reste du tableau de bord sous
+                         la ligne de flottaison.
+                         La hauteur laisse voir un 5e element coupe — c'est ce qui
+                         DIT qu'il y a de la suite. --}}
+                    <div x-show="open" x-cloak data-dashboard-list
+                         @class(['divide-y divide-gray-100 dark:divide-gray-700',
+                                  'max-h-64 overflow-y-auto' => count($exchanges) > 4])>
+                    @forelse($exchanges as $tx)
+                    @php
+                        $other = auth()->id() === $tx->buyer_id ? $tx->seller : $tx->buyer;
+                        // Tant que rien n'est accepte, le montant CONVENU n'existe
+                        // pas encore : la card d'origine allait le chercher au
+                        // mauvais endroit et affichait « 0 pts » sur toute
+                        // proposition en attente.
+                        $points = $tx->points_agreed ?? $tx->points_proposed;
+                    @endphp
+                    <a href="{{ $_dashRoute('messages.show', ['transaction' => $tx]) }}"
+                       data-dashboard-exchange="{{ $tx->id }}"
+                       class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0 self-start sm:self-center" alt="">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $tx->subject }}</p>
-                            <p class="text-xs text-gray-500">{{ __('dashboard.to_member', ['name' => $tx->seller->full_name]) }} · {{ $tx->points_proposed }} pts</p>
+                            <p class="text-xs text-gray-500">{{ __('dashboard.with_member', ['name' => $other->full_name]) }} · {{ $points }} pts</p>
                         </div>
                         <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0 self-start sm:self-center
                             {{ match($tx->status) {
@@ -247,46 +339,37 @@
                                 default      => 'bg-gray-100 text-gray-600',
                             } }}">{{ $tx->status_label }}</span>
                     </a>
-                    @endforeach
-                </div>
-            </div>
-            @endif
-
-            <!-- Active exchanges -->
-            <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-                    <button type="button" @click="open = !open" class="flex w-full items-center justify-between gap-3 text-left font-semibold text-gray-900 dark:text-gray-100">
-                        <span class="truncate">{{ __('dashboard.current_exchanges') }}</span>
-                        <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 shrink-0 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
-                    </button>
-                </div>
-                <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700">
-                    @forelse($activeExchanges as $tx)
-                    @php $other = auth()->id() === $tx->buyer_id ? $tx->seller : $tx->buyer; @endphp
-                    <a href="{{ $_dashRoute('messages.show', ['transaction' => $tx]) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0 self-start sm:self-center" alt="">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $tx->subject }}</p>
-                            <p class="text-xs text-gray-500">{{ __('dashboard.with_member', ['name' => $other->name]) }} · {{ $tx->points_agreed }} pts</p>
-                        </div>
-                        <span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 flex-shrink-0 self-start sm:self-center">{{ $tx->status_label }}</span>
-                    </a>
                     @empty
-                    <p class="px-5 py-8 text-sm text-gray-400 text-center">{{ __('dashboard.no_current_exchange') }}</p>
+                    {{-- La card reste VISIBLE quand elle est vide : un tableau
+                         de bord dont la forme change selon le contenu se relit
+                         mal d'une fois sur l'autre. --}}
+                    <p class="px-5 py-8 text-sm text-gray-400 text-center">{{ __('dashboard.no_exchange') }}</p>
                     @endforelse
                 </div>
             </div>
 
-            <!-- Recent messages -->
-            <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <!-- Messagerie -->
+            <div x-data="{ open: true }" data-dashboard-card="messages" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">
                         <span class="truncate">{{ __('dashboard.recent_messages') }}</span>
                         <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 shrink-0 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
                     </button>
-                    <a href="{{ $_dashRoute('messages.index') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
+                    <div class="flex shrink-0 items-center gap-3">
+                        <a href="{{ $_dashRoute('messages.index') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
+                        <a href="{{ $_dashRoute('messages.index') }}" data-dashboard-new="messages"
+                           class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 whitespace-nowrap">+ {{ __('dashboard.new') }}</a>
+                    </div>
                 </div>
-                <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700">
+                {{-- TASK-1693 bugs AK puis AO — un ascenseur au-dela de 4
+                         elements : la card s'ouvre desormais seule, et une liste
+                         longue repousserait tout le reste du tableau de bord sous
+                         la ligne de flottaison.
+                         La hauteur laisse voir un 5e element coupe — c'est ce qui
+                         DIT qu'il y a de la suite. --}}
+                    <div x-show="open" x-cloak data-dashboard-list
+                         @class(['divide-y divide-gray-100 dark:divide-gray-700',
+                                  'max-h-64 overflow-y-auto' => count($recentMessages) > 4])>
                     @forelse($recentMessages as $tx)
                     @php $other = auth()->id() === $tx->buyer_id ? $tx->seller : $tx->buyer; $lastMsg = $tx->messages->first(); @endphp
                     <a href="{{ $_dashRoute('messages.show', ['transaction' => $tx]) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">

@@ -1,6 +1,25 @@
+{{--
+    TASK-1693 bug R — cette page sert desormais les DEUX familles de messages.
+
+    Elle ne connaissait que les conversations d'echange, alors que l'onglet
+    ChatLoop est celui par defaut de la liste : le lien « visualiser » n'aurait
+    existe que pour une minorite de lignes. `$isLoop` choisit le contexte a
+    nommer — la Boucle, ou les deux parties de la transaction — et le
+    voisinage est deja calcule par le controleur dans l'un ou l'autre fil.
+
+    Ce qui ne change PAS : la page reste en LECTURE SEULE, decision ecrite
+    T074.9 rappelee plus bas. Le seul geste offert est « Modifier », qui mene
+    a la page d'edition du bug Q — il ne modifie rien ici.
+--}}
 <x-admin-layout title="Détail du message">
-    <div class="mb-4">
-        <a href="{{ route('admin.messages') }}" class="text-sm text-indigo-600 hover:underline">← Retour à la liste</a>
+    <div class="mb-4 flex items-center justify-between gap-3">
+        <a href="{{ route('admin.messages', ['filter' => $isLoop ? 'chatloop' : 'exchanges']) }}"
+           class="text-sm text-indigo-600 hover:underline">← Retour à la liste</a>
+        <a href="{{ $isLoop ? route('admin.loop-messages.edit', $message) : route('admin.messages.edit', $message) }}"
+           data-message-detail-edit-link="{{ $message->id }}"
+           class="rounded-lg border border-indigo-300 px-3 py-1.5 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/25">
+            {{ __('admin.message_edit_action') }}
+        </a>
     </div>
 
     <!-- Message ciblé -->
@@ -14,12 +33,23 @@
                     <span class="text-xs text-gray-500 font-normal ml-1">{{ $message->sender->email }}</span>
                     @endif
                 </p>
-                @if($message->transaction)
-                <p class="text-xs text-gray-500 mt-0.5">
+                @if($isLoop)
+                <p class="text-xs text-gray-500 mt-0.5" data-message-detail-context>
+                    <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">ChatLoop</span>
+                    {{ $message->loop->name ?? '—' }}
+                </p>
+                @elseif($message->transaction)
+                <p class="text-xs text-gray-500 mt-0.5" data-message-detail-context>
                     Transaction :
                     <a href="{{ route('admin.transactions') }}" class="text-indigo-600 hover:underline">
                         {{ $message->transaction->buyer->full_name ?? '?' }} ↔ {{ $message->transaction->seller->full_name ?? '?' }}
                     </a>
+                </p>
+                @endif
+                @if($message->edited_at)
+                <p class="text-xs text-gray-400 mt-0.5" data-message-detail-edited>
+                    {{ __('admin.message_edit_last_edit') }} :
+                    {{ $message->edited_at->format('d/m/Y H:i') }}@if($message->editedBy) — {{ $message->editedBy->full_name }}@endif
                 </p>
                 @endif
             </div>

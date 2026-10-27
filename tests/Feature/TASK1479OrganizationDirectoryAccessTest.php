@@ -291,63 +291,231 @@ class TASK1479OrganizationDirectoryAccessTest extends TestCase
     // E. Le perimetre : ce qui n'a PAS bouge
     // =====================================================================
 
-    /** `/loops` etait deja protegee ; elle ne change pas. */
-    public function test_loops_are_untouched(): void
+    /**
+     * TASK-1692 — la pile EFFECTIVE, pas les alias declares.
+     *
+     * `gatherMiddleware()` rend les alias de la route et de ses groupes, mais
+     * ne soustrait PAS `withoutMiddleware()`. Depuis que TASK-1692 pose
+     * `auth` + `organization.member` sur le groupe `/org/{organization}` et en
+     * excepte certaines routes, raisonner sur cette API donne une reponse
+     * fausse — c'est le defaut qui avait desarme la garde de TASK-1489.
+     * `Router::gatherRouteMiddleware()` resout les alias ET applique les
+     * exclusions : c'est la seule lecture qui dise ce qui S'EXECUTE.
+     *
+     * @return list<string> classes resolues, parametre compris
+     */
+    private function effectiveMiddleware(string $routeName): array
     {
-        $route = Route::getRoutes()->getByName('organization.loops.index');
-        $middleware = $route->gatherMiddleware();
+        $route = Route::getRoutes()->getByName($routeName);
 
-        // `gatherMiddleware()` rend les ALIAS declares sur la route (`auth`,
-        // `organization.member`), pas les classes resolues : `route:list` les
-        // resout, cette API non. Une assertion sur `Authenticate` etait donc
-        // fausse pour une bonne raison — mesure faite, elle rougissait.
-        $this->assertContains('auth', $middleware, '/loops etait deja authentifiee');
-        $this->assertNotContains('organization.member', $middleware,
-            'hors perimetre : on ne touche pas aux Boucles cette nuit');
+        $this->assertNotNull($route, "[{$routeName}] a disparu du routeur.");
+
+        return array_values(array_filter(
+            app('router')->gatherRouteMiddleware($route),
+            static fn ($m): bool => is_string($m),
+        ));
     }
 
-    /** Le blog public reste public : il n'etait pas dans le finding. */
-    public function test_the_public_blog_is_untouched(): void
+    /**
+     * CHANGEMENT DE CONTRAT — TASK-1692.
+     *
+     * Cette methode s'appelait `test_loops_are_untouched` et affirmait
+     * `assertNotContains('organization.member')` : TASK-1479 etait un correctif
+     * d'URGENCE, et ce test etait sa garde contre la SUR-EXTENSION — « hors
+     * perimetre : on ne touche pas aux Boucles cette nuit ».
+     *
+     * Elle a fait son travail : elle a sonne le jour ou TASK-1692 a etendu la
+     * garde a toutes les routes internes prefixees. L'extension est desormais
+     * la decision produit, et c'est elle que cette methode mesure — sans quoi
+     * la garde continuerait de defendre un perimetre qui n'existe plus.
+     *
+     * Ce qu'on ne fait PAS : remplacer `assertNotContains` par
+     * `assertContains` et s'arreter la. Une assertion sur la pile ne dit rien
+     * de ce que la pile FAIT. Les quatre comportements sont donc mesures.
+     */
+    public function test_the_prefixed_loops_now_require_authentication_and_membership(): void
     {
-        $route = Route::getRoutes()->getByName('organization.blog.index');
+        $effective = $this->effectiveMiddleware('organization.loops.index');
 
-        $this->assertNotContains('organization.member', $route->gatherMiddleware());
+        $this->assertContains(\Illuminate\Auth\Middleware\Authenticate::class, $effective, '/loops etait deja authentifiee');
+        $this->assertContains(EnsureOrganizationMember::class, $effective, 'TASK-1692 : toute surface interne prefixee demande l\'appartenance');
+
+        $url = route('organization.loops.index', ['organization' => $this->private->slug]);
+
+        // 1. Anonyme : jamais servi.
+        $anonyme = $this->get($url);
+        $this->assertNotSame(200, $anonyme->getStatusCode(), 'un anonyme ne doit pas atteindre les Boucles d\'une Organization');
+        $this->assertLeaksNothing($anonyme->getContent(), 'organization.loops.index');
+
+        // 2. Membre d'une AUTRE Organization : 404, et rien de nomme — c'est
+        //    le refus muet, pas le refus explique du tableau de bord.
+        $etranger = $this->actingAs($this->memberOfPublic)->get($url);
+        $etranger->assertNotFound();
+        $etranger->assertDontSee($this->private->name, false);
+
+        // 3. Membre legitime : la garde ne lui ferme pas sa propre porte.
+        $legitime = $this->actingAs($this->memberOfPrivate)->get($url);
+        $this->assertNotContains(
+            $legitime->getStatusCode(),
+            [403, 404],
+            'la garde d\'appartenance refuse un membre de SA propre Organization',
+        );
+    }
+
+    /**
+     * Et la garde n'OUVRE rien au passage : appartenir a l'Organization ne
+     * rend membre d'aucune Boucle.
+     *
+     * Organization = Tenant, mais Loop != Tenant. Le middleware repond a
+     * « cette personne appartient-elle au tenant ? » et a rien d'autre : il
+     * n'ecrit pas, n'accorde pas, ne cree aucune appartenance. Le mesurer ici
+     * evite qu'une future garde « pratique » prenne l'habitude inverse.
+     */
+    public function test_passing_the_membership_guard_never_grants_loop_membership(): void
+    {
+        $avant = \App\Models\LoopMember::query()->count();
+
+        $this->actingAs($this->memberOfPrivate)
+            ->get(route('organization.loops.index', ['organization' => $this->private->slug]));
+
+        $this->assertSame($avant, \App\Models\LoopMember::query()->count(),
+            'franchir la garde d\'appartenance a cree une appartenance de Boucle');
+    }
+
+    /**
+     * CHANGEMENT DE CONTRAT — TASK-1692.
+     *
+     * S'appelait `test_the_public_blog_is_untouched`. Le blog PREFIXE n'est
+     * plus public ; la route GLOBALE `/blog`, elle, ne change pas — et c'est
+     * la contre-epreuve qui empeche ce test de dire simplement « tout est
+     * ferme », ce qui serait vrai meme si on avait tout casse.
+     */
+    public function test_the_prefixed_blog_requires_membership_while_the_global_one_is_untouched(): void
+    {
+        $effective = $this->effectiveMiddleware('organization.blog.index');
+
+        $this->assertContains(\Illuminate\Auth\Middleware\Authenticate::class, $effective);
+        $this->assertContains(EnsureOrganizationMember::class, $effective);
+
+        $prefixe = route('organization.blog.index', ['organization' => $this->private->slug]);
+
+        $anonyme = $this->get($prefixe);
+        $this->assertNotSame(200, $anonyme->getStatusCode());
+        $this->assertLeaksNothing($anonyme->getContent(), 'organization.blog.index');
+
+        $this->actingAs($this->memberOfPublic)->get($prefixe)
+            ->assertNotFound()
+            ->assertDontSee($this->private->name, false);
+
+        $this->actingAs($this->memberOfPrivate)->get($prefixe)->assertOk();
+
+        // CONTRE-EPREUVE — la route globale n'a pas bouge.
+        $globale = $this->effectiveMiddleware('blog.index');
+        $this->assertNotContains(EnsureOrganizationMember::class, $globale,
+            'TASK-1692 borne les routes PREFIXEES ; la route globale n\'est pas de son ressort');
     }
 
     /**
      * `organization.dashboard` etait HORS PERIMETRE de TASK-1479, et le
-     * disait : le finding avait ete mesure — la route rendait 200 pour un
-     * membre d'une autre Organization, mais aucune donnee de l'Organization
-     * visitee n'y apparaissait. Pas P0 ; l'inclure aurait etendu le perimetre
-     * d'un correctif d'urgence.
+     * disait. **TASK-1483 l'a prise**, avec le mode `explain`.
      *
-     * **TASK-1483 l'a prise**, avec le mode `explain`. Cette methode s'appelait
-     * `test_the_dashboard_stays_out_of_scope` et affirmait l'inverse ; elle
-     * serait restee VERTE pour une mauvaise raison, `assertNotContains`
-     * comparant des chaines entieres et la route portant desormais
-     * `organization.member:explain`, qui n'est pas `organization.member`.
+     * TASK-1692 — mesure sur la pile EFFECTIVE. `gatherMiddleware()` rendait
+     * ici `organization.member` ET `organization.member:explain`, parce qu'il
+     * ignore le `withoutMiddleware(['organization.member'])` que TASK-1692 a
+     * pose sur cette route : l'assertion d'exclusion etait donc fausse, et le
+     * serait restee sans cette correction.
      *
-     * Ce qu'elle mesure a la place est la distinction qui compte vraiment entre
-     * les deux TASK : **l'annuaire refuse en 404, le tableau de bord refuse en
-     * 403 explique**. Unifier les deux refus rendrait l'une des deux assertions
-     * rouge — et c'est exactement ce qu'on veut savoir.
+     * Ce que la methode mesure n'a pas change : **l'annuaire refuse en 404, le
+     * tableau de bord refuse en 403 explique**. Unifier les deux refus rendrait
+     * l'une des deux assertions rouge — et c'est exactement ce qu'on veut
+     * savoir.
      */
     public function test_the_dashboard_refuses_differently_from_the_directory(): void
     {
-        $dashboard = Route::getRoutes()->getByName('organization.dashboard')->gatherMiddleware();
+        $dashboard = $this->effectiveMiddleware('organization.dashboard');
 
-        // Le tableau de bord : le mode qui EXPLIQUE (TASK-1483).
-        $this->assertContains('organization.member:explain', $dashboard);
-        $this->assertNotContains('organization.member', $dashboard, 'le tableau de bord ne doit pas retomber sur le 404 muet');
+        // Le tableau de bord : le mode qui EXPLIQUE (TASK-1483), et LUI SEUL.
+        $this->assertContains(EnsureOrganizationMember::class.':'.EnsureOrganizationMember::MODE_EXPLAIN, $dashboard);
+        $this->assertNotContains(EnsureOrganizationMember::class, $dashboard,
+            'le tableau de bord ne doit pas retomber sur le 404 muet');
 
         // L'annuaire : le refus par defaut, un 404 — un 403 y confirmerait a un
         // tiers que cette Organization existe.
         foreach (self::PREFIXED as $name) {
-            $middleware = Route::getRoutes()->getByName($name)->gatherMiddleware();
+            $middleware = $this->effectiveMiddleware($name);
 
-            $this->assertContains('organization.member', $middleware, "[{$name}] : le refus muet");
-            $this->assertNotContains('organization.member:explain', $middleware, "[{$name}] : nommer l'Organization ici la confirmerait");
+            $this->assertContains(EnsureOrganizationMember::class, $middleware, "[{$name}] : le refus muet");
+            $this->assertNotContains(EnsureOrganizationMember::class.':'.EnsureOrganizationMember::MODE_EXPLAIN, $middleware,
+                "[{$name}] : nommer l'Organization ici la confirmerait");
         }
+    }
+
+    /**
+     * La CONTRE-EPREUVE de COMPORTEMENT — une pile ne dit pas ce qu'elle fait.
+     *
+     * ECART MESURE, A ARBITRER : le mode `explain` rend **403 dans les deux
+     * cas**, Organization etrangere publique ou privee. Le no-oracle n'y passe
+     * pas par le STATUT mais par le NOM — `EnsureOrganizationMember::explain()`
+     * ne transmet `organizationName` et `publicHomeUrl` que si `is_public` est
+     * vrai, et sur une Organization privee la page de refus ne nomme rien.
+     * Un 403 confirme neanmoins qu'il y a quelque chose a cette URL, la ou
+     * l'annuaire rend 404. C'est une decision de TASK-1483, pas un defaut de
+     * TASK-1692 ; la changer demanderait de toucher au middleware, hors
+     * perimetre. Ce test mesure donc ce qui EST, et l'ecrit.
+     */
+    public function test_the_dashboard_explains_a_public_organization_and_stays_a_no_oracle_404_on_a_private_one(): void
+    {
+        foreach ([
+            ['publique', $this->public, $this->memberOfPrivate, true],
+            ['privee', $this->private, $this->memberOfPublic, false],
+        ] as [$etiquette, $organisation, $etranger, $doitNommer]) {
+            $refus = $this->actingAs($etranger->fresh())
+                ->get(route('organization.dashboard', ['organization' => $organisation->slug]));
+
+            if ($doitNommer) {
+                // PUBLIQUE : le refus explique, et nomme — decision TASK-1483,
+                // inchangee. Son existence est deja affichee par sa landing.
+                $refus->assertForbidden();
+                $refus->assertSee($organisation->name);
+            } else {
+                // PRIVEE : 404, STRICTEMENT identique a un slug inexistant.
+                // Un 403 confirmait l'existence ; le nom tu ne suffisait pas.
+                $refus->assertNotFound();
+                $refus->assertDontSee($organisation->name, false);
+                $this->assertLeaksNothing($refus->getContent(), "dashboard {$etiquette}");
+
+                $inexistant = $this->actingAs($etranger->fresh())
+                    ->get('/org/org-1479-inexistante/dashboard');
+
+                $this->assertSame(
+                    $inexistant->getStatusCode(),
+                    $refus->getStatusCode(),
+                    'une Organization privee doit repondre comme un slug inexistant',
+                );
+            }
+
+            // L'annuaire de la MEME Organization refuse muet : la distinction
+            // introduite par TASK-1483 doit survivre a TASK-1692.
+            $this->actingAs($etranger->fresh())
+                ->get(route('organization.members.index', ['organization' => $organisation->slug]))
+                ->assertNotFound()
+                ->assertDontSee($organisation->name, false);
+        }
+    }
+
+    /**
+     * Et le membre legitime passe les deux portes — sans quoi les deux tests
+     * ci-dessus seraient verts sur une porte muree pour tout le monde.
+     */
+    public function test_a_legitimate_member_still_reaches_their_dashboard_and_directory(): void
+    {
+        $this->actingAs($this->memberOfPrivate)
+            ->get(route('organization.dashboard', ['organization' => $this->private->slug]))
+            ->assertOk();
+
+        $this->actingAs($this->memberOfPrivate->fresh())
+            ->get(route('organization.members.index', ['organization' => $this->private->slug]))
+            ->assertOk();
     }
 
     /** Aucune migration : la frontiere est une regle, pas une colonne. */

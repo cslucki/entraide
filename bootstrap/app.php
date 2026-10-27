@@ -5,6 +5,7 @@ use App\Http\Middleware\CheckAiProfilesEnabled;
 use App\Http\Middleware\CheckLoopsEnabled;
 use App\Http\Middleware\ConsumeOrgParams;
 use App\Http\Middleware\EnsureInvitationPasswordIsSet;
+use App\Http\Middleware\RequireVerifiedEmail;
 use App\Http\Middleware\EnsureProfileComplete;
 use App\Http\Middleware\EnsureScenarioPersonaContextIsValid;
 use App\Http\Middleware\EnsureOrganizationMember;
@@ -13,6 +14,8 @@ use App\Http\Middleware\ResolveApiOrganization;
 use App\Http\Middleware\ResolveOrganization;
 use App\Http\Middleware\ResolveUrlOrganization;
 use App\Http\Middleware\SetLocale;
+use Illuminate\Auth\Middleware\EnsureEmailIsVerified;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Application;
@@ -108,6 +111,52 @@ return Application::configure(basePath: dirname(__DIR__))
             // pas l'authentification.
             'organization.member' => EnsureOrganizationMember::class,
         ]);
+
+        // TASK-1692 — l'ordre est une frontiere de securite, pas une
+        // consequence accidentelle de l'ordre d'ecriture des routes.
+        //
+        // `auth` reste la premiere porte : un invite est redirige vers la
+        // connexion bornee a l'Organization. Ensuite seulement, l'appartenance
+        // est verifiee en 404 sans oracle. La verification d'email arrive en
+        // dernier, afin qu'un compte non verifie d'un autre tenant ne puisse
+        // pas apprendre que la surface existe via `/verify-email`.
+        //
+        // On INSERE ces deux classes dans la priorite Laravel existante au lieu
+        // de la remplacer : l'ordre relatif des middlewares du framework reste
+        // donc intact pour tous les autres groupes.
+        $middleware->appendToPriorityList(
+            AuthenticatesRequests::class,
+            EnsureOrganizationMember::class,
+        );
+        $middleware->appendToPriorityList(
+            EnsureOrganizationMember::class,
+            EnsureEmailIsVerified::class,
+        );
+        // TASK-1694 bug C — l'ordre de la garde de verification devient
+        // EXPLICITE. Il etait deja correct ; il ne l'etait par PERSONNE.
+        //
+        // CE QUE J'AI CRU, ET CE QUE LA MESURE DIT. J'ai d'abord annonce une
+        // regression : declaree dans le groupe `web`, la garde aurait tourne
+        // avant `EnsureOrganizationMember`, et un compte non verifie d'un
+        // AUTRE tenant aurait recu une redirection vers /verify-email la ou il
+        // doit recevoir un 404 — soit l'oracle que TASK-1692 a ferme.
+        //
+        // C'etait FAUX. Mesure de la pile effective, avec et sans cette
+        // insertion : `Authenticate` (10), `EnsureOrganizationMember` (11),
+        // `RequireVerifiedEmail` (14 sans, 12 avec). L'etranger recevait son
+        // 404 dans les deux cas, parce que `EnsureOrganizationMember` est deja
+        // dans la liste de priorite et s'y trouve remonte.
+        //
+        // L'INSERTION RESTE, et je dis pourquoi plutot que de la presenter
+        // comme un correctif : elle rend la dependance EXPLICITE. Aujourd'hui
+        // l'ordre tient par un effet de bord de la priorite d'un AUTRE
+        // middleware ; demain, une declaration deplacee pourrait le defaire
+        // sans que rien ne rougisse. Aucun test ne distingue les deux
+        // versions — je ne pretends donc pas qu'elle est prouvee.
+        $middleware->appendToPriorityList(
+            EnsureOrganizationMember::class,
+            RequireVerifiedEmail::class,
+        );
         // TASK-145: Reorder web group so ResolveUrlOrganization runs BEFORE
         // SubstituteBindings. With appendToGroup, ResolveUrlOrganization ran AFTER
         // SubstituteBindings, meaning route model binding (Service $service, etc.)
@@ -142,6 +191,20 @@ return Application::configure(basePath: dirname(__DIR__))
             // la garde s'exprime en noms de routes, qui doivent etre resolus.
             // Ne coute qu'une lecture d'attribut deja charge pour tout le monde.
             EnsureInvitationPasswordIsSet::class,
+            // TASK-1694 bug C — la verification d'email redevient OBLIGATOIRE.
+            //
+            // APRES `SubstituteBindings` et apres `EnsureInvitationPasswordIsSet`,
+            // pour la meme raison que cette derniere : la garde s'exprime en
+            // NOMS DE ROUTES, qui doivent etre resolus. Et apres elle, parce
+            // qu'un compte cree par invitation doit d'abord poser son mot de
+            // passe — le renvoyer vers /verify-email avant cela l'enverrait
+            // vers une page qu'il ne peut pas utiliser.
+            //
+            // Dans le groupe `web` et non sur des groupes de routes : la garde
+            // precedente vivait sur DEUX declarations (blog, Dossiers) et
+            // laissait donc le tableau de bord, l'Explorer et la Messagerie
+            // ouverts. « Obligatoire » n'aurait rien voulu dire.
+            RequireVerifiedEmail::class,
         ]);
         $middleware->appendToGroup('api', [
             ResolveApiOrganization::class,

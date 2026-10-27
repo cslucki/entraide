@@ -5,14 +5,111 @@
             padding: 0 !important;
         }
 
+        /* TASK-1703 — POURQUOI LE COMPOSEUR BOUGEAIT, et laissait une bande
+           vide sous lui.
+
+           Cyril, capture a l'appui : « il faut que le composer qui est en bas
+           soit sticky, car si on fait un geste vers le haut, le composer se
+           deplace ».
+
+           C'est MOT POUR MOT le defaut que TASK-1684 MICRO-01 avait nomme et
+           corrige sur l'espace d'une Boucle : « `100dvh` est la hauteur
+           DYNAMIQUE : elle suit l'apparition et le retrait de la barre d'URL
+           du navigateur. Sur Chrome Android, le simple geste de defilement
+           vers le haut retracte cette barre, le viewport grandit, le conteneur
+           grandit avec lui — et le composeur, ancre en bas de ce conteneur, se
+           DEPLACE sous le doigt. Rien n'etait mal ancre : c'est l'unite de
+           hauteur qui bougeait. »
+
+           La Messagerie etait restee en `dvh`. Memes deux changements, meme
+           principe — que plus rien ne bouge :
+
+             1. le document ne defile plus du tout sur cette page. Sans
+                defilement de document, Chrome n'a aucune raison de retracter
+                sa barre : le viewport reste constant. C'est aussi ce qui
+                supprime le « defilement parasite » qui decouvrait la bande
+                grise de la capture ;
+             2. la hauteur passe a `100svh`, la plus petite des hauteurs
+                possibles, celle qui ne varie JAMAIS. Le repli `100dvh` precede
+                la regle pour les navigateurs qui ignorent `svh`.
+
+           `--bp-vvh`, si le script l'a posee, prend le dessus : c'est la seule
+           mesure juste quand le clavier virtuel est ouvert.
+
+           La soustraction, elle, ne change pas : `3.5rem` est la barre haute
+           de l'application, qui RESTE sur cette page — a la difference d'une
+           Boucle, qui la masque. */
+        html:has(.messages-index-container),
+        body:has(.messages-index-container) {
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+
         .messages-index-container {
-            height: calc(100dvh - 3.5rem - 4rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+            /* TASK-1693 bug AD — `4rem` etait la hauteur de la barre d'outils,
+               recopiee en dur. Le bug AC l'ayant retiree des conversations,
+               cette page continuait de la soustraire : d'ou une bande vide
+               sous le composeur, qui ne tenait donc plus le bas de l'ecran.
+               `--bp-bottom-nav` suit la meme decision que la barre. */
+            height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px) - var(--bp-bottom-nav, 0px));
+            height: calc(100svh - 3.5rem - env(safe-area-inset-top, 0px) - var(--bp-bottom-nav, 0px));
+            height: calc(var(--bp-vvh, 100svh) - 3.5rem - env(safe-area-inset-top, 0px) - var(--bp-bottom-nav, 0px));
         }
     }
 
     @media (min-width: 768px) {
+        /* TASK-1703 — la fenetre prend toute la largeur ET toute la hauteur,
+           comme l'espace de travail d'une Boucle.
+
+           ## La hauteur
+
+           `calc(100vh - 5rem)` soustrayait la barre d'en-tete de page. Or cet
+           ecran ne pose AUCUN `$header` — pas plus que `loops.show`, dont le
+           commentaire dit deja : « no top app header on this page, so the
+           workspace fills the full viewport height — otherwise ~5rem stays
+           empty ». La messagerie avait garde la soustraction : cinq rem de
+           vide sous le composeur, et une fenetre d'autant plus courte.
+
+           ## La largeur
+
+           `x-page-container` centre le contenu dans `max-w-7xl` avec ses
+           marges laterales. Sur un grand ecran, les deux colonnes se
+           retrouvaient dans une colonne etroite tandis que l'espace d'une
+           Boucle occupe tout. Memes declarations que `.loops-show-wrapper`,
+           au mot pres : c'est le meme besoin, il n'y a pas de raison d'en
+           inventer une seconde expression. */
+        .messages-index-wrapper {
+            max-width: none !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+
+            /* La hauteur est portee par le WRAPPER, pas par la fenetre.
+               Donner `100dvh` a la fenetre alors qu'une barre haute la
+               precede ferait depasser la page de la hauteur de cette barre :
+               un ascenseur, et le composeur pousse sous la ligne de
+               flottaison. C'est le montage de `loops.show` — conteneur en
+               colonne a hauteur d'ecran, barre `flex-shrink-0`, espace de
+               travail `flex: 1 1 auto; min-height: 0`. */
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages-index-topbar {
+            flex-shrink: 0;
+        }
+
         .messages-index-container {
-            height: calc(100vh - 5rem);
+            flex: 1 1 auto;
+            min-height: 0;
+            height: auto;
+            border-radius: 0 !important;
+            border-left: 0 !important;
+            border-right: 0 !important;
+            border-top: 0 !important;
         }
     }
 </style>
@@ -28,6 +125,35 @@
         };
     @endphp
     <x-page-container class="messages-index-wrapper">
+        {{-- TASK-1703 — la barre haute, sur DESKTOP uniquement.
+
+             Cyril : « une top navigation bar comme sur la version mobile ».
+             Sur telephone, `x-mobile-topbar` en pose une — titre de la page,
+             marque, menu. Sur desktop il n'y avait RIEN au-dessus des deux
+             colonnes : la page commencait a ras bord, et c'est ce qui la
+             faisait paraitre plus pauvre que l'espace d'une Boucle.
+
+             Elle est calquee sur la barre de `loops.show` : meme filet, meme
+             rythme vertical, meme jetons de theme. Pas une invention — la
+             reference que Cyril nomme.
+
+             `hidden md:flex` : sur telephone elle ferait DOUBLON avec la barre
+             de l'application, qui est deja la. --}}
+        <div class="messages-index-topbar hidden md:flex flex-nowrap items-center gap-3 border-b border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-2.5"
+             data-messages-topbar>
+            <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--bp-border)] text-[var(--bp-muted)]" aria-hidden="true">
+                {{-- `navigation_icons.messaging` est un CHEMIN `d=`, pas un
+                     `<svg>` : meme enveloppe que le rail, au trait pres. --}}
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="{{ config('navigation_icons.messaging') }}" />
+                </svg>
+            </span>
+            <div class="min-w-0 flex-1">
+                <h1 class="truncate text-base font-semibold text-[var(--bp-text)] sm:text-lg">{{ __('messages.title') }}</h1>
+                <p class="truncate text-xs text-[var(--bp-muted)]">{{ trans_choice('messages.conversation_count', $transactions->count(), ['count' => $transactions->count()]) }}</p>
+            </div>
+        </div>
+
         <div class="messages-index-container flex flex-col md:flex-row border-0 md:border border-gray-200 dark:border-gray-700 md:rounded-xl overflow-hidden bg-white dark:bg-gray-800">
 
             {{-- Mobile: conversation list when no thread selected --}}
@@ -51,7 +177,14 @@
                                     <span class="flex w-10 h-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300">?</span>
                                 @endif
                                 @if($unread > 0 && !$isActive)
-                                <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                {{-- TASK-1693 bug V — la valeur BRUTE, pour que
+                                     ce compteur soit mesurable comme celui du
+                                     rail. Sans marqueur, une assertion ne
+                                     pouvait que chercher le chiffre quelque
+                                     part dans la page : un sabotage restait
+                                     vert. --}}
+                                <span data-thread-unread="{{ $conv->id }}:{{ $unread }}"
+                                      class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                                     {{ $unread > 9 ? '9+' : $unread }}
                                 </span>
                                 @endif
@@ -94,16 +227,46 @@
             @endphp
             <div class="md:hidden flex-1 flex flex-col min-h-0">
                 <div class="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
-                    <a href="{{ $_messagesRoute('messages.index', 'organization.messages.index') }}"
-                       class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0"
-                       aria-label="{{ __('messages.back_to_conversations') }}">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                    </a>
+                    {{-- TASK-1693 bug AQ — la seconde fleche de retour est
+                         RETIREE.
+
+                         Elle existait parce que celle de la barre du haut
+                         sautait un cran : elle menait au tableau de bord et non
+                         a la liste des conversations. Maintenant que la barre
+                         du haut remonte d'UN niveau, deux fleches « < »
+                         cohabitaient a trois centimetres l'une de l'autre, avec
+                         deux destinations differentes.
+
+                         L'avatar reprend donc la premiere place de la ligne. --}}
+                    {{-- TASK-1693 bug AE — l'avatar et le nom menent au profil.
+
+                         Le lien n'est pose que si la personne est AFFICHABLE :
+                         `isDisplayableIn()` verifie exactement les deux gardes
+                         de `ProfileController::show()` — ni desactivee, ni
+                         d'une autre Organization. Le poser sans cela
+                         fabriquerait un 404, le defaut du bug K.
+
+                         Deux liens distincts (l'avatar, le nom) plutot qu'un
+                         seul englobant : la ligne du dessous porte deja un lien
+                         vers le service ou la demande, et un lien dans un lien
+                         est invalide en HTML — lecon du bug AA. --}}
+                    @php
+                        $_profilUrl = $otherDisplayable
+                            ? $_messagesRoute('profile.show', 'organization.profile.show', ['user' => $other->profileRouteKey()])
+                            : null;
+                    @endphp
                     @if($otherDisplayable)
-                        <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
+                        <a href="{{ $_profilUrl }}" data-thread-profile-avatar="{{ $other->id }}" class="flex-shrink-0 hover:opacity-80 transition">
+                            <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
+                        </a>
                     @endif
                     <div class="min-w-0 flex-1">
-                        <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ $other?->publicDisplayName() ?? __('profile.deactivated_user') }}</p>
+                        @if($otherDisplayable)
+                        <a href="{{ $_profilUrl }}" data-thread-profile-link="{{ $other->id }}"
+                           class="block font-medium text-sm text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $other->publicDisplayName() }}</a>
+                        @else
+                        <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ __('profile.deactivated_user') }}</p>
+                        @endif
                         <p class="text-xs text-gray-500 truncate">
                             @if($transaction->service)
                             <a href="{{ $_messagesRoute('services.show', 'organization.services.show', ['service' => $transaction->service]) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
@@ -112,6 +275,16 @@
                             @endif
                         </p>
                     </div>
+                        {{-- TASK-1693 bug AC — le badge rejoint la ligne du
+                             pseudo, a droite. Isole sur sa propre ligne il
+                             coutait une bande entiere d'un ecran de
+                             telephone, pour un mot. --}}
+                        @if($transaction->isDirectConversation())
+                        <span data-conversation-badge
+                              class="ml-auto flex-shrink-0 inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                            {{ __('messages.direct_conversation') }}
+                        </span>
+                        @endif
                 </div>
                     <div class="flex-1 min-h-0 flex flex-col">
                         @livewire('message-thread', ['transaction' => $transaction])
@@ -145,7 +318,14 @@
                                     <span class="flex w-10 h-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300">?</span>
                                 @endif
                                 @if($unread > 0 && !$isActive)
-                                <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                {{-- TASK-1693 bug V — la valeur BRUTE, pour que
+                                     ce compteur soit mesurable comme celui du
+                                     rail. Sans marqueur, une assertion ne
+                                     pouvait que chercher le chiffre quelque
+                                     part dans la page : un sabotage restait
+                                     vert. --}}
+                                <span data-thread-unread="{{ $conv->id }}:{{ $unread }}"
+                                      class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                                     {{ $unread > 9 ? '9+' : $unread }}
                                 </span>
                                 @endif
@@ -188,11 +368,23 @@
                         $otherDisplayable = $other?->isDisplayableIn(currentOrganization()) ?? false;
                     @endphp
                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                        @php
+                            $_profilUrl = $otherDisplayable
+                                ? $_messagesRoute('profile.show', 'organization.profile.show', ['user' => $other->profileRouteKey()])
+                                : null;
+                        @endphp
                         @if($otherDisplayable)
-                            <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
+                            <a href="{{ $_profilUrl }}" data-thread-profile-avatar="{{ $other->id }}" class="flex-shrink-0 hover:opacity-80 transition">
+                                <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
+                            </a>
                         @endif
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-gray-100">{{ $other?->publicDisplayName() ?? __('profile.deactivated_user') }}</p>
+                            @if($otherDisplayable)
+                            <a href="{{ $_profilUrl }}" data-thread-profile-link="{{ $other->id }}"
+                               class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $other->publicDisplayName() }}</a>
+                            @else
+                            <p class="font-medium text-gray-900 dark:text-gray-100">{{ __('profile.deactivated_user') }}</p>
+                            @endif
                             <p class="text-xs text-gray-500">
                                 @if($transaction->service)
                                 <a href="{{ $_messagesRoute('services.show', 'organization.services.show', ['service' => $transaction->service]) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
@@ -201,6 +393,16 @@
                                 @endif
                             </p>
                         </div>
+                        {{-- TASK-1693 bug AC — le badge rejoint la ligne du
+                             pseudo, a droite. Isole sur sa propre ligne il
+                             coutait une bande entiere d'un ecran de
+                             telephone, pour un mot. --}}
+                        @if($transaction->isDirectConversation())
+                        <span data-conversation-badge
+                              class="ml-auto flex-shrink-0 inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                            {{ __('messages.direct_conversation') }}
+                        </span>
+                        @endif
                     </div>
                     <div class="flex-1 min-h-0 flex flex-col">
                         @livewire('message-thread', ['transaction' => $transaction])
@@ -219,4 +421,10 @@
 
         </div>
     </x-page-container>
+
+    {{-- TASK-1703 — la hauteur du viewport VISUEL, seule mesure juste quand le
+         clavier virtuel est ouvert. Meme composant que l'espace d'une Boucle. --}}
+    @once
+    <x-visual-viewport-height selector=".messages-index-container" />
+    @endonce
 </x-app-layout>

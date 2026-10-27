@@ -8,7 +8,8 @@ return [
     'tagline' => 'Travailler, s\'entraider, avancer.',
     'feature_loops' => 'Boucles',
     'feature_loops_desc' => 'Le ChatLoop comme point de départ.',
-    'feature_exchanges' => 'Échanges',
+    // TASK-1694 bug A — accueil public, meme terme.
+    'feature_exchanges' => 'Entraide',
     'feature_exchanges_desc' => 'Services, demandes et conversations utiles.',
     'feature_directory' => 'Annuaire',
     'feature_directory_desc' => 'Retrouvez les membres, profils et points de contact.',

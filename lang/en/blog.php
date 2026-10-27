@@ -63,6 +63,10 @@ return [
     'btn_generate_ai' => 'Generate article with AI',
     'btn_generate_ai_editor' => 'Generate with AI',
     'btn_write_myself' => 'Write it myself',
+    // TASK-1693 bug AI — quand l'IA est eteinte, « ecrire moi-meme » n'oppose
+    // plus rien : il n'y a aucun autre chemin. Le bouton n'annonce alors que ce
+    // qu'il fait — avancer vers l'editeur.
+    'btn_write_myself_without_ai' => 'Continue',
     'btn_save' => 'Save changes',
     'btn_publish' => 'Publish',
     'btn_edit' => 'Edit',
@@ -420,6 +424,8 @@ return [
     'sidebar_plan_placeholder' => 'Extract headings from the article',
     'plan_title' => 'Plan',
     'plan_empty' => 'No headings found.',
+    'annotation_empty_hint' => 'To create one, select a passage then click :bouton in the editor toolbar.',
+    'plan_empty_hint' => 'The outline builds itself from your headings. To add one, place the cursor in a line then pick a level with :bouton in the editor toolbar.',
     'plan_toggle' => 'Show on published article',
     'plan_collapse' => 'Collapse',
     'plan_expand' => 'Expand',
@@ -573,4 +579,9 @@ return [
     'ai_origin_sources' => 'Grounded in :count documentary source(s).',
     'ai_origin_sources_title' => 'Documentary sources',
     'ai_origin_open_source' => 'Open',
+    // TASK-1697 — the comment thread becomes a Livewire component
+    'comments_heading' => 'Comments',
+    'comments_total' => '{0}no comments|{1}:count comment|[2,*]:count comments',
+    'comments_empty' => 'No comments yet. Start the conversation.',
+    'btn_cancel_reply' => 'Cancel',
 ];

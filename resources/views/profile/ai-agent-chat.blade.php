@@ -4,8 +4,8 @@
     @php
         $organizationRouteParam = request()->route('organization');
         $profileUrl = $organizationRouteParam && Route::has('organization.profile.show')
-            ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => $user])
-            : route('profile.show', $user);
+            ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => $user->profileRouteKey()])
+            : route('profile.show', $user->profileRouteKey());
     @endphp
 
     <div class="max-w-7xl mx-auto px-4 py-6" style="height: calc(100vh - 64px)">

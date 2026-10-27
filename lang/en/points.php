@@ -26,6 +26,7 @@ return [
         'exchange_spent' => 'Exchange — spent',
         'referral_reward' => 'Invitation reward',
         'adjustment' => 'Adjustment',
+        'admin_reset' => 'Reset by the administration',
     ],
     'empty' => 'No point movements yet.',
     'dataset' => 'Points',

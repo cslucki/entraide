@@ -7,6 +7,7 @@ use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\User;
 use App\Services\Dossiers\DossierFileRemover;
+use App\Services\Dossiers\DossierFileTransport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,17 +31,70 @@ class DossierFileController extends Controller
             'size' => 'size_bytes',
             'date' => 'created_at',
         ];
+
+        // TASK-1697 (2) — trier sur « Type », c'est-a-dire sur l'EXTENSION.
+        //
+        // La colonne affiche l'extension du nom lu (`typeDeFichier()` dans
+        // `app.js`), pas le type MIME. Trier sur `mime_type` aurait rendu une
+        // colonne visiblement desordonnee — « PDF » avant « DOCX », parce que
+        // `application/pdf` precede `application/vnd.openxml…`. On trie donc
+        // sur ce qui est AFFICHE.
+        //
+        // L'expression depend du moteur : il n'existe pas de fonction portable
+        // pour la derniere extension. Meme forme de branchement que le `ilike`
+        // de la recherche, quelques lignes plus bas.
+        $nomLu = "COALESCE(NULLIF(display_name, ''), original_name)";
+        $extension = DB::connection()->getDriverName() === 'pgsql'
+            ? "LOWER(SUBSTRING($nomLu FROM '\\.([^.]*)$'))"
+            // SQLite n'a ni SUBSTRING-regex ni SPLIT_PART : on retire du nom
+            // tout ce qui precede le dernier point. `rtrim(nom, nom_sans_points)`
+            // rend le prefixe jusqu'au dernier point inclus.
+            : "LOWER(REPLACE($nomLu, RTRIM($nomLu, REPLACE($nomLu, '.', '')), ''))";
         $sortParam = $request->input('sort', 'date');
         $directionParam = $request->input('direction', 'desc');
         $search = $request->input('search', '');
 
         $column = $sortAllowlist[$sortParam] ?? 'created_at';
+        $triParExtension = $sortParam === 'type';
         $direction = in_array(strtolower($directionParam), ['asc', 'desc']) ? strtolower($directionParam) : 'desc';
 
         $query = DossierFile::query()
-            ->where('dossier_id', $dossier->id)
+            // TASK-1695 (recette de Cyril, 24/10) — les fichiers PARTAGES avec
+            // cette Boucle entrent dans LA MEME liste.
+            //
+            // J'avais d'abord pose une section a part, sous le tableau. Cyril :
+            // « ce ne sont pas des fichiers a part ». Il a raison — une seconde
+            // surface donnait a croire a un second type de partage, alors que
+            // le composant qui sait lister, trier, chercher et paginer des
+            // fichiers existait deja.
+            //
+            // La clause reste UNE SEULE requete : tri, recherche et pagination
+            // continuent de fonctionner sans rien de nouveau. Un `union` ou une
+            // fusion en PHP aurait casse les trois.
+            ->where(function ($q) use ($dossier) {
+                $q->where('dossier_id', $dossier->id);
+
+                // `isLoopDossier()` EST `loop_id !== null` — je l'avais ecrit
+                // deux fois. Mesure du 24/10 : lever la garde nommee ne fait
+                // rougir aucun test, parce qu'un `loop_id` NULL ne matche
+                // jamais. La forme nommee reste, seule : elle dit l'intention.
+                if ($dossier->isLoopDossier()) {
+                    $q->orWhereHas('loopShares', fn ($s) => $s
+                        ->where('loop_id', $dossier->loop_id)
+                        ->where('organization_id', $dossier->organization_id));
+                }
+            })
             ->where('organization_id', $organization->id)
-            ->with('uploader:id,organization_id,first_name,avatar,name,email,banned_at');
+            ->with('uploader:id,organization_id,first_name,avatar,name,email,banned_at')
+            // TASK-1695 (point 1 de Cyril) — la colonne « Partage » doit dire
+            // l'etat DE CETTE LIGNE. Elle affichait `$partageHerite`, une
+            // valeur calculee une seule fois pour tout le Dossier : un fichier
+            // partage y lisait « Prive ». Le compte voyage donc avec le
+            // fichier, puisque les lignes sont rendues en Alpine depuis ce
+            // JSON.
+            // Les DEUX natures : « Partage » doit s'allumer aussi pour un
+            // fichier partage seulement vers une Boucle (5a).
+            ->withCount(['shares', 'loopShares']);
 
         if ($search !== '') {
             $searchTerm = trim($search);
@@ -51,13 +105,31 @@ class DossierFileController extends Controller
             });
         }
 
-        $query->orderBy($column, $direction)
-            ->orderBy('created_at', 'desc');
+        if ($triParExtension) {
+            $query->orderByRaw("$extension $direction");
+        } else {
+            $query->orderBy($column, $direction);
+        }
+
+        // Le second critere, toujours : deux fichiers de meme type ou de meme
+        // taille gardent sinon un ordre arbitraire, qui change d'une page a
+        // l'autre et fait « sauter » des lignes a la pagination.
+        $query->orderBy('created_at', 'desc');
 
         $files = $query->paginate(20);
         $files->getCollection()->transform(fn (DossierFile $file) => array_merge(
             $file->toArray(),
-            ['uploader' => $this->publicUserPayload($file->uploader, $organization->id)]
+            // `shares_count` n'est PAS recopie ici : `withCount('shares')`
+            // l'expose deja via `toArray()`. Mesure du 24/10 — retirer la
+            // recopie ne fait rougir aucun test, retirer le `withCount()` en
+            // fait rougir un. La garde est le `withCount()`, pas la recopie.
+            [
+                'uploader' => $this->publicUserPayload($file->uploader, $organization->id),
+                // Une ligne venue d'ailleurs : elle se LIT ici, elle ne s'y
+                // administre pas. L'ecran s'en sert pour retirer les gestes
+                // que le serveur refuserait de toute facon.
+                'is_shared_here' => $file->dossier_id !== $dossier->id,
+            ]
         ));
 
         $usedBytes = (int) DossierFile::query()
@@ -236,19 +308,11 @@ class DossierFileController extends Controller
 
         $this->authorize('viewFiles', $dossier);
 
-        try {
-            if (config("filesystems.disks.{$file->disk}.driver") === 'local') {
-                return Storage::disk($file->disk)->download($file->path, $file->original_name, [
-                    'Content-Type' => $file->mime_type,
-                ]);
-            }
-
-            $url = Storage::disk($file->disk)->temporaryUrl($file->path, now()->addMinutes(30));
-
-            return redirect()->away($url);
-        } catch (\Exception $e) {
-            abort(404);
-        }
+        // TASK-1695 geste C — le transport a ete EXTRAIT dans
+        // `DossierFileTransport` : le partage de fichier a ses propres routes de
+        // lecture, et servir le fichier est exactement le meme geste des deux
+        // cotes. Le recopier aurait donne deux regles pour une idee.
+        return app(DossierFileTransport::class)->download($file);
     }
 
     public function preview(Request $request): RedirectResponse|StreamedResponse
@@ -265,50 +329,12 @@ class DossierFileController extends Controller
 
         $this->authorize('viewFiles', $dossier);
 
-        try {
-            if (config("filesystems.disks.{$file->disk}.driver") === 'local') {
-                return Storage::disk($file->disk)->download($file->path, $file->original_name, [
-                    'Content-Type' => $this->typeAffichable($file->mime_type),
-                    'Content-Disposition' => 'inline; filename="'.$file->original_name.'"',
-                ]);
-            }
-
-            $url = Storage::disk($file->disk)->temporaryUrl($file->path, now()->addMinutes(30));
-
-            return redirect()->away($url);
-        } catch (\Exception $e) {
-            abort(404);
-        }
+        // TASK-1695 geste C — meme transport partage (voir `show()`).
+        return app(DossierFileTransport::class)->preview($file);
     }
 
-    /**
-     * Le type sous lequel un apercu s'affiche REELLEMENT dans un navigateur.
-     *
-     * `Content-Disposition: inline` demande l'affichage ; encore faut-il que
-     * le navigateur sache rendre le type. Aucun n'embarque de moteur pour
-     * `text/markdown` : servi tel quel, le fichier se telecharge malgre
-     * l'en-tete, et la source d'une reponse IA devient invisible au moment
-     * meme ou le membre veut la verifier.
-     *
-     * Le Markdown est du texte : l'annoncer comme tel le rend lisible dans
-     * l'onglet, sans convertir quoi que ce soit. Le type STOCKE n'est pas
-     * modifie — c'est une decision de transport, pas de donnee.
-     *
-     * Ne concerne QUE le disque local : sur un disque distant, la reponse est
-     * une redirection vers une URL signee, et la disposition depend alors des
-     * metadonnees de l'objet, pas de ce code. La dette est signalee.
-     *
-     * Mesure qui a motive le correctif : le corpus de demonstration ArtSciLab
-     * compte 16 fichiers, dont 12 en `text/markdown`.
-     */
-    private function typeAffichable(?string $mimeType): string
-    {
-        if (in_array($mimeType, ['text/markdown', 'text/x-markdown'], true)) {
-            return 'text/plain; charset=UTF-8';
-        }
-
-        return $mimeType ?? 'application/octet-stream';
-    }
+    // TASK-1695 geste C — `typeAffichable()` vit desormais dans
+    // `DossierFileTransport`, aupres du seul code qui s'en sert.
 
     public function destroy(Request $request, DossierFileRemover $remover): JsonResponse
     {

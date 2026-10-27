@@ -171,9 +171,29 @@ class AiShell extends Component
             // La conversation reellement inscrite fait foi — le composant s'y
             // aligne, il ne la decide pas.
             $this->conversationId = (string) $turn['trigger']->conversation_id;
-        } catch (RuntimeException|DomainException $exception) {
+        } catch (RuntimeException $exception) {
+            // Message DEJA destine au membre et traduit — `AiTurnLock` leve
+            // `ai.shell_turn_in_progress`. Il passe inchange.
             $this->draft = $prompt;
             $this->notice = $exception->getMessage();
+        } catch (DomainException $exception) {
+            // TASK-1685 — un diagnostic d'exploitation n'est pas une phrase de
+            // produit. Les DomainException de ce chemin viennent de
+            // `ProviderResolver` (configuration IA de l'Organization absente,
+            // desactivee, provider hors allowlist, credential vide) ; leurs
+            // messages sont en anglais et portent l'UUID de l'Organization.
+            // Mesure : un membre pouvait les lire tels quels dans le bandeau.
+            //
+            // Le cas « IA desactivee » n'atteint plus ce bandeau, puisque le
+            // Shell ne se monte plus du tout (`AiFabContext`). Les autres
+            // refus du resolveur, eux, restent atteignables : ce chemin devait
+            // donc etre couvert, pas seulement contourne.
+            //
+            // Le message reel n'est PAS perdu : il part au journal, ou il sert
+            // a qui exploite la plateforme.
+            report($exception);
+            $this->draft = $prompt;
+            $this->notice = __('ai.shell_unavailable_notice');
         }
 
         // Confort d'affichage uniquement : ramener le fil sur le dernier tour.

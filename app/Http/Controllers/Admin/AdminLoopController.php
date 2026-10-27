@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
+use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\LoopRoadmapItem;
 use App\Models\Organization;
@@ -381,10 +382,12 @@ class AdminLoopController extends Controller
         if ($this->isSuperAdmin()) {
             $organizations = Organization::orderBy('name')->get(['id', 'name']);
 
+            // TASK-1681 (BUG 2) : sans `first_name` charge, full_name
+            // retombe sur `name` seul — le prenom manquait au selecteur.
             $users = User::assignable()
                 ->with('organization:id,name')
                 ->orderBy('name')
-                ->get(['id', 'name', 'email', 'organization_id']);
+                ->get(['id', 'name', 'first_name', 'email', 'organization_id']);
 
             return view('admin.loops.create', [
                 'users' => $users,
@@ -402,7 +405,7 @@ class AdminLoopController extends Controller
         $users = User::assignable()
             ->where('organization_id', $orgId)
             ->orderBy('name')
-            ->get(['id', 'name', 'email']);
+            ->get(['id', 'name', 'first_name', 'email']);
 
         return view('admin.loops.create', [
             'users' => $users,
@@ -419,18 +422,26 @@ class AdminLoopController extends Controller
                 'name' => 'required|string|max:255',
                 'description' => 'nullable|string|max:5000',
                 'visibility' => 'required|in:public,private',
+                // TASK-1679 — responsable optionnel pour le SuperAdmin seul :
+                // une Boucle se provisionne avant que son responsable metier
+                // n'existe comme compte (cas OFSH). S'il est fourni, les
+                // gardes existantes restent entieres.
                 'owner_id' => [
-                    'required',
+                    'nullable',
                     Rule::exists('users', 'id')->whereNull('banned_at'),
                 ],
                 'organization_id' => 'required|exists:organizations,id',
                 'type' => ['nullable', Rule::in(app(LoopTypeRegistry::class)->availableKeys())],
             ]);
 
-            $owner = User::assignable()->findOrFail($data['owner_id']);
+            $owner = null;
 
-            if ($owner->organization_id !== $data['organization_id']) {
-                abort(403, __('admin.owner_must_belong_to_org'));
+            if (! empty($data['owner_id'])) {
+                $owner = User::assignable()->findOrFail($data['owner_id']);
+
+                if ($owner->organization_id !== $data['organization_id']) {
+                    abort(403, __('admin.owner_must_belong_to_org'));
+                }
             }
 
             $loop = $this->loopService->createLoopForOrg(
@@ -442,6 +453,7 @@ class AdminLoopController extends Controller
                 null,
                 Loop::ACCESS_REQUEST,
                 $data['type'] ?? null,
+                creator: $user,
             );
 
             return redirect()->route('admin.loops.edit', $loop)
@@ -539,6 +551,15 @@ class AdminLoopController extends Controller
             ],
             'manifestoSources' => app(LoopManifestoService::class)->sourcesFor($loop),
             'invitations' => $loop->invitations()->with('sender')->latest()->limit(10)->get(),
+            // TASK-1680 — les demandes d'adhesion PENDING de CETTE Boucle.
+            // La page reste en lecture : les boutons POSTent vers les routes
+            // tenant org-scopees, dont l'autorite est la policy
+            // manageJoinRequests (resolveur canonique) — pas cet ecran.
+            'pendingJoinRequests' => LoopJoinRequest::where('loop_id', $loop->id)
+                ->where('status', LoopJoinRequest::STATUS_PENDING)
+                ->with('user')
+                ->oldest()
+                ->get(),
             // The workspace requires an active membership and deliberately has
             // no super-admin bypass (TASK-1073/1074), so the link is offered
             // only when it would actually open — it used to 404.
@@ -550,21 +571,40 @@ class AdminLoopController extends Controller
     {
         $this->assertOrgAccess($loop);
 
-        if ($this->isSuperAdmin()) {
-            $users = User::assignable()
-                ->with('organization:id,name')
-                ->orderBy('name')
-                ->get(['id', 'name', 'email', 'organization_id']);
-        } else {
-            $orgId = auth()->user()->organization_id;
-
-            $users = User::assignable()
-                ->where('organization_id', $orgId)
-                ->orderBy('name')
-                ->get(['id', 'name', 'email']);
-        }
+        // TASK-1681 — les candidats d'une Boucle sont les utilisateurs de SON
+        // Organization, jamais le parc entier : la branche SuperAdmin listait
+        // toutes les Organizations et laissait choisir un etranger que le
+        // serveur refusait ensuite (recette OFSH, BUG 3). L'Organization d'une
+        // Boucle etant fixee, une seule requete sert tous les roles.
+        // `first_name` est selectionne EXPLICITEMENT : l'accesseur full_name
+        // retombe en silence sur `name` seul quand la colonne n'est pas
+        // chargee — c'etait le prenom manquant du selecteur (BUG 2).
+        $users = User::assignable()
+            ->where('organization_id', $loop->organization_id)
+            ->with('organization:id,name')
+            ->orderBy('name')
+            ->get(['id', 'name', 'first_name', 'email', 'organization_id']);
 
         $loop->load(['members.user', 'creator', 'organization']);
+
+        // TASK-1693 bug M — les demandes EN ATTENTE, que cette fiche ne montrait
+        // pas du tout.
+        //
+        // Elle affichait les membres et laissait en ajouter, mais taisait les
+        // personnes qui en avaient fait la demande : un administrateur venu
+        // regler le cas d'un demandeur ne voyait aucune trace de lui, et
+        // l'ajoutait « a la main » sans savoir qu'une demande existait. C'est
+        // ainsi que la Boucle `ofsh` s'est retrouvee avec des membres actifs
+        // portant encore une demande ouverte (bug L).
+        //
+        // Seules les demandes PENDING : les decisions passees appartiennent a
+        // l'historique, pas a un ecran d'action.
+        $demandesEnAttente = LoopJoinRequest::query()
+            ->where('loop_id', $loop->id)
+            ->where('status', LoopJoinRequest::STATUS_PENDING)
+            ->with('user:id,name,first_name,email')
+            ->orderBy('created_at')
+            ->get();
 
         $boucle = $loop;
 
@@ -575,7 +615,7 @@ class AdminLoopController extends Controller
         $canConfigureCards = ! $loop->isArchived()
             && app(LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop);
 
-        return view('admin.loops.edit', compact('boucle', 'users', 'canConfigureCards'));
+        return view('admin.loops.edit', compact('boucle', 'users', 'canConfigureCards', 'demandesEnAttente'));
     }
 
     public function update(Request $request, Loop $loop): RedirectResponse
@@ -594,6 +634,56 @@ class AdminLoopController extends Controller
             ->with('success', 'Boucle mise à jour.');
     }
 
+    /**
+     * TASK-1693 bug M — decider une demande d'adhesion SANS quitter l'ecran.
+     *
+     * `LoopController::acceptJoinRequest()` existe et fait le bon travail, mais
+     * il renvoie toujours vers la Boucle elle-meme. Depuis l'administration,
+     * cela ejecterait le SuperAdmin de son ecran — et, s'il n'est pas membre de
+     * la Boucle, vers la page de PRESENTATION, ce qui ressemblerait a une
+     * erreur.
+     *
+     * Ces deux actions ne portent donc AUCUNE regle metier : elles appellent le
+     * meme service, avec la meme autorisation (`manageJoinRequests`, ou le
+     * SuperAdmin passe par l'autorite plateforme du resolveur canonique), et
+     * reviennent sur la fiche. Dupliquer la decision aurait cree un second
+     * systeme ; la deleguer n'en cree aucun.
+     */
+    public function acceptJoinRequest(Request $request, Loop $loop, LoopJoinRequest $joinRequest): RedirectResponse
+    {
+        return $this->decideJoinRequest($request, $loop, $joinRequest, true);
+    }
+
+    public function rejectJoinRequest(Request $request, Loop $loop, LoopJoinRequest $joinRequest): RedirectResponse
+    {
+        return $this->decideJoinRequest($request, $loop, $joinRequest, false);
+    }
+
+    private function decideJoinRequest(Request $request, Loop $loop, LoopJoinRequest $joinRequest, bool $accepte): RedirectResponse
+    {
+        // La demande doit appartenir a CETTE Boucle : deux identifiants dans
+        // l'URL, et rien ne garantit qu'ils aillent ensemble. Sans ce controle,
+        // la fiche d'une Boucle deciderait de la demande d'une autre.
+        if ($joinRequest->loop_id !== $loop->id) {
+            abort(404);
+        }
+
+        $this->authorize('manageJoinRequests', $loop);
+
+        try {
+            if ($accepte) {
+                $this->loopService->acceptJoinRequest($joinRequest, $request->user());
+            } else {
+                $this->loopService->rejectJoinRequest($joinRequest, $request->user());
+            }
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('admin.loops.edit', $loop)
+            ->with('success', __($accepte ? 'admin.loop_join_request_accepted' : 'admin.loop_join_request_rejected'));
+    }
+
     public function addMember(Request $request, Loop $loop): RedirectResponse
     {
         $this->assertOrgAccess($loop);
@@ -606,19 +696,67 @@ class AdminLoopController extends Controller
                     ->whereNull('banned_at'),
             ],
             'role' => ['nullable', Rule::in(LoopRoleRegistry::CANONICAL)],
+        ], [
+            // TASK-1681 (BUG 3) — une requete forgee avec un utilisateur d'une
+            // autre Organization recevait « The selected user id is invalid » :
+            // exact mais mutique. La garde ne bouge pas, le message si.
+            'user_id.exists' => __('admin.loop_member_must_belong_to_org'),
         ]);
 
         $userId = $request->input('user_id');
         $role = (string) $request->input('role', LoopRoleRegistry::MEMBER);
 
         try {
-            $this->loopService->addMemberByUserId($loop, $userId, $role);
+            // TASK-1693 bug L — l'administrateur est le DECIDEUR : la demande
+            // en attente se solde a son nom, et le demandeur en est notifie.
+            $this->loopService->addMemberByUserId($loop, $userId, $role, $request->user());
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
         return redirect()->route('admin.loops.edit', $loop)
             ->with('success', 'Membre ajouté à la boucle.');
+    }
+
+    /**
+     * TASK-1693 bug O — transferer la propriete en un geste.
+     *
+     * Le chemin existant demandait DEUX actions dans DEUX endroits de l'ecran :
+     * promouvoir un second proprietaire, puis revenir retrograder le premier.
+     * Entre les deux, la Boucle avait deux proprietaires — un etat que personne
+     * n'avait voulu.
+     *
+     * Le service fait les deux ecritures dans UNE transaction, avec le meme
+     * verrou que les autres gestes : l'invariant « au moins un proprietaire
+     * actif » n'est jamais rompu, et aucun etat intermediaire n'existe.
+     */
+    public function transferOwnership(Request $request, Loop $loop, LoopMember $member): RedirectResponse
+    {
+        $this->assertOrgAccess($loop);
+
+        abort_if($member->loop_id !== $loop->id, 404);
+
+        $data = $request->validate([
+            'successor_id' => ['required', 'uuid'],
+        ]);
+
+        // Le successeur doit appartenir a CETTE Boucle : l'identifiant vient
+        // d'un `select` que rien n'empeche de forger.
+        $successeur = LoopMember::where('loop_id', $loop->id)
+            ->where('id', $data['successor_id'])
+            ->first();
+
+        abort_if($successeur === null, 404);
+
+        $result = app(LoopGovernanceService::class)->transferOwnership($member, $successeur);
+
+        return redirect()->route('admin.loops.edit', $loop)->with(
+            $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',
+            match ($result) {
+                LoopGovernanceService::RESULT_OK => __('loops.governance_ownership_transferred'),
+                default => __('loops.governance_refused'),
+            },
+        );
     }
 
     /**
@@ -635,7 +773,11 @@ class AdminLoopController extends Controller
 
         $role = (string) $request->input('role');
 
-        $result = app(LoopGovernanceService::class)->changeRole($member, $role);
+        // TASK-1693 bug P — la derogation « dernier proprietaire » doit etre
+        // DEMANDEE par la requete, champ `allow_last_owner`. Un changement de
+        // role ordinaire continue donc de se faire refuser, et seul le bouton
+        // qui porte la confirmation explicite peut orpheliner une Boucle.
+        $result = app(LoopGovernanceService::class)->changeRole($member, $role, $request->boolean('allow_last_owner'));
 
         return redirect()->route('admin.loops.edit', $loop)->with(
             $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',

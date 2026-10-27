@@ -213,6 +213,21 @@ class DatasetRegistry
             new Dataset('reviews', 'reviews', $t, ['id', 'transaction_id', 'rating', 'organization_id', 'created_at']),
             new Dataset('transactions', 'transactions', $t, ['id', 'service_id', 'status', 'organization_id', 'created_at']),
             new Dataset('point_ledger', 'point_ledger', $t, ['id', 'user_id', 'delta', 'reason', 'organization_id', 'created_at']),
+
+            // TASK-1693 bug Z — le registre des adresses publiques de profil.
+            //
+            // `DiagnosticOnly`, et NON `AssignableTenant` : rattacher une
+            // ligne a NULL casserait possiblement l'unicite composite
+            // `['organization_id', 'slug']`. Si deux personnes sans
+            // Organization portent « marie-dupont » et qu'on les rattache
+            // toutes deux a la meme, la contrainte refuse — et l'outil
+            // echouerait au milieu d'un lot. La ligne se montre donc, sans
+            // jamais etre offerte a l'affectation.
+            //
+            // Un NULL y est d'ailleurs rare et legitime : il dit que la
+            // personne n'avait pas d'Organization quand son adresse a ete
+            // attribuee, ce que `users.organization_id` autorise.
+            new Dataset('user_slugs', 'user_slugs', $d, ['id', 'user_id', 'slug', 'is_current', 'organization_id', 'created_at']),
             new Dataset('messages', 'messages', $t, ['id', 'transaction_id', 'sender_id', 'type', 'organization_id', 'created_at']),
             new Dataset('loops', 'loops', $t, ['id', 'name', 'slug', 'status', 'organization_id', 'created_at']),
             new Dataset('loop_members', 'loop_members', $t, ['id', 'loop_id', 'user_id', 'role', 'status', 'organization_id']),
@@ -247,6 +262,18 @@ class DatasetRegistry
             new Dataset('admin_ai_interactions', 'admin_ai_interactions', $g, ['id', 'user_id', 'provider', 'model', 'status', 'organization_id', 'created_at']),
 
             // ── Historique : une trace, on la garde ──────────────────────
+            // TASK-1694 bug U — l'archive des gabarits d'emails systeme.
+            // `HistoryNullValid` et non `AssignableTenant` : rattacher une
+            // ligne d'archive reecrirait une trace, c'est-a-dire detruirait la
+            // preuve meme de ce qui a ete retire. La table n'a de valeur que si
+            // personne ne la modifie.
+            new Dataset('system_email_templates_archive', 'system_email_templates_archive', $h, ['id', 'slug', 'name', 'locale', 'enabled', 'organization_id', 'archived_at']),
+            // TASK-1709 — la trace des gabarits mutes par trois migrations.
+            // `HistoryNullValid` pour la meme raison que l'archive ci-dessus :
+            // rattacher une ligne de trace reecrirait l'etat qu'elle conserve,
+            // donc detruirait la seule preuve de ce qui a ete change. Elle n'a
+            // de valeur que si personne ne la modifie.
+            new Dataset('system_email_templates_trace', 'system_email_templates_trace', $h, ['trace_id', 'migration', 'template_id', 'geste', 'slug', 'locale', 'organization_id', 'archived_at']),
             new Dataset('ai_interactions', 'ai_interactions', $h, ['id', 'user_id', 'feature', 'model', 'organization_id', 'created_at']),
 
             // ── Diagnostic : montre, jamais offert ───────────────────────

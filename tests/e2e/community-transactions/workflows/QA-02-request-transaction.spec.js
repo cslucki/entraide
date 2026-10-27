@@ -203,7 +203,7 @@ test.describe('QA-02: Service Request Transaction Complete Workflow', () => {
         }
 
         // Verify system message is visible
-        const hasSystemMessage = await page.locator('text=Nouvelle échange, text=proposé, text=réponse').count() > 0;
+        const hasSystemMessage = await page.locator('text=Nouvel échange, text=proposé, text=réponse').count() > 0;
 
         await captureScreenshot(page, 'QA-02-step2-transaction-created');
 
@@ -242,7 +242,7 @@ test.describe('QA-02: Service Request Transaction Complete Workflow', () => {
         await page.waitForTimeout(500);
 
         // Verify status changed to accepted
-        await expect(page.locator('text=acceptée, text=Acceptée, text=En cours').first()).toBeVisible();
+        await expect(page.locator('text=accepté, text=Accepté, text=En cours').first()).toBeVisible();
 
         await captureScreenshot(page, 'QA-02-step3-transaction-accepted');
 

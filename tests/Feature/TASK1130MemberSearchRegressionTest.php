@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\Dossiers\PersonalDocumentsRoot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 /**
@@ -33,6 +34,8 @@ use Tests\TestCase;
  */
 class TASK1130MemberSearchRegressionTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     use RefreshDatabase;
 
     private Organization $org;
@@ -90,6 +93,8 @@ class TASK1130MemberSearchRegressionTest extends TestCase
 
     public function test_searching_by_email_from_a_personal_subfolder_returns_the_user(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->chercher($this->sousDossier, 'amandine.berthier@example.test')
             ->assertOk()
             ->assertJsonPath('users.0.id', $this->collegue->getKey());
@@ -97,6 +102,8 @@ class TASK1130MemberSearchRegressionTest extends TestCase
 
     public function test_searching_by_first_name_from_a_personal_subfolder_returns_the_user(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->chercher($this->sousDossier, 'Amandine')
             ->assertOk()
             ->assertJsonPath('users.0.id', $this->collegue->getKey());
@@ -104,6 +111,8 @@ class TASK1130MemberSearchRegressionTest extends TestCase
 
     public function test_searching_by_last_name_from_a_personal_subfolder_returns_the_user(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->chercher($this->sousDossier, 'Berthier')
             ->assertOk()
             ->assertJsonPath('users.0.id', $this->collegue->getKey());
@@ -111,6 +120,8 @@ class TASK1130MemberSearchRegressionTest extends TestCase
 
     public function test_searching_is_case_insensitive_and_partial(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->chercher($this->sousDossier, 'berth')
             ->assertOk()
             ->assertJsonPath('users.0.id', $this->collegue->getKey());
@@ -120,6 +131,8 @@ class TASK1130MemberSearchRegressionTest extends TestCase
 
     public function test_the_personal_documents_root_still_refuses_member_management(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         // C'est la regle qui avait provoque la regression, et elle reste vraie :
         // inviter quelqu'un dans « Mes documents » partagerait tout l'espace
         // personnel, y compris ce qui n'y est pas encore.
@@ -131,6 +144,8 @@ class TASK1130MemberSearchRegressionTest extends TestCase
 
     public function test_a_plain_personal_root_still_searches(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         // Les Dossiers d'avant TASK-1130 sont restes des racines a part
         // entiere : aucun backfill ne les a nestes sous la racine systeme.
         $racineOrdinaire = Dossier::create([
@@ -155,6 +170,8 @@ class TASK1130MemberSearchRegressionTest extends TestCase
      */
     public function test_adding_a_member_from_a_subfolder_writes_on_that_subfolder(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->actingAs($this->proprietaire)->postJson(
             route('organization.dossiers.members.store', [
                 'organization' => $this->org->slug,
@@ -176,6 +193,8 @@ class TASK1130MemberSearchRegressionTest extends TestCase
 
     public function test_an_existing_member_is_not_offered_again(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         // Le membre est pose sur le sous-dossier lui-meme : depuis TASK-1136
         // c'est la qu'un partage vit, et c'est donc la seule ligne qui doit
         // retirer quelqu'un de la liste des invitables.
@@ -227,6 +246,8 @@ class TASK1130MemberSearchRegressionTest extends TestCase
 
     public function test_a_user_of_another_organization_is_never_revealed(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         User::factory()->create([
             'organization_id' => $this->autreOrg->id,
             'first_name' => 'Amandine',
@@ -242,6 +263,8 @@ class TASK1130MemberSearchRegressionTest extends TestCase
 
     public function test_someone_else_cannot_search_in_this_personal_space(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->chercher($this->sousDossier, 'Amandine', $this->collegue)
             ->assertStatus(403);
     }

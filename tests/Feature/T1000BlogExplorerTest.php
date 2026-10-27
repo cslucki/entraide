@@ -58,6 +58,16 @@ class T1000BlogExplorerTest extends TestCase
 
         $this->post->coAuthors()->attach($this->coAuthor->id, ['role' => 'coauthor', 'added_by' => $this->owner->id]);
 
+        // TASK-1693 bug AH — les outils IA de l'editeur ne s'offrent desormais
+        // que si l'IA est UTILISABLE pour l'Organization. La configuration
+        // globale `ai.*` ci-dessus ne decide plus : la question se pose PAR
+        // Organization. Sans cette ligne, ce test mesurerait l'absence du
+        // bouton « Questionner l'article » au lieu du parcours Explorer.
+        \App\Models\OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $this->mainOrg->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
+
         app()->instance('current_organization', $this->mainOrg);
     }
 

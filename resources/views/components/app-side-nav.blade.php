@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 @php
     $currentRoute = request()->route()?->getName() ?? '';
     $currentOrganization = currentOrganization();
@@ -136,11 +137,26 @@
         ],
         [
             'url' => $routeUrl('messages.index', 'organization.messages.index'),
-            'active' => ['messages'],
+            // TASK-1703 — `organization.messages` MANQUAIT, et c'est tout le
+            // defaut : sous `/org/{slug}/messages` la route courante est
+            // `organization.messages.index`, qui n'apparie pas « messages ».
+            // L'icone etait donc la seule du rail a ne jamais s'allumer.
+            //
+            // Toutes les autres entrees nomment leurs DEUX variantes
+            // (`['flux', 'organization.flux']`, `['loops', 'organization.loops']`…) :
+            // celle-ci n'en nommait qu'une. La barre basse mobile, elle, prefixe
+            // automatiquement — d'ou une messagerie correctement surlignee sur
+            // telephone et jamais sur desktop.
+            'active' => ['messages', 'organization.messages'],
             'label' => __('navigation.messaging'),
             'hint' => __('navigation.messages'),
             'icon' => config('navigation_icons.messaging'),
             'badge' => $unreadMessagesCount,
+            // TASK-1693 bug V — ce point de menu portait un badge SANS clef :
+            // aucun `data-nav-badge-*` n'etait donc emis, et le badge de la
+            // messagerie restait le seul non mesurable du rail. Meme idiome
+            // que `notifications` (TASK-1373), qui l'etait deja.
+            'key' => 'messages',
         ],
         [
             'url' => $routeUrl('members.index', 'organization.members.index'),
@@ -190,7 +206,10 @@
     $currentLocale = app()->getLocale();
 @endphp
 
-<aside x-data class="hidden md:flex fixed inset-y-0 left-0 z-40 w-20 flex-col items-center border-r border-[var(--bp-border)] bg-[var(--bp-surface)]/95 text-[var(--bp-muted)] shadow-[8px_0_24px_rgba(15,23,42,0.05)] backdrop-blur">
+{{-- TASK-1693 bug AQ — `data-bp-side-nav` : point d'ancrage pour mesurer que
+     le rail est RENDU. Sans marqueur, une assertion ne pourrait viser que des
+     classes utilitaires partagees par d'autres blocs. --}}
+<aside x-data data-bp-side-nav class="hidden md:flex fixed inset-y-0 left-0 z-40 w-20 flex-col items-center border-r border-[var(--bp-border)] bg-[var(--bp-surface)]/95 text-[var(--bp-muted)] shadow-[8px_0_24px_rgba(15,23,42,0.05)] backdrop-blur">
     <div class="flex h-full w-full flex-col items-center py-3">
         <a href="{{ $organizationRouteParam ? route('organization.home', ['organization' => $organizationRouteParam]) : route('home') }}" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)] transition hover:scale-105" aria-label="BouclePro">
             <img src="{{ $brandLogoUrl }}" alt="" class="h-7 w-7" aria-hidden="true">
@@ -282,7 +301,21 @@
                         : ($active ? 'bg-[color-mix(in_srgb,var(--bp-primary)_14%,transparent)] text-[var(--bp-primary)] shadow-sm' : 'bg-transparent group-hover:bg-[var(--bp-panel)] group-hover:shadow-sm');
                     $activeIndicatorClass = $isFlux ? 'bg-emerald-500' : 'bg-[var(--bp-primary)]';
                 @endphp
+                {{-- TASK-1703 — l'etat ACTIF devient mesurable.
+                     Jusqu'ici il ne vivait que dans une chaine de classes
+                     Tailwind. L'asserter la-dessus est fragile — lecon du bug
+                     AQ de TASK-1693 : « viser le MARQUEUR du rail, pas sa
+                     chaine de classes, qui cassait des qu'un attribut etait
+                     ajoute ». Meme idiome que `data-nav-badge-*`, deja ici.
+                     `key` n'est renseigne que sur la messagerie aujourd'hui ;
+                     les autres entrees ne portent donc pas le marqueur, et
+                     c'est sans consequence : il n'y a rien a mesurer ou il n'y
+                     a pas de clef. --}}
                 <a href="{{ $item['url'] }}"
+                   @isset($item['key'])
+                       data-side-nav-item="{{ $item['key'] }}"
+                       data-side-nav-active="{{ $active ? '1' : '0' }}"
+                   @endisset
                    class="group relative flex w-full shrink-0 flex-col items-center px-1 py-0.5 text-[9px] font-medium leading-none transition {{ $itemTextClass }}"
                    title="{{ $item['label'] }}">
                     <span class="relative flex h-8 w-8 items-center justify-center rounded-lg transition {{ $iconClass }}">
@@ -365,7 +398,21 @@
                     <x-slot name="trigger">
                         <button class="relative flex h-9 w-9 items-center justify-center rounded-full ring-2 ring-white transition hover:scale-105 dark:ring-gray-800" aria-label="{{ __('navigation.user_menu') }}">
                             <img src="{{ Auth::user()->avatar_url }}" class="h-8 w-8 rounded-full object-cover" alt="{{ Auth::user()->full_name }}">
-                            <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--bp-surface)] bg-[var(--bp-progress)]"></span>
+                            {{-- TASK-1694 bug AF — la pastille de l'avatar, signalee par
+                                 Cyril le 24/10 : elle survivait a la desactivation du bug AE.
+
+                                 Et elle portait un SECOND defaut, pire : elle ne lisait PAS
+                                 `is_available`. Elle etait verte en dur, quelle que soit la
+                                 disponibilite reelle — un indicateur qui ne mesure rien, pose
+                                 a cote d'une bascule qui, elle, dit la verite. Les deux se
+                                 contredisaient a l'ecran.
+
+                                 Elle suit desormais la meme valeur et les memes couleurs que
+                                 la bascule du menu, juste en dessous. --}}
+                            @if(availabilityIsShown())
+                                <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--bp-surface)] {{ Auth::user()->is_available ? 'bg-emerald-500' : 'bg-gray-400 dark:bg-gray-500' }}"
+                                      data-availability-dot="{{ Auth::user()->is_available ? 'available' : 'unavailable' }}"></span>
+                            @endif
                         </button>
                     </x-slot>
                     <x-slot name="content">
@@ -378,7 +425,7 @@
                         </div>
 
                         <div class="border-t border-gray-100 py-2 dark:border-gray-700">
-                            <a href="{{ route('dashboard') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950/40">
+                            <a href="{{ route('dashboard') }}" data-user-menu-dashboard @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950/40">
                                 <svg class="h-5 w-5 text-sky-600 dark:text-sky-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
                                 <span>{{ __('navigation.dashboard') }}</span>
                             </a>
@@ -388,7 +435,13 @@
                                     <span>{{ __('navigation.feed') }}</span>
                                 </a>
                             @endif
-                            <form method="POST" action="{{ $routeUrl('profile.availability', 'organization.profile.availability') }}">
+                            {{-- TASK-1694 bug AE — « dans le menu utilisateur ». La bascule
+                                 disparait avec la fonctionnalite : laisser un bouton qui
+                                 change une valeur que plus personne ne voit serait un
+                                 geste sans effet visible, donc un piege. --}}
+                            @if(availabilityIsShown())
+                            <form method="POST" action="{{ $routeUrl('profile.availability', 'organization.profile.availability') }}"
+                                  data-availability-toggle>
                                 @csrf
                                 @method('PATCH')
                                 <button type="submit" @click="open = false" class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm font-semibold transition {{ Auth::user()->is_available ? 'text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700' }}">
@@ -396,24 +449,40 @@
                                     <span>{{ Auth::user()->is_available ? __('dashboard.available') : __('dashboard.unavailable') }}</span>
                                 </button>
                             </form>
-                            <a href="{{ $organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()]) : route('profile.show', Auth::user()) }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                            @endif
+                            <a href="{{ $organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()->profileRouteKey()]) : route('profile.show', Auth::user()->profileRouteKey()) }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/><path d="M4.5 20.25a8.25 8.25 0 1116.5 0"/></svg>
                                 <span>{{ __('navigation.profile') }}</span>
                             </a>
                             @if(!$currentOrganization || $currentOrganization->ai_profiles_enabled)
-                            <a href="{{ route('agent-ia.wizard') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                            {{-- TASK-1698 — meme defaut que dans la topbar : `route()` nu alors que
+                                 ce fichier scope deja ailleurs par `$organizationRouteParam`,
+                                 qui porte le repli vers l'Organization du membre (ligne 9). --}}
+                            <a href="{{ $organizationRouteParam && Route::has('organization.agent-ia.wizard') ? route('organization.agent-ia.wizard', ['organization' => $organizationRouteParam]) : route('agent-ia.wizard') }}" data-side-nav-ai-wizard @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
                                 <span>{{ __('navigation.ai_profile') }}</span>
                             </a>
                             @endif
-                            <a href="{{ route('profile.edit') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                            {{-- TASK-1697 — scope. `$organizationRouteParam` porte DEJA le repli vers
+                                 l'Organization de la personne connectee (ligne 9), donc le lien
+                                 reste juste depuis une page sans prefixe. Mesure avant correctif :
+                                 sur `/profile/edit`, `currentOrganization()` vaut `main` et non
+                                 l'Organization du membre — c'est le defaut du bug AI de T1694,
+                                 jusqu'ici rustine dans un seul helper. --}}
+                            <a href="{{ $organizationRouteParam && Route::has('organization.profile.edit') ? route('organization.profile.edit', ['organization' => $organizationRouteParam]) : route('profile.edit') }}" data-user-menu-profile @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.573c1.757.426 1.757 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.065c-.426 1.757-2.924 1.757-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.573c-1.757-.426-1.757-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.065z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                                 <span>{{ __('navigation.settings') }}</span>
                             </a>
-                            <a href="{{ $routeUrl('profile.ai-usage', 'organization.profile.ai-usage') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                            {{-- TASK-1693 bug AP — « Mes usages IA » ne s'offre que si
+                                 l'IA est utilisable ici. Sans elle, cet ecran ne peut
+                                 rien montrer d'autre qu'un registre vide : une poignee
+                                 sur une porte muree. --}}
+                            @if($_aiGate->availableHere())
+                            <a href="{{ $routeUrl('profile.ai-usage', 'organization.profile.ai-usage') }}" data-nav-ai-usage @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                                 <span>{{ __('navigation.my_ai_usage') }}</span>
                             </a>
+                            @endif
                             <a href="{{ $routeUrl('points.index', 'organization.points.index') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6v6l4 2"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 <span>{{ __('navigation.points_history') }}</span>
@@ -422,7 +491,11 @@
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
                                 <span>{{ __('navigation.invitations') }}</span>
                             </a>
-                            <a href="{{ route('favorites.index') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                            {{-- TASK-1697 — scope. Celui-ci n'etait pas casse : `/favorites` est deja
+                                 rattrape par la redirection canonique (mesure : 302 vers
+                                 `/org/ofsh/favorites`). Le scoper supprime simplement cet
+                                 aller-retour. --}}
+                            <a href="{{ $organizationRouteParam && Route::has('organization.favorites.index') ? route('organization.favorites.index', ['organization' => $organizationRouteParam]) : route('favorites.index') }}" data-user-menu-favorites @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111 5.52.442a.563.563 0 01.32.988l-4.205 3.602 1.285 5.385a.562.562 0 01-.84.61L12 16.75l-4.725 2.887a.562.562 0 01-.84-.61l1.285-5.385-4.205-3.602a.563.563 0 01.32-.988l5.52-.442 2.125-5.111z"/></svg>
                                 <span>{{ __('navigation.favorites') }}</span>
                             </a>

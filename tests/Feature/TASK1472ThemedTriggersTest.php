@@ -109,6 +109,20 @@ class TASK1472ThemedTriggersTest extends TestCase
     public function test_the_member_trigger_is_rendered_and_the_page_carries_its_token(): void
     {
         $organization = $this->organization('org-ux2-member');
+
+        // TASK-1685 : le declencheur membre exige desormais que l'IA soit
+        // disponible pour l'Organization (`ProviderResolver::isAvailableFor()`).
+        // Pose ICI et non dans le helper `organization()` : `organizationWithGuestShell()`
+        // l'appelle puis cree sa propre ligne, et `organization_ai_settings.organization_id`
+        // est UNIQUE — la mutualiser casserait l'autre helper.
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $organization->id,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+            'api_key' => 'sk-task1685-ux2',
+            'is_enabled' => true,
+        ]);
+
         $member = User::factory()->complete()->create(['organization_id' => $organization->id]);
 
         $html = $this->actingAs($member)
@@ -122,6 +136,17 @@ class TASK1472ThemedTriggersTest extends TestCase
 
     public function test_the_guest_trigger_is_rendered_and_the_landing_carries_its_token(): void
     {
+        // TASK-1692 — GUEST SHELL VOLONTAIREMENT DESACTIVE (arbitrage MASTER).
+        $this->markTestSkipped(
+            'Mode `shell_first` inatteignable : le Guest Shell est desactive. Un anonyme est arrete par '
+            .'`auth` + `organization.member` sur le groupe `/org/{organization}` ; une personne CONNECTEE est '
+            .'refusee par la surface elle-meme (`GuestShellSurface:154` -> `display.reason = authenticated`), '
+            .'si bien que `OrganizationLandingController` n\'entre jamais dans la branche shell-first, qui '
+            .'exige `display.visible`. Aucun acteur ne peut donc rendre cette page, et la rejouer « sous un '
+            .'membre » mesurerait une surface inerte. Le corps est CONSERVE pour etre reveille si la decision '
+            .'produit est revue ; le code applicatif n\'est pas supprime. Contrat de refus tenu par '
+            .'TASK1442GuestShellPublicOverlayTest.'
+        );
         $organization = $this->organizationWithGuestShell('org-ux2-guest');
 
         $html = $this->get(route('organization.home', ['organization' => $organization->slug]))->assertOk()->getContent();
@@ -141,6 +166,17 @@ class TASK1472ThemedTriggersTest extends TestCase
      */
     public function test_the_guest_trigger_stops_promising_a_question_when_the_shell_cannot_answer(): void
     {
+        // TASK-1692 — GUEST SHELL VOLONTAIREMENT DESACTIVE (arbitrage MASTER).
+        $this->markTestSkipped(
+            'Mode `shell_first` inatteignable : le Guest Shell est desactive. Un anonyme est arrete par '
+            .'`auth` + `organization.member` sur le groupe `/org/{organization}` ; une personne CONNECTEE est '
+            .'refusee par la surface elle-meme (`GuestShellSurface:154` -> `display.reason = authenticated`), '
+            .'si bien que `OrganizationLandingController` n\'entre jamais dans la branche shell-first, qui '
+            .'exige `display.visible`. Aucun acteur ne peut donc rendre cette page, et la rejouer « sous un '
+            .'membre » mesurerait une surface inerte. Le corps est CONSERVE pour etre reveille si la decision '
+            .'produit est revue ; le code applicatif n\'est pas supprime. Contrat de refus tenu par '
+            .'TASK1442GuestShellPublicOverlayTest.'
+        );
         $organization = $this->organizationWithGuestShell('org-ux2-degraded');
 
         // Aucun plafond plateforme : l'etat degrade REEL du banc.
@@ -161,6 +197,17 @@ class TASK1472ThemedTriggersTest extends TestCase
     /** Quand le Shell repond vraiment, l'invitation reste. */
     public function test_the_invitation_stays_when_the_shell_is_live(): void
     {
+        // TASK-1692 — GUEST SHELL VOLONTAIREMENT DESACTIVE (arbitrage MASTER).
+        $this->markTestSkipped(
+            'Mode `shell_first` inatteignable : le Guest Shell est desactive. Un anonyme est arrete par '
+            .'`auth` + `organization.member` sur le groupe `/org/{organization}` ; une personne CONNECTEE est '
+            .'refusee par la surface elle-meme (`GuestShellSurface:154` -> `display.reason = authenticated`), '
+            .'si bien que `OrganizationLandingController` n\'entre jamais dans la branche shell-first, qui '
+            .'exige `display.visible`. Aucun acteur ne peut donc rendre cette page, et la rejouer « sous un '
+            .'membre » mesurerait une surface inerte. Le corps est CONSERVE pour etre reveille si la decision '
+            .'produit est revue ; le code applicatif n\'est pas supprime. Contrat de refus tenu par '
+            .'TASK1442GuestShellPublicOverlayTest.'
+        );
         $organization = $this->organizationWithGuestShell('org-ux2-live');
         config(['ai.guest_shell.platform_monthly_ceiling_usd' => 10.0]);
 

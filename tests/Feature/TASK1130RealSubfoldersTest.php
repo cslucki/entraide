@@ -9,6 +9,7 @@ use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 /**
@@ -36,6 +37,8 @@ use Tests\TestCase;
  */
 class TASK1130RealSubfoldersTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     use RefreshDatabase;
 
     private Organization $org;
@@ -98,7 +101,18 @@ class TASK1130RealSubfoldersTest extends TestCase
 
     // ── Gouvernance a deux niveaux de profondeur ────────────────────────────
 
-    public function test_a_grandchild_still_shows_the_loop_dossier_badge(): void
+    /**
+     * TASK-1697 (1) — le marqueur a change, la SUBSTANCE non.
+     *
+     * Ce test prouve que la gouvernance d'une Boucle se lit encore a DEUX
+     * niveaux de profondeur. Le badge « Dossier de Boucle » le disait ; Cyril
+     * l'a remplace par le lien « Voir la Boucle », qui occupe la meme place et
+     * mene quelque part — le badge nommait ce que le fil d'Ariane disait deja.
+     *
+     * L'assertion vise donc le LIEN, et sa cible : un petit-enfant doit
+     * renvoyer vers LA Boucle qui le gouverne, pas vers une autre.
+     */
+    public function test_a_grandchild_still_shows_its_loop_governance(): void
     {
         $enfant = Dossier::create([
             'organization_id' => $this->org->id, 'parent_id' => $this->racineBoucle->getKey(),
@@ -114,7 +128,16 @@ class TASK1130RealSubfoldersTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString(__('dossiers.loop_dossier_badge'), $html);
+        $this->assertStringContainsString('data-loop-visit', $html);
+        $this->assertStringContainsString(e(__('dossiers.loop_visit')), $html);
+        // Et il mene a LA Boucle gouvernante, pas a une autre.
+        $this->assertStringContainsString(
+            e(route('organization.loops.show', [
+                'organization' => $this->org->slug,
+                'loop' => $this->loop->slug ?? $this->loop->getKey(),
+            ])),
+            $html,
+        );
         // La chaine complete : l'espace « Boucles », puis le Drive, puis les
         // deux niveaux reels.
         $this->assertStringContainsString(__('dossiers.space_loops'), $html);
@@ -186,6 +209,8 @@ class TASK1130RealSubfoldersTest extends TestCase
 
     public function test_the_share_panel_of_a_private_child_targets_that_child(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $racinePrivee = Dossier::create([
             'organization_id' => $this->org->id,
             'owner_id' => $this->owner->id,

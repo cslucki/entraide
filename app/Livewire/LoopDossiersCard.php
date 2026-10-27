@@ -10,6 +10,7 @@ use App\Models\Loop;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 /**
@@ -42,6 +43,22 @@ class LoopDossiersCard extends Component
     {
         $this->loop = $loop;
     }
+
+    /**
+     * TASK-1684 — se remettre a jour apres un depot fait depuis la ChatLoop.
+     *
+     * Le depot du menu « + » du composeur passe par l'endpoint Dossiers en
+     * `fetch` direct, hors du cycle Livewire : cette Card, deja montee, n'en
+     * savait rien et continuait d'afficher son dernier rendu. Le membre devait
+     * aller sur l'ecran du Dossier puis revenir pour voir son fichier —
+     * exactement ce qui a ete rapporte en recette.
+     *
+     * Le corps est VIDE a dessein : `render()` recalcule compte et recents a
+     * chaque passage. Ce qui manquait n'etait pas un rechargement de donnees,
+     * c'etait une raison de re-rendre. Rien n'est duplique ici.
+     */
+    #[On('bp-dossier-fichier-depose')]
+    public function rafraichirApresDepot(): void {}
 
     /** Le Dossier racine de cette Boucle, ou null si elle n'en a pas encore. */
     public function dossier(): ?Dossier
@@ -139,6 +156,8 @@ class LoopDossiersCard extends Component
                 'articleUrls' => collect(),
                 'series' => collect(),
                 'files' => collect(),
+                // Les deux sorties de `render()` offrent le meme contrat.
+                'fileUrls' => [],
                 'total' => 0,
                 'canCreateArticle' => false,
                 'canUploadFile' => false,
@@ -156,9 +175,15 @@ class LoopDossiersCard extends Component
             && $resolver->can($user, $this->loop, 'dossiers.create_article')
             && $user->can('update', $dossier);
 
+        // TASK-1684 : `uploadFiles`, pas `manageFiles`. Le MASTER a ouvert le
+        // DEPOT a tout membre actif ; `manageFiles` gouverne l'ADMINISTRATION
+        // des fichiers (renommer, deplacer, markdown) et serait ici une porte
+        // plus etroite que celle du serveur — la Card cacherait un geste que
+        // `StoreDossierFileRequest` accepte. Meme correction que la tuile du
+        // menu « + » du composeur.
         $canUploadFile = ! $readOnly
             && $resolver->can($user, $this->loop, 'dossiers.upload_file')
-            && $user->can('manageFiles', $dossier);
+            && $user->can('uploadFiles', $dossier);
 
         $articles = $this->recentArticles($dossier);
 
@@ -168,7 +193,8 @@ class LoopDossiersCard extends Component
             'articles' => $articles,
             'articleUrls' => $this->articleUrls($articles),
             'series' => $this->recentSeries($dossier),
-            'files' => $this->recentFiles($dossier),
+            'files' => $fichiersRecents = $this->recentFiles($dossier),
+            'fileUrls' => $this->fileUrls($fichiersRecents, $dossier),
             'total' => $this->totalItems($dossier),
             'canCreateArticle' => $canCreateArticle,
             'canUploadFile' => $canUploadFile,
@@ -214,9 +240,113 @@ class LoopDossiersCard extends Component
     /** @return Collection<int, DossierFile> */
     private function recentFiles(Dossier $dossier): Collection
     {
-        return $dossier->files()
+        // TASK-1695 (recette de Cyril) — les fichiers PARTAGES avec la Boucle
+        // sont dans la MEME liste que les fichiers deposes : « ce ne sont pas
+        // des fichiers a part ». Une seconde tuile donnait a croire a un
+        // second type de partage.
+        return \App\Models\DossierFile::query()
+            ->withoutTrashed()
+            ->where('organization_id', $dossier->organization_id)
+            ->where(function ($q) use ($dossier) {
+                $q->where('dossier_id', $dossier->id);
+
+                if ($dossier->isLoopDossier()) {
+                    $q->orWhereHas('loopShares', fn ($s) => $s
+                        ->where('loop_id', $dossier->loop_id)
+                        ->where('organization_id', $dossier->organization_id));
+                }
+            })
             ->with('uploader:id,name,first_name,avatar,banned_at')
             ->latest('created_at')
+            ->limit(self::RECENT)
+            ->get();
+    }
+
+    /**
+     * TASK-1695 (5a, recette de Cyril) — les fichiers PARTAGES avec la Boucle.
+     *
+     * Distincts des fichiers DEPOSES : ils vivent chez leur proprietaire, qui
+     * peut retirer le partage a tout moment. Les melanger a `recentFiles()`
+     * laisserait croire qu'ils appartiennent au Dossier de la Boucle.
+     *
+     * Aucune garde ici : cette carte ne s'affiche qu'a qui peut deja voir le
+     * Dossier de la Boucle, et le partage vise la Boucle entiere.
+     */
+    /**
+     * Les URL de lecture des fichiers partages, construites DANS LE COMPOSANT.
+     *
+     * TASK-1695 — 500 en recette (Cyril, 24/10) : la vue faisait
+     * `$loop->organization?->slug`, mais `$loop` n'y est PAS le modele —
+     * `Undefined property: stdClass::$organization`. `$this->loop` l'est, ici.
+     *
+     * C'est exactement l'idiome de `dossierUrls()` juste au-dessus, et la
+     * lecon TASK-1103 qu'il porte : **la Boucle d'abord, la requete jamais** —
+     * une interaction Livewire arrive sur `POST /livewire/update`, qui ne
+     * porte aucun parametre `organization`.
+     *
+     * @return array<string, string> id du fichier => URL d'apercu
+     */
+    /**
+     * TASK-1697 (4) — chaque fichier recent devient CLIQUABLE.
+     *
+     * Signale par Cyril : la liste nommait les fichiers sans permettre de les
+     * ouvrir. Il fallait passer par « Ouvrir » et traverser tout le Dossier
+     * pour consulter un document qu'on voyait deja.
+     *
+     * ## Deux routes, parce que deux natures
+     *
+     * Depuis T1695 la liste mele les fichiers DEPOSES dans le Dossier et ceux
+     * PARTAGES avec la Boucle. Les premiers s'ouvrent par le chemin du
+     * Dossier ; les seconds n'y sont pas — leur chemin rendrait 404 — et
+     * passent par la route dediee.
+     *
+     * On choisit par ligne, pas par liste : `dossier_id` dit laquelle.
+     *
+     * ## Construites DANS le composant
+     *
+     * `$loop` n'est pas le modele dans la vue (stdClass) — 500 en recette le
+     * 24/10. `$this->loop` l'est, ici. Et « la Boucle d'abord, la requete
+     * jamais » (T1103) : une interaction Livewire arrive sur
+     * `POST /livewire/update`, qui ne porte aucun parametre `organization`.
+     *
+     * @return array<string, string> id du fichier => URL d'ouverture
+     */
+    private function fileUrls(Collection $fichiers, Dossier $dossier): array
+    {
+        $organization = $this->loop->organization?->slug;
+
+        if (! $organization) {
+            return [];
+        }
+
+        return $fichiers->mapWithKeys(function (\App\Models\DossierFile $f) use ($organization, $dossier) {
+            $partage = $f->dossier_id !== $dossier->id;
+
+            $url = $partage
+                ? (Route::has('organization.dossiers.shared.preview')
+                    ? route('organization.dossiers.shared.preview', ['organization' => $organization, 'file' => $f->id])
+                    : null)
+                : route('organization.dossiers.files.preview', [
+                    'organization' => $organization,
+                    'dossier' => $dossier,
+                    'file' => $f->id,
+                ]);
+
+            return $url ? [$f->id => $url] : [];
+        })->all();
+    }
+
+    private function sharedFiles(Dossier $dossier): Collection
+    {
+        return \App\Models\DossierFile::query()
+            ->withoutTrashed()
+            ->where('organization_id', $dossier->organization_id)
+            ->whereHas('loopShares', fn ($q) => $q
+                ->where('loop_id', $dossier->loop_id)
+                ->where('organization_id', $dossier->organization_id))
+            ->with(['loopShares' => fn ($q) => $q->where('loop_id', $dossier->loop_id),
+                'loopShares.sharedBy:id,name,first_name,avatar,banned_at,organization_id'])
+            ->latest('updated_at')
             ->limit(self::RECENT)
             ->get();
     }

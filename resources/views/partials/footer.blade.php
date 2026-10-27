@@ -12,6 +12,18 @@
     $flowchartUrl = $usesOrganizationRoutes && Route::has('organization.flowchart')
         ? route('organization.flowchart', ['organization' => $organizationRouteParam])
         : null;
+    // TASK-1698 — `$showOrganizationInternalLinks` n'a plus d'usage ICI.
+    //
+    // TASK-1692 avait pose `showsOrganizationInternalNavigation()` autour de
+    // Mycelium, du logigramme et de l'Open Source, au motif ecrit qu'ils
+    // « pointent vers des pages `/org/{slug}/…` fermees depuis TASK-1692 ».
+    // Cette fermeture etait un ACCIDENT : les trois routes avaient ete ecrites
+    // publiques et DOCUMENTEES publiques, sans jamais s'extraire du groupe
+    // ferme par defaut (`withoutMiddleware`, voir `routes/web.php`). L'opt-out
+    // pose, le motif tombe — masquer les trois poignees ne protegeait rien.
+    //
+    // Le helper reste : il est l'autorite du bandeau de navigation interne,
+    // appele par `mentions-legales.blade.php`. Seul l'appel du pied disparait.
 
     // TASK-1605 — `$bugReportStoreRoute` et `$loginRoute` vivaient ici pour le
     // popup de signalement. Le popup a cede la place a un lien vers la page
@@ -68,9 +80,30 @@
                    class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">
                     {{ __('footer.mentions_legales') }}
                 </a>
+                {{-- TASK-1692 / MICRO-11.2D — « Kit demo » sort de la garde
+                     tenant, comme les mentions legales juste au-dessus.
+
+                     Il y etait entre par ricochet : la garde a ete posee autour
+                     d'un bloc, et ce lien se trouvait dans le bloc. Or il ne
+                     mene nulle part dans le produit — c'est `bouclepro.com/demo`,
+                     une adresse EXTERNE, publique, sans prefixe d'Organization
+                     et sans la moindre dimension de tenant. Rien a isoler ici :
+                     le masquer n'ajoutait aucune confidentialite, il retirait
+                     seulement une porte d'entree aux visiteurs anonymes des
+                     pages publiques, qui sont precisement ceux a qui un kit de
+                     demonstration s'adresse.
+
+                     TASK-1698 : les autres liens du bloc ne sont PLUS gardes
+                     non plus. Le motif ecrit ci-dessus — « Mycelium, le
+                     logigramme et l'explorateur Open Source pointent vers des
+                     pages `/org/{slug}/…` fermees depuis TASK-1692 » — decrivait
+                     un accident, pas un arbitrage : l'opt-out du groupe ferme
+                     par defaut manquait. Il est pose, les pages sont publiques,
+                     les poignees le sont aussi. --}}
                 <a href="https://bouclepro.com/demo"
                    target="_blank" rel="noopener noreferrer"
-                   class="inline-flex items-center gap-1 px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">
+                   class="inline-flex items-center gap-1 px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
+                   data-footer-kit-demo>
                     <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M12 2l1.5 6.5L20 10l-6.5 1.5L12 18l-1.5-6.5L4 10l6.5-1.5z"/>
                         <path d="M18 14l.5 2.5L21 17l-2.5.5L18 20l-.5-2.5L15 17l2.5-.5z"/>
@@ -103,6 +136,13 @@
                     </svg>
                     <span>{{ __('footer.opensource') }}</span>
                 </a>
+                {{-- TASK-1692, correctif post-CI — « Un bug ? » sort de la garde
+                     de navigation interne. Signaler un defaut doit rester
+                     possible depuis TOUTE page qui porte ce pied, y compris la
+                     connexion et l'inscription, ou se trouve justement
+                     quelqu'un qui n'arrive pas a entrer. Le lien reste borne a
+                     l'Organization de l'URL ; la PAGE, elle, garde sa garde de
+                     route. Meme principe que « Kit demo ». --}}
                 {{-- TASK-1605 — arbitrage MASTER : PAS de popup Alpine.
                      « Un bug ? » mene a la vraie page de signalement, deja
                      bornee a l'Organization (`organization.bug-reports.index`,

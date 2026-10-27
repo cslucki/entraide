@@ -14,9 +14,20 @@ class EmailTemplate extends Model
     /** @use HasFactory<EmailTemplateFactory> */
     use HasFactory, HasOrganizationId, HasUuids;
 
+    /**
+     * TASK-1694 bug Z — les langues proposees pour un gabarit de l'Emailer.
+     *
+     * `null` est une troisieme valeur legitime : « langue non precisee ». Les
+     * lignes anterieures au 24/10 sont dans cet etat, et un gabarit sans langue
+     * reste propose dans les DEUX langues a l'envoi — mieux vaut montrer un
+     * gabarit dont on ignore la langue que le faire disparaitre d'un ecran.
+     */
+    public const LOCALES = ['fr', 'en'];
+
     protected $fillable = [
         'slug',
         'name',
+        'locale',
         'subject',
         'content_html',
         'variables',

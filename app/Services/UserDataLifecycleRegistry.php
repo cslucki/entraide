@@ -38,6 +38,7 @@ class UserDataLifecycleRegistry
             // durabilite economique n'est pas le role de cette table mais celui
             // du ledger `ai_provider_invocations` (sans contenu, sans FK).
             ['key' => 'ai_interactions', 'type' => 'sql', 'table' => 'ai_interactions', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'User AI interactions carry the full personal prompt and response; the FK cascades (NOT NULL, ON DELETE CASCADE) and the registry says so. The economic fact of each call lives in the content-free ledger ai_provider_invocations, which survives (TASK-1254).'],
+            ['key' => 'rollback_conservation', 'type' => 'sql', 'table' => 'rollback_conservation', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'none', 'justification' => 'A rollback of release 1.709 stores public slugs derived from names, so personal data. The archive has no organization_id, hence org_scope none; deleting the account must delete its rows here too (TASK-1711).'],
             // TASK-1315 : le fil du Shell « BouclePro IA ». Meme raison, meme
             // regime que `ai_interactions` juste au-dessus — la ligne porte la
             // question et la reponse PERSONNELLES d'une conversation de travail
@@ -94,6 +95,32 @@ class UserDataLifecycleRegistry
             ['key' => 'bug_reports', 'type' => 'sql', 'table' => 'bug_reports', 'column' => 'reporter_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Bug reports are platform support records.'],
             ['key' => 'community_requests', 'type' => 'sql', 'table' => 'community_requests', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'legacy', 'justification' => 'Legacy table only; do not add Community code.'],
             ['key' => 'dossier_blog_posts_added_by', 'type' => 'sql', 'table' => 'dossier_blog_posts', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_dossier', 'justification' => 'Dossier article audit can be detached.'],
+            // TASK-1695 — le partage d'un fichier, par ses DEUX axes.
+            //
+            // Les deux politiques ne sont pas choisies : elles RECOPIENT ce que
+            // le schema fait deja (`cascadeOnDelete` / `nullOnDelete`). Si elles
+            // divergeaient, l'ecran de suppression annoncerait une chose et la
+            // base en ferait une autre.
+            //
+            // `user_id` DELETE — une autorisation est nominative. La garder
+            // apres le compte laisserait une ligne qui ouvre un fichier a
+            // personne, et qu'un futur compte reprenant l'uuid heriterait.
+            //
+            // `shared_by` DETACH — la trace de QUI a partage survit au depart de
+            // celui qui a partage ; le partage, lui, reste valide. Meme
+            // arbitrage que `dossier_members_added_by`.
+            //
+            // `org_scope` est 'direct' et non 'through_dossier' : la table PORTE
+            // `organization_id`, pose d'apres le fichier (geste D). On lit le
+            // tenant la ou il fait autorite, pas par une jointure.
+            ['key' => 'dossier_file_shares', 'type' => 'sql', 'table' => 'dossier_file_shares', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'A file share is nominative access granted to one person; it cannot outlive the account.'],
+            ['key' => 'dossier_file_shares_shared_by', 'type' => 'sql', 'table' => 'dossier_file_shares', 'column' => 'shared_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Share grant audit can be detached; the share itself stays valid.'],
+            // TASK-1695 (5a) — le partage vers une Boucle n'a qu'UNE colonne
+            // vers `users` : `shared_by` (le destinataire est la Boucle). Meme
+            // politique que son jumeau nominatif, et declare DANS LE MEME
+            // COMMIT que la table — la CI a deja rejete cette TASK une fois
+            // pour deux FK non declarees.
+            ['key' => 'dossier_file_loop_shares_shared_by', 'type' => 'sql', 'table' => 'dossier_file_loop_shares', 'column' => 'shared_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Loop share grant audit can be detached; the share itself stays valid.'],
             ['key' => 'dossier_files_uploaded_by', 'type' => 'sql', 'table' => 'dossier_files', 'column' => 'uploaded_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_dossier', 'justification' => 'Dossier file metadata is retained until file lifecycle policy exists.'],
             ['key' => 'dossier_members_added_by', 'type' => 'sql', 'table' => 'dossier_members', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_dossier', 'justification' => 'Membership grant audit can be detached.'],
             ['key' => 'dossier_members', 'type' => 'sql', 'table' => 'dossier_members', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'through_dossier', 'justification' => 'Dossier membership is user-specific participation.'],
@@ -268,6 +295,21 @@ class UserDataLifecycleRegistry
             ['key' => 'loop_marketplace_links_added_by', 'type' => 'sql', 'table' => 'loop_marketplace_links', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Who highlighted an offer is audit; the link survives.'],
             ['key' => 'loop_manifesto_sources_added_by', 'type' => 'sql', 'table' => 'loop_manifesto_sources', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Source attribution audit can be detached.'],
             ['key' => 'loop_messages_deleted_by', 'type' => 'sql', 'table' => 'loop_messages', 'column' => 'deleted_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Moderation audit: who removed a message must remain answerable.'],
+            // TASK-1693 bug Q — l'administration peut corriger le CORPS d'un
+            // message. Meme nature que `deleted_by` juste au-dessus : qui a
+            // reecrit les mots de quelqu'un d'autre doit rester imputable,
+            // sinon la trace ne protege personne. RETAIN, donc — la colonne
+            // elle-meme est `nullOnDelete` au niveau de la base.
+            ['key' => 'loop_messages_edited_by', 'type' => 'sql', 'table' => 'loop_messages', 'column' => 'edited_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Moderation audit: who edited a message must remain answerable.'],
+            // TASK-1693 bug Z — le registre des adresses publiques d'un membre.
+            //
+            // CASCADE, et c'est le seul choix juste : ces lignes n'existent que
+            // pour reserver des adresses A CETTE PERSONNE. Le compte parti,
+            // elles ne reservent plus rien — les RETENIR bloquerait
+            // indefiniment des adresses au nom de quelqu'un qui n'est plus la.
+            // La contrainte de base porte deja `cascadeOnDelete`.
+            ['key' => 'user_slugs', 'type' => 'sql', 'table' => 'user_slugs', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'Public address reservations only make sense while the account exists.'],
+            ['key' => 'messages_edited_by', 'type' => 'sql', 'table' => 'messages', 'column' => 'edited_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_transaction', 'justification' => 'Moderation audit: who edited a message must remain answerable.'],
 
             ['key' => 'loop_events_created_by', 'type' => 'sql', 'table' => 'loop_events', 'column' => 'created_by', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'The event survives; its author is anonymized.'],
             ['key' => 'loop_events_cancelled_by', 'type' => 'sql', 'table' => 'loop_events', 'column' => 'cancelled_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Cancellation audit can be detached.'],

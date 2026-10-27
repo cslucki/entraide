@@ -10,9 +10,9 @@
         $_profileRoute = function ($user) {
             $orgSlug = request()->route('organization');
             if ($orgSlug && Route::has('organization.profile.show')) {
-                return route('organization.profile.show', ['organization' => $orgSlug, 'user' => $user]);
+                return route('organization.profile.show', ['organization' => $orgSlug, 'user' => $user->profileRouteKey()]);
             }
-            return route('profile.show', $user);
+            return route('profile.show', $user->profileRouteKey());
         };
         $_displayableUser = fn ($user) => $user?->isDisplayableIn(currentOrganization());
         $_publicName = fn ($user) => $user?->publicDisplayName() ?? __('profile.deactivated_user');
@@ -424,22 +424,41 @@
                 </div>
                 @endif
 
-                @php $commentCount = $post->comments->count(); $lastComment = $commentCount > 0 ? $post->comments->first() : null; @endphp
+                {{-- `$lastComment` a disparu avec l'apercu « dernier
+                     commentaire » : le fil entier est juste en dessous.
+                     `$commentCount` sert encore au raccourci de la barre. --}}
+                @php $commentCount = $post->comments->count(); @endphp
+                {{-- TASK-1697 — l'ancre que le controleur visait sans qu'elle
+                     existe.
+                     `BlogCommentController` redirige depuis toujours vers
+                     `URL::previous().'#commentaires'` — mais AUCUN element de
+                     cette page ne portait cet identifiant. Le fragment ne
+                     designait rien, et le navigateur restait donc en haut de
+                     l'article : c'est le defaut que Cyril decrit.
+                     Le volet b a supprime le repli : le fil est desormais
+                     toujours ouvert, il n'y a plus de cible masquee possible.
+                     Reste le defilement explicite, parce qu'un fragment deja
+                     present dans l'URL ne redeclenche rien quand Livewire
+                     remplace le fil. --}}
                 <!-- Action bar compact (comments + likes) -->
-                <div x-data="{ showComments: false }" class="mb-6">
+                <div id="commentaires"
+                     x-data
+                     x-init="if (window.location.hash === '#commentaires') $nextTick(() => $el.scrollIntoView({ block: 'start' }))"
+                     class="mb-6 scroll-mt-24">
                     <div class="flex items-center gap-4 py-4 border-t border-b border-gray-200 dark:border-gray-700">
-                        @auth
-                        <button type="button" @click="showComments = !showComments"
-                                class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition">
+                        {{-- TASK-1697 — le picto ne REPLIE plus rien : il mene au
+                             fil, desormais toujours ouvert. Son compteur ecoute
+                             les evenements du composant pour ne pas se perimer
+                             des qu'on commente ou supprime. --}}
+                        <a href="#fil-commentaires"
+                           x-data="{ n: {{ $commentCount }} }"
+                           x-on:comment-added.window="n++"
+                           x-on:comment-removed.window="n = Math.max(0, n - 1)"
+                           data-comment-shortcut
+                           class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                            <span>{{ $commentCount }}</span>
-                        </button>
-                        @else
-                        <span class="inline-flex items-center gap-1.5 text-sm text-gray-400">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                            <span>{{ $commentCount }}</span>
-                        </span>
-                        @endauth
+                            <span x-text="n">{{ $commentCount }}</span>
+                        </a>
 
                         @auth
                         <button id="like-btn" data-post-id="{{ $post->id }}" data-liked="{{ $isLiked ? 'true' : 'false' }}"
@@ -458,93 +477,15 @@
                         @endauth
                     </div>
 
-                    @auth
-                    @if($lastComment)
-                    <div class="flex items-start gap-2 mt-4">
-                        @if($_displayableUser($lastComment->user))
-                            <img src="{{ $lastComment->user->avatar_url }}" alt="" class="w-5 h-5 rounded-full flex-shrink-0 mt-0.5">
-                        @endif
-                        <div class="flex-1 min-w-0">
-                            <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $_publicName($lastComment->user) }}</span>
-                            <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{{ $lastComment->content }}</p>
-                        </div>
-                    </div>
-                    @if($commentCount > 1)
-                    <button type="button" @click="showComments = !showComments" class="mt-1 text-sm text-indigo-600 hover:underline dark:text-indigo-400">
-                        {{ __('blog.view_comments', ['count' => $commentCount]) }}
-                    </button>
-                    @endif
-                    @endif
+                    {{-- TASK-1697 — le fil de commentaires, en composant Livewire.
 
-                    <div x-show="showComments" x-cloak class="space-y-4 mt-6">
-                        <form action="{{ $_blogRoute('comment.store', ['post' => $post]) }}" method="POST">
-                            @csrf
-                            <textarea name="content" rows="3" placeholder="{{ __('blog.placeholder_comment') }}" required
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm"></textarea>
-                            <div class="mt-2 flex justify-end">
-                                <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">{{ __('blog.btn_add_comment') }}</button>
-                            </div>
-                        </form>
-
-                        @if($commentCount > 0)
-                        <div class="space-y-6">
-                            @foreach($post->comments as $comment)
-                            <div class="flex gap-3">
-                                @if($_displayableUser($comment->user))
-                                    <img src="{{ $comment->user->avatar_url }}" alt="" class="w-8 h-8 rounded-full flex-shrink-0 mt-0.5">
-                                @endif
-                                <div class="flex-1">
-                                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl px-4 py-3">
-                                        <div class="flex items-center justify-between mb-1">
-                                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $_publicName($comment->user) }}</span>
-                                            <span class="text-xs text-gray-400">{{ $comment->created_at->diffForHumans() }}</span>
-                                        </div>
-                                        <p class="text-sm text-gray-700 dark:text-gray-300">{{ $comment->content }}</p>
-                                    </div>
-                                    <div class="flex items-center gap-3 mt-1.5 px-1">
-                                        @auth
-                                        <button x-data x-on:click="$el.nextElementSibling.classList.toggle('hidden')" class="text-xs text-gray-400 hover:text-indigo-500 transition">{{ __('blog.btn_reply') }}</button>
-                                        <div class="hidden mt-3 w-full">
-                        <form action="{{ $_blogRoute('comment.store', ['post' => $post]) }}" method="POST">
-                                                @csrf
-                                                <input type="hidden" name="parent_id" value="{{ $comment->id }}">
-                                                <textarea name="content" rows="2" placeholder="{{ __('blog.placeholder_reply') }}" required
-                                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm"></textarea>
-                                                <div class="mt-1 flex justify-end">
-                                                    <button type="submit" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">{{ __('blog.btn_reply') }}</button>
-                                                </div>
-                                            </form>
-                                        </div>
-                                        @if(auth()->id() === $comment->user_id || auth()->user()->is_admin)
-                                        <form action="{{ $_blogRoute('comment.destroy', ['comment' => $comment]) }}" method="POST" class="inline">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="text-xs text-red-400 hover:text-red-600 transition" onclick="return confirm('{{ __('blog.confirm_delete_comment') }}')">{{ __('blog.delete_post') }}</button>
-                                        </form>
-                                        @endif
-                                        @endauth
-                                    </div>
-
-                                    @foreach($comment->replies as $reply)
-                                    <div class="flex gap-3 mt-3 ml-4">
-                                        @if($_displayableUser($reply->user))
-                                            <img src="{{ $reply->user->avatar_url }}" alt="" class="w-6 h-6 rounded-full flex-shrink-0 mt-0.5">
-                                        @endif
-                                        <div class="flex-1 bg-gray-50 dark:bg-gray-700/50 rounded-xl px-3 py-2">
-                                            <div class="flex items-center justify-between mb-1">
-                                                <span class="text-xs font-medium text-gray-900 dark:text-gray-100">{{ $_publicName($reply->user) }}</span>
-                                                <span class="text-xs text-gray-400">{{ $reply->created_at->diffForHumans() }}</span>
-                                            </div>
-                                            <p class="text-xs text-gray-700 dark:text-gray-300">{{ $reply->content }}</p>
-                                        </div>
-                                    </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                            @endforeach
-                        </div>
-                        @endif
-                    </div>
-                    @endauth
+                         Disparaissent ici l'apercu « dernier commentaire », le
+                         lien « voir les N commentaires » et le bloc
+                         `x-show="showComments"` qui contenait le formulaire, les
+                         commentaires, les reponses ET le bouton « Repondre ».
+                         Les quatre n'avaient de sens que parce que le fil etait
+                         replie. Il ne l'est plus. --}}
+                    @livewire('blog-comments', ['post' => $post])
                 </div>
 
                 @guest

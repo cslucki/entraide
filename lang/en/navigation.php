@@ -3,7 +3,10 @@
 return [
     'agenda' => 'Agenda',
     'agenda_hint' => 'Meetings',
-    'exchanges' => 'Exchanges',
+    // TASK-1694 bug A — « Entraide » in French. The usual English term for it
+    // is « Mutual aid » ; keeping « Exchanges » would make the two locales
+    // name two different things.
+    'exchanges' => 'Mutual aid',
     'directory' => 'Directory',
     'blog' => 'Blog',
     'loops' => 'Loops',
@@ -330,6 +333,6 @@ return [
     // Localising it generally is a dedicated post-campaign TASK.
     'mobile_fab_add' => 'Add',
     'mobile_fab_create_request' => 'Create a help request',
-    'mobile_fab_offer_service' => 'Offer a micro-service',
+    'mobile_fab_offer_service' => 'Publish a proposal',
     'mobile_fab_write_article' => 'Write an article',
 ];

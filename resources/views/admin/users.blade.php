@@ -1,4 +1,8 @@
-<x-admin-layout title="Utilisateurs">
+{{-- TASK-1683 BUG-06 — arrive filtre sur une Organization (lien « Membres »
+     de /admin/organizations), l'ecran doit DIRE laquelle : « Utilisateurs »
+     seul laissait croire a la population entiere, alors que la liste ET les
+     compteurs sont bornes a ce tenant. --}}
+<x-admin-layout :title="$scopedOrganization ? __('admin.users_title_scoped', ['organization' => $scopedOrganization->name]) : 'Utilisateurs'">
 
 {{-- TASK-1640 — racine Alpine de la page.
      Une directive Alpine sans racine `x-data` sur un ancetre est inerte ET
@@ -16,14 +20,45 @@
          compteur qui bougerait avec les filtres repondrait « combien en vois-je »
          au lieu de « combien y en a-t-il ». Le total filtre est affiche a cote du
          tableau, la ou il a du sens. Une SEULE requete agregee les produit tous. --}}
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+    {{-- TASK-1693 bug C — le compteur « Non vérifiés » est CLIQUABLE et mène au
+         filtre correspondant.
+
+         Il préserve `organization_id` : arrivé depuis « Membres » d'une
+         Organization, le compteur est borné à ce tenant (exception TASK-1683
+         BUG-06), et un lien qui laisserait tomber la portée montrerait d'autres
+         tenants que ceux qu'il vient de compter — un chiffre et une liste qui
+         se contrediraient.
+
+         Il est le SEUL cliquable, et ce n'est pas une incohérence : « Nouveaux
+         ce mois » n'a aucun filtre correspondant, et en inventer un pour
+         uniformiser l'apparence dépasserait la demande. --}}
+    @php
+        $unverifiedUrl = route('admin.users', array_filter([
+            'status' => 'unverified',
+            'organization_id' => request('organization_id'),
+        ]));
+    @endphp
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
         @foreach([
-            ['label' => __('admin.users_stat_total'), 'value' => $stats['total'], 'accent' => 'text-gray-900 dark:text-gray-100', 'dot' => 'bg-gray-300 dark:bg-gray-600'],
-            ['label' => __('admin.users_stat_available'), 'value' => $stats['disponibles'], 'accent' => 'text-emerald-600 dark:text-emerald-400', 'dot' => 'bg-emerald-500'],
-            ['label' => __('admin.users_stat_admins'), 'value' => $stats['admins'], 'accent' => 'text-purple-600 dark:text-purple-400', 'dot' => 'bg-purple-500'],
-            ['label' => __('admin.users_stat_banned'), 'value' => $stats['bannis'], 'accent' => 'text-red-600 dark:text-red-400', 'dot' => 'bg-red-500'],
-            ['label' => __('admin.users_stat_new'), 'value' => $stats['nouveaux'], 'accent' => 'text-indigo-600 dark:text-indigo-400', 'dot' => 'bg-indigo-500'],
+            ['label' => __('admin.users_stat_total'), 'value' => $stats['total'], 'accent' => 'text-gray-900 dark:text-gray-100', 'dot' => 'bg-gray-300 dark:bg-gray-600', 'url' => null],
+            ['label' => __('admin.users_stat_available'), 'value' => $stats['disponibles'], 'accent' => 'text-emerald-600 dark:text-emerald-400', 'dot' => 'bg-emerald-500', 'url' => null],
+            ['label' => __('admin.users_stat_admins'), 'value' => $stats['admins'], 'accent' => 'text-purple-600 dark:text-purple-400', 'dot' => 'bg-purple-500', 'url' => null],
+            ['label' => __('admin.users_stat_banned'), 'value' => $stats['bannis'], 'accent' => 'text-red-600 dark:text-red-400', 'dot' => 'bg-red-500', 'url' => null],
+            ['label' => __('admin.users_stat_new'), 'value' => $stats['nouveaux'], 'accent' => 'text-indigo-600 dark:text-indigo-400', 'dot' => 'bg-indigo-500', 'url' => null],
+            ['label' => __('admin.users_stat_unverified'), 'value' => $stats['non_verifies'], 'accent' => 'text-amber-600 dark:text-amber-400', 'dot' => 'bg-amber-500', 'url' => $unverifiedUrl],
         ] as $stat)
+        @if($stat['url'])
+        <a href="{{ $stat['url'] }}"
+           title="{{ __('admin.users_stat_unverified_hint') }}"
+           data-users-stat-unverified
+           class="relative overflow-hidden rounded-xl border border-amber-200 dark:border-amber-800/60 bg-white dark:bg-gray-800 px-4 py-3 shadow-sm transition hover:border-amber-400 hover:shadow focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="w-1.5 h-1.5 rounded-full {{ $stat['dot'] }}"></span>
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">{{ $stat['label'] }}</span>
+            </div>
+            <p class="text-2xl font-bold tabular-nums {{ $stat['accent'] }}">{{ number_format($stat['value'], 0, ',', ' ') }}</p>
+        </a>
+        @else
         <div class="relative overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 shadow-sm">
             <div class="flex items-center gap-2 mb-1">
                 <span class="w-1.5 h-1.5 rounded-full {{ $stat['dot'] }}"></span>
@@ -31,8 +66,26 @@
             </div>
             <p class="text-2xl font-bold tabular-nums {{ $stat['accent'] }}">{{ number_format($stat['value'], 0, ',', ' ') }}</p>
         </div>
+        @endif
         @endforeach
     </div>
+
+    @if($scopedOrganization)
+    {{-- TASK-1683 BUG-07 — la ligne de portee offre les DEUX sorties : elargir
+         a toutes les organisations, et revenir a l'Organization d'ou l'on
+         vient. Le NOM porte ce retour — une seule poignee, pas un second
+         lien qui ferait doublon (lecon BUG-04). Le nom reste interpole par
+         Blade, donc echappe : il vient d'une saisie d'administration. --}}
+    <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
+        {{ __('admin.users_stats_scoped_prefix') }}
+        <a href="{{ route('admin.organizations.edit', $scopedOrganization) }}"
+           class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+            {{ $scopedOrganization->name }}</a>.
+        <a href="{{ route('admin.users') }}" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+            {{ __('admin.users_stats_scope_all') }}
+        </a>
+    </p>
+    @endif
 
     <div class="flex justify-end mb-4">
         <a href="{{ route('admin.users.create') }}"
@@ -50,6 +103,9 @@
             <option value="available" {{ request('status') === 'available' ? 'selected' : '' }}>Disponibles</option>
             <option value="banned" {{ request('status') === 'banned' ? 'selected' : '' }}>Bannis</option>
             <option value="admin" {{ request('status') === 'admin' ? 'selected' : '' }}>Admins</option>
+            {{-- TASK-1693 bug B — retrouver les comptes bloques par la garde de
+                 verification d'email, qui etaient jusqu'ici introuvables. --}}
+            <option value="unverified" {{ request('status') === 'unverified' ? 'selected' : '' }}>Email non vérifié</option>
         </select>
         <select name="organization_id" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
             <option value="">{{ __('admin.users_org_all') }}</option>
@@ -146,7 +202,20 @@
                                     @if($u->is_admin)<span class="ml-1 text-xs text-purple-600 dark:text-purple-400">[admin]</span>@endif
                                     @if($u->banned_at)<span class="ml-1 text-xs text-red-500">[banni]</span>@endif
                                 </p>
-                                <p class="text-xs text-gray-500 truncate">{{ $u->email }}</p>
+                                <p class="text-xs text-gray-500 truncate">
+                                    {{ $u->email }}
+                                    {{-- TASK-1693 bug B — l'etat se lit a cote de
+                                         l'adresse qu'il qualifie. Seul le cas NON
+                                         verifie porte une pastille : signaler
+                                         chaque compte sain noierait l'exception. --}}
+                                    @unless($u->hasVerifiedEmail())
+                                        <span class="ml-1 inline-flex items-center gap-1 text-amber-600 dark:text-amber-400"
+                                              title="Cette personne est renvoyée vers /verify-email sur toute surface d'Organization"
+                                              data-user-email-unverified="{{ $u->id }}">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>email non vérifié
+                                        </span>
+                                    @endunless
+                                </p>
 
                                 {{-- TASK-1640 — sur mobile les colonnes Organisation et
                                      Points sont masquees : l'information ne doit pas etre
@@ -157,17 +226,48 @@
                                     {{ $u->organization?->name ?? 'Globale' }}
                                     <span class="lg:hidden">&middot; {{ $u->points_balance }} pts</span>
                                 </p>
+
+                                {{-- TASK-1693 bug D — sur mobile la colonne
+                                     Organisation est masquee : le controle
+                                     remonte ici, exactement comme TASK-1640
+                                     avait fait remonter l'information. Deplacer
+                                     le controle dans une colonne `hidden` sans
+                                     ce second rendu aurait RETIRE du telephone
+                                     une capacite qui y fonctionnait — le popover
+                                     n'etait casse que sur desktop. MEME partiel
+                                     dans les deux cas : rien n'est duplique. --}}
+                                @if($u->id !== auth()->id())
+                                <div class="md:hidden mt-1 max-w-xs">
+                                    @include('admin.partials.user-organization-assign', ['u' => $u, 'organizations' => $organizations, 'context' => 'mobile'])
+                                </div>
+                                @endif
                             </div>
                         </div>
                     </td>
-                    <td class="hidden md:table-cell px-4 py-3">
+                    <td class="hidden md:table-cell px-4 py-3 align-top">
+                        {{-- TASK-1693 bug D — le SLUG, pas le nom complet.
+                             « Organismes de formation solidaires et humanistes »
+                             faisait a lui seul la largeur de la colonne, et il
+                             paraissait DEUX fois par ligne depuis que le
+                             selecteur vit ici. Le slug est court, stable, et
+                             c'est deja l'identifiant lu dans les URL
+                             `/org/{slug}`. Le nom complet reste au survol. --}}
                         @if($u->organization)
-                        <span class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                        <span class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400"
+                              title="{{ $u->organization->name }}">
                             <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                            {{ $u->organization->name }}
+                            {{ $u->organization->slug }}
                         </span>
                         @else
                         <span class="text-xs text-gray-400">Globale</span>
+                        @endif
+
+                        {{-- TASK-1693 bug D — le changement d'Organization vit
+                             desormais dans la colonne qu'il modifie, et non plus
+                             en popover dans « Actions » ou le defilement
+                             horizontal du tableau le rognait. --}}
+                        @if($u->id !== auth()->id())
+                            @include('admin.partials.user-organization-assign', ['u' => $u, 'organizations' => $organizations, 'context' => 'desktop'])
                         @endif
                     </td>
                     <td class="hidden lg:table-cell px-4 py-3">
@@ -214,6 +314,29 @@
                             </form>
                             @endif
                             <a href="{{ route('admin.users.edit', $u) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
+
+                            {{-- TASK-1705 — poser la photo d'un compte sans passer par la page
+                                 Modifier. Cyril : « certaines personnes ne prennent pas le temps
+                                 d'uploader leur photo et je vais recuperer leur photo pour eux ».
+
+                                 Ce formulaire est un FRERE de celui de « Se connecter sous »,
+                                 jamais un imbrique : un `<form>` dans un `<form>` est invalide en
+                                 HTML et reste invisible aux tests serveur (TASK-1668).
+
+                                 Le champ se declenche au choix du fichier : un second clic sur un
+                                 bouton « Envoyer » n'apporterait rien ici, l'intention etant deja
+                                 exprimee par le choix de l'image. --}}
+                            <form method="POST" action="{{ route('admin.users.avatar.update', $u) }}"
+                                  enctype="multipart/form-data" class="inline">
+                                @csrf
+                                <label data-user-avatar-upload="{{ $u->id }}"
+                                       title="{{ __('admin.users_avatar_button_title', ['name' => $u->full_name]) }}"
+                                       class="cursor-pointer text-xs font-medium text-emerald-600 hover:underline">
+                                    {{ __('admin.users_avatar_button') }}
+                                    <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp"
+                                           x-on:change="$el.form.submit()" class="hidden">
+                                </label>
+                            </form>
                             {{-- TASK-1666 — `profile.show` est une route FRONT, bornee au tenant
                                  courant : elle fait `abort(404)` des que `organization_id`
                                  differe, et aussi sur un compte banni. Un SuperAdmin n'y
@@ -223,7 +346,7 @@
                             @if($u->organization_id !== null
                                 && optional(currentOrganization())->id === $u->organization_id
                                 && $u->banned_at === null)
-                            <a href="{{ route('profile.show', $u) }}" class="text-xs text-gray-500 hover:underline">Profil</a>
+                            <a href="{{ route('profile.show', $u->profileRouteKey()) }}" class="text-xs text-gray-500 hover:underline">Profil</a>
                             @endif
 
                             {{-- TASK-1640 — la fiche complete, en pop-up. Aucun precheck ni
@@ -261,6 +384,33 @@
                                 </button>
                             </form>
 
+                            {{-- TASK-1693 bug B — valider manuellement l'adresse.
+                                 Le bouton n'apparait que pour un compte NON
+                                 verifie : il n'y a rien a faire sur les autres,
+                                 et un geste sans effet est un piege. Confirmation
+                                 explicite, parce qu'il contourne une preuve de
+                                 possession d'adresse. --}}
+                            {{-- TASK-1694 bug J — RENVOYER le lien, avant de
+                                 songer a contourner la preuve.
+                                 Pose AVANT « Valider l'email » a dessein :
+                                 l'ordre de lecture suggere le geste le moins
+                                 lourd en premier. Pas de confirmation : renvoyer
+                                 un email ne detruit rien et ne contourne rien. --}}
+                            @unless($u->hasVerifiedEmail())
+                            <form method="POST" action="{{ route('admin.users.resend-verification', $u) }}">
+                                @csrf
+                                <button class="text-xs text-indigo-600 hover:underline" data-user-resend-verification="{{ $u->id }}">{{ __('admin.users_resend_verification') }}</button>
+                            </form>
+                            @endunless
+
+                            @unless($u->hasVerifiedEmail())
+                            <form method="POST" action="{{ route('admin.users.verify-email', $u) }}"
+                                  onsubmit="return confirm('Marquer {{ addslashes($u->email) }} comme vérifiée, sans que cette personne ait cliqué le lien de confirmation ?')">
+                                @csrf
+                                <button class="text-xs text-amber-600 hover:underline" data-user-verify-email="{{ $u->id }}">Valider l'email</button>
+                            </form>
+                            @endunless
+
                             @if($u->banned_at)
                             <form method="POST" action="{{ route('admin.users.unban', $u) }}">
                                 @csrf @method('PATCH')
@@ -275,48 +425,47 @@
                             @endif
                             @endif
 
-                            <!-- Affecter à une organisation -->
-                            @if($u->id !== auth()->id())
-                            <div x-data="{ commOpen: false }" class="relative">
-                                <button @click="commOpen = !commOpen"
-                                        class="text-xs text-gray-400 hover:text-indigo-500">Organisation</button>
-                                <div x-show="commOpen" x-cloak @click.outside="commOpen = false"
-                                     class="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-10 p-3">
-                                    <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                        Affecter à une organisation
-                                    </p>
-                                    <form method="POST" action="{{ route('admin.users.assign-organization', $u) }}">
-                                        @csrf @method('PATCH')
-                                        <select name="organization_id"
-                                                class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-2">
-                                            <option value="">— Organisation par defaut de la plateforme —</option>
-                                            @foreach(\App\Models\Organization::where('is_active', true)->get() as $organization)
-                                            <option value="{{ $organization->id }}" {{ $u->organization_id === $organization->id ? 'selected' : '' }}>
-                                                {{ $organization->name }}
-                                            </option>
-                                            @endforeach
-                                        </select>
-                                        <button type="submit"
-                                                class="w-full px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded transition">
-                                            Affecter
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                            @endif
+                            {{-- TASK-1693 bug D — l'affectation d'Organization a
+                                 QUITTE cette colonne pour celle qu'elle modifie.
+                                 Son popover `absolute` etait rogne par le
+                                 `overflow-x-auto` du tableau (TASK-1640), donc
+                                 inatteignable sur desktop. Voir
+                                 `admin/partials/user-organization-assign.blade.php`. --}}
 
-                            <!-- Emailer -->
-                            <a href="{{ route('admin.email-templates') }}"
-                               class="text-xs text-gray-400 hover:text-indigo-500">
+                            {{-- TASK-1694 bug L puis V — « Envoyer un email » ouvre un
+                                 MODAL centre, pose hors du tableau.
+
+                                 Bug L avait mis le choix EN FLUX dans la ligne, pour
+                                 echapper au rognage de l'`overflow-x-auto` (defaut
+                                 mesure en TASK-1693 bug D). Ca marchait, mais c'etait
+                                 etroit : Cyril, le 24/10 — « certes contextualise mais
+                                 trop petit, et si on a plus de 10 messages types ce
+                                 sera ingerable ».
+
+                                 Bug V : la ligne ne porte plus que le DECLENCHEUR. Le
+                                 modal est unique pour toute la page et vit hors du
+                                 tableau — donc rien a rogner, et toute la largeur
+                                 disponible. Le bouton lui passe la personne et l'URL
+                                 d'envoi, construite cote SERVEUR par `route()` : rien
+                                 n'est recompose en JavaScript. --}}
+                            <button type="button"
+                                    @click="$dispatch('send-email-context', {
+                                        label: @js($u->email),
+                                        url: @js(route('admin.users.send-email', $u))
+                                    }); $dispatch('open-modal', 'send-email')"
+                                    class="text-xs text-gray-400 hover:text-indigo-500"
+                                    data-user-send-email-toggle="{{ $u->id }}"
+                                    data-user-send-email-url="{{ route('admin.users.send-email', $u) }}">
                                 {{ __('admin.emailer_single_action') }}
-                            </a>
+                            </button>
 
                             <!-- Envoyer lien de réinitialisation -->
                             <form method="POST" action="{{ route('admin.users.send-password-reset', $u) }}"
                                   onsubmit="return confirm('Envoyer un lien de réinitialisation à ce membre ?')">
                                 @csrf
-                                <button class="text-xs text-gray-400 hover:text-indigo-500">
-                                    Lien de réinitialisation
+                                <button class="text-xs text-gray-400 hover:text-indigo-500"
+                                        data-user-password-reset="{{ $u->id }}">
+                                    {{ __('admin.users_password_reset_link') }}
                                 </button>
                             </form>
 
@@ -366,6 +515,12 @@
          en a besoin aussi. Elle porte sa propre racine Alpine et s'ouvre
          par evenement, d'ou le `$dispatch` sur le bouton plus haut. --}}
     @include('admin.partials.user-profile-modal')
+
+    {{-- TASK-1694 bug V — UN modal « Envoyer un email » pour toute la page,
+         hors du tableau : rien a rogner, et toute la largeur disponible.
+         La ligne ne porte que le declencheur, qui lui passe la personne et son
+         URL d'envoi. --}}
+    @include('admin.partials.user-send-email-modal')
 
     {{-- TASK-1668 — la modal de suppression a laisse place a une PAGE
          (`admin/users/delete.blade.php`). Elle debordait : blocages avec leurs

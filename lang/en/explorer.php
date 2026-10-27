@@ -1,11 +1,12 @@
 <?php
 
 return [
-    'title' => 'Exchanges',
+    // TASK-1694 bug A — same term as the rail.
+    'title' => 'Mutual aid',
     'requests' => 'Requests',
     'services' => 'Proposals',
-    'help_requests' => 'Help requests',
-    'service_proposals' => 'Help proposals',
+    'help_requests' => 'Mutual aid requests',
+    'service_proposals' => 'Mutual aid proposals',
     'request' => 'help request',
     'service' => 'service',
     'offer_service' => 'Offer my help',
@@ -27,5 +28,8 @@ return [
     'remove_favorite' => 'Remove from favorites',
     'add_favorite' => 'Add to favorites',
     'load_more' => 'Load more',
-    'offer_help' => 'Offer my help',
+    // TASK-1697 — author filter, set from the directory
+    'member_filter_label' => 'Member: :name',
+    'member_filter_clear' => 'Clear this filter',
+    'member_filter_unknown' => 'This member does not belong to this organization.',
 ];

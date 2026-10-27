@@ -9,6 +9,21 @@
     'onCancelReply' => null,
     'showUpload' => false,
     'photo' => null,
+    // TASK-1704 — ce que le bouton de la GALERIE propose.
+    //
+    // Le defaut reste `image/*`, et c'est deliberement conservateur : ce
+    // composant est partage avec le ChatLoop et le chat agent, dont les
+    // serveurs ne valident que des images. Elargir ici pour tout le monde
+    // aurait fait proposer aux membres un geste que le serveur refuse — le
+    // defaut exact que TASK-1684 avait corrige sur les Dossiers, ou l'ecran
+    // offrait « Filmer une video » pendant que la regle la rejetait.
+    //
+    // Seule la Messagerie passe la liste elargie, parce que seule elle sait
+    // stocker autre chose qu'une image. Le bouton APPAREIL PHOTO, lui, garde
+    // `image/*` en toute circonstance : `capture` n'a de sens que pour un
+    // cliche.
+    'uploadAccept' => 'image/*',
+    'uploadLabel' => null,
     // TASK-1308 : moteur du prochain tour ('ia'|'dossiers'|null), affiche en
     // chip compact au-dessus du composeur — jamais un verrou (voir $onClearMode).
     // TASK-1309 : quatrieme etat 'ia_dossiers' (IA + Dossiers).
@@ -19,6 +34,7 @@
 
 @php
     $placeholder ??= __('messages.write_message');
+    $uploadLabel ??= __('messages.send_image');
 @endphp
 
 {{-- Le gabarit compact mobile est SCOPE au ChatLoop (seul appelant qui
@@ -87,13 +103,42 @@
          premier caractere (motif des messageries mobiles). Etat VISUEL
          seulement : le bouton reste cliquable a vide (une photo seule
          s'envoie), le serveur valide. --}}
-    <form wire:submit="sendMessage" class="flex items-end {{ isset($leading) ? 'gap-2 md:gap-3' : 'gap-3' }}" x-data="{ hasText: false }">
+    {{-- TASK-1684 — `uploading` ferme une course REPRODUITE en recette mobile.
+         Une image choisie monte par `wire:model.live` (requete separee). Tant
+         qu'elle n'est pas arrivee, le serveur ne la connait pas : un appui sur
+         « envoyer » pendant la montee part donc avec `body` vide ET `photo`
+         null. Deux degats, pas un : le serveur repond « Ajoutez un message ou
+         une image. » — faux, l'image EST choisie — et sa reponse (photo null)
+         ECRASE l'upload qui vient de se terminer, l'image est AVALEE en
+         silence et le second appui n'envoie rien.
+         Les evenements d'upload de Livewire remontent (`bubbles: true`) : les
+         poser sur le `<form>` couvre les DEUX saisies de fichier (galerie et
+         appareil photo) sans ecouteur par input. --}}
+    <form wire:submit="sendMessage" class="flex items-end {{ isset($leading) ? 'gap-2 md:gap-3' : 'gap-3' }}"
+        {{-- TASK-1684 — `enterEnvoie` : Entree n'envoie que sur un clavier
+             PHYSIQUE. Sur un clavier tactile il n'existe aucun Maj+Entree, donc
+             intercepter Entree retirait purement et simplement le retour a la
+             ligne — rapporte en recette mobile. Le discriminant est le POINTEUR
+             (`hover: none` + `pointer: coarse`), pas la largeur : une fenetre
+             etroite sur un portable garde son clavier et doit garder l'envoi
+             par Entree. Evalue une fois au montage ; sur mobile l'envoi passe
+             par le bouton, qui est a cote du pouce. --}}
+        x-data="{ hasText: false, uploading: false, enterEnvoie: ! window.matchMedia('(hover: none) and (pointer: coarse)').matches }"
+        x-on:livewire-upload-start="uploading = true"
+        x-on:livewire-upload-finish="uploading = false"
+        x-on:livewire-upload-error="uploading = false"
+        x-on:livewire-upload-cancel="uploading = false">
         @if($showUpload)
-        <label class="{{ isset($leading) ? 'hidden md:flex' : 'flex' }} mb-1 flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 items-center justify-center cursor-pointer transition disabled:opacity-50">
+        {{-- TASK-1693 bug AC — ce bouton n'avait aucun intitule : ni infobulle,
+             ni libelle accessible. On ne devinait pas ce qu'il faisait. --}}
+        <label data-composer-upload
+               aria-label="{{ $uploadLabel }}"
+               title="{{ $uploadLabel }}"
+               class="{{ isset($leading) ? 'hidden md:flex' : 'flex' }} mb-1 flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 items-center justify-center cursor-pointer transition disabled:opacity-50">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
-            <input type="file" x-ref="uploadInput" wire:model.live="photo" accept="image/*" class="hidden">
+            <input type="file" x-ref="uploadInput" wire:model.live="photo" accept="{{ $uploadAccept }}" class="hidden">
         </label>
         {{-- TASK-1329 : second declencheur du MEME upload (`photo`), avec
              `capture` — sur mobile, il ouvre directement l'appareil photo au
@@ -101,6 +146,27 @@
              exactement le meme chemin que la galerie. Inerte tant qu'aucun
              bouton ne l'invoque (`$refs.cameraInput`, menu mobile T1308). --}}
         <input type="file" x-ref="cameraInput" wire:model.live="photo" accept="image/*" capture="environment" class="hidden">
+
+        {{-- TASK-1693 bug AC — le declencheur de l'appareil photo, enfin pose.
+             Le champ ci-dessus existait depuis TASK-1329 mais restait INERTE
+             hors du ChatLoop : aucun bouton ne l'invoquait. Aucun pipeline
+             nouveau — le cliche suit exactement le chemin de la galerie.
+
+             `md:hidden` : `capture` n'a de sens que sur un appareil qui a une
+             camera en facade. Sur un ordinateur, le bouton ouvrirait un
+             selecteur de fichiers identique au premier, donc deux boutons pour
+             un meme geste. --}}
+        <button type="button"
+                data-composer-camera
+                x-on:click="$refs.cameraInput.click()"
+                aria-label="{{ __('messages.take_photo') }}"
+                title="{{ __('messages.take_photo') }}"
+                class="md:hidden mb-1 flex flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 items-center justify-center cursor-pointer transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+        </button>
         @endif
 
         {{-- TASK-1329 : le declencheur du menu mobile (`$leading`, le « + »)
@@ -144,7 +210,10 @@
                 x-on:composer-filled.window="$nextTick(() => { resize(); hasText = $el.value.trim().length > 0; $el.focus(); $el.setSelectionRange($el.value.length, $el.value.length) })"
                 wire:model="{{ $model }}"
                 rows="{{ $rows }}"
-                @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }"
+                {{-- TASK-1684 — la touche Entree est un SECOND chemin d'envoi, qui
+                     ne passe pas par le bouton : la garde `uploading` doit y etre
+                     aussi, sinon la course reste ouverte au clavier. --}}
+                @keydown.enter="if (enterEnvoie && !$event.shiftKey) { $event.preventDefault(); if (!uploading) { $wire.sendMessage() } }"
                 class="block max-h-44 min-h-11 w-full resize-none overflow-y-hidden rounded-2xl border border-gray-300 bg-white px-4 py-3 {{ isset($leading) ? 'pl-11 md:pl-4' : '' }} text-sm text-gray-900 placeholder-gray-400 shadow-sm transition [scrollbar-width:none] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 [&::-webkit-scrollbar]:hidden"
                 placeholder="{{ $placeholder }}"
                 @if($disabled || $loading) disabled @endif
@@ -176,6 +245,17 @@
             x-bind:style="(hasText || {{ ($showUpload && $photo) ? 'true' : 'false' }})
                 ? 'background-color: var(--bp-primary)'
                 : ''"
+            {{-- TASK-1684 — deux gardes, deux portees distinctes :
+                 `uploading` (Alpine) ferme la fenetre entre le choix du fichier
+                 et son arrivee au serveur ; `wire:loading` ferme le double-appui
+                 pendant que l'envoi est en vol — sur un reseau mobile lent, rien
+                 ne bougeait a l'ecran et le second appui partait avec un
+                 composeur deja vide, ce qui produisait LE MEME message faux.
+                 `wire:loading` retire l'attribut de lui-meme a la fin de la
+                 requete, succes COMME echec : aucun risque de bouton bloque. --}}
+            x-bind:disabled="uploading"
+            wire:loading.attr="disabled"
+            wire:target="sendMessage"
             @if($disabled || $loading) disabled @endif
         >
             @if($loading)
@@ -184,7 +264,14 @@
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
             @else
-                <svg class="w-4 h-4 rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                {{-- TASK-1684 — un bouton desactive sans explication se lit comme
+                     une panne. Le `style` inline tient AVANT le demarrage d'Alpine :
+                     sans lui, le sablier clignote au premier rendu. --}}
+                <svg x-show="uploading" style="display: none" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <svg x-show="!uploading" class="w-4 h-4 rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19V5m0 0l-7 7m7-7l7 7"/>
                 </svg>
             @endif

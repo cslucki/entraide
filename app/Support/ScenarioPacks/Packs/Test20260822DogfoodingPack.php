@@ -1071,7 +1071,7 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
         }
 
         return $this->loops->createLoopForOrg(
-            user: $creator,
+            owner: $creator,
             organizationId: $organization->id,
             name: $name,
             visibility: 'public',

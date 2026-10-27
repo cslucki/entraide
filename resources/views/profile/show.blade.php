@@ -7,16 +7,54 @@
             ? route('organization.agent-ia.profile.chat', ['organization' => $organizationRouteParam, 'user' => $user])
             : route('agent-ia.profile.chat', $user);
 
+        // TASK-1693 bug AA — « Ecrire a cette personne » doit viser la surface
+        // de l'Organization. Sans prefixe, `ResolveUrlOrganization` lie
+        // l'Organization PAR DEFAUT et la garde inter-tenant refuse : on
+        // atterrissait sur la liste des messages sans pouvoir ecrire.
+        $ecrireUrl = $organizationRouteParam && Route::has('organization.messages.with')
+            ? route('organization.messages.with', ['organization' => $organizationRouteParam, 'user' => $user->profileRouteKey()])
+            : route('messages.with', $user->profileRouteKey());
+
+        // TASK-1697 — les SEPT derniers liens de cette page qui sortaient du
+        // locataire.
+        //
+        // Troisieme passage du MEME defaut sur ce seul fichier : le bug AA de
+        // T1693 (« Ecrire a cette personne »), puis la fleche de l'annuaire au
+        // correctif 13, et maintenant les sept restants. Sans prefixe
+        // d'Organization, `ResolveUrlOrganization` lie l'Organization PAR
+        // DEFAUT de la plateforme : on change de locataire sans s'en
+        // apercevoir. Le dernier des sept est un `<form method="POST">`
+        // (signalement) — c'est une ECRITURE qui partait au mauvais endroit.
+        //
+        // MEME idiome que `mobile-topbar.blade.php` : un helper, pas sept
+        // ternaires recopiees.
+        $urlOrg = function (string $route, array $params = []) use ($organizationRouteParam): string {
+            $scopee = 'organization.'.$route;
+
+            if ($organizationRouteParam && Route::has($scopee)) {
+                return route($scopee, ['organization' => $organizationRouteParam] + $params);
+            }
+
+            return route($route, $params);
+        };
+
+        // TASK-1697 correctif 13 — meme defaut que le bug AA ci-dessus : sans
+        // prefixe d'Organization, `ResolveUrlOrganization` lie l'Organization
+        // PAR DEFAUT et la fleche ramenait a l'annuaire d'un AUTRE tenant.
+        $annuaireUrl = $organizationRouteParam && Route::has('organization.members.index')
+            ? route('organization.members.index', ['organization' => $organizationRouteParam])
+            : route('members.index');
+
         $displaySkills = $services->flatMap(fn($s) => $s->skills)->unique('id')->take(8);
         $serviceCategories = $services->pluck('category.name')->unique()->take(4);
     @endphp
 
     <!-- Desktop topbar -->
     <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
-        <a href="{{ route('members.index') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="{{ __('profile.back_to_directory') }}">
+        <a href="{{ $annuaireUrl }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="{{ __('profile.back_to_directory') }}">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         </a>
-        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $user->fullName }}</span>
+        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ __('navigation.directory') }}</span>
     </div>
 
     <x-page-container>
@@ -24,7 +62,7 @@
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-7 mb-5 relative">
             @if(auth()->check() && auth()->id() === $user->id)
             <div class="absolute top-4 right-4 z-10">
-                <a href="{{ route('profile.edit') }}"
+                <a href="{{ $urlOrg('profile.edit') }}" data-profile-edit
                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                     {{ __('profile.edit_profile') }}
@@ -37,7 +75,7 @@
                 <div class="relative flex-shrink-0 mx-auto sm:mx-0">
                     <img src="{{ $user->avatar_url }}" class="h-20 w-20 sm:h-24 sm:w-24 rounded-full object-cover ring-2 ring-gray-200 dark:ring-gray-600" alt="">
                     @if(auth()->check() && auth()->id() === $user->id)
-                    <a href="{{ route('profile.edit') }}"
+                    <a href="{{ $urlOrg('profile.edit') }}" data-profile-edit
                        class="absolute bottom-0 right-0 w-6 h-6 bg-indigo-600 hover:bg-indigo-700 rounded-full flex items-center justify-center shadow-md transition"
                        title="{{ __('profile.edit_profile') }}">
                         <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
@@ -49,7 +87,8 @@
                 <div class="flex-1 min-w-0 text-center sm:text-left">
                     <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                         <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">{{ $user->fullName }}</h1>
-                        @if($user->is_available)
+                        {{-- TASK-1694 bug AE — pastille conditionnee a la fonctionnalite. --}}
+                        @if(availabilityIsShown() && $user->is_available)
                         <span class="inline-flex items-center self-center gap-1.5 px-2.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium w-fit">
                             <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>{{ __('profile.available') }}
                         </span>
@@ -141,52 +180,6 @@
                 </div>
                 @endif
 
-                <!-- What this member can offer -->
-                @if($services->isNotEmpty() || $displaySkills->isNotEmpty() || $memberAiProfile)
-                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
-                    <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">{{ __('profile.can_offer') }}</h2>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        @if($displaySkills->isNotEmpty())
-                        <div class="flex flex-col gap-2">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                                {{ __('profile.skills') }}
-                            </span>
-                            <div class="flex flex-wrap gap-1.5">
-                                @foreach($displaySkills as $skill)
-                                <span class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium">{{ $skill->name }}</span>
-                                @endforeach
-                            </div>
-                        </div>
-                        @endif
-
-                        @if($serviceCategories->isNotEmpty())
-                        <div class="flex flex-col gap-2">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                                {{ __('profile.services_offered') }}
-                            </span>
-                            <div class="flex flex-wrap gap-1.5">
-                                @foreach($serviceCategories as $catName)
-                                <span class="px-2 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-lg text-xs font-medium">{{ $catName }}</span>
-                                @endforeach
-                            </div>
-                        </div>
-                        @endif
-
-                        @if($memberAiProfile)
-                        <div class="flex flex-col gap-2 sm:col-span-2">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                {{ __('profile.ai_agent_available') }}
-                            </span>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('profile.ai_agent_enabled') }}</p>
-                        </div>
-                        @endif
-                    </div>
-                </div>
-                @endif
-
                 <!-- AI profile owner -->
                 @if($memberAiProfile && auth()->check() && auth()->id() === $user->id)
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
@@ -202,7 +195,7 @@
                                 <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('profile.ai_agent_enabled') }}</p>
                             </div>
                         </div>
-                        <a href="{{ route('agent-ia.interactions') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <a href="{{ $urlOrg('agent-ia.interactions') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                             {{ __('profile.view_exchanges') }}
                         </a>
                     </div>
@@ -226,7 +219,7 @@
                     @endif
 
                     @if(auth()->guest() || auth()->id() !== $user->id)
-                    <a href="{{ auth()->check() ? route('messages.with', $user) : route('login') }}"
+                    <a href="{{ auth()->check() ? $ecrireUrl : route('login') }}"
                        class="group flex items-start gap-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 transition hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md">
                         <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 transition group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
@@ -243,7 +236,7 @@
                 <!-- Services -->
                 <section>
                     <div class="flex items-center justify-between mb-3">
-                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.services_offered') }}</h2>
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ trans_choice('profile.services_offered', $services->count()) }}</h2>
                         @if($services->isNotEmpty())
                         <span class="text-xs text-gray-400">{{ trans_choice('profile.services_count', $services->count(), ['count' => $services->count()]) }}</span>
                         @endif
@@ -253,7 +246,7 @@
                     @else
                     <div class="grid gap-3 sm:grid-cols-2">
                         @foreach($services as $service)
-                        <a href="{{ route('services.show', $service) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-700 transition">
+                        <a href="{{ $urlOrg('services.show', ['service' => $service]) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-700 transition">
                             <div class="flex items-start justify-between mb-2">
                                 <span class="px-2.5 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
                                     {{ $service->category->displayName('transactions') }}
@@ -281,12 +274,12 @@
                 @if($openRequests->isNotEmpty())
                 <section>
                     <div class="flex items-center justify-between mb-3">
-                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.help_section') }}</h2>
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ trans_choice('profile.help_section', $openRequests->count()) }}</h2>
                         <span class="text-xs text-gray-400">{{ trans_choice('profile.requests_count', $openRequests->count(), ['count' => $openRequests->count()]) }}</span>
                     </div>
                     <div class="grid gap-3 sm:grid-cols-2">
                         @foreach($openRequests as $req)
-                        <a href="{{ route('requests.show', $req) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md hover:border-green-200 dark:hover:border-green-700 transition">
+                        <a href="{{ $urlOrg('requests.show', ['request' => $req]) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md hover:border-green-200 dark:hover:border-green-700 transition">
                             <div class="flex items-start justify-between mb-2">
                                 <span class="px-2.5 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $req->category->color }}">
                                     {{ $req->category->displayName('transactions') }}
@@ -306,19 +299,16 @@
                 @endif
 
                 <!-- Blog posts -->
-                <section>
+                @if($blogPosts->isNotEmpty())
+                {{-- `id` : cible de l'ancre posee par l'annuaire (T1697 correctif 15). --}}
+                <section id="articles">
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.blog_section') }}</h2>
-                        @if($blogPosts->isNotEmpty())
                         <span class="text-xs text-gray-400">{{ trans_choice('profile.blog_count', $blogPosts->count(), ['count' => $blogPosts->count()]) }}</span>
-                        @endif
                     </div>
-                    @if($blogPosts->isEmpty())
-                    <p class="text-gray-400 text-sm italic">{{ __('profile.no_posts') }}</p>
-                    @else
                     <div class="grid gap-3 sm:grid-cols-2">
                         @foreach($blogPosts as $post)
-                        <a href="{{ route('blog.show', $post) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition">
+                        <a href="{{ $urlOrg('blog.show', ['post' => $post]) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition">
                             <div class="flex items-center justify-between mb-2">
                                 @if($post->category)
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $post->category->color }}">
@@ -334,8 +324,66 @@
                         </a>
                         @endforeach
                     </div>
-                    @endif
                 </section>
+                @endif
+
+                {{-- TASK-1697 — les Boucles dont cette personne est membre,
+                     animateur ou proprietaire. Perimetre : voir le controleur.
+                     Nommer une Boucle ne revele rien de plus que le catalogue
+                     (T1075 : « privee » veut dire « contenu reserve aux
+                     membres », pas « cachee »). Masquee si vide, comme « Avis »
+                     et « Demandes ». --}}
+                @if($boucles->isNotEmpty())
+                <section data-profile-loops>
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.loops_section') }}</h2>
+                        <span class="text-xs text-gray-400">{{ trans_choice('profile.loops_count', $boucles->count(), ['count' => $boucles->count()]) }}</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($boucles as $boucle)
+                        <a href="{{ $urlOrg('loops.show', ['loop' => $boucle->slug ?: $boucle->getKey()]) }}"
+                           data-profile-loop="{{ $boucle->id }}"
+                           class="px-3 py-1.5 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded-lg text-sm font-medium hover:bg-violet-100 dark:hover:bg-violet-900/40 transition">
+                            {{ $boucle->name }}
+                        </a>
+                        @endforeach
+                    </div>
+                </section>
+                @endif
+
+                {{-- TASK-1697 — ses derniers commentaires de blog, avec le lien
+                     vers l'article. Ceux qu'il a ECRITS : la fiche presente ce
+                     que cette personne apporte. Les articles d'accueil sont
+                     filtres publies au controleur, donc aucun lien mort. --}}
+                @if($commentaires->isNotEmpty())
+                <section data-profile-comments>
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.comments_section') }}</h2>
+                        <span class="text-xs text-gray-400">{{ trans_choice('profile.comments_count', $commentaires->count(), ['count' => $commentaires->count()]) }}</span>
+                    </div>
+                    <div class="space-y-3">
+                        @foreach($commentaires as $commentaire)
+                        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                            <p class="text-sm text-gray-700 dark:text-gray-300 line-clamp-3">{{ $commentaire->content }}</p>
+                            <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+                                <span>{{ $commentaire->created_at->diffForHumans() }}</span>
+                                <span class="text-gray-300 dark:text-gray-600">·</span>
+                                {{-- Pas d'ancre vers le commentaire : la section des
+                                     commentaires de l'article est encore MASQUEE par
+                                     defaut (`showComments: false`), un fragment n'y
+                                     mene a rien. L'ancre arrive avec le chantier des
+                                     commentaires. --}}
+                                <a href="{{ $urlOrg('blog.show', ['post' => $commentaire->post]) }}"
+                                   data-profile-comment="{{ $commentaire->id }}"
+                                   class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+                                    {{ $commentaire->post->title }}
+                                </a>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                </section>
+                @endif
 
                 <!-- Reviews -->
                 @if($reviews->isNotEmpty())
@@ -393,7 +441,7 @@
 
                 <!-- Write to CTA -->
                 @if(auth()->guest() || auth()->id() !== $user->id)
-                <a href="{{ auth()->check() ? route('messages.with', $user) : route('login') }}"
+                <a href="{{ auth()->check() ? $ecrireUrl : route('login') }}"
                    class="group flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 transition hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md">
                     <div class="flex items-center gap-3">
                         <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 transition group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
@@ -414,7 +462,7 @@
                         {{ __('profile.report') }}
                     </button>
                     <div x-show="open" x-cloak class="mt-2 rounded-xl border border-red-200 bg-red-50 p-4 text-left shadow-lg dark:border-red-800 dark:bg-red-900/20">
-                        <form method="POST" action="{{ route('reports.user', $user) }}">
+                        <form method="POST" action="{{ $urlOrg('reports.user', ['user' => $user]) }}">
                             @csrf
                             <p class="mb-2 text-xs font-semibold text-red-700 dark:text-red-300">{{ __('profile.report_user') }}</p>
                             <select name="reason" required class="mb-2 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-red-700 dark:bg-gray-800 dark:text-gray-100">

@@ -246,11 +246,34 @@ class OrganizationHomepageTemplateTest extends TestCase
 
         $this->org->update(['homepage_template' => 'bouclepro_hero_v2']);
 
-        $response = $this->get('/org/test-org');
+        // TASK-1692 — les avatars des membres sont une DONNEE DE MEMBRE, et la
+        // landing publique ne les expose plus a un inconnu. Le fait mesure ici
+        // (des URL de fichier, jamais un SVG de lettre genere) reste entier :
+        // seul l'oeil qui le lit change. L'absence pour un anonyme est prouvee
+        // separement ci-dessous.
+        $member = User::factory()->create(['organization_id' => $this->org->id]);
+
+        $response = $this->actingAs($member)->get('/org/test-org');
 
         $response->assertOk();
         $response->assertSee('/storage/avatars/', false);
         $response->assertDontSee('data:image/svg+xml', false);
+    }
+
+    public function test_the_landing_never_shows_member_avatars_to_an_anonymous_visitor(): void
+    {
+        User::factory()->count(3)->create([
+            'organization_id' => $this->org->id,
+            'avatar' => 'avatars/test.jpg',
+        ]);
+
+        $this->org->update(['homepage_template' => 'bouclepro_hero_v2']);
+
+        // TASK-1692 — la contre-epreuve du test precedent. Mesuree AVANT toute
+        // authentification, `actingAs()` persistant pour le reste du test.
+        $this->get('/org/test-org')
+            ->assertOk()
+            ->assertDontSee('/storage/avatars/', false);
     }
 
     public function test_custom_template_renders_artscilab_hero(): void
@@ -402,7 +425,14 @@ class OrganizationHomepageTemplateTest extends TestCase
 
     public function test_artscilab_hero_about_page_is_accessible(): void
     {
-        $response = $this->get('/org/test-org/about');
+        // TASK-1692 — `/org/{organization}/about` est une surface prefixee, donc
+        // MEMBRE : elle ne figure pas dans `PUBLIC_BY_DECISION` (T1489). Le
+        // contenu editorial mesure ici est inchange ; l'acteur devient un membre.
+        // Le refus anonyme est tenu par TASK1692StrictHttpIsolationTest, et le
+        // LIEN reste visible sur l'affiche publique (test ci-dessus).
+        $member = User::factory()->create(['organization_id' => $this->org->id]);
+
+        $response = $this->actingAs($member)->get('/org/test-org/about');
 
         $response->assertOk();
         $response->assertSee('LaunchPals');

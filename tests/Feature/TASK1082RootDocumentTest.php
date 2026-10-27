@@ -40,6 +40,16 @@ class TASK1082RootDocumentTest extends TestCase
         $this->user = User::factory()->create(['organization_id' => $this->org->id]);
 
         app()->instance('current_organization', $this->org);
+
+        // TASK-1679 : le document racine ne nait plus a la creation que si le
+        // preset du type active `core.manifesto` (depuis T1332, aucun ne le
+        // fait par defaut). Ces tests mesurent le MECANISME du document
+        // racine, pas le QUAND : on rejoue donc des presets ou le Manifeste
+        // est au socle, comme avant T1679.
+        $settings = app(\App\Services\LoopTypeSettingsService::class);
+        foreach (['general', 'project'] as $type) {
+            $settings->save($type, array_merge($settings->cardsFor($type), ['core.manifesto']), $settings->isAvailable($type));
+        }
     }
 
     private function service(): LoopRootDocumentService

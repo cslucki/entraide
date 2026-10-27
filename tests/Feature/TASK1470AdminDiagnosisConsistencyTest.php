@@ -249,7 +249,7 @@ class TASK1470AdminDiagnosisConsistencyTest extends TestCase
         // Et l'ecran d'une autre Organization lui est refuse.
         $this->actingAs($this->orgAdminA)
             ->get(route('organization.admin.ai-consumption', ['organization' => $this->organizationB->slug]))
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     // =====================================================================

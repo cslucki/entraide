@@ -1,15 +1,22 @@
-<x-page :title="$request->title" width="7xl">
+<x-app-layout :title="$request->title">
     @php
         $_reqOrgSlug = request()->route('organization');
         $_reqExplorerHref = ($_reqOrgSlug && Route::has('organization.explorer') ? route('organization.explorer', ['organization' => $_reqOrgSlug]) : route('explorer')).'?tab=requests';
-        $_reqProfileHref = $_reqOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_reqOrgSlug, 'user' => $request->user]) : route('profile.show', $request->user);
+        $_reqProfileHref = $_reqOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_reqOrgSlug, 'user' => $request->user->profileRouteKey()]) : route('profile.show', $request->user->profileRouteKey());
         $_reqReportAction = $_reqOrgSlug && Route::has('organization.reports.request') ? route('organization.reports.request', ['organization' => $_reqOrgSlug, 'serviceRequest' => $request]) : route('reports.request', $request);
         $_reqTxStoreAction = $_reqOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_reqOrgSlug]) : route('transactions.store');
         $_reqEditHref = $_reqOrgSlug && Route::has('organization.requests.edit') ? route('organization.requests.edit', ['organization' => $_reqOrgSlug, 'request' => $request]) : route('requests.edit', $request);
     @endphp
-        <div class="mb-6">
-            <a href="{{ $_reqExplorerHref }}" class="text-sm text-gray-500 hover:text-indigo-600">← {{ __('explorer.help_requests') }}</a>
-        </div>
+    {{-- Desktop topbar --}}
+    <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
+        <a href="{{ $_reqExplorerHref }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="{{ __('requests.show.back') }}">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ __('explorer.help_requests') }}</span>
+        <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-medium text-white shrink-0" style="background-color:{{ $request->category->color }}">{{ $request->category->displayName('transactions') }}</span>
+    </div>
+
+    <x-page-container width="7xl">
 
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div class="p-6">
@@ -110,7 +117,12 @@
 
                 @if($request->status === 'open')
                 <div class="border-t border-gray-100 dark:border-gray-700 pt-6">
-                    <form method="POST" action="{{ $_reqTxStoreAction }}" class="flex items-center gap-4">
+                    {{-- TASK-1707 M1 — sur 390px, `w-32` + un bouton `px-6` + le solde
+                         depassaient la largeur : le solde sortait de
+                         l'ecran. `flex-wrap` le fait passer a la ligne
+                         au lieu de le pousser dehors ; a partir de `sm`
+                         la rangee tient et rien ne change. --}}
+                    <form method="POST" action="{{ $_reqTxStoreAction }}" class="flex flex-wrap items-center gap-3 sm:gap-4">
                         @csrf
                         <input type="hidden" name="request_id" value="{{ $request->id }}">
                         <input type="number" name="points_proposed" value="{{ $request->budget_min }}" min="1"
@@ -133,5 +145,5 @@
                 @endauth
             </div>
         </div>
-    </div>
-</x-page>
+    </x-page-container>
+</x-app-layout>

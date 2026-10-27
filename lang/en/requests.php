@@ -64,4 +64,9 @@ return [
     'presend_origin_loop_clarification' => 'Prepared from "Who can help me?" in this Loop.',
     'presend_origin_loop_clarification_unavailable' => 'Prepared from your own words, without AI involvement.',
     'presend_note' => 'Nothing is published until you confirm it. You can change everything below.',
+    // TASK-1693 bug W — several people may offer their help.
+    'lifecycle' => [
+        'another_offer_accepted' => 'The requester accepted another offer. This exchange is therefore closed — thank you for offering.',
+        'insufficient_balance' => 'The requester\u2019s balance no longer covers this amount. The exchange cannot be accepted.',
+    ],
 ];

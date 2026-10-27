@@ -2,7 +2,7 @@
     @php
         $_serviceOrgSlug = request()->route('organization');
         $_serviceExplorerHref = ($_serviceOrgSlug && Route::has('organization.explorer') ? route('organization.explorer', ['organization' => $_serviceOrgSlug]) : route('explorer')).'?tab=services';
-        $_serviceProfileHref = $_serviceOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_serviceOrgSlug, 'user' => $service->user]) : route('profile.show', $service->user);
+        $_serviceProfileHref = $_serviceOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_serviceOrgSlug, 'user' => $service->user->profileRouteKey()]) : route('profile.show', $service->user->profileRouteKey());
         $_serviceReportAction = $_serviceOrgSlug && Route::has('organization.reports.service') ? route('organization.reports.service', ['organization' => $_serviceOrgSlug, 'service' => $service]) : route('reports.service', $service);
         $_serviceTxStoreAction = $_serviceOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_serviceOrgSlug]) : route('transactions.store');
         $_serviceEditHref = $_serviceOrgSlug && Route::has('organization.services.edit') ? route('organization.services.edit', ['organization' => $_serviceOrgSlug, 'service' => $service]) : route('services.edit', $service);
@@ -63,7 +63,9 @@
                         <a href="{{ $_serviceProfileHref }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $service->user->fullName }}</a>
                         <div class="flex items-center gap-2 text-xs text-gray-500">
                             <span>{{ __('marketplace.delivery.' . $service->delivery_mode) }}</span>
-                            @if($service->user->is_available)
+                            {{-- TASK-1694 bug AE — surface trouvee a l'inventaire, que la
+                                 demande ne nommait pas (« et tous les autres endroits »). --}}
+                            @if(availabilityIsShown() && $service->user->is_available)
                             <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>{{ __('profile.available') }}</span>
                             @endif
                         </div>
@@ -148,13 +150,18 @@
                 </div>
 
                 <div class="border-t border-gray-100 dark:border-gray-700 pt-6">
-                    <form method="POST" action="{{ $_serviceTxStoreAction }}" class="flex items-center gap-4">
+                    {{-- TASK-1707 M1 — sur 390px, `w-32` + un bouton `px-6` + le solde
+                         depassaient la largeur : le solde sortait de
+                         l'ecran. `flex-wrap` le fait passer a la ligne
+                         au lieu de le pousser dehors ; a partir de `sm`
+                         la rangee tient et rien ne change. --}}
+                    <form method="POST" action="{{ $_serviceTxStoreAction }}" class="flex flex-wrap items-center gap-3 sm:gap-4">
                         @csrf
                         <input type="hidden" name="service_id" value="{{ $service->id }}">
                         <input type="number" name="points_proposed" value="{{ $service->points_cost }}" min="1"
                             class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
                         <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
-                            {{ __('services.show.propose_exchange') }}
+                            {{ __('services.show.request_this_help') }}
                         </button>
                         <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['points' => auth()->user()->points_balance]) }}</span>
                     </form>

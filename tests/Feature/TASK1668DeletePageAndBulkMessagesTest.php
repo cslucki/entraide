@@ -62,7 +62,11 @@ class TASK1668DeletePageAndBulkMessagesTest extends TestCase
         $this->actingAs($this->superAdmin)
             ->get(route('admin.users.delete-page', $this->cible))
             ->assertOk()
-            ->assertSee($this->cible->fullName, false)
+            // TASK-1693 — `assertSee(..., false)` demandait la forme NON
+            // ECHAPPEE. Blade rend l'apostrophe en `&#039;` : le jour ou la
+            // fabrique a tire un nom qui en porte, le gate a rougi alors que la
+            // page etait correcte. `assertSee()` echappe par defaut.
+            ->assertSee($this->cible->fullName)
             ->assertSee($this->cible->email, false);
     }
 

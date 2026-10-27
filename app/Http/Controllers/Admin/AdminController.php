@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Country;
 use App\Models\EmailLog;
+use App\Models\EmailTemplate;
 use App\Models\LoginLog;
 use App\Models\Organization;
 use App\Models\PointLedger;
@@ -19,14 +20,17 @@ use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Admin\PlatformDashboardMetrics;
+use App\Services\EmailerService;
 use App\Services\UserDataLifecycleRegistry;
 use App\Services\Users\Exceptions\UserDeletionBlockedException;
 use App\Services\Users\UserDeletionExecutor;
 use App\Support\ScenarioManifest\ManifestAvatarBank;
+use App\Support\Devices\DeviceKind;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -79,11 +83,20 @@ class AdminController extends Controller
                 'banned' => $query->whereNotNull('banned_at'),
                 'admin' => $query->where('is_admin', true),
                 'available' => $query->where('is_available', true)->whereNull('banned_at'),
+                // TASK-1693 bug B — sans ce filtre, un compte bloque par la
+                // garde de verification etait introuvable : l'ecran n'exposait
+                // ni l'etat ni le moyen de le chercher.
+                'unverified' => $query->whereNull('email_verified_at'),
                 default => null,
             };
         }
 
-        if ($request->filled('organization_id')) {
+        // TASK-1683 BUG-06 — garde de FORME avant comparaison : `organization_id`
+        // est une colonne `uuid`, et PostgreSQL leve `22P02` (500) sur une
+        // chaine forgee, la ou l'ecran doit simplement ne rien filtrer. SQLite
+        // compare comme du texte : sans cette garde, le defaut n'apparaitrait
+        // qu'en production (meme famille que AdminLoopController::index).
+        if ($request->filled('organization_id') && Str::isUuid($request->organization_id)) {
             $query->where('organization_id', $request->organization_id);
         }
 
@@ -110,8 +123,21 @@ class AdminController extends Controller
         $users = $query->paginate(20)->withQueryString();
         $organizations = Organization::where('is_active', true)->orderBy('name')->get();
 
-        return view('admin.users', compact('users', 'organizations') + [
-            'stats' => $this->userListStats(),
+        // TASK-1683 BUG-06 — l'Organization filtree, pour nommer l'ecran et
+        // borner les compteurs. Lue APRES la garde de forme : `organizations.id`
+        // est une colonne `uuid`, et PostgreSQL leve `22P02` (500) sur une
+        // chaine forgee la ou il faut un simple ecran vide. SQLite, lui,
+        // compare comme du texte : le defaut ne se verrait qu'en production.
+        $scopedOrganization = $request->filled('organization_id') && Str::isUuid($request->organization_id)
+            ? Organization::find($request->organization_id)
+            : null;
+
+        return view('admin.users', compact('users', 'organizations', 'scopedOrganization') + [
+            'stats' => $this->userListStats($scopedOrganization?->id),
+            // TASK-1694 bug L — les gabarits de l'Emailer, pour le choix pose
+            // DANS la ligne. Une seule requete, constante : le test de cout de
+            // cet ecran mesure qu'il ne grandit pas avec le nombre de comptes.
+            'emailTemplates' => EmailTemplate::orderBy('name')->get(['id', 'name', 'subject', 'locale']),
         ]);
     }
 
@@ -129,21 +155,34 @@ class AdminController extends Controller
      * la question posee par un cockpit. Le total filtre, lui, est rendu par le
      * paginateur a cote du tableau.
      *
+     * TASK-1683 BUG-06 — UNE exception, et une seule : l'Organization. Elle
+     * n'est pas un filtre d'affichage mais le TENANT lui-meme ; a l'interieur
+     * d'OFSH, « combien de comptes bannis existe-t-il » veut dire « chez
+     * OFSH ». Recherche et statut, eux, continuent de ne RIEN changer aux
+     * compteurs — la doctrine ci-dessus tient pour tout le reste.
+     *
      * @return array<string, int>
      */
-    private function userListStats(): array
+    private function userListStats(?string $organizationId = null): array
     {
         // Deux pieges de moteur evites ici, tous deux deja payes sur ce depot :
         //  - `count(*) FILTER (...)` est du PostgreSQL pur ;
         //  - `is_admin = 1` passe en SQLite (entier) et ECHOUE en PostgreSQL, ou
         //    la colonne est un vrai `boolean`.
         // Le predicat NU (`case when is_admin then ...`) est valide dans les deux.
-        $row = User::query()->toBase()->selectRaw(
+        $row = User::query()
+            ->when($organizationId, fn ($q) => $q->where('organization_id', $organizationId))
+            ->toBase()->selectRaw(
             'count(*) as total,'
             .' sum(case when banned_at is null and is_available then 1 else 0 end) as disponibles,'
             .' sum(case when banned_at is not null then 1 else 0 end) as bannis,'
             .' sum(case when is_admin then 1 else 0 end) as admins,'
-            .' sum(case when created_at >= ? then 1 else 0 end) as nouveaux',
+            .' sum(case when created_at >= ? then 1 else 0 end) as nouveaux,'
+            // TASK-1693 bug C — dans la MEME requete agregee. Une seconde
+            // requete pour ce seul compteur ferait grandir le cout de l'ecran
+            // avec le nombre de compteurs, ce que la garde de cout de
+            // `/admin/users` interdit precisement.
+            .' sum(case when email_verified_at is null then 1 else 0 end) as non_verifies',
             [now()->startOfMonth()]
         )->first();
 
@@ -153,6 +192,7 @@ class AdminController extends Controller
             'bannis' => (int) $row->bannis,
             'admins' => (int) $row->admins,
             'nouveaux' => (int) $row->nouveaux,
+            'non_verifies' => (int) $row->non_verifies,
         ];
     }
 
@@ -189,6 +229,8 @@ class AdminController extends Controller
         $data = $request->validate([
             'first_name' => 'nullable|string|max:255',
             'name' => 'required|string|max:255',
+            // TASK-1693 bug Z — l'adresse publique du profil.
+            'slug' => 'nullable|string|max:60',
             'email' => 'required|email|max:255|unique:users,email,'.$user->id,
             'phone' => 'nullable|string|max:30',
             'bio' => 'nullable|string|max:500',
@@ -206,6 +248,27 @@ class AdminController extends Controller
             'is_admin' => 'boolean',
             'banned' => 'boolean',
         ]);
+
+        // TASK-1693 bug Z — l'adresse publique passe par son autorite unique,
+        // la meme que l'ecran de profil. Deux refus distincts : une FORME
+        // invalide se corrige en reecrivant, une adresse DEJA PRISE en en
+        // choisissant une autre.
+        $slugDemande = isset($data['slug']) ? trim((string) $data['slug']) : null;
+        unset($data['slug']);
+
+        if ($slugDemande !== null && $slugDemande !== '' && $slugDemande !== $user->slug) {
+            $slugs = app(\App\Services\UserSlugService::class);
+
+            if (! $slugs->formeValide($slugDemande)) {
+                return back()->withInput()->withErrors(['slug' => __('profile.slug_invalid')]);
+            }
+
+            if (! $slugs->disponiblePour($user, $slugDemande)) {
+                return back()->withInput()->withErrors(['slug' => __('profile.slug_taken')]);
+            }
+
+            $slugs->attribuer($user, $slugDemande);
+        }
 
         $update = [
             'first_name' => $data['first_name'] ?? null,
@@ -231,21 +294,7 @@ class AdminController extends Controller
         }
 
         if ($request->hasFile('avatar')) {
-            // TASK-1654 — l'ancien fichier ne se supprime que s'il appartient a
-            // CE compte. Un avatar de banque Scenario est publie a un chemin
-            // PARTAGE, sans discriminant d'Organization : le supprimer ici
-            // privait de son image tout persona, dans toute sandbox, qui
-            // declare la meme cle. La banque est seule a repondre de cette
-            // question ; ce controleur ne la redevine pas.
-            //
-            // Et l'inverse reste vrai : un upload individuel remplace DOIT
-            // toujours etre supprime, sans quoi on echangerait une casse
-            // globale contre une fuite de stockage.
-            if ($user->avatar && ! ManifestAvatarBank::isPublishedAsset($user->avatar)) {
-                Storage::disk('public')->delete($user->avatar);
-            }
-
-            $update['avatar'] = $request->file('avatar')->store('avatars', 'public');
+            $update['avatar'] = $this->remplacerAvatar($user, $request->file('avatar'));
         }
 
         if ($user->id !== auth()->id()) {
@@ -256,6 +305,71 @@ class AdminController extends Controller
         $user->update($update);
 
         return back()->with('success', "Profil de {$user->name} mis à jour.");
+    }
+
+    /**
+     * TASK-1705 — remplacer la photo d'un compte, une seule fois.
+     *
+     * Extrait de `updateUser()` a l'identique, parce que le bouton « Upload
+     * photos » de la liste doit faire EXACTEMENT ce que fait la page Modifier.
+     * La subtilite ci-dessous est la raison d'etre de cette extraction : la
+     * recopier aurait donne deux regles pour une idee, et c'est la copie qu'on
+     * oublie de corriger.
+     *
+     * TASK-1654 — l'ancien fichier ne se supprime que s'il appartient a CE
+     * compte. Un avatar de banque Scenario est publie a un chemin PARTAGE,
+     * sans discriminant d'Organization : le supprimer ici privait de son image
+     * tout persona, dans toute sandbox, qui declare la meme cle. La banque est
+     * seule a repondre de cette question ; ce controleur ne la redevine pas.
+     *
+     * Et l'inverse reste vrai : un upload individuel remplace DOIT toujours
+     * etre supprime, sans quoi on echangerait une casse globale contre une
+     * fuite de stockage.
+     */
+    private function remplacerAvatar(User $user, UploadedFile $fichier): string
+    {
+        if ($user->avatar && ! ManifestAvatarBank::isPublishedAsset($user->avatar)) {
+            Storage::disk('public')->delete($user->avatar);
+        }
+
+        return $fichier->store('avatars', 'public');
+    }
+
+    /**
+     * TASK-1705 — poser la photo d'un compte depuis la LISTE.
+     *
+     * Cyril : « sur /admin/users, je voudrais que tu ajoutes un bouton "Upload
+     * photos" dans la colonne action, qui permette d'indiquer la photo de
+     * l'utilisateur, comme si on allait sur [la page Modifier]. Ceci car
+     * certaines personnes ne prennent pas le temps d'uploader leur photo et je
+     * vais recuperer leur photo pour eux et la telecharger. »
+     *
+     * ## Pourquoi un point d'entree a part, et non `updateUser()`
+     *
+     * `updateUser()` valide un formulaire COMPLET : `name` et `email` y sont
+     * requis, et il reecrit une trentaine de champs. Lui envoyer un seul
+     * fichier echouerait sur la validation ; lui envoyer la ligne entiere
+     * depuis la liste reviendrait a reposter des valeurs que personne n'a
+     * voulu modifier — et a ecraser, au passage, toute modification faite
+     * ailleurs entre l'affichage de la liste et le clic.
+     *
+     * Celui-ci ne touche QUE la photo. C'est aussi ce qui le rend sur : il n'y
+     * a pas de champ a oublier de valider.
+     *
+     * Les memes regles que la page Modifier s'appliquent au fichier (type et
+     * taille), et le remplacement passe par le MEME code.
+     */
+    public function updateUserAvatar(Request $request, User $user): RedirectResponse
+    {
+        $request->validate([
+            'avatar' => 'required|image|mimes:jpeg,png,webp|max:2048',
+        ], [
+            'avatar.required' => __('admin.users_avatar_required'),
+        ]);
+
+        $user->update(['avatar' => $this->remplacerAvatar($user, $request->file('avatar'))]);
+
+        return back()->with('success', __('admin.users_avatar_updated', ['name' => $user->full_name]));
     }
 
     public function banUser(User $user): RedirectResponse
@@ -316,6 +430,153 @@ class AdminController extends Controller
         $sign = $data['delta'] > 0 ? '+' : '';
 
         return back()->with('success', "Solde ajusté de {$sign}{$data['delta']} pts pour {$user->name}.");
+    }
+
+    /**
+     * TASK-1693 bug B — valider manuellement la verification d'email.
+     *
+     * ## Pourquoi cet ecran n'existait pas
+     *
+     * Avant cette tranche, TROIS chemins seulement posaient
+     * `email_verified_at` : le parcours d'INVITATION (le jeton est arrive sur
+     * cette adresse exacte, la possession est donc prouvee), les Scenario Packs
+     * (donnees de demonstration), et le lien signe standard
+     * `verification.verify`. Un compte cree a la main par un administrateur, ou
+     * dont l'email de verification n'est jamais arrive, restait donc bloque sans
+     * aucun recours cote produit : `EnsureEmailIsVerified` le detournait vers
+     * `/verify-email` sur toute surface prefixee, et rien dans
+     * l'administration ne permettait de le debloquer.
+     *
+     * ## Ce que ce geste est, et ce qu'il n'est pas
+     *
+     * C'est un DEPANNAGE, pas un outil de gestion courante : il contourne une
+     * preuve de possession d'adresse. Il vit donc dans le groupe
+     * `['auth','admin']` — pile effective `AdminMiddleware`, le SuperAdmin
+     * PLATEFORME — et jamais a la main d'un admin d'Organization, qui pourrait
+     * sinon valider une adresse qu'il ne controle pas.
+     *
+     * Il est IDEMPOTENT et ne reverifie jamais a la baisse : un compte deja
+     * verifie conserve sa date d'origine, et aucun chemin ici ne REMET
+     * `email_verified_at` a `null` (ce que fait deja, legitimement, le
+     * changement d'adresse dans `ProfileController::update()`).
+     *
+     * `markEmailAsVerified()` plutot qu'un `forceFill()` ecrit a la main :
+     * c'est le contrat du framework pour poser cette colonne.
+     *
+     * ## Pourquoi l'evenement `Verified` n'est PAS emis ici
+     *
+     * `markEmailAsVerified()` n'emet rien par lui-meme — c'est
+     * `VerifyEmailController` qui emet `Verified` apres l'avoir appele. On ne
+     * reproduit PAS ce geste, et c'est deliberé.
+     *
+     * `ClaimGuestVisitorOnVerification` reagit a cet evenement en appelant
+     * `GuestClaimService::claim($user, request())`, qui lit le cookie
+     * `bp_guest` de la REQUETE COURANTE. Or ici la requete est celle du
+     * SuperAdmin : on lierait le visiteur anonyme de l'ADMINISTRATEUR au compte
+     * du membre, et `RecordCrmEmailVerified` consignerait les dimensions
+     * d'acquisition de l'admin comme si elles etaient celles du membre. Un fait
+     * FAUX ecrit sur une personne, pire que l'absence de fait.
+     *
+     * Consequence assumee et nommee : une validation manuelle ne produit ni
+     * claim de visiteur, ni fait CRM `email_verified`. C'est coherent — il n'y
+     * a eu aucun parcours d'acquisition a attribuer, puisque personne n'a
+     * clique de lien. Mesure par `test_the_gesture_emits_no_acquisition_event`.
+     */
+    public function verifyUserEmail(User $user): RedirectResponse
+    {
+        if ($user->hasVerifiedEmail()) {
+            return back()->with('success', "L'adresse de {$user->name} était déjà vérifiée.");
+        }
+
+        $user->markEmailAsVerified();
+
+        return back()->with('success', "Adresse email de {$user->name} marquée comme vérifiée.");
+    }
+
+    /**
+     * TASK-1694 bug J — RENVOYER le lien de confirmation.
+     *
+     * ## Distinct de « Valider l'email », et c'est tout le point
+     *
+     * Le geste voisin CONTOURNE la preuve de possession d'adresse : c'est un
+     * depannage. Celui-ci la REDEMANDE — il renvoie le lien et laisse la
+     * personne prouver qu'elle lit bien cette boite.
+     *
+     * C'est donc le geste a tenter D'ABORD. Il vit dans le meme groupe, donc
+     * sous la meme autorite : SuperAdmin plateforme.
+     *
+     * ## La duree repart de zero, et ce n'est pas un effet de bord
+     *
+     * Le lien est SIGNE avec une expiration calculee AU MOMENT DE L'ENVOI
+     * (`auth.verification.expire`, 24 h depuis le bug C). Renvoyer, c'est donc
+     * necessairement remettre le compteur a zero — c'est la demande de Cyril,
+     * et c'est aussi la seule chose qu'un lien signe sache faire : on ne
+     * prolonge pas un lien deja emis, on en emet un neuf.
+     *
+     * ## Rien sur un compte deja verifie
+     *
+     * Le bouton n'apparait pas, et l'action refuse quand meme : une garde de
+     * vue n'est pas une protection. Renvoyer un lien a quelqu'un de deja
+     * verifie l'inviterait a un geste qui ne sert a rien.
+     */
+    public function resendUserVerification(User $user): RedirectResponse
+    {
+        if ($user->hasVerifiedEmail()) {
+            return back()->with('error', __('admin.users_resend_verification_already', ['name' => $user->email]));
+        }
+
+        $user->sendEmailVerificationNotification();
+
+        return back()->with('success', __('admin.users_resend_verification_sent', ['name' => $user->email]));
+    }
+
+    /**
+     * TASK-1694 bug L — envoyer UN gabarit de l'Emailer a UNE personne.
+     *
+     * ## Ce que remplace ce geste
+     *
+     * Le lien « Envoyer un email » de la colonne « Actions » menait au
+     * CATALOGUE (`/admin/email-templates`), sans rien savoir de la personne de
+     * la ligne : il fallait y rechoisir le destinataire. Demande de Cyril :
+     * cocher le gabarit, puis un bouton d'envoi.
+     *
+     * ## Pourquoi une route a soi, et pas `email-templates.send.execute`
+     *
+     * Ce parcours-la met le gabarit dans l'URL — donc une URL par choix, que
+     * seul du JavaScript saurait recomposer apres un clic de radio. Ici le
+     * gabarit est une DONNEE du formulaire, et la personne vient du chemin :
+     * c'est l'inverse, et c'est ce que la demande decrit.
+     *
+     * L'ENVOI, lui, n'est pas reecrit : `EmailerService::sendFromTemplate()`
+     * reste l'autorite unique — interpolation des variables, `replyTo` sur
+     * l'administrateur, et la ligne d'`EmailLog` qui en garde la trace.
+     *
+     * ## Les deux gardes de l'autre parcours sont conservees
+     *
+     * `activeAccount()` : on n'ecrit pas a un compte banni. C'est la meme borne
+     * que `sendExecute()`, pas une politique inventee ici. Le plafond de 50 n'a
+     * pas de sens pour un destinataire unique.
+     */
+    public function sendEmailToUser(Request $request, User $user): RedirectResponse
+    {
+        $validated = $request->validate([
+            'template_id' => ['required', 'uuid', Rule::exists('email_templates', 'id')],
+        ]);
+
+        if (! User::activeAccount()->whereKey($user->id)->exists()) {
+            return back()->with('error', __('admin.users_send_email_inactive', ['name' => $user->email]));
+        }
+
+        $template = EmailTemplate::findOrFail($validated['template_id']);
+
+        $log = app(EmailerService::class)->sendFromTemplate($template, $user, $request->user());
+
+        return $log->status === 'sent'
+            ? back()->with('success', __('admin.users_send_email_sent', [
+                'template' => $template->name,
+                'name' => $user->email,
+            ]))
+            : back()->with('error', __('admin.users_send_email_failed', ['name' => $user->email]));
     }
 
     public function createUser(): View
@@ -548,7 +809,22 @@ class AdminController extends Controller
             ->get(['id', 'name', 'slug', 'is_default']);
     }
 
-    private function selectedAdminOrganizationId(Request $request): string
+    /**
+     * TASK-1693 bug J — le defaut devient un PARAMETRE, au lieu d'etre impose.
+     *
+     * Ce helper sert QUATRE ecrans d'administration. Changer son repli pour
+     * tous aurait modifie trois ecrans que personne n'a demandes — et un
+     * filtre qui change de defaut sans prevenir fait lire les mauvais chiffres
+     * a qui connait l'ancien comportement.
+     *
+     * Le repli historique (l'Organization par defaut de la plateforme) reste
+     * donc la valeur par defaut du parametre : les trois autres appels sont
+     * inchanges, a l'octet. Seul le grand livre passe `'all'`, parce que c'est
+     * un ecran de RECHERCHE : on y arrive sans savoir dans quel tenant se
+     * trouve la personne, et pre-filtrer sur une Organization y cache
+     * precisement ce qu'on vient chercher.
+     */
+    private function selectedAdminOrganizationId(Request $request, ?string $defaut = null): string
     {
         if ($request->input('organization_id') === 'all') {
             return 'all';
@@ -556,6 +832,10 @@ class AdminController extends Controller
 
         if ($request->filled('organization_id')) {
             return (string) $request->input('organization_id');
+        }
+
+        if ($defaut !== null) {
+            return $defaut;
         }
 
         return (string) (DefaultOrganizationResolver::resolve()?->getKey() ?? 'all');
@@ -715,12 +995,40 @@ class AdminController extends Controller
             ->with(['user', 'organization']);
 
         $organizations = $this->adminOrganizations();
-        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+        // TASK-1693 bug J — « Toutes les organisations » par DEFAUT ici.
+        //
+        // Le grand livre est un ecran de RECHERCHE : on y arrive sans savoir
+        // dans quel tenant se trouve la personne, et pre-filtrer sur une
+        // Organization y cache precisement ce qu'on vient chercher. Les trois
+        // autres ecrans qui partagent ce helper gardent leur repli historique.
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request, 'all');
 
         $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
 
         if ($request->filled('reason')) {
             $query->where('reason', $request->input('reason'));
+        }
+
+        // TASK-1693 bug I — chercher une personne par email, prenom ou nom.
+        //
+        // Le `select` de TASK-1667 charge TOUS les membres de la portee : il
+        // repond bien quand on connait deja la personne et qu'ils sont peu
+        // nombreux, mais pas a « qui est ce ofsh@… ? ». La recherche precede
+        // donc le choix, et BORNE aussi ce `select` plus bas : apres une
+        // recherche, la liste deroulante tient dans l'ecran.
+        //
+        // Le groupe `where(function ...)` n'est pas decoratif : sans lui, les
+        // `orWhere` s'echapperaient de la contrainte d'Organization posee par
+        // `applyAdminOrganizationFilter()` et la recherche RE-ELARGIRAIT la
+        // liste a toute la plateforme — un filtre qui defiltre.
+        $recherche = trim((string) $request->input('search', ''));
+
+        if ($recherche !== '') {
+            $query->whereHas('user', fn ($q) => $q->where(
+                fn ($q2) => $q2->where('email', 'like', '%'.$recherche.'%')
+                    ->orWhere('first_name', 'like', '%'.$recherche.'%')
+                    ->orWhere('name', 'like', '%'.$recherche.'%')
+            ));
         }
 
         $filteredUser = $this->applyAdminUserFilter($query, $request);
@@ -746,6 +1054,14 @@ class AdminController extends Controller
         $membres = User::withoutGlobalScope(BelongsToOrganizationScope::class)
             ->when($selectedOrganizationId !== 'all',
                 fn ($q) => $q->where('organization_id', $selectedOrganizationId))
+            // TASK-1693 bug I — la recherche borne AUSSI la liste deroulante :
+            // trouver quelqu'un sans pouvoir le designer ensuite n'avancerait a
+            // rien. Meme groupe, meme raison qu'au-dessus.
+            ->when($recherche !== '', fn ($q) => $q->where(
+                fn ($q2) => $q2->where('email', 'like', '%'.$recherche.'%')
+                    ->orWhere('first_name', 'like', '%'.$recherche.'%')
+                    ->orWhere('name', 'like', '%'.$recherche.'%')
+            ))
             ->orderBy('name')
             ->get(['id', 'name', 'first_name', 'points_balance']);
 
@@ -1052,6 +1368,22 @@ class AdminController extends Controller
             });
         }
 
+        // TASK-1694 bug AK — filtrer par type d'appareil.
+        //
+        // Demande de Cyril : « savoir qui se connecte avec un smartphone, qui se
+        // connecte avec son ordinateur ». Rien a capturer — `user_agent` est
+        // stocke depuis toujours, donc le filtre porte retroactivement sur tout
+        // l'historique.
+        //
+        // Une valeur inconnue est IGNOREE, pas refusee : un journal qu'on
+        // consulte ne doit pas rendre une erreur parce qu'un parametre d'URL a
+        // ete mal recopie.
+        $device = DeviceKind::tryFrom((string) $request->input('device', ''));
+
+        if ($device !== null) {
+            DeviceKind::scope($query, $device);
+        }
+
         $direction = $request->direction === 'asc' ? 'asc' : 'desc';
 
         match ($request->sort) {
@@ -1070,7 +1402,10 @@ class AdminController extends Controller
         $loginLogs = $query->paginate(25)->withQueryString();
         $organizations = Organization::where('is_active', true)->orderBy('name')->get();
 
-        return view('admin.login-history.index', compact('loginLogs', 'organizations'));
+        return view('admin.login-history.index', compact('loginLogs', 'organizations') + [
+            'currentDevice' => $device?->value ?? '',
+            'deviceKinds' => DeviceKind::cases(),
+        ]);
     }
 
     public function loginHistoryUser(Request $request, User $user): View

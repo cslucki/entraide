@@ -89,7 +89,16 @@ final class MemberOnboardingSteps
         $remaining = [];
 
         foreach (self::KEYS as $key) {
-            if ($key === self::STEP_AI_PROFILE && ! $organization->ai_profiles_enabled) {
+            // TASK-1693 bug AG — la MEME question que le tableau de bord.
+            //
+            // Cette garde ne lisait que `ai_profiles_enabled`, le choix
+            // produit. Depuis le bug AF l'etape tombe aussi quand l'IA de
+            // l'Organization est eteinte : le Guide aurait continue d'annoncer
+            // « il te reste a creer ton agent IA » pendant que le tableau de
+            // bord ne la montre plus. C'est precisement la SECONDE VERITE que
+            // cette classe existe pour empecher.
+            if ($key === self::STEP_AI_PROFILE
+                && ! app(\App\Support\Ai\AiSurfaceGate::class)->memberAgentAvailableFor($organization)) {
                 continue;
             }
 

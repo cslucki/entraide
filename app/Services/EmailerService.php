@@ -11,7 +11,57 @@ use Throwable;
 
 class EmailerService
 {
-    public const ALLOWED_VARS = ['first_name', 'name', 'full_name', 'email', 'organization', 'city'];
+    /**
+     * TASK-1694 bug E — l'Organization et son slug, utilisables dans un gabarit.
+     *
+     * `organization` existait deja ; `organization_slug` manquait, et aucune
+     * forme FRANCAISE n'etait acceptee alors que tous les gabarits sont ecrits
+     * en francais par des gens qui ecrivent « organisation ».
+     *
+     * Les deux orthographes sont donc acceptees, et c'est delibere : renommer
+     * `organization` en `organisation` casserait les gabarits existants qui
+     * l'emploient — dont la definition du seeder. On AJOUTE, on ne deplace pas.
+     */
+    public const ALLOWED_VARS = [
+        'first_name', 'name', 'full_name', 'email', 'city',
+        'organization', 'organization_slug',
+        'organisation', 'organisation_slug',
+    ];
+
+    /**
+     * TASK-1694 bug Y — les variables qui sont DEUX NOMS POUR LA MEME VALEUR.
+     *
+     * ## Pourquoi cette carte existe
+     *
+     * Cyril, le 24/10, devant la documentation du bug W : « je ne comprends pas
+     * la difference entre `organization` et `organisation` ». Il n'y en a
+     * aucune — mesure faite, les deux rendent la meme chaine, de meme que
+     * `organisation_slug`/`organization_slug` et `full_name`/`name`.
+     *
+     * L'ecran les presentait cote a cote comme s'il s'agissait de deux choses.
+     * Une documentation qui laisse deviner une equivalence ne documente pas :
+     * elle fait hesiter.
+     *
+     * ## Pourquoi les doublons existent, et pourquoi on les garde
+     *
+     * `organisation` et `organisation_slug` sont nes au bug E : tous les
+     * gabarits sont ecrits en francais, par des gens qui ecrivent
+     * « organisation ». Renommer `organization` aurait casse les gabarits qui
+     * l'emploient — dont le catalogue du seeder. On AJOUTE, on ne deplace pas.
+     *
+     * ## Declaree ICI, a cote de la liste qu'elle commente
+     *
+     * Et PROUVEE : un test verifie que chaque alias rend bien la meme valeur
+     * que son nom canonique. Une carte qui mentirait serait pire que pas de
+     * carte — elle ferait ecrire des gabarits sur une equivalence fausse.
+     *
+     * @var array<string, string> alias => nom canonique
+     */
+    public const VAR_ALIASES = [
+        'full_name' => 'name',
+        'organisation' => 'organization',
+        'organisation_slug' => 'organization_slug',
+    ];
 
     public function availableVariables(User $user): array
     {
@@ -21,6 +71,10 @@ class EmailerService
             'full_name' => $user->fullName,
             'email' => $user->email,
             'organization' => $user->organization?->name ?? '',
+            'organization_slug' => $user->organization?->slug ?? '',
+            // TASK-1694 bug E — meme valeur, orthographe francaise.
+            'organisation' => $user->organization?->name ?? '',
+            'organisation_slug' => $user->organization?->slug ?? '',
             'city' => $user->city ?? '',
         ];
     }
@@ -38,6 +92,9 @@ class EmailerService
             'full_name' => $contact->fullName,
             'email' => $contact->email ?? '',
             'organization' => $contact->organization?->name ?? '',
+            'organization_slug' => $contact->organization?->slug ?? '',
+            'organisation' => $contact->organization?->name ?? '',
+            'organisation_slug' => $contact->organization?->slug ?? '',
             'city' => '',
             'company' => $contact->company ?? '',
         ];

@@ -82,7 +82,10 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DossierAnswerController;
 use App\Http\Controllers\DossierArticleController;
 use App\Http\Controllers\DossierController;
+use App\Http\Controllers\DossierFileShareController;
+use App\Http\Controllers\SharedDossierFileController;
 use App\Http\Controllers\DossierFileController;
+use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\DossierInsightsController;
 use App\Http\Controllers\DossierMemberController;
 use App\Http\Controllers\DossierSemanticSearchController;
@@ -184,7 +187,25 @@ Route::get('/blog/categorie/{slug}', [BlogController::class, 'byCategory'])->nam
 Route::get('/blog/tag/{slug}', [BlogController::class, 'byTag'])->name('blog.tag');
 
 // Blog — authentifié (chemins fixes AVANT le wildcard /blog/{slug})
-Route::middleware(['auth', 'verified'])->group(function () {
+//
+// TASK-1693 bug E — `verified` RETIRE, decision produit de Cyril : « il n'y a
+// aucune raison de verifier l'email a ce stade. Si on doit le faire ce sera
+// lors du processus d'inscription. Mais non pas sur une page X ou Y, cela n'a
+// aucun sens. »
+//
+// Ce que la garde produisait : quelqu'un qui n'avait jamais recu — ou jamais
+// vu — son email de confirmation etait renvoye vers `/verify-email` en
+// essayant de relire SES PROPRES brouillons. Une page de contenu personnel
+// n'est pas le bon endroit pour reclamer une preuve de possession d'adresse.
+//
+// Ce qui ne change PAS : `auth` reste, donc rien ne s'ouvre a un anonyme. Les
+// routes `verification.*` et l'interface `MustVerifyEmail` du modele restent
+// en place — l'email de confirmation part toujours a l'inscription, il ne
+// BLOQUE simplement plus la lecture et l'ecriture. Les regles METIER qui
+// exigent une adresse verifiee pour un engagement (inscription a un atelier,
+// `WorkshopRegistrationService:158`) sont intouchees : ce sont des gestes, pas
+// des pages.
+Route::middleware('auth')->group(function () {
     Route::get('/blog/rediger/nouveau', [BlogController::class, 'create'])->name('blog.create');
     Route::get('/blog/mes-articles', [BlogController::class, 'myPosts'])->name('blog.my-posts');
     Route::post('/blog', [BlogController::class, 'store'])->name('blog.store');
@@ -379,6 +400,11 @@ Route::middleware('auth')->group(function () {
     // Messages
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
     Route::get('/messages/with/{user}', [MessageController::class, 'showWithUser'])->name('messages.with');
+    // TASK-1704 — la piece jointe d'une conversation. Elle DOIT etre declaree
+    // avant `/messages/{transaction}`, sinon « pieces » serait capture comme
+    // un identifiant d'echange.
+    Route::get('/messages/{transaction}/pieces/{message}', [MessageAttachmentController::class, 'download'])->name('messages.attachments.download');
+    Route::get('/messages/{transaction}/pieces/{message}/apercu', [MessageAttachmentController::class, 'preview'])->name('messages.attachments.preview');
     Route::get('/messages/{transaction}', [MessageController::class, 'show'])->name('messages.show');
 
     // Points history
@@ -461,6 +487,12 @@ Route::middleware('auth')->group(function () {
         // sans appartenance a la Boucle. Aucune interface ne l'offrait : c'est
         // la dette `ORG_WIDE_EVENT_HAS_NO_RSVP_SURFACE_FOR_NON_MEMBERS` de T1655.
         Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
+        // TASK-1706 — organiser depuis l'agenda. Declare AVANT la route de
+        // reponse : « nouveau » ne doit pas etre lu comme un identifiant.
+        Route::get('/agenda/nouveau', [LoopEventAgendaController::class, 'create'])->name('events.agenda.create');
+        Route::post('/agenda', [LoopEventAgendaController::class, 'store'])
+            ->middleware('throttle:20,1')
+            ->name('events.agenda.store');
         Route::post('/agenda/{event}/repondre', [LoopEventAgendaController::class, 'respond'])
             ->whereUuid('event')
             ->name('events.agenda.respond');
@@ -559,11 +591,26 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users', [AdminController::class, 'storeUser'])->name('users.store');
     Route::get('/users/{user}/edit', [AdminController::class, 'editUser'])->name('users.edit');
     Route::put('/users/{user}', [AdminController::class, 'updateUser'])->name('users.update');
+    // TASK-1705 — poser la photo d'un compte depuis la LISTE, sans passer par
+    // le formulaire complet de la page Modifier.
+    Route::post('/users/{user}/avatar', [AdminController::class, 'updateUserAvatar'])->name('users.avatar.update');
     Route::patch('/users/{user}/toggle-availability', [AdminController::class, 'toggleUserAvailability'])->name('users.toggle-availability');
     Route::patch('/users/{user}/toggle-admin', [AdminController::class, 'toggleUserAdmin'])->name('users.toggle-admin');
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
     Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');
     Route::post('/users/{user}/adjust-points', [AdminController::class, 'adjustPoints'])->name('users.adjust-points');
+    // TASK-1693 bug B — valider MANUELLEMENT la verification d'email d'un
+    // compte. Geste de DEPANNAGE : il contourne une preuve de possession
+    // d'adresse, et reste donc dans ce groupe `['auth','admin']`, dont la pile
+    // effective est `AdminMiddleware` — le SuperAdmin PLATEFORME, jamais un
+    // admin d'Organization.
+    Route::post('/users/{user}/verify-email', [AdminController::class, 'verifyUserEmail'])->name('users.verify-email');
+    // TASK-1694 bug J : RENVOYER le lien de confirmation. Distinct du geste
+    // ci-dessus — celui-la CONTOURNE la preuve de possession, celui-ci la
+    // redemande. Meme groupe, donc meme autorite : SuperAdmin plateforme.
+    Route::post('/users/{user}/resend-verification', [AdminController::class, 'resendUserVerification'])->name('users.resend-verification');
+    // TASK-1694 bug L — envoyer UN gabarit de l'Emailer a CETTE personne.
+    Route::post('/users/{user}/send-email', [AdminController::class, 'sendEmailToUser'])->name('users.send-email');
     Route::post('/users/{user}/password', [AdminController::class, 'changePassword'])->name('users.password');
     Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordResetLink'])->name('users.send-password-reset');
     Route::patch('/users/{user}/assign-organization', [AdminController::class, 'assignOrganization'])->name('users.assign-organization');
@@ -699,6 +746,17 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/messages/bulk', [AdminMessageController::class, 'bulkDestroy'])->name('messages.bulk-destroy');
     Route::delete('/messages/{message}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
     Route::delete('/loop-messages/{loopMessage}', [AdminMessageController::class, 'destroyLoopMessage'])->name('loop-messages.destroy');
+    // TASK-1693 bug Q — l'ecran ne savait que supprimer. Corriger le CORPS
+    // d'un message est le geste de moderation manquant, et chaque edition
+    // inscrit son decideur (`edited_by`) : voir AdminMessageController::edit().
+    Route::get('/messages/{message}/edit', [AdminMessageController::class, 'edit'])->name('messages.edit');
+    Route::put('/messages/{message}', [AdminMessageController::class, 'update'])->name('messages.update');
+    // TASK-1693 bug R — le detail d'un message de ChatLoop. `messages.show` ne
+    // connaissait que les echanges, et l'onglet ChatLoop est celui par DEFAUT :
+    // le lien demande n'aurait existe que pour une minorite de lignes.
+    Route::get('/loop-messages/{loopMessage}', [AdminMessageController::class, 'showLoopMessage'])->name('loop-messages.show');
+    Route::get('/loop-messages/{loopMessage}/edit', [AdminMessageController::class, 'editLoopMessage'])->name('loop-messages.edit');
+    Route::put('/loop-messages/{loopMessage}', [AdminMessageController::class, 'updateLoopMessage'])->name('loop-messages.update');
 
     // Reports
     Route::get('/reports', [AdminController::class, 'reports'])->name('reports');
@@ -780,6 +838,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         ->middleware('throttle:10,1')->name('loop-plugins.models.refresh');
 
     Route::get('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'index'])->name('system-email-templates');
+    // TASK-1681 — creer UNE personnalisation (surcharge DESACTIVEE par
+    // defaut, pre-remplie du catalogue canonique). Jamais de seed global.
+    Route::post('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'store'])->name('system-email-templates.store');
     Route::get('/system-email-templates/{systemEmailTemplate}/edit', [AdminSystemEmailTemplatesController::class, 'edit'])->name('system-email-templates.edit');
     Route::put('/system-email-templates/{systemEmailTemplate}', [AdminSystemEmailTemplatesController::class, 'update'])->name('system-email-templates.update');
 
@@ -855,7 +916,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/ai-config', [AdminAiConfigController::class, 'index'])->name('ai-config');
     Route::post('/ai-config', [AdminAiConfigController::class, 'update'])->name('ai-config.update');
     Route::post('/ai-config/blog', [AdminAiConfigController::class, 'updateBlogConfig'])->name('ai-config.blog');
-    Route::post('/ai-config/profile', [AdminAiConfigController::class, 'updateProfileConfig'])->name('ai-config.profile');
+    // TASK-1693 bug AS : `ai-config/profile` RETIREE. « Agents profil IA » se
+    // regle sur l'ecran IA de l'Organization (organization.admin.ai.profiles.update),
+    // aupres de l'interrupteur et du credential. Deux ecrivains pour une meme
+    // colonne finissent par diverger.
+    // TASK-1693 bug AU : l'assistant « BouclePro IA » par Organization.
+    // Arbitrage de Cyril : la case vit ICI, sur l'administration plateforme,
+    // et non sur l'ecran de l'Organization — contrairement a « Agents profil
+    // IA » (bug AS). C'est sa demande explicite.
+    Route::post('/ai-config/shell', [AdminAiConfigController::class, 'updateShellConfig'])->name('ai-config.shell');
     // TASK-1429 (SW-1) : politique Shell Welcome par Organization (SuperAdmin).
     Route::post('/ai-config/guest-shell', [AdminAiConfigController::class, 'updateGuestShellConfig'])->name('ai-config.guest-shell');
     // TASK-1500 : la configuration Shell Welcome par Organization a SA page (decision Cyril 10/09) ; le POST ci-dessus reste l'unique ecriture.
@@ -911,7 +980,20 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/loops/{loop}/edit', [AdminLoopController::class, 'edit'])->name('loops.edit');
     Route::put('/loops/{loop}', [AdminLoopController::class, 'update'])->name('loops.update');
     Route::post('/loops/{loop}/members', [AdminLoopController::class, 'addMember'])->name('loops.members.add');
+    // TASK-1693 bug M — decider une demande d'adhesion depuis la fiche admin.
+    //
+    // Les routes globales `loop-join-requests.accept|reject` existent, mais
+    // renvoient toujours vers la Boucle : depuis l'administration cela ejecte
+    // le SuperAdmin de son ecran. Ces deux-la delegent au MEME service, avec la
+    // meme autorisation, et reviennent sur la fiche. La Boucle figure dans
+    // l'URL pour que le controleur puisse verifier que la demande lui
+    // appartient vraiment.
+    Route::post('/loops/{loop}/join-requests/{joinRequest}/accept', [AdminLoopController::class, 'acceptJoinRequest'])->name('loops.join-requests.accept');
+    Route::post('/loops/{loop}/join-requests/{joinRequest}/reject', [AdminLoopController::class, 'rejectJoinRequest'])->name('loops.join-requests.reject');
     Route::put('/loops/{loop}/members/{member}/role', [AdminLoopController::class, 'updateMemberRole'])->name('loops.members.role');
+    // TASK-1693 bug O — transferer la propriete : designer qui reprend, et le
+    // sortant redescend. Une seule transaction cote service.
+    Route::put('/loops/{loop}/members/{member}/transfer-ownership', [AdminLoopController::class, 'transferOwnership'])->name('loops.members.transfer-ownership');
     Route::delete('/loops/{loop}/members/{member}', [AdminLoopController::class, 'removeMember'])->name('loops.members.remove');
     Route::get('/loops/{loop}/files', [AdminLoopController::class, 'files'])->name('loops.files');
     Route::put('/loops/{loop}/type', [AdminLoopController::class, 'updateType'])->name('loops.type.update');
@@ -1112,15 +1194,41 @@ $organizationConstraint = '(?!login|register|admin|api|sitemap|search|explorer|p
 
 // Organization-prefixed routes (/org/{organization}/...) — en parallèle des routes legacy /{community}
 Route::prefix('/org/{organization}')
-    ->middleware(['web', 'organization'])
+    ->middleware(['web', 'organization', 'auth', 'organization.member'])
     ->where(['organization' => $organizationConstraint])
     ->name('organization.')
     ->group(function () {
-        Route::get('/', [OrganizationLandingController::class, '__invoke'])->name('home');
+        Route::get('/', [OrganizationLandingController::class, '__invoke'])
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('home');
         // TASK-1442 — SW-8a : la surface publique du Shell Welcome (lecture pure + premier geste). Distincte du Shell membre.
         Route::get('/shell', [GuestShellController::class, 'show'])->middleware('throttle:60,1')->name('shell.show');
         Route::post('/shell/message', [GuestShellController::class, 'message'])->middleware('throttle:30,1')->name('shell.message');
-        Route::get('/about', [OrganizationLandingController::class, 'about'])->name('about');
+        // TASK-1700 — l'opt-out qui manquait a « A propos », exactement comme
+        // aux trois routes de TASK-1698.
+        //
+        // Le groupe `/org/{organization}` est FERME PAR DEFAUT : une route
+        // publique doit s'en extraire. `git log -L` sur cette ligne ne montre
+        // que T371 (28/06, « org-scoped about page ») et T1450 : **jamais
+        // T1692**, dont le middleware de groupe l'a refermee collateralement.
+        // T1489 l'avait consigne noir sur blanc — « aucune n'a recu de decision
+        // INDIVIDUELLE ».
+        //
+        // Le signe le plus net que la fermeture n'etait pas voulue : le CTA de
+        // cette page est « Rejoindre », et `discovery-bottom-nav` — la barre
+        // basse des pages de DECOUVERTE, montee « que l'on soit connecte ou
+        // non » — y mene en premiere position. Deux dispositifs destines a
+        // quelqu'un qui ne connait pas encore le produit, derriere un mur de
+        // connexion.
+        //
+        // La frontiere d'acces n'est pas perdue pour autant : elle passe dans
+        // le controleur, ou `OrganizationFlowchartController` a deja mis la
+        // sienne — Organization inactive -> 404, Organization non publique et
+        // visiteur anonyme -> login borne. Elle y est MEILLEURE qu'avant, car
+        // `about()` ne regardait pas `is_public` du tout.
+        Route::get('/about', [OrganizationLandingController::class, 'about'])
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('about');
         // TASK-1450 — Workshop domain foundation : la page PUBLIQUE d'un atelier publie de CETTE Organization (404 sinon). Pas de Shell ici.
         Route::get('/ateliers/{workshop}', [WorkshopPageController::class, 'show'])->name('workshop.show')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}');
         // TASK-1452 (B4-B) : « je choisis cette session » — geste Guest (interet != inscription), throttle anti-rafale.
@@ -1146,7 +1254,24 @@ Route::prefix('/org/{organization}')
         // Pas de route globale `/flowchart` : le mandat la reserve a une
         // necessite demontree, et il n'y en a pas — une carte hors
         // Organization n'aurait ni charte, ni Boucles, ni sens.
-        Route::get('/flowchart', OrganizationFlowchartController::class)->name('flowchart');
+
+          // TASK-1698 — l'opt-out qui MANQUAIT depuis l'origine.
+          //
+          // Le groupe `/org/{organization}` est FERME PAR DEFAUT
+          // (`auth` + `organization.member`) : une route publique doit s'en
+          // extraire, comme le font `home` et `mentions-legales`. Les trois
+          // routes ci-dessous ont ete ecrites publiques, DOCUMENTEES publiques
+          // et munies de leur garde propre — mais sans cette ligne. Le groupe
+          // les a refermees en silence.
+          //
+          // Mesure : les lignes concernees n'ont jamais ete touchees que par
+          // leurs TASK creatrices (T1604, T1608, T1613). T1692 est arrive
+          // apres, a constate la fermeture, et a ecrit un test qui l'epingle
+          // comme une decision — « ses deux destinations de pied ne le sont
+          // plus ». C'etait un accident, pas un arbitrage.
+        Route::get('/flowchart', OrganizationFlowchartController::class)
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('flowchart');
 
           // TASK-1602 — les mentions legales servies DANS le contexte de
           // l'Organization : MEME vue, donc contenu unique, jamais duplique.
@@ -1154,7 +1279,9 @@ Route::prefix('/org/{organization}')
           // groupe `/org/{organization}` lie deja l'Organization courante.
           // Mesure avant correctif : en invite, `/mentions-legales` depuis
           // `launchpals` rendait 7 occurrences « BouclePro » et 0 « LaunchPals ».
-          Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
+          Route::view('/mentions-legales', 'mentions-legales')
+              ->withoutMiddleware(['auth', 'organization.member'])
+              ->name('mentions-legales');
 
           // TASK-1613 — l'explorateur Open Source servi DANS le contexte de
           // l'Organization, exactement comme les mentions legales ci-dessus :
@@ -1167,7 +1294,9 @@ Route::prefix('/org/{organization}')
           // subsiste pour les surfaces qui n'EXPRIMENT pas d'Organization
           // (`/login`, `/about`), et `organizationScopedUrl()` choisit entre
           // les deux — jamais un tenant devine par defaut (borne TASK-1602).
-          Route::get('/open-source', [OpenSourceController::class, 'page'])->name('open-source');
+          Route::get('/open-source', [OpenSourceController::class, 'page'])
+              ->withoutMiddleware(['auth', 'organization.member'])
+              ->name('open-source');
 
           // TASK-1604 — Mycelium servi DANS le contexte de l'Organization.
           //
@@ -1187,9 +1316,13 @@ Route::prefix('/org/{organization}')
           // A ne pas confondre avec `/org/{organization}/constitution`, qui publie
           // la Constitution de CETTE Organization et reste 404 tant que personne ne
           // l'a explicitement rendue publique.
-          Route::get('/mycelium', [MyceliumController::class, 'index'])->name('mycelium');
+          Route::get('/mycelium', [MyceliumController::class, 'index'])
+              ->withoutMiddleware(['auth', 'organization.member'])
+              ->name('mycelium');
 
-        Route::middleware('guest')->group(function () {
+        Route::middleware('guest')
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->group(function () {
             Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
             Route::post('/login', [AuthenticatedSessionController::class, 'store']);
             Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
@@ -1216,7 +1349,9 @@ Route::prefix('/org/{organization}')
             // `explain` plutot que le 404 par defaut : la personne est
             // connectee et a tape ce slug elle-meme. Voir
             // `EnsureOrganizationMember`.
-            Route::middleware('organization.member:explain')->group(function () {
+            Route::middleware('organization.member:explain')
+                ->withoutMiddleware(['organization.member'])
+                ->group(function () {
                 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
                 Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
                 Route::get('/dashboard/requests/{serviceRequest}', [DashboardController::class, 'requestDetail'])->name('dashboard.requests.detail')->middleware('consume.org')->whereUuid('serviceRequest');
@@ -1256,6 +1391,21 @@ Route::prefix('/org/{organization}')
             Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.store');
 
             Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
+            // TASK-1693 bug AA — « Ecrire a cette personne », sur la surface de
+            // l'Organization.
+            //
+            // Cette route n'existait QUE sans prefixe. Or `ResolveUrlOrganization`
+            // est dans le groupe `web` global et lie l'Organization PAR DEFAUT
+            // sur une URL non prefixee ; la redirection canonique, elle, ne
+            // s'applique qu'aux URL d'UN SEUL segment (middleware:256), donc pas
+            // a `/messages/with/{user}`. La garde inter-tenant de T1289 refusait
+            // alors — a juste titre — et renvoyait vers la liste des messages.
+            // D'ou « on arrive bien sur la Messagerie, mais on ne peut pas
+            // ecrire ». Le defaut n'etait pas la garde, c'etait le LIEN.
+            Route::get('/messages/with/{user}', [MessageController::class, 'orgShowWithUser'])->name('messages.with');
+            // TASK-1704 — meme raison d'ordre que sur la surface courte.
+            Route::get('/messages/{transaction}/pieces/{message}', [MessageAttachmentController::class, 'orgDownload'])->name('messages.attachments.download');
+            Route::get('/messages/{transaction}/pieces/{message}/apercu', [MessageAttachmentController::class, 'orgPreview'])->name('messages.attachments.preview');
             Route::get('/messages/{transaction}', [MessageController::class, 'orgShow'])->name('messages.show');
 
             Route::get('/points', [PointController::class, 'index'])->name('points.index');
@@ -1306,6 +1456,12 @@ Route::prefix('/org/{organization}')
                 // L'agenda de l'Organization. Voir la note sur la route courte :
                 // depuis TASK-1656 il porte le geste de REPONSE a une invitation.
                 Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
+                // TASK-1706 — organiser depuis l'agenda. Declare AVANT la route de
+                // reponse : « nouveau » ne doit pas etre lu comme un identifiant.
+                Route::get('/agenda/nouveau', [LoopEventAgendaController::class, 'create'])->name('events.agenda.create');
+                Route::post('/agenda', [LoopEventAgendaController::class, 'store'])
+                    ->middleware('throttle:20,1')
+                    ->name('events.agenda.store');
                 Route::post('/agenda/{event}/repondre', [LoopEventAgendaController::class, 'respond'])
                     ->whereUuid('event')
                     ->name('events.agenda.respond');
@@ -1319,6 +1475,15 @@ Route::prefix('/org/{organization}')
                 Route::post('/loops/{loop}/archive', [LoopController::class, 'archive'])->name('loops.archive');
                 Route::post('/loops/{loop}/reactivate', [LoopController::class, 'reactivate'])->name('loops.reactivate');
                 Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware('throttle:5,1')->name('loops.join-requests.store');
+                // TASK-1680 — versions org-scopees d'accepter/refuser une
+                // demande : le panneau du cockpit admin (/admin/loops/{loop})
+                // doit porter l'Organization de la Boucle dans l'URL, la ou
+                // les routes courtes la resolvent du HOST — poster depuis la
+                // plateforme y rendrait 404 sur la garde d'objet. Aucune
+                // route GET : les demandes s'AFFICHENT dans le workspace et
+                // dans le cockpit admin, jamais sur une page dediee.
+                Route::post('/join-requests/{joinRequest}/accept', [LoopController::class, 'acceptJoinRequest'])->name('loop-join-requests.accept');
+                Route::post('/join-requests/{joinRequest}/reject', [LoopController::class, 'rejectJoinRequest'])->name('loop-join-requests.reject');
                 Route::get('/loops/{loop}/invite', [LoopController::class, 'invite'])->name('loops.invite');
                 Route::post('/loops/{loop}/invite/members', [LoopController::class, 'storeMembers'])->middleware('throttle:10,1')->name('loops.invite.members');
                 Route::post('/loops/{loop}/invitations', [LoopInvitationController::class, 'store'])->middleware('throttle:10,1')->name('loops.invitations.store');
@@ -1355,7 +1520,19 @@ Route::prefix('/org/{organization}')
                     ->defaults('adminScope', false)->middleware('throttle:30,1')->name('loops.plugins.configure.update');
             });
 
-            Route::middleware('verified')->group(function () {
+            // TASK-1693 bug E — `verified` RETIRE de ce groupe (dossiers + blog
+            // prefixe + likes), meme decision produit que pour le blog global
+            // plus haut : la verification d'email ne garde plus de PAGE.
+            //
+            // Le groupe lui-meme est conserve, et ce n'est pas de la timidite :
+            // il porte ses propres commentaires d'arbitrage (TASK-1629 sur les
+            // routes `dossiers.create`/`store` supprimees), et ses 132 lignes
+            // restent une unite de lecture. Seule la garde disparait.
+            //
+            // `auth` + `organization.member` continuent de s'appliquer depuis le
+            // groupe `/org/{organization}` (TASK-1692) : la frontiere de tenant
+            // est INTOUCHEE, seule l'exigence de verification tombe.
+            Route::group([], function () {
                 Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
 
                 // Dossiers (org-scoped, private foundation)
@@ -1369,6 +1546,44 @@ Route::prefix('/org/{organization}')
                 // racines (`LoopRootDocumentService`, `PersonalDocumentsRoot`)
                 // n'a jamais traverse ces routes et reste intact.
                 Route::get('/dossiers', [DossierController::class, 'index'])->name('dossiers.index');
+                // TASK-1695 geste C — lire un fichier qu'on vous a PARTAGE.
+                //
+                // Declarees AVANT `/dossiers/{dossier}` : « partages » n'est
+                // jamais un identifiant de Dossier. Meme idiome que
+                // `/relations/modeles` devant `/relations/{contact}`
+                // (TASK-1420), et meme raison — l'ordre dit l'intention, il ne
+                // se repose pas sur le hasard d'un format d'identifiant.
+                //
+                // Le Dossier n'apparait PAS dans ces URL : c'est la decision de
+                // conception de la TASK. Le destinataire n'emprunte jamais
+                // l'URL du Dossier d'autrui.
+                // TASK-1695 geste D — partager un fichier, et retirer ce partage.
+                //
+                // Imbriquees sous le Dossier, a dessein, et c'est l'INVERSE du
+                // geste C : partager est un acte de GESTION, reserve a qui gere
+                // deja le fichier. Celui-la passe donc par le chemin du
+                // Dossier ; seule la LECTURE par le destinataire a besoin d'un
+                // chemin a part.
+                Route::get('/dossiers/{dossier}/files/{file}/shares', [DossierFileShareController::class, 'index'])->name('dossiers.files.shares.index');
+                Route::get('/dossiers/{dossier}/files/{file}/shares/search', [DossierFileShareController::class, 'search'])->name('dossiers.files.shares.search');
+                Route::post('/dossiers/{dossier}/files/{file}/shares', [DossierFileShareController::class, 'store'])->name('dossiers.files.shares.store');
+                Route::delete('/dossiers/{dossier}/files/{file}/shares/{share}', [DossierFileShareController::class, 'destroy'])->name('dossiers.files.shares.destroy');
+                // TASK-1695 (5a) — partager avec une BOUCLE : meme fenetre,
+                // meme controleur, une table a part. Le segment litteral
+                // `loops` vit a une profondeur differente de `{share}` : aucun
+                // des deux ne peut avaler l'autre.
+                Route::post('/dossiers/{dossier}/files/{file}/shares/loops', [DossierFileShareController::class, 'storeLoop'])->name('dossiers.files.shares.loops.store');
+                Route::delete('/dossiers/{dossier}/files/{file}/shares/loops/{share}', [DossierFileShareController::class, 'destroyLoop'])->name('dossiers.files.shares.loops.destroy');
+
+                Route::get('/dossiers/partages/{file}', [SharedDossierFileController::class, 'show'])->name('dossiers.shared.show');
+                Route::get('/dossiers/partages/{file}/apercu', [SharedDossierFileController::class, 'preview'])->name('dossiers.shared.preview');
+                // TASK-1695 (point 2 de Cyril) — retirer SES partages depuis
+                // « Partages », sans repasser par le Dossier. La route est
+                // bornee au fichier, parce que c'est tout ce que cet ecran
+                // connait : il n'affiche pas le Dossier porteur, et le
+                // destinataire n'y a aucun droit.
+                Route::delete('/dossiers/partages/{file}/retirer', [SharedDossierFileController::class, 'stop'])->name('dossiers.shared.stop');
+
                 Route::get('/dossiers/{dossier}', [DossierController::class, 'show'])->name('dossiers.show');
                 Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
                 Route::post('/dossiers/{dossier}/insights', DossierInsightsController::class)->middleware('throttle:5,1')->name('dossiers.insights');
@@ -1383,11 +1598,31 @@ Route::prefix('/org/{organization}')
                 Route::delete('/dossiers/{dossier}/articles/{post}', [DossierArticleController::class, 'destroy'])->name('dossiers.articles.destroy');
                 Route::patch('/dossiers/{dossier}/articles/reorder', [DossierArticleController::class, 'reorder'])->name('dossiers.articles.reorder');
                 Route::get('/dossiers/{dossier}/articles/search', [DossierArticleController::class, 'search'])->name('dossiers.articles.search');
-                Route::get('/dossiers/{dossier}/members', [DossierMemberController::class, 'index'])->name('dossiers.members.index');
-                Route::post('/dossiers/{dossier}/members', [DossierMemberController::class, 'store'])->name('dossiers.members.store');
-                Route::patch('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'update'])->name('dossiers.members.update');
-                Route::delete('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'destroy'])->name('dossiers.members.destroy');
-                Route::get('/dossiers/{dossier}/members/search', [DossierMemberController::class, 'search'])->name('dossiers.members.search');
+                // TASK-1695 — DESACTIVE sur decision de Cyril (24/10).
+                //
+                // Le partage d'un Dossier avec des membres nominatifs : la
+                // creation de Dossiers avait ete retiree il y a plus d'un mois
+                // (Dossiers n'est pas un Drive), mais le PARTAGE de ceux qui
+                // existaient deja etait reste atteignable — et sa recherche de
+                // membres rendait l'adresse email de chaque personne proposee.
+                //
+                // La porte est d'abord fermee a l'AUTORITE
+                // (`DossierPolicy::manageMembers`, voir son docblock) ; ces
+                // routes sont commentees EN PLUS, pour qu'une URL tapee a la
+                // main rende 404 et non 403. Une porte absente n'annonce rien.
+                //
+                // Aucun `route()` ne visait ces noms (verifie le 24/10) : les
+                // commenter ne casse aucun rendu. `DossierMemberController`
+                // n'est pas touche — intact, simplement inatteignable.
+                //
+                // Pour reactiver : decommenter ces cinq lignes ET le corps de
+                // `manageMembers`.
+                //
+                // Route::get('/dossiers/{dossier}/members', [DossierMemberController::class, 'index'])->name('dossiers.members.index');
+                // Route::post('/dossiers/{dossier}/members', [DossierMemberController::class, 'store'])->name('dossiers.members.store');
+                // Route::patch('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'update'])->name('dossiers.members.update');
+                // Route::delete('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'destroy'])->name('dossiers.members.destroy');
+                // Route::get('/dossiers/{dossier}/members/search', [DossierMemberController::class, 'search'])->name('dossiers.members.search');
                 Route::get('/dossiers/{dossier}/series', [DossierSeriesController::class, 'show'])->name('dossiers.series.show');
                 Route::post('/dossiers/{dossier}/series', [DossierSeriesController::class, 'store'])->name('dossiers.series.store');
                 Route::patch('/dossiers/{dossier}/series', [DossierSeriesController::class, 'update'])->name('dossiers.series.update');
@@ -1510,7 +1745,19 @@ Route::prefix('/org/{organization}')
         // prouve : `auth` seul laisserait ce cross-tenant AUTHENTIFIE ouvert.
         Route::get('/services/{service}', [ServiceController::class, 'orgShow'])->middleware(['auth', 'organization.member'])->name('services.show')->whereUuid('service');
         Route::get('/requests/{request}', [RequestController::class, 'orgShow'])->middleware(['auth', 'organization.member'])->name('requests.show')->whereUuid('request');
-        Route::get('/profile/{user}', [ProfileController::class, 'show'])->middleware(['auth', 'organization.member'])->name('profile.show')->whereUuid('user');
+        // TASK-1693 bug Z — le segment accepte un SLUG ou un identifiant.
+        //
+        // `whereUuid('user')` faisait rendre 404 a « marie-dupont » AVANT meme
+        // d'atteindre le controleur. La contrainte servait a proteger les
+        // routes voisines du meme espace (`/profile/edit`, `/profile/ai-usage`,
+        // `/profile/availability`) — mais elles sont declarees PLUS HAUT dans
+        // ce groupe et gagnent deja la resolution. Le motif reste borne a un
+        // seul segment, et `UserSlugService::RESERVES` refuse ces mots a la
+        // saisie : on ne peut donc pas fabriquer une adresse morte.
+        //
+        // La sous-route `agent-ia` juste en dessous GARDE son `whereUuid` :
+        // elle resout par liaison implicite sur l'identifiant.
+        Route::get('/profile/{user}', [ProfileController::class, 'show'])->middleware(['auth', 'organization.member'])->name('profile.show')->where('user', '[A-Za-z0-9][A-Za-z0-9-]*');
         Route::middleware('ai-profiles.enabled')->group(function () {
             Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->middleware('consume.org')->name('agent-ia.profile.chat')->whereUuid('user');
         });
@@ -1574,6 +1821,9 @@ Route::prefix('/org/{organization}')
                 Route::patch('/composition-policy', [OrgAdminController::class, 'updateCompositionPolicy'])->name('composition-policy.update');
                 Route::post('/loops/{loop}/members', [OrgAdminController::class, 'addLoopMember'])->name('loops.members.add');
                 Route::put('/loops/{loop}/members/{member}/role', [OrgAdminController::class, 'updateLoopMemberRole'])->name('loops.members.role');
+                // TASK-1693 bug O — meme geste que sur l'ecran global : l'admin
+                // d'Organization bute sur le MEME invariant.
+                Route::put('/loops/{loop}/members/{member}/transfer-ownership', [OrgAdminController::class, 'transferLoopOwnership'])->name('loops.members.transfer-ownership');
                 Route::delete('/loops/{loop}/members/{member}', [OrgAdminController::class, 'removeLoopMember'])->name('loops.members.remove');
                 Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
                 Route::get('/users', [OrgAdminController::class, 'users'])->name('users');
@@ -1673,6 +1923,10 @@ Route::prefix('/org/{organization}')
                 // Reserve au SuperAdmin, protection serveur dans le controller —
                 // jamais seulement un masquage cote vue.
                 Route::put('/ai/credential-mode', [OrgAdminController::class, 'updateAiCredentialMode'])->name('ai.credential-mode.update');
+                // TASK-1693 bug AS : « Agents profil IA », rapatrie depuis
+                // /admin/ai-config. Reserve au SuperAdmin, garde dans le
+                // controller — jamais seulement un masquage cote vue.
+                Route::put('/ai/profiles', [OrgAdminController::class, 'updateAiProfiles'])->name('ai.profiles.update');
 
                 // Design
                 Route::get('/homepage', [OrgAdminController::class, 'homepage'])->name('homepage');
@@ -1757,6 +2011,10 @@ Route::prefix('/org/{organization}')
 
                 // System email templates (org-scoped)
                 Route::get('/system-email-templates', [OrgAdminController::class, 'systemEmailTemplates'])->name('system-email-templates');
+                // TASK-1694 bug AB — cloner un gabarit Global vers cette Organization.
+                // Declaree AVANT /{systemEmailTemplate}/edit pour rester lisible a
+                // cote d'elle ; les chemins ne se recouvrent pas.
+                Route::post('/system-email-templates/{systemEmailTemplate}/adapter', [OrgAdminController::class, 'adaptSystemEmailTemplate'])->name('system-email-templates.adapt');
                 Route::get('/system-email-templates/{systemEmailTemplate}/edit', [OrgAdminController::class, 'editSystemEmailTemplate'])->name('system-email-templates.edit');
                 Route::put('/system-email-templates/{systemEmailTemplate}', [OrgAdminController::class, 'updateSystemEmailTemplate'])->name('system-email-templates.update');
             });

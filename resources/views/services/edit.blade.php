@@ -24,9 +24,28 @@
                 tags: '{{ old('tags', $service->tags->pluck('name')->join(',')) }}',
                 tagList: [],
                 tagInput: '',
-                addTag() { if (!this.tagInput.trim() || this.tagList.length >= 10) return; this.tagList.push(this.tagInput.trim()); this.tags = this.tagList.join(','); this.tagInput = ''; },
-                removeTag(i) { this.tagList.splice(i,1); this.tags = this.tagList.join(','); },
-                init() { if(this.tags) this.tagList = this.tags.split(',').filter(t=>t); }
+                tagDuplique: false,
+                // TASK-1693 bug X — meme defaut que sur l'ecran de creation :
+                // le serveur slugifie puis synchronise des IDENTIFIANTS, donc
+                // deux chips identiques ne produisent qu'UN tag. L'ecran
+                // promettait ce qu'il ne livrait pas.
+                normaliserTag(t) { return t.trim().replace(/^#+/, '').toLowerCase(); },
+                addTag() {
+                    const brut = this.tagInput.trim();
+                    if (!brut || this.tagList.length >= 10) return;
+                    const vise = this.normaliserTag(brut);
+                    if (!vise) return;
+                    if (this.tagList.some(t => this.normaliserTag(t) === vise)) { this.tagDuplique = true; this.tagInput = ''; return; }
+                    this.tagDuplique = false;
+                    this.tagList.push(brut); this.tags = this.tagList.join(','); this.tagInput = '';
+                },
+                removeTag(i) { this.tagList.splice(i,1); this.tagDuplique = false; this.tags = this.tagList.join(','); },
+                init() {
+                    if (!this.tags) return;
+                    const vus = new Set();
+                    this.tagList = this.tags.split(',').filter(t => { const v = this.normaliserTag(t); if (!v || vus.has(v)) return false; vus.add(v); return true; });
+                    this.tags = this.tagList.join(',');
+                }
               }">
             @csrf @method('PUT')
 

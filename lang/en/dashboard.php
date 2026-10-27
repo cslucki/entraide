@@ -89,12 +89,19 @@ return [
     'my_requests' => 'My help requests',
     'close_request' => 'Close',
     'no_open_request' => 'No open request.',
+    // TASK-1693 bug U — a request's state, carried by the pill.
+    'request_open' => 'Open',
+    'request_in_progress' => 'Being handled',
     'ask_help' => 'Ask for help',
     'my_current_exchanges' => 'My current exchanges',
     'current_exchanges' => 'Current exchanges',
     'to_member' => 'to :name',
     'with_member' => 'with :name',
     'no_current_exchange' => 'No current exchanges.',
+    // TASK-1693 bug T — the single card replacing the two previous ones.
+    // TASK-1694 bug A — dashboard card.
+    'exchanges' => 'Mutual aid',
+    'no_exchange' => 'No current exchanges.',
     'my_announcements' => 'My announcements',
     'untitled' => 'Untitled',
     'published' => 'Published',
@@ -102,7 +109,11 @@ return [
     'no_announcement' => 'No announcements yet.',
     'create_announcement' => 'Create an announcement',
     'view_all_announcements' => 'View all my announcements',
-    'recent_messages' => 'Recent messages',
+    // TASK-1693 bug AM — « Messagerie » et non « Messages recents » : la card
+    // porte desormais un bouton « Nouveau » qui mene a TOUTE la messagerie,
+    // pas aux seuls derniers echanges. La clef garde son nom pour ne pas
+    // toucher ses autres lecteurs eventuels.
+    'recent_messages' => 'Messaging',
     'view_all' => 'View all',
     'no_recent_message' => 'No recent messages.',
     'points_history' => 'My points',
@@ -153,7 +164,7 @@ return [
     'view_all_services' => 'View all my services',
     'my_requests_page_title' => 'My help requests',
     'my_services_page_title' => 'My help proposals',
-    'service_proposals_title' => 'Help proposals',
+    'service_proposals_title' => 'Mutual aid proposals',
     'help_requests_title' => 'Help requests',
     'detail_request_title' => 'Request details',
     'detail_service_title' => 'Service details',

@@ -68,7 +68,7 @@
                 </h3>
                 <div class="space-y-3">
                     @foreach($users as $user)
-                    <a href="{{ route('profile.show', $user) }}"
+                    <a href="{{ route('profile.show', $user->profileRouteKey()) }}"
                        class="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition">
                         <img src="{{ $user->avatar_url }}" class="w-10 h-10 rounded-full flex-shrink-0" alt="">
                         <div>

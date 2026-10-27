@@ -123,7 +123,13 @@ class TASK1606CrossTenantNotFoundTest extends TestCase
         $reponse->assertNotFound();
 
         $this->assertSame(
-            route('organization.home', ['organization' => $this->otherOrg->slug]),
+            // TASK-1685 : la sortie d'un refus INTER-TENANT mene desormais au
+            // TABLEAU DE BORD de son Organization, et non a son accueil
+            // (arbitrage MASTER : une destination ou l'on reprend son travail).
+            // L'invariant de T1606 ne bouge PAS d'un mot — la sortie reste celle
+            // de SON Organization, jamais celle de l'Organization etrangere de
+            // l'URL refusee, et c'est bien ce que cette assertion mesure.
+            route('organization.dashboard', ['organization' => $this->otherOrg->slug]),
             $this->sortie($reponse->getContent()),
             'la sortie du 404 mene a l\'Organization ETRANGERE de l\'URL refusee'
         );
@@ -139,8 +145,11 @@ class TASK1606CrossTenantNotFoundTest extends TestCase
 
         $reponse->assertNotFound();
 
+        // TASK-1685 : sortie vers le TABLEAU DE BORD de son Organization
+        // (arbitrage MASTER). L'invariant de T1606 est inchange — c'est SON
+        // Organization, jamais l'etrangere.
         $this->assertSame(
-            route('organization.home', ['organization' => $this->defaultOrg->slug]),
+            route('organization.dashboard', ['organization' => $this->defaultOrg->slug]),
             $this->sortie($reponse->getContent())
         );
     }

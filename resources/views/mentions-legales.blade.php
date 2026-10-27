@@ -1,4 +1,4 @@
-<x-app-layout title="{{ __('legal.title') }}">
+<x-app-layout title="{{ __('legal.title') }}" :show-internal-navigation="auth()->check() && showsOrganizationInternalNavigation()">
     <x-page-container>
         <div class="mx-auto max-w-4xl rounded-[2rem] border border-[var(--bp-border)] bg-[var(--bp-surface)]/90 p-6 shadow-sm backdrop-blur md:p-10">
             <div class="mb-8">

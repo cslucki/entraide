@@ -164,7 +164,7 @@ class TASK1446AcquisitionJourneyTest extends TestCase
         $this->assertSame('/org/org-a-14xx/admin/acquisition', parse_url($index, PHP_URL_PATH));
         $this->get($index)->assertRedirect();
         $this->actingAs($this->member)->get($index)->assertForbidden();
-        $this->actingAs($this->adminB)->get($index)->assertForbidden();
+        $this->actingAs($this->adminB)->get($index)->assertNotFound();
 
         $html = $this->actingAs($this->adminA)->get($index)->assertOk()->getContent();
         $this->assertStringContainsString('data-acquisition-empty', $html);

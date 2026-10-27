@@ -2,6 +2,9 @@
 
 return [
     'title' => 'Messages',
+
+    // TASK-1703 — le sous-titre de la barre haute de la messagerie.
+    'conversation_count' => '{0}Aucune conversation|{1}1 conversation|[2,*]:count conversations',
     'no_conversations' => 'Aucune conversation',
     'back_to_conversations' => 'Retour aux conversations',
     'select_conversation' => 'Sélectionnez une conversation',
@@ -63,4 +66,15 @@ return [
     'body_or_image_required' => 'Ajoutez un message ou une image.',
     'invalid_file' => 'Seules les images (JPG, PNG, GIF, WebP) sont acceptées.',
     'cross_org' => 'Vous ne pouvez pas démarrer une conversation en dehors de votre organisation.',
+    // TASK-1693 bug AC
+    'send_image' => 'Envoyer une image',
+    // TASK-1704 â la Messagerie accepte desormais des fichiers. La ChatLoop,
+    // elle, n'accepte toujours que des images : les deux intitules coexistent
+    // parce que les deux surfaces ne promettent pas la meme chose.
+    'send_file' => 'Envoyer une image ou un fichier',
+    'invalid_attachment' => 'Ce type de fichier n’est pas accepté, ou il dépasse la taille maximale.',
+    'attachment_fallback_name' => 'Pièce jointe',
+    'attachment_open' => 'Ouvrir',
+    'attachment_download' => 'Télécharger',
+    'take_photo' => 'Prendre une photo',
 ];

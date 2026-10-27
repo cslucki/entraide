@@ -41,6 +41,11 @@ return [
     'channel_email' => 'Par email',
 
     'keys' => [
+        // TASK-1702
+        'blog_co_author_added' => 'On vous a ajouté comme co-auteur d’un article',
+
+        // TASK-1697
+        'blog_comment_created' => 'Un nouveau commentaire sur votre article',
         'loop_invitation' => 'Invitation à rejoindre une Boucle',
 
         // TASK-1381 — deux libellés, parce que ce sont deux faits. Le membre

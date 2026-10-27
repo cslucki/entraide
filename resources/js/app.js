@@ -2,6 +2,7 @@ import './bootstrap';
 import { createEditor } from './blog-editor';
 import './markdown-wysiwyg-editor';
 import { extractEmbedUrl } from './tiptap/media-embed-node.js';
+import { annoncerLePanneau, brancherCarteSurSonPanneau } from './editor/panneaux.js';
 import * as FilePond from 'filepond';
 import 'filepond/dist/filepond.min.css';
 import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
@@ -9,6 +10,44 @@ import FilePondPluginFileValidateSize from 'filepond-plugin-file-validate-size';
 import Sortable from 'sortablejs';
 window.FilePond = FilePond;
 window.createBlogEditor = createEditor;
+
+/**
+ * TASK-1684 — ouvrir le selecteur natif des champs de date au toucher.
+ *
+ * Defaut rapporte en recette mobile : sur la Card Roadmap, toucher le champ
+ * ECHEANCE n'ouvrait RIEN. Le champ est pourtant un `input[type=date]`
+ * ordinaire, et la saisie de texte juste au-dessus fonctionne.
+ *
+ * Cause : `@tailwindcss/forms` applique `appearance: none` aux champs de date.
+ * Sur Chrome Android, un champ de date ainsi neutralise cesse d'ouvrir son
+ * selecteur au toucher — il se comporte comme un champ texte. En desktop, le
+ * clic continue de l'ouvrir : d'ou un defaut invisible hors mobile.
+ *
+ * Ecouteur DELEGUE plutot qu'un `x-on:click` par champ : deux des trois cartes
+ * concernees (Journal, Decisions) n'ont AUCUNE portee Alpine, un attribut
+ * Alpine n'y serait jamais initialise. Delegue, la regle couvre aussi les
+ * champs rendus plus tard par Livewire, et ceux qui n'existent pas encore.
+ *
+ * `showPicker()` exige une activation utilisateur : l'appeler depuis un
+ * gestionnaire de clic la fournit. Le `try` couvre les navigateurs qui le
+ * refusent quand le selecteur est deja ouvert — rien a rattraper, le
+ * comportement natif reste.
+ */
+document.addEventListener('click', (evenement) => {
+    const champ = evenement.target.closest?.(
+        'input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"], input[type="week"]'
+    );
+
+    if (! champ || champ.disabled || champ.readOnly || typeof champ.showPicker !== 'function') {
+        return;
+    }
+
+    try {
+        champ.showPicker();
+    } catch (erreur) {
+        /* Selecteur deja ouvert, ou refus du navigateur : le natif prend le relais. */
+    }
+});
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -1399,7 +1438,6 @@ function registerBlogCoAuthorCard() {
 
         toggle() {
             this.open = !this.open;
-            localStorage.setItem('editor_sidebar_card_coecriture', this.open ? '1' : '0');
             if (this.open) {
                 this._dispatching = true;
                 window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
@@ -1408,14 +1446,16 @@ function registerBlogCoAuthorCard() {
         },
 
         init() {
-            const stored = localStorage.getItem('editor_sidebar_card_coecriture');
-            if (stored !== null) this.open = stored === '1';
             this.loadCoAuthors();
+
+            // TASK-1702 — voir `brancherCarteSurSonPanneau`. L'etat `open`
+            // n'est plus restaure depuis `localStorage` : un pop-up est
+            // toujours ferme au chargement.
+            brancherCarteSurSonPanneau(this, 'coauthors', window);
 
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
                 this.open = false;
-                localStorage.setItem('editor_sidebar_card_coecriture', '0');
             });
         },
 
@@ -1668,7 +1708,6 @@ function registerBlogDossierCard() {
 
         toggle() {
             this.open = !this.open;
-            localStorage.setItem('editor_sidebar_card_dossier', this.open ? '1' : '0');
             if (this.open) {
                 this.loadCurrent();
                 this.loadDossiers();
@@ -1679,17 +1718,14 @@ function registerBlogDossierCard() {
         },
 
         init() {
-            const stored = localStorage.getItem('editor_sidebar_card_dossier');
-            if (stored !== null) this.open = stored === '1';
-            if (this.open) {
-                this.loadCurrent();
-                this.loadDossiers();
-            }
+            // TASK-1702 — voir `brancherCarteSurSonPanneau`. L'etat `open`
+            // n'est plus restaure depuis `localStorage` : un pop-up est
+            // toujours ferme au chargement.
+            brancherCarteSurSonPanneau(this, 'dossier', window);
 
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
                 this.open = false;
-                localStorage.setItem('editor_sidebar_card_dossier', '0');
             });
         },
 
@@ -3498,6 +3534,191 @@ function registerDossierFilesCard() {
 
     FilePond.registerPlugin(FilePondPluginFileValidateType, FilePondPluginFileValidateSize);
 
+    /**
+     * TASK-1695 — partager un fichier depuis « Partages ».
+     *
+     * Dernier point de la liste de Cyril : ajouter des personnes SANS revenir
+     * sur la page du Dossier.
+     *
+     * ## Pourquoi un composant a part, et non `dossierFilesCard`
+     *
+     * Celui-ci porte le televersement, le deplacement, la corbeille, les
+     * Series, la selection multiple — tout un Drive. « Partages » n'a aucun de
+     * ces gestes et n'a meme pas de Dossier courant : l'ecran liste des
+     * fichiers venus de dossiers DIFFERENTS. L'y brancher aurait demande de
+     * neutraliser la moitie de son etat.
+     *
+     * ## Le contrat, au mot pres
+     *
+     * Les memes noms d'etat et de methodes que `dossierFilesCard`, parce que
+     * les deux rendent le MEME partiel (`partials/file-share-modal`). Toute
+     * divergence de nom casserait l'un des deux ecrans en silence.
+     *
+     * ## Le Dossier vient du FICHIER
+     *
+     * `urlPartages()` lit `shareTarget.dossier_id` et non une propriete du
+     * composant : ici chaque ligne peut appartenir a un Dossier different.
+     * Une valeur unique au niveau du composant aurait vise le mauvais Dossier
+     * des la deuxieme ligne.
+     */
+    Alpine.data('fileSharePanel', (config) => ({
+        csrfToken: config.csrfToken,
+        orgParam: config.orgParam,
+        i18n: config.i18n || {},
+
+        showShareModal: false,
+        showPeekModal: false,
+        shareTarget: null,
+        shareQuery: '',
+        shareResults: [],
+        shareCurrent: [],
+        // TASK-1695 (5a) — les Boucles : celles ou je peux partager, et les
+        // partages de Boucle deja poses. Remplis par le MEME chargement que
+        // les partages nominatifs : un seul aller-retour, aucun etat qui
+        // puisse diverger de l'autre fenetre.
+        shareLoops: [],
+        shareLoopShares: [],
+        shareCanManage: false,
+        shareLoading: false,
+        // TASK-1697 (3) — ai-je touche aux partages depuis l'ouverture ?
+        shareModifie: false,
+
+        /**
+         * Premier temps — les MEMES noms que `dossierFilesCard`, parce que les
+         * deux rendent le meme partiel `file-share-peek`.
+         */
+        ouvrirApercuPartages(file) {
+            this.shareTarget = file;
+            this.shareCurrent = [];
+            this.showPeekModal = true;
+            this.chargerPartages();
+        },
+
+        passerAuPartageComplet() {
+            this.showPeekModal = false;
+            this.openShareModal(this.shareTarget);
+        },
+
+        openShareModal(file) {
+            this.shareTarget = file;
+            this.shareQuery = '';
+            this.shareResults = [];
+            this.shareCurrent = [];
+            this.showShareModal = true;
+            this.chargerPartages();
+        },
+
+        urlPartages(suffixe = '') {
+            return `/org/${this.orgParam}/dossiers/${this.shareTarget.dossier_id}/files/${this.shareTarget.id}/shares${suffixe}`;
+        },
+
+        async requete(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        ...(options.headers || {}),
+                    },
+                    ...options,
+                });
+
+                return response.ok ? await response.json() : null;
+            } catch (e) {
+                return null;
+            }
+        },
+
+        async chargerPartages() {
+            if (!this.shareTarget) return;
+            this.shareLoading = true;
+            const data = await this.requete(this.urlPartages());
+            this.shareCurrent = data?.shares || [];
+            this.shareLoops = data?.loops || [];
+            this.shareLoopShares = data?.loop_shares || [];
+            // TASK-1695 (point 7) — le panneau se tait sur les actions quand
+            // on ne gere pas. Le serveur refuse de toute facon ; l'ecran ne
+            // propose pas ce qu'il refusera.
+            this.shareCanManage = data?.can_manage === true;
+            this.shareLoading = false;
+        },
+
+        /**
+         * TASK-1697 (3) — fermer APRES avoir modifie recharge la page.
+         *
+         * Cet ecran est rendu au SERVEUR : le tableau, la colonne « Partage
+         * avec » et la presence meme de la ligne viennent du HTML. Retirer le
+         * dernier partage doit faire SORTIR le fichier de la liste — aucun
+         * rafraichissement local ne peut l'obtenir.
+         *
+         * Le rechargement attend la FERMETURE, pas la mutation : recharger a
+         * chaque clic fermerait la fenetre au milieu d'un ajout.
+         */
+        fermerPartage() {
+            this.showShareModal = false;
+            this.showPeekModal = false;
+
+            if (this.shareModifie) {
+                window.location.reload();
+            }
+        },
+
+        async partagerAvecBoucle(loop) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            await this.requete(this.urlPartages('/loops'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ loop_id: loop.id }),
+            });
+            this.shareLoading = false;
+            this.shareModifie = true;
+            await this.chargerPartages();
+        },
+
+        async retirerPartageBoucle(share) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            await this.requete(this.urlPartages('/loops/' + share.id), { method: 'DELETE' });
+            this.shareLoading = false;
+            this.shareModifie = true;
+            await this.chargerPartages();
+        },
+
+        async chercherMembres() {
+            if (!this.shareTarget) return;
+            this.shareLoading = true;
+            const data = await this.requete(this.urlPartages('/search') + '?q=' + encodeURIComponent(this.shareQuery || ''));
+            this.shareResults = data?.users || [];
+            this.shareLoading = false;
+        },
+
+        async partagerAvec(user) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            await this.requete(this.urlPartages(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: user.id }),
+            });
+            this.shareQuery = '';
+            this.shareResults = [];
+            this.shareLoading = false;
+            this.shareModifie = true;
+            await this.chargerPartages();
+        },
+
+        async retirerPartage(share) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            await this.requete(this.urlPartages('/' + share.id), { method: 'DELETE' });
+            this.shareLoading = false;
+            this.shareModifie = true;
+            await this.chargerPartages();
+        },
+    }));
+
     Alpine.data('dossierFilesCard', (config) => ({
         // TASK-1130 : la surface a deux angles — Documents (la liste) et
         // Series (l'editorial). Un etat d'affichage, pas un moteur.
@@ -3551,6 +3772,20 @@ function registerDossierFilesCard() {
         showRenameModal: false,
         renameTarget: null,
         renameValue: '',
+        // TASK-1695 — partager UN fichier, en LECTURE, avec des membres de
+        // l'Organization. Le partage ne donne acces ni au Dossier qui contient
+        // le fichier, ni a ses voisins : l'ecran le dit, parce que personne ne
+        // devinerait une borne aussi etroite.
+        showShareModal: false,
+        shareTarget: null,
+        shareQuery: '',
+        shareResults: [],
+        shareCurrent: [],
+        shareLoops: [],
+        shareLoopShares: [],
+        shareCanManage: false,
+        showPeekModal: false,
+        shareLoading: false,
         // « Retirer de cette Boucle » (CAS B) : une confirmation legere avant
         // le PATCH — retirer un partage n'est pas supprimer, le ton du modal
         // n'est pas celui d'une destruction.
@@ -3600,6 +3835,10 @@ function registerDossierFilesCard() {
         dossierId: config.dossierId,
         orgParam: config.orgParam,
         canManageFiles: config.canManageFiles,
+        // TASK-1695 (5b) — le moteur de depot (FilePond) suit `uploadFiles`,
+        // l'autorite du SERVEUR pour deposer : un membre de Boucle sans
+        // `manageFiles` doit pouvoir televerser.
+        canUploadFiles: config.canUploadFiles,
         canDeleteFiles: config.canDeleteFiles,
         i18n: config.i18n,
         currentPage: 1,
@@ -4074,7 +4313,7 @@ function registerDossierFilesCard() {
                     else if (this.selectionCount) { this.viderSelection(); }
                 }
             });
-            if (this.canManageFiles && this.$refs.filePondContainer) {
+            if (this.canUploadFiles && this.$refs.filePondContainer) {
                 const self = this;
                 const acceptedTypes = [
                     'image/jpeg', 'image/png', 'image/webp', 'image/gif',
@@ -4536,6 +4775,196 @@ function registerDossierFilesCard() {
 
         finAppui() {
             clearTimeout(this._appuiTimer);
+        },
+
+        /**
+         * TASK-1695 — ouvrir le partage d'un fichier.
+         *
+         * La liste des partages en place est RELUE a chaque ouverture, jamais
+         * gardee d'une fois sur l'autre : deux onglets, ou un retrait fait
+         * ailleurs, rendraient sinon un ecran qui ment sur l'etat reel.
+         */
+        /**
+         * TASK-1695 (point 1 de Cyril) — PREMIER temps de l'apercu de partage.
+         *
+         * Ergonomie en deux temps, voulue par Cyril et calquee sur Drive :
+         * d'abord « avec qui, et puis-je arreter ? », et SEULEMENT si besoin la
+         * fenetre complete avec sa recherche de membres. Ouvrir d'emblee la
+         * grande fenetre pour repondre a « c'est partage avec qui ? » demande
+         * de traverser un formulaire pour lire une information.
+         *
+         * Le panneau reutilise `shareTarget` et `shareCurrent` : la meme cible
+         * et la meme liste que la grande fenetre. Deux etats separes auraient
+         * pu diverger — retirer quelqu'un dans l'un sans que l'autre le sache.
+         */
+        ouvrirApercuPartages(file) {
+            this.shareTarget = file;
+            this.shareCurrent = [];
+            this.showPeekModal = true;
+            this.chargerPartages();
+        },
+
+        /** Second temps : la fenetre complete, en gardant la cible. */
+        passerAuPartageComplet() {
+            this.showPeekModal = false;
+            this.openShareModal(this.shareTarget);
+        },
+
+        /**
+         * TASK-1697 (3) — la LISTE derriere la fenetre suit les partages.
+         *
+         * Signale par Cyril : retirer un partage laissait la colonne
+         * « Partage » afficher « Partage » jusqu'au rechargement manuel.
+         * `chargerPartages()` rafraichissait la fenetre, jamais la ligne —
+         * `shares_count` et `loop_shares_count` voyagent avec le FICHIER, pas
+         * avec le partage.
+         *
+         * On recharge la page COURANTE : revenir a la page 1 ferait sauter
+         * l'ecran sous les yeux de qui gere un fichier en page 3.
+         */
+        async rafraichirLaListe() {
+            await this.loadFiles(this.currentPage || 1);
+        },
+
+        /**
+         * Meme nom que dans `fileSharePanel` : les deux rendent le MEME
+         * partiel. Ici la liste est locale et deja a jour — fermer ne fait que
+         * fermer, aucun rechargement de page.
+         */
+        fermerPartage() {
+            this.showShareModal = false;
+            this.showPeekModal = false;
+        },
+
+        openShareModal(file) {
+            this.shareTarget = file;
+            this.shareQuery = '';
+            this.shareResults = [];
+            this.shareCurrent = [];
+            this.showShareModal = true;
+            this.chargerPartages();
+        },
+
+        urlPartages(suffixe = '') {
+            return `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${this.shareTarget.id}/shares${suffixe}`;
+        },
+
+        async chargerPartages() {
+            if (!this.shareTarget) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages(), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                const data = await response.json();
+                this.shareCurrent = data.shares || [];
+                this.shareCanManage = data.can_manage === true;
+                // TASK-1695 (5a) — memes champs que `fileSharePanel` : le
+                // partiel est partage, le contrat de noms aussi.
+                this.shareLoops = data.loops || [];
+                this.shareLoopShares = data.loop_shares || [];
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async chercherMembres() {
+            if (!this.shareTarget) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages('/search') + '?q=' + encodeURIComponent(this.shareQuery || ''), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                this.shareResults = (await response.json()).users || [];
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async partagerAvec(user) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages(), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ user_id: user.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) { this.showMessage(data.message || this.i18n.networkError, 'error'); return; }
+                // On relit plutot que de deviner : le serveur est l'autorite sur
+                // ce qui est partage, et un etat local recompose finirait par
+                // s'ecarter du sien.
+                this.shareQuery = '';
+                this.shareResults = [];
+                await this.chargerPartages();
+                await this.rafraichirLaListe();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async partagerAvecBoucle(loop) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages('/loops'), {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ loop_id: loop.id }),
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                await this.chargerPartages();
+                await this.rafraichirLaListe();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async retirerPartageBoucle(share) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages('/loops/' + share.id), {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                await this.chargerPartages();
+                await this.rafraichirLaListe();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
+        },
+
+        async retirerPartage(share) {
+            if (!this.shareTarget || this.shareLoading) return;
+            this.shareLoading = true;
+            try {
+                const response = await fetch(this.urlPartages('/' + share.id), {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) { this.showMessage(this.i18n.networkError, 'error'); return; }
+                await this.chargerPartages();
+                await this.rafraichirLaListe();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.shareLoading = false;
+            }
         },
 
         openRenameModal(file) {
@@ -5509,13 +5938,6 @@ function registerBlogLoopCard() {
         _pollInterval: null,
         _fingerprint: '',
 
-        init() {
-            // Le badge de la barre est alimente des l'ouverture de la page, puis
-            // a chaque liaison ou deliaison.
-            this.publishBadge();
-            this.$watch('linkedLoops', () => this.publishBadge());
-        },
-
         get availableLoops() {
             const linkedIds = new Set(this.linkedLoops.map(l => l.id));
             return this.userLoops.filter(l => !linkedIds.has(l.id));
@@ -5523,7 +5945,6 @@ function registerBlogLoopCard() {
 
         toggle() {
             this.open = !this.open;
-            localStorage.setItem('editor_sidebar_card_boucle', this.open ? '1' : '0');
             if (this.open) {
                 this.loadMessages();
                 this._startPolling();
@@ -5535,16 +5956,38 @@ function registerBlogLoopCard() {
             }
         },
 
+        /**
+         * TASK-1702 — UN SEUL `init()`.
+         *
+         * Cet objet en portait DEUX, et en JavaScript la seconde clef ecrase la
+         * premiere en silence : `publishBadge()` et son `$watch` n'ont jamais
+         * tourne. Les deux corps sont ici fusionnes.
+         *
+         * A connaitre : rien ne lit encore `store.loopName` dans les vues, donc
+         * ce rattrapage ne change aucun pixel aujourd'hui. Il est fait parce
+         * que la Card doit cesser de mentir sur ce qu'elle execute — et parce
+         * qu'un `init()` fantome est un piege pour le prochain qui y ajoutera
+         * une ligne, comme le branchement ci-dessous.
+         */
         init() {
-            const stored = localStorage.getItem('editor_sidebar_card_boucle');
-            if (stored !== null) this.open = stored === '1';
+            // Le badge de la barre est alimente des l'ouverture de la page, puis
+            // a chaque liaison ou deliaison.
+            this.publishBadge();
+            this.$watch('linkedLoops', () => this.publishBadge());
+
             this.loadMessages();
-            if (this.open) this._startPolling();
+
+            // TASK-1702 — la Card suit desormais son pop-up. L'etat `open`
+            // n'est plus restaure depuis `localStorage` : cette memoire datait
+            // du bloc repliable d'avant TASK-1085 et n'a plus d'objet, un
+            // pop-up etant toujours ferme au chargement de la page. Pire, un
+            // `'1'` laisse par l'ancienne interface aurait desynchronise le
+            // pont des la premiere ouverture.
+            brancherCarteSurSonPanneau(this, 'boucle', window);
 
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
                 this.open = false;
-                localStorage.setItem('editor_sidebar_card_boucle', '0');
                 this._stopPolling();
             });
 
@@ -5755,7 +6198,6 @@ function registerBlogTodoCard() {
 
         toggle() {
             this.open = !this.open;
-            localStorage.setItem('editor_sidebar_card_todo', this.open ? '1' : '0');
             if (this.open) {
                 this.loadTodos();
                 this.startPolling();
@@ -5768,15 +6210,14 @@ function registerBlogTodoCard() {
         },
 
         init() {
-            if (localStorage.getItem('editor_sidebar_card_todo') === '1') {
-                this.open = true;
-                this.loadTodos();
-                this.startPolling();
-            }
+            // TASK-1702 — voir `brancherCarteSurSonPanneau`. L'etat `open`
+            // n'est plus restaure depuis `localStorage` : un pop-up est
+            // toujours ferme au chargement.
+            brancherCarteSurSonPanneau(this, 'todo', window);
+
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
                 this.open = false;
-                localStorage.setItem('editor_sidebar_card_todo', '0');
                 this.stopPolling();
             });
             window.addEventListener('snapshot-restore', () => {
@@ -6201,6 +6642,25 @@ window.blogAnnotationCard = function (config) {
         success: '',
         filterTab: 'open',
         sourceFilter: 'all',
+
+        /**
+         * TASK-1702 — les trois filtres de SOURCE sont-ils offerts ?
+         *
+         * Ils disparaissent quand l'IA est eteinte sur l'Organization : sans
+         * elle il n'existe qu'un seul type d'annotation, et trois boutons pour
+         * un seul ensemble ne trient rien.
+         *
+         * Ce drapeau est la pour une consequence MOINS evidente, et plus
+         * genante : `openForAnnotation()` bascule le filtre sur `ai_method`
+         * quand on ouvre une annotation d'origine IA. Une Organization qui
+         * eteint l'IA APRES COUP garde ses questionnements ; cliquer l'un
+         * d'eux dans le texte poserait donc un filtre que plus aucun bouton ne
+         * permet de retirer. L'ecran se figerait sur une vue partielle.
+         *
+         * Par defaut `true` : un appelant qui ne passe rien garde le
+         * comportement d'avant.
+         */
+        sourceFiltersAvailable: config.sourceFiltersAvailable !== false,
         selectedAnnotationId: null,
         deletedFeedbackAnnotationId: null,
         replyContents: {},
@@ -6327,7 +6787,7 @@ window.blogAnnotationCard = function (config) {
             window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
             this._dispatching = false;
 
-            if (origin === 'ai_method') {
+            if (this.sourceFiltersAvailable && origin === 'ai_method') {
                 this.sourceFilter = 'ai_method';
             }
 
@@ -6335,7 +6795,7 @@ window.blogAnnotationCard = function (config) {
                 const annotation = this.annotations.find(a => a.id === id);
                 if (annotation) {
                     this.filterTab = annotation.status || 'open';
-                    if ((annotation.origin || origin) === 'ai_method') {
+                    if (this.sourceFiltersAvailable && (annotation.origin || origin) === 'ai_method') {
                         this.sourceFilter = 'ai_method';
                     }
                 }
@@ -7786,17 +8246,32 @@ document.addEventListener('alpine:init', () => {
 
         toggle(name) {
             this.open = this.open === name ? null : name;
+            this.annoncer();
         },
 
         close() {
             this.open = null;
+            this.annoncer();
         },
 
         isOpen(name) {
             return this.open === name;
         },
+
+        /**
+         * TASK-1702 — le store DIT quand il change.
+         *
+         * Sans cette annonce, il ne gouvernait que l'enveloppe du pop-up : les
+         * quatre Cards, elles, gardaient leur propre `open` a `false` et leur
+         * corps restait masque. Voir `editor/panneaux.js`.
+         */
+        annoncer() {
+            annoncerLePanneau(this.open, window);
+        },
     });
 });
+
+
 
 document.addEventListener('alpine:init', () => {
     registerAlpineStores();

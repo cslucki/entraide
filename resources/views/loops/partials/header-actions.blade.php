@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 {{--
     Les actions de la Boucle, sur une seule ligne.
 
@@ -65,7 +66,11 @@
          gestion : elle reste dans la rangée visible plutôt que sous « Gérer ».
          La route n'existe que dans le contexte Organization, comme « Outils » :
          la Boucle appartient à un tenant. --}}
-    @if($_org ?? null)
+    {{-- TASK-1693 bug AP — « Rattrape-moi » est une LECTURE PRODUITE PAR L'IA :
+         elle disparait avec l'interrupteur de l'Organization. La Card « Resume
+         IA » voisine est gardee plus haut, a l'autorite des Cards ; celle-ci
+         n'est pas une Card mais un lien, d'ou une garde propre. --}}
+    @if(($_org ?? null) && $_aiGate->availableHere())
         <a href="{{ route('organization.loops.catch-up', ['organization' => $_org, 'loop' => $currentLoop->id]) }}"
            data-loop-catch-up-link
            class="{{ $shape }} {{ $quiet }} px-2.5"

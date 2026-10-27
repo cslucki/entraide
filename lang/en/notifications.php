@@ -41,6 +41,11 @@ return [
     'channel_email' => 'By email',
 
     'keys' => [
+        // TASK-1702
+        'blog_co_author_added' => 'You were added as a co-author of an article',
+
+        // TASK-1697
+        'blog_comment_created' => 'A new comment on your article',
         'loop_invitation' => 'Invitation to join a Loop',
 
         // TASK-1381 — two labels, because these are two facts. The member must

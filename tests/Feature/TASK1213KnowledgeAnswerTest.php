@@ -75,6 +75,12 @@ class TASK1213KnowledgeAnswerTest extends TestCase
         $this->member = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->otherMember = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->stranger = User::factory()->create(['organization_id' => $this->otherOrganization->id]);
+        // TASK-1679 : le document racine ne nait plus a la creation que si le
+        // preset du type active `core.manifesto`. Ces tests mesurent la source
+        // structurelle `dossier.manifest`, qui en depend : on le remet au socle.
+        $settings = app(\App\Services\LoopTypeSettingsService::class);
+        $settings->save('general', array_merge($settings->cardsFor('general'), ['core.manifesto']), $settings->isAvailable('general'));
+
         $this->loop = (new LoopService)->createLoop($this->member, 'Boucle RAG');
 
         app()->instance('current_organization', $this->organization);

@@ -4,10 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\BlogPost;
 use App\Models\User;
+use App\Support\Notifications\NotificationCatalogue;
+use App\Support\Notifications\NotificationEmissionConflict;
+use App\Support\Notifications\NotificationEmitter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use Ramsey\Uuid\Uuid;
 
 class BlogCoAuthorController extends Controller
 {
@@ -71,6 +76,8 @@ class BlogCoAuthorController extends Controller
             'added_by' => $request->user()->id,
         ]);
 
+        $this->prevenirLeCoAuteur($post, $user, $request->user());
+
         return response()->json([
             'co_author' => [
                 'id' => $user->id,
@@ -81,6 +88,57 @@ class BlogCoAuthorController extends Controller
             ],
             'message' => __('blog.co_author_added'),
         ]);
+    }
+
+    /**
+     * TASK-1702 — prevenir celui qu'on vient d'ajouter.
+     *
+     * Cyril : « quand on ajoute un auteur X en co-ecriture, il doit recevoir
+     * une notification dans l'application pour l'informer de cela. »
+     *
+     * ## Ce que cette methode ne doit JAMAIS faire
+     *
+     * Empecher l'ajout. La co-ecriture est deja enregistree quand on arrive
+     * ici ; une panne du canal de notification ne doit pas la defaire ni
+     * rendre une erreur a l'ecran. D'ou les deux `catch` : le conflit est
+     * normal (on a deja prevenu cette personne pour cet article), le reste est
+     * journalise et tu. Meme forme qu'en TASK-1697 pour les commentaires.
+     *
+     * ## L'identifiant d'evenement
+     *
+     * `uuid5` deterministe derive de la CLE et de l'ARTICLE. La table porte
+     * `UNIQUE(event_id, recipient_id)` : le destinataire n'a donc pas besoin
+     * d'entrer dans le nom — deux co-auteurs du meme article recoivent bien
+     * chacun la leur, et retirer puis re-ajouter la meme personne ne la
+     * previent pas deux fois.
+     */
+    private function prevenirLeCoAuteur(BlogPost $post, User $coAuteur, ?User $acteur): void
+    {
+        try {
+            app(NotificationEmitter::class)->emit(
+                notificationKey: NotificationCatalogue::BLOG_CO_AUTHOR_ADDED,
+                organization: (string) $post->organization_id,
+                recipient: $coAuteur,
+                eventId: (string) Uuid::uuid5(
+                    Uuid::NAMESPACE_URL,
+                    'bouclepro:notification:'.NotificationCatalogue::BLOG_CO_AUTHOR_ADDED.':'.$post->id,
+                ),
+                objectType: NotificationCatalogue::objectTypeFor(NotificationCatalogue::BLOG_CO_AUTHOR_ADDED),
+                objectId: (string) $post->id,
+                // L'acteur n'est porte que s'il appartient au MEME tenant : une
+                // notification ne doit pas nommer quelqu'un d'une autre
+                // Organization.
+                actor: $acteur !== null && (string) $acteur->organization_id === (string) $post->organization_id ? $acteur : null,
+            );
+        } catch (NotificationEmissionConflict) {
+            // Deja prevenu pour cet article. Un rejeu n'est pas une anomalie.
+        } catch (\Throwable $echec) {
+            Log::warning('TASK-1702 notification de co-ecriture non emise', [
+                'blog_post_id' => $post->id,
+                'co_author_id' => $coAuteur->id,
+                'raison' => $echec->getMessage(),
+            ]);
+        }
     }
 
     public function destroy(BlogPost $post, User $user): JsonResponse

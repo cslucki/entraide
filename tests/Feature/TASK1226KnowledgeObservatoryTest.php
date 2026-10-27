@@ -349,7 +349,7 @@ class TASK1226KnowledgeObservatoryTest extends TestCase
         $this->chunkForFile($orgB, $dossierB, $fileB);
 
         $this->actingAs($memberA)->get($this->liveUrl($orgA))->assertForbidden();
-        $this->actingAs($adminB)->get($this->liveUrl($orgA))->assertForbidden();
+        $this->actingAs($adminB)->get($this->liveUrl($orgA))->assertNotFound();
 
         $response = $this->actingAs($adminA)->get($this->liveUrl($orgA));
         $response->assertOk();

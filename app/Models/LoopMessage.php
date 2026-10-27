@@ -29,6 +29,7 @@ class LoopMessage extends Model
         'pinned_at',
         'pinned_by_id',
         'edited_at',
+        'edited_by',
         'deleted_at',
         'deleted_by',
     ];
@@ -66,6 +67,12 @@ class LoopMessage extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(self::class, 'reply_to_id');
+    }
+
+    /** TASK-1693 bug Q — qui a modifie ce message, s'il l'a ete. */
+    public function editedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'edited_by');
     }
 
     public function pinnedBy(): BelongsTo

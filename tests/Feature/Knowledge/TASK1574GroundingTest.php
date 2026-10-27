@@ -96,6 +96,14 @@ class TASK1574GroundingTest extends TestCase
             'organization_id' => $this->organization->id, 'provider' => 'openrouter', 'model' => 'openai/gpt-4o-mini', 'api_key' => 'sk-test-1574',
         ]);
 
+        // TASK-1679 : le document racine ne nait plus a la creation que si le
+        // preset du type active `core.manifesto`. Ces tests dependent du
+        // document racine lui-meme : on le remet au socle des types employes.
+        $settings = app(\App\Services\LoopTypeSettingsService::class);
+        foreach (['general', 'project'] as $type) {
+            $settings->save($type, array_merge($settings->cardsFor($type), ['core.manifesto']), $settings->isAvailable($type));
+        }
+
         $this->loop = (new LoopService)->createLoop($this->membre, 'Boucle du grounding');
         $this->dossier = Dossier::factory()->create([
             'organization_id' => $this->organization->id, 'owner_id' => $this->membre->id, 'name' => 'Dossier de la Boucle',

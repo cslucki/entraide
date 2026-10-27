@@ -394,7 +394,7 @@ class TASK1219AiConsumptionTest extends TestCase
         [$orgA] = $this->organizationWithAdmin();
         [, $adminB] = $this->organizationWithAdmin();
 
-        $this->actingAs($adminB)->get($this->consoleUrl($orgA))->assertForbidden();
+        $this->actingAs($adminB)->get($this->consoleUrl($orgA))->assertNotFound();
     }
 
     /**
@@ -791,10 +791,28 @@ class TASK1219AiConsumptionTest extends TestCase
     /**
      * @return array{0: Organization, 1: User}
      */
+    /**
+     * Un compteur, pour que CHAQUE nom soit unique par construction.
+     *
+     * TASK-1693 — trois tests de ce fichier affirment qu'un nom d'une AUTRE
+     * Organization ne parait pas. Les deux noms venaient de la fabrique : le
+     * jour ou elle a tire « Carroll » des deux cotes, l'assertion a rougi sans
+     * qu'aucune donnee ne fuie. Faux rouge trouve par le gate SQLite le
+     * 2026-10-22, meme famille que la lecon TASK-1672 ou « grand » entrait en
+     * collision avec « Legrand ».
+     *
+     * Ce que les assertions garantissent est INCHANGE ; elles cessent
+     * seulement de dependre du hasard.
+     */
+    private int $compteurDeNoms = 0;
+
     private function organizationWithAdmin(): array
     {
         $organization = Organization::factory()->create();
-        $admin = User::factory()->create(['organization_id' => $organization->id]);
+        $admin = User::factory()->create([
+            'organization_id' => $organization->id,
+            'name' => 'T1219 Membre '.(++$this->compteurDeNoms),
+        ]);
         $organization->update(['admin_id' => $admin->id]);
 
         return [$organization->fresh(), $admin];

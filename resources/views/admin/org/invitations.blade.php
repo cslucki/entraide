@@ -20,14 +20,14 @@
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
                     <td class="px-4 py-3">
                         @if($ref->referrer)
-                        <a href="{{ route('profile.show', $ref->referrer) }}" class="text-indigo-600 hover:underline text-xs font-medium">{{ $ref->referrer->name }}</a>
+                        <a href="{{ route('profile.show', $ref->referrer->profileRouteKey()) }}" class="text-indigo-600 hover:underline text-xs font-medium">{{ $ref->referrer->name }}</a>
                         @else
                         <span class="text-xs text-gray-400">—</span>
                         @endif
                     </td>
                     <td class="px-4 py-3">
                         @if($ref->referredUser)
-                        <a href="{{ route('profile.show', $ref->referredUser) }}" class="text-indigo-600 hover:underline text-xs font-medium">{{ $ref->referredUser->name }}</a>
+                        <a href="{{ route('profile.show', $ref->referredUser->profileRouteKey()) }}" class="text-indigo-600 hover:underline text-xs font-medium">{{ $ref->referredUser->name }}</a>
                         @else
                         <span class="text-xs text-gray-400">—</span>
                         @endif

@@ -47,7 +47,7 @@
                                 </td>
                                 <td class="px-5 py-4 whitespace-nowrap">
                                     @if($service->category)
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: {{ $service->category->color ?? '#e5e7eb' }}20; color: {{ $service->category->color ?? '#6b7280' }}">{{ $service->category->name }}</span>
+                                    <span data-service-category class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: {{ $service->category->color ?? '#e5e7eb' }}20; color: {{ $service->category->color ?? '#6b7280' }}">{{ $service->category->displayName('transactions') }}</span>
                                     @endif
                                 </td>
                                 <td class="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400">{{ $service->points_cost }} pts</td>

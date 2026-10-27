@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 <nav x-data="{ open: false }" class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
@@ -145,7 +146,7 @@
                     </x-slot>
                     <x-slot name="content">
                         <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')"><span class="font-medium">{{ __('navigation.dashboard') }}</span></x-dropdown-link>
-                        <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()]) : route('profile.show', Auth::user())">{{ __('navigation.profile') }}</x-dropdown-link>
+                        <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()->profileRouteKey()]) : route('profile.show', Auth::user()->profileRouteKey())">{{ __('navigation.profile') }}</x-dropdown-link>
                         @if(!$tenant || $tenant->ai_profiles_enabled)
                         <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('agent-ia.interactions')">{{ __('navigation.ai_interactions') }}</x-dropdown-link>
@@ -163,7 +164,11 @@
                         <x-dropdown-link :href="$dossiersHref" :active="request()->routeIs('organization.dossiers.*')">{{ __('navigation.my_dossiers') }}</x-dropdown-link>
                         @endif
                         <x-dropdown-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-dropdown-link>
-                        <x-dropdown-link :href="route('profile.ai-usage')">{{ __('navigation.my_ai_usage') }}</x-dropdown-link>
+                        {{-- TASK-1693 bug AP — meme garde que dans le menu avatar du
+                             gabarit applicatif. --}}
+                        @if($_aiGate->availableHere())
+                        <x-dropdown-link :href="route('profile.ai-usage')" data-nav-ai-usage>{{ __('navigation.my_ai_usage') }}</x-dropdown-link>
+                        @endif
                         @if(Auth::user()->is_admin)
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('admin.dashboard')"><span class="text-purple-600 dark:text-purple-400 font-medium">{{ __('navigation.administration') }}</span></x-dropdown-link>
@@ -258,7 +263,7 @@
             </div>
             <div class="mt-1 space-y-1">
                 <x-responsive-nav-link :href="route('dashboard')">{{ __('navigation.dashboard') }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()]) : route('profile.show', Auth::user())">{{ __('navigation.profile') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()->profileRouteKey()]) : route('profile.show', Auth::user()->profileRouteKey())">{{ __('navigation.profile') }}</x-responsive-nav-link>
                 @if(!$tenant || $tenant->ai_profiles_enabled)
                 <x-responsive-nav-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('agent-ia.interactions')">{{ __('navigation.ai_interactions') }}</x-responsive-nav-link>
@@ -274,7 +279,9 @@
                 <x-responsive-nav-link :href="$dossiersHref" :active="request()->routeIs('organization.dossiers.*')">{{ __('navigation.my_dossiers') }}</x-responsive-nav-link>
                 @endif
                 <x-responsive-nav-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('profile.ai-usage')">{{ __('navigation.my_ai_usage') }}</x-responsive-nav-link>
+                @if($_aiGate->availableHere())
+                <x-responsive-nav-link :href="route('profile.ai-usage')" data-nav-ai-usage>{{ __('navigation.my_ai_usage') }}</x-responsive-nav-link>
+                @endif
                 @if(Auth::user()->is_admin)
                 <x-responsive-nav-link :href="route('admin.dashboard')">{{ __('navigation.administration') }}</x-responsive-nav-link>
                 @endif

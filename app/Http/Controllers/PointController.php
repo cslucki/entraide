@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\EmailLog;
-use App\Models\SystemEmailTemplate;
+use App\Support\Email\SystemEmailTemplateResolver;
 use App\Models\Transaction;
 use App\Services\EmailerService;
 use Illuminate\Http\RedirectResponse;
@@ -91,11 +91,11 @@ class PointController extends Controller
             return back()->with('error', __('points.email_error'));
         }
 
-        $template = SystemEmailTemplate::where('slug', 'referral_invitation')
-            ->where('enabled', true)
-            ->where('organization_id', $user->organization_id)
-            ->where('locale', app()->getLocale())
-            ->first();
+        // TASK-1694 bug M — la resolution passe par l'autorite unique. Elle ne
+        // regardait que les lignes du tenant : une ligne « Global » lui etait
+        // invisible.
+        $template = app(SystemEmailTemplateResolver::class)
+            ->resolve('referral_invitation', $user->organization_id);
 
         $emailer = app(EmailerService::class);
         $senderMessage = filled($data['message'] ?? null)

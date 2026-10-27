@@ -84,13 +84,34 @@ class LoopGovernanceService
      * because the guard is the same in both directions: the change must not
      * leave the Loop without an active owner.
      */
-    public function changeRole(LoopMember $member, string $targetRole): string
+    /**
+     * TASK-1693 bug P — `$autoriserDepartDuDernierProprietaire`, et pourquoi il
+     * est un PARAMETRE plutot qu'une suppression de la garde.
+     *
+     * L'invariant « il reste au moins un proprietaire actif » protege un etat
+     * reel : une Boucle orpheline ne se gouverne plus que par
+     * l'administration. Il reste donc la regle, et la valeur par defaut est
+     * `false` : les quatre ecrans et tous les appelants existants sont
+     * inchanges a l'octet.
+     *
+     * MASTER a demande (21/10) de pouvoir malgre tout retrograder le dernier
+     * proprietaire depuis l'ADMINISTRATION — « option B, et on garde A ». Ce
+     * drapeau est donc une derogation NOMMEE, demandee explicitement a chaque
+     * appel, jamais un assouplissement general : un appelant qui l'ignore
+     * continue de se faire refuser.
+     *
+     * Il ne vaut que pour la RETROGRADATION. Le retrait pur et simple du
+     * dernier proprietaire reste refuse : une fois retrograde, la personne
+     * n'est plus proprietaire et « Retirer » redevient disponible par
+     * composition. On n'ouvre donc qu'une porte, pas deux.
+     */
+    public function changeRole(LoopMember $member, string $targetRole, bool $autoriserDepartDuDernierProprietaire = false): string
     {
         if (! $this->roles->isCanonical($targetRole)) {
             return self::RESULT_INVALID_ROLE;
         }
 
-        return DB::transaction(function () use ($member, $targetRole) {
+        return DB::transaction(function () use ($member, $targetRole, $autoriserDepartDuDernierProprietaire) {
             // Lock the whole Loop's memberships, not just this row: the decision
             // depends on how many *other* owners there are.
             $locked = LoopMember::where('loop_id', $member->loop_id)
@@ -122,7 +143,7 @@ class LoopGovernanceService
                     ->filter(fn (LoopMember $m) => $this->roles->canonical($m->role) === LoopRoleRegistry::OWNER)
                     ->count();
 
-                if ($otherOwners === 0) {
+                if ($otherOwners === 0 && ! $autoriserDepartDuDernierProprietaire) {
                     return self::RESULT_LAST_OWNER;
                 }
             }
@@ -146,6 +167,73 @@ class LoopGovernanceService
     public function demoteToMember(LoopMember $member): string
     {
         return $this->changeRole($member, LoopRoleRegistry::MEMBER);
+    }
+
+    /**
+     * TASK-1693 bug O — TRANSFERER la propriete, en un seul geste.
+     *
+     * ## Ce qui gênait
+     *
+     * L'invariant « il reste au moins un proprietaire actif » est juste, et il
+     * n'est pas en cause. Mais il imposait DEUX gestes, dans DEUX endroits de
+     * l'ecran : promouvoir quelqu'un d'autre depuis sa ligne, puis revenir sur
+     * celle du proprietaire pour le retrograder ou le retirer. Entre les deux,
+     * la Boucle avait deux proprietaires — un etat que personne n'avait voulu.
+     *
+     * Ici, la succession est NOMMEE : on designe qui reprend, et le sortant
+     * redescend. Une seule transaction, l'invariant jamais rompu, et aucun
+     * etat intermediaire visible.
+     *
+     * ## Le sortant devient MEMBRE, il n'est pas retire
+     *
+     * « Supprimer le proprietaire » est ambigu : retirer son ROLE, ou retirer
+     * la PERSONNE ? On fait le geste reversible — il reste dans la Boucle. S'il
+     * doit aussi en sortir, « Retirer » devient disponible sur sa ligne des
+     * l'instant ou il n'est plus le dernier proprietaire : les deux gestes se
+     * composent, au lieu d'en inventer un troisieme qui ferait les deux a la
+     * fois sans qu'on puisse revenir en arriere.
+     *
+     * ## Pourquoi pas deux appels a `changeRole()`
+     *
+     * Parce que l'ordre compte et que chacun ouvre sa propre transaction.
+     * Promouvoir d'abord puis retrograder laisserait, entre les deux, une
+     * fenetre ou un autre processus verrait deux proprietaires ; retrograder
+     * d'abord serait refuse par l'invariant. Les deux ecritures vivent donc
+     * dans UNE transaction, avec le meme verrou que les autres gestes.
+     */
+    public function transferOwnership(LoopMember $sortant, LoopMember $successeur): string
+    {
+        if ($sortant->loop_id !== $successeur->loop_id) {
+            return self::RESULT_NOT_IN_LOOP;
+        }
+
+        if ($sortant->id === $successeur->id) {
+            return self::RESULT_UNCHANGED;
+        }
+
+        return DB::transaction(function () use ($sortant, $successeur) {
+            $verrouilles = LoopMember::where('loop_id', $sortant->loop_id)->lockForUpdate()->get();
+
+            $sortantFrais = $verrouilles->firstWhere('id', $sortant->id);
+            $successeurFrais = $verrouilles->firstWhere('id', $successeur->id);
+
+            if (! $sortantFrais || ! $successeurFrais) {
+                return self::RESULT_NOT_IN_LOOP;
+            }
+
+            if ($sortantFrais->status !== 'active' || $successeurFrais->status !== 'active') {
+                return self::RESULT_INACTIVE;
+            }
+
+            if ($this->roles->canonical($sortantFrais->role) !== LoopRoleRegistry::OWNER) {
+                return self::RESULT_UNCHANGED;
+            }
+
+            $successeurFrais->update(['role' => LoopRoleRegistry::OWNER]);
+            $sortantFrais->update(['role' => LoopRoleRegistry::MEMBER]);
+
+            return self::RESULT_OK;
+        });
     }
 
     /**

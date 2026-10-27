@@ -8,6 +8,7 @@ use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Events\LoopMessageCreated;
 use App\Http\Middleware\ResolveOrganization;
+use App\Http\Middleware\EnsureOrganizationMember;
 use App\Jobs\GenerateAiAgentResponse;
 use App\Models\AiConfig;
 use App\Models\BlogPost;
@@ -27,6 +28,7 @@ use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Services\UserSlugService;
 use App\Observers\BlogPostObserver;
 use App\Observers\DossierFileObserver;
 use App\Observers\DossierObserver;
@@ -210,6 +212,12 @@ class AppServiceProvider extends ServiceProvider
         Paginator::useTailwind();
 
         Livewire::addPersistentMiddleware(ResolveOrganization::class);
+        // TASK-1692 — Livewire reconstruit la route de la page d'origine sur
+        // chaque mise a jour. La resolution du tenant et son controle
+        // d'appartenance doivent donc etre rejoues ensemble : sans cette
+        // declaration, `POST /livewire/update` garderait le tenant mais
+        // sauterait la frontiere membre posee sur `/org/{organization}`.
+        Livewire::addPersistentMiddleware(EnsureOrganizationMember::class);
 
         try {
             $dbProvider = AiConfig::get('default_provider');
@@ -442,8 +450,30 @@ class AppServiceProvider extends ServiceProvider
                 ->firstOrFail();
         });
 
+        /**
+         * TASK-1693 bug Z — un `{user}` se resout par SLUG ou par identifiant.
+         *
+         * Cette liaison gouverne les 36 routes qui prennent un `{user}` : c'est
+         * donc ici, et nulle part ailleurs, que l'adresse lisible doit etre
+         * comprise. L'identifiant reste prioritaire, ce qui laisse les 30
+         * routes d'administration rigoureusement inchangees.
+         *
+         * Elle ferme au passage un defaut LATENT : `where('id', $value)` sur un
+         * texte qui n'est pas un UUID fait lever `SQLSTATE 22P02` a PostgreSQL
+         * — un 500, pas un 404 — la ou SQLite l'accepte sans broncher. N'importe
+         * quelle URL `{user}` malformee le declenchait, sur n'importe laquelle
+         * de ces 36 routes.
+         */
         Route::bind('user', function (string $value): User {
-            return User::where('id', $value)->firstOrFail();
+            $org = app()->bound('current_organization') ? app('current_organization') : null;
+
+            [$user] = app(UserSlugService::class)->resoudre($value, $org?->id);
+
+            if ($user === null) {
+                abort(404);
+            }
+
+            return $user;
         });
 
         View::share('T', config('terms'));

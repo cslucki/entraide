@@ -10,6 +10,11 @@
     'messageId' => null,
     'showReplyButton' => false,
     'imagePath' => null,
+    // TASK-1704 — une piece jointe qui n'est pas une image. Tableau
+    // {name, size, mime, downloadUrl, previewUrl}, ou null. Les URL sont
+    // calculees cote appelant : cette bulle sert aussi les ChatLoops, qui ne
+    // nomment pas les memes routes.
+    'attachment' => null,
     'urlPreview' => null,
     'showPinButton' => false,
     'showEditButton' => false,
@@ -408,6 +413,17 @@ $renderableBody = preg_replace_callback(
              regle vit dans app.css et redonne aux listes leurs puces et un
              interligne compact, sans toucher au reste du texte. --}}
         <div x-ref="copyContent" class="bp-bulle-markdown min-w-0 max-w-full cursor-default overflow-hidden whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! markdown($renderableBody) !!}</div>
+
+        @if($attachment)
+            <x-conversation.file-attachment-card
+                :name="$attachment['name'] ?? ''"
+                :size="$attachment['size'] ?? null"
+                :mime="$attachment['mime'] ?? null"
+                :download-url="$attachment['downloadUrl'] ?? ''"
+                :preview-url="$attachment['previewUrl'] ?? null"
+                :is-sent="$isSent"
+            />
+        @endif
 
         @if($urlPreview)
             <x-conversation.url-preview-card :preview="$urlPreview" :is-sent="$isSent" />

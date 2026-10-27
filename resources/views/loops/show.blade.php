@@ -77,8 +77,37 @@
            TASK-1466 : le FAB ne se rend plus du tout sur une Boucle — l'IA y
            est native. Les trois regles n'ont plus d'objet, et la reserve basse
            laisserait un vide sous le dernier message. Elles partent avec lui. */
+        /* TASK-1684 MICRO-01 — POURQUOI LE COMPOSEUR BOUGEAIT.
+
+           `100dvh` est la hauteur DYNAMIQUE : elle suit l'apparition et le
+           retrait de la barre d'URL du navigateur. Sur Chrome Android, le
+           simple geste de defilement vers le haut retracte cette barre, le
+           viewport grandit, le conteneur grandit avec lui — et le composeur,
+           ancre en bas de ce conteneur, se DEPLACE sous le doigt. Rien
+           n'etait mal ancre : c'est l'unite de hauteur qui bougeait.
+
+           Deux changements, et un seul principe : que plus rien ne bouge.
+           1. Le document ne defile plus du tout sur cette page. Sans
+              defilement de document, Chrome n'a aucune raison de retracter
+              sa barre : le viewport reste constant. C'est aussi ce qui
+              empeche le « defilement parasite » sous le composeur.
+           2. La hauteur passe a `100svh` (SMALL viewport height), la plus
+              petite des hauteurs possibles, celle qui ne varie JAMAIS. Un
+              repli `100dvh` precede la regle pour les navigateurs qui
+              ignorent `svh`.
+
+           `--bp-vvh`, si le script l'a posee, prend le dessus : elle vaut la
+           hauteur du viewport VISUEL, seule mesure juste quand le clavier
+           virtuel est ouvert. */
+        html:has(.loops-show-container),
+        body:has(.loops-show-container) {
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
         body:has(.loops-show-container) .loops-show-container {
             height: calc(100dvh - env(safe-area-inset-bottom, 0px));
+            height: var(--bp-vvh, calc(100svh - env(safe-area-inset-bottom, 0px)));
         }
     }
     @media (min-width: 768px) {
@@ -587,11 +616,46 @@
 
         {{-- Bottom strip: join CTA (guests) / help-request modal holder (members) --}}
         <div class="flex-shrink-0">
-            @if(!$isMember && $currentLoop->isPublic())
+            {{-- TASK-1693 bug K — le geste propose suit le MODE D'ACCES, plus la
+                 seule visibilite.
+
+                 ## Le defaut
+
+                 Cette zone n'avait qu'un bouton, « Rejoindre cette boucle »,
+                 conditionne a `isPublic()` — c'est-a-dire a la VISIBILITE. Or
+                 `LoopPolicy::join()` exige `isOpenAccess()`, c'est-a-dire le
+                 MODE D'ACCES. Une Boucle `visibility = public` et
+                 `access_mode = request` — exactement celle signalee — affichait
+                 donc un bouton que la politique refusait : 403, « votre compte
+                 ne dispose pas des droits necessaires », sur un geste que
+                 l'ecran venait d'offrir.
+
+                 Le commentaire d'origine affirmait « the button is only ever
+                 shown for open Loops ». C'etait FAUX : il etait montre pour les
+                 Boucles PUBLIQUES. Visibilite et mode d'acces sont deux axes
+                 independants, et les confondre fabrique un cul-de-sac.
+
+                 ## Ce qui manquait
+
+                 `loops.join-requests.store` existait depuis toujours, avec sa
+                 politique `requestToJoin()` et son service — mais AUCUNE
+                 poignee dans cette vue. Une capacite non exposee est une
+                 capacite absente : il n'y avait, pour une Boucle sur demande,
+                 aucun chemin vers l'adhesion.
+
+                 Les trois modes sont desormais distingues, et le mode
+                 `invitation` n'offre rien — c'est son sens meme. --}}
+            @php
+                $demandeEnCours = $isMember ? null : $currentLoop->joinRequests
+                    ->where('user_id', auth()->id())
+                    ->firstWhere('status', \App\Models\LoopJoinRequest::STATUS_PENDING);
+            @endphp
+
+            @if(!$isMember && $currentLoop->isPublic() && $currentLoop->isOpenAccess())
                 <div class="px-4 py-3">
                     <form method="POST" action="{{ $_loopRoute('join', ['loop' => $currentLoop]) }}">
                         @csrf
-                        <button type="submit"
+                        <button type="submit" data-loop-join="direct"
                             class="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
@@ -599,6 +663,46 @@
                             {{ __('loops.join') }}
                         </button>
                     </form>
+                </div>
+
+            @elseif(!$isMember && $currentLoop->isPublic() && $currentLoop->isRequestAccess() && $demandeEnCours)
+                {{-- Une demande deja posee : on DIT qu'elle attend, et on offre
+                     de la retirer. Reafficher le bouton d'envoi serait un piege,
+                     la politique refusant une seconde demande. --}}
+                <div class="px-4 py-3 space-y-2">
+                    <p class="text-center text-sm text-gray-500 dark:text-gray-400" data-loop-join-pending>
+                        {{ __('loops.join_request_pending') }}
+                    </p>
+                    <form method="POST" action="{{ route('loop-join-requests.cancel', $demandeEnCours) }}">
+                        @csrf @method('DELETE')
+                        <button type="submit" data-loop-join-cancel
+                            class="w-full px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                            {{ __('loops.join_request_cancel') }}
+                        </button>
+                    </form>
+                </div>
+
+            @elseif(!$isMember && $currentLoop->isPublic() && $currentLoop->isRequestAccess())
+                <div class="px-4 py-3">
+                    <form method="POST" action="{{ $_loopRoute('join-requests.store', ['loop' => $currentLoop]) }}">
+                        @csrf
+                        <button type="submit" data-loop-join-request
+                            class="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                            </svg>
+                            {{ __('loops.request_to_join') }}
+                        </button>
+                    </form>
+                </div>
+
+            @elseif(!$isMember && $currentLoop->isPublic() && $currentLoop->isInvitationAccess())
+                {{-- Sur invitation : aucun geste, et on le DIT. Une zone vide
+                     laisserait croire a un defaut d'affichage. --}}
+                <div class="px-4 py-3">
+                    <p class="text-center text-sm text-gray-500 dark:text-gray-400" data-loop-invitation-only>
+                        {{ __('loops.access_invitation_only') }}
+                    </p>
                 </div>
 
             @elseif($isMember)
@@ -814,4 +918,25 @@
         </div>
     </div>
     </x-page-container>
+
+    {{-- TASK-1684 MICRO-01 — le clavier virtuel, et lui seul.
+
+         `svh` fige la hauteur contre la barre d'URL (regle CSS ci-dessus),
+         mais AUCUNE unite CSS ne connait le clavier : quand il s'ouvre, le
+         viewport VISUEL retrecit sans que `svh` ni `dvh` ne bougent, et le
+         composeur passerait dessous. `window.visualViewport` est la seule
+         API qui mesure ce retrecissement.
+
+         UN seul abonnement, une seule variable CSS ecrite, aucun calcul de
+         mise en page en JS : le CSS garde la main, le script ne fait que lui
+         dire la hauteur reelle. Sans `visualViewport` (navigateur ancien),
+         rien ne s'execute et le repli `svh` s'applique. --}}
+    {{-- TASK-1703 — ce bloc est passe dans `x-visual-viewport-height`, mot
+         pour mot. La Messagerie avait le MEME defaut et appelle le meme
+         composant : deux copies d'un calcul de viewport divergent a la
+         premiere retouche. --}}
+    @once
+    <x-visual-viewport-height selector=".loops-show-container" />
+    @endonce
+
 </x-app-layout>

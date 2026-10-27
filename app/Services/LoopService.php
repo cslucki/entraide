@@ -22,8 +22,30 @@ use Ramsey\Uuid\Uuid;
 
 class LoopService
 {
-    public function createLoopForOrg(User $user, string $organizationId, string $name, ?string $description = null, string $visibility = 'private', ?string $tagline = null, string $accessMode = Loop::ACCESS_REQUEST, ?string $type = null): Loop
+    /**
+     * TASK-1679 — un seul parametre confondait deux roles : le responsable
+     * metier (membre `owner` de la Boucle) et le createur administratif
+     * (`loops.created_by`). Un SuperAdmin provisionne desormais une Boucle
+     * AVANT que son responsable n'existe comme compte : `$owner` null, aucune
+     * ligne `loop_members` a la naissance. L'attribution ulterieure passe par
+     * les surfaces existantes (addMember / addMemberByUserId), dont la garde
+     * same-org reste seule autorite — rien n'est relache ici.
+     *
+     * Le document racine garde un auteur REEL meme sans owner :
+     * `blog_posts.user_id` est NOT NULL (invariant T1534, « l'auteur est
+     * l'humain qui valide »), un auteur null serait refuse par le schema.
+     * Sans owner, l'auteur est donc le createur administratif.
+     */
+    public function createLoopForOrg(?User $owner, string $organizationId, string $name, ?string $description = null, string $visibility = 'private', ?string $tagline = null, string $accessMode = Loop::ACCESS_REQUEST, ?string $type = null, ?User $creator = null): Loop
     {
+        // Les appelants historiques ne passent que l'owner : il reste alors le
+        // createur, et `created_by` ne change pas d'une virgule.
+        $creator ??= $owner;
+
+        if ($creator === null) {
+            throw new \InvalidArgumentException('A Loop without an owner still needs an administrative creator.');
+        }
+
         $slug = $this->generateUniqueSlug($organizationId, $name);
         $registry = app(LoopTypeRegistry::class);
 
@@ -37,18 +59,54 @@ class LoopService
             'status' => 'active',
             'visibility' => $visibility,
             'access_mode' => Loop::isValidAccessMode($accessMode) ? $accessMode : Loop::ACCESS_REQUEST,
-            'created_by' => $user->id,
+            'created_by' => ($owner ?? $creator)->id,
         ]);
 
-        $this->addMember($loop, $user, 'owner');
+        if ($owner !== null) {
+            $this->addMember($loop, $owner, 'owner');
+        }
 
         // Was missing here while createLoop() had it: a Loop created from the
         // admin came out with no cards at all and relied on the fallback.
         $registry->applyPreset($loop);
 
-        app(LoopRootDocumentService::class)->ensureRootDocument($loop, $user);
+        $this->provisionRootContent($loop, $owner ?? $creator);
 
         return $loop;
+    }
+
+    /**
+     * TASK-1679 (recette) — le document racine EST le Manifeste visible, et
+     * depuis TASK-1332 le Manifeste a quitte le socle de TOUS les presets :
+     * le creer a chaque naissance contredisait ce retrait — une Boucle
+     * « Communaute » affichait un Manifeste que son type n'active pas, en
+     * doublon de sa description. Decision produit MASTER : pas de Card
+     * Manifeste active, pas de Manifeste.
+     *
+     * Le Dossier racine, lui, est STRUCTUREL (Dossiers, fichiers, series) et
+     * nait toujours. Une Card Manifeste activee plus tard retombe sur ses
+     * pieds : `LoopManifestoCard::createManifesto()` appelle le meme
+     * `ensureRootDocument()`, idempotent.
+     *
+     * Appele apres `applyPreset()` obligatoirement : c'est le preset qui dit
+     * si `core.manifesto` est actif a la naissance.
+     */
+    private function provisionRootContent(Loop $loop, User $author): void
+    {
+        $service = app(LoopRootDocumentService::class);
+
+        $manifesteActif = $loop->cards()
+            ->where('card_key', 'core.manifesto')
+            ->where('enabled', true)
+            ->exists();
+
+        if ($manifesteActif) {
+            $service->ensureRootDocument($loop, $author);
+
+            return;
+        }
+
+        $service->ensureRootDossier($loop);
     }
 
     /**
@@ -94,10 +152,9 @@ class LoopService
         // (TASK-1079). Additive and idempotent — see LoopTypeRegistry.
         app(LoopTypeRegistry::class)->applyPreset($loop);
 
-        // Root Dossier and root document (TASK-1082). A Loop is never created
-        // without them: the whole creation fails rather than leaving a Loop
-        // whose card would show "no document".
-        app(LoopRootDocumentService::class)->ensureRootDocument($loop, $user);
+        // Root Dossier toujours (TASK-1082) ; root document seulement si le
+        // preset active le Manifeste — voir provisionRootContent().
+        $this->provisionRootContent($loop, $user);
 
         return $loop;
     }
@@ -109,7 +166,7 @@ class LoopService
         return $loop;
     }
 
-    public function addMemberByUserId(Loop $loop, string $userId, string $role = 'member'): LoopMember
+    public function addMemberByUserId(Loop $loop, string $userId, string $role = 'member', ?User $actor = null): LoopMember
     {
         $user = User::assignable()->findOrFail($userId);
 
@@ -136,8 +193,12 @@ class LoopService
                 'role' => app(LoopRoleRegistry::class)->canonical($role),
             ]);
 
+            $this->resolvePendingJoinRequests($loop, $userId, $actor);
+
             return $existing;
         }
+
+        $this->resolvePendingJoinRequests($loop, $userId, $actor);
 
         return LoopMember::create([
             'loop_id' => $loop->id,
@@ -194,7 +255,7 @@ class LoopService
 
         foreach (array_unique($userIds) as $userId) {
             try {
-                $this->addMemberByUserId($loop, $userId);
+                $this->addMemberByUserId($loop, $userId, 'member', $actor);
                 $added++;
             } catch (\RuntimeException|ModelNotFoundException) {
                 // Already an active member, cross-organization or deactivated:
@@ -204,33 +265,16 @@ class LoopService
                 continue;
             }
 
-            // TASK-1381 — les demandes sont RELUES avant d'etre decidees, au
-            // lieu d'etre mises a jour en masse a l'aveugle.
+            // TASK-1381 — la resolution et sa notification vivent desormais
+            // dans `resolvePendingJoinRequests()`, appele par
+            // `addMemberByUserId()` ci-dessus (TASK-1693 bug L).
             //
-            // Un `update()` de query builder n'emet aucun evenement Eloquent et
-            // ne rend que le nombre de lignes touchees : il ne dirait pas QUELLE
-            // demande vient d'etre acceptee, donc rien ne pourrait etre notifie.
-            // Ce chemin d'ajout en masse resout pourtant de vraies demandes en
-            // attente — pour le demandeur, c'est exactement le meme fait que
-            // depuis l'ecran de decision, et il merite la meme notification.
-            $demandesEnAttente = LoopJoinRequest::where('loop_id', $loop->id)
-                ->where('user_id', $userId)
-                ->where('status', LoopJoinRequest::STATUS_PENDING)
-                ->get();
-
-            foreach ($demandesEnAttente as $demande) {
-                $demande->update([
-                    'status' => LoopJoinRequest::STATUS_ACCEPTED,
-                    'decided_by' => $actor->id,
-                    'decided_at' => now(),
-                ]);
-
-                $this->notifierDecisionDAdhesion(
-                    $demande,
-                    NotificationCatalogue::LOOP_JOIN_REQUEST_ACCEPTED,
-                    $actor,
-                );
-            }
+            // Ce bloc faisait ce travail POUR CE SEUL CHEMIN. L'ajout par
+            // l'ADMINISTRATION appelle `addMemberByUserId()` en direct et n'en
+            // beneficiait donc pas : c'est le defaut signale. Deplacer la regle
+            // d'un cran vers le bas la rend vraie pour tous les appelants, au
+            // lieu d'en ajouter une seconde a cote — ce qui aurait solde la
+            // demande SANS decideur ni notification, en devancant celle-ci.
         }
 
         return ['added' => $added, 'skipped' => $skipped];
@@ -270,6 +314,8 @@ class LoopService
             throw new \RuntimeException('User is already a member of this loop.');
         }
 
+        $this->resolvePendingJoinRequests($loop, $user->id);
+
         return LoopMember::create([
             'loop_id' => $loop->id,
             'user_id' => $user->id,
@@ -278,6 +324,74 @@ class LoopService
             'joined_at' => now(),
             'organization_id' => $loop->organization_id,
         ]);
+    }
+
+    /**
+     * TASK-1693 bug L — devenir membre SOLDE toute demande en attente.
+     *
+     * ## Le defaut mesure
+     *
+     * Sur la Boucle `ofsh`, DEUX personnes etaient a la fois membres actives et
+     * porteuses d'une demande `pending` : l'une proprietaire, l'autre ajoutee
+     * par l'administration. Les ecrans affichaient donc « 2 demandes en
+     * attente » pour des gens deja dans la Boucle, avec des boutons
+     * « Accepter / Refuser » sans objet. Les ecrans disaient vrai sur ce qu'ils
+     * lisaient ; c'est la DONNEE qui etait incoherente.
+     *
+     * ## Pourquoi ici, et une seule fois
+     *
+     * `acceptJoinRequest()` soldait deja la demande — c'est le bon modele, mais
+     * il ne couvrait qu'un chemin sur quatre. `addMemberByUserId()`,
+     * `addMember()` et `joinOpenLoop()` creaient un membre actif sans jamais
+     * regarder les demandes. Trois chemins, trois oublis possibles : la regle
+     * vit donc a UN endroit, appele par les trois.
+     *
+     * ## ACCEPTED, et non CANCELLED
+     *
+     * `cancelled` signifie « le demandeur s'est retracte ». Ici la demande a
+     * recu sa reponse — l'entree dans la Boucle EST l'acceptation, quel que
+     * soit le chemin emprunte. `decided_by` reste nul quand personne n'a
+     * statue explicitement (adhesion libre, ou ajout sans decideur connu) :
+     * mieux vaut un decideur absent qu'un decideur invente.
+     *
+     * `joinOpenLoop()` est inclus bien qu'une Boucle ouverte n'accepte pas de
+     * demande : une Boucle peut passer de `request` a `open` en laissant des
+     * demandes derriere elle, et ces demandes-la doivent se solder aussi.
+     */
+    private function resolvePendingJoinRequests(Loop $loop, string $userId, ?User $decidedBy = null): int
+    {
+        // Les demandes sont RELUES puis decidees UNE PAR UNE, jamais mises a
+        // jour en masse (contrat TASK-1381) : un `update()` de query builder
+        // n'emet aucun evenement et ne rend qu'un COMPTE — il ne dirait pas
+        // QUELLE demande vient d'etre acceptee, donc rien ne pourrait etre
+        // notifie. Pour le demandeur, etre ajoute est exactement le meme fait
+        // que depuis l'ecran de decision, et merite la meme notification.
+        $demandes = LoopJoinRequest::query()
+            ->where('loop_id', $loop->id)
+            ->where('user_id', $userId)
+            ->where('status', LoopJoinRequest::STATUS_PENDING)
+            ->get();
+
+        foreach ($demandes as $demande) {
+            $demande->update([
+                'status' => LoopJoinRequest::STATUS_ACCEPTED,
+                'decided_by' => $decidedBy?->id,
+                'decided_at' => now(),
+            ]);
+
+            // Sans decideur identifie — adhesion libre, pack de donnees — il n'y
+            // a personne a nommer dans la notification : on solde la demande
+            // sans en fabriquer une.
+            if ($decidedBy !== null) {
+                $this->notifierDecisionDAdhesion(
+                    $demande,
+                    NotificationCatalogue::LOOP_JOIN_REQUEST_ACCEPTED,
+                    $decidedBy,
+                );
+            }
+        }
+
+        return $demandes->count();
     }
 
     public function getEligibleReferrals(User $user, Loop $loop): Collection
@@ -334,8 +448,12 @@ class LoopService
                 $existing->update(['status' => 'active', 'joined_at' => now()]);
             }
 
+            $this->resolvePendingJoinRequests($loop, $user->id, $user);
+
             return $existing->fresh();
         }
+
+        $this->resolvePendingJoinRequests($loop, $user->id, $user);
 
         return LoopMember::create([
             'loop_id' => $loop->id,

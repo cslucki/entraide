@@ -66,7 +66,7 @@ class TASK1420CrmEmailTemplatesTest extends TestCase
         $global = EmailTemplate::create(['slug' => 'global-plateforme', 'name' => 'Global plateforme', 'subject' => 'x', 'content_html' => '<p>x</p>', 'organization_id' => null]);
 
         $this->actingAs($this->memberA)->get($this->index($this->orgA))->assertForbidden();
-        $this->actingAs($this->adminB)->get($this->index($this->orgA))->assertForbidden();
+        $this->actingAs($this->adminB)->get($this->index($this->orgA))->assertNotFound();
 
         $this->actingAs($this->adminA)->get($this->index($this->orgA))->assertOk()
             ->assertSee('Relance devis')

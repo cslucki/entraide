@@ -2,16 +2,48 @@
 
 namespace Database\Seeders;
 
-use App\Models\Organization;
 use App\Models\SystemEmailTemplate;
 use Illuminate\Database\Seeder;
 
 class SystemEmailTemplateSeeder extends Seeder
 {
     private array $templateDefinitions = [
-        'welcome' => [
-            'name' => 'Bienvenue',
-            'name_en' => 'Welcome',
+        // TASK-1694 bug N — le gabarit de confirmation d'adresse entre au
+        // CATALOGUE. Il etait ne par migration (bug D) et vivait hors de toute
+        // liste : l'ecran d'administration ne savait donc pas afficher son
+        // « modele systeme par defaut », et `store()` ne savait pas le
+        // pre-remplir. Le texte est celui de la migration, a l'identique.
+        'confirmation-email-suite-inscription' => [
+            'name_fr' => 'Confirmation email suite inscription',
+            'name_en' => 'Email confirmation after signup',
+            'subject_fr' => 'Confirmez votre adresse email',
+            'subject_en' => 'Confirm your email address',
+            // TASK-1707 L1 + F5 — les accents, et l'URL EN CLAIR.
+            //
+            // La table ne stocke que `content_html` : la version texte brut de
+            // l'email est derivee en retirant les balises, ce qui fait
+            // disparaitre le `href`. Le destinataire dont le client affiche le
+            // texte brut lisait donc « Confirmer mon adresse » SANS adresse, et
+            // ne pouvait pas valider son compte. L'URL ecrite en toutes lettres
+            // survit au deshabillage des balises.
+            'content_html_fr' => '<h1>Bonjour {{ name }},</h1>
+<p>Il ne reste qu\'une étape : confirmer votre adresse email.</p>
+<p><a href="{{ url }}">Confirmer mon adresse</a></p>
+<p>Si le lien ci-dessus ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ url }}</p>
+<p>Ce lien est valable <strong>24 heures</strong>. Passé ce délai, vous pourrez en demander un nouveau depuis la page d\'attente.</p>
+<p>Si vous n\'êtes pas à l\'origine de cette inscription, vous pouvez ignorer ce message.</p>',
+            'content_html_en' => '<h1>Hello {{ name }},</h1>
+<p>One last step: confirm your email address.</p>
+<p><a href="{{ url }}">Confirm my address</a></p>
+<p>If the link above does not work, copy this address into your browser:<br>{{ url }}</p>
+<p>This link is valid for <strong>24 hours</strong>. After that, you can request a new one from the waiting page.</p>
+<p>If you did not create this account, you can ignore this message.</p>',
+            'variables' => ['name', 'url'],
+        ],
+        // TASK-1694 bug H — renomme : l'email annonce l'AFFECTATION DES POINTS.
+        'affectation-points-suite-inscription' => [
+            'name' => 'Affectation points suite inscription',
+            'name_en' => 'Points granted after signup',
             'subject_fr' => 'Bienvenue sur {{ organization }}, {{ name }} !',
             'subject_en' => 'Welcome to {{ organization }}, {{ name }}!',
             'content_html_fr' => '<h1>Bienvenue sur {{ organization }}, {{ name }} !</h1>
@@ -172,28 +204,77 @@ class SystemEmailTemplateSeeder extends Seeder
         ],
     ];
 
+    /**
+     * TASK-1681 — le catalogue CANONIQUE des modeles systeme, en lecture.
+     *
+     * L'ecran admin s'en sert pour montrer qu'un modele par defaut existe et
+     * pour pre-remplir UNE personnalisation a la demande — sans jamais
+     * rejouer ce seeder ni semer quoi que ce soit en masse.
+     * `database/seeders` est dans l'autoload PRINCIPAL de composer (pas
+     * autoload-dev) : l'appel est sur en production.
+     */
+    public static function definitions(): array
+    {
+        return (new self)->templateDefinitions;
+    }
+
+    /**
+     * Les champs d'une surcharge pre-remplie depuis le catalogue, dans la
+     * MEME correspondance que run() — une seule traduction slug+locale ->
+     * colonnes, jamais deux.
+     */
+    public static function rowFor(string $slug, string $locale): array
+    {
+        $def = self::definitions()[$slug];
+
+        return [
+            'name' => $locale === 'fr' ? ($def['name_fr'] ?? $def['name']) : ($def['name_en'] ?? $def['name']),
+            'subject' => $def["subject_{$locale}"] ?? $def['subject_fr'],
+            'content_html' => $def["content_html_{$locale}"] ?? $def['content_html_fr'],
+            'variables' => $def['variables'],
+        ];
+    }
+
+    /**
+     * TASK-1694 bug N — le catalogue se seme en GLOBAL, plus par Organization.
+     *
+     * ## Ce que ce seeder fabriquait
+     *
+     * Une ligne PAR Organization active, pour chaque slug et chaque langue.
+     * C'est la mecanique qui a produit la pagaille constatee le 23/10 : 21
+     * lignes rattachees a deux Organizations, et **aucune personnalisation
+     * humaine dedans** — les 21 etaient identiques au catalogue, octet pour
+     * octet. Du bruit, pas du travail.
+     *
+     * Et ce bruit avait un cout : une Organization creee APRES le seeder — OFSH
+     * — n'avait aucune ligne, pendant que l'ecran d'administration en affichait
+     * pour les autres. Deux Organizations servies differemment par la seule
+     * grace de leur date de creation.
+     *
+     * ## Decision de Cyril
+     *
+     * « Il faudrait qu'on ait uniquement des emails de type Global. » Une ligne
+     * par slug et par langue, independante du nombre d'Organizations. Une
+     * Organization nouvelle est servie des sa creation, sans rien semer.
+     *
+     * ## Ce qui N'EST PAS supprime ici
+     *
+     * Les lignes par Organization deja en base restent, et le resolveur (bug M)
+     * continue de les faire gagner. Leur suppression est un geste a part, avec
+     * son archive et sa reversibilite.
+     */
     public function run(): void
     {
-        $organizations = Organization::where('is_active', true)->get();
-
-        foreach ($organizations as $organization) {
-            foreach ($this->templateDefinitions as $slug => $def) {
-                foreach (['fr', 'en'] as $locale) {
-                    SystemEmailTemplate::firstOrCreate(
-                        [
-                            'organization_id' => $organization->id,
-                            'locale' => $locale,
-                            'slug' => $slug,
-                        ],
-                        [
-                            'name' => $locale === 'fr' ? ($def['name_fr'] ?? $def['name']) : ($def['name_en'] ?? $def['name']),
-                            'subject' => $def["subject_{$locale}"] ?? $def['subject_fr'],
-                            'content_html' => $def["content_html_{$locale}"] ?? $def['content_html_fr'],
-                            'variables' => $def['variables'],
-                            'enabled' => true,
-                        ],
-                    );
-                }
+        foreach ($this->templateDefinitions as $slug => $def) {
+            foreach (['fr', 'en'] as $locale) {
+                SystemEmailTemplate::firstOrCreate(
+                    [
+                        'organization_id' => null,
+                        'locale' => $locale,
+                        'slug' => $slug,
+                    ],
+                    self::rowFor($slug, $locale) + ['enabled' => true],
+                );
             }
         }
     }

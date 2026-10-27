@@ -121,7 +121,7 @@ class TASK1424CrmTodayDashboardTest extends TestCase
     public function test_only_the_organization_admin_or_a_platform_admin_can_open_it(): void
     {
         $this->actingAs($this->memberA)->get($this->today($this->orgA))->assertForbidden();
-        $this->actingAs($this->adminB)->get($this->today($this->orgA))->assertForbidden();
+        $this->actingAs($this->adminB)->get($this->today($this->orgA))->assertNotFound();
         $this->actingAs($this->adminA)->get($this->today($this->orgA))->assertOk();
         $this->actingAs($this->superAdmin)->get($this->today($this->orgA))->assertOk();
     }

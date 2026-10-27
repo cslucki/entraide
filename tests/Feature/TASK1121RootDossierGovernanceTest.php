@@ -11,6 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 /**
@@ -26,6 +27,8 @@ use Tests\TestCase;
  */
 class TASK1121RootDossierGovernanceTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     use RefreshDatabase;
 
     private Organization $orgA;
@@ -127,6 +130,8 @@ class TASK1121RootDossierGovernanceTest extends TestCase
 
     public function test_the_members_api_derives_from_the_loop(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $reponse = $this->actingAs($this->proprietaire)->getJson(route('organization.dossiers.members.index', [
             'organization' => $this->orgA->slug, 'dossier' => $this->racine->id,
         ]))->assertOk();
@@ -143,6 +148,8 @@ class TASK1121RootDossierGovernanceTest extends TestCase
 
     public function test_no_parallel_member_management_on_a_root_dossier(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         // La Boucle est la source de verite : l'API de gestion refuse, meme au
         // proprietaire de la Boucle.
         $this->actingAs($this->proprietaire)->postJson(route('organization.dossiers.members.store', [
@@ -221,16 +228,34 @@ class TASK1121RootDossierGovernanceTest extends TestCase
         $this->assertSame(1, $this->racine->files()->count());
     }
 
-    public function test_a_simple_member_cannot_upload(): void
+    /**
+     * TASK-1684 — REGLE INVERSEE sur arbitrage MASTER.
+     *
+     * Ce test affirmait « un simple membre ne depose pas » : c'etait la
+     * consequence de `manageFiles -> update -> Boucle`, pas une decision prise
+     * pour le depot lui-meme. Le MASTER a tranche l'inverse — tout membre actif
+     * depose dans la Boucle — et le depot a recu sa propre porte,
+     * `DossierPolicy::uploadFiles`, lue par le SEUL `StoreDossierFileRequest`.
+     *
+     * L'ancienne assertion n'est pas supprimee, elle est DEPLACEE d'un cran :
+     * ce qui reste ferme au membre simple, c'est l'ADMINISTRATION des fichiers
+     * (renommer, deplacer, editer le markdown), mesuree juste en dessous.
+     */
+    public function test_a_simple_member_can_upload_but_not_administer(): void
     {
         Storage::fake('dossier_files');
 
-        // Les droits actuels de la Boucle : update() refuse un simple membre,
-        // le Dossier racine suit.
         $this->actingAs($this->membre)->post(route('organization.dossiers.files.store', [
             'organization' => $this->orgA->slug, 'dossier' => $this->racine->id,
         ]), ['files' => [UploadedFile::fake()->create('document.pdf', 100, 'application/pdf')]])
-            ->assertForbidden();
+            ->assertSuccessful();
+
+        $this->assertSame(1, $this->racine->files()->count());
+
+        // La contre-mesure : sans elle, elargir `manageFiles` aurait fait
+        // passer le test ci-dessus en donnant AUSSI tout le reste.
+        $this->assertFalse($this->membre->can('manageFiles', $this->racine));
+        $this->assertTrue($this->membre->can('uploadFiles', $this->racine));
     }
 
     public function test_an_archived_loop_makes_the_root_dossier_read_only(): void
@@ -260,6 +285,8 @@ class TASK1121RootDossierGovernanceTest extends TestCase
 
     public function test_a_personal_dossier_keeps_its_own_rules(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->withSession(['locale' => 'fr']);
 
         $personnel = Dossier::create([

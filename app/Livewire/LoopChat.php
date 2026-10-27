@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Ai\MultiAssistant\AssistantOutcome;
+use App\Ai\ProviderResolver;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -32,6 +33,7 @@ use App\Support\Ai\AiTurnLock;
 use App\Support\Ai\AiTurnReason;
 use App\Support\Ai\LoopAiTurnSignal;
 use App\Support\Loops\LoopPermissionResolver;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -498,6 +500,137 @@ class LoopChat extends Component
         return route('loops.ai', $this->loop);
     }
 
+    /**
+     * TASK-1684 — « Ajouter un fichier dans la Boucle » (feuille mobile).
+     *
+     * Le fichier va DANS LA BOUCLE, pas dans le message : l'upload du composeur
+     * est une propriete `photo` validee `image` et rendue en `<img>`, un fichier
+     * quelconque n'y a pas sa place. La cible est le Dossier RACINE de la
+     * Boucle (`dossiers.loop_id`, unique), dont la page porte deja l'upload.
+     * Aucun pipeline nouveau : une poignee vers une capacite existante.
+     *
+     * L'autorisation mesuree est `uploadFiles`, celle que `StoreDossierFileRequest`
+     * exige REELLEMENT — et non `attachArticle` que filtre `defaultDossier()`,
+     * qui gouverne l'ajout d'un ARTICLE. Les deux ne coincident pas : s'appuyer
+     * sur le second aurait montre la tuile a des membres que le depot refuse.
+     *
+     * TASK-1684, arbitrage MASTER : `uploadFiles` ouvre le DEPOT a tout membre
+     * actif d'une Boucle vivante, la ou `manageFiles` le reservait a l'owner.
+     * La tuile suit cette porte — jamais une porte plus large qu'elle.
+     *
+     * Rend `null` — donc aucune tuile — si la Boucle n'a pas de Dossier racine
+     * ou si le membre n'a pas le droit d'y deposer : jamais de lien mort.
+     *
+     * TASK-1684 recette 2 : ne sert PLUS a naviguer. Le depot se fait sur place
+     * (voir `loopDossierUploadEndpoint()`), le membre reste dans sa Boucle. Cette
+     * adresse reste exposee comme repli de consultation du Dossier.
+     */
+    public function loopDossierUrl(): ?string
+    {
+        // Memo de REQUETE : `wire:poll.3s` rend ce composant toutes les trois
+        // secondes, et la resolution coute une requete plus un passage de
+        // policy. Les proprietes privees ne sont pas serialisees par Livewire,
+        // le memo ne survit donc pas d'une requete a l'autre — ce qui est
+        // exactement la duree de validite souhaitee.
+        if ($this->dossierUrlResolved) {
+            return $this->dossierUrlMemo;
+        }
+
+        $this->dossierUrlResolved = true;
+
+        $user = auth()->user();
+
+        if (! $this->canContribute($user)) {
+            return $this->dossierUrlMemo = null;
+        }
+
+        // TASK-1684, demande MASTER : la Card Dossiers doit etre AFFECTEE a la
+        // Boucle, sinon pas de tuile.
+        //
+        // Ce test a l'air de doubler `requires_card => core.dossiers`, porte par
+        // la capacite `dossiers.upload_file`. Je l'ai retire pour cette raison —
+        // et MESURE : Card eteinte, `uploadFiles` repond encore OUI au
+        // proprietaire. Le passage par `manageFiles` (owner / admin
+        // d'Organization) court-circuite la capacite, donc son `requires_card`.
+        // La garde est bien PORTANTE pour qui mene la Boucle. Remise.
+        //
+        // Elle vit dans l'INTERFACE, jamais dans la policy :
+        // `DossierPolicy::update` documente qu'elle ne consulte AUCUNE Card
+        // (T1091 l'avait tente, juge trop large). Cacher une poignee n'est pas
+        // fermer une porte.
+        if (! in_array('core.dossiers', app(LoopTypeRegistry::class)->activeCardsFor($this->loop), true)) {
+            return $this->dossierUrlMemo = null;
+        }
+
+        $dossier = Dossier::query()->where('loop_id', $this->loop->id)->first();
+
+        if ($dossier === null || ! $user->can('uploadFiles', $dossier)) {
+            return $this->dossierUrlMemo = null;
+        }
+
+        // Meme idiome que `aiRoute()` ci-dessus, et pour la meme raison : sur
+        // un POST Livewire la requete ne porte aucun parametre `organization`,
+        // c'est la Boucle qui doit le fournir.
+        $organization = request()->route('organization') ?? $this->loop->organization?->slug;
+
+        if (! $organization || ! Route::has('organization.dossiers.show')) {
+            return $this->dossierUrlMemo = null;
+        }
+
+        return $this->dossierUrlMemo = route('organization.dossiers.show', [
+            'organization' => $organization,
+            'dossier' => $dossier->getKey(),
+        ]);
+    }
+
+    /**
+     * TASK-1684 recette 2 — deposer SANS quitter la Boucle.
+     *
+     * La premiere livraison envoyait vers la page du Dossier. Deux defauts
+     * constates par le MASTER : on perd la conversation, et cette page
+     * n'offrait justement AUCUN depot a qui n'administre pas le Dossier —
+     * son bouton « Nouveau » est garde par `manageFiles`, pas par
+     * `uploadFiles`. La poignee menait donc a une piece sans porte.
+     *
+     * Le depot se fait desormais sur place, contre l'endpoint EXISTANT
+     * (`POST .../dossiers/{dossier}/files`, le meme que l'ecran Dossiers
+     * appelle deja). Aucun pipeline nouveau, aucune route nouvelle : seules
+     * l'origine du geste et la page d'ou il part changent.
+     *
+     * Memes gardes que `loopDossierUrl()` — Card active, Dossier racine,
+     * `uploadFiles` — puisque c'est la meme resolution qui les porte.
+     */
+    public function loopDossierUploadEndpoint(): ?string
+    {
+        if ($this->loopDossierUrl() === null) {
+            return null;
+        }
+
+        $organization = request()->route('organization') ?? $this->loop->organization?->slug;
+
+        if (! $organization || ! Route::has('organization.dossiers.files.store')) {
+            return null;
+        }
+
+        return route('organization.dossiers.files.store', [
+            'organization' => $organization,
+            'dossier' => Dossier::query()->where('loop_id', $this->loop->id)->value('id'),
+        ]);
+    }
+
+    private ?string $dossierUrlMemo = null;
+
+    private bool $dossierUrlResolved = false;
+
+    /**
+     * TASK-1685 — memo de `organizationAiAvailable()`. PRIVE a dessein : une
+     * propriete publique voyagerait dans l'instantane Livewire, et un etat de
+     * garde recalculable n'a rien a faire dans un instantane lisible cote
+     * client. Remis a null a chaque requete, donc relu a chaque requete : si le
+     * SuperAdmin desactive l'IA pendant la session, le rendu suivant le voit.
+     */
+    private ?bool $organizationAiAvailable = null;
+
     public function replyTo(string $messageId): void
     {
         $message = LoopMessage::where('id', $messageId)
@@ -952,11 +1085,42 @@ class LoopChat extends Component
      * `isEnabled()` reconfronte la disponibilite de l'Organization a CHAQUE
      * lecture (garde TASK-1616) : retirer l'autorisation eteint toutes les
      * Boucles d'un coup, sans qu'aucune vue ait a le savoir.
+     *
+     * TASK-1685 : et l'IA doit etre disponible pour l'Organization. Le plugin
+     * pouvait etre autorise a un tenant dont les fonctions IA sont DESACTIVEES
+     * — deux reglages distincts, dont un seul etait lu ici. Les assistants
+     * s'affichaient alors, et `ProviderResolver` refusait au premier clic.
+     * Meme doctrine que le docblock de `multiAiAssistants()` juste en dessous :
+     * « l'interface doit le refleter plutot que de proposer une action qui
+     * n'aboutira pas. »
      */
     public function multiAiAvailable(): bool
     {
         return $this->isMember
+            && $this->organizationAiAvailable()
             && app(LoopPluginActivation::class)->isEnabled(LoopAiAssistants::PLUGIN, $this->loop);
+    }
+
+    /**
+     * TASK-1685 — l'IA est-elle disponible pour l'Organization de cette Boucle ?
+     *
+     * Delegue a `ProviderResolver::isAvailableFor()`, la MEME autorite que la
+     * garde qui refuse reellement l'appel : ce composant ne reecrit aucun
+     * predicat. Elle commande les moteurs IA du composeur (`aiEnginesAvailable`
+     * dans le gabarit) et les assistants ci-dessus.
+     *
+     * Ce qu'elle ne commande PAS, et c'est deliberé : le depot de fichiers, la
+     * consultation des Dossiers, la publication d'un message, les reactions —
+     * rien de cela n'appelle un provider, et masquer des gestes humains parce
+     * que l'IA est eteinte serait une regression, pas une garde.
+     *
+     * Memoise : le gabarit et les deux rangees de boutons (bureau + feuille
+     * mobile) interrogent la meme reponse, une lecture par rendu.
+     */
+    public function organizationAiAvailable(): bool
+    {
+        return $this->organizationAiAvailable ??= app(ProviderResolver::class)
+            ->isAvailableFor((string) $this->loop->organization_id);
     }
 
     /**

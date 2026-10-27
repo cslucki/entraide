@@ -148,12 +148,19 @@ class TASK1608FlowchartExchangesTest extends TestCase
         $this->assertTrue($echanges->proposals($this->organisation, null)->isEmpty());
         $this->assertTrue($echanges->requests($this->organisation, null)->isEmpty());
 
+        // TASK-1698 — l'invite lit de nouveau le gabarit (l'opt-out du groupe
+        // ferme par defaut manquait a cette route, voir `routes/web.php`), et
+        // la garantie redevient mesurable LA OU ELLE COMPTE : dans le rendu.
+        //
+        // T1692 mesurait un refus. Un refus est une preuve plus faible qu'elle
+        // n'y parait ici : la non-divulgation portait alors sur un corps de
+        // redirection, qui ne contient rien par construction. C'est le rendu
+        // reel qui doit etre inspecte, et c'est ce que fait la suite.
         app()->forgetInstance('current_organization');
-        $response = $this->get($this->url());
-        $response->assertOk();
-
-        $response->assertDontSee('Proposition Confidentielle 1608', false);
-        $response->assertDontSee('Demande Confidentielle 1608', false);
+        $this->get($this->url())
+            ->assertOk()
+            ->assertDontSee('Proposition Confidentielle 1608', false)
+            ->assertDontSee('Demande Confidentielle 1608', false);
     }
 
     /**
@@ -172,6 +179,11 @@ class TASK1608FlowchartExchangesTest extends TestCase
             app(FlowchartExchanges::class)->proposals($this->organisation, $etranger)->isEmpty(),
         );
 
+        // TASK-1698 — « traite exactement comme un anonyme » retrouve son sens
+        // litteral : l'etranger obtient le gabarit, comme l'anonyme, et n'y
+        // trouve aucun echange. Le viseur est plus exigeant que le refus 404
+        // qu'il remplace — il a une session, une Organization, et malgre cela
+        // la garde de `FlowchartExchanges` ne lui rend rien.
         app()->forgetInstance('current_organization');
         $this->actingAs($etranger)->get($this->url())
             ->assertOk()

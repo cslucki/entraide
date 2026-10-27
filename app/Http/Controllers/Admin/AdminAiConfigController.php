@@ -12,7 +12,9 @@ use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\GuestShell\GuestShellPolicyService;
 use App\Support\GuestShell\GuestShellDisplayMode;
 use Illuminate\Http\RedirectResponse;
+use App\Support\Ai\AiShellPageContext;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminAiConfigController extends Controller
@@ -28,7 +30,10 @@ class AdminAiConfigController extends Controller
         $defaultProvider = config('ai.default_provider', $this->resolver->defaultProvider());
         $defaultModel = config('ai.default_model', '');
 
-        $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug', 'ai_profiles_enabled']);
+        // TASK-1693 bug AU — `ai_shell_enabled` doit etre SELECTIONNEE : sans
+        // elle la case lirait le repli `?? true` et afficherait « active » sur
+        // une Organization ou l'assistant est eteint.
+        $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug', 'ai_profiles_enabled', 'ai_shell_enabled', 'ai_shell_disabled_surfaces']);
         $blogConfigs = [];
 
         foreach ($organizations as $org) {
@@ -141,20 +146,47 @@ class AdminAiConfigController extends Controller
             ->with('success', __('blog.ai_config_updated'));
     }
 
-    public function updateProfileConfig(Request $request): RedirectResponse
+    /**
+     * TASK-1693 bug AU — l'assistant « BouclePro IA », par Organization.
+     *
+     * Jusqu'ici il n'avait qu'un interrupteur PLATEFORME (`AI_SHELL_ENABLED`,
+     * une variable d'environnement) : impossible de le couper pour UNE
+     * Organization sans le couper pour toutes.
+     *
+     * Ce reglage est DISTINCT de l'interrupteur IA de l'Organization, et c'est
+     * sa raison d'etre : disposer de l'IA — reformulation, synthese, agents —
+     * sans imposer l'assistant flottant par-dessus chaque page.
+     *
+     * Et distinct, aussi, du « Shell Welcome » juste en dessous : celui-la
+     * s'adresse aux VISITEURS non connectes.
+     */
+    public function updateShellConfig(Request $request): RedirectResponse
     {
+        // TASK-1693 bug AW — la ligne porte desormais l'interrupteur ET les
+        // surfaces. `surfaces` est la liste de ce qui reste ALLUME ; on
+        // enregistre son complement, parce qu'une liste d'autorisees rendrait
+        // toute surface ajoutee demain invisible par defaut (voir la
+        // migration).
+        //
+        // `Rule::in` sur les clefs du catalogue : une chaine soumise par le
+        // navigateur ne peut pas inventer une surface.
         $validated = $request->validate([
             'organization_id' => 'required|string|exists:organizations,id',
-            'ai_profiles_enabled' => 'sometimes|boolean',
+            'ai_shell_enabled' => 'required|boolean',
+            'surfaces' => 'sometimes|array',
+            'surfaces.*' => ['string', Rule::in(array_keys(AiShellPageContext::SURFACE_ROUTES))],
         ]);
 
-        $organization = Organization::findOrFail($validated['organization_id']);
-        $organization->update([
-            'ai_profiles_enabled' => $validated['ai_profiles_enabled'] ?? true,
+        $allumees = (array) ($validated['surfaces'] ?? []);
+        $refusees = array_values(array_diff(array_keys(AiShellPageContext::SURFACE_ROUTES), $allumees));
+
+        Organization::findOrFail($validated['organization_id'])->update([
+            'ai_shell_enabled' => $validated['ai_shell_enabled'],
+            'ai_shell_disabled_surfaces' => $refusees,
         ]);
 
         return redirect()->route('admin.ai-config')
-            ->with('success', 'Configuration profil IA mise à jour pour l\'organisation.');
+            ->with('success', __('admin.ai_shell_toggle_saved'));
     }
 
     /**

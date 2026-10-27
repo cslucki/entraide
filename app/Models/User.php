@@ -40,7 +40,11 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function sendEmailVerificationNotification(): void
     {
-        rescue(fn () => $this->notify(new \Illuminate\Auth\Notifications\VerifyEmail));
+        // TASK-1694 bug D — le gabarit vient de `/admin/system-email-templates`,
+        // global et bilingue. La classe ETEND celle du framework : l'url signee
+        // et sa duree restent calculees au meme endroit, et si le gabarit manque
+        // c'est l'email du framework qui part — jamais un email vide.
+        rescue(fn () => $this->notify(new \App\Notifications\VerifyEmailWithTemplate));
     }
 
     /** @use HasFactory<UserFactory> */
@@ -92,6 +96,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'banned_at',
         'rating',
         'referral_code',
+        'slug',
     ];
 
     protected $hidden = [
@@ -242,6 +247,30 @@ class User extends Authenticatable implements MustVerifyEmail
         return true;
     }
 
+    /**
+     * TASK-1693 bug Z — le registre des adresses publiques de ce membre,
+     * courante ET passees. Les passees restent prises : voir `UserSlug`.
+     */
+    public function slugs(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(UserSlug::class);
+    }
+
+    /**
+     * Le segment d'URL a utiliser pour atteindre ce profil.
+     *
+     * Le slug quand il existe, l'identifiant sinon. On NE surcharge PAS
+     * `getRouteKey()` : 30 routes hors profil resolvent un `{user}` par
+     * LIAISON IMPLICITE sur l'identifiant, et elles recevraient alors un slug
+     * qu'elles ne sauraient pas resoudre — toute l'administration tomberait en
+     * 404. La jolie adresse est donc obtenue par la redirection canonique de
+     * `ProfileController::show()`, pas en changeant la clef du modele.
+     */
+    public function profileRouteKey(): string
+    {
+        return $this->slug ?: $this->id;
+    }
+
     public function publicDisplayName(): string
     {
         return $this->isDeactivated() ? __('profile.deactivated_user') : $this->fullName;
@@ -318,14 +347,45 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->favorites()->where('service_id', $serviceId)->exists();
     }
 
+    /**
+     * TASK-1693 bug V — les messages NON LUS qui doivent attirer l'attention.
+     *
+     * ## Deux exclusions se cumulaient, et la seconde etait invisible
+     *
+     * 1. `type = 'user'` ecartait deliberement les messages SYSTEME. Or ce sont
+     *    eux qui portent les nouvelles qui comptent : « Nouvel échange
+     *    envoyé », « Échange accepté », « L'acheteur a déclaré la prestation
+     *    terminée ». Arbitrage Cyril du 21/10 : « il faut le mettre car cela
+     *    attire l'attention ».
+     *
+     * 2. `sender_id != $this->id` les ecartait une SECONDE fois, et celle-la ne
+     *    se voyait pas : `addSystemMessage()` pose `sender_id = NULL`, et en SQL
+     *    `NULL != 'x'` vaut NULL — donc jamais VRAI, donc la ligne tombe.
+     *    Mesure sur la base de recette : 8 messages comptes contre 17 des que
+     *    les NULL sont admis. Lever la seule premiere exclusion n'aurait donc
+     *    RIEN change, et aurait laisse croire le correctif applique.
+     *
+     * ## Pourquoi `markRead()` devait bouger en meme temps
+     *
+     * `MessageThread::markRead()` portait exactement la meme comparaison, et
+     * ne marquait donc JAMAIS un message systeme comme lu — tous ceux de la
+     * base de recette le prouvent. Compter les messages systeme sans corriger
+     * cela aurait allume le badge DEFINITIVEMENT, sans aucun moyen de
+     * l'eteindre. Les deux corrections ne valent qu'ensemble.
+     *
+     * ## Ce qui reste absent, et qu'il ne faut pas croire resolu
+     *
+     * Ce compteur est evalue cote serveur au rendu de la page. Il n'y a ni
+     * sondage ni temps reel : un message qui arrive pendant qu'on lit un autre
+     * fil n'allume le badge qu'a la navigation suivante.
+     */
     public function unreadMessagesCount(): int
     {
         return Message::whereHas('transaction', function ($q) {
             $q->where('buyer_id', $this->id)->orWhere('seller_id', $this->id);
         })
-            ->where('sender_id', '!=', $this->id)
+            ->where(fn ($q) => $q->whereNull('sender_id')->orWhere('sender_id', '!=', $this->id))
             ->whereNull('read_at')
-            ->where('type', 'user')
             ->count();
     }
 

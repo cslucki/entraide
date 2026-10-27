@@ -10,9 +10,9 @@
         $_profileRoute = function ($user) {
             $orgSlug = request()->route('organization');
             if ($orgSlug && Route::has('organization.profile.show')) {
-                return route('organization.profile.show', ['organization' => $orgSlug, 'user' => $user]);
+                return route('organization.profile.show', ['organization' => $orgSlug, 'user' => $user->profileRouteKey()]);
             }
-            return route('profile.show', $user);
+            return route('profile.show', $user->profileRouteKey());
         };
         $_authorDisplayable = fn ($user) => $user?->isDisplayableIn(currentOrganization());
     @endphp
@@ -23,7 +23,14 @@
         <!-- Header -->
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
             <div>
-                <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">{{ __('blog.title') }}</h1>
+                {{-- TASK-1707 M6 — « Blog » s'affichait DEUX fois sur telephone :
+                     ici, et dans la barre haute qui titre les routes de niveau
+                     un. Cyril : « n'en garder qu'un, dans la barre ».
+
+                     Le seuil est `md`, pas `sm` : c'est exactement celui de
+                     `x-mobile-topbar` (`md:hidden`). Le titre reparait donc
+                     pile ou la barre disparait — ni trou, ni doublon. --}}
+                <h1 class="hidden md:block text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">{{ __('blog.title') }}</h1>
                 <p class="mt-1 text-sm sm:text-base text-gray-500 dark:text-gray-400">{{ __('blog.subtitle') }}</p>
             </div>
             @auth

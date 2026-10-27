@@ -50,7 +50,58 @@ class SystemEmailTemplateTest extends TestCase
 
     // ── Seeders ────────────────────────────────────────
 
-    public function test_seeder_creates_templates_for_active_orgs(): void
+    /**
+     * TASK-1694 bug N — un fixture EXPLICITE pour les lignes par Organization.
+     *
+     * Quatre tests de ce fichier se servaient du seeder comme d'une usine a
+     * lignes par tenant. Le seeder seme desormais du Global (decision de
+     * Cyril) ; la resolution par tenant, elle, N'A PAS CHANGE — une
+     * Organization qui a personnalise son email garde sa version.
+     *
+     * Ces tests gardent donc leur garantie, avec leur fixture ecrit ici :
+     * reproduire l'ancienne forme du seeder, pour les slugs qu'ils lisent.
+     */
+    private function seedPerOrganizationTemplates(): void
+    {
+        foreach (Organization::where('is_active', true)->get() as $organization) {
+            foreach (array_keys(SystemEmailTemplateSeeder::definitions()) as $slug) {
+                foreach (['fr', 'en'] as $locale) {
+                    SystemEmailTemplate::firstOrCreate(
+                        [
+                            'organization_id' => $organization->id,
+                            'locale' => $locale,
+                            'slug' => $slug,
+                        ],
+                        SystemEmailTemplateSeeder::rowFor($slug, $locale) + ['enabled' => true],
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * TASK-1694 bug N — LA GARANTIE DE CE TEST A CHANGE, par decision produit.
+     *
+     * Il mesurait « chaque Organization active recoit chaque gabarit dans les
+     * deux langues ». Cyril : « il faudrait qu'on ait uniquement des emails de
+     * type Global. » Le seeder seme desormais UNE ligne par slug et par langue,
+     * sans rattachement, et le resolveur (bug M) les rend atteignables.
+     *
+     * Ce que l'ancienne regle coutait, mesure le 23/10 : 21 lignes rattachees a
+     * deux Organizations, toutes identiques au catalogue octet pour octet — et
+     * OFSH, creee APRES le seeder, n'en avait aucune. Deux Organizations
+     * servies differemment par la seule grace de leur date de creation.
+     *
+     * ## L'ancienne version de ce test passait A VIDE
+     *
+     * Constate en le remplacant : elle lisait le nombre de slugs DANS la base
+     * (`whereNotNull('organization_id')->distinct()->count('slug')`), puis
+     * comparait `$slugs * 2 * 3` au compte de ces memes lignes. Avec un seeder
+     * qui ne rattache plus rien, cela donnait `0 === 0` — **vert sans rien
+     * mesurer**. Un total lu dans la chose mesuree ne mesure pas cette chose.
+     * Le compte vient maintenant du CATALOGUE, qui est la source.
+     */
+    public function test_seeder_creates_global_templates_independent_of_organizations(): void
     {
         Organization::factory()->create(['is_active' => true, 'slug' => 'org-a']);
         Organization::factory()->create(['is_active' => true, 'slug' => 'org-b']);
@@ -58,15 +109,36 @@ class SystemEmailTemplateTest extends TestCase
 
         $this->seed(SystemEmailTemplateSeeder::class);
 
-        // Asserted structurally rather than against a hard-coded total: the point
-        // is "every active organization gets every template in both locales, and
-        // inactive ones get none", which must keep holding as templates are added.
-        $slugs = SystemEmailTemplate::distinct()->count('slug');
-        $inactive = Organization::where('slug', 'inactive')->sole();
+        $catalogue = count(SystemEmailTemplateSeeder::definitions());
 
-        $this->assertSame($slugs * 2 * 3, SystemEmailTemplate::count());
-        $this->assertSame($slugs * 2, SystemEmailTemplate::where('organization_id', $this->org->id)->count());
-        $this->assertSame(0, SystemEmailTemplate::where('organization_id', $inactive->id)->count());
+        $this->assertSame(
+            $catalogue * 2,
+            SystemEmailTemplate::whereNull('organization_id')->count(),
+            'une ligne par slug et par langue, et rien de plus',
+        );
+
+        $this->assertSame(
+            0,
+            SystemEmailTemplate::whereNotNull('organization_id')->count(),
+            'le seeder ne rattache plus aucun gabarit a une Organization',
+        );
+    }
+
+    /**
+     * Et le nombre d'Organizations n'y change RIEN.
+     *
+     * C'est la moitie qui distingue vraiment les deux regles : l'ancien seeder
+     * multipliait ses lignes par le nombre d'Organizations actives.
+     */
+    public function test_the_number_of_organizations_does_not_change_what_is_seeded(): void
+    {
+        $this->seed(SystemEmailTemplateSeeder::class);
+        $avant = SystemEmailTemplate::count();
+
+        Organization::factory()->count(3)->create(['is_active' => true]);
+        $this->seed(SystemEmailTemplateSeeder::class);
+
+        $this->assertSame($avant, SystemEmailTemplate::count());
     }
 
     public function test_seeder_does_not_duplicate(): void
@@ -82,9 +154,9 @@ class SystemEmailTemplateTest extends TestCase
     {
         $this->seed(SystemEmailTemplateSeeder::class);
 
-        $template = SystemEmailTemplate::where('slug', 'welcome')
+        $template = SystemEmailTemplate::where('slug', WelcomeNotification::SLUG)
             ->where('locale', 'fr')
-            ->where('organization_id', $this->org->id)
+            ->whereNull('organization_id')
             ->first();
 
         $template->update(['subject' => 'Custom subject']);
@@ -107,8 +179,16 @@ class SystemEmailTemplateTest extends TestCase
             'preferred_locale' => 'fr',
         ]);
 
+        // TASK-1694 bug Q — « aucun gabarit » doit etre DIT, desormais.
+        //
+        // La migration de normalisation pose 18 lignes globales ACTIVES, et
+        // `RefreshDatabase` joue les migrations : la table n'est donc plus vide
+        // au depart d'un test. C'est la verite de toute base reelle — ce test
+        // modelise une absence, il doit la creer.
+        SystemEmailTemplate::query()->delete();
+
         SystemEmailTemplate::create([
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => 'Legacy {{ name }}',
             'content_html' => '<p>Legacy {{ name }}</p>',
@@ -123,10 +203,31 @@ class SystemEmailTemplateTest extends TestCase
         ]);
     }
 
-    public function test_global_template_not_used_when_user_has_org(): void
+    /**
+     * TASK-1694 bug G — CETTE REGLE EST REMPLACEE, et le test avec elle.
+     *
+     * Elle disait : un gabarit GLOBAL n'est jamais employe des que la personne
+     * appartient a une Organization. Comme tout le monde en a une, la ligne
+     * globale n'etait donc LISIBLE PAR PERSONNE — l'administration l'affichait,
+     * le produit ne s'en servait jamais.
+     *
+     * Decision de Cyril : « je pense que c'est bien que l'email de verification
+     * soit Global, on ne va pas creer un email pour chaque organisation. » Le
+     * global devient donc un REPLI reel, apres les lignes du tenant.
+     *
+     * Le test est RETOURNE, pas supprime : il garde la question « qui gagne ? »,
+     * et le test voisin `..._still_wins_over_the_global_one` garde l'autre
+     * moitie — une Organization qui a personnalise n'est jamais recouverte.
+     */
+    public function test_global_template_is_used_when_the_org_has_none(): void
     {
+        // TASK-1694 bug Q — la migration de normalisation pose deja une ligne
+        // globale pour ce slug. L'effacer d'abord, pour que celle du test soit
+        // bien celle qui repond.
+        SystemEmailTemplate::query()->delete();
+
         SystemEmailTemplate::create([
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Global Welcome',
             'subject' => 'Global {{ name }}',
             'content_html' => '<p>Global</p>',
@@ -137,7 +238,7 @@ class SystemEmailTemplateTest extends TestCase
 
         $this->assertDatabaseHas('email_logs', [
             'user_id' => $this->user->id,
-            'subject' => 'Bienvenue sur Entraide !',
+            'subject' => 'Global '.$this->user->fullName,
         ]);
     }
 
@@ -145,9 +246,9 @@ class SystemEmailTemplateTest extends TestCase
 
     public function test_resolves_template_by_org_and_locale(): void
     {
-        $this->seed(SystemEmailTemplateSeeder::class);
+        $this->seedPerOrganizationTemplates();
 
-        $template = SystemEmailTemplate::where('slug', 'welcome')
+        $template = SystemEmailTemplate::where('slug', WelcomeNotification::SLUG)
             ->where('locale', 'fr')
             ->where('organization_id', $this->org->id)
             ->first();
@@ -196,10 +297,10 @@ class SystemEmailTemplateTest extends TestCase
     public function test_no_cross_org_fallback(): void
     {
         $otherOrg = Organization::factory()->create(['is_active' => true, 'locale' => 'fr', 'slug' => 'other']);
-        $this->seed(SystemEmailTemplateSeeder::class);
+        $this->seedPerOrganizationTemplates();
 
         SystemEmailTemplate::where('organization_id', $otherOrg->id)
-            ->where('slug', 'welcome')
+            ->where('slug', WelcomeNotification::SLUG)
             ->where('locale', 'fr')
             ->update(['subject' => 'Other org subject']);
 
@@ -227,7 +328,7 @@ class SystemEmailTemplateTest extends TestCase
     {
         $this->seed(SystemEmailTemplateSeeder::class);
 
-        SystemEmailTemplate::where('slug', 'welcome')
+        SystemEmailTemplate::where('slug', WelcomeNotification::SLUG)
             ->where('locale', 'fr')
             ->where('organization_id', $this->org->id)
             ->update(['enabled' => false]);
@@ -239,7 +340,8 @@ class SystemEmailTemplateTest extends TestCase
         ]);
 
         $log = EmailLog::where('user_id', $this->user->id)->first();
-        $this->assertStringContainsString('Bienvenue sur Entraide', $log->subject);
+        // TASK-1694 bug G — le repli nomme l'ORGANIZATION, plus la marque.
+        $this->assertStringContainsString('Bienvenue sur '.$this->user->organization->name, $log->subject);
     }
 
     // ── Welcome ────────────────────────────────────────
@@ -249,7 +351,7 @@ class SystemEmailTemplateTest extends TestCase
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => 'Bienvenue {{ name }} !',
             'content_html' => '<h1>Bienvenue {{ name }} !</h1>',
@@ -266,20 +368,37 @@ class SystemEmailTemplateTest extends TestCase
 
     public function test_welcome_falls_back_when_no_system_template(): void
     {
+        // TASK-1694 bug Q — « aucun gabarit » doit etre DIT, desormais.
+        //
+        // La migration de normalisation pose 18 lignes globales ACTIVES, et
+        // `RefreshDatabase` joue les migrations : la table n'est donc plus vide
+        // au depart d'un test. C'est la verite de toute base reelle — ce test
+        // modelise une absence, il doit la creer.
+        SystemEmailTemplate::query()->delete();
+
         $this->user->notify(new WelcomeNotification);
 
         $this->assertDatabaseHas('email_logs', [
             'user_id' => $this->user->id,
-            'subject' => 'Bienvenue sur Entraide !',
+            // TASK-1694 bug G — le repli nomme l'ORGANIZATION, plus la marque.
+            'subject' => 'Bienvenue sur '.($this->user->organization?->name ?: config('app.name')).' !',
         ]);
     }
 
     public function test_welcome_falls_back_when_system_template_disabled(): void
     {
+        // TASK-1694 bug Q — « aucun gabarit » doit etre DIT, desormais.
+        //
+        // La migration de normalisation pose 18 lignes globales ACTIVES, et
+        // `RefreshDatabase` joue les migrations : la table n'est donc plus vide
+        // au depart d'un test. C'est la verite de toute base reelle — ce test
+        // modelise une absence, il doit la creer.
+        SystemEmailTemplate::query()->delete();
+
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => 'Bienvenue {{ name }} !',
             'content_html' => '<h1>Bienvenue {{ name }} !</h1>',
@@ -290,7 +409,8 @@ class SystemEmailTemplateTest extends TestCase
 
         $this->assertDatabaseHas('email_logs', [
             'user_id' => $this->user->id,
-            'subject' => 'Bienvenue sur Entraide !',
+            // TASK-1694 bug G — le repli nomme l'ORGANIZATION, plus la marque.
+            'subject' => 'Bienvenue sur '.($this->user->organization?->name ?: config('app.name')).' !',
         ]);
     }
 
@@ -299,7 +419,7 @@ class SystemEmailTemplateTest extends TestCase
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => 'Bienvenue',
             'content_html' => '<p>Contenu personnalisé</p>',
@@ -307,8 +427,22 @@ class SystemEmailTemplateTest extends TestCase
         ]);
 
         $msg = (new WelcomeNotification)->toMail($this->user);
-        $this->assertStringContainsString('emails.system-email', $msg->view);
+
+        // TASK-1694 bug P — `markdown` et non `view` : c'est ce chemin qui
+        // declenche l'habillage et l'incorporation des styles.
+        //
+        // Ce test s'appelait « renders within mail layout » et ne mesurait que
+        // le NOM de la vue — jamais la mise en page. Il est desormais rendu :
+        // sans habillage, l'email faisait 261 octets de HTML nu (mesure du
+        // 23/10) ; avec, il en fait plus de sept mille.
+        $this->assertStringContainsString('emails.system-email', $msg->markdown);
         $this->assertStringContainsString('Contenu personnalisé', $msg->viewData['html']);
+
+        $rendu = $msg->render();
+
+        $this->assertStringContainsString('Contenu personnalisé', $rendu);
+        $this->assertStringContainsString('<table', $rendu);
+        $this->assertStringContainsString('style=', $rendu);
     }
 
     // ── Transaction status ─────────────────────────────
@@ -440,7 +574,7 @@ class SystemEmailTemplateTest extends TestCase
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => '{{ first_name }} {{ name }} {{ email }} {{ city }}',
             'content_html' => '<p>{{ first_name }} {{ name }} {{ email }} {{ city }}</p>',
@@ -460,7 +594,7 @@ class SystemEmailTemplateTest extends TestCase
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => 'Hello {{ unknown }}',
             'content_html' => '<p>{{ unknown }}</p>',
@@ -480,7 +614,7 @@ class SystemEmailTemplateTest extends TestCase
         SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
             'locale' => 'fr',
-            'slug' => 'welcome',
+            'slug' => WelcomeNotification::SLUG,
             'name' => 'Welcome',
             'subject' => 'Test',
             'content_html' => '<p>{{ first_name }}</p>',
@@ -501,11 +635,11 @@ class SystemEmailTemplateTest extends TestCase
         $orgB = Organization::factory()->create(['is_active' => true, 'slug' => 'org-b']);
 
         SystemEmailTemplate::create([
-            'organization_id' => $orgA->id, 'locale' => 'fr', 'slug' => 'welcome',
+            'organization_id' => $orgA->id, 'locale' => 'fr', 'slug' => WelcomeNotification::SLUG,
             'name' => 'A Welcome', 'subject' => 'A', 'content_html' => '<p>A</p>',
         ]);
         SystemEmailTemplate::create([
-            'organization_id' => $orgB->id, 'locale' => 'en', 'slug' => 'welcome',
+            'organization_id' => $orgB->id, 'locale' => 'en', 'slug' => WelcomeNotification::SLUG,
             'name' => 'B Welcome', 'subject' => 'B', 'content_html' => '<p>B</p>',
         ]);
 
@@ -524,11 +658,11 @@ class SystemEmailTemplateTest extends TestCase
         $orgB = Organization::factory()->create(['is_active' => true, 'slug' => 'org-b']);
 
         SystemEmailTemplate::create([
-            'organization_id' => $orgA->id, 'locale' => 'fr', 'slug' => 'welcome',
+            'organization_id' => $orgA->id, 'locale' => 'fr', 'slug' => WelcomeNotification::SLUG,
             'name' => 'Only A', 'subject' => 'A', 'content_html' => '<p>A</p>',
         ]);
         SystemEmailTemplate::create([
-            'organization_id' => $orgB->id, 'locale' => 'en', 'slug' => 'welcome',
+            'organization_id' => $orgB->id, 'locale' => 'en', 'slug' => WelcomeNotification::SLUG,
             'name' => 'Only B', 'subject' => 'B', 'content_html' => '<p>B</p>',
         ]);
 
@@ -573,7 +707,11 @@ class SystemEmailTemplateTest extends TestCase
         $otherOrg = Organization::factory()->create(['is_active' => true, 'slug' => 'other-org']);
         $orgAdmin = User::factory()->create(['organization_id' => $otherOrg->id]);
 
-        $otherOrg->update(['admin_id' => $orgAdmin->id]);
+        // TASK-1694 bug R — la capacite d'editer est desormais DECOCHEE par
+        // defaut. Ce test mesure ce que voit une Organization QUI L'A : la
+        // refuser ici reviendrait a mesurer la garde du bug R, dont c'est le
+        // test dedie qui s'occupe.
+        $otherOrg->update(['admin_id' => $orgAdmin->id, 'system_emails_editable' => true]);
 
         $response = $this->actingAs($orgAdmin)->get(route('organization.admin.system-email-templates', $otherOrg));
 
@@ -593,13 +731,16 @@ class SystemEmailTemplateTest extends TestCase
 
         $response = $this->actingAs($orgAdmin)->get(route('organization.admin.system-email-templates', $otherOrg));
 
-        $response->assertStatus(403);
+        $response->assertStatus(404);
     }
 
     public function test_org_admin_cannot_edit_other_org_template(): void
     {
         $otherOrg = Organization::factory()->create(['is_active' => true, 'slug' => 'other-org']);
-        $this->seed(SystemEmailTemplateSeeder::class);
+        // TASK-1694 bug N — ce test a besoin d'une ligne RATTACHEE a l'autre
+        // Organization : c'est la garde de tenant qu'il mesure. Le seeder, lui,
+        // ne rattache plus rien.
+        $this->seedPerOrganizationTemplates();
 
         $orgAdmin = User::factory()->create(['organization_id' => $this->org->id]);
         $this->org->update(['admin_id' => $orgAdmin->id]);
@@ -610,6 +751,6 @@ class SystemEmailTemplateTest extends TestCase
             route('organization.admin.system-email-templates.edit', [$otherOrg, $otherTemplate])
         );
 
-        $response->assertStatus(403);
+        $response->assertStatus(404);
     }
 }

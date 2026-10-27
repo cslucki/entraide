@@ -63,6 +63,10 @@ return [
     'btn_generate_ai' => 'Générer l\'article avec l\'IA',
     'btn_generate_ai_editor' => 'Générer avec l\'IA',
     'btn_write_myself' => 'L\'écrire moi-même',
+    // TASK-1693 bug AI — quand l'IA est eteinte, « ecrire moi-meme » n'oppose
+    // plus rien : il n'y a aucun autre chemin. Le bouton n'annonce alors que ce
+    // qu'il fait — avancer vers l'editeur.
+    'btn_write_myself_without_ai' => 'Valider',
     'btn_save' => 'Enregistrer les modifications',
     'btn_publish' => 'Publier',
     'btn_edit' => 'Modifier',
@@ -420,6 +424,8 @@ return [
     'sidebar_plan_placeholder' => 'Extraire les titres de l\'article',
     'plan_title' => 'Plan',
     'plan_empty' => 'Aucun titre trouvé.',
+    'annotation_empty_hint' => 'Pour en créer une, sélectionnez un passage puis cliquez sur :bouton dans la barre d’édition.',
+    'plan_empty_hint' => 'Le plan se construit tout seul à partir de vos titres. Pour en poser un, placez le curseur dans une ligne puis choisissez un niveau avec :bouton dans la barre d’édition.',
     'plan_toggle' => 'Afficher sur l\'article publié',
     'plan_collapse' => 'Réduire',
     'plan_expand' => 'Développer',
@@ -573,4 +579,9 @@ return [
     'ai_origin_sources' => 'Appuyée sur :count source(s) documentaire(s).',
     'ai_origin_sources_title' => 'Sources documentaires',
     'ai_origin_open_source' => 'Ouvrir',
+    // TASK-1697 — le fil de commentaires devient un composant Livewire
+    'comments_heading' => 'Commentaires',
+    'comments_total' => '{0}aucun commentaire|{1}:count commentaire|[2,*]:count commentaires',
+    'comments_empty' => 'Aucun commentaire pour le moment. Lancez la discussion.',
+    'btn_cancel_reply' => 'Annuler',
 ];

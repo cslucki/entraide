@@ -70,4 +70,9 @@ return [
     'presend_origin_loop_clarification' => 'Préparée depuis « Qui peut m\'aider ? » dans cette Boucle.',
     'presend_origin_loop_clarification_unavailable' => 'Préparée à partir de vos mots, sans intervention de l\'IA.',
     'presend_note' => 'Rien n\'est publié tant que vous ne l\'avez pas confirmé. Vous pouvez tout modifier ci-dessous.',
+    // TASK-1693 bug W — plusieurs personnes peuvent proposer leur aide.
+    'lifecycle' => [
+        'another_offer_accepted' => "L'auteur de la demande a retenu une autre proposition. Cet échange est donc clos — merci de votre proposition.",
+        'insufficient_balance' => "Le solde de l'auteur de la demande ne couvre plus ce montant. L'echange ne peut pas etre accepte.",
+    ],
 ];

@@ -59,7 +59,7 @@
                     <td data-label="{{ __('navigation.org_admin_table_visibility') }}" class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 capitalize">{{ $boucle->visibility }}</td>
                     <td data-label="{{ __('navigation.org_admin_table_creator') }}" class="px-4 py-3">
                         @if($boucle->creator)
-                        <a href="{{ route('profile.show', $boucle->creator) }}" class="text-indigo-600 hover:underline text-xs">{{ $boucle->creator->full_name }}</a>
+                        <a href="{{ route('profile.show', $boucle->creator->profileRouteKey()) }}" class="text-indigo-600 hover:underline text-xs">{{ $boucle->creator->full_name }}</a>
                         @else
                         <span class="text-xs text-gray-400">—</span>
                         @endif

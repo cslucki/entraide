@@ -18,10 +18,13 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Livewire\Livewire;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 class UserDeactivationTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     private Organization $organization;
 
     protected function setUp(): void
@@ -329,12 +332,20 @@ class UserDeactivationTest extends TestCase
             'user_id' => $owner->id,
         ]);
 
-        $this->get(route('organization.agent-ia.profile.chat', [$this->organization, $owner]))
+        // TASK-1692 — l'entree de l'agent IA est une surface prefixee, donc
+        // MEMBRE. Le fait mesure reste le meme et devient plus fort : meme un
+        // MEMBRE de l'Organization recoit 404 quand le titulaire du profil est
+        // desactive. Le refus anonyme, lui, est tenu par
+        // TASK1692StrictHttpIsolationTest.
+        $this->actingAs($this->createUser())
+            ->get(route('organization.agent-ia.profile.chat', [$this->organization, $owner]))
             ->assertNotFound();
     }
 
     public function test_dossier_members_api_neutralizes_deactivated_existing_member(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $owner = $this->createUser();
         $deactivatedMember = $this->createUser([
             'first_name' => 'Hidden',

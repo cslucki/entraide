@@ -3,6 +3,7 @@
 namespace Tests\Feature\OpenSource;
 
 use App\Models\Organization;
+use App\Models\User;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -324,11 +325,52 @@ class OpenSourceExplorerTest extends TestCase
 
         $this->fakeGithub();
 
+        // TASK-1692 — la variante PREFIXEE est devenue une surface membre ;
+        // la route GLOBALE, elle, reste publique et n'a pas ete touchee.
+        // C'est la seule chose qui change : le contenu reste identique, ce que
+        // ce test mesure depuis TASK-1613.
+        $membre = User::factory()->create([
+            'organization_id' => Organization::where('slug', 'test-open-source')->value('id'),
+        ]);
+
         // MEME vue, MEME contenu : rien n'est duplique.
-        $this->get('/org/test-open-source/open-source')
+        $this->actingAs($membre)
+            ->get('/org/test-open-source/open-source')
             ->assertOk()
             ->assertSee('BouclePro Core')
             ->assertSee('.github');
+
+        $this->get('/open-source')->assertOk()->assertSee('BouclePro Core');
+    }
+
+    /**
+     * TASK-1698 — la variante prefixee est ROUVERTE, et l'enonce s'inverse.
+     *
+     * T1692 avait ecrit ici : « la route globale reste publique, c'est elle qui
+     * porte la promesse d'ouverture du produit ; seule l'URL scopee demande une
+     * session. » La distinction n'avait pas de fondement : MEME vue, MEME
+     * contenu, MEME instantane de depot — le test juste au-dessus le mesure
+     * depuis T1613. Rien dans cette page ne depend d'un tenant.
+     *
+     * La fermeture etait un accident de routage : `open-source` n'avait jamais
+     * pose l'opt-out du groupe `/org/{organization}`, ferme par defaut (voir
+     * `routes/web.php` et T1613, qui la documentait publique).
+     *
+     * Les deux variantes sont donc mesurees ensemble, 200 toutes les deux.
+     */
+    public function test_the_prefixed_explorer_is_open_to_an_anonymous_visitor(): void
+    {
+        Organization::factory()->create([
+            'slug' => 'test-open-source',
+            'is_active' => true,
+            'is_public' => true,
+        ]);
+
+        $this->fakeGithub();
+
+        $this->get('/org/test-open-source/open-source')
+            ->assertOk()
+            ->assertSee('BouclePro Core');
 
         $this->get('/open-source')->assertOk()->assertSee('BouclePro Core');
     }
@@ -341,6 +383,20 @@ class OpenSourceExplorerTest extends TestCase
             'is_public' => true,
         ]);
 
+        // Hors de tout prefixe : la route globale, jamais un tenant devine.
+        //
+        // TASK-1692 — cette moitie est mesuree EN PREMIER, et ce n'est pas un
+        // detail de style : `actingAs()` ne se defait pas, il vaut pour toutes
+        // les requetes suivantes du test. Place apres, ce `get('/login')`
+        // partait authentifie et recevait la redirection de `guest`.
+        $global = $this->get('/login')->assertOk()->getContent();
+        $this->assertStringContainsString('/open-source"', $global);
+        $this->assertStringNotContainsString('/org/test-open-source/open-source', $global);
+
+        $membre = User::factory()->create([
+            'organization_id' => Organization::where('slug', 'test-open-source')->value('id'),
+        ]);
+
         // Sous `/org/{slug}` : la cible est bornee a l'Organization.
         //
         // Le logigramme, et pas Mycelium : `layouts/app` n'inclut AUCUN pied
@@ -349,13 +405,8 @@ class OpenSourceExplorerTest extends TestCase
         // qui n'a pas de pied.
         $this->assertStringContainsString(
             '/org/test-open-source/open-source',
-            $this->get('/org/test-open-source/flowchart')->assertOk()->getContent(),
+            $this->actingAs($membre)->get('/org/test-open-source/flowchart')->assertOk()->getContent(),
         );
-
-        // Hors de tout prefixe : la route globale, jamais un tenant devine.
-        $global = $this->get('/login')->assertOk()->getContent();
-        $this->assertStringContainsString('/open-source"', $global);
-        $this->assertStringNotContainsString('/org/test-open-source/open-source', $global);
     }
 
     /**
@@ -372,27 +423,70 @@ class OpenSourceExplorerTest extends TestCase
      */
     public static function autonomousLandings(): array
     {
+        // TASK-1692 — le troisieme element dit si le chemin reste joignable
+        // par un ANONYME. La landing l'est ; `/about` etait passe membre avec
+        // tout le groupe `/org/{organization}`.
+        //
+        // TASK-1700 — « A propos » redevient PUBLIQUE, et ce troisieme element
+        // repasse donc a `true`. La fermeture etait collaterale : `git log -L`
+        // sur sa ligne de route ne montre que T371 et T1450, jamais T1692.
+        //
+        // Ce n'est pas un relachement pour ce test-ci, au contraire : il gagne
+        // un viseur. L'invariant de T1613 — l'URL du depot n'apparait NULLE
+        // PART — etait mesure sur une reponse de REDIRECTION, qui ne contient
+        // rien par construction. Il est desormais mesure sur un rendu reel,
+        // qui porte l'icone GitHub.
         return [
-            'homepage hero-v2' => ['bouclepro_hero_v2', '/org/test-open-source'],
-            'landing artscilab' => ['artscilab_hero', '/org/test-open-source'],
-            'a propos de l\'Organization' => ['bouclepro_hero_v2', '/org/test-open-source/about'],
+            'homepage hero-v2' => ['bouclepro_hero_v2', '/org/test-open-source', true],
+            'landing artscilab' => ['artscilab_hero', '/org/test-open-source', true],
+            'a propos de l\'Organization' => ['bouclepro_hero_v2', '/org/test-open-source/about', true],
         ];
     }
 
     #[DataProvider('autonomousLandings')]
-    public function test_an_autonomous_landing_never_exposes_the_repository_url(string $template, string $path): void
+    public function test_an_autonomous_landing_never_exposes_the_repository_url(string $template, string $path, bool $publiqueEnAnonyme): void
     {
-        Organization::factory()->create([
+        $organisation = Organization::factory()->create([
             'slug' => 'test-open-source',
             'is_active' => true,
             'is_public' => true,
             'homepage_template' => $template,
         ]);
 
-        $html = $this->get($path)->assertOk()->getContent();
+        // 1. L'ANONYME d'abord — `actingAs()` ne se defait pas, et une requete
+        //    posee apres lui n'est plus anonyme du tout.
+        //
+        //    TASK-1698 — il obtient de nouveau le lien borne : la variante
+        //    prefixee de l'explorateur n'avait jamais pose l'opt-out du groupe
+        //    `/org/{organization}`, ferme par defaut, et T1613 la documentait
+        //    publique. C'est un viseur PLUS exigeant pour l'invariant de
+        //    T1613 : il y a maintenant un lien a inspecter sur cette page, et
+        //    l'URL du depot ne doit toujours apparaitre NULLE PART.
+        $anonyme = $this->get($path);
 
-        // La sortie passe par la redirection BouclePro, jamais par l'URL du
-        // depot : c'est la regression vue en production apres la 1.612.
+        if ($publiqueEnAnonyme) {
+            $htmlAnonyme = $anonyme->assertOk()->getContent();
+
+            $this->assertStringNotContainsString('cslucki', $htmlAnonyme);
+            $this->assertStringNotContainsString('github.com/cslucki', $htmlAnonyme);
+            // L'icone GitHub, elle, est sur les DEUX gabarits autonomes : c'est
+            // elle qui porte l'invariant de T1613 (une redirection BouclePro,
+            // jamais l'URL du depot). Le lien TEXTE « OpenSource » n'existe que
+            // sur `hero-v2` — `artscilab-hero` ne l'a jamais porte — et sa
+            // presence est mesuree par les tests de pied de page, pas ici : ce
+            // test-ci n'existe que pour l'URL du depot.
+            $this->assertStringContainsString('/open-source/github', $htmlAnonyme);
+        } else {
+            $anonyme->assertRedirect(route('organization.login', ['organization' => $organisation->slug]));
+        }
+
+        // 2. Puis le MEMBRE : le lien existe, et il passe par la redirection
+        //    BouclePro, jamais par l'URL du depot — c'est la regression vue en
+        //    production apres la 1.612.
+        $membre = User::factory()->create(['organization_id' => $organisation->id]);
+
+        $html = $this->actingAs($membre)->get($path)->assertOk()->getContent();
+
         $this->assertStringContainsString('/open-source/github', $html);
         $this->assertStringNotContainsString('cslucki', $html);
         $this->assertStringNotContainsString('github.com/cslucki', $html);

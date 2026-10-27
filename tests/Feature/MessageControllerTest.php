@@ -26,7 +26,13 @@ class MessageControllerTest extends TestCase
         $this->assertSame($sender->id, $transaction->buyer_id);
         $this->assertSame($recipient->id, $transaction->seller_id);
 
-        $response->assertRedirect(route('messages.show', $transaction));
+        // TASK-1693 bug AA — on atterrit dans LA conversation, sur la surface
+        // de l'Organization quand il y en a une. Ce test garantit la creation
+        // de la conversation (verifiee juste au-dessus et INCHANGEE), pas la
+        // surface : on vise donc l'identifiant de la conversation, pas une URL
+        // exacte.
+        $this->assertStringContainsString('/messages/'.$transaction->id,
+            (string) $response->headers->get('Location'));
 
         $this->assertDatabaseHas('messages', [
             'transaction_id' => $transaction->id,
@@ -55,7 +61,13 @@ class MessageControllerTest extends TestCase
 
         $response = $this->actingAs($sender)->get(route('messages.with', $recipient));
 
-        $response->assertRedirect(route('messages.show', $transaction));
+        // TASK-1693 bug AA — on atterrit dans LA conversation, sur la surface
+        // de l'Organization quand il y en a une. Ce test garantit la creation
+        // de la conversation (verifiee juste au-dessus et INCHANGEE), pas la
+        // surface : on vise donc l'identifiant de la conversation, pas une URL
+        // exacte.
+        $this->assertStringContainsString('/messages/'.$transaction->id,
+            (string) $response->headers->get('Location'));
         $this->assertSame(1, Transaction::withoutGlobalScopes()->count());
         $this->assertSame(0, Message::count());
     }

@@ -55,6 +55,15 @@ class TASK1390HttpRootDocumentLocaleTest extends TestCase
     {
         parent::setUp();
 
+        // TASK-1679 : le document racine ne nait plus a la creation que si le
+        // preset du type active `core.manifesto`. Ces tests mesurent la LANGUE
+        // du document cree a la naissance : on remet le Manifeste au socle des
+        // types employes ici.
+        $settings = app(\App\Services\LoopTypeSettingsService::class);
+        foreach (['general', 'project'] as $type) {
+            $settings->save($type, array_merge($settings->cardsFor($type), ['core.manifesto']), $settings->isAvailable($type));
+        }
+
         $this->organisationAnglaise = Organization::factory()->create([
             'slug' => 'task1390-org-en',
             'locale' => 'en',

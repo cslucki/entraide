@@ -8,10 +8,13 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 class DossierSharingTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     use RefreshDatabase;
 
     private Organization $orgA;
@@ -134,6 +137,8 @@ class DossierSharingTest extends TestCase
 
     public function test_owner_can_list_members(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
@@ -146,6 +151,8 @@ class DossierSharingTest extends TestCase
 
     public function test_owner_can_add_member(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
         $this->actingAs($this->ownerA)
@@ -165,6 +172,8 @@ class DossierSharingTest extends TestCase
 
     public function test_owner_cannot_add_deactivated_member(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $deactivatedUser = User::factory()->create([
             'organization_id' => $this->orgA->id,
@@ -186,6 +195,8 @@ class DossierSharingTest extends TestCase
 
     public function test_owner_can_update_member_role(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
@@ -205,6 +216,8 @@ class DossierSharingTest extends TestCase
 
     public function test_owner_can_remove_member(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
@@ -223,6 +236,8 @@ class DossierSharingTest extends TestCase
 
     public function test_owner_can_search_users(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
         $this->actingAs($this->ownerA)
@@ -234,6 +249,8 @@ class DossierSharingTest extends TestCase
 
     public function test_search_excludes_owner_and_existing_members(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
@@ -246,6 +263,8 @@ class DossierSharingTest extends TestCase
 
     public function test_search_excludes_deactivated_users(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $activeUser = User::factory()->create([
             'organization_id' => $this->orgA->id,
@@ -267,6 +286,8 @@ class DossierSharingTest extends TestCase
 
     public function test_reader_cannot_search_users(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
@@ -277,6 +298,8 @@ class DossierSharingTest extends TestCase
 
     public function test_editor_cannot_search_users(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->editorA, DossierMember::ROLE_EDITOR);
 
@@ -287,6 +310,8 @@ class DossierSharingTest extends TestCase
 
     public function test_stranger_cannot_search_users(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
         $this->actingAs($this->strangerA)
@@ -296,6 +321,8 @@ class DossierSharingTest extends TestCase
 
     public function test_search_finds_by_first_name(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
@@ -308,6 +335,8 @@ class DossierSharingTest extends TestCase
 
     public function test_search_finds_by_last_name(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
@@ -320,6 +349,8 @@ class DossierSharingTest extends TestCase
 
     public function test_search_finds_by_full_name_first_plus_last(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
@@ -332,6 +363,8 @@ class DossierSharingTest extends TestCase
 
     public function test_search_finds_by_full_name_last_plus_first(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
@@ -344,6 +377,8 @@ class DossierSharingTest extends TestCase
 
     public function test_search_is_case_insensitive(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
         $this->readerA->update(['first_name' => 'Marie', 'name' => 'Curie']);
@@ -358,6 +393,8 @@ class DossierSharingTest extends TestCase
 
     public function test_search_normalizes_spaces(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
@@ -370,6 +407,8 @@ class DossierSharingTest extends TestCase
 
     public function test_search_isolation_does_not_find_other_org_users(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->userB->update(['first_name' => 'OtherOrgOnly1048', 'name' => 'Qvistgaard']);
 
@@ -383,6 +422,8 @@ class DossierSharingTest extends TestCase
 
     public function test_reader_cannot_manage_members(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
@@ -396,6 +437,8 @@ class DossierSharingTest extends TestCase
 
     public function test_editor_cannot_manage_members(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->editorA, DossierMember::ROLE_EDITOR);
 
@@ -411,6 +454,8 @@ class DossierSharingTest extends TestCase
 
     public function test_reader_can_list_members(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
@@ -423,6 +468,8 @@ class DossierSharingTest extends TestCase
 
     public function test_owner_sees_email_in_members_json(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
@@ -436,6 +483,8 @@ class DossierSharingTest extends TestCase
 
     public function test_editor_does_not_see_email_in_members_json(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->editorA, DossierMember::ROLE_EDITOR);
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
@@ -450,6 +499,8 @@ class DossierSharingTest extends TestCase
 
     public function test_reader_does_not_see_email_in_members_json(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
@@ -462,6 +513,8 @@ class DossierSharingTest extends TestCase
 
     public function test_owner_manages_members_inside_the_single_share_panel(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
         $this->actingAs($this->ownerA)
@@ -502,6 +555,8 @@ class DossierSharingTest extends TestCase
 
     public function test_cannot_add_owner_as_member(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
         $this->actingAs($this->ownerA)
@@ -515,6 +570,8 @@ class DossierSharingTest extends TestCase
 
     public function test_cannot_add_same_member_twice(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
@@ -528,6 +585,8 @@ class DossierSharingTest extends TestCase
 
     public function test_cannot_add_cross_org_user(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
         $this->actingAs($this->ownerA)
@@ -540,6 +599,8 @@ class DossierSharingTest extends TestCase
 
     public function test_invalid_role_rejected(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
         $this->actingAs($this->ownerA)
@@ -555,6 +616,8 @@ class DossierSharingTest extends TestCase
 
     public function test_user_from_other_org_cannot_manage_members(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
         $this->actingAs($this->userB)
@@ -565,13 +628,15 @@ class DossierSharingTest extends TestCase
                 'user_id' => $this->readerA->id,
                 'role' => 'reader',
             ])
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     // --- Stranger cannot access ---
 
     public function test_stranger_cannot_list_members(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
         $this->actingAs($this->strangerA)
@@ -581,6 +646,8 @@ class DossierSharingTest extends TestCase
 
     public function test_stranger_cannot_add_member(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
         $this->actingAs($this->strangerA)
@@ -595,6 +662,8 @@ class DossierSharingTest extends TestCase
 
     public function test_owner_sees_manage_members_section(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
         // TASK-1130 passe 4 : « Membres » est devenu « Partager » — l'ancienne

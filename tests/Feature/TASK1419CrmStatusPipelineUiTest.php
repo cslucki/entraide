@@ -62,7 +62,7 @@ class TASK1419CrmStatusPipelineUiTest extends TestCase
     public function test_the_page_is_admin_only_and_lists_the_pipeline_in_order(): void
     {
         $this->actingAs($this->memberA)->get($this->page($this->orgA))->assertForbidden();
-        $this->actingAs($this->adminB)->get($this->page($this->orgA))->assertForbidden();
+        $this->actingAs($this->adminB)->get($this->page($this->orgA))->assertNotFound();
 
         $html = $this->actingAs($this->adminA)->get($this->page($this->orgA))->assertOk()
             ->assertSee('data-crm-statuses-table', false)

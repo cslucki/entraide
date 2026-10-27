@@ -69,6 +69,19 @@ class TASK1477MemberShellUsageReferenceTest extends TestCase
             'name' => 'Org Usage Ref',
         ]);
 
+        // TASK-1685 : le Shell et le FAB exigent desormais que l'IA soit
+        // disponible pour l'Organization (`ProviderResolver::isAvailableFor()`).
+        // Cette suite affirme ce que le Shell DIT ; elle a donc besoin d'une
+        // Organization dont l'IA est utilisable. La factory pose `is_enabled`
+        // a true — seul le credential manquait ici.
+        \App\Models\OrganizationAiSetting::factory()->create([
+            'organization_id' => $this->organization->id,
+            'provider' => 'openrouter',
+            'model' => 'openai/gpt-4o-mini',
+            'api_key' => 'sk-test-usage-ref',
+            'is_enabled' => true,
+        ]);
+
         $this->member = User::factory()->complete()->create([
             'organization_id' => $this->organization->id,
             'preferred_locale' => 'fr',

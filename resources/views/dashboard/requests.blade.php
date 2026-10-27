@@ -47,7 +47,7 @@
                                 </td>
                                 <td class="px-5 py-4 whitespace-nowrap">
                                     @if($req->category)
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: {{ $req->category->color ?? '#e5e7eb' }}20; color: {{ $req->category->color ?? '#6b7280' }}">{{ $req->category->name }}</span>
+                                    <span data-request-category class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: {{ $req->category->color ?? '#e5e7eb' }}20; color: {{ $req->category->color ?? '#6b7280' }}">{{ $req->category->displayName('transactions') }}</span>
                                     @endif
                                 </td>
                                 <td class="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400">{{ $req->budget_min }}{{ $req->budget_max ? '–'.$req->budget_max : '+' }} pts</td>

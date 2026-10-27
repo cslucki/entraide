@@ -83,11 +83,33 @@ class TASK1509ShellFirstDarkToggleTest extends TestCase
 
     public function test_the_toggle_sits_inside_an_alpine_root_without_the_rail(): void
     {
+        // TASK-1692 — GUEST SHELL VOLONTAIREMENT DESACTIVE (arbitrage MASTER).
+        $this->markTestSkipped(
+            'Mode `shell_first` inatteignable : le Guest Shell est desactive. Un anonyme est arrete par '
+            .'`auth` + `organization.member` sur le groupe `/org/{organization}` ; une personne CONNECTEE est '
+            .'refusee par la surface elle-meme (`GuestShellSurface:154` -> `display.reason = authenticated`), '
+            .'si bien que `OrganizationLandingController` n\'entre jamais dans la branche shell-first, qui '
+            .'exige `display.visible`. Aucun acteur ne peut donc rendre cette page, et la rejouer « sous un '
+            .'membre » mesurerait une surface inerte. Le corps est CONSERVE pour etre reveille si la decision '
+            .'produit est revue ; le code applicatif n\'est pas supprime. Contrat de refus tenu par '
+            .'TASK1442GuestShellPublicOverlayTest.'
+        );
         $this->assertToggleIsRooted(GuestShellDisplayMode::SHELL_FIRST);
     }
 
     public function test_the_toggle_sits_inside_an_alpine_root_with_the_rail(): void
     {
+        // TASK-1692 — GUEST SHELL VOLONTAIREMENT DESACTIVE (arbitrage MASTER).
+        $this->markTestSkipped(
+            'Mode `shell_first` inatteignable : le Guest Shell est desactive. Un anonyme est arrete par '
+            .'`auth` + `organization.member` sur le groupe `/org/{organization}` ; une personne CONNECTEE est '
+            .'refusee par la surface elle-meme (`GuestShellSurface:154` -> `display.reason = authenticated`), '
+            .'si bien que `OrganizationLandingController` n\'entre jamais dans la branche shell-first, qui '
+            .'exige `display.visible`. Aucun acteur ne peut donc rendre cette page, et la rejouer « sous un '
+            .'membre » mesurerait une surface inerte. Le corps est CONSERVE pour etre reveille si la decision '
+            .'produit est revue ; le code applicatif n\'est pas supprime. Contrat de refus tenu par '
+            .'TASK1442GuestShellPublicOverlayTest.'
+        );
         $this->assertToggleIsRooted(GuestShellDisplayMode::SHELL_FIRST_RAIL);
     }
 
@@ -97,6 +119,17 @@ class TASK1509ShellFirstDarkToggleTest extends TestCase
      */
     public function test_without_the_rail_the_bar_toggle_is_the_only_one(): void
     {
+        // TASK-1692 — GUEST SHELL VOLONTAIREMENT DESACTIVE (arbitrage MASTER).
+        $this->markTestSkipped(
+            'Mode `shell_first` inatteignable : le Guest Shell est desactive. Un anonyme est arrete par '
+            .'`auth` + `organization.member` sur le groupe `/org/{organization}` ; une personne CONNECTEE est '
+            .'refusee par la surface elle-meme (`GuestShellSurface:154` -> `display.reason = authenticated`), '
+            .'si bien que `OrganizationLandingController` n\'entre jamais dans la branche shell-first, qui '
+            .'exige `display.visible`. Aucun acteur ne peut donc rendre cette page, et la rejouer « sous un '
+            .'membre » mesurerait une surface inerte. Le corps est CONSERVE pour etre reveille si la decision '
+            .'produit est revue ; le code applicatif n\'est pas supprime. Contrat de refus tenu par '
+            .'TASK1442GuestShellPublicOverlayTest.'
+        );
         [$html] = $this->render(GuestShellDisplayMode::SHELL_FIRST);
 
         $this->assertStringNotContainsString('<aside', $html, 'le mode sans rail ne doit pas rendre le rail');
@@ -105,6 +138,17 @@ class TASK1509ShellFirstDarkToggleTest extends TestCase
 
     public function test_with_the_rail_both_toggles_exist_and_both_are_rooted(): void
     {
+        // TASK-1692 — GUEST SHELL VOLONTAIREMENT DESACTIVE (arbitrage MASTER).
+        $this->markTestSkipped(
+            'Mode `shell_first` inatteignable : le Guest Shell est desactive. Un anonyme est arrete par '
+            .'`auth` + `organization.member` sur le groupe `/org/{organization}` ; une personne CONNECTEE est '
+            .'refusee par la surface elle-meme (`GuestShellSurface:154` -> `display.reason = authenticated`), '
+            .'si bien que `OrganizationLandingController` n\'entre jamais dans la branche shell-first, qui '
+            .'exige `display.visible`. Aucun acteur ne peut donc rendre cette page, et la rejouer « sous un '
+            .'membre » mesurerait une surface inerte. Le corps est CONSERVE pour etre reveille si la decision '
+            .'produit est revue ; le code applicatif n\'est pas supprime. Contrat de refus tenu par '
+            .'TASK1442GuestShellPublicOverlayTest.'
+        );
         [$html] = $this->render(GuestShellDisplayMode::SHELL_FIRST_RAIL);
 
         $this->assertStringContainsString('<aside x-data', $html, 'le rail porte sa propre racine');

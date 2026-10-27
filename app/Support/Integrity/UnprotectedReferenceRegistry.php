@@ -61,6 +61,23 @@ class UnprotectedReferenceRegistry
         return [
             'organization_id' => [
                 'ai_provider_invocations' => self::PROTECTED_HISTORY,
+                // TASK-1694 bug U — l'archive des gabarits d'emails systeme.
+                //
+                // Omission DELIBEREE, et c'est exactement ce que
+                // `PROTECTED_HISTORY` nomme : une archive doit survivre a la
+                // suppression de l'Organization dont elle garde la trace. Une
+                // cle etrangere la ferait disparaitre au moment ou elle devient
+                // le seul temoin de ce qui a ete retire.
+                'system_email_templates_archive' => self::PROTECTED_HISTORY,
+                // TASK-1709 — la trace des gabarits mutes par trois migrations.
+                //
+                // Meme omission DELIBEREE, et pour la meme raison que l'archive
+                // voisine : cette table garde l'etat d'une ligne AVANT qu'une
+                // migration ne la mute, pour pouvoir le rendre au `down()`. Une
+                // cle etrangere la viderait a la suppression de l'Organization
+                // concernee — c'est-a-dire au moment ou elle devient le seul
+                // temoin de ce qui a ete change.
+                'system_email_templates_trace' => self::PROTECTED_HISTORY,
             ],
             // Aucune : les 24 tables a `loop_id` et les 6 a `dossier_id` sont
             // integralement couvertes par des FK. Les cles restent declarees

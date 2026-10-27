@@ -12,6 +12,29 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400">
                         {{ __('admin.system_email_desc') }}
                     </p>
+
+                    {{-- TASK-1694 bug AD — DEUX nombres, pas un.
+                         Le compte affiche seul laisserait croire que la base n'en
+                         contient pas davantage des qu'un filtre est pose. Le total
+                         porte sur la table entiere, jamais sur le filtre courant. --}}
+                    <div class="mt-3 flex flex-wrap items-center gap-2 text-xs" data-system-email-counters>
+                        <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 font-medium text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200"
+                              data-system-email-count-shown="{{ $compteurs['affiches'] }}">
+                            {{ __('admin.system_email_count_shown', ['count' => $compteurs['affiches']]) }}
+                        </span>
+
+                        @if($compteurs['affiches'] !== $compteurs['total'])
+                            <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                                  data-system-email-count-total="{{ $compteurs['total'] }}">
+                                {{ __('admin.system_email_count_total', ['count' => $compteurs['total']]) }}
+                            </span>
+                        @endif
+
+                        <span class="text-gray-500 dark:text-gray-400"
+                              data-system-email-count-breakdown="{{ $compteurs['globaux'] }}/{{ $compteurs['tenants'] }}">
+                            {{ __('admin.system_email_count_breakdown', ['globaux' => $compteurs['globaux'], 'tenants' => $compteurs['tenants']]) }}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
@@ -27,6 +50,13 @@
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.organization') }}</label>
                             <select name="organization_id" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 text-sm">
                                 <option value="">{{ __('admin.all_organizations') }}</option>
+                                {{-- TASK-1694 bug O — « Global » est une VALEUR du filtre, pas
+                                     son absence : le filtre vide veut dire « toutes », ce qui ne
+                                     permettait pas de demander « seulement les Global ». --}}
+                                <option value="{{ \App\Http\Controllers\Admin\AdminSystemEmailTemplatesController::FILTRE_GLOBAL }}"
+                                        @selected(request('organization_id') === \App\Http\Controllers\Admin\AdminSystemEmailTemplatesController::FILTRE_GLOBAL)>
+                                    {{ __('admin.system_email_only_global') }}
+                                </option>
                                 @foreach($organizations as $org)
                                     <option value="{{ $org->id }}" @selected(request('organization_id') == $org->id)>{{ $org->name }}</option>
                                 @endforeach
@@ -51,6 +81,57 @@
                     </form>
                 </div>
 
+                {{-- TASK-1681 — le MODELE SYSTEME PAR DEFAUT, visible meme sans
+                     surcharge DB : c'est lui que le mailer utilise (repli Blade).
+                     La carte offre la creation d'UNE personnalisation, creee
+                     DESACTIVEE (l'admin relit puis active — jamais un HTML brut
+                     qui prendrait le pas d'office, regression du 01/10). --}}
+                @if($defaultTemplate)
+                <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+                    <div class="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-800 dark:bg-indigo-900/20">
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $defaultTemplate['name'] }}</span>
+                            <span class="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{{ __('admin.system_email_default_badge') }}</span>
+                            <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                {{ $defaultTemplate['has_enabled_override'] ? __('admin.system_email_default_in_use_partial') : __('admin.system_email_default_in_use') }}
+                            </span>
+                        </div>
+                        <form method="POST" action="{{ route('admin.system-email-templates.store') }}" class="mt-3 flex flex-wrap items-end gap-3">
+                            @csrf
+                            <input type="hidden" name="slug" value="{{ $defaultTemplate['slug'] }}">
+                            <div>
+                                <label for="customize_organization_id" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.organization') }}</label>
+                                {{-- TASK-1694 bug O — « Global » est le PREMIER choix, et le
+                                     defaut. Ce champ etait `required` cote serveur : l'ecran ne
+                                     SAVAIT PAS creer une ligne globale, et toute creation
+                                     naissait rattachee a une Organization. C'est la cause
+                                     mecanique du desordre constate le 23/10. --}}
+                                <select name="organization_id" id="customize_organization_id"
+                                        class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 text-sm"
+                                        data-system-email-scope>
+                                    <option value="">{{ __('admin.system_email_scope_global') }}</option>
+                                    @foreach($organizations as $org)
+                                        <option value="{{ $org->id }}" @selected(request('organization_id') == $org->id)>{{ $org->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label for="customize_locale" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.locale') }}</label>
+                                <select name="locale" id="customize_locale" required
+                                        class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 text-sm">
+                                    <option value="fr">FR</option>
+                                    <option value="en">EN</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700">
+                                {{ __('admin.system_email_create_customization') }}
+                            </button>
+                        </form>
+                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('admin.system_email_create_customization_hint') }}</p>
+                    </div>
+                </div>
+                @endif
+
                 <div class="p-4 sm:p-6">
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -62,7 +143,6 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.slug') }}</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.common_subject') }}</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.status') }}</th>
-                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.outils.action') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -80,8 +160,14 @@
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">
                                             {{ strtoupper($template->locale ?? '-') }}
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
-                                            {{ $template->name }}
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                            {{-- TASK-1681 — le NOM est le lien d'edition : la
+                                                 colonne Action vivait hors ecran a droite, et
+                                                 la ligne semblait inerte. --}}
+                                            <a href="{{ route('admin.system-email-templates.edit', ['systemEmailTemplate' => $template, 'redirect' => request()->fullUrl()]) }}"
+                                               class="text-indigo-600 dark:text-indigo-400 hover:underline">
+                                                {{ $template->name }}
+                                            </a>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">
                                             {{ $template->slug }}
@@ -100,17 +186,20 @@
                                                 </span>
                                             @endif
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <a href="{{ route('admin.system-email-templates.edit', ['systemEmailTemplate' => $template, 'redirect' => request()->fullUrl()]) }}"
-                                               class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300">
-                                                {{ __('admin.edit') }}
-                                            </a>
-                                        </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                                            {{ __('admin.no_system_templates') }}
+                                        <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                            {{-- TASK-1681 — arrive filtre par slug (lien de
+                                                 bulk-create), une liste vide est l'etat NORMAL :
+                                                 la surcharge est facultative, l'email part avec
+                                                 le modele par defaut. Le dire, plutot qu'une
+                                                 page vide inquietante. --}}
+                                            @if(request('slug'))
+                                                {{ __('admin.system_email_no_override') }}
+                                            @else
+                                                {{ __('admin.no_system_templates') }}
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforelse

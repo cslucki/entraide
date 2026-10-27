@@ -6,11 +6,34 @@
         <form method="POST" action="{{ route('admin.loops.store') }}" class="space-y-6">
             @csrf
 
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-5">
+            {{-- TASK-1679 — branche SuperAdmin : les deux champs Organization et
+                 Responsable sont LIES. La liste des responsables ne propose que
+                 les utilisateurs de l'Organization choisie, jamais ceux d'une
+                 autre — et « aucun responsable » est un choix legitime. Le JS
+                 n'est qu'un confort : la garde same-org et la regle nullable
+                 restent serveur (AdminLoopController::store). --}}
+            @isset($organizations)
+                @php
+                    $ownersByOrg = $users->groupBy('organization_id')->map(
+                        fn ($orgUsers) => $orgUsers->map(fn ($u) => [
+                            'id' => $u->id,
+                            'label' => $u->full_name.' — '.$u->email,
+                        ])->values()
+                    );
+                @endphp
+            @endisset
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-5"
+                @isset($organizations)
+                x-data="{ orgId: @js(old('organization_id', '')), ownerId: @js(old('owner_id', '')), ownersByOrg: @js($ownersByOrg) }"
+                @endisset>
                 @isset($organizations)
                 <div>
                     <label for="organization_id" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.org_select_label') }}</label>
-                    <select name="organization_id" id="organization_id" required
+                    {{-- Changer d'Organization remet le responsable a zero : sans
+                         cela, un owner_id de l'org precedente resterait arme dans
+                         le modele et partirait au POST (le serveur le refuserait
+                         en 403, mais l'ecran ne doit jamais le proposer). --}}
+                    <select name="organization_id" id="organization_id" required x-model="orgId" @change="ownerId = ''"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
                         <option value="">{{ __('admin.org_select_placeholder') }}</option>
                         @foreach($organizations as $org)
@@ -50,28 +73,26 @@
                 </div>
 
                 <div>
-                    <label for="owner_id" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.owner_select_label') }}</label>
+                    <label for="owner_id" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.loop_owner_label') }}</label>
+                    @isset($organizations)
+                    <select name="owner_id" id="owner_id" x-model="ownerId" :disabled="! orgId"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-60">
+                        <option value="">{{ __('admin.loop_owner_none') }}</option>
+                        <template x-for="candidate in (ownersByOrg[orgId] ?? [])" :key="candidate.id">
+                            <option :value="candidate.id" x-text="candidate.label"></option>
+                        </template>
+                    </select>
+                    @else
                     <select name="owner_id" id="owner_id" required
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
-                        <option value="">{{ __('admin.owner_select_placeholder') }}</option>
-                        @php
-                            $grouped = $users->groupBy(fn ($u) => $u->organization->name ?? __('admin.organizations'));
-                            $hasMultipleOrgs = $grouped->count() > 1;
-                        @endphp
-                        @foreach($grouped as $orgName => $orgUsers)
-                            @if($hasMultipleOrgs)
-                            <optgroup label="{{ $orgName }}">
-                            @endif
-                            @foreach($orgUsers as $u)
-                            <option value="{{ $u->id }}" @selected(old('owner_id') === $u->id)>
-                                {{ $u->full_name }} — {{ $u->email }}@if($hasMultipleOrgs) · {{ $orgName }}@endif
-                            </option>
-                            @endforeach
-                            @if($hasMultipleOrgs)
-                            </optgroup>
-                            @endif
+                        <option value="">{{ __('admin.loop_owner_placeholder') }}</option>
+                        @foreach($users as $u)
+                        <option value="{{ $u->id }}" @selected(old('owner_id') === $u->id)>
+                            {{ $u->full_name }} — {{ $u->email }}
+                        </option>
                         @endforeach
                     </select>
+                    @endisset
                     @error('owner_id')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                 </div>
             </div>

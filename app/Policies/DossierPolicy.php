@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Dossier;
 use App\Models\DossierMember;
+use App\Models\LoopMember;
 use App\Models\User;
 use App\Support\Loops\LoopPermissionResolver;
 
@@ -198,15 +199,60 @@ class DossierPolicy
         return $this->isOwner($user, $dossier);
     }
 
+    /**
+     * TASK-1695 — DESACTIVE sur decision de Cyril (24/10).
+     *
+     * ## Pourquoi
+     *
+     * La creation de Dossiers avait ete retiree il y a plus d'un mois : Dossiers
+     * n'est pas un Drive. Mais retirer la CREATION n'avait pas emporte le
+     * PARTAGE de ceux qui existaient deja — l'ecran restait atteignable par les
+     * liens `?partage=1`, et sa recherche de membres rendait l'adresse email de
+     * chaque personne proposee. Meme defaut que celui corrige sur le partage de
+     * fichier, sur un ecran dont plus personne ne voulait.
+     *
+     * ## Ce que la mesure disait
+     *
+     * 11 Dossiers en base, dont 5 « Mes documents » (deja refuses ici) et 5
+     * lies a une Boucle. **1 seul** etait reellement partageable, et **0** ligne
+     * `dossier_members` existait : la fonction n'avait jamais servi.
+     *
+     * ## Pourquoi ICI et pas ailleurs
+     *
+     * C'est l'AUTORITE UNIQUE : les quatre gestes de `DossierMemberController`
+     * la consultent, et les deux poignees de `show.blade.php` passent par
+     * `@can('manageMembers', ...)`. Fermer ici ferme la porte ET retire la
+     * poignee, sans qu'aucun des deux ne puisse deriver de l'autre. Les routes
+     * sont commentees en plus (`routes/web.php`), de sorte qu'une URL tapee a
+     * la main rende 404 plutot que 403 : une porte absente n'annonce rien.
+     *
+     * ## Les Boucles ne sont PAS concernees
+     *
+     * `isOwner()` exige `owner_id`, qu'un Dossier de Boucle n'a pas : il n'est
+     * jamais passe par ici. Le partage avec une Boucle (`shared_with_loop_id`)
+     * emprunte un tout autre chemin, et reste intact — c'est d'ailleurs la
+     * direction que Cyril veut developper.
+     *
+     * ## Pour reactiver
+     *
+     * Retirer le `return false` ci-dessous, decommenter le corps d'origine, et
+     * decommenter les cinq routes `dossiers.members.*`. Le controleur, lui, n'a
+     * pas ete touche : il est intact, simplement inatteignable.
+     */
     public function manageMembers(User $user, Dossier $dossier): bool
     {
-        // Inviter quelqu'un dans « Mes documents » reviendrait a partager tout
-        // l'espace personnel d'un coup, y compris ce qui n'y est pas encore.
-        if ($dossier->isPersonalDocumentsRoot()) {
-            return false;
-        }
+        return false;
 
-        return $this->isOwner($user, $dossier);
+        // --- Corps d'origine, conserve tel quel pour une reactivation ---
+        //
+        // // Inviter quelqu'un dans « Mes documents » reviendrait a partager
+        // // tout l'espace personnel d'un coup, y compris ce qui n'y est pas
+        // // encore.
+        // if ($dossier->isPersonalDocumentsRoot()) {
+        //     return false;
+        // }
+        //
+        // return $this->isOwner($user, $dossier);
     }
 
     public function attachArticle(User $user, Dossier $dossier): bool
@@ -268,6 +314,82 @@ class DossierPolicy
     public function manageFiles(User $user, Dossier $dossier): bool
     {
         return $this->update($user, $dossier);
+    }
+
+    /**
+     * TASK-1684 — DEPOSER un fichier, geste distinct de GERER les fichiers.
+     *
+     * `manageFiles` gouverne quatre ecritures : renommer, deplacer, editer le
+     * markdown, et la projection « puis-je administrer ce dossier » des ecrans.
+     * L'elargir pour ouvrir le simple depot aurait donne tout cela a chaque
+     * membre — et contredit la doctrine T1130 (etre membre ne suffit pas).
+     * Cette ability n'est donc lue QUE par `StoreDossierFileRequest` : elle
+     * ouvre le depot, et rien d'autre.
+     *
+     * Portee volontairement etroite : le Dossier RACINE d'une Boucle, celui
+     * qui porte `loop_id`. Les sous-dossiers gardent la regle proprietaire —
+     * la demande etait « ajouter un fichier dans la Boucle », pas administrer
+     * son arborescence.
+     *
+     * Qui administre deja le Dossier passe par `manageFiles` et n'est pas
+     * affecte ; ce qui s'ajoute, c'est le membre ACTIF d'une Boucle VIVANTE.
+     */
+    public function uploadFiles(User $user, Dossier $dossier): bool
+    {
+        if ($this->manageFiles($user, $dossier)) {
+            return true;
+        }
+
+        // `isLoopDossier()` se lit sur CETTE ligne, pas sur sa racine : un
+        // sous-dossier ne doit pas heriter de l'ouverture.
+        if (! $dossier->isLoopDossier()) {
+            return false;
+        }
+
+        $loop = $dossier->loop;
+
+        if ($loop === null || $user->isDeactivated()) {
+            return false;
+        }
+
+        if ($user->organization_id !== $loop->organization_id) {
+            return false;
+        }
+
+        // Une Boucle archivee est en lecture seule — meme borne que
+        // `LoopPolicy::update`, qui refuse pour la meme raison.
+        if ($loop->isArchived()) {
+            return false;
+        }
+
+        $organization = $loop->organization;
+
+        if (! $organization || ! $organization->loops_enabled) {
+            return false;
+        }
+
+        $estMembreActif = LoopMember::query()
+            ->where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $estMembreActif) {
+            return false;
+        }
+
+        // La capacite `dossiers.upload_file` existe DEJA dans le modele de
+        // permissions de la Boucle (`config/loop_permissions.php`) : elle est
+        // configurable par Boucle (`locked => false`) et porte `requires_card
+        // => core.dossiers`, qui ferme le depot quand la Card est eteinte.
+        //
+        // Premiere ecriture de cette ability : j'avais rendu `true` ici sur le
+        // seul fait d'etre membre actif, ce qui CONTOURNAIT ce modele — une
+        // Boucle ayant explicitement referme le depot l'aurait vu rouvert dans
+        // son dos. L'ouverture demandee par le MASTER est posee la ou elle se
+        // configure : le role `member` recoit la capacite par defaut, et cette
+        // porte se contente de la lire.
+        return app(LoopPermissionResolver::class)->can($user, $loop, 'dossiers.upload_file');
     }
 
     public function viewFiles(User $user, Dossier $dossier): bool

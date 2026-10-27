@@ -51,6 +51,14 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
 
     private Organization $launchpals;
 
+    private User $membreMain;
+
+    private User $membreLaunchpals;
+
+    private Organization $partage;
+
+    private User $membrePartage;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -77,6 +85,28 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
             'homepage_template' => 'artscilab_hero',
         ]);
 
+        // TASK-1692 / MICRO-11.2D — une Organization au gabarit PAR DEFAUT.
+        // `hero-v2` et `artscilab_hero` sont des landings AUTONOMES : elles
+        // portent leur propre pied et n'incluent pas `partials/footer`. Seul
+        // le gabarit par defaut (`organization/home.blade.php`) l'inclut, et
+        // c'est donc la seule landing ou le pied partage se mesure.
+        $this->partage = Organization::factory()->create([
+            'slug' => 'partage-1608',
+            'name' => 'Pied Partage 1608',
+            'is_active' => true,
+            'is_public' => true,
+            'loops_enabled' => true,
+            'locale' => 'fr',
+        ]);
+
+        // TASK-1692 — `/org/{slug}/flowchart` et `/org/{slug}/mycelium` sont
+        // devenus des surfaces MEMBRE. Les preuves de libelle, d'ordre et de
+        // bornage tenant ci-dessous demandent donc un membre de CHAQUE
+        // Organization : le role minimal, jamais un admin.
+        $this->membreMain = User::factory()->create(['organization_id' => $this->main->id]);
+        $this->membreLaunchpals = User::factory()->create(['organization_id' => $this->launchpals->id]);
+        $this->membrePartage = User::factory()->create(['organization_id' => $this->partage->id]);
+
         Http::preventStrayRequests();
         Http::fake();
     }
@@ -99,7 +129,11 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
         $this->oublierOrganisation();
         app()->setLocale('fr');
 
-        $response = $this->get('/org/'.$this->main->slug);
+        // TASK-1692 — la landing reste PUBLIQUE, mais les deux destinations
+        // du pied sont devenues membres : on les mesure donc sous l'oeil d'un
+        // membre. Le refus anonyme est prouve a part, voir
+        // `test_an_anonymous_landing_publishes_no_link_to_the_closed_prefixed_pages`.
+        $response = $this->actingAs($this->membreMain)->get('/org/'.$this->main->slug);
         $response->assertOk();
 
         $html = $response->getContent();
@@ -125,7 +159,7 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
         $this->oublierOrganisation();
         app()->setLocale('en');
 
-        $response = $this->get('/org/'.$this->launchpals->slug);
+        $response = $this->actingAs($this->membreLaunchpals)->get('/org/'.$this->launchpals->slug);
         $response->assertOk();
 
         $response->assertSee('Flowchart', false);
@@ -187,7 +221,7 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
         $this->from($landing)->post('/locale/fr')->assertRedirect(url($landing));
 
         $this->oublierOrganisation();
-        $enFrancais = $this->get($landing);
+        $enFrancais = $this->actingAs($this->membreLaunchpals)->get($landing);
         $enFrancais->assertOk();
         $enFrancais->assertSee('Logigramme', false);
         $enFrancais->assertSee($depart, false);
@@ -197,7 +231,7 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
         $this->from($landing)->post('/locale/en')->assertRedirect(url($landing));
 
         $this->oublierOrganisation();
-        $enAnglais = $this->get($landing);
+        $enAnglais = $this->actingAs($this->membreLaunchpals->fresh())->get($landing);
         $enAnglais->assertOk();
         $enAnglais->assertSee('Flowchart', false);
         $enAnglais->assertSee($depart, false);
@@ -226,7 +260,7 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
         $this->from('/org/'.$this->main->slug)->post('/locale/fr');
 
         $this->oublierOrganisation();
-        $response = $this->get('/org/'.$this->main->slug.'/flowchart');
+        $response = $this->actingAs($this->membreMain)->get('/org/'.$this->main->slug.'/flowchart');
         $response->assertOk();
 
         $html = $response->getContent();
@@ -265,7 +299,7 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
         $this->from('/org/'.$this->main->slug)->post('/locale/fr');
 
         $this->oublierOrganisation();
-        $response = $this->get('/org/'.$this->main->slug.'/flowchart');
+        $response = $this->actingAs($this->membreMain)->get('/org/'.$this->main->slug.'/flowchart');
         $response->assertOk();
 
         $response->assertSee('Logigramme', false);
@@ -279,7 +313,7 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
         $this->from('/org/'.$this->launchpals->slug)->post('/locale/en');
 
         $this->oublierOrganisation();
-        $response = $this->get('/org/'.$this->launchpals->slug.'/flowchart');
+        $response = $this->actingAs($this->membreLaunchpals)->get('/org/'.$this->launchpals->slug.'/flowchart');
         $response->assertOk();
 
         $response->assertSee('Flowchart', false);
@@ -300,14 +334,14 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
         foreach ([
             // TASK-1609 : « Mycelium » porte son ACCENT en francais. Le
             // libelle est donc une donnee de la locale, pas une constante.
-            [$this->main, 'fr', 'Logigramme', 'Mycélium'],
-            [$this->launchpals, 'en', 'Flowchart', 'Mycelium'],
-        ] as [$organisation, $locale, $libelle, $mycelium_libelle]) {
+            [$this->main, 'fr', 'Logigramme', 'Mycélium', 'membreMain'],
+            [$this->launchpals, 'en', 'Flowchart', 'Mycelium', 'membreLaunchpals'],
+        ] as [$organisation, $locale, $libelle, $mycelium_libelle, $membre]) {
             $this->oublierOrganisation();
             $this->from('/org/'.$organisation->slug)->post('/locale/'.$locale);
 
             $this->oublierOrganisation();
-            $response = $this->get('/org/'.$organisation->slug.'/flowchart');
+            $response = $this->actingAs($this->{$membre}->fresh())->get('/org/'.$organisation->slug.'/flowchart');
             $response->assertOk();
 
             $html = $response->getContent();
@@ -331,6 +365,153 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
             $response->assertSee('/org/'.$organisation->slug.'/mycelium', false);
             $response->assertSee('/org/'.$organisation->slug.'/flowchart', false);
         }
+    }
+
+    // =====================================================================
+    // TASK-1692 — la borne ANONYME
+    // =====================================================================
+
+    /**
+     * TASK-1698 — cette garde EPINGLAIT UN ACCIDENT, et son enonce s'inverse.
+     *
+     * Elle affirmait : « la landing reste publique ; ses deux destinations de
+     * pied ne le sont plus. Un lien propose a un anonyme ne menerait qu'a une
+     * redirection : il n'est donc pas publie. »
+     *
+     * Mesure : la fermeture n'etait pas une decision. Le groupe
+     * `/org/{organization}` est FERME PAR DEFAUT, et une route publique doit
+     * s'en extraire par `withoutMiddleware` — ce que font `home` et
+     * `mentions-legales`. `flowchart`, `mycelium` et `open-source` ont ete
+     * ecrites publiques, DOCUMENTEES publiques (« arbitrage MASTER : la page
+     * reste PUBLIQUE »), munies de leur garde propre… et sans cette ligne.
+     *
+     * Les lignes concernees n'ont jamais ete touchees que par leurs TASK
+     * creatrices — T1604, T1608, T1613 — **jamais par T1692**. Celle-ci est
+     * arrivee apres et a fige l'etat observe.
+     *
+     * Ce que la garde mesure desormais : les trois destinations sont
+     * ATTEIGNABLES par un anonyme, et son lien est publie. La moitie du
+     * contrat qui reste vraie — « masquer une poignee ne ferme pas une porte »,
+     * lecon T1651 — est tenue par le seul lien encore borne : « Un bug ? ».
+     */
+    public function test_an_anonymous_landing_reaches_the_public_prefixed_pages(): void
+    {
+        foreach ([$this->main, $this->launchpals] as $organisation) {
+            $this->oublierOrganisation();
+
+            $html = $this->get('/org/'.$organisation->slug)->assertOk()->getContent();
+
+            $this->assertStringContainsString('data-footer-mycelium', $html, "Lien Mycelium absent pour un anonyme sur {$organisation->slug}.");
+            $this->assertStringContainsString('data-footer-flowchart', $html, "Lien Logigramme absent pour un anonyme sur {$organisation->slug}.");
+
+            // Et la porte s'ouvre vraiment, pas seulement sa poignee.
+            foreach (['flowchart', 'mycelium', 'open-source'] as $page) {
+                $this->oublierOrganisation();
+                $this->get('/org/'.$organisation->slug.'/'.$page)
+                    ->assertOk();
+            }
+
+            // Le seul mur restant, et il est VOULU : « Un bug ? ».
+            $this->oublierOrganisation();
+            $this->get('/org/'.$organisation->slug.'/bugs')
+                ->assertRedirect(route('organization.login', ['organization' => $organisation->slug]));
+        }
+    }
+
+    /**
+     * TASK-1692 / MICRO-11.2D — « Kit demo » est une adresse EXTERNE.
+     *
+     * Il etait masque aux anonymes par ricochet : la garde tenant a ete posee
+     * autour d'un bloc, et ce lien se trouvait dans le bloc. Or
+     * `bouclepro.com/demo` n'a aucune dimension de tenant — le masquer
+     * n'ajoutait aucune confidentialite, il retirait une porte d'entree aux
+     * visiteurs anonymes des pages publiques, qui sont precisement ceux a qui
+     * un kit de demonstration s'adresse.
+     *
+     * TASK-1698 — le troisieme fait de cette garde est RETIRE, et c'est le
+     * point delicat : il demandait que « les destinations fermees ne reviennent
+     * pas avec lui », precisement pour qu'ouvrir tout le bloc ne rende pas ce
+     * test vert par accident. Ouvrir le bloc est exactement ce que fait
+     * TASK-1698 — mais pas par relachement : l'opt-out du groupe ferme par
+     * defaut manquait aux trois routes (voir `routes/web.php`), elles sont
+     * publiques, et le pied partage n'a plus de raison de les masquer.
+     *
+     * Ce que ce test mesure donc encore, et qui reste son objet : « Kit demo »
+     * est propose a un anonyme, et il est propose AVEC ses voisins non gardes.
+     * La discrimination qu'il portait — garde tenant vs lien externe — est
+     * desormais sans objet dans ce pied, puisqu'il ne porte plus de garde.
+     */
+    public function test_an_anonymous_landing_keeps_the_external_demo_kit_link(): void
+    {
+        $this->oublierOrganisation();
+
+        $html = $this->get('/org/'.$this->partage->slug)->assertOk()->getContent();
+
+        // 1. Le lien externe est propose.
+        $this->assertStringContainsString('data-footer-kit-demo', $html, 'Kit demo absent du pied anonyme.');
+        $this->assertStringContainsString('https://bouclepro.com/demo', $html);
+
+        // 2. Les mentions legales restent joignables : elles n'ont jamais ete
+        //    gardees, c'est la contre-epreuve du voisinage.
+        $this->assertStringContainsString(
+            route('organization.mentions-legales', ['organization' => $this->partage->slug]),
+            $html
+        );
+
+        // 3. TASK-1698 — les trois destinations rouvertes sont servies, et
+        //    BORNEES a l'Organization de l'URL. Le pied partage ne distingue
+        //    plus un anonyme d'un membre : seul « Un bug ? » garde son mur, et
+        //    sa page garde sa garde de route.
+        $this->assertStringContainsString('data-footer-mycelium', $html);
+        $this->assertStringContainsString('data-footer-flowchart', $html);
+        $this->assertStringContainsString('/org/'.$this->partage->slug.'/open-source', $html);
+        $this->assertStringContainsString('/org/'.$this->partage->slug.'/flowchart', $html);
+
+        // 4. Le meme pied, hors de tout prefixe d'Organization : la page de
+        //    connexion. Elle, montre tout le bloc, et c'est correct — sans
+        //    prefixe aucune Organization n'est designee, et `/mycelium` global
+        //    est reste public.
+        $this->oublierOrganisation();
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('data-footer-kit-demo', false)
+            ->assertSee('data-footer-mycelium', false);
+    }
+
+    /**
+     * Le pied d'un MEMBRE n'est pas degrade par la sortie de « Kit demo » :
+     * il porte toujours le lien externe EN PLUS de ses liens internes.
+     */
+    public function test_a_member_footer_keeps_the_demo_kit_alongside_its_internal_links(): void
+    {
+        $this->oublierOrganisation();
+
+        $this->actingAs($this->membrePartage)
+            ->get('/org/'.$this->partage->slug)
+            ->assertOk()
+            ->assertSee('data-footer-kit-demo', false)
+            ->assertSee('https://bouclepro.com/demo', false)
+            ->assertSee('data-footer-mycelium', false)
+            ->assertSee('data-footer-flowchart', false);
+    }
+
+    /**
+     * TASK-1692 — le pied d'un MEMBRE n'est pas degrade : il porte toujours
+     * ses deux liens, bornes a SON Organization. Sans cette contre-epreuve, le
+     * test anonyme ci-dessus serait vert si le pied avait disparu pour tout le
+     * monde.
+     */
+    public function test_a_member_landing_still_publishes_both_scoped_links(): void
+    {
+        $this->oublierOrganisation();
+
+        $landing = $this->actingAs($this->membreMain)->get('/org/'.$this->main->slug);
+        $landing->assertOk();
+
+        $landing->assertSee('data-footer-mycelium', false);
+        $landing->assertSee('data-footer-flowchart', false);
+        $landing->assertSee('/org/'.$this->main->slug.'/flowchart', false);
+        $landing->assertDontSee('/org/'.$this->launchpals->slug.'/flowchart', false);
     }
 
     // =====================================================================

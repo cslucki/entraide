@@ -13,6 +13,7 @@ use App\Services\Dossiers\PersonalDocumentsRoot;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 /**
@@ -26,6 +27,8 @@ use Tests\TestCase;
 #[Group('task-1130')]
 class TASK1130MesDocumentsTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     use RefreshDatabase;
 
     private Organization $org;
@@ -216,6 +219,8 @@ class TASK1130MesDocumentsTest extends TestCase
 
     public function test_the_root_cannot_be_shared(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $racine = $this->racine();
         $invite = User::factory()->create(['organization_id' => $this->org->id]);
 

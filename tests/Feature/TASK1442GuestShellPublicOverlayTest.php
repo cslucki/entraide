@@ -9,6 +9,7 @@ use App\Models\GuestMessage;
 use App\Models\GuestVisitor;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
+use App\Models\User;
 use App\Services\GuestShell\GuestConversationService;
 use App\Services\GuestShell\GuestShellPolicyService;
 use App\Services\GuestShell\GuestShellSurface;
@@ -120,226 +121,232 @@ class TASK1442GuestShellPublicOverlayTest extends TestCase
 
     // ── 1. La simple visite ────────────────────────────────────────────────
 
-    public function test_a_simple_visit_creates_nothing_and_mounts_the_overlay_only_when_the_shell_is_available(): void
+    // ── 1. La simple visite ────────────────────────────────────────────────
+
+    /**
+     * CHANGEMENT D'INTENTION PRODUIT — TASK-1692 / MICRO-11.7.
+     *
+     * Cette methode s'appelait `..._mounts_the_overlay_only_when_the_shell_is_available`
+     * et verifiait que les trois gabarits d'accueil MONTAIENT l'overlay invite.
+     * MASTER a tranche : aucun overlay Shell invite sur les landings publiques.
+     *
+     * Elle prouve donc desormais l'ABSENCE, et elle la prouve sur les deux
+     * acteurs, pour deux raisons differentes et independantes :
+     *
+     *   * l'ANONYME — `OrganizationLandingController:35` :
+     *     `$guestShell = $showInternalHomepageContent && …`, et
+     *     `$showInternalHomepageContent` vaut `false` sans acteur ;
+     *   * le MEMBRE — `GuestShellSurface:154` : la surface se declare
+     *     `authenticated` et invisible, regle de TASK-1442 anterieure a
+     *     TASK-1692.
+     *
+     * Ce qui n'est PAS juge ici, volontairement : le contenu marketing des
+     * landings, leurs metadonnees sociales et leurs liens publics. Ils ne
+     * dependent pas du Shell, et les melanger a cette mesure rendrait le rouge
+     * illisible le jour ou l'un d'eux bougera.
+     */
+    public function test_a_simple_visit_mounts_no_guest_shell_overlay_on_any_landing(): void
     {
         GuestShellAgent::fake([]);
 
-        $html = $this->get($this->home($this->ready))->assertOk()->assertCookieMissing(GuestVisitorResolver::COOKIE)->getContent();
-        $this->assertStringContainsString('data-guest-shell-state="live"', $html);
-        $this->assertStringContainsString('data-guest-shell-mode="overlay"', $html);
-        $this->assertStringContainsString('data-guest-shell-endpoint="'.$this->endpoint($this->ready).'"', $html);
-        $this->assertStringContainsString('data-guest-shell-cta', $html);
-        $this->assertStringContainsString(route('organization.register', ['organization' => $this->ready->slug]), $html, 'CTA compte via publicCta');
-        $this->assertStringContainsString('data-guest-shell-welcome>', $html);
-        $this->assertStringContainsString('<livewire:ai-shell', file_get_contents(resource_path('views/layouts/app.blade.php')), 'le Shell membre est intact');
+        // 1. L'etat de la politique reste distinguable LA OU IL FAIT AUTORITE :
+        //    dans le payload serveur. Mesure faite AVANT toute authentification
+        //    — `request()` porterait sinon l'acteur, et la surface repondrait
+        //    `authenticated` au lieu de la vraie raison.
+        $surface = app(GuestShellSurface::class);
 
-        $off = $this->get($this->home($this->disabled))->assertOk()->assertCookieMissing(GuestVisitorResolver::COOKIE)->getContent();
-        $this->assertStringNotContainsString('data-guest-shell', $off, 'enabled=false : rien du tout');
-
-        $degraded = $this->get($this->home($this->degraded))->assertOk()->assertCookieMissing(GuestVisitorResolver::COOKIE)->getContent();
-        $this->assertStringContainsString('data-guest-shell-state="degraded"', $degraded);
-        $this->assertStringContainsString('data-guest-shell-degraded>', $degraded, 'accueil non-IA honnete');
-        $this->assertStringNotContainsString('data-guest-shell-welcome>', $degraded, 'aucune promesse d\'echange');
-        $this->assertMatchesRegularExpression('/<textarea[^>]*data-guest-shell-input[^>]*disabled/', $degraded, 'saisie desactivee');
-
-        // TASK-1467 : la RAISON ne sort plus dans le HTML public — elle reste
-        // mesurable la ou elle est autoritaire, dans le payload serveur.
-        $this->assertStringNotContainsString('data-guest-shell-reason', $degraded, 'aucun code interne cote public');
-        $this->assertStringNotContainsString(GuestShellDisplay::REASON_POLICY_NOT_READY, $degraded);
         $this->assertSame(
             GuestShellDisplay::REASON_POLICY_NOT_READY,
-            app(GuestShellSurface::class)->read($this->degraded, request())['display']['reason'],
+            $surface->read($this->degraded, request())['display']['reason'],
+            'la raison degradee reste lisible cote serveur',
+        );
+        $this->assertSame(
+            GuestShellDisplay::REASON_DISABLED,
+            $surface->read($this->disabled, request())['display']['reason'],
+            'et la raison desactivee aussi',
         );
 
-        // TASK-1467 : et surtout, aucun CTA « Creer un compte » dans un etat
-        // dont la cause est technique. Le CTA reste quand le Shell est vivant.
-        // On mesure le RENDU, pas la chaine : `data-guest-shell-cta` figure
-        // aussi dans le JS inline (`querySelector`), ou sa presence ne prouve
-        // rien. Ce qui compte est qu'aucune ancre ne soit rendue.
-        $this->assertDoesNotMatchRegularExpression('/<a[^>]*data-guest-shell-cta/', $degraded, 'un compte ne repare pas une panne');
-        // Pas d'assertion sur le libelle « Creer un compte » : l'accueil public
-        // porte legitimement ses propres liens d'inscription, hors du Shell.
-        // Une assertion sur cette chaine serait rouge pour une bonne raison.
+        // 2. ANONYME — les TROIS gabarits d'accueil, et quel que soit l'etat de
+        //    la politique : aucune trace du Shell invite. Les landings restent
+        //    publiques (200) : c'est l'overlay qui part, pas la page.
+        foreach ([null, 'bouclepro_hero_v2', 'artscilab_hero'] as $gabarit) {
+            if ($gabarit !== null) {
+                $this->ready->update(['homepage_template' => $gabarit]);
+            }
 
-        // TASK-1467 : la BULLE degradee, mesuree pour elle-meme. Une assertion
-        // du type `assertStringContainsString(__('...degraded_text'))` ne peut
-        // pas echouer : elle relit le fichier de langue qu'elle est censee
-        // juger. Ce qui est verifie ici est le CONTRAT, pas la formulation —
-        // la bulle nomme l'Organization et ne propose pas de compte.
-        $this->assertSame(1, preg_match(
-            '/<div class="bpgs-msg bpgs-msg-assistant" data-guest-shell-degraded>(.*?)<\/div>/s',
-            $degraded,
-            $bubble,
-        ), 'la bulle degradee est rendue');
+            $html = $this->get($this->home($this->ready))
+                ->assertOk()
+                ->assertCookieMissing(GuestVisitorResolver::COOKIE)
+                ->getContent();
 
-        $this->assertStringContainsString($this->degraded->name, $bubble[1], 'la bulle nomme l\'Organization');
-        $this->assertStringNotContainsString(':name', $bubble[1], 'aucun placeholder non substitue');
-        $this->assertDoesNotMatchRegularExpression('/compte|account|inscri|sign ?up/i', $bubble[1],
-            'une panne technique ne se resout pas en creant un compte');
+            $this->assertStringNotContainsString('data-guest-shell', $html,
+                'overlay Shell invite rendu a un anonyme sur le gabarit ['.($gabarit ?? 'defaut').']');
+            $this->assertStringNotContainsString('bpgs-msg', $html,
+                'bulle du Shell invite rendue sur le gabarit ['.($gabarit ?? 'defaut').']');
+        }
 
-        // Le MEME texte est aussi servi au JS (`labels.unavailable`), pour le
-        // cas ou le Shell devient indisponible en cours de conversation. Il
-        // etait passe sans parametre : le visiteur lisait « :name » en clair.
-        $this->assertSame(1, preg_match("/data-guest-shell-labels='([^']*)'/", $html, $labels));
-        $decoded = json_decode(html_entity_decode($labels[1], ENT_QUOTES), true);
-        $this->assertIsArray($decoded);
-        $this->assertArrayHasKey('unavailable', $decoded);
-        $this->assertStringNotContainsString(':name', $decoded['unavailable'], 'le libelle JS substitue le nom');
-        $this->assertStringContainsString($this->ready->name, $decoded['unavailable']);
+        foreach ([$this->disabled, $this->degraded] as $organisation) {
+            $html = $this->get($this->home($organisation))
+                ->assertOk()
+                ->assertCookieMissing(GuestVisitorResolver::COOKIE)
+                ->getContent();
 
-        // Le Shell VIVANT, lui, garde son CTA : la regle vise l'etat degrade.
-        $this->assertMatchesRegularExpression('/<a[^>]*data-guest-shell-cta/', $html);
+            $this->assertStringNotContainsString('data-guest-shell', $html,
+                'overlay rendu sur ['.$organisation->slug.']');
+        }
 
-        // Les deux autres templates d'accueil montent le meme partial.
-        $this->ready->update(['homepage_template' => 'bouclepro_hero_v2']);
-        $this->assertStringContainsString('data-guest-shell-state="live"', $this->get($this->home($this->ready))->assertOk()->getContent());
-        $this->ready->update(['homepage_template' => 'artscilab_hero']);
-        $this->assertStringContainsString('data-guest-shell-state="live"', $this->get($this->home($this->ready))->assertOk()->getContent());
+        // 3. MEMBRE — inactif aussi, et par l'autre porte. Sans ce volet, le
+        //    test serait vert sur une page qui aurait simplement cesse de
+        //    rendre quoi que ce soit.
+        $membre = User::factory()->complete()->create(['organization_id' => $this->ready->id]);
 
+        $htmlMembre = $this->actingAs($membre)->get($this->home($this->ready))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('data-guest-shell', $htmlMembre,
+            'un membre ne doit pas davantage recevoir l\'overlay invite');
+        $this->assertNotEmpty($htmlMembre, 'la landing reste servie a un membre');
+
+        // 4. LA CHATLOOP INTERNE EST PRESERVEE — c'est l'autre moitie du
+        //    contrat MASTER, et la seule assertion de ce test qui ne portait
+        //    deja pas sur l'overlay. Elle lit le layout, pas une reponse HTTP :
+        //    elle reste vraie et doit le rester.
+        $this->assertStringContainsString(
+            '<livewire:ai-shell',
+            file_get_contents(resource_path('views/layouts/app.blade.php')),
+            'le Shell membre est intact',
+        );
+
+        // 5. Et rien n'a ete cree au passage.
         $this->assertNothingCreated('une simple visite ne cree rien');
         GuestShellAgent::assertNeverPrompted();
     }
 
-    // ── 2. La lecture ──────────────────────────────────────────────────────
+    // =====================================================================
+    // TASK-1692 — LE CONTRAT A REMPLACE LE PARCOURS
+    //
+    // Les scenarios fonctionnels qui vivaient ici — premier message, reprise,
+    // refus de grille, panne de fournisseur — mesuraient un visiteur ANONYME
+    // qui converse. Ce parcours n'existe plus, et il n'existe plus pour
+    // PERSONNE :
+    //
+    //   * l'anonyme est arrete par `auth` sur le groupe `/org/{organization}`
+    //     (TASK-1692) : 302 en navigation, 401 en JSON ;
+    //   * la personne CONNECTEE est arretee par la surface elle-meme —
+    //     `GuestShellSurface:154` rend `display.visible = false` et
+    //     `reason = authenticated`, et `turn = unavailable`. Ce n'est pas un
+    //     effet de bord de TASK-1692 : le controleur le dit depuis TASK-1442,
+    //     « ici, jamais un utilisateur ».
+    //
+    // Il n'existe donc AUCUN acteur capable de faire repondre ce Shell. Les
+    // reecrire « avec un membre autorise » aurait produit des tests verts
+    // mesurant une surface inerte — pire qu'une absence de test, parce qu'ils
+    // auraient eu l'air de couvrir le moteur de conversation.
+    //
+    // Ce qui les remplace est ce qui RESTE vrai et mesurable : le contrat de
+    // refus, pour les trois acteurs, et l'absence totale d'effet metier.
+    // =====================================================================
 
-    public function test_the_read_endpoint_never_creates_and_ignores_a_cookie_of_another_organization(): void
+    /**
+     * Le contrat complet, acteur par acteur. Les trois cas sont dans le MEME
+     * test : separes, chacun serait vert sur une surface muree pour tout le
+     * monde, et personne ne verrait la difference.
+     */
+    public function test_the_shell_endpoints_refuse_every_actor_and_produce_no_business_effect(): void
     {
-        $url = route('organization.shell.show', ['organization' => $this->ready->slug]);
-        $this->assertSame('/org/org-ready-14xx/shell', parse_url($url, PHP_URL_PATH));
-        $json = $this->getJson($url)->assertOk()->assertCookieMissing(GuestVisitorResolver::COOKIE)->json();
-        $this->assertTrue($json['display']['visible']);
-        $this->assertSame('overlay', $json['display']['mode']);
-        $this->assertNull($json['conversation']);
-        // TASK-1662 — le CTA du payload JSON est RELATIF : le JS de la page le
-        // resout sur l'origine courante, donc il fonctionne sur tous les hosts
-        // legitimes de la plateforme.
-        $this->assertSame(route('organization.register', ['organization' => $this->ready->slug], absolute: false), $json['cta']['url']);
-        $this->assertNothingCreated('un GET ne cree rien');
+        $show = route('organization.shell.show', ['organization' => $this->ready->slug]);
+        $message = $this->endpoint($this->ready);
 
-        // Un visiteur d'une AUTRE Organization, avec sa conversation.
-        $key = Str::random(64);
-        $other = Organization::factory()->create(['slug' => 'org-other-14xx', 'is_active' => true, 'is_public' => true]);
-        $visitor = app()->make(GuestVisitorResolver::class)->ensure(Request::create('/', 'GET', cookies: [GuestVisitorResolver::COOKIE => $key]), $other);
-        app(GuestConversationService::class)->start($visitor);
+        // 1. ANONYME — navigation : redirection vers le login borne.
+        $this->get($show)->assertRedirect(route('organization.login', ['organization' => $this->ready->slug]));
 
-        $json = $this->asBrowser($this->encryptedCookie($key))->getJson($url)->assertOk()->json();
-        $this->assertNull($json['conversation'], 'le cookie d\'un autre tenant ne resout rien ici');
-        $this->assertSame(1, GuestVisitor::count(), 'et n\'en cree pas un nouveau');
+        // 2. ANONYME — JSON : 401, en lecture comme en ecriture. C'est 401 et
+        //    non 302 parce qu'une requete JSON n'est pas redirigee.
+        $this->getJson($show)->assertUnauthorized();
+        $this->postJson($message, ['message' => 'Bonjour, que faites-vous ?'])->assertUnauthorized();
 
-        $this->getJson(route('organization.shell.show', ['organization' => $this->private->slug]))->assertNotFound();
-        $this->getJson(route('organization.shell.show', ['organization' => $this->disabled->slug]))->assertOk()->assertJsonPath('display.visible', false)->assertJsonPath('display.reason', GuestShellDisplay::REASON_DISABLED);
-    }
+        $this->assertNothingCreated('un refus anonyme ne cree rien');
+        GuestShellAgent::assertNeverPrompted();
 
-    // ── 3. Le premier geste ────────────────────────────────────────────────
+        // 3. MEMBRE LEGITIME — la porte s'ouvre, la surface se tait. Elle rend
+        //    200 et se declare indisponible : c'est la regle TASK-1442, pas un
+        //    accident. La mesurer ici evite qu'on la croie joignable.
+        $membre = User::factory()->complete()->create(['organization_id' => $this->ready->id]);
 
-    public function test_the_first_message_creates_the_identity_answers_ledgers_once_and_the_second_message_resumes(): void
-    {
-        GuestShellAgent::fake([
-            new TextResponse('Bienvenue chez Ready Guild !', new Usage(120, 40), new Meta('openrouter', 'openai/gpt-4o-mini')),
-            new TextResponse('Avec plaisir.', new Usage(100, 20), new Meta('openrouter', 'openai/gpt-4o-mini')),
-        ]);
+        $this->actingAs($membre)->getJson($show)
+            ->assertOk()
+            ->assertJsonPath('display.visible', false)
+            ->assertJsonPath('display.reason', GuestShellDisplay::REASON_AUTHENTICATED);
 
-        $first = $this->postJson($this->endpoint($this->ready), ['message' => 'Bonjour, que faites-vous ?'])->assertOk();
-        $first->assertCookie(GuestVisitorResolver::COOKIE);
-        $first->assertJsonPath('turn', 'answered')->assertJsonPath('assistant.body', 'Bienvenue chez Ready Guild !')->assertJsonPath('user.body', 'Bonjour, que faites-vous ?')->assertJsonPath('conversation.message_count', 1)->assertJsonPath('conversation.remaining', 4);
-        $this->assertSame(1, GuestVisitor::count());
-        $this->assertSame(1, GuestConversation::count());
-        $this->assertSame(2, GuestMessage::count());
-        $this->assertSame(1, AiProviderInvocation::count(), 'un tour = une invocation');
-        $this->assertSame($this->ready->id, GuestVisitor::firstOrFail()->organization_id);
+        $this->actingAs($membre->fresh())->postJson($message, ['message' => 'Bonjour'])
+            ->assertOk()
+            ->assertJsonPath('turn', 'unavailable');
 
-        $cookie = $this->guestCookie($first);
-        $this->assertNotNull($cookie);
-        $this->assertSame(64, strlen($this->rawKey($cookie)), 'cle opaque de 64 caracteres, seul le sha256 est stocke');
+        // Et SURTOUT : rien n'est cree, aucun fournisseur n'est appele. Un
+        // membre ne peut donc pas consommer le budget IA invite par cette
+        // porte — c'est la protection contre l'abus que ce fichier doit
+        // continuer de tenir.
+        $this->assertNothingCreated('un membre ne reveille pas la surface invitee');
+        GuestShellAgent::assertNeverPrompted();
 
-        $second = $this->asBrowser($cookie)->postJson($this->endpoint($this->ready), ['message' => 'Merci !'])->assertOk();
-        $second->assertJsonPath('turn', 'answered')->assertJsonPath('conversation.message_count', 2);
-        $this->assertSame(1, GuestVisitor::count(), 'meme visiteur');
-        $this->assertSame(1, GuestConversation::count(), 'meme conversation');
-        $this->assertSame(2, AiProviderInvocation::count());
-        $this->assertCount(4, $second->json('conversation.messages'));
+        // 4. MEMBRE D'UNE AUTRE ORGANIZATION — 404, pas d'oracle.
+        $autre = Organization::factory()->create(['slug' => 'org-autre-1442', 'is_active' => true, 'is_public' => true]);
+        $etranger = User::factory()->complete()->create(['organization_id' => $autre->id]);
 
-        // Le GET de reprise relit la conversation avec le cookie, sans rien creer.
-        $read = $this->asBrowser($cookie)->getJson(route('organization.shell.show', ['organization' => $this->ready->slug]))->assertOk()->json();
-        $this->assertSame(2, $read['conversation']['message_count']);
-        $this->assertSame(1, GuestVisitor::count());
+        $this->actingAs($etranger)->getJson($show)->assertNotFound();
+        $this->actingAs($etranger->fresh())->postJson($message, ['message' => 'Bonjour'])->assertNotFound();
 
-        $html = $this->asBrowser($cookie)->get($this->home($this->ready))->assertOk()->getContent();
-        $this->assertStringContainsString('data-guest-shell-message="user">', $html, 'le transcript Guest est rendu a la reprise');
-        $this->assertStringContainsString('Bienvenue chez Ready Guild !', $html);
-        $this->assertStringNotContainsString('data-guest-shell-welcome>', $html);
-    }
-
-    // ── 4. Shell indisponible : aucune identite ────────────────────────────
-
-    public function test_a_post_to_an_unavailable_shell_creates_no_identity_and_calls_nothing(): void
-    {
-        GuestShellAgent::fake([]);
-
-        $this->postJson($this->endpoint($this->degraded), ['message' => 'Bonjour'])->assertOk()
-            ->assertCookieMissing(GuestVisitorResolver::COOKIE)
-            ->assertJsonPath('turn', GuestShellSurface::TURN_UNAVAILABLE)
-            ->assertJsonPath('reason', GuestShellDisplay::REASON_POLICY_NOT_READY)
-            ->assertJsonPath('assistant', null);
-        $this->postJson($this->endpoint($this->disabled), ['message' => 'Bonjour'])->assertOk()
-            ->assertCookieMissing(GuestVisitorResolver::COOKIE)
-            ->assertJsonPath('turn', GuestShellSurface::TURN_UNAVAILABLE)
-            ->assertJsonPath('reason', GuestShellDisplay::REASON_DISABLED);
-        $this->postJson($this->endpoint($this->private), ['message' => 'Bonjour'])->assertNotFound();
-
-        $this->assertNothingCreated('un Shell indisponible ne cree jamais une identite');
+        $this->assertNothingCreated('un etranger non plus');
         GuestShellAgent::assertNeverPrompted();
     }
 
-    // ── 5. Refus et echec, honnetes ────────────────────────────────────────
-
-    public function test_a_gate_refusal_is_honest_and_never_fabricates_an_answer(): void
+    /**
+     * La borne qui SURVIT a la fermeture : une Organization non publique ou
+     * inactive n'a aucune surface Guest, et le controleur le dit en 404 —
+     * avant meme toute question d'appartenance. Mesure faite avec un membre
+     * de CETTE Organization, sans quoi la garde de groupe repondrait la
+     * premiere et ce test ne mesurerait plus le controleur.
+     */
+    public function test_a_non_public_organization_still_has_no_guest_surface_at_all(): void
     {
-        app(GuestShellPolicyService::class)->update($this->ready, ['max_messages' => 1]);
-        GuestShellAgent::fake([new TextResponse('Une seule reponse.', new Usage(10, 5), new Meta('openrouter', 'openai/gpt-4o-mini'))]);
+        $membrePrive = User::factory()->complete()->create(['organization_id' => $this->private->id]);
 
-        $first = $this->postJson($this->endpoint($this->ready), ['message' => 'Premier'])->assertOk()->assertJsonPath('turn', 'answered');
-        $cookie = $this->guestCookie($first);
+        $this->actingAs($membrePrive)
+            ->getJson(route('organization.shell.show', ['organization' => $this->private->slug]))
+            ->assertNotFound();
 
-        $second = $this->asBrowser($cookie)->postJson($this->endpoint($this->ready), ['message' => 'Deuxieme'])->assertOk();
-        $second->assertJsonPath('turn', 'refused')->assertJsonPath('reason', 'max_messages_reached')->assertJsonPath('assistant', null)->assertJsonPath('user', null);
-        $this->assertSame(1, AiProviderInvocation::count(), 'un refus = zero appel');
-        $this->assertSame(2, GuestMessage::count(), 'le message refuse n\'est pas accepte');
-        $this->assertSame(GuestConversation::STATUS_LIMIT_REACHED, GuestConversation::firstOrFail()->status);
+        $this->actingAs($membrePrive->fresh())
+            ->postJson($this->endpoint($this->private), ['message' => 'Bonjour'])
+            ->assertNotFound();
 
-        $html = $this->asBrowser($cookie)->get($this->home($this->ready))->assertOk()->getContent();
-        $this->assertMatchesRegularExpression('/<textarea[^>]*data-guest-shell-input[^>]*disabled/', $html, 'limite atteinte : saisie fermee');
-        $this->assertStringContainsString('data-guest-shell-note>', $html);
-    }
-
-    public function test_a_provider_failure_is_reported_honestly_and_ledgered_as_failed(): void
-    {
-        GuestShellAgent::fake(fn () => throw new RuntimeException('upstream 502'));
-
-        $response = $this->postJson($this->endpoint($this->ready), ['message' => 'Bonjour'])->assertOk();
-        $response->assertJsonPath('turn', 'failed')->assertJsonPath('assistant.body', __('guest_shell.fallback_unavailable'));
-        $this->assertSame(AiProviderInvocation::STATUS_FAILED, AiProviderInvocation::firstOrFail()->status);
-        $this->assertStringNotContainsString('upstream 502', $response->getContent(), 'aucun detail technique au visiteur');
-    }
-
-    // ── 6. Bornes et hygiene HTTP ──────────────────────────────────────────
-
-    public function test_the_message_is_validated_and_the_routes_carry_the_public_guards(): void
-    {
-        GuestShellAgent::fake([]);
-        $this->postJson($this->endpoint($this->ready), ['message' => ''])->assertUnprocessable();
-        $this->postJson($this->endpoint($this->ready), ['message' => str_repeat('a', GuestMessage::maxUserBodyLength() + 1)])->assertUnprocessable();
-        $this->assertNothingCreated('un message invalide ne cree rien');
+        $this->assertNothingCreated('une Organization non publique n\'a pas de surface invitee');
         GuestShellAgent::assertNeverPrompted();
+    }
 
+    /**
+     * Les deux routes portent desormais la garde du groupe, et gardent leur
+     * `throttle`. L'ancienne version de ce test assertait `assertNotContains('auth')`
+     * — elle defendait la publicite du Shell, que MASTER a retiree.
+     *
+     * Mesure sur la pile EFFECTIVE (`Router::gatherRouteMiddleware()`) : les
+     * alias bruts ignorent `withoutMiddleware()`, et c'est ce defaut qui avait
+     * desarme la garde de TASK-1489.
+     */
+    public function test_the_shell_routes_carry_the_group_guard_and_keep_their_throttle(): void
+    {
         foreach (['organization.shell.show', 'organization.shell.message'] as $name) {
-            $route = Route::getRoutes()->getByName($name);
-            $this->assertNotNull($route, $name);
-            $middleware = $route->gatherMiddleware();
-            $this->assertContains('web', $middleware, $name);
-            $this->assertContains('organization', $middleware, $name);
-            $this->assertNotEmpty(array_filter($middleware, fn ($m) => str_starts_with((string) $m, 'throttle:')), "$name : throttle");
-            $this->assertNotContains('auth', $middleware, "$name est public");
+            $route = \Illuminate\Support\Facades\Route::getRoutes()->getByName($name);
+            $this->assertNotNull($route, "$name a disparu");
+
+            $effective = app('router')->gatherRouteMiddleware($route);
+
+            $this->assertContains(\Illuminate\Auth\Middleware\Authenticate::class, $effective, "$name : la garde TASK-1692");
+            $this->assertContains(\App\Http\Middleware\EnsureOrganizationMember::class, $effective, "$name : l'appartenance");
+
+            $brut = array_map('strval', $route->gatherMiddleware());
+            $this->assertNotEmpty(
+                array_filter($brut, static fn ($m) => str_starts_with($m, 'throttle:')),
+                "$name : le throttle de TASK-1442 reste pose",
+            );
         }
     }
 }

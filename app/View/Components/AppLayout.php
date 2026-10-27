@@ -36,6 +36,7 @@ class AppLayout extends Component
         public ?string $ogImageType = null,
         public ?string $twitterCard = null,
         public ?string $canonicalUrl = null,
+        public bool $showInternalNavigation = true,
     ) {}
 
     public function render(): View

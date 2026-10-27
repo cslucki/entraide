@@ -118,6 +118,56 @@ return [
             ],
         ],
 
+        /*
+         * TASK-1704 — les pieces jointes de la MESSAGERIE.
+         *
+         * Cyril : « il faudrait que le bouton qui permet d'envoyer des photos
+         * permette d'envoyer des photos ET DES FICHIERS depuis un smartphone. »
+         *
+         * ## Pourquoi un disque prive, et pas celui des images de messages
+         *
+         * Les images de messages partent aujourd'hui sur le disque `public` :
+         * elles sont lisibles par quiconque connait l'URL, sans aucune garde
+         * — ni de tenant, ni de participation a la conversation. C'est un
+         * defaut preexistant, signale a Cyril ; il n'est pas corrige ici, mais
+         * il n'est pas ETENDU non plus. Une piece jointe de conversation privee
+         * est, par nature, plus sensible qu'une photo : un devis, un contrat,
+         * un bilan. Elle part donc d'emblee dans le prive, et Cyril a tranche
+         * en ce sens — « disque prive + route gardee ».
+         *
+         * ## Ce que ce disque n'a PAS, deliberement
+         *
+         * Ni `serve`, ni `url`. `dossier_files` les porte, ce qui enregistre
+         * une route de service automatique sous `/dossier-files`. Ici, la
+         * SEULE porte est la route gardee, qui verifie le tenant puis la
+         * participation a la conversation. Ajouter `serve` ouvrirait une
+         * seconde entree que personne n'aurait decidee — exactement le defaut
+         * que TASK-1692 a passe une campagne entiere a refermer ailleurs.
+         *
+         * Les permissions de repertoire reprennent celles de `dossier_files`,
+         * pour la raison qui y est documentee en detail : le processus qui SERT
+         * n'est pas celui qui ECRIT, et 0700 rend le chemin infranchissable
+         * pour le serveur web.
+         */
+        'message_files' => [
+            'driver' => env('MESSAGE_FILES_DRIVER', 'local'),
+            'root' => storage_path('app/private/message-files'),
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION'),
+            'bucket' => env('AWS_BUCKET'),
+            'endpoint' => env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'throw' => false,
+            'report' => false,
+            'permissions' => [
+                'dir' => [
+                    'public' => 0755,
+                    'private' => 0770,
+                ],
+            ],
+        ],
+
     ],
 
     /*

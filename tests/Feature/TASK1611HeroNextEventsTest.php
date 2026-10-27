@@ -72,7 +72,17 @@ class TASK1611HeroNextEventsTest extends TestCase
 
     private function homeHtml(Organization $organization, string $query = ''): string
     {
-        return $this->withCredentials()->get(route('organization.home', ['organization' => $organization->slug]).$query)->assertOk()->getContent();
+        // TASK-1692 — le bloc « prochaines dates » est servi aux MEMBRES :
+        // ses liens visent `organization.workshop.show`, devenue membre-only.
+        // Ce que ce fichier mesure — etats solo/compact/media, ordre
+        // chronologique, bornage tenant — est inchange ; seul l'oeil change.
+        $membre = User::factory()->create(['organization_id' => $organization->id]);
+
+        return $this->actingAs($membre)
+            ->withCredentials()
+            ->get(route('organization.home', ['organization' => $organization->slug]).$query)
+            ->assertOk()
+            ->getContent();
     }
 
     public function test_without_any_upcoming_session_the_hero_keeps_its_original_right_hand_visual(): void

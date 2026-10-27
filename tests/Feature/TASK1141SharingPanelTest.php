@@ -7,10 +7,13 @@ use App\Models\DossierMember;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\RequiresDossierMemberSharing;
 use Tests\TestCase;
 
 class TASK1141SharingPanelTest extends TestCase
 {
+    use RequiresDossierMemberSharing;
+
     use RefreshDatabase;
 
     private Organization $organization;
@@ -62,6 +65,8 @@ class TASK1141SharingPanelTest extends TestCase
 
     public function test_searching_and_selecting_a_candidate_does_not_create_membership_or_permissions(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->actingAs($this->owner)
             ->getJson($this->route('dossiers.members.search', $this->parent, ['q' => $this->member->email]))
             ->assertOk()
@@ -81,6 +86,8 @@ class TASK1141SharingPanelTest extends TestCase
 
     public function test_explicit_addition_always_starts_as_reader(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->actingAs($this->owner)
             ->postJson($this->route('dossiers.members.store', $this->parent), [
                 'user_id' => $this->member->id,
@@ -100,6 +107,8 @@ class TASK1141SharingPanelTest extends TestCase
 
     public function test_reader_editor_reader_changes_are_persisted(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->share($this->parent, DossierMember::ROLE_READER);
 
         $this->actingAs($this->owner)
@@ -121,6 +130,8 @@ class TASK1141SharingPanelTest extends TestCase
 
     public function test_child_panel_returns_inherited_access_without_creating_child_membership(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->share($this->parent, DossierMember::ROLE_EDITOR);
 
         $this->actingAs($this->owner)
@@ -143,6 +154,8 @@ class TASK1141SharingPanelTest extends TestCase
 
     public function test_removing_parent_share_removes_inheritance(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->share($this->parent, DossierMember::ROLE_READER);
 
         $this->actingAs($this->owner)
@@ -158,6 +171,8 @@ class TASK1141SharingPanelTest extends TestCase
 
     public function test_explicit_child_anchor_survives_parent_share_removal(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->share($this->parent, DossierMember::ROLE_READER);
         $this->share($this->child, DossierMember::ROLE_EDITOR);
 
@@ -177,6 +192,8 @@ class TASK1141SharingPanelTest extends TestCase
 
     public function test_explicit_child_anchor_is_displayed_as_direct_while_parent_share_exists(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->share($this->parent, DossierMember::ROLE_READER);
         $this->share($this->child, DossierMember::ROLE_EDITOR);
 
@@ -193,6 +210,8 @@ class TASK1141SharingPanelTest extends TestCase
 
     public function test_governing_owner_is_never_offered_or_added_on_a_child(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->actingAs($this->owner)
             ->getJson($this->route('dossiers.members.search', $this->child, ['q' => $this->owner->email]))
             ->assertOk()
@@ -227,6 +246,8 @@ class TASK1141SharingPanelTest extends TestCase
 
     public function test_cross_organization_member_never_appears_in_search_or_inherited_access(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $otherOrganization = Organization::factory()->create(['slug' => 'other', 'is_active' => true]);
         $outsider = User::factory()->create(['organization_id' => $otherOrganization->id]);
 
@@ -242,6 +263,8 @@ class TASK1141SharingPanelTest extends TestCase
 
     public function test_share_panel_is_single_and_one_shot_query_is_removed_from_url(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->actingAs($this->owner)
             ->get($this->route('dossiers.show', $this->parent, ['partage' => 1]))
             ->assertOk()
@@ -260,6 +283,8 @@ class TASK1141SharingPanelTest extends TestCase
      */
     public function test_the_manager_panel_opens_on_add_member_without_a_duplicated_header(): void
     {
+        $this->skipIfDossierMemberSharingDisabled();
+
         $this->actingAs($this->owner)
             ->get($this->route('dossiers.show', $this->parent, ['partage' => 1]))
             ->assertOk()

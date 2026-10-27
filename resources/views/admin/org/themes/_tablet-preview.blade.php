@@ -101,7 +101,7 @@
                         <p class="mt-0.5 text-[7px] leading-tight text-black">ChatLoop comme point de départ.</p>
                     </div>
                     <div class="rounded-xl p-2 shadow-sm" style="background-color: {{ $cardExchange }};">
-                        <p class="text-[9px] font-bold text-black">Échanges</p>
+                        <p class="text-[9px] font-bold text-black">Entraide</p>
                         <p class="mt-0.5 text-[7px] leading-tight text-black">Services et conversations.</p>
                     </div>
                     <div class="rounded-xl p-2 shadow-sm" style="background-color: {{ $cardDirectory }};">
@@ -129,7 +129,7 @@
         </span>
         <span class="flex flex-col items-center gap-0.5" style="color: {{ $muted }};">
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
-            <span class="text-[7px] font-medium">Échanges</span>
+            <span class="text-[7px] font-medium">Entraide</span>
         </span>
         <span class="flex flex-col items-center gap-0.5" style="color: {{ $accent }};">
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>

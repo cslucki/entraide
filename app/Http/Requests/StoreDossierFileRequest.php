@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Dossier;
+use App\Support\Files\TypesDeFichiersAcceptes;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreDossierFileRequest extends FormRequest
@@ -33,7 +34,8 @@ class StoreDossierFileRequest extends FormRequest
             abort(404);
         }
 
-        return $user->can('manageFiles', $dossier);
+        // TASK-1684 : DEPOSER, pas administrer. Voir DossierPolicy::uploadFiles().
+        return $user->can('uploadFiles', $dossier);
     }
 
     public function rules(): array
@@ -46,13 +48,14 @@ class StoreDossierFileRequest extends FormRequest
                 'required',
                 'file',
                 'max:51200',
-                // `mimetypes:` compare le type devine par finfo SUR LE CONTENU. Un
-                // .xls ancien (conteneur OLE2) sort selon les versions de
-                // libmagic en `application/vnd.ms-excel`, en
-                // `application/x-ole-storage` ou en `application/CDFV2` : les
-                // trois designent le meme classeur, les deux derniers manquaient
-                // et faisaient echouer ce seul fichier au milieu d'un import.
-                'mimetypes:image/jpeg,image/png,image/webp,image/gif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/vnd.ms-excel,application/x-ole-storage,application/CDFV2,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,application/x-zip-compressed',
+                // La liste vit dans `TypesDeFichiersAcceptes` depuis TASK-1704,
+                // ou la messagerie accepte desormais des fichiers elle aussi.
+                // Elle y est accompagnee de l'histoire qui explique ses
+                // doublons apparents (les alias libmagic) : la recopier ici
+                // aurait donne deux regles pour une idee, et c'est la copie
+                // qu'on oublie de completer. La chaine produite est identique
+                // a l'octet a celle qui figurait ici.
+                TypesDeFichiersAcceptes::regleMimetypes(),
             ],
         ];
     }

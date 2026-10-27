@@ -170,8 +170,33 @@ class TASK1625MobileNavigationTest extends TestCase
         $page = $this->page();
 
         $this->assertStringContainsString('data-mobile-topbar-notifications', $page);
-        // La route EXISTANTE, pas une nouvelle.
-        $this->assertStringContainsString(route('notifications.index'), $page);
+
+        // TASK-1698 — la route EXISTANTE, pas une nouvelle : l'intention de
+        // cette garde est intacte. Ce qui change, c'est sa FORME.
+        //
+        // Les notifications sont par Organization (`member_notifications.
+        // organization_id`, `unreadNotificationsCount($organizationId)`). La
+        // barre rendait pourtant l'URL NON prefixee, et sans prefixe
+        // `ResolveUrlOrganization` lie l'Organization PAR DEFAUT : on
+        // affichait les notifications d'un autre locataire. Le repli pose sur
+        // `$organizationRouteParam` borne desormais ce lien.
+        //
+        // La garde porte sur LA BALISE, pas sur la page.
+        //
+        // Premiere tentative de realignement : accepter l'une OU l'autre forme
+        // n'importe ou dans le HTML. **Affaiblie** — mesure par sabotage, le
+        // lien pointe sur `/nulle-part` et le test restait VERT, la forme non
+        // prefixee existant ailleurs sur la page (le rail lateral la rend
+        // aussi). Quatrieme occurrence du meme defaut dans cette campagne :
+        // une assertion portee sur la page au lieu de l'element.
+        $this->assertSame(1, preg_match('/<a[^>]*data-mobile-topbar-notifications[^>]*>/', $page, $lien),
+            'La balise des notifications du header est introuvable.');
+
+        $this->assertStringContainsString(
+            'href="'.route('organization.notifications.index', ['organization' => $this->organization->slug]).'"',
+            $lien[0],
+            'Le header ne mene pas aux notifications de cette Organization.'
+        );
     }
 
     public function test_le_badge_compte_les_non_lues_et_disparait_a_zero(): void

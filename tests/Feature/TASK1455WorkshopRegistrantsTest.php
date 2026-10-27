@@ -128,7 +128,7 @@ class TASK1455WorkshopRegistrantsTest extends TestCase
     public function test_registrants_are_tenant_scoped_and_read_only(): void
     {
         $this->actingAs($this->adminB)->get($this->url($this->b, $this->workshopA))->assertNotFound();
-        $this->actingAs($this->adminB)->get($this->url($this->a, $this->workshopA))->assertForbidden();
+        $this->actingAs($this->adminB)->get($this->url($this->a, $this->workshopA))->assertNotFound();
         $member = User::factory()->create(['organization_id' => $this->a->id]);
         $this->actingAs($member)->get($this->url($this->a, $this->workshopA))->assertForbidden();
         $this->actingAs($this->superAdmin)->get($this->url($this->a, $this->workshopA))->assertOk();

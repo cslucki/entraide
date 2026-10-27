@@ -8,11 +8,13 @@ use App\Models\Reaction;
 use App\Models\Transaction;
 use App\Notifications\NewMessageReceived;
 use App\Services\UrlPreviewService;
+use App\Support\Files\TypesDeFichiersAcceptes;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Laravel\Facades\Image;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -20,10 +22,30 @@ class MessageThread extends Component
 {
     use WithFileUploads;
 
+    /**
+     * TASK-1691 (P0) — ces trois proprietes decidaient du TENANT, et le client
+     * les ecrivait.
+     *
+     * Mesure faite en T1690 : un membre de A, depuis un snapshot legitime de SA
+     * conversation, envoyait `{"updates":{"organizationId":"<B>",
+     * "transactionId":"<transaction de B>"}}`. `ensureOrganizationContext()`
+     * re-liait alors `current_organization` sur B ; le scope tenant de
+     * `Transaction` — qui TIENT par ailleurs — ne protegeait plus rien, et
+     * `render()` servait le corps d'une conversation privee de B ainsi que le
+     * nom de son interlocuteur. Pire, `render()` appelle `markRead()`, qui
+     * ECRIT : `messages.read_at` d'un tenant etranger passait a `now()`.
+     *
+     * Le discriminant l'a prouve : en ne falsifiant QUE `transactionId`, sans
+     * deplacer le tenant, la reponse etait **404**. La garde n'etait pas
+     * absente — elle etait desarmee de l'interieur.
+     */
+    #[Locked]
     public string $transactionId;
 
+    #[Locked]
     public string $organizationId;
 
+    #[Locked]
     public string $organizationSlug;
 
     protected ?Transaction $transaction = null;
@@ -33,6 +55,28 @@ class MessageThread extends Component
     public ?string $replyToMessageId = null;
 
     public ?array $replyingTo = null;
+
+    /** TASK-1704 correctif 2 — le message en cours de modification, s'il y en a un. */
+    public ?string $editingMessageId = null;
+
+    public string $editingBody = '';
+
+    /**
+     * TASK-1704 — deux plafonds, et c'est VOULU.
+     *
+     * Une image est re-encodee en WebP et reduite a 1200x800 : son poids final
+     * ne depend pas de celui du depot, et le plafond ne protege que la memoire
+     * de l'etape de decodage. 10 Mo y suffisaient, et le changer modifierait un
+     * comportement que personne n'a demande de modifier.
+     *
+     * Un fichier, lui, est conserve tel quel. Son plafond est celui des
+     * Dossiers — 50 Mo — parce que c'est deja la reponse que le produit donne
+     * a la meme question, et qu'en inventer une seconde creerait deux regles
+     * contradictoires a expliquer aux membres.
+     */
+    public const TAILLE_MAX_IMAGE_KO = 10240;
+
+    public const TAILLE_MAX_FICHIER_KO = 51200;
 
     public $photo = null;
 
@@ -76,18 +120,183 @@ class MessageThread extends Component
         if (! $this->photo) {
             return;
         }
-        $validator = validator(['photo' => $this->photo], ['photo' => 'image|max:10240']);
+        $validator = validator(['photo' => $this->photo], ['photo' => $this->reglesDePieceJointe($this->photo)]);
         if ($validator->fails()) {
             $this->photo = null;
-            $this->addError('photo', __('messages.invalid_file'));
+            $this->addError('photo', __('messages.invalid_attachment'));
         }
+    }
+
+    /**
+     * TASK-1704 — ce qu'on accepte, et jusqu'a quel poids.
+     *
+     * La liste des types vient de `TypesDeFichiersAcceptes`, partagee avec les
+     * Dossiers : le produit ne doit pas avoir deux reponses a « de quoi sais-je
+     * faire quelque chose ? ».
+     *
+     * Le plafond, lui, depend du type devine SUR LE CONTENU — jamais de
+     * l'extension ni de ce que le navigateur annonce, qui sont tous deux sous
+     * le controle de celui qui depose.
+     *
+     * @return list<string>
+     */
+    private function reglesDePieceJointe($file): array
+    {
+        return [
+            'file',
+            TypesDeFichiersAcceptes::regleMimetypes(),
+            'max:'.($this->estUneImage($file) ? self::TAILLE_MAX_IMAGE_KO : self::TAILLE_MAX_FICHIER_KO),
+        ];
+    }
+
+    /**
+     * Le depot est-il une image, au sens du pipeline WebP ?
+     *
+     * `getMimeType()` devine a partir du CONTENU. Un `.pdf` renomme en `.jpg`
+     * repond donc « application/pdf » et part sur le chemin fichier, au lieu
+     * d'etre confie a `Image::decode()` qui echouerait.
+     *
+     * Une absence de type est traitee comme « pas une image » : le chemin
+     * fichier conserve l'octet tel quel, la ou le chemin image le detruirait.
+     */
+    private function estUneImage($file): bool
+    {
+        try {
+            $mime = $file?->getMimeType();
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return $mime !== null && in_array($mime, TypesDeFichiersAcceptes::IMAGES, true);
+    }
+
+    /**
+     * TASK-1704 correctif 2 — modifier un message texte.
+     *
+     * Cyril : « il faudrait aussi pouvoir modifier les messages textes, on
+     * peut le faire sur la chatloop. »
+     *
+     * Le mecanisme est celui du ChatLoop, repris sans etre reinvente : memes
+     * noms de methodes (la bulle partagee appelle deja `editMessage(...)`),
+     * meme regle d'editabilite, meme recalcul de l'apercu de lien. Ecrire un
+     * second mecanisme aurait donne deux comportements a maintenir pour un
+     * seul geste.
+     *
+     * ## Les gardes, et pourquoi chacune
+     *
+     * - **Participation et statut de l'echange** : on ne modifie pas un
+     *   message dans une conversation ou l'on ne peut plus ecrire. C'est la
+     *   meme borne que `sendMessage()`, et l'omettre laisserait reecrire
+     *   l'historique d'un echange cloture.
+     * - **Le message appartient a CET echange** — et a cette Organization.
+     *   Sans elle, un identifiant suffirait a modifier le message d'autrui.
+     * - **`isEditableBy()`** : l'auteur seul, et jamais un message systeme.
+     */
+    public function editMessage(string $messageId): void
+    {
+        $message = $this->messageModifiable($messageId);
+
+        if (! $message) {
+            return;
+        }
+
+        $this->editingMessageId = $message->id;
+        $this->editingBody = $message->body;
+    }
+
+    public function cancelEdit(): void
+    {
+        $this->editingMessageId = null;
+        $this->editingBody = '';
+    }
+
+    public function saveEdit(): void
+    {
+        $this->validate([
+            'editingBody' => 'required|string|max:5000',
+        ]);
+
+        if ($this->editingMessageId === null) {
+            return;
+        }
+
+        $message = $this->messageModifiable($this->editingMessageId);
+
+        if (! $message) {
+            $this->cancelEdit();
+
+            return;
+        }
+
+        // `required` trime deja les chaines : une saisie d'espaces seuls est
+        // rejetee par la validation ci-dessus, et ne parvient jamais ici. Une
+        // seconde verification de vacuite serait du code mort — un sabotage
+        // qui la supprimait est reste VERT, et c'est ce qui l'a montre.
+        $corps = trim($this->editingBody);
+
+        // L'apercu de lien est RECALCULE : un membre qui corrige l'URL de son
+        // message doit en voir la vignette changer. Le ChatLoop fait de meme
+        // dans `saveEdit()`.
+        $url = UrlPreviewService::extractFirstUrl($corps);
+        $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
+
+        $message->forceFill([
+            'body' => $corps,
+            'metadata' => $preview !== null ? ['url_preview' => $preview] : null,
+            'edited_at' => now(),
+            'edited_by' => auth()->id(),
+        ])->save();
+
+        $this->cancelEdit();
+    }
+
+    /**
+     * Le message designe, s'il est bien modifiable par le demandeur ICI.
+     *
+     * Les quatre conditions sont reunies en un seul endroit pour qu'`editMessage()`
+     * et `saveEdit()` ne puissent pas diverger : ouvrir le formulaire et
+     * enregistrer doivent repondre a la MEME question. Une garde posee a
+     * l'ouverture seule laisserait enregistrer ce qu'on n'a plus le droit de
+     * modifier.
+     */
+    private function messageModifiable(string $messageId): ?Message
+    {
+        $user = auth()->user();
+        $transaction = $this->transaction();
+
+        if (! $user || ! in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
+            return null;
+        }
+
+        if (in_array($transaction->status, ['completed', 'refused', 'cancelled'])) {
+            return null;
+        }
+
+        // `messages.id` est un UUID. Comparer une chaine quelconque a une
+        // colonne uuid leve `22P02` en PostgreSQL — et reste INVISIBLE en
+        // SQLite, ou la colonne est du texte. Le piege a deja coute une
+        // correction en TASK-1665.
+        if (! Str::isUuid($messageId)) {
+            return null;
+        }
+
+        $message = Message::where('id', $messageId)
+            ->where('transaction_id', $transaction->id)
+            ->where('organization_id', $transaction->organization_id)
+            ->first();
+
+        if (! $message || ! $message->isEditableBy($user)) {
+            return null;
+        }
+
+        return $message;
     }
 
     public function sendMessage(): void
     {
         $this->validate([
             'newMessage' => 'required_without:photo|string|max:5000',
-            'photo' => 'nullable|image|max:10240',
+            'photo' => $this->photo ? $this->reglesDePieceJointe($this->photo) : ['nullable'],
         ], [
             'newMessage.required_without' => __('messages.body_or_image_required'),
         ]);
@@ -117,8 +326,16 @@ class MessageThread extends Component
 
         $imagePath = null;
 
+        $piece = [];
+
         if ($this->photo) {
-            $imagePath = $this->storeImage($this->photo);
+            // Une image suit son chemin d'origine, INCHANGE : re-encodage WebP
+            // et disque public. Tout autre type part sur le disque prive.
+            if ($this->estUneImage($this->photo)) {
+                $imagePath = $this->storeImage($this->photo);
+            } else {
+                $piece = $this->storeFile($this->photo);
+            }
             $this->photo = null;
         }
 
@@ -131,6 +348,11 @@ class MessageThread extends Component
             'reply_to_id' => $replyToId,
             'body' => $this->newMessage,
             'image_path' => $imagePath,
+            'file_path' => $piece['path'] ?? null,
+            'file_disk' => $piece['disk'] ?? null,
+            'file_name' => $piece['name'] ?? null,
+            'file_mime' => $piece['mime'] ?? null,
+            'file_size' => $piece['size'] ?? null,
             'metadata' => $preview !== null ? ['url_preview' => $preview] : null,
             'type' => 'user',
             'organization_id' => $transaction->organization_id,
@@ -140,6 +362,35 @@ class MessageThread extends Component
         $this->cancelReply();
         $transaction->touch();
         $this->markRead();
+
+        /*
+         * TASK-1704 correctif 4 — annoncer l'envoi au composeur.
+         *
+         * Cyril : « apres avoir partage un lien, le composer chat reste
+         * agrandi. »
+         *
+         * Le composeur partage ecoute `message-sent.window` pour recalculer sa
+         * hauteur et son etat `hasText`. Le ChatLoop emet cet evenement
+         * (`LoopChat::send()`) ; la Messagerie ne l'a JAMAIS emis. D'ou un
+         * defaut visible ici et nulle part ailleurs.
+         *
+         * Une seule cause, trois symptomes — c'est ce qui rend cette ligne
+         * suffisante :
+         *
+         * 1. La hauteur reste celle du texte envoye. Sur une URL longue, elle
+         *    occupe la moitie de l'ecran d'un telephone.
+         * 2. `hasText` reste VRAI, donc le bouton d'envoi garde son apparence
+         *    active alors que le champ est vide.
+         * 3. Ce bouton invite alors a un second appui, qui declenche
+         *    « Ajoutez un message ou une image. » — l'erreur visible sous un
+         *    champ vide sur la capture de Cyril. Elle n'etait pas un defaut
+         *    de validation : la validation avait raison, c'est le bouton qui
+         *    mentait sur son etat.
+         *
+         * `wire:model` (sans `.live`) ne reecrit pas le champ tant que rien ne
+         * le declenche : vider la propriete cote serveur ne suffit donc pas.
+         */
+        $this->dispatch('message-sent');
 
         $recipient = $transaction->buyer_id === $user->id
             ? $transaction->seller
@@ -266,11 +517,84 @@ class MessageThread extends Component
         return $relativePath;
     }
 
+    /**
+     * TASK-1704 — deposer un fichier sur le disque PRIVE.
+     *
+     * ## Le chemin ne porte PAS le nom d'origine
+     *
+     * `dossier_files` accole le nom au UUID ; ici le chemin est un UUID nu, et
+     * le nom vit en base. Deux raisons :
+     *
+     * 1. Le nom vient de celui qui depose. Le faire entrer dans un chemin de
+     *    systeme de fichiers, c'est devoir prouver qu'aucun `..`, aucun `/`,
+     *    aucun octet nul, aucun nom reserve ne passe — une preuve qu'il faut
+     *    refaire a chaque evolution. Un UUID n'a pas ce probleme.
+     * 2. Le nom affiche doit pouvoir changer sans deplacer le fichier.
+     *
+     * ## Le type est DEVINE, pas annonce
+     *
+     * `getMimeType()` lit le contenu ; `getClientMimeType()` repete ce que le
+     * navigateur a dit. Seul le premier a une valeur : c'est lui qu'on
+     * enregistre, et c'est lui que la route gardee renverra en en-tete.
+     *
+     * @return array{path: string, disk: string, name: string, mime: string, size: int}
+     */
+    private function storeFile($file): array
+    {
+        $disque = 'message_files';
+
+        $chemin = $this->organizationId.'/'.$this->transactionId.'/'.Str::uuid()->toString();
+
+        Storage::disk($disque)->put($chemin, $file->get());
+
+        return [
+            'path' => $chemin,
+            'disk' => $disque,
+            'name' => $this->nomDeDepot($file),
+            'mime' => $file->getMimeType() ?: 'application/octet-stream',
+            'size' => (int) $file->getSize(),
+        ];
+    }
+
+    /**
+     * Le nom d'origine, rendu inoffensif pour un en-tete HTTP.
+     *
+     * Il ne sert qu'a l'affichage et au `Content-Disposition`. `basename()`
+     * ecarte tout segment de chemin ; les caracteres de controle sont retires
+     * parce qu'un retour a la ligne dans un en-tete le COUPE, ce qui permet
+     * d'en injecter un autre derriere. La longueur est bornee parce que la
+     * colonne l'est.
+     */
+    private function nomDeDepot($file): string
+    {
+        $nom = basename((string) $file->getClientOriginalName());
+        $nom = preg_replace('/[\x00-\x1F\x7F]/u', '', $nom) ?? '';
+        $nom = trim($nom);
+
+        if ($nom === '' || $nom === '.' || $nom === '..') {
+            return __('messages.attachment_fallback_name');
+        }
+
+        return mb_substr($nom, 0, 200);
+    }
+
+    /**
+     * TASK-1693 bug V — marquer lu, y compris les messages SYSTEME.
+     *
+     * `sender_id != $userId` les ecartait : ils portent `sender_id = NULL`, et
+     * `NULL != 'x'` vaut NULL en SQL, donc jamais VRAI. Aucun message systeme
+     * n'etait donc JAMAIS marque comme lu — toute la base de recette le
+     * confirme.
+     *
+     * Tant qu'ils ne comptaient pas dans le badge, cela ne se voyait pas.
+     * Depuis qu'ils y comptent (`User::unreadMessagesCount()`), un badge sans
+     * ce correctif resterait allume DEFINITIVEMENT.
+     */
     public function markRead(): void
     {
         $userId = auth()->id();
         Message::where('transaction_id', $this->transaction()->id)
-            ->where('sender_id', '!=', $userId)
+            ->where(fn ($q) => $q->whereNull('sender_id')->orWhere('sender_id', '!=', $userId))
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
     }
@@ -315,12 +639,31 @@ class MessageThread extends Component
         return view('livewire.message-thread', compact('transaction', 'messages', 'pinnedMessage', 'unreadCount', 'reactionData', 'myReactions', 'organizationSlug'));
     }
 
+    /**
+     * TASK-1691 — la PREUVE DE PARTICIPATION passe ici, donc une seule fois.
+     *
+     * `sendMessage()`, `pinMessage()`, `unpinMessage()` et `toggleReaction()`
+     * la portaient chacune de leur cote — et elles tenaient. Les deux methodes
+     * qui ne la portaient PAS, `render()` et `markRead()`, sont justement
+     * celles qui fuyaient et celle qui ecrivait. Une garde repetee quatre fois
+     * est une garde qu'une cinquieme methode oubliera.
+     *
+     * `TransactionPolicy::view` exige deja `buyer_id` ou `seller_id` sur la
+     * PAGE : aucun fil legitimement monte ne perd quoi que ce soit. Et le refus
+     * est un **404** indistinguable d'une transaction inexistante — l'oracle
+     * d'existence mesure en T1690 (200 pour un UUID reel, 404 pour un faux) se
+     * referme, ce qui compte d'autant plus que `Transaction` emet des UUIDv7
+     * dont les 48 premiers bits sont un horodatage.
+     */
     private function transaction(bool $fresh = false): Transaction
     {
         $this->ensureOrganizationContext();
 
         if ($fresh || ! $this->transaction) {
+            $userId = auth()->id();
+
             $this->transaction = Transaction::where('organization_id', $this->organizationId)
+                ->where(fn ($query) => $query->where('buyer_id', $userId)->orWhere('seller_id', $userId))
                 ->findOrFail($this->transactionId);
         }
 

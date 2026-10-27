@@ -94,7 +94,11 @@ class T969BlogTagsTest extends TestCase
 
         $post->tags()->syncWithPivotValues([$legacyTag->id], ['organization_id' => $organization->id]);
 
-        $this->get(route('organization.blog.show', ['organization' => $organization->slug, 'post' => $post]))
+        // TASK-1692 — surface prefixee devenue MEMBRE. Le contenu mesure ici
+        // est inchange ; seul l'oeil qui le lit l'est. Le refus anonyme est
+        // tenu separement par TASK1692StrictHttpIsolationTest.
+        $this->actingAs(\App\Models\User::factory()->create(['organization_id' => $organization->id]))
+            ->get(route('organization.blog.show', ['organization' => $organization->slug, 'post' => $post]))
             ->assertOk()
             ->assertSeeText('#Cyberworkers')
             ->assertDontSeeText('##Cyberworkers');

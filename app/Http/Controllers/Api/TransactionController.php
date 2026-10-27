@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Models\PointLedger;
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use App\Services\ServiceRequestLifecycle;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -85,11 +86,11 @@ class TransactionController extends Controller
             'status' => 'pending',
         ]);
 
-        $this->addSystemMessage($transaction, 'Nouvelle échange envoyée : '.$data['points_proposed'].' points.');
+        $this->addSystemMessage($transaction, 'Nouvel échange envoyé : '.$data['points_proposed'].' points.');
 
-        if (! empty($data['request_id'])) {
-            ServiceRequest::where('id', $data['request_id'])->update(['status' => 'in_progress']);
-        }
+        // TASK-1693 bug W — la demande ne quitte plus l'explorateur a la
+        // proposition, mais a l'ACCEPTATION. Meme regle que le web : voir
+        // `ServiceRequestLifecycle`.
 
         return response()->json($this->transactionPayload($transaction->load([
             'buyer:id,organization_id,first_name,name,banned_at',
@@ -117,8 +118,17 @@ class TransactionController extends Controller
     {
         $user = $request->user();
 
-        if ($user->id !== $transaction->seller_id || $transaction->status !== 'pending') {
+        // TASK-1693 bug S — decide celui qui n'a PAS propose (voir
+        // `Transaction::decisionMakerId()`). Cette API dupliquait la regle en
+        // dur au lieu de passer par la policy : sans ce correctif, elle aurait
+        // garde le comportement inverse.
+        if ($user->id !== $transaction->decisionMakerId() || $transaction->status !== 'pending') {
             return response()->json(['message' => 'Action non autorisée.'], 403);
+        }
+
+        // TASK-1693 bug W — le solde est verifie AU MOMENT DE L'ENGAGEMENT.
+        if ($transaction->buyer->points_balance < $transaction->points_proposed) {
+            return response()->json(['message' => __('requests.lifecycle.insufficient_balance')], 422);
         }
 
         $transaction->update([
@@ -126,7 +136,9 @@ class TransactionController extends Controller
             'points_agreed' => $transaction->points_proposed,
         ]);
 
-        $this->addSystemMessage($transaction, "Échange acceptée. L'échange est en cours.");
+        $this->addSystemMessage($transaction, "Échange accepté. L'échange est en cours.");
+
+        app(ServiceRequestLifecycle::class)->markHandled($transaction);
 
         return response()->json($this->freshTransactionPayload($transaction));
     }
@@ -135,16 +147,18 @@ class TransactionController extends Controller
     {
         $user = $request->user();
 
-        if ($user->id !== $transaction->seller_id || $transaction->status !== 'pending') {
+        // TASK-1693 bug S — decide celui qui n'a PAS propose (voir
+        // `Transaction::decisionMakerId()`). Cette API dupliquait la regle en
+        // dur au lieu de passer par la policy : sans ce correctif, elle aurait
+        // garde le comportement inverse.
+        if ($user->id !== $transaction->decisionMakerId() || $transaction->status !== 'pending') {
             return response()->json(['message' => 'Action non autorisée.'], 403);
         }
 
         $transaction->update(['status' => 'refused']);
-        $this->addSystemMessage($transaction, 'Échange refusée.');
+        $this->addSystemMessage($transaction, 'Échange refusé.');
 
-        if ($transaction->request_id) {
-            ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'open']);
-        }
+        app(ServiceRequestLifecycle::class)->releaseIfNothingHolds($transaction);
 
         return response()->json($this->freshTransactionPayload($transaction));
     }
@@ -164,9 +178,7 @@ class TransactionController extends Controller
         $transaction->update(['status' => 'cancelled']);
         $this->addSystemMessage($transaction, 'Transaction annulée.');
 
-        if ($transaction->request_id) {
-            ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'open']);
-        }
+        app(ServiceRequestLifecycle::class)->releaseIfNothingHolds($transaction);
 
         return response()->json($this->freshTransactionPayload($transaction));
     }
@@ -225,9 +237,7 @@ class TransactionController extends Controller
                 'completed_at' => now(),
             ]);
 
-            if ($transaction->request_id) {
-                ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'closed']);
-            }
+            app(ServiceRequestLifecycle::class)->close($transaction);
         });
 
         $this->addSystemMessage($transaction, 'Échange complété ! Les points ont été transférés.');

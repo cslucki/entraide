@@ -1,0 +1,425 @@
+/* ===========================================================================
+   OFSH — « À propos ». TASK-1700.
+
+   ## Ce que cette feuille reprend, et ce qu'elle refuse de reprendre
+
+   La page « À propos » existante (`about-launchpals`) a une ARCHITECTURE qui
+   fonctionne, et la TASK demande de la conserver : un document autonome, un
+   pont de sections pleine hauteur, une navigation par ancres fixée à droite
+   qui suit le défilement, un logo fixe, et la barre basse de découverte sur
+   téléphone. Tout cela est repris.
+
+   Ce qui n'est PAS repris, ce sont ses COULEURS : panneaux vert forêt, orange
+   vif, anthracite, dégradé rose-orange final. Elles sont la charte d'ArtSciLab.
+   Ici, les couleurs viennent des jetons du thème `ofsh`, exactement comme sur
+   la page d'accueil — `var(--bp-x, <littéral>)`, le littéral n'étant qu'un
+   repli si le producteur de jetons venait à manquer.
+
+   ## Le défilement par ancrage s'arrête au téléphone
+
+   `about-launchpals` garde `scroll-snap-type: y mandatory` sur mobile. Ses
+   sections tiennent dans un écran ; les nôtres non — la section « raison
+   d'être » porte six cartes, celle des valeurs quatre. Un ancrage obligatoire
+   sur un panneau plus haut que l'écran emprisonne le défilement : on ne peut
+   plus atteindre le bas du panneau sans que le navigateur rappelle à son
+   début. L'ancrage est donc desserré en `proximity` sous 900px, et les
+   panneaux cessent d'y imposer une hauteur d'écran.
+   =========================================================================== */
+
+:root {
+  --ofsh-blue:  var(--bp-primary,      #097FD5);
+  --ofsh-deep:  var(--bp-primary-deep, #0B3C72);
+  --ofsh-green: var(--bp-accent,       #158C68);
+  --ofsh-amber: var(--bp-validation,   #FFC247);
+  --ofsh-coral: var(--bp-warning,      #F26A35);
+
+  --ink:    var(--bp-text,   #09294B);
+  --muted:  var(--bp-muted,  #536D83);
+  --paper:  var(--bp-page,   #F8FBFA);
+  --panel:  var(--bp-panel,  #FFFFFF);
+  --line:   var(--bp-border, #DDE9E7);
+
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--ink);
+  background: var(--paper);
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+
+a:focus-visible, button:focus-visible {
+  outline: 3px solid var(--ofsh-blue);
+  outline-offset: 4px;
+}
+
+/* Le filet de marque, en haut de page — le même qu'à l'accueil. */
+body::before {
+  content: '';
+  position: fixed; inset: 0 0 auto 0; height: 5px; z-index: 80;
+  background: linear-gradient(90deg, #0E91E4 0%, #08A7B3 30%, #24A76E 54%, #FFBD43 77%, #F66C3B 100%);
+  pointer-events: none;
+}
+
+/* ── Le pont de sections ─────────────────────────────────────────────────── */
+
+.of-deck {
+  height: 100vh;
+  overflow-y: auto;
+  scroll-snap-type: y proximity;
+  scroll-behavior: smooth;
+}
+
+.of-panel {
+  position: relative;
+  min-height: 100vh;
+  scroll-snap-align: start;
+  display: flex;
+  align-items: center;
+  padding: clamp(4.5rem, 8vh, 7rem) clamp(1.5rem, 5vw, 5.5rem);
+}
+
+.of-panel__content { position: relative; z-index: 2; width: min(100%, 1080px); margin: 0 auto; }
+
+/* Les fonds : clairs et chaleureux, teintés par les quatre couleurs d'ADN. */
+.of-panel--intro   { background: radial-gradient(ellipse 48% 56% at 96% 12%, rgba(9,127,213,.13), transparent 78%), radial-gradient(ellipse 40% 50% at 2% 88%, rgba(21,140,104,.10), transparent 76%), var(--paper); }
+.of-panel--purpose { background: var(--panel); }
+.of-panel--values  { background: radial-gradient(ellipse 54% 60% at 4% 10%, rgba(255,194,71,.16), transparent 76%), radial-gradient(ellipse 44% 52% at 98% 86%, rgba(242,106,53,.12), transparent 76%), var(--paper); }
+.of-panel--ways    { background: var(--panel); }
+.of-panel--loops   { background: radial-gradient(ellipse 50% 58% at 92% 16%, rgba(21,140,104,.14), transparent 78%), var(--paper); }
+.of-panel--quiet   { background: var(--panel); }
+.of-panel--ai      { background: radial-gradient(ellipse 52% 58% at 8% 14%, rgba(9,127,213,.12), transparent 78%), var(--paper); }
+
+.of-panel--join {
+  background: linear-gradient(130deg, var(--ofsh-blue) 0%, var(--ofsh-deep) 58%, #072B52 100%);
+  color: #fff;
+}
+
+/* ── Typographie ─────────────────────────────────────────────────────────── */
+
+.of-kicker {
+  display: inline-flex; align-items: center; gap: .7rem;
+  margin: 0 0 1.4rem;
+  font-size: clamp(.7rem, .95vw, .82rem);
+  font-weight: 800; letter-spacing: .155em; text-transform: uppercase;
+  color: var(--ofsh-green);
+}
+
+.of-kicker::before {
+  content: ''; width: 31px; height: 4px; border-radius: 5px; flex: none;
+  background: linear-gradient(90deg, var(--ofsh-blue), var(--ofsh-green));
+}
+
+.of-title {
+  margin: 0;
+  font-size: clamp(2rem, 4.1vw, 3.3rem);
+  line-height: 1.07;
+  letter-spacing: -.045em;
+  font-weight: 830;
+  text-wrap: balance;
+  max-width: 20ch;
+}
+
+.of-title--hero { font-size: clamp(2.3rem, 4.9vw, 4rem); max-width: 17ch; }
+
+.of-text {
+  max-width: 68ch;
+  margin: 1.5rem 0 0;
+  font-size: clamp(1rem, 1.25vw, 1.18rem);
+  line-height: 1.68;
+  color: var(--muted);
+}
+
+.of-punch {
+  max-width: 60ch;
+  margin: 1.8rem 0 0;
+  font-size: clamp(1.05rem, 1.6vw, 1.4rem);
+  line-height: 1.38;
+  font-weight: 760;
+  letter-spacing: -.025em;
+  color: var(--ofsh-deep);
+}
+
+.of-panel--join .of-kicker { color: rgba(255,255,255,.82); }
+.of-panel--join .of-kicker::before { background: rgba(255,255,255,.6); }
+.of-panel--join .of-text { color: rgba(255,255,255,.88); }
+.of-panel--join .of-punch { color: #fff; }
+
+/* ── Grilles de cartes ───────────────────────────────────────────────────── */
+
+.of-grid { display: grid; gap: 1.1rem; margin-top: 2.4rem; }
+.of-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.of-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.of-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.of-card {
+  padding: 1.5rem 1.4rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 10px 26px rgba(10, 58, 91, .055);
+}
+
+.of-card__title {
+  display: flex; align-items: center; gap: .65rem;
+  margin: 0 0 .55rem;
+  font-size: 1.02rem; font-weight: 800; letter-spacing: -.02em;
+}
+
+.of-card__title::before {
+  content: ''; width: .62rem; height: .62rem; border-radius: 50%; flex: none;
+  background: var(--puce, var(--ofsh-blue));
+}
+
+.of-card__text { margin: 0; font-size: .93rem; line-height: 1.52; color: var(--muted); }
+
+/* Les quatre valeurs portent les quatre couleurs d'ADN, dans l'ordre. */
+.of-value { position: relative; overflow: hidden; }
+.of-value::after {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+  background: var(--teinte);
+}
+.of-value__num {
+  display: block; margin-bottom: .7rem;
+  font-size: .78rem; font-weight: 800; letter-spacing: .14em;
+  color: var(--teinte);
+}
+.of-value__title { margin: 0 0 .5rem; font-size: 1.12rem; font-weight: 820; letter-spacing: -.025em; }
+
+/* ── Les quatre intentions : le passage visuel fort de la page ───────────── */
+
+.of-ways { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1rem; margin-top: 2.4rem; }
+
+.of-way {
+  display: flex; gap: 1rem; align-items: flex-start;
+  padding: 1.5rem 1.4rem;
+  border-radius: 1.4rem;
+  border: 1px solid rgba(255,255,255,.7);
+  box-shadow: 0 18px 38px rgba(10, 58, 91, .14), 0 4px 10px rgba(10, 58, 91, .055);
+  transition: transform .23s var(--ease), box-shadow .23s var(--ease);
+  min-height: 120px;
+}
+
+.of-way:hover { transform: translateY(-5px); box-shadow: 0 24px 42px rgba(9, 68, 111, .19); }
+
+.of-way__symbol {
+  flex: none; width: 2.7rem; height: 2.7rem;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.24);
+  border: 1px solid rgba(255,255,255,.3);
+}
+
+.of-way__symbol svg { width: 1.45rem; height: 1.45rem; }
+
+/* `display:block` n'est PAS cosmetique ici. Le titre et la description sont
+   deux `<span>` dans un `<span>` — un `<p>` ou un `<h3>` serait invalide a
+   l'interieur d'un `<a>` qui enveloppe toute la carte. Restes en ligne, ils se
+   suivaient sur la meme ligne : « J'ai besoin d'entraide Je rencontre une
+   difficulte… ». Mesure a la capture ; le `margin` seul ne s'applique pas a
+   une boite en ligne. */
+.of-way__title { display: block; margin: .1rem 0 .4rem; font-size: 1.07rem; font-weight: 820; letter-spacing: -.03em; line-height: 1.18; }
+.of-way__text { display: block; margin: 0; font-size: .89rem; line-height: 1.42; opacity: .88; font-weight: 550; }
+
+/* Les mêmes quatre couleurs qu'à l'accueil, dans le même ordre : une carte
+   reconnue sur la page d'accueil doit se retrouver ici. */
+.of-way--help     { color: #fff;     background: linear-gradient(135deg, #116FBF 0%, #0A62A7 100%); }
+.of-way--offer    { color: #fff;     background: linear-gradient(130deg, #147E5D 0%, #0B6F55 100%); }
+.of-way--share    { color: #152F48; background: linear-gradient(135deg, #FFCF71 0%, #FFAB43 100%); }
+.of-way--together { color: #192E43; background: linear-gradient(130deg, #FF9966 0%, #F47548 100%); }
+
+.of-way--share .of-way__symbol,
+.of-way--together .of-way__symbol { background: rgba(255,255,255,.4); border-color: rgba(255,255,255,.36); }
+
+/* ── Pastilles de sujets ─────────────────────────────────────────────────── */
+
+.of-pills { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 2.2rem; }
+
+.of-pill {
+  padding: .55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: .88rem; font-weight: 700; letter-spacing: -.01em;
+  color: var(--ink);
+}
+
+/* ── Liste à puces ───────────────────────────────────────────────────────── */
+
+.of-list { list-style: none; margin: 2.1rem 0 0; padding: 0; display: grid; gap: .85rem; max-width: 62ch; }
+
+.of-list li {
+  position: relative; padding-left: 1.9rem;
+  font-size: clamp(.98rem, 1.15vw, 1.08rem); line-height: 1.5; color: var(--ink);
+}
+
+.of-list li::before {
+  content: ''; position: absolute; left: 0; top: .48em;
+  width: .72rem; height: .72rem; border-radius: 50%;
+  background: linear-gradient(135deg, var(--ofsh-green), var(--ofsh-amber));
+}
+
+/* ── L'encadré de règle ──────────────────────────────────────────────────── */
+
+.of-rule {
+  display: flex; gap: .9rem; align-items: flex-start;
+  margin-top: 2.2rem; padding: 1.3rem 1.4rem;
+  border-radius: 1.1rem;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--ofsh-green);
+  background: var(--panel);
+  max-width: 62ch;
+  font-weight: 760; letter-spacing: -.02em;
+  font-size: clamp(1rem, 1.2vw, 1.1rem); line-height: 1.45;
+}
+
+.of-rule svg { flex: none; width: 1.4rem; height: 1.4rem; color: var(--ofsh-green); margin-top: .08rem; }
+
+/* ── Boutons ─────────────────────────────────────────────────────────────── */
+
+.of-actions { display: flex; flex-wrap: wrap; gap: .9rem; margin-top: 2.6rem; }
+
+.of-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: .7rem;
+  min-height: 3.3rem; padding: 0 1.6rem;
+  border-radius: 999px;
+  font-size: .97rem; font-weight: 760;
+  transition: transform .2s var(--ease), box-shadow .2s var(--ease), background .2s var(--ease);
+}
+
+.of-button:hover { transform: translateY(-2px); }
+.of-button svg { width: 1.1rem; height: 1.1rem; }
+.of-button--primary { background: #fff; color: var(--ofsh-deep); box-shadow: 0 14px 30px rgba(0,0,0,.18); }
+.of-button--secondary { border: 1.5px solid rgba(255,255,255,.55); color: #fff; }
+.of-button--secondary:hover { background: rgba(255,255,255,.12); }
+
+/* ── Mobilier fixe : logo, navigation par ancres ─────────────────────────── */
+
+.of-logo {
+  position: fixed; top: 1.4rem; left: 1.4rem; z-index: 30;
+  display: inline-flex; align-items: center;
+  padding: .5rem .85rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,.82);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 22px rgba(10,58,91,.1);
+  backdrop-filter: blur(12px);
+}
+
+.of-logo img { display: block; height: 1.9rem; width: auto; }
+.of-logo [data-ofsh-logo-dark] { display: none; }
+
+/* `mix-blend-mode: difference` n'est pas un effet : c'est ce qui rend cette
+   navigation lisible sur HUIT fonds differents, du blanc au bleu profond du
+   dernier panneau. Une couleur fixe echoue forcement sur l'un d'eux — mesure
+   faite a la capture, `var(--muted)` disparaissait sur « Rejoindre ».
+
+   C'est la solution de `about-launchpals`, reprise telle quelle. Le texte est
+   blanc et le melange l'inverse contre le fond : noir sur les panneaux clairs,
+   clair sur les panneaux sombres, sans que personne ait a tenir une table de
+   correspondances entre sections et couleurs de lien. */
+.of-nav {
+  position: fixed; top: 50%; right: clamp(8px, 1.3vw, 20px);
+  transform: translateY(-50%);
+  z-index: 25;
+  display: flex; flex-direction: column; gap: .55rem;
+  text-align: right;
+  mix-blend-mode: difference;
+  pointer-events: none;
+}
+
+.of-nav__link {
+  padding: .3rem .55rem;
+  border-radius: .4rem;
+  font-size: .72rem; font-weight: 780; letter-spacing: .08em; text-transform: uppercase;
+  color: #fff;
+  opacity: .34;
+  transition: opacity .3s;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.of-nav__link:hover { opacity: .75; }
+.of-nav__link--active { opacity: 1; }
+
+/* ── Le pied ─────────────────────────────────────────────────────────────── */
+
+.of-footer {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: .8rem 1.2rem;
+  padding: 1.6rem clamp(1.5rem, 5vw, 5.5rem);
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--muted);
+  font-size: .78rem;
+}
+
+.of-footer__links { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.1rem; }
+.of-footer a:hover { text-decoration: underline; }
+
+/* ── Téléphone et tablette ───────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  /* L'ancrage se desserre : nos panneaux dépassent la hauteur d'écran. */
+  .of-deck { height: auto; overflow-y: visible; scroll-snap-type: none; }
+  .of-panel { min-height: 0; padding: 3.4rem 1.35rem; }
+  .of-nav { display: none; }
+
+  .of-grid--3, .of-grid--4, .of-grid--2 { grid-template-columns: 1fr; }
+  .of-ways { grid-template-columns: 1fr; }
+
+  .of-title { font-size: clamp(1.75rem, 7vw, 2.4rem); max-width: none; }
+  .of-title--hero { font-size: clamp(2rem, 9vw, 2.9rem); max-width: none; }
+  .of-text { font-size: 1rem; }
+
+  .of-logo { top: .9rem; left: .9rem; padding: .4rem .7rem; }
+  .of-logo img { height: 1.6rem; }
+
+  .of-actions { flex-direction: column; align-items: stretch; }
+  .of-button { width: 100%; }
+
+  /* La barre basse de découverte occupe le bas de l'écran sur téléphone :
+     sans cette réserve, le pied passe dessous. */
+  .of-footer { padding-bottom: 5.5rem; justify-content: center; text-align: center; }
+  .of-footer__links { justify-content: center; }
+}
+
+/* ── Mode sombre : la préférence SYSTÈME, comme la page d'accueil ────────── */
+
+@media (prefers-color-scheme: dark) {
+  .of-panel--purpose, .of-panel--ways, .of-panel--quiet { background: var(--bp-surface, #072540); }
+  .of-panel--intro   { background: radial-gradient(ellipse 48% 56% at 96% 12%, rgba(63,163,232,.14), transparent 78%), var(--bp-page, #04182C); }
+  .of-panel--values  { background: radial-gradient(ellipse 54% 60% at 4% 10%, rgba(255,194,71,.09), transparent 76%), var(--bp-page, #04182C); }
+  .of-panel--loops   { background: radial-gradient(ellipse 50% 58% at 92% 16%, rgba(47,177,131,.11), transparent 78%), var(--bp-page, #04182C); }
+  .of-panel--ai      { background: radial-gradient(ellipse 52% 58% at 8% 14%, rgba(63,163,232,.11), transparent 78%), var(--bp-page, #04182C); }
+
+  .of-punch { color: var(--bp-primary, #3FA3E8); }
+
+  .of-card, .of-pill, .of-rule { background: var(--bp-surface-soft, #0D3557); border-color: var(--bp-border, #164263); box-shadow: none; }
+  .of-rule { border-left-color: var(--bp-accent, #2FB183); }
+
+  .of-way { border-color: rgba(255,255,255,.1); box-shadow: 0 18px 38px rgba(0,0,0,.42); }
+
+  .of-logo { background: var(--bp-surface, #072540); border-color: var(--bp-border, #164263); }
+  .of-logo [data-ofsh-logo-light] { display: none; }
+  .of-logo [data-ofsh-logo-dark] { display: block; }
+
+  .of-footer { background: var(--bp-page, #04182C); border-top-color: var(--bp-border, #164263); }
+}
+
+/* ── Mouvement réduit ────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .of-deck { scroll-behavior: auto; scroll-snap-type: none; }
+  .of-way:hover, .of-button:hover { transform: none; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

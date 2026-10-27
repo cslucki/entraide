@@ -254,7 +254,7 @@ class TASK1270SuperAdminConfiguresOrganizationAiTest extends TestCase
         $target = route('organization.admin.ai', ['organization' => 'test20260822']);
 
         $this->actingAs($foreignAdmin)->get(route('admin.ai-organizations'))->assertForbidden();
-        $this->actingAs($foreignAdmin)->get($target)->assertForbidden();
+        $this->actingAs($foreignAdmin)->get($target)->assertNotFound();
         $this->actingAs($member)->get($target)->assertForbidden();
         $this->actingAs($member)
             ->put(route('organization.admin.ai.update', ['organization' => 'test20260822']), [

@@ -26,6 +26,14 @@ use Tests\TestCase;
  * correctif ne touche donc ni la config ni le systeme de termes — c'est
  * expressement hors scope.
  *
+ * ## TASK-1697 correctif 15 — l'autorite du libelle a CHANGE
+ *
+ * Decision produit de Cyril : sur l'annuaire, « micro-services » devient
+ * « propositions ». Le libelle ne vient plus de `config('terms')` mais de
+ * `directory.service_label`, resolu par `trans_choice()`. Ces gardes lisent
+ * donc la nouvelle autorite — leur INTENTION est intacte : le libelle doit
+ * s'accorder avec le compteur, et « 1 <mot>s » reste interdit.
+ *
  * Ces gardes mesurent le TEXTE NORMALISE servi : un `</span>` separe le nombre
  * du libelle, si bien qu'une assertion sur le HTML brut ne verrait jamais la
  * signature « 1 micro-services ».
@@ -38,29 +46,44 @@ class TASK1409DirectoryServiceLabelAgreementTest extends TestCase
     {
         $texte = $this->renderDirectory(services: 1);
 
-        $this->assertStringContainsString('1 '.config('terms.service'), $texte);
-        $this->assertStringNotContainsString('1 '.config('terms.services'), $texte);
+        $this->assertStringContainsString('1 '.trans_choice('directory.service_label', 1), $texte);
+        $this->assertStringNotContainsString('1 '.trans_choice('directory.service_label', 3), $texte);
     }
 
     public function test_several_services_keep_the_plural_label(): void
     {
         $texte = $this->renderDirectory(services: 3);
 
-        $this->assertStringContainsString('3 '.config('terms.services'), $texte);
+        $this->assertStringContainsString('3 '.trans_choice('directory.service_label', 3), $texte);
     }
 
     /**
-     * Zero prend le PLURIEL en francais comme en anglais dans cette
-     * terminologie — « 0 micro-services ». C'est la forme deja servie
-     * aujourd'hui, et le correctif ne doit pas la changer : il ne s'agit pas
-     * de reecrire la regle d'accord, seulement de cesser de forcer le pluriel
-     * sur 1.
+     * TASK-1697 correctif 16 — le cas ZERO n'est plus OBSERVABLE.
+     *
+     * Decision produit de Cyril : « si le membre a zero proposition et zero
+     * demande d'aide, on supprime cette mention ». La rangee entiere disparait,
+     * donc aucun libelle n'est rendu pour zero : il n'y a plus d'accord a
+     * verifier.
+     *
+     * Cette garde ne peut donc plus asserter une FORME. Elle asserte ce que le
+     * produit promet desormais : l'ABSENCE. Ce n'est pas un affaiblissement —
+     * c'est le seul enonce encore vrai, et il est plus FORT que l'ancien,
+     * puisqu'il interdit les deux formes a la fois.
+     *
+     * Son ancetre avait un sens : il gelait « 0 micro-services » pour que
+     * TASK-1409 ne reecrive pas la regle d'accord en corrigeant le cas 1. Ce
+     * gel a servi ; il n'a plus d'objet.
      */
-    public function test_zero_service_keeps_the_plural_label(): void
+    public function test_zero_service_no_longer_renders_any_label(): void
     {
         $texte = $this->renderDirectory(services: 0);
 
-        $this->assertStringContainsString('0 '.config('terms.services'), $texte);
+        $this->assertStringNotContainsString('0 '.trans_choice('directory.service_label', 0), $texte);
+        $this->assertStringNotContainsString('0 '.trans_choice('directory.service_label', 3), $texte);
+        $this->assertStringNotContainsString('0 '.trans_choice('directory.request_label', 0), $texte);
+
+        // Temoin d'instrument : la page a bien ete rendue.
+        $this->assertStringContainsString(__('directory.title'), $texte);
     }
 
     /**
@@ -95,7 +118,7 @@ class TASK1409DirectoryServiceLabelAgreementTest extends TestCase
         $texte = $this->renderDirectory(services: 3);
 
         $this->assertStringContainsString(__('directory.title'), $texte);
-        $this->assertStringContainsString('3 '.config('terms.services'), $texte);
+        $this->assertStringContainsString('3 '.trans_choice('directory.service_label', 3), $texte);
 
         // Et la garde generique doit savoir rougir : jouee a l'identique sur
         // la signature exacte du defaut.

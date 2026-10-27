@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 <x-page title="{{ __('blog.title_create') }}" heading="{{ __('blog.heading_create') }}" width="3xl">
 
     @php
@@ -43,18 +44,30 @@
 
                 <div x-show="error" x-text="error" class="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3" role="alert"></div>
 
-                <div x-show="!loading" class="rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 px-4 py-3 text-sm text-indigo-700 dark:text-indigo-300">
+                {{-- TASK-1693 bug AF — le texte d'aide et le bouton de
+                     generation ne s'offrent que si l'IA est utilisable ici.
+                     « Ecrire moi-meme » et « Annuler » RESTENT : sans eux la
+                     page perdrait son objet. --}}
+                @if($_aiGate->availableHere())
+                <div x-show="!loading" data-ai-generate-helper class="rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 px-4 py-3 text-sm text-indigo-700 dark:text-indigo-300">
                     {{ __('blog.create_ai_helper') }}
                 </div>
+                @endif
 
                 <div x-show="!loading" class="flex flex-col sm:flex-row gap-3 pt-2">
-                    <button type="button" @click="generateWithAi()"
+                    @if($_aiGate->availableHere())
+                    <button type="button" @click="generateWithAi()" data-ai-generate-button
                         class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
                         {{ __('blog.btn_generate_ai') }}
                     </button>
-                    <button type="button" @click="writeMyself()"
+                    @endif
+                    {{-- TASK-1693 bug AI — « L'ecrire moi-meme » s'OPPOSE a
+                         « Generer avec l'IA ». L'IA eteinte, ce bouton est le
+                         SEUL chemin : il ne doit plus annoncer un choix qui
+                         n'existe pas, seulement ce qu'il fait. --}}
+                    <button type="button" @click="writeMyself()" data-blog-start-writing
                         class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        {{ __('blog.btn_write_myself') }}
+                        {{ $_aiGate->availableHere() ? __('blog.btn_write_myself') : __('blog.btn_write_myself_without_ai') }}
                     </button>
                     <a href="{{ $_blogIndexHref }}" class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         {{ __('blog.btn_cancel') }}

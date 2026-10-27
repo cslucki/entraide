@@ -138,9 +138,16 @@ class TASK1492BlogPrivateOrganizationTest extends TestCase
      * invites. Un correctif de vie privee qui la fermerait serait une
      * regression produit, pas une amelioration.
      */
-    public function test_the_blog_of_a_public_organization_stays_open_to_guests(): void
+    public function test_the_blog_of_a_public_organization_is_member_only_since_t1692(): void
     {
+        // CHANGEMENT D'INTENTION PRODUIT — TASK-1692. Le blog prefixe n'est
+        // plus ouvert aux invites, meme sur une Organization publique.
         $this->get(route('organization.blog.show', [$this->public, $this->publicPost->slug]))
+            ->assertRedirect(route('organization.login', ['organization' => $this->public->slug]));
+
+        // CONTRE-EPREUVE : le contenu existe toujours, et son membre le lit.
+        $this->actingAs(\App\Models\User::factory()->create(['organization_id' => $this->public->id]))
+            ->get(route('organization.blog.show', [$this->public, $this->publicPost->slug]))
             ->assertOk()
             ->assertSee('ARTICLE VITRINE T1492');
 

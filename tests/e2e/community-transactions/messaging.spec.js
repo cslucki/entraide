@@ -136,7 +136,7 @@ test.describe('Messaging Workflow', () => {
             await captureScreenshot(page, 'system-message-visible');
         } else {
             // Look for typical system message text
-            const hasSystemText = await page.locator('text=Nouvelle échange, text=acceptée, text=terminé').count() > 0;
+            const hasSystemText = await page.locator('text=Nouvel échange, text=accepté, text=terminé').count() > 0;
             if (hasSystemText) {
                 await captureScreenshot(page, 'system-message-found');
             }

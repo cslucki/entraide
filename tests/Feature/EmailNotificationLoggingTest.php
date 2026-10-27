@@ -34,12 +34,22 @@ class EmailNotificationLoggingTest extends TestCase
 
     public function test_welcome_notification_creates_email_log(): void
     {
+        // TASK-1694 bug T — « aucun gabarit » doit etre DIT desormais.
+        //
+        // La migration de normalisation (bug Q) pose 18 lignes globales
+        // ACTIVES, et `RefreshDatabase` joue les migrations : la table n'est
+        // plus vide au depart d'un test. Ce test mesure la JOURNALISATION, et
+        // son sujet attendu est celui du repli Blade — il doit donc creer
+        // l'absence qu'il suppose, au lieu d'en heriter.
+        \App\Models\SystemEmailTemplate::query()->delete();
+
         $this->user->notify(new WelcomeNotification);
 
         $this->assertDatabaseHas('email_logs', [
             'user_id' => $this->user->id,
             'to_email' => $this->user->email,
-            'subject' => 'Bienvenue sur Entraide !',
+            // TASK-1694 bug G — le repli nomme l'ORGANIZATION, plus la marque.
+            'subject' => 'Bienvenue sur '.($this->user->organization?->name ?: config('app.name')).' !',
             'status' => 'sent',
         ]);
 

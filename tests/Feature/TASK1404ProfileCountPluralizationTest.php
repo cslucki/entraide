@@ -27,6 +27,11 @@ use Tests\TestCase;
  *
  * Ces gardes mesurent le HTML SERVI, pas la presence de `trans_choice` dans
  * la source : c'est le rendu qui etait casse, c'est le rendu qu'on protege.
+ *
+ * TASK-1697 correctif 13 — le VOCABULAIRE du compteur de services a change
+ * (« service » -> « proposition » / « proposal »), decision produit de Cyril.
+ * Les gardes sont inchangees dans leur intention : seuls les mots attendus
+ * suivent le produit.
  */
 class TASK1404ProfileCountPluralizationTest extends TestCase
 {
@@ -36,11 +41,11 @@ class TASK1404ProfileCountPluralizationTest extends TestCase
     {
         $rendu = $this->renderProfile('en', services: 1, requests: 1, articles: 1);
 
-        $this->assertStringContainsString('1 service', $rendu);
+        $this->assertStringContainsString('1 proposal', $rendu);
         $this->assertStringContainsString('1 request', $rendu);
         $this->assertStringContainsString('1 article', $rendu);
 
-        $this->assertStringNotContainsString('1 service|1 services', $rendu);
+        $this->assertStringNotContainsString('1 proposal|1 proposals', $rendu);
         $this->assertStringNotContainsString('1 request|1 requests', $rendu);
         $this->assertStringNotContainsString('1 article|1 articles', $rendu);
     }
@@ -49,11 +54,11 @@ class TASK1404ProfileCountPluralizationTest extends TestCase
     {
         $rendu = $this->renderProfile('en', services: 2, requests: 2, articles: 2);
 
-        $this->assertStringContainsString('2 services', $rendu);
+        $this->assertStringContainsString('2 proposals', $rendu);
         $this->assertStringContainsString('2 requests', $rendu);
         $this->assertStringContainsString('2 articles', $rendu);
 
-        $this->assertStringNotContainsString('2 service|2 services', $rendu);
+        $this->assertStringNotContainsString('2 proposal|2 proposals', $rendu);
         $this->assertStringNotContainsString('2 request|2 requests', $rendu);
         $this->assertStringNotContainsString('2 article|2 articles', $rendu);
     }
@@ -62,7 +67,7 @@ class TASK1404ProfileCountPluralizationTest extends TestCase
     {
         $rendu = $this->renderProfile('fr', services: 1, requests: 1, articles: 1);
 
-        $this->assertStringContainsString('1 service', $rendu);
+        $this->assertStringContainsString('1 proposition', $rendu);
         $this->assertStringContainsString('1 demande', $rendu);
         $this->assertStringContainsString('1 article', $rendu);
 
@@ -73,7 +78,7 @@ class TASK1404ProfileCountPluralizationTest extends TestCase
     {
         $rendu = $this->renderProfile('fr', services: 2, requests: 2, articles: 2);
 
-        $this->assertStringContainsString('2 services', $rendu);
+        $this->assertStringContainsString('2 propositions', $rendu);
         $this->assertStringContainsString('2 demandes', $rendu);
         $this->assertStringContainsString('2 articles', $rendu);
 
@@ -112,7 +117,7 @@ class TASK1404ProfileCountPluralizationTest extends TestCase
     {
         $rendu = $this->renderProfile('en', services: 2, requests: 2, articles: 2);
 
-        $this->assertStringContainsString('2 services', $rendu);
+        $this->assertStringContainsString('2 proposals', $rendu);
         $this->assertStringContainsString('2 requests', $rendu);
         $this->assertStringContainsString('2 articles', $rendu);
     }

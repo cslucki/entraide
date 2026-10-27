@@ -428,7 +428,7 @@ class TASK1228AiEconomyStatementsTest extends TestCase
     {
         // Membre : 403 sur le releve Organization ; admin d'une autre Organization : 403.
         $this->actingAs($this->memberA)->get($this->orgUrl())->assertForbidden();
-        $this->actingAs($this->adminB)->get($this->orgUrl())->assertForbidden();
+        $this->actingAs($this->adminB)->get($this->orgUrl())->assertNotFound();
         $this->actingAs($this->adminA)->get($this->orgUrl())->assertOk();
 
         // Non SuperAdmin : 403 sur l'agregat plateforme (meme un admin d'Organization).
