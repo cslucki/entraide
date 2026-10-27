@@ -149,9 +149,9 @@ class TASK1714AdminUsersErgonomicsTest extends TestCase
         // La valeur exacte n'est pas figee : c'est un reglage visuel qui peut
         // bouger. Ce qui ne doit pas bouger, c'est qu'elles EXISTENT.
         $this->assertMatchesRegularExpression(
-            '/<td class="sticky right-0[^"]*min-w-\[\d+rem\]/',
+            '/<td class="sticky right-0[^"]*w-full[^"]*min-w-\[\d+rem\]/',
             $html,
-            'La colonne Actions n\'a pas de largeur plancher.',
+            'La colonne Actions n\'absorbe pas la largeur disponible : sans `w-full`, la place liberee repart chez Utilisateur.',
         );
         $this->assertMatchesRegularExpression(
             '/<td class="px-4 py-3[^"]*md:max-w-\[\d+rem\]/',
@@ -186,17 +186,19 @@ class TASK1714AdminUsersErgonomicsTest extends TestCase
         return $trouvees;
     }
 
-    public function test_les_quatre_colonnes_detaillees_sont_absentes_par_defaut(): void
+    public function test_les_colonnes_detaillees_sont_absentes_par_defaut(): void
     {
         $colonnes = $this->colonnes($this->ecranAdmin());
 
-        foreach (['Points', 'Services', 'Échanges', 'Statut'] as $masquee) {
+        // « Note » a rejoint les quatre autres au second passage : l'objectif
+        // declare par Cyril est « gagner un maximum de place pour la colonne
+        // Actions », et une note moyenne ne sert aucun geste d'administration.
+        foreach (['Points', 'Services', 'Échanges', 'Statut', 'Note'] as $masquee) {
             $this->assertNotContains($masquee, $colonnes, "La colonne « {$masquee} » parait alors qu'elle devrait etre repliee.");
         }
 
-        // Et celles qui RESTENT, sinon la garde passerait sur un tableau vide.
+        // Et celle qui RESTE, sinon la garde passerait sur un tableau vide.
         $this->assertContains('Organisation', $colonnes);
-        $this->assertContains('Note', $colonnes);
     }
 
     public function test_la_vue_detaillee_ramene_les_quatre_colonnes(): void

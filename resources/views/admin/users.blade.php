@@ -122,17 +122,21 @@
     </form>
 
     @php
-        // TASK-1714 (demande Cyril, 27/10) — quatre colonnes passent en vue
-        // DETAILLEE : Points, Services, Echanges et Statut. Elles occupaient de
-        // la largeur sans servir au geste courant, qui est de retrouver
-        // quelqu'un et d'agir sur son compte.
+        // TASK-1714 (demandes Cyril, 27/10) — CINQ colonnes passent en vue
+        // DETAILLEE : Points, Services, Echanges, Statut et Note. Elles
+        // occupaient de la largeur sans servir au geste courant, qui est de
+        // retrouver quelqu'un et d'agir sur son compte.
+        //
+        // Note a rejoint les quatre autres au second passage : l'objectif
+        // declare est « gagner un maximum de place pour la colonne Actions »,
+        // et une note moyenne ne sert a aucun geste d'administration.
         //
         // Un parametre d'URL, et non un reglage en base ni du JavaScript : la
         // vue se partage par copier-coller, survit a un rechargement, et
         // `array_merge(request()->query(), ...)` la conserve a travers les
         // filtres et les tris deja en place.
         $vueDetaillee = request()->boolean('detail');
-        $colonnesVisibles = $vueDetaillee ? 9 : 5;
+        $colonnesVisibles = $vueDetaillee ? 9 : 4;
     @endphp
 
     <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
@@ -219,12 +223,14 @@
                         </a>
                     </th>
                     @endif
+                    @if($vueDetaillee)
                     <th class="hidden xl:table-cell px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                         <a href="{{ route('admin.users', array_merge(request()->query(), ['sort' => 'rating', 'direction' => request('sort') === 'rating' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
                             Note
                             @if(request('sort') === 'rating') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
                         </a>
                     </th>
+                    @endif
                     @if($vueDetaillee)
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                         <a href="{{ route('admin.users', array_merge(request()->query(), ['sort' => 'status', 'direction' => request('sort') === 'status' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
@@ -251,13 +257,13 @@
 
                          Le fond opaque est INDISPENSABLE : sans lui, le contenu des
                          autres colonnes defilerait VISIBLEMENT sous celle-ci. --}}
-                    <th class="sticky right-0 z-10 w-[32rem] min-w-[32rem] bg-gray-50 dark:bg-gray-700 border-l border-gray-200 dark:border-gray-600 px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
+                    <th class="sticky right-0 z-10 w-full min-w-[32rem] bg-gray-50 dark:bg-gray-700 border-l border-gray-200 dark:border-gray-600 px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($users as $u)
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 {{ $u->banned_at ? 'opacity-60' : '' }}">
-                    <td class="px-4 py-3 max-w-0 w-full md:max-w-[22rem]">
+                    <td class="px-4 py-3 max-w-0 md:max-w-[22rem]">
                         {{-- TASK-1714 volet 3 — `min-w-0` sur le conteneur flex, et
                              `max-w-0 w-full` sur la cellule.
 
@@ -394,12 +400,14 @@
                         {{ $u->buyer_transactions_count + $u->seller_transactions_count }}
                     </td>
                     @endif
+                    @if($vueDetaillee)
                     <td class="hidden xl:table-cell px-4 py-3 text-gray-700 dark:text-gray-300">
                         {{ $u->rating ? number_format($u->rating, 1).'/5' : '—' }}
                         @if($u->reviews_received_count > 0)
                         <span class="text-xs text-gray-400">({{ $u->reviews_received_count }})</span>
                         @endif
                     </td>
+                    @endif
                     @if($vueDetaillee)
                     <td class="px-4 py-3">
                         <span class="inline-flex items-center gap-1 text-xs">
@@ -409,7 +417,7 @@
                     </td>
                     @endif
                     <td class="hidden sm:table-cell px-4 py-3 text-xs text-gray-400">{{ $u->created_at->format('d/m/Y') }}</td>
-                    <td class="sticky right-0 z-10 w-[32rem] min-w-[32rem] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 px-4 py-3 align-top">
+                    <td class="sticky right-0 z-10 w-full min-w-[32rem] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 px-4 py-3 align-top">
                         {{-- TASK-1714 volet 3 — ONZE actions tenaient dans une colonne
                              sans largeur : `flex-wrap` les empilait une par ligne, chacune
                              repliee sur deux. Mesure avant correction : lignes de 245 a
