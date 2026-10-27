@@ -353,6 +353,8 @@ return [
     ],
 
     'login_history' => 'Login history',
+    'login_history_deleted_account' => 'Deleted account',
+    'login_history_deleted_account_hint' => 'The event is kept; the associated account no longer exists.',
     'login_history_title' => 'Login history',
     'login_history_desc' => 'Successful user logins',
     'login_history_for_user' => 'Logins for :name',

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Rules\NomDePersonneAcceptable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -33,8 +34,10 @@ class ProfileController extends Controller
     public function update(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'name' => ['sometimes', 'string', 'max:255'],
-            'first_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            // TASK-1712 — la meme regle qu'en web : une surface API non gardee
+            // rendrait la validation du formulaire decorative.
+            'name' => ['sometimes', 'string', 'max:255', new NomDePersonneAcceptable],
+            'first_name' => ['sometimes', 'nullable', 'string', 'max:255', new NomDePersonneAcceptable],
             'bio' => ['sometimes', 'nullable', 'string', 'max:500'],
             'city' => ['sometimes', 'nullable', 'string', 'max:255'],
             'country_code' => ['sometimes', 'nullable', 'string', 'size:2', 'exists:countries,code'],

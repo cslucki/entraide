@@ -7,6 +7,7 @@ use App\Models\AcquisitionEvent;
 use App\Models\Country;
 use App\Models\PointLedger;
 use App\Models\User;
+use App\Rules\NomDePersonneAcceptable;
 use App\Services\Acquisition\AcquisitionEventRecorder;
 use App\Services\Acquisition\GuestAttribution;
 use App\Services\GuestShell\GuestIdentityThrottle;
@@ -82,8 +83,12 @@ class RegisteredUserController extends Controller
             'attribution.utm_source' => ['nullable', 'string', 'max:200'],
             'attribution.utm_medium' => ['nullable', 'string', 'max:200'],
             'attribution.utm_campaign' => ['nullable', 'string', 'max:200'],
-            'name' => ['required', 'string', 'max:255'],
-            'first_name' => ['required', 'string', 'max:255'],
+            // TASK-1712 — `max:255` etait une borne de COLONNE, pas de sens :
+            // le 39e compte de la PROD s'est inscrit sous 76 caracteres de
+            // publicite crypto, et ce nom est ressorti dans le sujet de son
+            // email de bienvenue.
+            'name' => ['required', 'string', 'max:255', new NomDePersonneAcceptable],
+            'first_name' => ['required', 'string', 'max:255', new NomDePersonneAcceptable],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'phone' => ['required', 'string', 'max:30'],
             'country_code' => ['required', 'string', 'size:2', 'exists:countries,code'],

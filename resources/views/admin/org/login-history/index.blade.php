@@ -43,6 +43,11 @@
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-3">
+                            {{-- TASK-1712 — meme garde que la vue plateforme : le compte
+                                peut avoir ete supprime, et `ON DELETE SET NULL` laisse la
+                                ligne d'historique derriere lui. Voir le commentaire detaille
+                                dans `admin/login-history/index.blade.php`. --}}
+                            @if($log->user)
                             <img src="{{ $log->user->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                             <div class="min-w-0">
                                 <a href="{{ route('organization.admin.stats.login-history.user', [$organization, $log->user]) }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 truncate">
@@ -51,6 +56,15 @@
                                 <p class="text-xs text-gray-500 truncate">{{ $log->user->email }}</p>
                                 <p class="text-xs text-gray-400 font-mono">{{ $log->user->id }}</p>
                             </div>
+                            @else
+                            <div class="w-8 h-8 rounded-full flex-shrink-0 bg-gray-200 dark:bg-gray-600 flex items-center justify-center" aria-hidden="true">
+                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                            </div>
+                            <div class="min-w-0" data-login-history-deleted-account>
+                                <p class="font-medium text-gray-500 dark:text-gray-400 italic truncate">{{ __('admin.login_history_deleted_account') }}</p>
+                                <p class="text-xs text-gray-400">{{ __('admin.login_history_deleted_account_hint') }}</p>
+                            </div>
+                            @endif
                         </div>
                     </td>
                     <td class="px-4 py-3">
