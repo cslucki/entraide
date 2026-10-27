@@ -201,6 +201,15 @@ return [
             'max' => 'The service cannot cost more than :max points.',
             'min' => 'The service must cost at least :min points.',
         ],
+        // TASK-1713 — "The cf-turnstile-response field is required" is the name
+        // of a hidden Cloudflare field: it means nothing to whoever is filling
+        // the form. All three standard rules lead to the same action — solve the
+        // challenge — hence the same message.
+        'cf-turnstile-response' => [
+            'required' => 'Please confirm you are not a robot.',
+            'string' => 'Please confirm you are not a robot.',
+            'max' => 'Please confirm you are not a robot.',
+        ],
     ],
 
     /*
@@ -229,4 +238,9 @@ return [
     'nom_adresse_web' => 'This name cannot contain a web address.',
     'nom_suite_de_chiffres' => 'This name cannot contain more than :max consecutive digits.',
     'nom_trop_de_chiffres' => 'This name contains more digits than letters.',
+
+    // TASK-1713 — two messages, because two different actions: retry the
+    // challenge, or submit the form again later.
+    'turnstile_invalide' => 'The anti-robot check failed. Please take the test below again.',
+    'turnstile_indisponible' => 'The anti-robot check is temporarily unavailable. Please submit the form again in a few moments.',
 ];

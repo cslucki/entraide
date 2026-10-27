@@ -186,6 +186,15 @@ return [
         'budget_max' => [
             'min' => 'Le budget maximum doit être d\'au moins :min points.',
         ],
+        // TASK-1713 — « The cf-turnstile-response field is required » est le nom
+        // d'un champ cache de Cloudflare : il ne veut rien dire pour qui remplit
+        // le formulaire. Les trois regles standard menent au meme geste —
+        // resoudre le defi — donc au meme message.
+        'cf-turnstile-response' => [
+            'required' => 'Merci de confirmer que vous n\'êtes pas un robot.',
+            'string' => 'Merci de confirmer que vous n\'êtes pas un robot.',
+            'max' => 'Merci de confirmer que vous n\'êtes pas un robot.',
+        ],
     ],
     'nom_trop_long' => 'Ce nom est trop long : :max caractères au maximum.',
     'nom_caracteres_invisibles' => 'Ce nom contient des caractères invisibles ou de contrôle.',
@@ -193,4 +202,10 @@ return [
     'nom_adresse_web' => 'Ce nom ne peut pas contenir d\'adresse web.',
     'nom_suite_de_chiffres' => 'Ce nom ne peut pas contenir plus de :max chiffres consécutifs.',
     'nom_trop_de_chiffres' => 'Ce nom contient plus de chiffres que de lettres.',
+
+    // TASK-1713 — deux messages, parce que deux gestes : rejouer le defi,
+    // ou renvoyer le formulaire. Un message unique enverrait quelqu'un
+    // rejouer un defi qui ne pouvait pas aboutir.
+    'turnstile_invalide' => 'La vérification anti-robot a échoué. Merci de refaire le test ci-dessous.',
+    'turnstile_indisponible' => 'La vérification anti-robot est momentanément indisponible. Merci de renvoyer le formulaire dans quelques instants.',
 ];
