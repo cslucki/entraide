@@ -59,4 +59,42 @@ return [
         'ui_url' => env('MAILHOG_UI_URL', 'http://127.0.0.1:8025'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Cloudflare Turnstile (TASK-1713)
+    |--------------------------------------------------------------------------
+    |
+    | Captcha pose a l'ENTREE de l'inscription. TASK-1712 avait ferme la
+    | SORTIE — un nom qui est une publicite ne s'affiche plus ; le compte etait
+    | quand meme cree.
+    |
+    | `enabled` est a `false` par defaut, et ce defaut est delibere :
+    |
+    |   - 39 POST `/register` existent dans 8 fichiers de tests sans aucun
+    |     rapport avec le captcha ; un defaut `true` les rougirait tous ;
+    |   - la PROD ne porte aujourd'hui aucune de ces variables : un defaut
+    |     `true` fermerait l'inscription a la seconde ou `main` migre.
+    |
+    | La fonctionnalite part donc DORMANTE, et son activation est un geste
+    | d'environnement — c'est aussi le coupe-circuit d'incident qui rend le
+    | fail-closed de `TurnstileVerifier` tenable.
+    |
+    | `site_key` n'est PAS un secret : Cloudflare le publie dans le HTML du
+    | widget. `secret_key` en est un, et ne quitte jamais le serveur.
+    |
+    */
+    'turnstile' => [
+        'enabled' => (bool) env('TURNSTILE_ENABLED', false),
+        'site_key' => env('TURNSTILE_SITE_KEY'),
+        'secret_key' => env('TURNSTILE_SECRET_KEY'),
+
+        // Point de terminaison officiel. Configurable pour qu'un banc de test
+        // puisse le detourner, jamais pour etre change en PROD.
+        'verify_url' => env('TURNSTILE_VERIFY_URL', 'https://challenges.cloudflare.com/turnstile/v0/siteverify'),
+
+        // Un captcha est sur le chemin critique d'un formulaire : au-dela de
+        // quelques secondes, l'humain a deja renonce. Mesure locale : 0,16 s.
+        'timeout' => (int) env('TURNSTILE_TIMEOUT', 5),
+    ],
+
 ];

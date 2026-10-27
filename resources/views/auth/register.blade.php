@@ -111,6 +111,11 @@
                     <x-input-error :messages="$errors->get('password_confirmation')" class="mt-1.5" />
                 </div>
 
+                {{-- TASK-1713 — le defi anti-robot, juste avant le bouton :
+                     c'est le dernier geste avant l'envoi. Le composant ne rend
+                     RIEN si le captcha est eteint. --}}
+                <x-turnstile />
+
                 <!-- Bouton inscription -->
                 <button type="submit"
                         class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
