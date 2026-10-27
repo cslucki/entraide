@@ -29,7 +29,7 @@ return [
     'organization_choice_label' => 'Your organization',
     'organization_choice_placeholder' => 'Choose your organization…',
     'organization_choice_current' => 'you are here',
-    'organization_choice_hint' => 'Changing organization takes you to its sign-up page.',
+    'organization_choice_hint' => 'Not sure which one? Stay on BouclePro — you can join an organization later.',
     'first_name_label' => 'Your first name',
     'first_name_placeholder' => 'John',
     'name_label' => 'Your last name',

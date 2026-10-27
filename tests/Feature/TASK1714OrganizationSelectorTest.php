@@ -80,33 +80,35 @@ class TASK1714OrganizationSelectorTest extends TestCase
     }
 
     /**
-     * Le menu vit sur TOUTES les Organizations (arbitrage Cyril, 27/10).
+     * Sur une organisation PRECISE, aucun menu (arbitrage Cyril, 27/10).
      *
-     * Il etait d'abord borne a l'entree generique, au motif qu'on arrive
-     * deliberement sur `/org/ofsh/register`. Arbitrage : se tromper d'adresse
-     * est au moins aussi frequent que viser juste, et le menu indique de toute
-     * facon ou l'on se trouve.
+     * Le menu est un RATTRAPAGE : « les personnes ne connaissent pas forcement
+     * l'adresse pour s'inscrire dans leur organisation, et c'est pour ca qu'on
+     * donne cette possibilite de passer par celle de BouclePro par defaut ».
+     *
+     * Quelqu'un qui arrive sur `/org/launchpals/register` connait son adresse.
+     * Lui proposer de choisir ne l'aiderait pas, et brouillerait le message de
+     * la page.
      */
-    public function test_le_menu_parait_aussi_sur_une_organisation_precise(): void
+    public function test_aucun_menu_sur_une_organisation_precise(): void
     {
         $this->defaut();
+        Organization::factory()->create(['slug' => 'seconde-p-1714', 'name' => 'Seconde', 'is_active' => true, 'is_public' => true]);
         $autre = Organization::factory()->create(['slug' => 'precise-1714', 'name' => 'Organisation Precise', 'is_active' => true, 'is_public' => true]);
 
-        $region = $this->regionSelecteur('/org/'.$autre->slug.'/register');
-
-        $this->assertNotNull($region, 'Le menu manque sur l\'entree d\'une Organization precise.');
-        $this->assertStringContainsString('data-marqueur="organisation-'.$autre->slug.'"', $region);
+        $this->assertNull(
+            $this->regionSelecteur('/org/'.$autre->slug.'/register'),
+            'Le menu parait sur l\'entree d\'une organisation precise.',
+        );
     }
 
     /**
-     * Le menu est soumis, mais il porte un SLUG, jamais une URL.
+     * Le menu porte des SLUGS, et aucune URL.
      *
-     * La distinction est la frontiere de securite. Le champ CONFIRME
-     * l'Organization que l'URL designe deja — le serveur n'accepte que
-     * `Rule::in([$organization->slug])`. Soumettre une URL en ferait une URL a
-     * valider, c'est-a-dire une surface d'attaque la ou il n'y en avait pas.
+     * Il ne navigue plus : il designe. Une URL dans le formulaire serait une
+     * URL a valider, c'est-a-dire une surface d'attaque la ou il n'y en a pas.
      */
-    public function test_le_menu_soumet_un_slug_et_jamais_une_url(): void
+    public function test_le_menu_porte_des_slugs_et_aucune_url(): void
     {
         $this->defaut();
         $cible = Organization::factory()->create(['slug' => 'seconde-1714', 'name' => 'Seconde', 'is_active' => true, 'is_public' => true]);
@@ -116,7 +118,7 @@ class TASK1714OrganizationSelectorTest extends TestCase
 
         $this->assertStringContainsString('name="organisation_confirmee"', $region);
         $this->assertStringContainsString('value="'.$cible->slug.'"', $region);
-        $this->assertStringNotContainsString('value="'.route('organization.register', ['organization' => $cible->slug]).'"', $region);
+        $this->assertStringNotContainsString('http', $region);
     }
 
     /**
@@ -242,37 +244,6 @@ class TASK1714OrganizationSelectorTest extends TestCase
         $this->assertStringNotContainsString('data-marqueur="organisation-'.$sandbox->slug.'"', $region);
     }
 
-    // ── Les liens menent a l'INSCRIPTION, pas a l'accueil ───────────────────
-
-    public function test_chaque_lien_pointe_la_route_d_inscription_de_son_organisation(): void
-    {
-        $this->defaut();
-        $cible = Organization::factory()->create(['slug' => 'cible-1714', 'name' => 'Organisation Cible', 'is_active' => true, 'is_public' => true]);
-
-        $region = $this->regionSelecteur('/register');
-
-        $this->assertNotNull($region);
-        // L'URL vit dans `data-url`, lue par la navigation seule : la VALEUR
-        // soumise reste le slug.
-        $this->assertStringContainsString(
-            'data-url="'.route('organization.register', ['organization' => $cible->slug]).'"',
-            $region,
-        );
-    }
-
-    /**
-     * Le lien mene a une page qui fonctionne.
-     *
-     * Une garde qui verifie l'URL sans la SUIVRE laisserait passer un lien
-     * bien forme vers un 404 (lecon T1665/T1666).
-     */
-    public function test_le_lien_mene_a_une_page_d_inscription_reellement_servie(): void
-    {
-        $this->defaut();
-        $cible = Organization::factory()->create(['slug' => 'suivi-1714', 'name' => 'Organisation Suivie', 'is_active' => true, 'is_public' => true]);
-
-        $this->get(route('organization.register', ['organization' => $cible->slug]))->assertOk();
-    }
 
     // ── Le menu CONFIRME, il ne selectionne pas ─────────────────────────────
 
@@ -325,23 +296,87 @@ class TASK1714OrganizationSelectorTest extends TestCase
     }
 
     /**
-     * Un slug ETRANGER est refuse — et ne deplace rien.
+     * Le choix DESIGNE : le compte nait dans l'organisation choisie.
      *
-     * C'est la garde qui rend le champ sur : il CONFIRME l'Organization que
-     * l'URL designe deja, il ne la choisit pas. Sans elle, le champ serait un
-     * selecteur de tenant soumis par le formulaire, c'est-a-dire exactement la
-     * porte que l'on refusait d'ouvrir.
+     * C'est la fonctionnalite meme — quelqu'un qui ne connait pas l'adresse de
+     * son organisation passe par BouclePro et se route lui-meme.
      */
-    public function test_un_slug_etranger_est_refuse_et_ne_deplace_personne(): void
+    public function test_le_choix_cree_le_compte_dans_l_organisation_designee(): void
     {
         [$defaut, $autre] = $this->deuxOuvertes();
         app()->instance('current_organization', $defaut);
 
         $this->post('/org/'.$defaut->slug.'/register', $this->inscription([
             'organisation_confirmee' => $autre->slug,
+        ]))->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'confirm-1714@example.test',
+            'organization_id' => $autre->id,
+        ]);
+    }
+
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function organisationsNonChoisissables(): array
+    {
+        return [
+            'privee' => [['is_active' => true, 'is_public' => false]],
+            'inactive' => [['is_active' => false, 'is_public' => true]],
+            'sandbox de scenario' => [['is_active' => true, 'is_public' => true, 'scenario_sandbox_created_at' => '2026-10-01 00:00:00']],
+        ];
+    }
+
+    /**
+     * Une organisation FERMEE ne peut pas etre choisie, meme en postant son slug.
+     *
+     * C'est la frontiere de securite, et elle a change de forme avec la
+     * conception : le champ DESIGNE desormais l'organisation, donc ce n'est
+     * plus l'URL qui protege. Ce qui protege, c'est que les valeurs acceptees
+     * sont EXACTEMENT les organisations ouvertes — celles dont la page
+     * d'inscription est de toute facon publiquement joignable. Poster leur
+     * slug n'ouvre rien que naviguer n'ouvrirait ; poster celui d'une
+     * organisation fermee ne doit rien ouvrir du tout.
+     *
+     * @param array<string, mixed> $etat
+     */
+    #[DataProvider('organisationsNonChoisissables')]
+    public function test_une_organisation_fermee_ne_peut_pas_etre_choisie(array $etat): void
+    {
+        [$defaut] = $this->deuxOuvertes();
+        app()->instance('current_organization', $defaut);
+
+        $fermee = Organization::factory()->create($etat + ['slug' => 'fermee-1714', 'name' => 'Fermee']);
+
+        $this->post('/org/'.$defaut->slug.'/register', $this->inscription([
+            'organisation_confirmee' => $fermee->slug,
         ]))->assertSessionHasErrors('organisation_confirmee');
 
         $this->assertDatabaseMissing('users', ['email' => 'confirm-1714@example.test']);
+    }
+
+    /**
+     * Sur une organisation PRECISE, le champ est purement IGNORE.
+     *
+     * Sans cela, il suffirait de le poster a la main depuis n'importe quelle
+     * page pour se faire router ailleurs — le menu n'y est pas rendu, mais un
+     * champ absent de la page reste postable.
+     */
+    public function test_sur_une_organisation_precise_le_champ_est_ignore(): void
+    {
+        $defaut = $this->defaut();
+        $autre = Organization::factory()->create(['slug' => 'autre-conf-1714', 'name' => 'Autre', 'is_active' => true, 'is_public' => true]);
+        $precise = Organization::factory()->create(['slug' => 'precise-ign-1714', 'name' => 'Precise', 'is_active' => true, 'is_public' => true]);
+        app()->instance('current_organization', $precise);
+
+        $this->post('/org/'.$precise->slug.'/register', $this->inscription([
+            'organisation_confirmee' => $autre->slug,
+        ]))->assertSessionHasNoErrors();
+
+        // Le compte nait dans l'organisation de l'URL, pas dans celle postee.
+        $this->assertDatabaseHas('users', [
+            'email' => 'confirm-1714@example.test',
+            'organization_id' => $precise->id,
+        ]);
     }
 
     /**

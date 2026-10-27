@@ -72,10 +72,45 @@ class RegisteredUserController extends Controller
             'ref' => $request->input('ref'),
             'countries' => $allCountries,
             'defaultCountryCode' => $defaultCountry?->code,
-            // TASK-1714 volet 1 — le choix d'Organization n'est propose que
-            // depuis le point d'entree GENERIQUE. Voir `organizationsOuvertes()`.
-            'organizationsOuvertes' => $this->organizationsOuvertes(),
+            // TASK-1714 volet 1 — voir `menuEstPropose()`.
+            //
+            // La resolution est la MEME que celle de `store()` : sur la route
+            // globale `/register`, `currentOrganization()` est nul et c'est
+            // l'organisation par defaut qui s'applique. Lire `$organization`
+            // seul y rendait `null`, donc aucun menu — alors que c'est
+            // precisement le point de chute de qui ne sait pas ou aller.
+            'organizationsOuvertes' => $this->menuEstPropose($organization ?? DefaultOrganizationResolver::resolve())
+                ? $this->organizationsOuvertes()
+                : collect(),
         ]);
+    }
+
+    /**
+     * TASK-1714 volet 1 — le menu de choix est-il propose ici ?
+     *
+     * ## A quoi il sert, et c'est ce qui fixe sa portee
+     *
+     * Cyril, 27/10 : « les personnes ne connaissent pas forcement l'adresse
+     * pour s'inscrire dans leur organisation, et c'est pour ca qu'on donne
+     * cette possibilite de passer par celle de BouclePro par defaut ».
+     *
+     * C'est un RATTRAPAGE, pas un selecteur universel. Il n'a donc de sens que
+     * sur l'organisation PRINCIPALE — le point de chute de qui ne sait pas ou
+     * aller. Quelqu'un qui arrive sur `/org/launchpals/register` connait son
+     * adresse : lui proposer de choisir ne l'aiderait pas, et brouillerait le
+     * message de la page.
+     *
+     * Deuxieme condition : au moins deux organisations ouvertes. Un choix sans
+     * alternative n'est pas un choix.
+     */
+    private function menuEstPropose(?Organization $courante): bool
+    {
+        $defaut = DefaultOrganizationResolver::resolve();
+
+        return $defaut !== null
+            && $courante !== null
+            && $courante->is($defaut)
+            && $this->organizationsOuvertes()->count() > 1;
     }
 
     /**
@@ -131,10 +166,11 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request, GuestVisitorResolver $visitors, GuestAttribution $attribution, GuestIdentityThrottle $identities, AcquisitionEventRecorder $events, TurnstileVerifier $turnstile): RedirectResponse
     {
-        // TASK-1714 — l'Organization est resolue AVANT la validation, parce que
-        // la regle de confirmation ci-dessous en depend. L'ordre change ; la
-        // resolution, elle, est identique a ce qu'elle etait.
-        $organization = currentOrganization() ?? DefaultOrganizationResolver::resolve();
+        // TASK-1714 — l'Organization d'ARRIVEE, celle que l'URL designe. Elle
+        // est resolue avant la validation, dont la regle ci-dessous depend.
+        $arrivee = currentOrganization() ?? DefaultOrganizationResolver::resolve();
+        $menu = $this->menuEstPropose($arrivee);
+        $ouvertes = $menu ? $this->organizationsOuvertes() : collect();
 
         $request->validate([
             'attribution' => ['sometimes', 'array:shortcut,utm_source,utm_medium,utm_campaign'],
@@ -167,33 +203,40 @@ class RegisteredUserController extends Controller
             // `required` est implicite : un jeton absent est refuse SANS appel
             // reseau. `TurnstileValide` ne tourne donc que sur un jeton
             // present, et c'est lui seul qui parle a Cloudflare.
-            // TASK-1714 — le choix d'organisation est OBLIGATOIRE, et pourtant
-            // il ne choisit rien (demande Cyril : « il faut que la personne
-            // choisisse »).
+            // TASK-1714 — le choix d'organisation DESIGNE, et il est obligatoire.
             //
-            // Ce champ CONFIRME, il ne selectionne pas. Sa seule valeur
-            // acceptee est le slug de l'Organization que l'URL designe deja :
-            // `Rule::in([$organization->slug])`. Poster autre chose n'ouvre
-            // donc AUCUNE porte — c'est une erreur de validation, pas un
-            // changement de tenant. L'organisation reste determinee cote
-            // serveur, par l'URL, exactement comme avant.
+            // Il ne navigue plus (retour Cyril, 27/10 : « tu n'es pas oblige de
+            // rafraichir la page »). Le champ determine donc l'organisation ou
+            // le compte nait.
             //
-            // Ce que la regle achete : la personne ne peut plus traverser le
-            // formulaire sans avoir regarde ou elle s'inscrit. Le menu part
-            // vide, et `required` fait le reste.
+            // CE QUE LA REGLE GARANTIT, et pourquoi elle ne cede rien. Les
+            // valeurs acceptees sont EXACTEMENT les organisations ouvertes a
+            // l'inscription — `is_active`, `is_public`, pas une sandbox. Ce
+            // sont celles dont la page d'inscription est de toute facon
+            // publiquement joignable : poster leur slug n'ouvre donc rien que
+            // naviguer n'ouvrirait. Une organisation privee, inactive ou
+            // sandbox n'est PAS dans la liste, et son slug est refuse.
             //
-            // La regle ne s'applique QUE si le menu est rendu — c'est-a-dire
-            // si au moins deux Organizations sont ouvertes. Sur une
-            // installation qui n'en a qu'une, exiger la confirmation d'un
-            // champ absent bloquerait toute inscription.
-            'organisation_confirmee' => $this->organizationsOuvertes()->count() > 1
-                ? ['required', 'string', Rule::in([$organization?->slug])]
+            // Et la regle n'existe QUE si le menu est rendu, c'est-a-dire sur
+            // l'organisation principale. Sur `/org/launchpals/register`, le
+            // champ est purement et simplement IGNORE — sans quoi il suffirait
+            // de le poster a la main pour se faire router ailleurs depuis
+            // n'importe quelle page.
+            'organisation_confirmee' => $menu
+                ? ['required', 'string', Rule::in($ouvertes->pluck('slug')->all())]
                 : [],
 
             'cf-turnstile-response' => $turnstile->enabled()
                 ? ['required', 'string', 'max:2048', new TurnstileValide($turnstile)]
                 : [],
         ]);
+
+        // L'organisation DESIGNEE l'emporte quand le menu existe ; sinon celle
+        // de l'URL. `firstWhere` puise dans la liste deja validee : aucune
+        // seconde requete, et aucun slug non verifie ne peut arriver ici.
+        $organization = $menu
+            ? ($ouvertes->firstWhere('slug', $request->string('organisation_confirmee')->toString()) ?? $arrivee)
+            : $arrivee;
 
         if (! $organization) {
             throw ValidationException::withMessages([

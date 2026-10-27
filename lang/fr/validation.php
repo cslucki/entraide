@@ -165,6 +165,10 @@ return [
     ],
 
     'custom' => [
+        'organisation_confirmee' => [
+            'required' => 'Merci de choisir votre organisation.',
+            'in' => 'Cette organisation n\'accepte pas les inscriptions.',
+        ],
         // TASK-1693 bug X — « Le tableau images ne peut pas contenir plus de 5
         // elements » ne veut rien dire pour qui depose des photos. Le mot
         // « tableau » est un terme de programmeur, et « elements » n'en est pas
