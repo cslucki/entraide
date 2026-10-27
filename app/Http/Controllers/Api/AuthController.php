@@ -56,6 +56,23 @@ class AuthController extends Controller
             'organization_id' => $organization->id,
         ]);
 
+        // TASK-1714 volet 2 — l'approbation, posee HORS assignation de masse.
+        //
+        // `approved_at` n'est deliberement PAS dans `User::$fillable`, comme
+        // `email_verified_at` et `must_set_password` : un drapeau qui ouvre
+        // l'acces ne doit pas pouvoir etre bascule par un formulaire qui
+        // recopierait trop large. `forceFill()` est le seul chemin, et il est
+        // ici explicite.
+        //
+        // `now()` quand l'Organization n'exige rien, jamais `null` : un compte
+        // approuve doit l'etre EXPLICITEMENT en base, pour qu'un `SELECT`
+        // reponde a « qui attend ? » sans connaitre le reglage. C'est aussi ce
+        // qui rend la non-retroactivite stable — activer le reglage plus tard
+        // ne remet personne en attente.
+        $user->forceFill([
+            'approved_at' => $organization->requires_account_approval ? null : now(),
+        ])->save();
+
         PointLedger::create([
             'user_id' => $user->id,
             'transaction_id' => null,

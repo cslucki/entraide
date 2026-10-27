@@ -108,6 +108,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'approved_at' => 'datetime',
             'password' => 'hashed',
             'is_available' => 'boolean',
             // TASK-1659 — deliberement HORS `$fillable`, comme
@@ -489,5 +490,30 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         return '/dashboard';
+    }
+
+    /**
+     * TASK-1714 volet 2 — ce compte attend-il la validation d'un administrateur ?
+     *
+     * La reponse est une fonction VIVANTE de deux faits, jamais d'un drapeau
+     * fige : le reglage de l'Organization, et la decision portee par le compte.
+     *
+     * La consequence est voulue : desactiver le reglage laisse repasser les
+     * comptes en attente, sans migration ni ecriture. Et le reactiver les
+     * remet en attente. L'alternative — figer l'etat a l'inscription —
+     * obligerait a ecrire en base a chaque changement de reglage, et ferait
+     * diverger ce que la base dit de ce que l'ecran montre.
+     *
+     * Un compte sans Organization n'est jamais en attente : il n'y a pas
+     * d'Organization pour exiger quoi que ce soit, et le bloquer l'enfermerait
+     * sans recours.
+     */
+    public function attendApprobation(): bool
+    {
+        if ($this->approved_at !== null) {
+            return false;
+        }
+
+        return $this->organization?->requires_account_approval === true;
     }
 }

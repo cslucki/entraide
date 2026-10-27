@@ -325,6 +325,37 @@
                     </label>
                 </div>
 
+                {{-- TASK-1714 volet 2 — dans « Configuration », juste apres
+                     « Visible sans connexion ».
+
+                     Deux emplacements ont ete essayes avant celui-ci, et les
+                     deux etaient mauvais :
+
+                     - « Appartenance » d'abord, au motif que c'etait « la meme
+                       question : qui entre ». Faux : cette section configure un
+                       champ de PROFIL libre. La case s'y retrouvait a 91 % d'une
+                       page de 4957 px, et Cyril ne la trouvait pas ;
+                     - puis une carte dediee en tete. Visible, mais une carte
+                       entiere pour une seule case prend de la place pour rien
+                       (retour Cyril).
+
+                     Ici elle est a sa place : « Visible sans connexion » dit qui
+                     peut REGARDER, celle-ci dit qui peut ENTRER. Meme carte,
+                     meme nature, aucune place perdue. --}}
+                <div>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="hidden" name="requires_account_approval" value="0">
+                        <input type="checkbox" name="requires_account_approval" value="1"
+                            data-marqueur="reglage-approbation"
+                            {{ old('requires_account_approval', $organization->requires_account_approval) ? 'checked' : '' }}
+                            class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.org_requires_account_approval') }}</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.org_requires_account_approval_hint') }}</p>
+                        </div>
+                    </label>
+                </div>
+
                 <div>
                     <label class="flex items-center gap-3 cursor-pointer">
                         <input type="hidden" name="loops_enabled" value="0">

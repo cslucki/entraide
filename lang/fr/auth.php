@@ -12,6 +12,12 @@ return [
     'register_subtitle' => 'Rejoignez la boucle Entraide',
     'register_subtitle_org' => 'Créez votre compte sur :name',
     'register_button' => 'Créer mon compte',
+
+    // TASK-1714 volet 1 — le menu d'organisation, apres le prenom.
+    'organization_choice_label' => 'Votre organisation',
+    'organization_choice_placeholder' => 'Choisissez votre organisation…',
+    'organization_choice_current' => 'vous êtes ici',
+    'organization_choice_hint' => 'Vous ne savez pas laquelle choisir ? Restez sur BouclePro, vous pourrez rejoindre une organisation plus tard.',
     'first_name_label' => 'Votre prénom',
     'first_name_placeholder' => 'Jean',
     'name_label' => 'Votre nom',
@@ -42,6 +48,14 @@ return [
     'forgot_password_button' => 'Envoyer le lien de réinitialisation',
     'back_to_login' => 'Retour à la connexion',
     'logout' => 'Déconnexion',
+
+    // TASK-1714 volet 2 — l'attente de validation par un administrateur.
+    'approval_pending_title' => 'Votre compte attend une validation',
+    'approval_pending_intro' => 'Un administrateur doit valider votre compte avant que vous puissiez accéder à la plateforme.',
+    'approval_pending_intro_org' => 'Un administrateur de :name doit valider votre compte avant que vous puissiez y accéder.',
+    'approval_pending_email_done' => 'Votre adresse e-mail est bien confirmée : vous n\'avez rien oublié, et rien d\'autre ne vous est demandé.',
+    'approval_pending_next' => 'Vous recevrez un e-mail dès que votre compte sera validé. Vous pourrez alors vous connecter normalement.',
+    'account_pending_approval' => 'Votre compte attend la validation d\'un administrateur.',
 
     // Réinitialisation
     'reset_password_title' => 'Nouveau mot de passe',

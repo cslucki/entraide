@@ -49,6 +49,24 @@ class SendPointsGrantedEmailOnVerification
             return;
         }
 
+        // TASK-1714 (demande Cyril, 27/10) — quand l'organisation exige une
+        // validation, l'email de bienvenue part a L'APPROBATION, pas ici.
+        //
+        // Annoncer « bienvenue, voici vos 100 points » a quelqu'un qui ne peut
+        // pas encore entrer repeterait exactement l'erreur que TASK-1694 bug I
+        // avait corrigee en deplacant cet email de l'inscription vers la
+        // verification. Une adresse confirmee n'est pas un acces ouvert.
+        //
+        // La regle est SYMETRIQUE : ce declencheur-ci n'envoie que si
+        // l'approbation est deja acquise, et celui de l'approbation
+        // (`AdminController::approveUserAccount`) n'envoie que si l'adresse est
+        // deja verifiee. L'email part donc exactement UNE fois, au moment du
+        // SECOND evenement — quel que soit leur ordre, et sans drapeau a
+        // maintenir.
+        if ($user->attendApprobation()) {
+            return;
+        }
+
         rescue(fn () => $user->notify(new WelcomeNotification));
     }
 }
