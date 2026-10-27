@@ -99,23 +99,24 @@ class TASK1714OrganizationSelectorTest extends TestCase
     }
 
     /**
-     * Le menu NE SE SOUMET PAS avec le formulaire.
+     * Le menu est soumis, mais il porte un SLUG, jamais une URL.
      *
-     * Garde de securite, pas d'ergonomie : sans `name`, le `<select>` n'entre
-     * pas dans le POST. L'Organization d'inscription reste determinee par
-     * l'URL, cote serveur. Un champ soumis ouvrirait une porte — on choisirait
-     * son Organization en modifiant une valeur, sans passer par sa page.
+     * La distinction est la frontiere de securite. Le champ CONFIRME
+     * l'Organization que l'URL designe deja — le serveur n'accepte que
+     * `Rule::in([$organization->slug])`. Soumettre une URL en ferait une URL a
+     * valider, c'est-a-dire une surface d'attaque la ou il n'y en avait pas.
      */
-    public function test_le_menu_n_est_pas_un_champ_soumis(): void
+    public function test_le_menu_soumet_un_slug_et_jamais_une_url(): void
     {
         $this->defaut();
-        Organization::factory()->create(['slug' => 'seconde-1714', 'name' => 'Seconde', 'is_active' => true, 'is_public' => true]);
+        $cible = Organization::factory()->create(['slug' => 'seconde-1714', 'name' => 'Seconde', 'is_active' => true, 'is_public' => true]);
 
         $region = $this->regionSelecteur('/register');
-
         $this->assertNotNull($region);
-        $this->assertStringContainsString('<select id="organisation-inscription"', $region);
-        $this->assertStringNotContainsString('name=', substr($region, (int) strpos($region, '<select'), 200));
+
+        $this->assertStringContainsString('name="organisation_confirmee"', $region);
+        $this->assertStringContainsString('value="'.$cible->slug.'"', $region);
+        $this->assertStringNotContainsString('value="'.route('organization.register', ['organization' => $cible->slug]).'"', $region);
     }
 
     /**
@@ -251,8 +252,10 @@ class TASK1714OrganizationSelectorTest extends TestCase
         $region = $this->regionSelecteur('/register');
 
         $this->assertNotNull($region);
+        // L'URL vit dans `data-url`, lue par la navigation seule : la VALEUR
+        // soumise reste le slug.
         $this->assertStringContainsString(
-            'value="'.route('organization.register', ['organization' => $cible->slug]).'"',
+            'data-url="'.route('organization.register', ['organization' => $cible->slug]).'"',
             $region,
         );
     }
@@ -269,6 +272,93 @@ class TASK1714OrganizationSelectorTest extends TestCase
         $cible = Organization::factory()->create(['slug' => 'suivi-1714', 'name' => 'Organisation Suivie', 'is_active' => true, 'is_public' => true]);
 
         $this->get(route('organization.register', ['organization' => $cible->slug]))->assertOk();
+    }
+
+    // ── Le menu CONFIRME, il ne selectionne pas ─────────────────────────────
+
+    /** @param array<string, mixed> $surcharges */
+    private function inscription(array $surcharges = []): array
+    {
+        return array_merge([
+            'first_name' => 'Camille', 'name' => 'Dubois',
+            'email' => 'confirm-1714@example.test', 'phone' => '0601020304',
+            'country_code' => 'FR',
+            'password' => 'MotDePasse!2026', 'password_confirmation' => 'MotDePasse!2026',
+        ], $surcharges);
+    }
+
+    /** Deux Organizations ouvertes : le menu est alors rendu, donc exige. */
+    private function deuxOuvertes(): array
+    {
+        $defaut = $this->defaut();
+        $autre = Organization::factory()->create([
+            'slug' => 'autre-conf-1714', 'name' => 'Autre', 'is_active' => true, 'is_public' => true,
+        ]);
+
+        return [$defaut, $autre];
+    }
+
+    public function test_sans_confirmation_l_inscription_est_refusee(): void
+    {
+        [$defaut] = $this->deuxOuvertes();
+        app()->instance('current_organization', $defaut);
+
+        $this->post('/org/'.$defaut->slug.'/register', $this->inscription())
+            ->assertSessionHasErrors('organisation_confirmee');
+
+        $this->assertDatabaseMissing('users', ['email' => 'confirm-1714@example.test']);
+    }
+
+    public function test_la_confirmation_du_slug_courant_laisse_passer(): void
+    {
+        [$defaut] = $this->deuxOuvertes();
+        app()->instance('current_organization', $defaut);
+
+        $this->post('/org/'.$defaut->slug.'/register', $this->inscription([
+            'organisation_confirmee' => $defaut->slug,
+        ]))->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'confirm-1714@example.test',
+            'organization_id' => $defaut->id,
+        ]);
+    }
+
+    /**
+     * Un slug ETRANGER est refuse — et ne deplace rien.
+     *
+     * C'est la garde qui rend le champ sur : il CONFIRME l'Organization que
+     * l'URL designe deja, il ne la choisit pas. Sans elle, le champ serait un
+     * selecteur de tenant soumis par le formulaire, c'est-a-dire exactement la
+     * porte que l'on refusait d'ouvrir.
+     */
+    public function test_un_slug_etranger_est_refuse_et_ne_deplace_personne(): void
+    {
+        [$defaut, $autre] = $this->deuxOuvertes();
+        app()->instance('current_organization', $defaut);
+
+        $this->post('/org/'.$defaut->slug.'/register', $this->inscription([
+            'organisation_confirmee' => $autre->slug,
+        ]))->assertSessionHasErrors('organisation_confirmee');
+
+        $this->assertDatabaseMissing('users', ['email' => 'confirm-1714@example.test']);
+    }
+
+    /**
+     * Une seule Organization ouverte : aucun menu, donc aucune exigence.
+     *
+     * Exiger la confirmation d'un champ qui n'est pas rendu bloquerait toute
+     * inscription sur une installation mono-Organization.
+     */
+    public function test_sans_menu_la_confirmation_n_est_pas_exigee(): void
+    {
+        $defaut = $this->defaut();
+        app()->instance('current_organization', $defaut);
+
+        $this->post('/org/'.$defaut->slug.'/register', $this->inscription())
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('users', ['email' => 'confirm-1714@example.test']);
     }
 
     // ── Le volet 1 n'a RIEN retire a T1712 ni a T1713 ───────────────────────

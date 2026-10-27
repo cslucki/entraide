@@ -25,6 +25,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -130,6 +131,11 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request, GuestVisitorResolver $visitors, GuestAttribution $attribution, GuestIdentityThrottle $identities, AcquisitionEventRecorder $events, TurnstileVerifier $turnstile): RedirectResponse
     {
+        // TASK-1714 — l'Organization est resolue AVANT la validation, parce que
+        // la regle de confirmation ci-dessous en depend. L'ordre change ; la
+        // resolution, elle, est identique a ce qu'elle etait.
+        $organization = currentOrganization() ?? DefaultOrganizationResolver::resolve();
+
         $request->validate([
             'attribution' => ['sometimes', 'array:shortcut,utm_source,utm_medium,utm_campaign'],
             'attribution.shortcut' => ['nullable', 'string', 'max:32'],
@@ -161,12 +167,33 @@ class RegisteredUserController extends Controller
             // `required` est implicite : un jeton absent est refuse SANS appel
             // reseau. `TurnstileValide` ne tourne donc que sur un jeton
             // present, et c'est lui seul qui parle a Cloudflare.
+            // TASK-1714 — le choix d'organisation est OBLIGATOIRE, et pourtant
+            // il ne choisit rien (demande Cyril : « il faut que la personne
+            // choisisse »).
+            //
+            // Ce champ CONFIRME, il ne selectionne pas. Sa seule valeur
+            // acceptee est le slug de l'Organization que l'URL designe deja :
+            // `Rule::in([$organization->slug])`. Poster autre chose n'ouvre
+            // donc AUCUNE porte — c'est une erreur de validation, pas un
+            // changement de tenant. L'organisation reste determinee cote
+            // serveur, par l'URL, exactement comme avant.
+            //
+            // Ce que la regle achete : la personne ne peut plus traverser le
+            // formulaire sans avoir regarde ou elle s'inscrit. Le menu part
+            // vide, et `required` fait le reste.
+            //
+            // La regle ne s'applique QUE si le menu est rendu — c'est-a-dire
+            // si au moins deux Organizations sont ouvertes. Sur une
+            // installation qui n'en a qu'une, exiger la confirmation d'un
+            // champ absent bloquerait toute inscription.
+            'organisation_confirmee' => $this->organizationsOuvertes()->count() > 1
+                ? ['required', 'string', Rule::in([$organization?->slug])]
+                : [],
+
             'cf-turnstile-response' => $turnstile->enabled()
                 ? ['required', 'string', 'max:2048', new TurnstileValide($turnstile)]
                 : [],
         ]);
-
-        $organization = currentOrganization() ?? DefaultOrganizationResolver::resolve();
 
         if (! $organization) {
             throw ValidationException::withMessages([
