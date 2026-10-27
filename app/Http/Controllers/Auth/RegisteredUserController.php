@@ -73,21 +73,24 @@ class RegisteredUserController extends Controller
             'defaultCountryCode' => $defaultCountry?->code,
             // TASK-1714 volet 1 — le choix d'Organization n'est propose que
             // depuis le point d'entree GENERIQUE. Voir `organizationsOuvertes()`.
-            'organizationsOuvertes' => $this->organizationsOuvertes($organization),
+            'organizationsOuvertes' => $this->organizationsOuvertes(),
         ]);
     }
 
     /**
      * TASK-1714 volet 1 — les Organizations ou l'on peut s'inscrire.
      *
-     * ## Quand la liste est proposee, et pourquoi pas toujours
+     * ## Partout, et c'est un arbitrage de Cyril
      *
-     * Uniquement depuis le point d'entree GENERIQUE : `/register` et
-     * `/org/<defaut>/register`. Quelqu'un qui arrive sur `/org/ofsh/register`
-     * y est venu deliberement — souvent par une invitation ou un lien de
-     * campagne — et lui proposer de partir ailleurs serait le detourner de ce
-     * qu'il cherchait. La liste rend donc `[]` ailleurs, et la vue n'affiche
-     * rien du tout.
+     * La liste etait d'abord bornee au point d'entree generique, au motif que
+     * quelqu'un arrivant sur `/org/ofsh/register` y venait deliberement.
+     * Arbitrage du 27/10 : le menu reste sur TOUTES les Organizations. Se
+     * tromper d'adresse est au moins aussi frequent que viser juste, et le
+     * menu indique de toute facon ou l'on se trouve.
+     *
+     * La liste ne contient qu'une entree quand une seule Organization est
+     * ouverte : la vue n'affiche alors rien, un choix sans alternative n'etant
+     * pas un choix.
      *
      * ## Ce qui rend une Organization « ouverte »
      *
@@ -106,14 +109,8 @@ class RegisteredUserController extends Controller
      *
      * @return \Illuminate\Support\Collection<int, Organization>
      */
-    private function organizationsOuvertes(?Organization $courante): Collection
+    private function organizationsOuvertes(): Collection
     {
-        $defaut = DefaultOrganizationResolver::resolve();
-
-        if ($defaut === null || ($courante !== null && ! $courante->is($defaut))) {
-            return collect();
-        }
-
         return Organization::query()
             ->where('is_active', true)
             ->where('is_public', true)

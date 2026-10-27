@@ -247,7 +247,7 @@
 
                          Le fond opaque est INDISPENSABLE : sans lui, le contenu des
                          autres colonnes defilerait VISIBLEMENT sous celle-ci. --}}
-                    <th class="sticky right-0 z-10 bg-gray-50 dark:bg-gray-700 border-l border-gray-200 dark:border-gray-600 px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
+                    <th class="sticky right-0 z-10 w-[23rem] min-w-[23rem] bg-gray-50 dark:bg-gray-700 border-l border-gray-200 dark:border-gray-600 px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -405,7 +405,7 @@
                     </td>
                     @endif
                     <td class="hidden sm:table-cell px-4 py-3 text-xs text-gray-400">{{ $u->created_at->format('d/m/Y') }}</td>
-                    <td class="sticky right-0 z-10 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 px-4 py-3 align-top">
+                    <td class="sticky right-0 z-10 w-[23rem] min-w-[23rem] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 px-4 py-3 align-top">
                         {{-- TASK-1714 volet 3 — ONZE actions tenaient dans une colonne
                              sans largeur : `flex-wrap` les empilait une par ligne, chacune
                              repliee sur deux. Mesure avant correction : lignes de 245 a
@@ -424,7 +424,7 @@
                              Deux actions restent DEHORS : « Valider compte », urgente et
                              rare, et « Modifier », la plus frequente. Les enfouir ferait
                              payer un clic de plus a ce qu'on fait tout le temps. --}}
-                        <div class="flex flex-col gap-1 items-start">
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                             @if($u->attendApprobation())
                             <form method="POST" action="{{ route('admin.users.approve', $u) }}"
                                   onsubmit="return confirm(@js(__('admin.users_approve_confirm')))">
@@ -446,12 +446,6 @@
                             @endif
 
                             <a href="{{ route('admin.users.edit', $u) }}" class="text-xs font-medium text-indigo-600 hover:underline whitespace-nowrap">Modifier</a>
-
-                            <details class="w-full" data-marqueur="autres-actions">
-                                <summary class="text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 cursor-pointer select-none whitespace-nowrap marker:text-gray-400">
-                                    {{ __('admin.users_more_actions') }}
-                                </summary>
-                                <div class="mt-2 flex flex-col gap-1.5 items-start">
 
                             {{-- TASK-1705 — poser la photo d'un compte sans passer par la page
                                  Modifier. Cyril : « certaines personnes ne prennent pas le temps
@@ -632,8 +626,6 @@
                                     </form>
                                 </div>
                             </div>
-                                </div>
-                            </details>
                         </div>
                     </td>
                 </tr>

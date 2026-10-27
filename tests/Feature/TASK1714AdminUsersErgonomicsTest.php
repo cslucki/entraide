@@ -124,30 +124,31 @@ class TASK1714AdminUsersErgonomicsTest extends TestCase
     }
 
     /**
-     * Les actions secondaires sont repliees ; les urgentes restent dehors.
+     * Toutes les actions sont DIRECTEMENT visibles (arbitrage Cyril, 27/10).
      *
-     * Onze actions a plat produisaient des lignes de 367 px. Enfouir « Valider
-     * compte » ou « Modifier » ferait au contraire payer un clic de plus a ce
-     * qui est urgent ou frequent.
+     * Une premiere version repliait les actions secondaires dans un
+     * `<details>`. Cyril : « supprimer les colonnes etait pour gagner de la
+     * place pour la colonne Actions ». La place recuperee partait en fait a la
+     * colonne Utilisateur, et le repli restait. Le repli disparait donc, et la
+     * colonne Actions prend la largeur — mesuree a 368 px, pour onze actions
+     * sur trois lignes et des lignes de 97 px.
      */
-    public function test_les_actions_secondaires_sont_repliees_et_les_urgentes_restent_visibles(): void
+    public function test_toutes_les_actions_sont_directement_visibles(): void
     {
         $html = $this->ecranAdmin();
 
-        $repli = strpos($html, 'data-marqueur="autres-actions"');
-        $this->assertNotFalse($repli, 'Aucun repli d\'actions secondaires.');
+        $this->assertStringNotContainsString('data-marqueur="autres-actions"', $html, 'Un repli d\'actions subsiste.');
 
-        // Les POSITIONS, et non une fenetre de N caracteres : une assertion
-        // par fenetre se casse au premier retrait de ligne modifie, et ne dit
-        // rien de l'ORDRE, qui est pourtant tout le sujet.
-        $modifier = strpos($html, '/admin/users/');
-        $bannir = strpos($html, '/ban"');
+        // La colonne porte une largeur REELLE : sans elle, la place recuperee
+        // repart dans la colonne Utilisateur — c'est ce que la mesure a montre.
+        $this->assertStringContainsString('min-w-[23rem]', $html, 'La colonne Actions n\'a pas de largeur propre.');
 
-        $this->assertNotFalse($modifier, 'Le lien « Modifier » est absent.');
-        $this->assertNotFalse($bannir, 'L\'action « Bannir » est absente.');
-
-        $this->assertLessThan($repli, $modifier, '« Modifier » est enfoui dans le repli.');
-        $this->assertGreaterThan($repli, $bannir, '« Bannir » n\'est pas replie.');
+        // Et les actions de bout de liste sont rendues, pas seulement les
+        // premieres : une garde qui ne verifie que « Modifier » passerait sur
+        // une colonne amputee.
+        foreach (['/ban"', '/toggle-admin', '/verify-email', '/send-password-reset'] as $action) {
+            $this->assertStringContainsString($action, $html, "L'action « {$action} » a disparu de la colonne.");
+        }
     }
 
     // ── Les quatre colonnes detaillees (demande Cyril, 27/10) ───────────────

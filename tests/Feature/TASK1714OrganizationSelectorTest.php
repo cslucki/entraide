@@ -48,7 +48,7 @@ class TASK1714OrganizationSelectorTest extends TestCase
             return null;
         }
 
-        $fin = strpos($html, 'data-marqueur="fermer-choix-organisation"', $debut);
+        $fin = strpos($html, '</select>', $debut);
 
         return substr($html, $debut, ($fin === false ? strlen($html) : $fin) - $debut);
     }
@@ -67,30 +67,94 @@ class TASK1714OrganizationSelectorTest extends TestCase
         $this->assertStringContainsString('data-marqueur="organisation-'.$autre->slug.'"', $region);
     }
 
-    public function test_le_selecteur_parait_sur_l_organisation_par_defaut(): void
+    public function test_le_menu_parait_sur_l_organisation_par_defaut(): void
     {
         $defaut = $this->defaut();
+        // Deux Organizations ouvertes au minimum : avec une seule, le menu ne
+        // parait pas — un choix sans alternative n'est pas un choix.
+        Organization::factory()->create(['slug' => 'seconde-def-1714', 'name' => 'Seconde', 'is_active' => true, 'is_public' => true]);
 
         $region = $this->regionSelecteur('/org/'.$defaut->slug.'/register');
 
-        $this->assertNotNull($region, 'Le selecteur est absent de /org/<defaut>/register.');
+        $this->assertNotNull($region, 'Le menu est absent de /org/<defaut>/register.');
     }
 
     /**
-     * Sur l'entree d'une Organization PRECISE, aucun selecteur.
+     * Le menu vit sur TOUTES les Organizations (arbitrage Cyril, 27/10).
      *
-     * Quelqu'un arrive la par une invitation ou un lien de campagne : lui
-     * proposer de partir ailleurs le detournerait de ce qu'il cherchait.
+     * Il etait d'abord borne a l'entree generique, au motif qu'on arrive
+     * deliberement sur `/org/ofsh/register`. Arbitrage : se tromper d'adresse
+     * est au moins aussi frequent que viser juste, et le menu indique de toute
+     * facon ou l'on se trouve.
      */
-    public function test_le_selecteur_est_absent_de_l_entree_d_une_organisation_precise(): void
+    public function test_le_menu_parait_aussi_sur_une_organisation_precise(): void
     {
         $this->defaut();
         $autre = Organization::factory()->create(['slug' => 'precise-1714', 'name' => 'Organisation Precise', 'is_active' => true, 'is_public' => true]);
 
-        $this->assertNull(
-            $this->regionSelecteur('/org/'.$autre->slug.'/register'),
-            'Le selecteur parait sur l\'entree d\'une Organization precise.',
-        );
+        $region = $this->regionSelecteur('/org/'.$autre->slug.'/register');
+
+        $this->assertNotNull($region, 'Le menu manque sur l\'entree d\'une Organization precise.');
+        $this->assertStringContainsString('data-marqueur="organisation-'.$autre->slug.'"', $region);
+    }
+
+    /**
+     * Le menu NE SE SOUMET PAS avec le formulaire.
+     *
+     * Garde de securite, pas d'ergonomie : sans `name`, le `<select>` n'entre
+     * pas dans le POST. L'Organization d'inscription reste determinee par
+     * l'URL, cote serveur. Un champ soumis ouvrirait une porte — on choisirait
+     * son Organization en modifiant une valeur, sans passer par sa page.
+     */
+    public function test_le_menu_n_est_pas_un_champ_soumis(): void
+    {
+        $this->defaut();
+        Organization::factory()->create(['slug' => 'seconde-1714', 'name' => 'Seconde', 'is_active' => true, 'is_public' => true]);
+
+        $region = $this->regionSelecteur('/register');
+
+        $this->assertNotNull($region);
+        $this->assertStringContainsString('<select id="organisation-inscription"', $region);
+        $this->assertStringNotContainsString('name=', substr($region, (int) strpos($region, '<select'), 200));
+    }
+
+    /**
+     * Une seule Organization ouverte : aucun menu.
+     *
+     * Un choix sans alternative n'est pas un choix — c'est un champ de plus a
+     * lire sur un formulaire d'inscription deja long.
+     */
+    public function test_aucun_menu_quand_une_seule_organisation_est_ouverte(): void
+    {
+        $this->defaut();
+
+        $this->assertNull($this->regionSelecteur('/register'), 'Un menu parait pour une seule Organization.');
+    }
+
+    /**
+     * Le menu precede le champ « prenom » (arbitrage Cyril, 27/10).
+     *
+     * Ce n'est pas qu'une preference de mise en page : le menu NAVIGUE. Place
+     * apres le prenom, il coupait la saisie d'identite en deux et pouvait
+     * faire perdre ce qui venait d'etre tape. On choisit OU l'on s'inscrit
+     * avant de dire QUI l'on est.
+     *
+     * La garde compare des POSITIONS dans le document, pas une fenetre de
+     * texte : c'est l'ORDRE qui est le sujet.
+     */
+    public function test_le_menu_precede_le_champ_prenom(): void
+    {
+        $this->defaut();
+        Organization::factory()->create(['slug' => 'ordre-1714', 'name' => 'Seconde', 'is_active' => true, 'is_public' => true]);
+
+        $html = $this->get('/register')->assertOk()->getContent();
+
+        $menu = strpos($html, 'data-marqueur="selecteur-organisation"');
+        $prenom = strpos($html, 'id="first_name"');
+
+        $this->assertNotFalse($menu, 'Le menu est absent.');
+        $this->assertNotFalse($prenom, 'Le champ prenom est absent.');
+        $this->assertLessThan($prenom, $menu, 'Le menu est pose APRES le champ prenom.');
     }
 
     // ── Ce qui ne doit JAMAIS apparaitre ────────────────────────────────────
@@ -112,6 +176,9 @@ class TASK1714OrganizationSelectorTest extends TestCase
     public function test_une_organisation_fermee_n_est_pas_listee(array $etat): void
     {
         $this->defaut();
+        // Une SECONDE Organization ouverte, sinon le menu ne parait pas du tout
+        // et la garde d'absence serait vacante.
+        Organization::factory()->create(['slug' => 'visible-1714', 'name' => 'Organisation Visible', 'is_active' => true, 'is_public' => true]);
         $cachee = Organization::factory()->create($etat + ['slug' => 'cachee-1714', 'name' => 'Organisation Cachee']);
 
         $region = $this->regionSelecteur('/register');
@@ -130,6 +197,7 @@ class TASK1714OrganizationSelectorTest extends TestCase
     public function test_une_sandbox_de_scenario_n_est_pas_listee(): void
     {
         $this->defaut();
+        Organization::factory()->create(['slug' => 'visible-sb-1714', 'name' => 'Organisation Visible', 'is_active' => true, 'is_public' => true]);
         $sandbox = Organization::factory()->create([
             'slug' => 'sandbox-1714', 'name' => 'Monde De Demonstration',
             'is_active' => true, 'is_public' => true,
@@ -153,7 +221,7 @@ class TASK1714OrganizationSelectorTest extends TestCase
 
         $this->assertNotNull($region);
         $this->assertStringContainsString(
-            'href="'.route('organization.register', ['organization' => $cible->slug]).'"',
+            'value="'.route('organization.register', ['organization' => $cible->slug]).'"',
             $region,
         );
     }
