@@ -69,6 +69,8 @@ class Organization extends Model
         'default_country_code',
         'show_country',
         'membership_enabled',
+        // TASK-1714 volet 2 — l'administrateur valide le compte apres l'email.
+        'requires_account_approval',
         'membership_label_fr',
         'membership_label_en',
         'homepage_template',
@@ -107,6 +109,7 @@ class Organization extends Model
             'locale' => 'string',
             'show_country' => 'boolean',
             'membership_enabled' => 'boolean',
+            'requires_account_approval' => 'boolean',
             'homepage_settings' => 'array',
         ];
     }

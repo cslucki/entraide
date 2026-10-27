@@ -215,6 +215,20 @@
                                             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>email non vérifié
                                         </span>
                                     @endunless
+
+                                    {{-- TASK-1714 volet 2 — l'attente de validation se lit
+                                         a cote de l'etat de l'email, parce que ce sont deux
+                                         etages de la MEME porte : l'adresse d'abord, la
+                                         personne ensuite. Seul le cas en attente porte une
+                                         pastille — signaler chaque compte sain noierait
+                                         l'exception. --}}
+                                    @if($u->attendApprobation())
+                                        <span class="ml-1 inline-flex items-center gap-1 text-orange-600 dark:text-orange-400"
+                                              title="{{ __('admin.users_pending_approval_title') }}"
+                                              data-user-pending-approval="{{ $u->id }}">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>{{ __('admin.users_pending_approval_badge') }}
+                                        </span>
+                                    @endif
                                 </p>
 
                                 {{-- TASK-1640 — sur mobile les colonnes Organisation et
@@ -305,6 +319,21 @@
                     <td class="hidden sm:table-cell px-4 py-3 text-xs text-gray-400">{{ $u->created_at->format('d/m/Y') }}</td>
                     <td class="px-4 py-3">
                         <div class="flex gap-2 items-center flex-wrap">
+                            {{-- TASK-1714 volet 2 — en TETE de la colonne, et seulement
+                                 pour un compte en attente : c'est le seul geste qui
+                                 compte pour lui, et le noyer au milieu de huit autres
+                                 le rendrait invisible. --}}
+                            @if($u->attendApprobation())
+                            <form method="POST" action="{{ route('admin.users.approve', $u) }}"
+                                  onsubmit="return confirm(@js(__('admin.users_approve_confirm')))">
+                                @csrf
+                                <button class="text-xs font-semibold text-emerald-600 hover:underline"
+                                        data-user-approve="{{ $u->id }}">
+                                    {{ __('admin.users_approve_account') }}
+                                </button>
+                            </form>
+                            @endif
+
                             @if($u->id !== auth()->id() && !$u->banned_at)
                             <form method="POST" action="{{ route('admin.users.login-as', $u) }}">
                                 @csrf

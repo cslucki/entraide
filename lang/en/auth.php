@@ -63,6 +63,14 @@ return [
     'back_to_login' => 'Back to sign in',
     'logout' => 'Logout',
 
+    // TASK-1714 volet 2 — waiting for an administrator's approval.
+    'approval_pending_title' => 'Your account is awaiting approval',
+    'approval_pending_intro' => 'An administrator must approve your account before you can access the platform.',
+    'approval_pending_intro_org' => 'An administrator of :name must approve your account before you can access it.',
+    'approval_pending_email_done' => 'Your email address is confirmed: you have not missed anything, and nothing else is required from you.',
+    'approval_pending_next' => 'You will receive an email as soon as your account is approved. You will then be able to sign in normally.',
+    'account_pending_approval' => 'Your account is awaiting an administrator\'s approval.',
+
     // Reset password
     'reset_password_title' => 'New password',
     'reset_password_subtitle' => 'Choose a new password for your account.',

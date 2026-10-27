@@ -5,6 +5,7 @@ use App\Http\Middleware\CheckAiProfilesEnabled;
 use App\Http\Middleware\CheckLoopsEnabled;
 use App\Http\Middleware\ConsumeOrgParams;
 use App\Http\Middleware\EnsureInvitationPasswordIsSet;
+use App\Http\Middleware\RequireApprovedAccount;
 use App\Http\Middleware\RequireVerifiedEmail;
 use App\Http\Middleware\EnsureProfileComplete;
 use App\Http\Middleware\EnsureScenarioPersonaContextIsValid;
@@ -157,6 +158,17 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureOrganizationMember::class,
             RequireVerifiedEmail::class,
         );
+        // TASK-1714 volet 2 — l'approbation vient APRES la verification d'email.
+        //
+        // L'ordre porte une regle produit : on ne demande pas a un
+        // administrateur de valider un compte dont l'adresse n'est pas encore
+        // confirmee. Chaque etage a donc son refus propre — invite -> login,
+        // etranger -> 404 sans oracle, non verifie -> /verify-email,
+        // non approuve -> page d'attente — et aucun n'en masque un autre.
+        $middleware->appendToPriorityList(
+            RequireVerifiedEmail::class,
+            RequireApprovedAccount::class,
+        );
         // TASK-145: Reorder web group so ResolveUrlOrganization runs BEFORE
         // SubstituteBindings. With appendToGroup, ResolveUrlOrganization ran AFTER
         // SubstituteBindings, meaning route model binding (Service $service, etc.)
@@ -205,10 +217,16 @@ return Application::configure(basePath: dirname(__DIR__))
             // laissait donc le tableau de bord, l'Explorer et la Messagerie
             // ouverts. « Obligatoire » n'aurait rien voulu dire.
             RequireVerifiedEmail::class,
+            RequireApprovedAccount::class,
         ]);
         $middleware->appendToGroup('api', [
             ResolveApiOrganization::class,
             EnsureUserIsNotBanned::class,
+            // TASK-1714 volet 2 — SANS cette ligne, la garde d'approbation
+            // serait contournable par `/api/*`, ou `auth:sanctum` ouvre les
+            // memes donnees. `RequireVerifiedEmail` n'est PAS ici, et c'est
+            // precisement le trou a ne pas reproduire.
+            RequireApprovedAccount::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

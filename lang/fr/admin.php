@@ -524,6 +524,15 @@ return [
     'org_membership_section_hint' => 'Configurez un champ d\'appartenance optionnel pour les profils membres.',
     'org_membership_enabled' => 'Activer le champ d\'appartenance',
     'org_membership_enabled_hint' => 'Quand activé, un champ de saisie « Appartenance » apparaît dans le profil des membres.',
+
+    // TASK-1714 volet 2 — approbation des comptes par un administrateur.
+    'org_requires_account_approval' => 'L\'administrateur doit valider le compte après confirmation email',
+    'org_requires_account_approval_hint' => 'Les nouvelles inscriptions attendent votre validation, même après confirmation de leur adresse. Les comptes existants ne sont pas affectés.',
+    'users_approve_account' => 'Valider compte',
+    'users_approve_confirm' => 'Valider ce compte et lui ouvrir l\'accès ?',
+    'users_approved_flash' => 'Le compte de :name est validé.',
+    'users_pending_approval_badge' => 'en attente de validation',
+    'users_pending_approval_title' => 'Ce compte attend votre validation pour accéder à son organisation',
     'org_membership_label_fr' => 'Libellé (français)',
     'org_membership_label_en' => 'Libellé (anglais)',
 

@@ -494,6 +494,38 @@ class AdminController extends Controller
     }
 
     /**
+     * TASK-1714 volet 2 — VALIDER LE COMPTE.
+     *
+     * ## Distinct de « Valider l'email », et c'est tout le point
+     *
+     * Le geste voisin atteste d'une ADRESSE : quelqu'un lit bien cette boite.
+     * Celui-ci atteste d'une PERSONNE : elle a sa place dans cette
+     * Organization. Une Organization qui active `requires_account_approval`
+     * veut explicitement les deux, et dans cet ordre.
+     *
+     * ## Idempotent, et il le dit
+     *
+     * Valider deux fois n'est pas une erreur — deux onglets ouverts suffisent
+     * a produire le cas. Le second passage ne REECRIT PAS `approved_at` : la
+     * date doit rester celle de la decision, pas celle du dernier clic. Et le
+     * message distingue les deux situations, sinon l'administrateur ne sait
+     * pas si son geste a servi.
+     */
+    public function approveUserAccount(User $user): RedirectResponse
+    {
+        if ($user->approved_at !== null) {
+            return back()->with('success', __('admin.users_approved_flash', ['name' => $user->full_name ?? $user->name]));
+        }
+
+        // Hors assignation de masse : `approved_at` n'est deliberement pas
+        // dans `User::$fillable`, comme les autres drapeaux qui ouvrent un
+        // acces.
+        $user->forceFill(['approved_at' => now()])->save();
+
+        return back()->with('success', __('admin.users_approved_flash', ['name' => $user->full_name ?? $user->name]));
+    }
+
+    /**
      * TASK-1694 bug J — RENVOYER le lien de confirmation.
      *
      * ## Distinct de « Valider l'email », et c'est tout le point
@@ -604,6 +636,12 @@ class AdminController extends Controller
             'is_admin' => $data['is_admin'] ?? false,
             'points_balance' => $data['points'],
         ]);
+
+        // TASK-1714 volet 2 (arbitrage MASTER A2) — approuve d'office. Le geste
+        // de creation par un SuperAdmin EST l'approbation : lui demander de
+        // valider ce qu'il vient de creer n'ajouterait aucune decision.
+        // Hors assignation de masse, comme les autres drapeaux d'acces.
+        $user->forceFill(['approved_at' => now()])->save();
 
         if ($data['points'] > 0) {
             PointLedger::create([

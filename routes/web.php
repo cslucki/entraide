@@ -605,6 +605,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // effective est `AdminMiddleware` — le SuperAdmin PLATEFORME, jamais un
     // admin d'Organization.
     Route::post('/users/{user}/verify-email', [AdminController::class, 'verifyUserEmail'])->name('users.verify-email');
+    // TASK-1714 volet 2 — VALIDER LE COMPTE. A ne pas confondre avec le geste
+    // ci-dessus : « Valider l'email » atteste d'une ADRESSE, celui-ci atteste
+    // d'une PERSONNE. Une Organization qui exige l'approbation veut
+    // explicitement les deux, et dans cet ordre.
+    //
+    // Meme groupe, donc meme autorite : SuperAdmin plateforme (arbitrage
+    // MASTER A1). Un admin d'Organization ne valide pas ses membres.
+    Route::post('/users/{user}/approve', [AdminController::class, 'approveUserAccount'])->name('users.approve');
     // TASK-1694 bug J : RENVOYER le lien de confirmation. Distinct du geste
     // ci-dessus — celui-la CONTOURNE la preuve de possession, celui-ci la
     // redemande. Meme groupe, donc meme autorite : SuperAdmin plateforme.
