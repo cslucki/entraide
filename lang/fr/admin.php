@@ -354,6 +354,8 @@ return [
     ],
 
     'login_history' => 'Historique de connexion',
+    'login_history_deleted_account' => 'Compte supprimé',
+    'login_history_deleted_account_hint' => 'L\'évènement est conservé ; le compte associé n\'existe plus.',
     'login_history_title' => 'Historique de connexion',
     'login_history_desc' => 'Connexions réussies des utilisateurs',
     'login_history_for_user' => 'Connexions de :name',

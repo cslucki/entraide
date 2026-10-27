@@ -187,4 +187,10 @@ return [
             'min' => 'Le budget maximum doit être d\'au moins :min points.',
         ],
     ],
+    'nom_trop_long' => 'Ce nom est trop long : :max caractères au maximum.',
+    'nom_caracteres_invisibles' => 'Ce nom contient des caractères invisibles ou de contrôle.',
+    'nom_chevrons' => 'Ce nom ne peut pas contenir les caractères « < » ou « > ».',
+    'nom_adresse_web' => 'Ce nom ne peut pas contenir d\'adresse web.',
+    'nom_suite_de_chiffres' => 'Ce nom ne peut pas contenir plus de :max chiffres consécutifs.',
+    'nom_trop_de_chiffres' => 'Ce nom contient plus de chiffres que de lettres.',
 ];
