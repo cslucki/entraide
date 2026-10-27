@@ -3,6 +3,7 @@
 namespace App\Services\Security;
 
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\StrayRequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -120,6 +121,27 @@ class TurnstileVerifier
             // Delai depasse, DNS, TLS. Pas de `$e->getMessage()` dans le
             // journal : il peut porter l'URL complete de la requete.
             Log::warning('TASK-1713 Turnstile injoignable : inscription refusee (fail-closed).');
+
+            return ['verification-unavailable'];
+        } catch (StrayRequestException $tripwire) {
+            // Le fil-piege de TASK-1280 doit continuer a mordre.
+            //
+            // `StrayRequestException` etend `RuntimeException` : le filet
+            // ci-dessous l'absorberait, et un test qui aurait oublie sa
+            // doublure deviendrait « verification indisponible » au lieu
+            // d'echouer bruyamment. Un filet qui avale une garde n'est pas un
+            // filet.
+            throw $tripwire;
+        } catch (\Throwable) {
+            // Filet, et il a une raison precise d'exister : Laravel n'emballe
+            // en `ConnectionException` que les echecs de CONNEXION. Une
+            // redirection en boucle, un flux illisible, une erreur TLS
+            // inattendue remontent telles quelles — et transformeraient un
+            // hoquet du captcha en 500 sur la page d'inscription.
+            //
+            // Le refus reste le meme : fail-closed, mais avec un message
+            // utilisable plutot qu'un ecran blanc.
+            Log::warning('TASK-1713 Turnstile a echoue de maniere inattendue : inscription refusee (fail-closed).');
 
             return ['verification-unavailable'];
         }

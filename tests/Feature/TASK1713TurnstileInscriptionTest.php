@@ -396,6 +396,44 @@ class TASK1713TurnstileInscriptionTest extends TestCase
         $this->assertSame(['verification-unavailable'], $motifs, 'Un 502 au corps bien forme a ete cru.');
     }
 
+    /**
+     * Une exception INATTENDUE refuse, elle ne fait pas un 500.
+     *
+     * Laravel n'emballe en `ConnectionException` que les echecs de CONNEXION.
+     * Une redirection en boucle, un flux illisible, une erreur TLS inattendue
+     * remontent telles quelles — et sans filet, un hoquet du captcha
+     * deviendrait un ecran blanc sur la page d'inscription. Le refus est le
+     * meme ; c'est le message qui change pour la personne devant le formulaire.
+     */
+    public function test_une_exception_inattendue_refuse_sans_casser_la_page(): void
+    {
+        $this->allumer();
+        Http::fake(fn () => throw new \RuntimeException('boum inattendu'));
+
+        $motifs = app(TurnstileVerifier::class)->verify(self::JETON_FACTICE);
+
+        $this->assertSame(['verification-unavailable'], $motifs);
+    }
+
+    /**
+     * ... mais le filet n'avale PAS le fil-piege de TASK-1280.
+     *
+     * `StrayRequestException` etend `RuntimeException` : un `catch (Throwable)`
+     * naif la transformerait en « verification indisponible », et un test qui
+     * aurait oublie sa doublure passerait au lieu d'echouer bruyamment. Un
+     * filet qui avale une garde n'est pas un filet.
+     *
+     * Aucun `Http::fake()` ici : c'est le sujet meme de la mesure.
+     */
+    public function test_le_filet_ne_masque_pas_le_fil_piege_des_requetes_non_doublees(): void
+    {
+        $this->allumer();
+
+        $this->expectException(\Illuminate\Http\Client\StrayRequestException::class);
+
+        app(TurnstileVerifier::class)->verify(self::JETON_FACTICE);
+    }
+
     public function test_un_jeton_vide_est_refuse_sans_appeler_cloudflare(): void
     {
         $this->allumer();
