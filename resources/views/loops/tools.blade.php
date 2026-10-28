@@ -56,7 +56,8 @@
     <x-page-container>
         <div class="mx-auto max-w-6xl">
 
-            <a href="{{ route('organization.loops.show', ['organization' => $orgParam, 'loop' => $loop->id]) }}"
+            {{-- TASK-1717 — le slug, comme dans le catalogue et les Dossiers. --}}
+            <a href="{{ route('organization.loops.show', ['organization' => $orgParam, 'loop' => $loop->slug ?: $loop->getKey()]) }}"
                class="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">← {{ $loop->name }}</a>
 
             <h1 class="mt-3 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('loops.owner_tools_title') }}</h1>

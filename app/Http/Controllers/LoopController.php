@@ -417,6 +417,8 @@ class LoopController extends Controller
             'category_ids' => 'nullable|array|max:'.Loop::MAX_DOMAINS,
             'category_ids.*' => 'string',
             'type' => ['nullable', Rule::in(app(LoopTypeRegistry::class)->availableKeys())],
+            // TASK-1717 — le slug se choisit DES la creation.
+            'slug' => Loop::slugRules($organization->id),
         ]);
 
         $loop = $this->loopService->createLoop(
@@ -429,6 +431,15 @@ class LoopController extends Controller
             null,
             $data['type'] ?? null,
         );
+
+        // TASK-1717 — le slug demande REMPLACE celui que le service vient de
+        // deriver du nom. On ne touche pas a `createLoop()` : sa signature est
+        // appelee de huit endroits, et lui ajouter un parametre ferait payer
+        // sept appelants pour un besoin qui n'en concerne qu'un. La validation
+        // ci-dessus a deja prouve l'unicite dans cette Organization.
+        if (! empty($data['slug']) && $data['slug'] !== $loop->slug) {
+            $loop->update(['slug' => $data['slug']]);
+        }
 
         $loop->categories()->sync($this->resolveDomainIds($organization, $data['category_ids'] ?? []));
 
@@ -483,7 +494,19 @@ class LoopController extends Controller
             'remove_cover_image' => 'nullable|boolean',
             'category_ids' => 'nullable|array|max:'.Loop::MAX_DOMAINS,
             'category_ids.*' => 'string',
+            // TASK-1717 — `ignore($loop)` : reenregistrer le formulaire sans
+            // toucher au slug ne doit pas le declarer en collision avec
+            // lui-meme.
+            'slug' => Loop::slugRules($organization->id, $loop),
         ]);
+
+        // Champ laisse vide = slug INCHANGE. Le retirer du lot plutot que
+        // d'ecrire `null` : la colonne est `NOT NULL`, et surtout une URL
+        // publique ne doit pas disparaitre parce qu'on a corrige une faute de
+        // frappe dans la description.
+        if (empty($data['slug'])) {
+            unset($data['slug']);
+        }
 
         if ($request->boolean('remove_cover_image') && $loop->cover_image_path) {
             $this->deleteCoverImage($loop->cover_image_path);

@@ -202,7 +202,11 @@ class TASK1130RealSubfoldersTest extends TestCase
         // Le lien de gestion pointe vers la Boucle qui gouverne, pas vers
         // un dossier — la Boucle reste la seule source de verite.
         $this->assertStringContainsString(
-            route('organization.loops.show', ['organization' => $this->org->slug, 'loop' => $this->loop->getKey()]),
+            // TASK-1717 — l'URL org-scopee porte desormais le SLUG, comme le
+            // font deja `dossiers/espaces` et `members/index`. L'intention de
+            // cette garde est inchangee : le lien mene a la Boucle QUI
+            // GOUVERNE, pas a un dossier.
+            route('organization.loops.show', ['organization' => $this->org->slug, 'loop' => $this->loop->slug ?: $this->loop->getKey()]),
             $html,
         );
     }
