@@ -63,6 +63,18 @@ class RequireVerifiedEmail
         'logout',
         'password.confirm',
         'password.confirm.store',
+        // TASK-1716 — NECESSAIRE, et la mesure le dit.
+        //
+        // Cette garde ouvre `profile.*` en entier (prefixe ci-dessous), donc
+        // l'ancienne `profile.destroy` passait sans qu'on ait rien a declarer.
+        // `account.close` est une route GLOBALE : elle ne porte plus ce
+        // prefixe, et sans cette ligne le formulaire de fermeture — y compris
+        // celui de la page de profil, que ce compte peut atteindre — serait
+        // renvoye vers /verify-email et ne fermerait rien.
+        //
+        // Le fond n'a pas change : on ne retient pas quelqu'un sur une
+        // adresse qu'il n'a pas confirmee.
+        'account.close',
     ];
 
     /**

@@ -79,7 +79,15 @@
                     </td>
                     <td data-label="{{ __('navigation.org_admin_table_points') }}" class="px-4 py-3 text-xs text-gray-500">{{ $user->points_balance ?? 0 }}</td>
                     <td data-label="{{ __('navigation.org_admin_table_status') }}" class="px-4 py-3">
-                        @if($user->banned_at)
+                        {{-- TASK-1716 — un compte ferme par son proprietaire n'est pas
+                             « banni ». L'ecran d'Organization le dit aussi, sinon
+                             l'administrateur de tenant lit une sanction la ou il y a
+                             une decision personnelle. --}}
+                        @if($user->estFermeVolontairement())
+                        <span class="px-2 py-0.5 rounded text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"
+                              title="{{ __('admin.users_closed_title') }}"
+                              data-user-status-closed="{{ $user->id }}">{{ __('admin.users_closed_status') }}</span>
+                        @elseif($user->banned_at)
                         <span class="px-2 py-0.5 rounded text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">{{ __('navigation.org_admin_user_status_banned') }}</span>
                         @else
                         <span class="px-2 py-0.5 rounded text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">{{ __('navigation.org_admin_user_status_active') }}</span>
@@ -93,7 +101,14 @@
                             <button type="submit" data-crm-follow="{{ $user->id }}"
                                 class="px-2 py-1 text-xs rounded border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 mr-1">{{ __('crm.follow_member') }}</button>
                         </form>
-                        @if(!$user->is_admin)
+                        {{-- TASK-1716 — le bouton disparait sur un compte ferme par son
+                             proprietaire. C'etait un TOGGLE aveugle
+                             (`banned_at ? null : now()`) : il s'affichait « Debannir »
+                             et rouvrait le compte. Arbitrer une fermeture volontaire
+                             n'est pas une prerogative de tenant — seul le SuperAdmin
+                             dispose de « Reouvrir le compte ». Le controleur refuse
+                             aussi, cote serveur. --}}
+                        @if(!$user->is_admin && !$user->estFermeVolontairement())
                         <form method="POST" action="{{ route('organization.admin.users.toggle-ban', [$organization, $user]) }}" class="inline">
                             @csrf
                             @method('PATCH')

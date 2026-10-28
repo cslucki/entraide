@@ -46,8 +46,20 @@ class LoginRequest extends FormRequest
 
         $user = User::where('email', $this->input('email'))->first();
         if ($user && $user->banned_at !== null) {
+            // TASK-1716 — le refus est le MEME, le message ne l'est pas.
+            //
+            // `banned_at` ne disait pas QUI avait decide. « Votre compte a ete
+            // desactive, contactez l'administrateur » partait donc aussi a
+            // quelqu'un qui venait de fermer son compte lui-meme : il lisait
+            // une sanction la ou il y avait sa propre decision, et on
+            // l'envoyait reclamer une explication a un administrateur qui
+            // n'avait rien fait.
+            //
+            // Le refus, lui, reste identique — un compte ferme n'entre pas.
             throw ValidationException::withMessages([
-                'email' => trans('auth.deactivated'),
+                'email' => $user->estFermeVolontairement()
+                    ? trans('auth.closed_by_owner')
+                    : trans('auth.deactivated'),
             ]);
         }
 

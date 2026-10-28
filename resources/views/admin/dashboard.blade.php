@@ -131,7 +131,13 @@
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $u->full_name }}</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $u->organization?->name ?? __('dashboard.platform_no_organization') }}</p>
                         </div>
-                        @if($u->banned_at)
+                        {{-- TASK-1716 — la pastille ne dit plus « banni » sur une
+                             fermeture volontaire. --}}
+                        @if($u->estFermeVolontairement())
+                            <span class="text-xs bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 px-2 py-0.5 rounded flex-shrink-0"
+                                  title="{{ __('admin.users_closed_title') }}"
+                                  data-user-status-closed="{{ $u->id }}">{{ __('admin.users_closed_status') }}</span>
+                        @elseif($u->banned_at)
                             <span class="text-xs bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 px-2 py-0.5 rounded flex-shrink-0">{{ __('dashboard.platform_attention_banned_users') }}</span>
                         @endif
                         <span class="text-xs text-gray-400 flex-shrink-0">{{ $u->created_at->diffForHumans() }}</span>

@@ -119,6 +119,14 @@ class User extends Authenticatable implements MustVerifyEmail
             'show_email' => 'boolean',
             'show_phone' => 'boolean',
             'banned_at' => 'datetime',
+            // TASK-1716 — deliberement HORS `$fillable`, comme `approved_at`
+            // (T1714) et `must_set_password` (T1659). Ce sont des drapeaux de
+            // cycle de vie : seul `ProfileController::close()` les pose, et
+            // seule la reouverture explicite du SuperAdmin les retire. Les
+            // laisser remplissables permettrait a un formulaire de profil de
+            // fermer — ou de rouvrir — un compte par assignation de masse.
+            'self_closed_at' => 'datetime',
+            'erasure_requested_at' => 'datetime',
             'points_balance' => 'integer',
             'rating' => 'decimal:2',
         ];
@@ -515,5 +523,39 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         return $this->organization?->requires_account_approval === true;
+    }
+
+    /**
+     * TASK-1716 — ce compte a-t-il ete ferme par SON PROPRIETAIRE ?
+     *
+     * Le discriminant que `banned_at` seul ne portait pas. Sans lui, la page
+     * de connexion disait « contactez l'administrateur » a quelqu'un qui
+     * venait de fermer son compte lui-meme, et l'ecran SuperAdmin affichait
+     * « banni » sur une decision qu'aucun administrateur n'avait prise.
+     *
+     * Les DEUX colonnes sont lues, et pas seulement `self_closed_at` : la
+     * methode repond « est-ce une fermeture volontaire ACTIVE ». Un compte
+     * rouvert par le SuperAdmin voit les deux colonnes remises a `null`, mais
+     * exiger `banned_at` ici rend la reponse juste meme si une ecriture
+     * future ne nettoyait qu'une des deux — l'invariant est verifie, pas
+     * suppose.
+     */
+    public function estFermeVolontairement(): bool
+    {
+        return $this->banned_at !== null && $this->self_closed_at !== null;
+    }
+
+    /**
+     * TASK-1716 — l'effacement des donnees personnelles a-t-il ete demande ?
+     *
+     * Une DEMANDE, jamais une execution. Rien dans cette application n'efface
+     * automatiquement sur ce drapeau : il rend la demande visible au
+     * SuperAdmin, qui arbitre sur l'ecran de suppression de TASK-1636 ou les
+     * refus metier (ledger, transactions, gouvernance de Boucle) sont deja
+     * calcules.
+     */
+    public function aDemandeEffacement(): bool
+    {
+        return $this->erasure_requested_at !== null;
     }
 }
