@@ -141,6 +141,39 @@ class SystemEmailTemplateSeeder extends Seeder
 <p><a href="{{ article_url }}">Read the article: {{ article_title }}</a></p>',
             'variables' => ['sender_name', 'recipient_name', 'sender_message', 'article_url', 'article_title', 'register_url'],
         ],
+        /*
+         * TASK-1720 volet C — « ajoute » n'est pas « invite ».
+         *
+         * L'ajout direct empruntait `loop_invitation`, dont le sujet dit
+         * « X vous invite a rejoindre ». Or la personne EST membre quand elle
+         * lit le message : il n'y a rien a accepter, aucun lien a suivre pour
+         * entrer. Le texte decrivait une demarche qui n'existait pas.
+         *
+         * Pas d'accroche de Boucle ici, contrairement a l'invitation
+         * ci-dessous : en recette, elle affichait une ligne en italique qui
+         * n'apprend rien a quelqu'un qu'on vient d'ajouter, et un paragraphe
+         * VIDE pour une Boucle sans accroche. La variable reste declaree — un
+         * SuperAdmin qui la veut peut l'ecrire.
+         *
+         * `expires_at` n'est pas employe : un ajout n'expire pas.
+         *
+         * La migration `2026_10_28_170000` pose les deux memes lignes sur les
+         * bases DEJA installees, qu'un seeder ne revisite pas. Les deux textes
+         * doivent donc rester identiques.
+         */
+        'loop_member_added' => [
+            'name_fr' => 'Ajout a une Boucle',
+            'name_en' => 'Added to a Loop',
+            'subject_fr' => 'Vous avez été ajouté à la Boucle {{ loop_name }}',
+            'subject_en' => 'You have been added to the {{ loop_name }} Loop',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ sender_name }} vous a ajouté à la Boucle <strong>{{ loop_name }}</strong> au sein de {{ organization_name }}. Vous en êtes désormais membre.</p><p><a href="{{ invitation_url }}">Ouvrir la Boucle</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ invitation_url }}</p><p>À bientôt,<br>{{ app_name }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ sender_name }} added you to the <strong>{{ loop_name }}</strong> Loop in {{ organization_name }}. You are now a member.</p><p><a href="{{ invitation_url }}">Open the Loop</a></p><p>If the link does not work, copy this address into your browser:<br>{{ invitation_url }}</p><p>See you soon,<br>{{ app_name }}</p>',
+            'variables' => [
+                'recipient_name', 'sender_name', 'organization_name',
+                'loop_name', 'loop_tagline', 'invitation_url', 'app_name',
+            ],
+        ],
+
         'loop_invitation' => [
             'name_fr' => 'Invitation à rejoindre une Boucle',
             'name_en' => 'Invitation to join a Loop',
