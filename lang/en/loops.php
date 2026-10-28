@@ -1215,6 +1215,8 @@ return [
     'governance_demote_member' => 'Back to member',
     'governance_actions_for' => 'Actions for :name',
     'governance_remove' => 'Remove from the Loop',
+    'governance_remove_confirm_title' => 'Remove this person from the Loop?',
+    'governance_remove_confirm_body' => ':name will lose access to this Loop. Their messages and contributions stay in place. You can add them again later.',
     'governance_last_owner' => 'Last active owner — appoint another owner before changing this role or removing them.',
     'governance_last_owner_short' => 'Last active owner',
     'governance_creator' => 'Creator',

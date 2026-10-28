@@ -1219,6 +1219,12 @@ return [
     'governance_demote_member' => 'Repasser membre',
     'governance_actions_for' => 'Actions pour :name',
     'governance_remove' => 'Retirer de la Boucle',
+    // TASK-1720 — la fenetre de confirmation du retrait. Elle NOMME la
+    // consequence : la personne perd l'acces, et rien de ce qu'elle a
+    // ecrit ne disparait. C'est exact — le retrait passe le statut a
+    // `left`, la ligne d'adhesion est conservee.
+    'governance_remove_confirm_title' => 'Retirer cette personne de la Boucle ?',
+    'governance_remove_confirm_body' => ':name perdra l\'accès à cette Boucle. Ses messages et ses contributions restent en place. Vous pourrez l\'ajouter à nouveau plus tard.',
     'governance_last_owner' => 'Dernier propriétaire actif — nommez un autre propriétaire avant de modifier son rôle ou de le retirer.',
     'governance_last_owner_short' => 'Dernier propriétaire actif',
     'governance_creator' => 'Créateur',
@@ -1508,11 +1514,11 @@ return [
     // n'enonce plus d'exemples en dur (ils feraient doublon avec la
     // proposition reelle) ; sans suggestion, on demande une precision
     // plutot que d'inventer une opposition.
-    'plugins_multi_ai_not_applicable_lead' => "Votre question ne contient pas encore une proposition directement exploitable par Pour / Contre. Vous pouvez essayer :",
+    'plugins_multi_ai_not_applicable_lead' => 'Votre question ne contient pas encore une proposition directement exploitable par Pour / Contre. Vous pouvez essayer :',
     'plugins_multi_ai_suggestion_use' => 'Utiliser cette question',
     'plugins_multi_ai_suggestion_replace' => 'Remplacer le texte en cours',
-    'plugins_multi_ai_suggestion_confirm' => "Le composeur contient déjà du texte. Cliquez à nouveau pour le remplacer.",
-    'plugins_multi_ai_not_applicable_precision' => "Pour comparer deux positions, indiquez les deux options que vous souhaitez mettre en regard.",
+    'plugins_multi_ai_suggestion_confirm' => 'Le composeur contient déjà du texte. Cliquez à nouveau pour le remplacer.',
+    'plugins_multi_ai_not_applicable_precision' => 'Pour comparer deux positions, indiquez les deux options que vous souhaitez mettre en regard.',
     'plugins_multi_ai_dismiss' => 'Masquer',
     'plugins_multi_ai_synthesis_question' => 'Compare les réponses obtenues à : :question',
     'plugins_multi_ai_none_enabled' => "Aucun assistant n'est actif dans cette Boucle.",
