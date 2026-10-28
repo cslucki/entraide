@@ -65,17 +65,32 @@
 
     <div class="bpam-panel" hidden>
         @foreach($entrees as $entree)
-            <a href="{{ $entree['url'] }}">{{ $entree['label'] }}</a>
+            <a href="{{ $entree['url'] }}" class="bpam-item">{{ $entree['label'] }}</a>
         @endforeach
         <form method="POST" action="{{ route('logout') }}">
             @csrf
-            <button type="submit" class="bpam-logout">{{ __('navigation.logout') }}</button>
+            <button type="submit" class="bpam-item bpam-logout">{{ __('navigation.logout') }}</button>
         </form>
     </div>
 </div>
 
 @once
 <style>
+/*
+   Le panneau est un WIDGET depose dans trois feuilles etrangeres. Ses
+   couleurs sont donc declarees `!important`, et ce n'est pas une surenchere
+   de confort : la regle hote la plus forte mesuree est
+   `.bp-artscilab .nav-links a:not(.btn-join):hover` — specificite 0,4,1.
+
+   Sur LaunchPals, le resultat etait du blanc sur blanc : le menu vit dans
+   `.nav-links`, dont les liens sont `rgba(255,255,255,.9)` pour se poser sur
+   le degrade. Seuls « Boucles » (survole) et « Deconnexion » (un `button`,
+   que la regle ne visait pas) se lisaient.
+
+   Gagner par specificite aurait demande d'empiler des classes jusqu'a 0,5,1,
+   a refaire au premier gabarit ajoute. `!important` sur la seule frontiere du
+   widget dit la bonne chose : ce panneau ne s'habille pas chez l'hote.
+*/
 .bpam{position:relative;display:inline-block}
 .bpam-trigger{display:inline-flex;align-items:center;gap:7px;cursor:pointer}
 .bpam-caret{width:0;height:0;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:5px solid currentColor;opacity:.65;transition:transform .15s}
@@ -87,23 +102,18 @@
   text-align:left;
 }
 .bpam-panel[hidden]{display:none}
-.bpam-panel a,.bpam-panel button{
+.bpam-item{
   display:block;width:100%;box-sizing:border-box;padding:9px 12px;border-radius:11px;
   text-align:left;font-size:14px;font-weight:600;line-height:1.3;
-  color:#4A4F63;background:none;border:0;cursor:pointer;text-decoration:none;
+  color:#4A4F63 !important;background:none !important;border:0;cursor:pointer;text-decoration:none;
 }
-.bpam-panel a:hover,.bpam-panel button:hover{background:rgba(20,24,60,.055);color:#14183C}
+.bpam-item:hover{background:rgba(20,24,60,.055) !important;color:#14183C !important}
 /* La sortie de session se detache du reste : ce n'est pas une navigation. */
-.bpam-logout{margin-top:5px;border-top:1px solid rgba(20,24,60,.09) !important;border-radius:0 0 11px 11px !important;padding-top:11px !important}
-@media (prefers-color-scheme: dark){
-  .bpam-panel{background:#24263D;border-color:rgba(255,255,255,.10)}
-  .bpam-panel a,.bpam-panel button{color:#C9CCDC}
-  .bpam-panel a:hover,.bpam-panel button:hover{background:rgba(255,255,255,.07);color:#fff}
-  .bpam-logout{border-top-color:rgba(255,255,255,.12) !important}
-}
+.bpam-logout{margin-top:5px;border-top:1px solid rgba(20,24,60,.09);border-radius:0 0 11px 11px;padding-top:11px}
 html.dark .bpam-panel{background:#24263D;border-color:rgba(255,255,255,.10)}
-html.dark .bpam-panel a,html.dark .bpam-panel button{color:#C9CCDC}
-html.dark .bpam-panel a:hover,html.dark .bpam-panel button:hover{background:rgba(255,255,255,.07);color:#fff}
+html.dark .bpam-item{color:#C9CCDC !important}
+html.dark .bpam-item:hover{background:rgba(255,255,255,.07) !important;color:#fff !important}
+html.dark .bpam-logout{border-top-color:rgba(255,255,255,.12)}
 </style>
 
 <script>
