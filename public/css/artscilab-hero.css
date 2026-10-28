@@ -82,6 +82,13 @@ body.bp-artscilab::before{
 .bp-artscilab .nav-links a.btn-join:active{transform:scale(.97)}
 .bp-artscilab .nav-links a.btn-join--outline{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.5);font-weight:600;font-size:14px;padding:10px 24px;border-radius:999px;transition:background .15s,border-color .15s}
 .bp-artscilab .nav-links a.btn-join--outline:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.8)}
+/* TASK-1720 — le declencheur du menu de compte se lit comme « A propos ».
+   MASTER : « il faudrait que "Tableau de bord" soit de la meme couleur et
+   taille que "A propos" qui est juste a cote ». Memes declarations que
+   `.nav-links a` ligne 77 : c'est volontairement un lien de navigation ici,
+   pas le bouton cercle des deux autres gabarits. */
+.bp-artscilab .nav-links .bpam-trigger{font-size:15px;font-weight:500;color:rgba(255,255,255,.9);transition:color .15s}
+.bp-artscilab .nav-links .bpam-trigger:hover,.bp-artscilab .nav-links .bpam-trigger[aria-expanded="true"]{color:#fff}
 
 /* ============ HERO ============ */
 .bp-artscilab .hero{flex:1;display:grid;grid-template-columns:1.04fr 1fr;gap:30px;align-items:center;padding:0 0 14px;margin-top:-56px}

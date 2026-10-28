@@ -92,7 +92,12 @@
    widget dit la bonne chose : ce panneau ne s'habille pas chez l'hote.
 */
 .bpam{position:relative;display:inline-block}
-.bpam-trigger{display:inline-flex;align-items:center;gap:7px;cursor:pointer}
+/* Base NEUTRE du declencheur. Un `<button>` sans cela retombe sur le style
+   natif du navigateur — texte noir, 13,3px — des que la regle de l'hote est
+   scopee sur la balise `a`. C'est ce qui est arrive sur LaunchPals, dont le
+   bouton est declare `a.btn-join--outline`. L'apparence reste decidee par
+   l'hote, via `$triggerClass` ou une regle visant `.bpam-trigger`. */
+.bpam-trigger{display:inline-flex;align-items:center;gap:7px;cursor:pointer;font:inherit;color:inherit;background:none;border:0;padding:0}
 .bpam-caret{width:0;height:0;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:5px solid currentColor;opacity:.65;transition:transform .15s}
 .bpam-trigger[aria-expanded="true"] .bpam-caret{transform:rotate(180deg)}
 .bpam-panel{
