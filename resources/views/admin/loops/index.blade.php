@@ -70,6 +70,16 @@
                             <a href="{{ route('admin.loops.show', $orgLoop) }}"
                                class="block truncate font-medium text-gray-900 transition hover:text-indigo-600 hover:underline dark:text-gray-100 dark:hover:text-indigo-400"
                                title="Voir la Boucle">{{ $orgLoop->name }}</a>
+                            {{-- TASK-1717 — l'adresse publique, sous le nom.
+                                 C'est la colonne ou l'on cherche « quelle est
+                                 cette Boucle » : son slug y repond mieux qu'un
+                                 identifiant qu'il faut aller ouvrir pour voir.
+                                 En `font-mono` parce que c'est une portion
+                                 d'URL, pas une phrase. --}}
+                            @if($orgLoop->slug)
+                                <p class="truncate font-mono text-[11px] text-gray-400 dark:text-gray-500"
+                                   data-loop-slug="{{ $orgLoop->id }}">{{ $orgLoop->slug }}</p>
+                            @endif
                             @if($orgLoop->description)
                                 <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ Str::limit($orgLoop->description, 70) }}</p>
                             @endif
@@ -146,6 +156,13 @@
                                  pre-selectionner l'org par la query string. --}}
                             <a href="{{ route('admin.users.bulk-create', ['organization_id' => $orgLoop->organization_id]) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Inviter</a>
                             <a href="{{ route('admin.loops.edit', $orgLoop) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
+                            {{-- TASK-1717 — l'ecran de composition des outils
+                                 (`admin.loops.configure`) existait sans aucun
+                                 lien depuis cette liste : on ne l'atteignait
+                                 qu'en connaissant son URL. --}}
+                            <a href="{{ route('admin.loops.configure', $orgLoop) }}"
+                               data-loop-configure="{{ $orgLoop->id }}"
+                               class="text-xs font-medium text-indigo-600 hover:underline">Modifier outils</a>
                             <a href="{{ route('admin.loops.files', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Fichiers</a>
                             @if($orgLoop->isActive())
                             <form method="POST" action="{{ route('admin.loops.archive', $orgLoop) }}"
