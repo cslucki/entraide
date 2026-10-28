@@ -483,7 +483,17 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
         $cible = app(NotificationTargetResolver::class)->resolve($notification);
 
         $this->assertNotNull($cible);
-        $this->assertStringContainsString('/'.$org->slug.'/loops/'.$loop->id, $cible);
+        // TASK-1720 — la cible porte desormais le SLUG de la Boucle.
+        //
+        // L'intention de la garde est inchangee : le lien profond nomme la
+        // bonne Organization et la bonne Boucle, sans contexte ambiant. Seule
+        // la FORME de l'identifiant bouge — `$loop->slug ?: $loop->getKey()`,
+        // l'idiome org-scope de TASK-1717, parce que cette URL part dans un
+        // courriel et se lit. Les anciennes URL en UUID resolvent toujours.
+        $this->assertStringContainsString(
+            '/'.$org->slug.'/loops/'.($loop->slug ?: $loop->getKey()),
+            $cible
+        );
     }
 
     /**

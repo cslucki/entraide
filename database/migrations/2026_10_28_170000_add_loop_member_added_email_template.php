@@ -27,6 +27,18 @@ use Illuminate\Support\Facades\DB;
  * repli en langue (`notifications.email.loop_member_added`) reste en place
  * sous celui-ci.
  *
+ * ## L'accroche de la Boucle ne figure pas dans le corps
+ *
+ * Le premier jet reprenait `<p><em>{{ loop_tagline }}</em></p>` de
+ * `loop_invitation`. En recette, `boucle2` porte « Accroche courte » : le
+ * courriel affichait une ligne en italique qui n'apprend rien a quelqu'un
+ * qu'on vient d'ajouter — et une Boucle sans accroche produisait un paragraphe
+ * vide. MASTER : « Il faut supprimer "Accroche courte" ».
+ *
+ * La VARIABLE reste declaree. Le defaut ne l'emploie pas ; un SuperAdmin qui
+ * veut l'accroche dans son texte peut toujours l'ecrire, comme dans
+ * `loop_invitation`. Retirer la declaration la lui interdirait.
+ *
  * ## `down()` ne conserve rien, et c'est justifie
  *
  * Contrairement a TASK-1711, ces deux lignes sont REGENERABLES a l'identique
@@ -49,7 +61,6 @@ return new class extends Migration
                 'html' => '<p>Bonjour {{ recipient_name }},</p>'
                     .'<p>{{ sender_name }} vous a ajouté à la Boucle <strong>{{ loop_name }}</strong> '
                     .'au sein de {{ organization_name }}. Vous en êtes désormais membre.</p>'
-                    .'<p><em>{{ loop_tagline }}</em></p>'
                     .'<p><a href="{{ invitation_url }}">Ouvrir la Boucle</a></p>'
                     .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>'
                     .'{{ invitation_url }}</p>'
@@ -61,7 +72,6 @@ return new class extends Migration
                 'html' => '<p>Hello {{ recipient_name }},</p>'
                     .'<p>{{ sender_name }} added you to the <strong>{{ loop_name }}</strong> Loop '
                     .'in {{ organization_name }}. You are now a member.</p>'
-                    .'<p><em>{{ loop_tagline }}</em></p>'
                     .'<p><a href="{{ invitation_url }}">Open the Loop</a></p>'
                     .'<p>If the link does not work, copy this address into your browser:<br>'
                     .'{{ invitation_url }}</p>'

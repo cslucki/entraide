@@ -200,9 +200,18 @@ class NotificationTargetResolver
             return null;
         }
 
+        // TASK-1720 — le SLUG dans l'URL, l'identifiant en repli.
+        //
+        // Cette URL part dans un COURRIEL : c'est elle qu'on lit, qu'on copie
+        // et qu'on colle. Passer le modele rendait `getRouteKey()`, donc
+        // l'UUID — `/org/ofsh/loops/01a16eb5-347c-…` dans le corps du message.
+        //
+        // Meme idiome que les vues depuis TASK-1717, et seulement sur la forme
+        // ORG-SCOPEE : `Route::bind('loop', ...)` refuse un slug quand la
+        // route ne porte pas d'`{organization}`.
         return route('organization.loops.show', [
             'organization' => $organisation,
-            'loop' => $boucle,
+            'loop' => $boucle->slug ?: $boucle->getKey(),
         ]);
     }
 
@@ -288,9 +297,18 @@ class NotificationTargetResolver
             return null;
         }
 
+        // TASK-1720 — le SLUG dans l'URL, l'identifiant en repli.
+        //
+        // Cette URL part dans un COURRIEL : c'est elle qu'on lit, qu'on copie
+        // et qu'on colle. Passer le modele rendait `getRouteKey()`, donc
+        // l'UUID — `/org/ofsh/loops/01a16eb5-347c-…` dans le corps du message.
+        //
+        // Meme idiome que les vues depuis TASK-1717, et seulement sur la forme
+        // ORG-SCOPEE : `Route::bind('loop', ...)` refuse un slug quand la
+        // route ne porte pas d'`{organization}`.
         return route('organization.loops.show', [
             'organization' => $organisation,
-            'loop' => $boucle,
+            'loop' => $boucle->slug ?: $boucle->getKey(),
         ]);
     }
 

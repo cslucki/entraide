@@ -161,7 +161,19 @@ class LoopInvitationMailer
 
         try {
             $organization = $loop->organization;
-            $url = $urlOverride ?? $loop->workspaceUrl();
+            // TASK-1720 — le SLUG, pas l'identifiant.
+            //
+            // `workspaceUrl()` rend l'UUID, et reste inchangee : dix appelants
+            // l'emploient hors de ce perimetre, dont une garde de TASK-1079
+            // qui asserte l'identifiant. Le lien d'un COURRIEL se lit et se
+            // colle : il porte le slug, comme les vues depuis TASK-1717.
+            //
+            // Ce repli ne sert qu'a defaut d'`$urlOverride` — le pipeline de
+            // notification en fournit toujours un.
+            $url = $urlOverride ?? route('organization.loops.show', [
+                'organization' => $loop->organization?->slug ?? $loop->organization_id,
+                'loop' => $loop->slug ?: $loop->getKey(),
+            ]);
 
             return $this->rendreGabarit(
                 slug: 'loop_member_added',

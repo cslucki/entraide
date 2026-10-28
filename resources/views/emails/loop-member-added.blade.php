@@ -25,10 +25,6 @@
         @endif
     </p>
 
-    @if($loop->tagline)
-        <p style="color: #6b7280; font-style: italic;">{{ $loop->tagline }}</p>
-    @endif
-
     <p style="margin: 24px 0;">
         <a href="{{ $url }}"
            style="background: #4f46e5; color: #ffffff; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">
