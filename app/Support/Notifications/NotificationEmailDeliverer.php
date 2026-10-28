@@ -3,7 +3,6 @@
 namespace App\Support\Notifications;
 
 use App\Models\EmailLog;
-use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
@@ -274,7 +273,7 @@ final class NotificationEmailDeliverer
         // `loop_invitation`, modifiable par le SuperAdmin, partait aux
         // inconnus par `LoopInvitationMailer`, et un texte generique de cinq
         // lignes partait aux membres de l'Organization par ce chemin-ci.
-        $contenu = $this->rendreDepuisGabarit($notification, $cible, $locale, $destinataire)
+        $contenu = $this->rendreDepuisGabarit($notification, $cible, $locale)
             ?? $this->rendre((string) $notification->notification_key, $locale, $cible);
 
         if ($contenu === null) {
@@ -432,39 +431,9 @@ final class NotificationEmailDeliverer
      *
      * @return array{subject: string, body: string, body_for_log: string}|null
      */
-    private function rendreDepuisGabarit(
-        MemberNotification $notification,
-        string $cible,
-        string $locale,
-        User $destinataire,
-    ): ?array {
-        $cle = (string) $notification->notification_key;
-        $mailer = app(LoopInvitationMailer::class);
-
-        // TASK-1719 — l'ajout DIRECT dans une Boucle.
-        //
-        // Meme gabarit `loop_invitation` (demande MASTER), mais l'objet est la
-        // BOUCLE : il n'existe aucune ligne `loop_invitations` sur ce chemin.
-        if ($cle === NotificationCatalogue::LOOP_MEMBER_ADDED) {
-            $loop = Loop::withoutGlobalScopes()->find((string) $notification->object_id);
-
-            if ($loop === null) {
-                return null;
-            }
-
-            $acteur = $notification->actor_id ? User::find((string) $notification->actor_id) : null;
-
-            $reel = $mailer->composeForMember($loop, $destinataire, $acteur, $cible, $locale);
-            $expurge = $mailer->composeForMember($loop, $destinataire, $acteur, self::LIEN_EXPURGE, $locale);
-
-            return [
-                'subject' => $reel['subject'],
-                'body' => $reel['body'],
-                'body_for_log' => $expurge['body'],
-            ];
-        }
-
-        if ($cle !== NotificationCatalogue::LOOP_INVITATION) {
+    private function rendreDepuisGabarit(MemberNotification $notification, string $cible, string $locale): ?array
+    {
+        if ((string) $notification->notification_key !== NotificationCatalogue::LOOP_INVITATION) {
             return null;
         }
 

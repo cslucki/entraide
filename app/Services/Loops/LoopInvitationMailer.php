@@ -3,9 +3,7 @@
 namespace App\Services\Loops;
 
 use App\Models\EmailLog;
-use App\Models\Loop;
 use App\Models\LoopInvitation;
-use App\Models\User;
 use App\Services\EmailerService;
 use App\Services\LoopInvitationService;
 use App\Support\Email\SystemEmailTemplateResolver;
@@ -124,128 +122,6 @@ class LoopInvitationMailer
      *
      * @return array{subject: string, body: string, fallback_reason: string|null}
      */
-    /**
-     * TASK-1719 — le courriel qui dit « on vous a AJOUTE a cette Boucle ».
-     *
-     * Le MEME gabarit `loop_invitation` que l'invitation, demande explicite de
-     * MASTER. Les variables qu'il interpole ont toutes un sens ici — qui
-     * ajoute, quelle Boucle, quelle Organization — et `invitation_url` pointe
-     * vers la Boucle elle-meme : il n'existe aucun jeton a suivre, la personne
-     * EST deja membre quand elle lit le message.
-     *
-     * `expires_at` repart vide, et c'est juste : un ajout n'expire pas.
-     *
-     * Passe par `rendreGabarit()`, comme `compose()` : la resolution du
-     * gabarit, l'interpolation, le repli et sa trace sont ecrits UNE fois.
-     * Les dupliquer aurait garanti que les deux courriels divergent — ce que
-     * cette TASK existe precisement pour corriger.
-     *
-     * @return array{subject: string, body: string, fallback_reason: string|null}
-     */
-    public function composeForMember(
-        Loop $loop,
-        User $membre,
-        ?User $acteur = null,
-        ?string $urlOverride = null,
-        ?string $locale = null,
-    ): array {
-        $langue = $locale ?: app()->getLocale();
-        $langueOrigine = app()->getLocale();
-        app()->setLocale($langue);
-
-        try {
-            $organization = $loop->organization;
-            $url = $urlOverride ?? $loop->workspaceUrl();
-
-            return $this->rendreGabarit(
-                organizationId: (string) $loop->organization_id,
-                langue: $langue,
-                sender: $acteur,
-                vars: [
-                    'recipient_name' => $membre->publicDisplayName(),
-                    'recipient_email' => $membre->email,
-                    'sender_name' => $acteur?->fullName ?? '',
-                    'organization_name' => $organization?->name ?? '',
-                    'loop_name' => $loop->name ?? '',
-                    'loop_tagline' => $loop->tagline ?? '',
-                    'personal_message' => __('loops.member_added_default_message', ['loop' => $loop->name]),
-                    'invitation_url' => $url,
-                    'expires_at' => '',
-                    'app_name' => config('app.name'),
-                ],
-                repli: fn () => [
-                    'subject' => __('loops.member_added_mail_subject', ['loop' => $loop->name]),
-                    'html' => view('emails.loop-member-added', [
-                        'loop' => $loop,
-                        'organization' => $organization,
-                        'membre' => $membre,
-                        'acteur' => $acteur,
-                        'url' => $url,
-                    ])->render(),
-                ],
-            );
-        } finally {
-            app()->setLocale($langueOrigine);
-        }
-    }
-
-    /**
-     * TASK-1719 — resoudre le gabarit `loop_invitation`, l'interpoler, et
-     * retomber proprement. En UN seul endroit.
-     *
-     * Les deux courriels — invitation et ajout direct — partagent ce bloc.
-     * L'avoir recopie aurait garanti qu'ils divergent sur le gabarit choisi,
-     * sur les variables admises, ou sur ce qui est journalise quand le repli
-     * sert.
-     *
-     * @param  array<string, string>  $vars
-     * @param  callable(): array{subject: string, html: string}  $repli
-     * @return array{subject: string, body: string, fallback_reason: string|null}
-     */
-    private function rendreGabarit(
-        string $organizationId,
-        string $langue,
-        ?User $sender,
-        array $vars,
-        callable $repli,
-    ): array {
-        $resolver = app(SystemEmailTemplateResolver::class);
-        $template = $resolver->resolve('loop_invitation', $organizationId, $langue);
-
-        $emailer = app(EmailerService::class);
-        $extraKeys = array_keys($vars);
-        $vars = array_merge($sender ? $emailer->availableVariables($sender) : [], $vars);
-
-        $fallbackReason = null;
-        $subject = null;
-        $html = null;
-
-        if ($template) {
-            try {
-                $subject = $emailer->interpolateSubject($template->subject, $vars, $extraKeys);
-                $html = $emailer->interpolate($template->content_html, $vars, $extraKeys);
-            } catch (\Throwable $e) {
-                $fallbackReason = 'render_error: '.$e->getMessage();
-            }
-        } else {
-            $fallbackReason = $resolver->diagnoseAbsence('loop_invitation', $organizationId);
-        }
-
-        if ($fallbackReason !== null) {
-            Log::warning('loop_invitation e-mail fell back to the Blade template', [
-                'reason' => $fallbackReason,
-                'organization_id' => $organizationId,
-                'locale' => $langue,
-            ]);
-
-            $secours = $repli();
-            $subject = $secours['subject'];
-            $html = $secours['html'];
-        }
-
-        return ['subject' => $subject, 'body' => $html, 'fallback_reason' => $fallbackReason];
-    }
-
     public function compose(LoopInvitation $invitation, ?string $urlOverride = null, ?string $locale = null): array
     {
         // TASK-1719 — la langue TRAVERSE la composition.
