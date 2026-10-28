@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\AdminUserBulkCreationController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
+use App\Http\Controllers\Admin\AdminRoadmapController;
 use App\Http\Controllers\Admin\AdminLoopPermissionController;
 use App\Http\Controllers\Admin\AdminLoopPluginController;
 use App\Http\Controllers\LoopPluginController;
@@ -602,6 +603,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users/{user}/avatar', [AdminController::class, 'updateUserAvatar'])->name('users.avatar.update');
     Route::patch('/users/{user}/toggle-availability', [AdminController::class, 'toggleUserAvailability'])->name('users.toggle-availability');
     Route::patch('/users/{user}/toggle-admin', [AdminController::class, 'toggleUserAdmin'])->name('users.toggle-admin');
+    // TASK-1718 volet 2 — la Roadmap de toutes les Organizations.
+    //
+    // Dans le groupe `/admin`, donc derriere `is_admin` comme les vingt autres
+    // ecrans plateforme. Aucun nouveau modele : `LoopRoadmapItem` est lu tel
+    // quel, et le scope de tenant est leve EXPLICITEMENT dans le controleur.
+    Route::get('/roadmap', [AdminRoadmapController::class, 'index'])->name('roadmap');
+    Route::put('/roadmap/{item}', [AdminRoadmapController::class, 'update'])->name('roadmap.update');
+    Route::delete('/roadmap/{item}', [AdminRoadmapController::class, 'destroy'])->name('roadmap.destroy');
+
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
     Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');
     // TASK-1716 — la reouverture d'un compte ferme par son proprietaire.

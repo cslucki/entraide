@@ -1909,4 +1909,26 @@ return [
     // TASK-1693 bug Z
     'user_slug' => 'Adresse publique du profil',
     'user_slug_help' => 'Lettres minuscules, chiffres et tirets. L\'ancienne adresse restera réservée à cette personne et continuera de rediriger.',
+
+    // TASK-1718 volet 2 — la Roadmap transversale du SuperAdmin.
+    'roadmap_nav' => 'Roadmap',
+    'roadmap_title' => 'Roadmap — toutes les organisations',
+    'roadmap_filter_organization' => 'Organisation',
+    'roadmap_filter_loop' => 'Boucle',
+    'roadmap_all_organizations' => 'Toutes les organisations',
+    'roadmap_all_loops' => 'Toutes les boucles',
+    'roadmap_filter' => 'Filtrer',
+    'roadmap_clear' => 'Effacer',
+    'roadmap_col_task' => 'Tâche',
+    'roadmap_col_loop' => 'Boucle',
+    'roadmap_col_organization' => 'Organisation',
+    'roadmap_col_author' => 'Auteur',
+    'roadmap_col_actions' => 'Actions',
+    'roadmap_save' => 'Enregistrer',
+    'roadmap_delete' => 'Supprimer',
+    'roadmap_delete_confirm' => 'Supprimer définitivement cette tâche ? Elle disparaîtra de la Roadmap de sa Boucle.',
+    'roadmap_updated' => 'Tâche mise à jour.',
+    'roadmap_deleted' => 'Tâche supprimée.',
+    'roadmap_empty' => 'Aucune tâche pour ce filtre.',
+    'roadmap_count' => '{0} Aucune tâche|{1} 1 tâche|[2,*] :count tâches',
 ];
