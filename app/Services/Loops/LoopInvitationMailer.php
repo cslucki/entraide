@@ -47,10 +47,99 @@ class LoopInvitationMailer
             return;
         }
 
+        $compose = $this->compose($invitation);
+
+        $subject = $compose['subject'];
+        $html = $compose['body'];
+        $fallbackReason = $compose['fallback_reason'];
+
+        $logData = [
+            'source' => 'loop-invitation',
+            'invitation_id' => $invitation->id,
+            'loop_id' => $invitation->loop_id,
+            'organization_id' => $invitation->organization_id,
+            'invitation_type' => $invitation->invitation_type,
+            'recipient_email' => $invitation->recipient_email,
+            'template_used' => $fallbackReason === null ? 'system_email_template' : 'blade_fallback',
+            'fallback_reason' => $fallbackReason,
+        ];
+
+        try {
+            Mail::html($html, function ($message) use ($invitation, $subject) {
+                $message->to($invitation->recipient_email)->subject($subject);
+            });
+
+            EmailLog::create([
+                'user_id' => $invitation->sender_id,
+                'organization_id' => $invitation->organization_id,
+                'to_email' => $invitation->recipient_email,
+                'subject' => $subject,
+                'status' => 'sent',
+                'data' => $logData,
+            ]);
+        } catch (\Throwable $e) {
+            // The invitation row is already persisted and its link stays valid,
+            // so a delivery failure is recoverable by re-sending; it must be
+            // recorded rather than swallowed.
+            EmailLog::create([
+                'user_id' => $invitation->sender_id,
+                'organization_id' => $invitation->organization_id,
+                'to_email' => $invitation->recipient_email,
+                'subject' => $subject,
+                'status' => 'failed',
+                'error_message' => $e->getMessage(),
+                'data' => $logData,
+            ]);
+        }
+    }
+
+    /**
+     * TASK-1719 — CE QUE DIT un courriel d'invitation a une Boucle, en un seul
+     * endroit.
+     *
+     * Extrait de `send()` sans une ligne de changement, pour une raison
+     * precise. Depuis TASK-1378, une invitation adressee a un membre de
+     * l'Organization ne passe plus par `send()` mais par le pipeline
+     * Notifications. Or ce pipeline composait son corps depuis
+     * `lang/<locale>/notifications.php` — un texte generique de cinq lignes — et
+     * IGNORAIT le gabarit `loop_invitation` que le SuperAdmin administre dans
+     * `/admin/system-email-templates`.
+     *
+     * Deux textes pour le meme fait, donc, selon que l'invite avait un compte
+     * ou non : celui qu'on peut modifier partait aux inconnus, celui qu'on ne
+     * peut pas partait aux membres. MASTER : « Reutiliser OBLIGATOIREMENT le
+     * template systeme `loop_invitation` ».
+     *
+     * Rendre cette composition publique est la facon la moins chere de le
+     * corriger : `NotificationEmailDeliverer` l'appelle au lieu de recopier
+     * dix variables et un repli, et il n'existe plus qu'UNE autorite sur ce
+     * texte.
+     *
+     * `$urlOverride` sert le JOURNAL. Le pipeline archive un corps expurge de
+     * son jeton : composer deux fois — une avec le vrai lien, une avec le lien
+     * masque — est plus sur que d'essayer de retirer un jeton d'un HTML deja
+     * interpole.
+     *
+     * @return array{subject: string, body: string, fallback_reason: string|null}
+     */
+    public function compose(LoopInvitation $invitation, ?string $urlOverride = null, ?string $locale = null): array
+    {
+        // TASK-1719 — la langue TRAVERSE la composition.
+        //
+        // Le pipeline Notifications fige la langue du destinataire au moment
+        // de l'envoi : c'est la seule qu'on pourra affirmer plus tard. Sans la
+        // faire descendre jusqu'ici, le gabarit serait choisi — et le repli
+        // traduit — dans la langue de l'EXPEDITEUR, ce qui est la langue de
+        // personne. `null` garde le comportement de `send()`, inchange.
+        $langue = $locale ?: app()->getLocale();
+        $langueOrigine = app()->getLocale();
+        app()->setLocale($langue);
+
+        try {
         $loop = $invitation->loop;
         $organization = $invitation->organization;
         $sender = $invitation->sender;
-        $landingUrl = route('loop-invitations.show', $invitation->token);
+        $landingUrl = $urlOverride ?? route('loop-invitations.show', $invitation->token);
         $personalMessage = filled($invitation->message)
             ? $invitation->message
             : __('loops.invitation_default_message', ['loop' => $loop?->name]);
@@ -60,7 +149,7 @@ class LoopInvitationMailer
         // invisible. Les crans et leur ordre : voir
         // `SystemEmailTemplateResolver`.
         $resolver = app(SystemEmailTemplateResolver::class);
-        $template = $resolver->resolve('loop_invitation', $invitation->organization_id);
+        $template = $resolver->resolve('loop_invitation', $invitation->organization_id, $langue);
 
         $emailer = app(EmailerService::class);
         $extraKeys = [
@@ -119,43 +208,16 @@ class LoopInvitationMailer
             ])->render();
         }
 
-        $logData = [
-            'source' => 'loop-invitation',
-            'invitation_id' => $invitation->id,
-            'loop_id' => $invitation->loop_id,
-            'organization_id' => $invitation->organization_id,
-            'invitation_type' => $invitation->invitation_type,
-            'recipient_email' => $invitation->recipient_email,
-            'template_used' => $fallbackReason === null ? 'system_email_template' : 'blade_fallback',
-            'fallback_reason' => $fallbackReason,
-        ];
 
-        try {
-            Mail::html($html, function ($message) use ($invitation, $subject) {
-                $message->to($invitation->recipient_email)->subject($subject);
-            });
-
-            EmailLog::create([
-                'user_id' => $invitation->sender_id,
-                'organization_id' => $invitation->organization_id,
-                'to_email' => $invitation->recipient_email,
+        return [
                 'subject' => $subject,
-                'status' => 'sent',
-                'data' => $logData,
-            ]);
-        } catch (\Throwable $e) {
-            // The invitation row is already persisted and its link stays valid,
-            // so a delivery failure is recoverable by re-sending; it must be
-            // recorded rather than swallowed.
-            EmailLog::create([
-                'user_id' => $invitation->sender_id,
-                'organization_id' => $invitation->organization_id,
-                'to_email' => $invitation->recipient_email,
-                'subject' => $subject,
-                'status' => 'failed',
-                'error_message' => $e->getMessage(),
-                'data' => $logData,
-            ]);
+                'body' => $html,
+                'fallback_reason' => $fallbackReason,
+            ];
+        } finally {
+            // Restauree quoi qu'il arrive : composer un courriel ne doit pas
+            // laisser la requete en cours dans une autre langue.
+            app()->setLocale($langueOrigine);
         }
     }
 }
