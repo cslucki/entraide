@@ -10,6 +10,7 @@ use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\MemberNotification;
 use App\Models\Organization;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -49,6 +50,8 @@ class NotificationTargetResolver
         return match ($notification->object_type) {
             NotificationCatalogue::OBJECT_LOOP_INVITATION => $this->loopInvitation($notification),
             NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST => $this->loopJoinRequest($notification),
+            // TASK-1719 — l'ajout direct mene a la Boucle elle-meme.
+            NotificationCatalogue::OBJECT_LOOP => $this->loop($notification),
             NotificationCatalogue::OBJECT_BLOG_COMMENT => $this->blogComment($notification),
             NotificationCatalogue::OBJECT_BLOG_POST => $this->blogPost($notification),
             default => null,
@@ -71,7 +74,12 @@ class NotificationTargetResolver
             return null;
         }
 
+        // TASK-1720 volet A — meme retrait de scope, meme raison : ce code
+        // tourne aussi sous worker, ou `current_organization` n'existe pas et
+        // ou le fail-closed du scope rendrait cet objet introuvable. La borne
+        // de tenant est posee explicitement juste en dessous.
         $invitation = LoopInvitation::query()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
             ->whereKey($notification->object_id)
             // La frontiere de tenant est reverifiee ICI aussi. Elle l'etait deja
             // a l'ecriture, mais une notification peut survivre a bien des
@@ -119,13 +127,97 @@ class NotificationTargetResolver
      * repondrait 404 ; on rend `null` et le Centre le dit honnetement, plutot
      * que d'envoyer quelqu'un sur une porte close.
      */
+    /**
+     * TASK-1719 — la cible d'un ajout direct : la Boucle.
+     *
+     * Les memes verifications que `loopJoinRequest()`, et pour les memes
+     * raisons — le tenant du destinataire est relu HORS Eloquent parce que ce
+     * code tourne aussi sous worker, ou aucune portee globale ne s'applique.
+     *
+     * Une difference, et elle compte : la personne vient d'etre AJOUTEE, donc
+     * son appartenance active est la condition normale et non une faveur. Si
+     * elle ne l'est plus — retiree entre l'ajout et l'envoi —, la cible devient
+     * nulle et la livraison est sautee plutot que d'annoncer un lien qui
+     * refusera.
+     */
+    private function loop(MemberNotification $notification): ?string
+    {
+        if ($notification->object_id === null) {
+            return null;
+        }
+
+        // TASK-1720 volet A — le scope de tenant est RETIRE, et la borne
+        // ecrite a la main juste en dessous.
+        //
+        // Ce code tourne dans un WORKER. Il n'y a alors aucune
+        // `current_organization`, donc `BelongsToOrganizationScope` applique
+        // son fail-closed `whereRaw('0 = 1')` et la Boucle ressort
+        // INTROUVABLE — en silence. La livraison etait sautee avec le
+        // diagnostic « cible plus joignable », qui est vrai du point de vue du
+        // resolveur et trompeur pour qui le lit.
+        //
+        // Meme doctrine que `NotificationInvariants`, dont le docblock la
+        // formule : « une garde d'integrite ne doit dependre d'aucun scope
+        // global [...] elle doit rendre le meme verdict dans une requete HTTP,
+        // dans un job de file d'attente et dans une commande artisan. »
+        //
+        // La frontiere de tenant n'est pas affaiblie : le `where
+        // organization_id` ci-dessous la pose explicitement, et il est le seul
+        // a decider.
+        $boucle = Loop::query()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->whereKey($notification->object_id)
+            ->where('organization_id', $notification->organization_id)
+            ->first();
+
+        if ($boucle === null) {
+            return null;
+        }
+
+        $tenantDuDestinataire = DB::table('users')
+            ->where('id', $notification->recipient_id)
+            ->value('organization_id');
+
+        if ($tenantDuDestinataire !== $notification->organization_id) {
+            return null;
+        }
+
+        $estMembreActif = LoopMember::query()
+            ->where('loop_id', $boucle->id)
+            ->where('user_id', $notification->recipient_id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $estMembreActif) {
+            return null;
+        }
+
+        $organisation = Organization::query()
+            ->whereKey($notification->organization_id)
+            ->first();
+
+        if ($organisation === null) {
+            return null;
+        }
+
+        return route('organization.loops.show', [
+            'organization' => $organisation,
+            'loop' => $boucle,
+        ]);
+    }
+
     private function loopJoinRequest(MemberNotification $notification): ?string
     {
         if ($notification->object_id === null) {
             return null;
         }
 
+        // TASK-1720 volet A — meme retrait de scope, meme raison : ce code
+        // tourne aussi sous worker, ou `current_organization` n'existe pas et
+        // ou le fail-closed du scope rendrait cet objet introuvable. La borne
+        // de tenant est posee explicitement juste en dessous.
         $demande = LoopJoinRequest::query()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
             ->whereKey($notification->object_id)
             ->where('organization_id', $notification->organization_id)
             ->first();
@@ -134,7 +226,26 @@ class NotificationTargetResolver
             return null;
         }
 
+        // TASK-1720 volet A — le scope de tenant est RETIRE, et la borne
+        // ecrite a la main juste en dessous.
+        //
+        // Ce code tourne dans un WORKER. Il n'y a alors aucune
+        // `current_organization`, donc `BelongsToOrganizationScope` applique
+        // son fail-closed `whereRaw('0 = 1')` et la Boucle ressort
+        // INTROUVABLE — en silence. La livraison etait sautee avec le
+        // diagnostic « cible plus joignable », qui est vrai du point de vue du
+        // resolveur et trompeur pour qui le lit.
+        //
+        // Meme doctrine que `NotificationInvariants`, dont le docblock la
+        // formule : « une garde d'integrite ne doit dependre d'aucun scope
+        // global [...] elle doit rendre le meme verdict dans une requete HTTP,
+        // dans un job de file d'attente et dans une commande artisan. »
+        //
+        // La frontiere de tenant n'est pas affaiblie : le `where
+        // organization_id` ci-dessous la pose explicitement, et il est le seul
+        // a decider.
         $boucle = Loop::query()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
             ->whereKey($demande->loop_id)
             ->where('organization_id', $notification->organization_id)
             ->first();

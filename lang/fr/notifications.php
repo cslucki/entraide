@@ -47,6 +47,7 @@ return [
         // TASK-1697
         'blog_comment_created' => 'Un nouveau commentaire sur votre article',
         'loop_invitation' => 'Invitation à rejoindre une Boucle',
+        'loop_member_added' => 'Ajout a une Boucle',
 
         // TASK-1381 — deux libellés, parce que ce sont deux faits. Le membre
         // doit savoir ce qui lui est arrivé sans avoir à ouvrir quoi que ce soit.
@@ -81,6 +82,14 @@ return [
                 .'<p><a href=":url">Voir l\'invitation</a></p>'
                 .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
                 .'<p>À bientôt,<br>L\'équipe BouclePro</p>',
+        ],
+        'loop_member_added' => [
+            'subject' => 'Vous avez ete ajoute a une Boucle',
+            'body' => '<p>Bonjour,</p>'
+                .'<p>Vous avez ete ajoute a une Boucle sur BouclePro. Vous en etes desormais membre.</p>'
+                .'<p><a href=":url">Ouvrir la Boucle</a></p>'
+                .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
+                .'<p>A bientot,<br>L\'equipe BouclePro</p>',
         ],
     ],
 ];

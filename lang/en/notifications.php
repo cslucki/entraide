@@ -47,6 +47,7 @@ return [
         // TASK-1697
         'blog_comment_created' => 'A new comment on your article',
         'loop_invitation' => 'Invitation to join a Loop',
+        'loop_member_added' => 'Added to a Loop',
 
         // TASK-1381 — two labels, because these are two facts. The member must
         // know what happened without having to open anything.
@@ -79,6 +80,14 @@ return [
             'body' => '<p>Hello,</p>'
                 .'<p>You have been invited to join a loop on BouclePro.</p>'
                 .'<p><a href=":url">View the invitation</a></p>'
+                .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
+                .'<p>See you soon,<br>The BouclePro team</p>',
+        ],
+        'loop_member_added' => [
+            'subject' => 'You have been added to a Loop',
+            'body' => '<p>Hello,</p>'
+                .'<p>You have been added to a Loop on BouclePro. You are now a member.</p>'
+                .'<p><a href=":url">Open the Loop</a></p>'
                 .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
                 .'<p>See you soon,<br>The BouclePro team</p>',
         ],

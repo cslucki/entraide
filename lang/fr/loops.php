@@ -1572,4 +1572,12 @@ return [
     'invitation_refused_email_unverified' => 'Cette personne a deja un compte, mais son adresse e-mail n\'est pas encore verifiee. Elle ne peut pas rejoindre une Boucle tant qu\'elle ne l\'a pas confirmee.',
     'invitation_refused_pending_approval' => 'Cette personne a deja un compte, mais il attend la validation d\'un administrateur. Elle pourra rejoindre une Boucle une fois son compte valide.',
     'invitation_refused_account_closed' => 'Ce compte est ferme ou suspendu : il ne peut pas rejoindre une Boucle.',
+    // TASK-1719 — l'ajout direct dans une Boucle (repli Blade).
+    'member_added_default_message' => 'Vous avez ete ajoute a la Boucle :loop.',
+    'member_added_mail_subject' => 'Vous avez ete ajoute a la Boucle :loop',
+    'member_added_mail_hello' => 'Bonjour :name,',
+    'member_added_mail_body_with_actor' => ':actor vous a ajoute a la Boucle « :loop » sur :organization. Vous en etes desormais membre.',
+    'member_added_mail_body' => 'Vous avez ete ajoute a la Boucle « :loop » sur :organization. Vous en etes desormais membre.',
+    'member_added_mail_cta' => 'Ouvrir la Boucle',
+    'member_added_mail_plain_link' => 'Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :',
 ];
