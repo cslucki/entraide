@@ -160,7 +160,7 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
       @else
         {{-- TASK-1720 — menu de compte, partiel partage par les trois
              gabarits de homepage autonomes. --}}
-        @include('organization.partials.account-menu', ['organization' => $organization, 'triggerClass' => 'nav-dashboard'])
+        @include('organization.partials.account-menu', ['organization' => $organization])
       @endguest
     </nav>
 
@@ -182,7 +182,7 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
         <a href="{{ $urlConnexion }}">{{ org_trans('ofsh.nav_login') }}</a>
         <a class="nav-dashboard" href="{{ $urlInscription }}">{{ org_trans('ofsh.cta_join') }}</a>
       @else
-        @include('organization.partials.account-menu', ['organization' => $organization, 'triggerClass' => 'nav-dashboard'])
+        @include('organization.partials.account-menu', ['organization' => $organization])
       @endguest
     </nav>
   </header>

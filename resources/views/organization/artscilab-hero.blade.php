@@ -82,7 +82,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
         @else
           {{-- TASK-1720 — meme menu de compte que les deux autres gabarits
                autonomes, par le partiel partage. --}}
-          @include('organization.partials.account-menu', ['organization' => $organization, 'triggerClass' => ''])
+          @include('organization.partials.account-menu', ['organization' => $organization])
         @endguest
       </nav>
     </div>

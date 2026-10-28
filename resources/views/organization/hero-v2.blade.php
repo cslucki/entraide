@@ -97,7 +97,7 @@ $secondaryCtaUrl = $showInternalHomepageContent
 
                Le menu est un PARTIEL partage par les trois gabarits de
                homepage autonomes : voir son en-tete pour le pourquoi. --}}
-          @include('organization.partials.account-menu', ['organization' => $organization, 'triggerClass' => 'btn-join'])
+          @include('organization.partials.account-menu', ['organization' => $organization])
         @endguest
       </nav>
       <button class="burger" aria-label="{{ __('common.open_menu') }}" aria-expanded="false" aria-controls="m-menu"><i class="ti ti-menu-2"></i></button>
@@ -117,7 +117,7 @@ $secondaryCtaUrl = $showInternalHomepageContent
     @guest
       <a href="{{ route('organization.login', $organization) }}" class="btn-join">{{ org_trans('hero.nav_login') }}</a>
     @else
-      @include('organization.partials.account-menu', ['organization' => $organization, 'triggerClass' => 'btn-join'])
+      @include('organization.partials.account-menu', ['organization' => $organization])
     @endguest
     <div class="m-lang" aria-label="Langue / Language">
       @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)

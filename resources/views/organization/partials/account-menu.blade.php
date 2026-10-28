@@ -30,9 +30,10 @@
     - `$organization` : l'Organization de la page. Les trois liens sont
       ORG-SCOPES, avec repli sur la route globale quand elle n'existe pas sous
       sa forme org — meme idiome que le rail gauche.
-    - `$triggerClass` : la classe de bouton du gabarit hote (`btn-join`,
-      `btn-join--outline`, `nav-dashboard`...), pour que le declencheur garde
-      exactement l'allure du bouton qu'il remplace.
+    Il n'y a plus de `$triggerClass` : le declencheur est un avatar rond,
+    identique sur les trois gabarits, et ne se fait plus habiller par aucun
+    d'eux. C'est ce qui avait produit le « noir et plus petit » de LaunchPals,
+    dont le bouton est declare sur la balise `a.btn-join--outline`.
 --}}
 @php
     $org = $organization->slug;
@@ -54,16 +55,35 @@
 @endphp
 
 <div class="bpam" data-marqueur="menu-compte-accueil">
+    {{-- Le declencheur est l'AVATAR, comme au rail gauche. Un libelle
+         « Tableau de bord » nommait une seule des cinq destinations du menu et
+         pesait la largeur d'un bouton dans une barre deja chargee. --}}
     <button type="button"
-            class="bpam-trigger {{ $triggerClass ?? '' }}"
+            class="bpam-trigger"
             aria-expanded="false"
             aria-haspopup="true"
             aria-label="{{ __('navigation.user_menu') }}">
-        {{ __('navigation.dashboard') }}
-        <span class="bpam-caret" aria-hidden="true"></span>
+        <img src="{{ auth()->user()->avatar_url }}" alt="{{ auth()->user()->full_name }}" class="bpam-avatar">
+        {{-- La pastille suit `is_available` et la meme garde que le rail
+             (TASK-1694 bug AF) : une Organization qui a decoche la
+             disponibilite ne doit pas voir d'indicateur ici non plus. --}}
+        @if(availabilityIsShown())
+            <span class="bpam-dot {{ auth()->user()->is_available ? 'bpam-dot--on' : '' }}"
+                  data-availability-dot="{{ auth()->user()->is_available ? 'available' : 'unavailable' }}"></span>
+        @endif
     </button>
 
     <div class="bpam-panel" hidden>
+        {{-- L'en-tete dit QUI est connecte. Le libelle du bouton le disait
+             jusqu'ici par sa seule presence ; l'avatar seul ne suffit pas a
+             lever le doute sur un poste partage. --}}
+        <div class="bpam-head">
+            <img src="{{ auth()->user()->avatar_url }}" alt="" class="bpam-head-avatar" aria-hidden="true">
+            <span class="bpam-head-text">
+                <strong>{{ auth()->user()->full_name }}</strong>
+                <span>{{ auth()->user()->points_balance }} pts</span>
+            </span>
+        </div>
         @foreach($entrees as $entree)
             <a href="{{ $entree['url'] }}" class="bpam-item">{{ $entree['label'] }}</a>
         @endforeach
@@ -92,14 +112,26 @@
    widget dit la bonne chose : ce panneau ne s'habille pas chez l'hote.
 */
 .bpam{position:relative;display:inline-block}
-/* Base NEUTRE du declencheur. Un `<button>` sans cela retombe sur le style
-   natif du navigateur — texte noir, 13,3px — des que la regle de l'hote est
-   scopee sur la balise `a`. C'est ce qui est arrive sur LaunchPals, dont le
-   bouton est declare `a.btn-join--outline`. L'apparence reste decidee par
-   l'hote, via `$triggerClass` ou une regle visant `.bpam-trigger`. */
-.bpam-trigger{display:inline-flex;align-items:center;gap:7px;cursor:pointer;font:inherit;color:inherit;background:none;border:0;padding:0}
-.bpam-caret{width:0;height:0;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:5px solid currentColor;opacity:.65;transition:transform .15s}
-.bpam-trigger[aria-expanded="true"] .bpam-caret{transform:rotate(180deg)}
+/* Le declencheur est un AVATAR, pas un bouton de l'hote. Il ne depend donc
+   plus d'aucune classe du gabarit : plus de `$triggerClass`, et plus de
+   regression possible du genre « noir et plus petit » — le `<button>` est
+   entierement remis a plat ici. */
+.bpam-trigger{position:relative;display:inline-flex;align-items:center;justify-content:center;
+  width:40px;height:40px;padding:0;border:0;border-radius:50%;cursor:pointer;
+  background:rgba(255,255,255,.92);box-shadow:0 2px 10px rgba(20,24,60,.18);
+  transition:transform .14s, box-shadow .2s}
+.bpam-trigger:hover{transform:scale(1.06);box-shadow:0 6px 18px rgba(20,24,60,.26)}
+.bpam-avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;display:block}
+.bpam-dot{position:absolute;right:0;bottom:0;width:11px;height:11px;border-radius:50%;
+  background:#9AA0AE;border:2px solid #fff}
+.bpam-dot--on{background:#10B981}
+.bpam-head{display:flex;align-items:center;gap:10px;padding:8px 10px 11px;margin-bottom:5px;
+  border-bottom:1px solid rgba(20,24,60,.09)}
+.bpam-head-avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;flex:0 0 auto}
+.bpam-head-text{min-width:0;display:block}
+.bpam-head-text strong{display:block;font-size:13.5px;line-height:1.25;color:#14183C !important;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bpam-head-text span{display:block;font-size:11.5px;line-height:1.3;margin-top:2px;color:#7A8098 !important}
 .bpam-panel{
   position:absolute;right:0;top:calc(100% + 10px);z-index:200;width:232px;
   background:#fff;border:1px solid rgba(20,24,60,.10);border-radius:18px;padding:7px;
@@ -119,6 +151,10 @@ html.dark .bpam-panel{background:#24263D;border-color:rgba(255,255,255,.10)}
 html.dark .bpam-item{color:#C9CCDC !important}
 html.dark .bpam-item:hover{background:rgba(255,255,255,.07) !important;color:#fff !important}
 html.dark .bpam-logout{border-top-color:rgba(255,255,255,.12)}
+html.dark .bpam-head{border-bottom-color:rgba(255,255,255,.12)}
+html.dark .bpam-head-text strong{color:#F2F4FA !important}
+html.dark .bpam-head-text span{color:#9DA3B8 !important}
+html.dark .bpam-dot{border-color:#24263D}
 </style>
 
 <script>
