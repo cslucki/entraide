@@ -1525,4 +1525,10 @@ return [
     'plugins_models_type_paid' => 'Approved paid',
     'plugins_models_paid_rejected' => ':model cannot be approved: not on the shortlist, rate not recorded, or unknown to the catalog. Nothing was saved.',
     'plugins_models_fail_closed' => 'Until an assistant has a verified free model, it generates nothing. There is no automatic fallback to another model.',
+
+    // TASK-1717 — le slug de la Boucle, visible et modifiable.
+    'slug_label' => 'Loop address (slug)',
+    'slug_placeholder' => 'my-loop',
+    'slug_help' => 'Appears in the URL. Lowercase letters, digits and hyphens. Leave empty to keep the current address.',
+    'slug_cannot_be_uuid' => 'This address cannot look like a technical identifier.',
 ];

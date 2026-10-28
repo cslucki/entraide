@@ -2194,7 +2194,7 @@
                         </ul>
 
                         @if($gouvernant->loop)
-                            <a href="{{ route('organization.loops.show', ['organization' => $orgParam, 'loop' => $gouvernant->loop]) }}"
+                            <a href="{{ route('organization.loops.show', ['organization' => $orgParam, 'loop' => $gouvernant->loop->slug ?: $gouvernant->loop->getKey()]) }}"
                                class="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">
                                 {{ __('dossiers.share_manage_loop_members') }} →
                             </a>

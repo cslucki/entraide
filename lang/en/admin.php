@@ -1884,4 +1884,26 @@ return [
     // TASK-1693 bug Z
     'user_slug' => 'Public profile address',
     'user_slug_help' => 'Lowercase letters, digits and hyphens. The previous address stays reserved to this person and keeps redirecting.',
+
+    // TASK-1718 volet 2 — la Roadmap transversale du SuperAdmin.
+    'roadmap_nav' => 'Roadmap',
+    'roadmap_title' => 'Roadmap — all organizations',
+    'roadmap_filter_organization' => 'Organization',
+    'roadmap_filter_loop' => 'Loop',
+    'roadmap_all_organizations' => 'All organizations',
+    'roadmap_all_loops' => 'All loops',
+    'roadmap_filter' => 'Filter',
+    'roadmap_clear' => 'Clear',
+    'roadmap_col_task' => 'Task',
+    'roadmap_col_loop' => 'Loop',
+    'roadmap_col_organization' => 'Organization',
+    'roadmap_col_author' => 'Author',
+    'roadmap_col_actions' => 'Actions',
+    'roadmap_save' => 'Save',
+    'roadmap_delete' => 'Delete',
+    'roadmap_delete_confirm' => 'Permanently delete this task? It will disappear from its Loop\'s roadmap.',
+    'roadmap_updated' => 'Task updated.',
+    'roadmap_deleted' => 'Task deleted.',
+    'roadmap_empty' => 'No task for this filter.',
+    'roadmap_count' => '{0} No task|{1} 1 task|[2,*] :count tasks',
 ];
