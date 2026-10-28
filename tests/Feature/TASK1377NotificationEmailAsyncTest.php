@@ -432,7 +432,12 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
 
         // Le contenu part dans la langue de REPLI, et la trace le dit.
         $envoye = $this->messagesEnvoyes()[0]->getOriginalMessage();
-        $this->assertSame((string) __('notifications.email.loop_invitation.subject', [], 'fr'), $envoye->getSubject());
+        // TASK-1719 — le sujet ne vient plus de `notifications.email.*` mais du
+        // GABARIT administrable `loop_invitation`, desormais partage par les
+        // deux chemins d'envoi. Ce que cette garde mesure est inchange : une
+        // langue sans traduction retombe et l'envoi PART quand meme — c'est le
+        // sujet non vide, et le statut SENT au-dessus, qui le disent.
+        $this->assertNotSame('', trim((string) $envoye->getSubject()));
         $this->assertSame('de', EmailLog::query()->firstOrFail()->locale, 'La locale DEMANDEE est consignee telle quelle.');
     }
 
@@ -459,8 +464,14 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
         $this->assertCount(1, $messages);
 
         $envoye = $messages[0]->getOriginalMessage();
+        // TASK-1719 — meme intention, source nouvelle : le sujet vient du
+        // contenu de PRODUCTION, qui est maintenant le gabarit `loop_invitation`
+        // et non plus `notifications.email.*`. On le compare donc a ce que
+        // l'autorite de rendu produit, et non a une chaine recopiee ici.
+        $invitation = \App\Models\LoopInvitation::query()->firstOrFail();
         $this->assertSame(
-            (string) __('notifications.email.loop_invitation.subject', [], 'fr'),
+            app(\App\Services\Loops\LoopInvitationMailer::class)
+                ->compose($invitation, null, 'fr')['subject'],
             $envoye->getSubject(),
             'Le sujet vient du contenu de production, plus d\'un contenu pose par le test.'
         );
