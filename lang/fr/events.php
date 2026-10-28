@@ -85,7 +85,6 @@ return [
 
     // ── Agenda Organization ─────────────────────────────────────────────────
     'agenda_title' => 'Agenda',
-    'agenda_subtitle' => 'Les rencontres de vos Boucles, et celles ouvertes à toute l\'Organisation.',
     'agenda_empty' => 'Aucune rencontre à afficher.',
 
     // TASK-1706 — organiser depuis l'agenda. Cyril : « il faut donc passer par
