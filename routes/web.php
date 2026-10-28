@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\AdminUserBulkCreationController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
+use App\Http\Controllers\Admin\AdminRoadmapController;
 use App\Http\Controllers\Admin\AdminLoopPermissionController;
 use App\Http\Controllers\Admin\AdminLoopPluginController;
 use App\Http\Controllers\LoopPluginController;
@@ -443,7 +444,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile/ai-usage/offers', [UserAiUsageController::class, 'offers'])->name('profile.ai-offers');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    // TASK-1716 — `profile.destroy` a DISPARU, ici et dans la forme prefixee
+    // par l'Organization. Elle appelait `$user->delete()` nu, ce qui levait un
+    // 500 pour TOUT compte inscrit (FK RESTRICT sur `point_ledger` depuis
+    // TASK-1635). La fermeture volontaire la remplace : `account.close`, route
+    // GLOBALE et unique, declaree dans `routes/auth.php` — l'action n'a aucune
+    // raison d'etre scopee par Organization, on ne ferme pas un compte « dans
+    // une Organization », on le ferme.
 
     // Member AI Profile wizard
     Route::middleware('ai-profiles.enabled')->group(function () {
@@ -596,8 +603,30 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users/{user}/avatar', [AdminController::class, 'updateUserAvatar'])->name('users.avatar.update');
     Route::patch('/users/{user}/toggle-availability', [AdminController::class, 'toggleUserAvailability'])->name('users.toggle-availability');
     Route::patch('/users/{user}/toggle-admin', [AdminController::class, 'toggleUserAdmin'])->name('users.toggle-admin');
+    // TASK-1718 volet 2 — la Roadmap de toutes les Organizations.
+    //
+    // Dans le groupe `/admin`, donc derriere `is_admin` comme les vingt autres
+    // ecrans plateforme. Aucun nouveau modele : `LoopRoadmapItem` est lu tel
+    // quel, et le scope de tenant est leve EXPLICITEMENT dans le controleur.
+    Route::get('/roadmap', [AdminRoadmapController::class, 'index'])->name('roadmap');
+    Route::put('/roadmap/{item}', [AdminRoadmapController::class, 'update'])->name('roadmap.update');
+    Route::delete('/roadmap/{item}', [AdminRoadmapController::class, 'destroy'])->name('roadmap.destroy');
+
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
     Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');
+    // TASK-1716 — la reouverture d'un compte ferme par son proprietaire.
+    //
+    // Une route a part, et non un drapeau sur `unban` : l'audit des chemins de
+    // reactivation a montre que le geste aveugle etait exactement le probleme.
+    // Deux routes, deux libelles, deux confirmations — l'administrateur sait
+    // laquelle des deux decisions il prend.
+    Route::patch('/users/{user}/reopen', [AdminController::class, 'reopenUser'])->name('users.reopen');
+    // TASK-1716 — la seconde moitie du canal d'effacement : une demande recue
+    // APRES la fermeture (par email, par courrier) devient tracable. La
+    // personne, elle, est deconnectee et ne peut plus rien deposer par le
+    // produit. Cette route n'efface rien — elle enregistre, ou retire, une
+    // DEMANDE.
+    Route::patch('/users/{user}/erasure-request', [AdminController::class, 'recordErasureRequest'])->name('users.erasure-request');
     Route::post('/users/{user}/adjust-points', [AdminController::class, 'adjustPoints'])->name('users.adjust-points');
     // TASK-1693 bug B — valider MANUELLEMENT la verification d'email d'un
     // compte. Geste de DEPANNAGE : il contourne une preuve de possession
@@ -1442,7 +1471,9 @@ Route::prefix('/org/{organization}')
             Route::get('/profile/ai-usage/offers', [UserAiUsageController::class, 'offers'])->name('profile.ai-offers');
             Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
             Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
-            Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+            // TASK-1716 — voir la note sur la forme nue, ligne ~446 : cette
+            // declaration est remplacee par la route globale `account.close`
+            // de `routes/auth.php`.
 
             // Member AI Profile wizard
             Route::middleware('ai-profiles.enabled')->group(function () {

@@ -1219,6 +1219,12 @@ return [
     'governance_demote_member' => 'Repasser membre',
     'governance_actions_for' => 'Actions pour :name',
     'governance_remove' => 'Retirer de la Boucle',
+    // TASK-1720 — la fenetre de confirmation du retrait. Elle NOMME la
+    // consequence : la personne perd l'acces, et rien de ce qu'elle a
+    // ecrit ne disparait. C'est exact — le retrait passe le statut a
+    // `left`, la ligne d'adhesion est conservee.
+    'governance_remove_confirm_title' => 'Retirer cette personne de la Boucle ?',
+    'governance_remove_confirm_body' => ':name perdra l\'accès à cette Boucle. Ses messages et ses contributions restent en place. Vous pourrez l\'ajouter à nouveau plus tard.',
     'governance_last_owner' => 'Dernier propriétaire actif — nommez un autre propriétaire avant de modifier son rôle ou de le retirer.',
     'governance_last_owner_short' => 'Dernier propriétaire actif',
     'governance_creator' => 'Créateur',
@@ -1508,11 +1514,11 @@ return [
     // n'enonce plus d'exemples en dur (ils feraient doublon avec la
     // proposition reelle) ; sans suggestion, on demande une precision
     // plutot que d'inventer une opposition.
-    'plugins_multi_ai_not_applicable_lead' => "Votre question ne contient pas encore une proposition directement exploitable par Pour / Contre. Vous pouvez essayer :",
+    'plugins_multi_ai_not_applicable_lead' => 'Votre question ne contient pas encore une proposition directement exploitable par Pour / Contre. Vous pouvez essayer :',
     'plugins_multi_ai_suggestion_use' => 'Utiliser cette question',
     'plugins_multi_ai_suggestion_replace' => 'Remplacer le texte en cours',
-    'plugins_multi_ai_suggestion_confirm' => "Le composeur contient déjà du texte. Cliquez à nouveau pour le remplacer.",
-    'plugins_multi_ai_not_applicable_precision' => "Pour comparer deux positions, indiquez les deux options que vous souhaitez mettre en regard.",
+    'plugins_multi_ai_suggestion_confirm' => 'Le composeur contient déjà du texte. Cliquez à nouveau pour le remplacer.',
+    'plugins_multi_ai_not_applicable_precision' => 'Pour comparer deux positions, indiquez les deux options que vous souhaitez mettre en regard.',
     'plugins_multi_ai_dismiss' => 'Masquer',
     'plugins_multi_ai_synthesis_question' => 'Compare les réponses obtenues à : :question',
     'plugins_multi_ai_none_enabled' => "Aucun assistant n'est actif dans cette Boucle.",
@@ -1561,4 +1567,23 @@ return [
     'plugins_models_type_paid' => 'Payant approuvé',
     'plugins_models_paid_rejected' => ":model n'est pas approuvable : hors liste, tarif non relevé ou modèle inconnu du catalogue. Rien n'a été enregistré.",
     'plugins_models_fail_closed' => "Tant qu'un assistant n'a pas de modèle vérifié gratuit, il ne génère rien. Aucun repli automatique vers un autre modèle n'existe.",
+
+    // TASK-1717 — le slug de la Boucle, visible et modifiable.
+    'slug_label' => 'Adresse de la boucle (slug)',
+    'slug_placeholder' => 'ma-boucle',
+    'slug_help' => 'Apparaît dans l\'URL. Minuscules, chiffres et tirets. Laissez vide pour conserver l\'adresse actuelle.',
+    'slug_cannot_be_uuid' => 'Cette adresse ne peut pas avoir la forme d\'un identifiant technique.',
+
+    // TASK-1720 volet B — refus d'inviter un compte existant non eligible.
+    'invitation_refused_email_unverified' => 'Cette personne a deja un compte, mais son adresse e-mail n\'est pas encore verifiee. Elle ne peut pas rejoindre une Boucle tant qu\'elle ne l\'a pas confirmee.',
+    'invitation_refused_pending_approval' => 'Cette personne a deja un compte, mais il attend la validation d\'un administrateur. Elle pourra rejoindre une Boucle une fois son compte valide.',
+    'invitation_refused_account_closed' => 'Ce compte est ferme ou suspendu : il ne peut pas rejoindre une Boucle.',
+    // TASK-1719 — l'ajout direct dans une Boucle (repli Blade).
+    'member_added_default_message' => 'Vous avez ete ajoute a la Boucle :loop.',
+    'member_added_mail_subject' => 'Vous avez ete ajoute a la Boucle :loop',
+    'member_added_mail_hello' => 'Bonjour :name,',
+    'member_added_mail_body_with_actor' => ':actor vous a ajoute a la Boucle « :loop » sur :organization. Vous en etes desormais membre.',
+    'member_added_mail_body' => 'Vous avez ete ajoute a la Boucle « :loop » sur :organization. Vous en etes desormais membre.',
+    'member_added_mail_cta' => 'Ouvrir la Boucle',
+    'member_added_mail_plain_link' => 'Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :',
 ];

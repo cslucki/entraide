@@ -89,7 +89,15 @@ $secondaryCtaUrl = $showInternalHomepageContent
         @guest
           <a href="{{ route('organization.login', $organization) }}" class="btn-join">{{ org_trans('hero.nav_login') }}</a>
         @else
-          <a href="{{ route('dashboard') }}" class="btn-join">{{ __('navigation.dashboard') }}</a>
+          {{-- TASK-1720 — le bouton « Tableau de bord » s'ouvre.
+
+               MASTER : « il faut que depuis ce bouton on puisse se
+               deconnecter. Sinon on est oblige d'ouvrir une page, et de passer
+               par le rail gauche » — trois ecrans pour quitter sa session.
+
+               Le menu est un PARTIEL partage par les trois gabarits de
+               homepage autonomes : voir son en-tete pour le pourquoi. --}}
+          @include('organization.partials.account-menu', ['organization' => $organization])
         @endguest
       </nav>
       <button class="burger" aria-label="{{ __('common.open_menu') }}" aria-expanded="false" aria-controls="m-menu"><i class="ti ti-menu-2"></i></button>
@@ -109,7 +117,7 @@ $secondaryCtaUrl = $showInternalHomepageContent
     @guest
       <a href="{{ route('organization.login', $organization) }}" class="btn-join">{{ org_trans('hero.nav_login') }}</a>
     @else
-      <a href="{{ route('dashboard') }}">{{ __('navigation.dashboard') }}</a>
+      @include('organization.partials.account-menu', ['organization' => $organization])
     @endguest
     <div class="m-lang" aria-label="Langue / Language">
       @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
@@ -385,17 +393,6 @@ $secondaryCtaUrl = $showInternalHomepageContent
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 })();
 
-(function () {
-  const menu = document.querySelector('.user-menu');
-  if (!menu) return;
-  const trigger = menu.querySelector('.user-trigger');
-  const dropdown = menu.querySelector('.user-dropdown');
-  const close = () => { dropdown.hidden = true; trigger.setAttribute('aria-expanded', 'false'); };
-  const open = () => { dropdown.hidden = false; trigger.setAttribute('aria-expanded', 'true'); };
-  trigger.addEventListener('click', e => { e.stopPropagation(); dropdown.hidden ? open() : close(); });
-  document.addEventListener('click', e => { if (!dropdown.hidden && !menu.contains(e.target)) close(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-})();
 </script>
 @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'bottom'])
 </body>

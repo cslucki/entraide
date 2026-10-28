@@ -3,7 +3,9 @@
 namespace App\Services\Loops;
 
 use App\Models\EmailLog;
+use App\Models\Loop;
 use App\Models\LoopInvitation;
+use App\Models\User;
 use App\Services\EmailerService;
 use App\Services\LoopInvitationService;
 use App\Support\Email\SystemEmailTemplateResolver;
@@ -47,10 +49,241 @@ class LoopInvitationMailer
             return;
         }
 
+        $compose = $this->compose($invitation);
+
+        $subject = $compose['subject'];
+        $html = $compose['body'];
+        $fallbackReason = $compose['fallback_reason'];
+
+        $logData = [
+            'source' => 'loop-invitation',
+            'invitation_id' => $invitation->id,
+            'loop_id' => $invitation->loop_id,
+            'organization_id' => $invitation->organization_id,
+            'invitation_type' => $invitation->invitation_type,
+            'recipient_email' => $invitation->recipient_email,
+            'template_used' => $fallbackReason === null ? 'system_email_template' : 'blade_fallback',
+            'fallback_reason' => $fallbackReason,
+        ];
+
+        try {
+            Mail::html($html, function ($message) use ($invitation, $subject) {
+                $message->to($invitation->recipient_email)->subject($subject);
+            });
+
+            EmailLog::create([
+                'user_id' => $invitation->sender_id,
+                'organization_id' => $invitation->organization_id,
+                'to_email' => $invitation->recipient_email,
+                'subject' => $subject,
+                'status' => 'sent',
+                'data' => $logData,
+            ]);
+        } catch (\Throwable $e) {
+            // The invitation row is already persisted and its link stays valid,
+            // so a delivery failure is recoverable by re-sending; it must be
+            // recorded rather than swallowed.
+            EmailLog::create([
+                'user_id' => $invitation->sender_id,
+                'organization_id' => $invitation->organization_id,
+                'to_email' => $invitation->recipient_email,
+                'subject' => $subject,
+                'status' => 'failed',
+                'error_message' => $e->getMessage(),
+                'data' => $logData,
+            ]);
+        }
+    }
+
+    /**
+     * TASK-1719 — CE QUE DIT un courriel d'invitation a une Boucle, en un seul
+     * endroit.
+     *
+     * Extrait de `send()` sans une ligne de changement, pour une raison
+     * precise. Depuis TASK-1378, une invitation adressee a un membre de
+     * l'Organization ne passe plus par `send()` mais par le pipeline
+     * Notifications. Or ce pipeline composait son corps depuis
+     * `lang/<locale>/notifications.php` — un texte generique de cinq lignes — et
+     * IGNORAIT le gabarit `loop_invitation` que le SuperAdmin administre dans
+     * `/admin/system-email-templates`.
+     *
+     * Deux textes pour le meme fait, donc, selon que l'invite avait un compte
+     * ou non : celui qu'on peut modifier partait aux inconnus, celui qu'on ne
+     * peut pas partait aux membres. MASTER : « Reutiliser OBLIGATOIREMENT le
+     * template systeme `loop_invitation` ».
+     *
+     * Rendre cette composition publique est la facon la moins chere de le
+     * corriger : `NotificationEmailDeliverer` l'appelle au lieu de recopier
+     * dix variables et un repli, et il n'existe plus qu'UNE autorite sur ce
+     * texte.
+     *
+     * `$urlOverride` sert le JOURNAL. Le pipeline archive un corps expurge de
+     * son jeton : composer deux fois — une avec le vrai lien, une avec le lien
+     * masque — est plus sur que d'essayer de retirer un jeton d'un HTML deja
+     * interpole.
+     *
+     * @return array{subject: string, body: string, fallback_reason: string|null}
+     */
+    /**
+     * TASK-1719 — le courriel qui dit « on vous a AJOUTE a cette Boucle ».
+     *
+     * Son PROPRE gabarit, `loop_member_added` (TASK-1720 volet C). Emprunter
+     * `loop_invitation` disait « X vous invite a rejoindre » a quelqu'un qui
+     * EST deja membre : le texte decrivait une demarche qui n'existe pas.
+     *
+     * Memes variables, meme resolveur, meme repli. `invitation_url` pointe
+     * vers la Boucle elle-meme — il n'y a aucun jeton a suivre.
+     *
+     * `expires_at` repart vide, et c'est juste : un ajout n'expire pas.
+     *
+     * Passe par `rendreGabarit()`, qui porte la resolution du gabarit,
+     * l'interpolation, le repli et sa trace.
+     *
+     * `compose()` ne l'emploie PAS : son bloc inline date d'avant et vient
+     * d'etre livre tel quel par TASK-1719. L'y faire passer serait une
+     * reecriture du chemin d'invitation, qui fonctionne — MASTER : « sans
+     * reecrire le systeme d'emails ». La duplication est donc CONNUE et
+     * assumee ici, pas ignoree ; elle se resorbera le jour ou un troisieme
+     * courriel de Boucle la rendra couteuse.
+     *
+     * @return array{subject: string, body: string, fallback_reason: string|null}
+     */
+    public function composeForMember(
+        Loop $loop,
+        User $membre,
+        ?User $acteur = null,
+        ?string $urlOverride = null,
+        ?string $locale = null,
+    ): array {
+        $langue = $locale ?: app()->getLocale();
+        $langueOrigine = app()->getLocale();
+        app()->setLocale($langue);
+
+        try {
+            $organization = $loop->organization;
+            // TASK-1720 — le SLUG, pas l'identifiant.
+            //
+            // `workspaceUrl()` rend l'UUID, et reste inchangee : dix appelants
+            // l'emploient hors de ce perimetre, dont une garde de TASK-1079
+            // qui asserte l'identifiant. Le lien d'un COURRIEL se lit et se
+            // colle : il porte le slug, comme les vues depuis TASK-1717.
+            //
+            // Ce repli ne sert qu'a defaut d'`$urlOverride` — le pipeline de
+            // notification en fournit toujours un.
+            $url = $urlOverride ?? route('organization.loops.show', [
+                'organization' => $loop->organization?->slug ?? $loop->organization_id,
+                'loop' => $loop->slug ?: $loop->getKey(),
+            ]);
+
+            return $this->rendreGabarit(
+                slug: 'loop_member_added',
+                organizationId: (string) $loop->organization_id,
+                langue: $langue,
+                sender: $acteur,
+                vars: [
+                    'recipient_name' => $membre->publicDisplayName(),
+                    'recipient_email' => $membre->email,
+                    'sender_name' => $acteur?->fullName ?? '',
+                    'organization_name' => $organization?->name ?? '',
+                    'loop_name' => $loop->name ?? '',
+                    'loop_tagline' => $loop->tagline ?? '',
+                    'personal_message' => __('loops.member_added_default_message', ['loop' => $loop->name]),
+                    'invitation_url' => $url,
+                    'expires_at' => '',
+                    'app_name' => config('app.name'),
+                ],
+                repli: fn () => [
+                    'subject' => __('loops.member_added_mail_subject', ['loop' => $loop->name]),
+                    'html' => view('emails.loop-member-added', [
+                        'loop' => $loop,
+                        'organization' => $organization,
+                        'membre' => $membre,
+                        'acteur' => $acteur,
+                        'url' => $url,
+                    ])->render(),
+                ],
+            );
+        } finally {
+            app()->setLocale($langueOrigine);
+        }
+    }
+
+    /**
+     * TASK-1719 — resoudre le gabarit `loop_invitation`, l'interpoler, et
+     * retomber proprement. En UN seul endroit.
+     *
+     * Les deux courriels — invitation et ajout direct — partagent ce bloc.
+     * L'avoir recopie aurait garanti qu'ils divergent sur le gabarit choisi,
+     * sur les variables admises, ou sur ce qui est journalise quand le repli
+     * sert.
+     *
+     * @param  array<string, string>  $vars
+     * @param  callable(): array{subject: string, html: string}  $repli
+     * @return array{subject: string, body: string, fallback_reason: string|null}
+     */
+    private function rendreGabarit(
+        string $slug,
+        string $organizationId,
+        string $langue,
+        ?User $sender,
+        array $vars,
+        callable $repli,
+    ): array {
+        $resolver = app(SystemEmailTemplateResolver::class);
+        $template = $resolver->resolve($slug, $organizationId, $langue);
+
+        $emailer = app(EmailerService::class);
+        $extraKeys = array_keys($vars);
+        $vars = array_merge($sender ? $emailer->availableVariables($sender) : [], $vars);
+
+        $fallbackReason = null;
+        $subject = null;
+        $html = null;
+
+        if ($template) {
+            try {
+                $subject = $emailer->interpolateSubject($template->subject, $vars, $extraKeys);
+                $html = $emailer->interpolate($template->content_html, $vars, $extraKeys);
+            } catch (\Throwable $e) {
+                $fallbackReason = 'render_error: '.$e->getMessage();
+            }
+        } else {
+            $fallbackReason = $resolver->diagnoseAbsence($slug, $organizationId);
+        }
+
+        if ($fallbackReason !== null) {
+            Log::warning($slug.' e-mail fell back to the Blade template', [
+                'reason' => $fallbackReason,
+                'organization_id' => $organizationId,
+                'locale' => $langue,
+            ]);
+
+            $secours = $repli();
+            $subject = $secours['subject'];
+            $html = $secours['html'];
+        }
+
+        return ['subject' => $subject, 'body' => $html, 'fallback_reason' => $fallbackReason];
+    }
+
+    public function compose(LoopInvitation $invitation, ?string $urlOverride = null, ?string $locale = null): array
+    {
+        // TASK-1719 — la langue TRAVERSE la composition.
+        //
+        // Le pipeline Notifications fige la langue du destinataire au moment
+        // de l'envoi : c'est la seule qu'on pourra affirmer plus tard. Sans la
+        // faire descendre jusqu'ici, le gabarit serait choisi — et le repli
+        // traduit — dans la langue de l'EXPEDITEUR, ce qui est la langue de
+        // personne. `null` garde le comportement de `send()`, inchange.
+        $langue = $locale ?: app()->getLocale();
+        $langueOrigine = app()->getLocale();
+        app()->setLocale($langue);
+
+        try {
         $loop = $invitation->loop;
         $organization = $invitation->organization;
         $sender = $invitation->sender;
-        $landingUrl = route('loop-invitations.show', $invitation->token);
+        $landingUrl = $urlOverride ?? route('loop-invitations.show', $invitation->token);
         $personalMessage = filled($invitation->message)
             ? $invitation->message
             : __('loops.invitation_default_message', ['loop' => $loop?->name]);
@@ -60,7 +293,7 @@ class LoopInvitationMailer
         // invisible. Les crans et leur ordre : voir
         // `SystemEmailTemplateResolver`.
         $resolver = app(SystemEmailTemplateResolver::class);
-        $template = $resolver->resolve('loop_invitation', $invitation->organization_id);
+        $template = $resolver->resolve('loop_invitation', $invitation->organization_id, $langue);
 
         $emailer = app(EmailerService::class);
         $extraKeys = [
@@ -119,43 +352,16 @@ class LoopInvitationMailer
             ])->render();
         }
 
-        $logData = [
-            'source' => 'loop-invitation',
-            'invitation_id' => $invitation->id,
-            'loop_id' => $invitation->loop_id,
-            'organization_id' => $invitation->organization_id,
-            'invitation_type' => $invitation->invitation_type,
-            'recipient_email' => $invitation->recipient_email,
-            'template_used' => $fallbackReason === null ? 'system_email_template' : 'blade_fallback',
-            'fallback_reason' => $fallbackReason,
-        ];
 
-        try {
-            Mail::html($html, function ($message) use ($invitation, $subject) {
-                $message->to($invitation->recipient_email)->subject($subject);
-            });
-
-            EmailLog::create([
-                'user_id' => $invitation->sender_id,
-                'organization_id' => $invitation->organization_id,
-                'to_email' => $invitation->recipient_email,
+        return [
                 'subject' => $subject,
-                'status' => 'sent',
-                'data' => $logData,
-            ]);
-        } catch (\Throwable $e) {
-            // The invitation row is already persisted and its link stays valid,
-            // so a delivery failure is recoverable by re-sending; it must be
-            // recorded rather than swallowed.
-            EmailLog::create([
-                'user_id' => $invitation->sender_id,
-                'organization_id' => $invitation->organization_id,
-                'to_email' => $invitation->recipient_email,
-                'subject' => $subject,
-                'status' => 'failed',
-                'error_message' => $e->getMessage(),
-                'data' => $logData,
-            ]);
+                'body' => $html,
+                'fallback_reason' => $fallbackReason,
+            ];
+        } finally {
+            // Restauree quoi qu'il arrive : composer un courriel ne doit pas
+            // laisser la requete en cours dans une autre langue.
+            app()->setLocale($langueOrigine);
         }
     }
 }

@@ -85,7 +85,6 @@ return [
 
     // ── Organization agenda ─────────────────────────────────────────────────
     'agenda_title' => 'Agenda',
-    'agenda_subtitle' => 'The meetings of your Loops, and those open to the whole Organization.',
     'agenda_create_button' => 'Create an event',
     'agenda_create_title' => 'New event',
     'agenda_create_intro' => 'The event will belong to the Loop you choose: it is the Loop that gathers its participants.',

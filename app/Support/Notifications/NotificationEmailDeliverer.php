@@ -3,9 +3,12 @@
 namespace App\Support\Notifications;
 
 use App\Models\EmailLog;
+use App\Models\Loop;
+use App\Models\LoopInvitation;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
 use App\Models\User;
+use App\Services\Loops\LoopInvitationMailer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Mail;
@@ -263,7 +266,16 @@ final class NotificationEmailDeliverer
         // pourra affirmer plus tard, la preference ayant pu changer depuis.
         $locale = (string) ($destinataire->preferred_locale ?: config('app.locale'));
 
-        $contenu = $this->rendre((string) $notification->notification_key, $locale, $cible);
+        // TASK-1719 — le GABARIT ADMINISTRABLE d'abord, quand il en existe un.
+        //
+        // Avant : toute notification composait son corps depuis
+        // `lang/<locale>/notifications.php`. Pour `loop.invitation`, cela
+        // donnait deux textes pour le meme fait — le gabarit
+        // `loop_invitation`, modifiable par le SuperAdmin, partait aux
+        // inconnus par `LoopInvitationMailer`, et un texte generique de cinq
+        // lignes partait aux membres de l'Organization par ce chemin-ci.
+        $contenu = $this->rendreDepuisGabarit($notification, $cible, $locale, $destinataire)
+            ?? $this->rendre((string) $notification->notification_key, $locale, $cible);
 
         if ($contenu === null) {
             // Aucune traduction pour cette cle. `__()` rendrait la cle elle-meme,
@@ -401,6 +413,81 @@ final class NotificationEmailDeliverer
      *
      * @return array{subject: string, body: string, body_for_log: string}|null
      */
+    /**
+     * TASK-1719 — le corps rendu par l'autorite METIER de cette notification,
+     * quand il y en a une.
+     *
+     * Aujourd'hui une seule cle en a une : `loop.invitation`, dont
+     * `LoopInvitationMailer::compose()` connait le gabarit administrable, ses
+     * dix variables et son repli Blade. On l'APPELLE plutot que de recopier
+     * tout cela ici — deux rendus du meme courriel finiraient par diverger, et
+     * c'est exactement le defaut que cette TASK corrige.
+     *
+     * Le `switch` reste explicite plutot que de deviner un service a partir de
+     * la cle : une convention de nommage marcherait jusqu'au jour ou quelqu'un
+     * nomme une cle autrement, et echouerait alors en silence sur un email.
+     *
+     * `null` quand rien ne s'applique : l'appelant retombe sur les clefs de
+     * langue, et le fail-closed en dessous n'est pas touche.
+     *
+     * @return array{subject: string, body: string, body_for_log: string}|null
+     */
+    private function rendreDepuisGabarit(
+        MemberNotification $notification,
+        string $cible,
+        string $locale,
+        User $destinataire,
+    ): ?array {
+        $cle = (string) $notification->notification_key;
+        $mailer = app(LoopInvitationMailer::class);
+
+        // TASK-1719 — l'ajout DIRECT dans une Boucle.
+        //
+        // Meme gabarit `loop_invitation` (demande MASTER), mais l'objet est la
+        // BOUCLE : il n'existe aucune ligne `loop_invitations` sur ce chemin.
+        if ($cle === NotificationCatalogue::LOOP_MEMBER_ADDED) {
+            $loop = Loop::withoutGlobalScopes()->find((string) $notification->object_id);
+
+            if ($loop === null) {
+                return null;
+            }
+
+            $acteur = $notification->actor_id ? User::find((string) $notification->actor_id) : null;
+
+            $reel = $mailer->composeForMember($loop, $destinataire, $acteur, $cible, $locale);
+            $expurge = $mailer->composeForMember($loop, $destinataire, $acteur, self::LIEN_EXPURGE, $locale);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
+        if ($cle !== NotificationCatalogue::LOOP_INVITATION) {
+            return null;
+        }
+
+        $invitation = LoopInvitation::find((string) $notification->object_id);
+
+        if ($invitation === null) {
+            return null;
+        }
+
+        $reel = app(LoopInvitationMailer::class)->compose($invitation, $cible, $locale);
+
+        // Composé une SECONDE fois avec le lien masque : le journal archive un
+        // corps sans jeton, et retirer un jeton d'un HTML deja interpole serait
+        // une devinette. Deux rendus, aucune expression reguliere.
+        $expurge = app(LoopInvitationMailer::class)->compose($invitation, self::LIEN_EXPURGE, $locale);
+
+        return [
+            'subject' => $reel['subject'],
+            'body' => $reel['body'],
+            'body_for_log' => $expurge['body'],
+        ];
+    }
+
     private function rendre(string $notificationKey, string $locale, string $cible): ?array
     {
         // Les points de la cle sont remplaces : `loop.invitation` produirait

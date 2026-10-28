@@ -45,12 +45,40 @@
         @endif
 
         {{-- Title --}}
-        <p @class([
-                'min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100',
-                'line-through text-gray-400 dark:text-gray-500' => $item->isDone(),
-            ])>
-            <span class="line-clamp-3">{{ $item->title }}</span>
-        </p>
+        {{-- TASK-1718 volet 1 — le titre se modifie SUR PLACE.
+
+             `startEdit()`, `saveEdit()` et `cancelEdit()` existaient deja dans
+             le composant, avec leur garde `canModify()`, mais n'avaient AUCUNE
+             interface : du code mort depuis que le panneau de detail a repris
+             le sujet. On les rebranche plutot que d'ecrire une seconde voie —
+             il n'y a pas deux facons d'enregistrer un titre.
+
+             `x-on:click.stop` partout : la carte entiere porte
+             `wire:click="openDetail"`, et sans cela taper dans le champ
+             ouvrirait le panneau de detail par-dessus le formulaire. --}}
+        @if($editingId === $item->id)
+            <form wire:submit="saveEdit" x-on:click.stop class="min-w-0 flex-1" data-marqueur="roadmap-edition-titre">
+                <input type="text" wire:model="editingTitle" maxlength="255" autofocus
+                       x-on:click.stop x-on:keydown.escape.stop="$wire.cancelEdit()"
+                       class="w-full rounded-lg border border-violet-300 bg-white px-2 py-1 text-sm text-gray-800 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-violet-700 dark:bg-gray-800 dark:text-gray-100">
+                @if($errorMessage)
+                    <p class="mt-1 text-[11px] text-red-600 dark:text-red-400">{{ $errorMessage }}</p>
+                @endif
+                <div class="mt-1.5 flex items-center gap-2">
+                    <button type="submit" data-marqueur="roadmap-enregistrer-titre"
+                            class="rounded-lg bg-violet-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-violet-700">{{ __('loops.roadmap_save') }}</button>
+                    <button type="button" wire:click="cancelEdit" x-on:click.stop
+                            class="text-[11px] font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">{{ __('loops.cancel') }}</button>
+                </div>
+            </form>
+        @else
+            <p @class([
+                    'min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100',
+                    'line-through text-gray-400 dark:text-gray-500' => $item->isDone(),
+                ])>
+                <span class="line-clamp-3">{{ $item->title }}</span>
+            </p>
+        @endif
 
         {{-- Hover: mark done (top-right). Precise target, stops propagation. --}}
         @if($canManage && ! $item->isDone())
@@ -115,8 +143,20 @@
                             <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
                             <button type="button" wire:click="moveUp('{{ $item->id }}')" x-on:click="close()" role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('loops.roadmap_move_up') }}</button>
                             <button type="button" wire:click="moveDown('{{ $item->id }}')" x-on:click="close()" role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('loops.roadmap_move_down') }}</button>
+                            {{-- TASK-1718 volet 1 — « Modifier », gardee par `$mine`,
+                                 c'est-a-dire `canModify()` : le proprietaire de la
+                                 Boucle ou l'auteur de la tache. La regle demandee
+                                 existait DEJA dans le composant — seule l'entree de
+                                 menu manquait. Elle est posee au-dessus du separateur
+                                 de l'archivage, avec lequel elle partage la garde. --}}
                             @if($mine)
                                 <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                                <button type="button" wire:click="startEdit('{{ $item->id }}')" x-on:click="close()" role="menuitem"
+                                        data-roadmap-edit="{{ $item->id }}"
+                                        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">
+                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+                                    {{ __('loops.roadmap_edit') }}
+                                </button>
                                 <button type="button" role="menuitem"
                                         x-on:click="close(); $dispatch('open-confirm', { title: @js(__('loops.roadmap_archive_title')), body: @js(__('loops.roadmap_archive_body')), confirmLabel: @js(__('loops.roadmap_archive')), accept: 'archiveItem', params: ['{{ $item->id }}'] })"
                                         class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">

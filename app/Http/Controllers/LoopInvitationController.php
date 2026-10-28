@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Loops\Exceptions\LoopInvitationRefusedException;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\Organization;
@@ -43,13 +44,20 @@ class LoopInvitationController extends Controller
             'message' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $invitation = $this->invitations->invite(
-            $loop,
-            $request->user(),
-            $validated['email'],
-            $validated['name'] ?? null,
-            $validated['message'] ?? null,
-        );
+        // TASK-1720 volet B — un compte existant non eligible (adresse non
+        // verifiee, validation en attente, compte ferme) ne recoit pas
+        // d'invitation. Le refus nomme sa cause pour qu'on puisse agir.
+        try {
+            $invitation = $this->invitations->invite(
+                $loop,
+                $request->user(),
+                $validated['email'],
+                $validated['name'] ?? null,
+                $validated['message'] ?? null,
+            );
+        } catch (LoopInvitationRefusedException $refus) {
+            return back()->with('error', $refus->getMessage());
+        }
 
         $this->mailer->send($invitation);
 

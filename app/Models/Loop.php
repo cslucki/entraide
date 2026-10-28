@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class Loop extends Model
 {
@@ -29,6 +31,89 @@ class Loop extends Model
 
     /** A Loop carries at most 3 domains (Annuaire referential) — TASK-1076. */
     public const MAX_DOMAINS = 3;
+
+    /*
+     * TASK-1717 — PAS de `resolveRouteBinding()` ni de `getRouteKey()` ici,
+     * et c'est une decision prise APRES les avoir ecrits puis mesures.
+     *
+     * 1. La resolution « slug OU identifiant » EXISTE DEJA, dans
+     *    `AppServiceProvider` : `Route::bind('loop', ...)`. Une liaison
+     *    explicite prime sur la liaison implicite du modele, donc une
+     *    surcharge ici ne serait jamais appelee — du code mort qui ferait
+     *    croire a une seconde autorite.
+     *
+     * 2. Surcharger `getRouteKey()` pour rendre le slug a CASSE 40+ tests.
+     *    Le binder ci-dessus refuse volontairement un slug quand la route ne
+     *    porte pas de parametre `{organization}` — « un slug n'a de sens que
+     *    dans une Organization », le meme pouvant exister dans plusieurs.
+     *    Or `loops.show` (forme nue) et les vingt routes `admin.loops.*` n'en
+     *    portent aucun : elles recevaient le slug et rendaient 404.
+     *
+     * L'URL lisible se construit donc la ou l'Organization est connue —
+     * `publicUrl()` ci-dessous et `LoopController::loopRoute()` — jamais par
+     * une surcharge globale. Meme conclusion qu'en TASK-1693 pour `{user}`,
+     * ou `profileRouteKey()` existe precisement pour ne pas toucher aux 30
+     * routes d'administration.
+     */
+
+    /**
+     * TASK-1717 — les segments statiques que `/loops/{loop}` ne doit pas voler.
+     *
+     * `/loops/create` est declare AVANT `/loops/{loop}` : une Boucle sluggee
+     * `create` serait parfaitement valide en base et DEFINITIVEMENT
+     * inatteignable par son URL.
+     *
+     * @var list<string>
+     */
+    public const SLUGS_RESERVES = ['create'];
+
+    /**
+     * TASK-1717 — ce qu'un slug de Boucle a le droit d'etre, en UN seul endroit.
+     *
+     * Posee sur le modele parce que TROIS ecrans la lisent desormais : la
+     * creation et « Modifier la boucle » cote membre (`LoopController`), et la
+     * fiche du SuperAdmin (`AdminLoopController`). La recopier aurait garanti
+     * que les trois divergent — sur la forme acceptee, sur les mots reserves,
+     * ou sur la borne d'unicite.
+     *
+     * Quatre refus, et deux ne sont pas evidents :
+     *
+     *  - la FORME (`a-z`, chiffres, tirets simples) : un slug est une portion
+     *    d'URL, pas un titre. `Str::slug()` produit deja exactement cela a la
+     *    creation automatique ;
+     *  - les segments RESERVES, voir `SLUGS_RESERVES` ;
+     *  - la forme UUID : `Route::bind('loop', ...)` teste `Str::isUuid()`
+     *    AVANT de chercher un slug. Un slug en forme d'UUID serait donc
+     *    cherche dans `id` et ne resoudrait jamais sa propre Boucle ;
+     *  - l'UNICITE **par Organization**, jamais globale. `$organizationId` est
+     *    donc un parametre et non `currentOrganization()` : depuis
+     *    l'administration, le SuperAdmin modifie une Boucle d'un AUTRE tenant
+     *    que le sien, et borner sur le sien y verifierait la mauvaise chose.
+     *
+     * `nullable` est delibere : laisser le champ vide garde le comportement
+     * existant — slug derive du nom a la creation, slug INCHANGE a la
+     * modification.
+     *
+     * @return array<int, mixed>
+     */
+    public static function slugRules(string $organizationId, ?self $loop = null): array
+    {
+        return [
+            'nullable',
+            'string',
+            'max:80',
+            'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+            'not_in:'.implode(',', self::SLUGS_RESERVES),
+            function (string $attribut, mixed $valeur, callable $echec) {
+                if (is_string($valeur) && Str::isUuid($valeur)) {
+                    $echec(__('loops.slug_cannot_be_uuid'));
+                }
+            },
+            Rule::unique('loops', 'slug')
+                ->where(fn ($query) => $query->where('organization_id', $organizationId))
+                ->ignore($loop?->getKey()),
+        ];
+    }
 
     protected $fillable = [
         'organization_id',
@@ -208,6 +293,7 @@ class Loop extends Model
 
         return route('loops.show', $this);
     }
+
 
     /**
      * Every active owner. A Loop may have several; they all have equal rights.

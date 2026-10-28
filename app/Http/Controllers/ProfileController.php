@@ -397,18 +397,106 @@ class ProfileController extends Controller
         return back()->with('success', __('dashboard.availability_updated'));
     }
 
-    public function destroy(Request $request): RedirectResponse
+    /**
+     * TASK-1716 — la fermeture volontaire du compte, qui remplace la
+     * suppression physique immediate.
+     *
+     * ## Le defaut corrige, MESURE
+     *
+     * L'ancien `destroy()` appelait `$user->delete()` nu. Or chaque
+     * inscription ecrit une ligne `point_ledger` (`reason = welcome_bonus`,
+     * 100 points, `RegisteredUserController`), et depuis TASK-1635 cette
+     * table porte un `ON DELETE RESTRICT`. La suppression levait donc une
+     * `QueryException` — un 500 — pour TOUT compte inscrit, pas pour un cas
+     * limite.
+     *
+     * Et l'etat laisse derriere etait a moitie applique : `Auth::logout()`
+     * precedait le `delete()`, donc la personne etait deconnectee, voyait un
+     * 500, et son compte restait intact. Elle ne pouvait ni le fermer ni
+     * comprendre pourquoi.
+     *
+     * ## L'ordre des quatre gestes, et pourquoi il est celui-la
+     *
+     * L'ECRITURE D'ABORD, la deconnexion ensuite. C'est l'inverse de l'ancien
+     * code, et c'est tout l'interet : si quoi que ce soit echoue, la session
+     * est encore ouverte et la personne peut recommencer. Deconnecter avant
+     * d'ecrire, c'est exactement ce qui produisait l'etat batard ci-dessus.
+     *
+     * La revocation des jetons n'est PAS ecrite ici : `User::booted()`
+     * supprime `tokens()` des que `banned_at` passe non-nul. La poser une
+     * seconde fois donnerait deux verites a maintenir.
+     *
+     * ## `forceFill` et non `update`
+     *
+     * Les trois colonnes sont HORS `$fillable` a dessein (voir `User::casts`).
+     * Un drapeau de cycle de vie ne doit pas pouvoir etre pose par
+     * l'assignation de masse d'un formulaire de profil.
+     *
+     * ## Ce que cette methode ne fait PAS
+     *
+     * Elle n'efface rien : ni points, ni historiques, ni transactions, ni
+     * Dossiers. La suppression REELLE reste au SuperAdmin, sur l'ecran de
+     * TASK-1636 ou les refus metier sont deja calcules. La case a cocher ne
+     * declenche donc aucune purge — elle depose une DEMANDE.
+     */
+    public function close(Request $request): RedirectResponse
     {
+        // Le sac `userDeletion` est conserve : la modal de fermeture est la
+        // meme, et changer le nom du sac ferait taire l'erreur de mot de passe
+        // sans que rien ne le signale.
         $request->validateWithBag('userDeletion', [
             'password' => ['required', 'current_password'],
+            // `sometimes` et NON `nullable` : `nullable` n'exempte pas
+            // `accepted`, donc une case DECOCHEE — le cas normal — faisait
+            // echouer la validation et ne fermait rien. Mesure par la garde
+            // `test_la_fermeture_pose_les_deux_horodatages_...`.
+            //
+            // Et une regle plutot que le seul `boolean()` ci-dessous : une
+            // valeur inattendue (`erasure=peut-etre`) serait lue comme `false`
+            // et la demande d'effacement disparaitrait en silence. Mieux vaut
+            // refuser que perdre une demande.
+            'erasure' => ['sometimes', 'accepted'],
         ]);
 
         $user = $request->user();
+
+        // L'Organization est lue AVANT la deconnexion, comme le fait
+        // `AuthenticatedSessionController::destroy()` : apres `Auth::logout()`
+        // et `session()->invalidate()`, le contexte de tenant n'est plus
+        // resolvable, et la redirection retomberait sur la page de connexion
+        // nue. Quelqu'un qui ferme son compte depuis `/org/ofsh/profile/edit`
+        // doit revenir sur la page de SON Organization, pas sur une page
+        // generique qu'il n'a jamais vue.
+        $organisation = currentOrganization();
+
+        $maintenant = now();
+
+        $user->forceFill([
+            // `banned_at` porte la desactivation EFFECTIVE : les deux gardes
+            // de groupe, le refus de connexion et les trois scopes de requete
+            // le lisent deja. `self_closed_at` dit seulement QUI a decide.
+            'banned_at' => $maintenant,
+            'self_closed_at' => $maintenant,
+            'erasure_requested_at' => $request->boolean('erasure') ? $maintenant : null,
+        ])->save();
+
         Auth::logout();
-        $user->delete();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return Redirect::to('/');
+        // Meme idiome que la deconnexion : la page de connexion de
+        // l'Organization quand il y en a une. `status` est rendu par
+        // `<x-auth-session-status>` sur les deux formes de la page.
+        //
+        // La branche `null` est du code DEFENSIF inatteignable tant qu'une
+        // Organization par defaut existe : `currentOrganization()` y retombe,
+        // meme pour un compte dont `organization_id` est nul (mesure faite en
+        // voulant ecrire la garde correspondante). Elle reste parce qu'une
+        // installation neuve, elle, n'en a pas.
+        $destination = $organisation !== null
+            ? Redirect::route('organization.login', ['organization' => $organisation->slug])
+            : Redirect::route('login');
+
+        return $destination->with('status', __('profile.close_account_done'));
     }
 }

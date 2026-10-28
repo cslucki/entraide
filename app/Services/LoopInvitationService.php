@@ -8,6 +8,7 @@ use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\MemberNotification;
 use App\Models\User;
+use App\Services\Loops\Exceptions\LoopInvitationRefusedException;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmissionConflict;
 use App\Support\Notifications\NotificationEmitter;
@@ -56,6 +57,8 @@ class LoopInvitationService
     public function invite(Loop $loop, User $sender, string $email, ?string $name = null, ?string $message = null): LoopInvitation
     {
         $email = LoopInvitation::normalizeEmail($email);
+
+        $this->refuserUnCompteNonEligible($loop, $email);
 
         $invitation = DB::transaction(function () use ($loop, $sender, $email, $name, $message) {
             $existing = LoopInvitation::where('loop_id', $loop->id)
@@ -268,6 +271,54 @@ class LoopInvitationService
         }
 
         return $this->resolveNotifiableRecipient($invitation) !== null;
+    }
+
+    /**
+     * TASK-1720 volet B — une adresse qui appartient DEJA a un compte non
+     * eligible ne recoit pas d'invitation.
+     *
+     * ## Pourquoi un refus, et non un repli en « externe »
+     *
+     * Le premier reflexe serait de laisser `resolveType()` classer la personne
+     * en `external` : elle recevrait alors le courriel qui propose de CREER un
+     * compte. Mais elle en a un. On lui demanderait de refaire ce qu'elle a
+     * deja fait, et le lien ne la menerait nulle part — ou, pire, ouvrirait
+     * l'acces a une Boucle a une adresse que personne n'a confirmee.
+     *
+     * Le refus nomme la vraie cause, et la personne qui invite peut agir
+     * dessus : relancer la verification, ou faire valider le compte.
+     *
+     * ## Le compte INTROUVABLE n'est pas un refus
+     *
+     * Inviter quelqu'un qui n'a pas de compte reste le cas normal : la garde
+     * ne se declenche que si une ligne existe et qu'elle est ineligible. C'est
+     * la contrainte « preserver les invitations vers les personnes sans
+     * compte ».
+     *
+     * ## Le tenant, et seulement lui
+     *
+     * La recherche est bornee a l'Organization de la Boucle. Un homonyme
+     * d'adresse dans un AUTRE tenant ne regarde pas cette invitation — il y
+     * est un externe, et le reste.
+     */
+    private function refuserUnCompteNonEligible(Loop $loop, string $email): void
+    {
+        $compte = User::query()
+            ->where('organization_id', $loop->organization_id)
+            ->whereRaw('LOWER(email) = ?', [$email])
+            ->first();
+
+        if ($compte === null || $compte->estEligiblePourUneBoucle()) {
+            return;
+        }
+
+        throw new LoopInvitationRefusedException(
+            $compte->banned_at !== null
+                ? __('loops.invitation_refused_account_closed')
+                : (! $compte->hasVerifiedEmail()
+                    ? __('loops.invitation_refused_email_unverified')
+                    : __('loops.invitation_refused_pending_approval'))
+        );
     }
 
     /**
