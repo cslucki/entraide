@@ -90,11 +90,17 @@ return [
     'new_password' => 'New password',
     'confirm_password' => 'Confirm password',
 
-    'delete_account' => 'Delete account',
-    'delete_account_warning' => 'Once your account is deleted, all its resources and data will be permanently deleted. Please download any data or information you wish to retain before deleting your account.',
-    'delete_account_confirm' => 'Are you sure you want to delete your account?',
-    'delete_account_instructions' => 'Once your account is deleted, all of its resources and data will be permanently deleted. Please enter your password to confirm you would like to permanently delete your account.',
-    'delete_account_password' => 'Password',
+    // TASK-1716 — see the French file: the wording moves from "delete" to
+    // "close" because that is what actually happens.
+    'close_account' => 'Close my account',
+    'close_account_warning' => 'Closing your account deactivates it immediately: you are signed out, your access is revoked and your profile is no longer visible. Your contributions and history are kept. Only an administrator can reopen a closed account.',
+    'close_account_confirm' => 'Are you sure you want to close your account?',
+    'close_account_instructions' => 'Enter your password to confirm that you want to close your account.',
+    'close_account_password' => 'Password',
+    'close_account_submit' => 'Close my account',
+    'close_account_erasure' => 'Also request the erasure of my personal data',
+    'close_account_erasure_help' => 'An administrator will review your request. Some data cannot be erased when it involves someone else — an exchange, a vote or a points entry, for instance.',
+    'close_account_done' => 'Your account is closed. Your access has been revoked.',
 
     'profile_reminder_title' => 'Complete your profile before publishing.',
     'profile_reminder_body' => 'The :fields fields are required — members need to know who they are dealing with before exchanging.',
