@@ -1741,7 +1741,9 @@ return [
     'users_status_label' => 'Status',
     'users_stat_total' => 'Accounts',
     'users_stat_available' => 'Available',
-    'users_stat_banned' => 'Banned',
+    // TASK-1716 — see the French file: the tile counts every deactivated
+    // account, closed-by-owner included.
+    'users_stat_banned' => 'Deactivated',
     'users_stat_admins' => 'Administrators',
     'users_stat_new' => 'New this month',
     'users_stat_unverified' => 'Unverified',

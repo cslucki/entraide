@@ -1756,7 +1756,12 @@ return [
     'users_status_label' => 'Statut',
     'users_stat_total' => 'Comptes',
     'users_stat_available' => 'Disponibles',
-    'users_stat_banned' => 'Bannis',
+    // TASK-1716 — la tuile compte `banned_at IS NOT NULL`, donc les comptes
+    // FERMES PAR LEUR PROPRIETAIRE autant que les bannis. Le chiffre etait
+    // juste, le mot ne l'etait plus : « BANNIS 3 » quand deux des trois
+    // avaient ferme leur compte eux-memes. « Desactives » couvre les deux sans
+    // toucher a la requete — le detail se lit sur la ligne, qui distingue.
+    'users_stat_banned' => 'Désactivés',
     'users_stat_admins' => 'Administrateurs',
     'users_stat_new' => 'Nouveaux ce mois',
     'users_stat_unverified' => 'Non vérifiés',

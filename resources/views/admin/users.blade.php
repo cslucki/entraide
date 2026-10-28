@@ -101,7 +101,11 @@
         <select name="status" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
             <option value="">Tous</option>
             <option value="available" {{ request('status') === 'available' ? 'selected' : '' }}>Disponibles</option>
-            <option value="banned" {{ request('status') === 'banned' ? 'selected' : '' }}>Bannis</option>
+            {{-- TASK-1716 — le filtre porte sur `banned_at IS NOT NULL` : il
+                 ramene aussi les comptes fermes par leur proprietaire. La
+                 valeur reste `banned` (c'est une URL, et la changer casserait
+                 les liens existants), seul le LIBELLE devient juste. --}}
+            <option value="banned" {{ request('status') === 'banned' ? 'selected' : '' }}>Désactivés</option>
             <option value="admin" {{ request('status') === 'admin' ? 'selected' : '' }}>Admins</option>
             {{-- TASK-1693 bug B — retrouver les comptes bloques par la garde de
                  verification d'email, qui etaient jusqu'ici introuvables. --}}
