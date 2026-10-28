@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class Loop extends Model
 {
@@ -29,6 +30,30 @@ class Loop extends Model
 
     /** A Loop carries at most 3 domains (Annuaire referential) — TASK-1076. */
     public const MAX_DOMAINS = 3;
+
+    /*
+     * TASK-1717 — PAS de `resolveRouteBinding()` ni de `getRouteKey()` ici,
+     * et c'est une decision prise APRES les avoir ecrits puis mesures.
+     *
+     * 1. La resolution « slug OU identifiant » EXISTE DEJA, dans
+     *    `AppServiceProvider` : `Route::bind('loop', ...)`. Une liaison
+     *    explicite prime sur la liaison implicite du modele, donc une
+     *    surcharge ici ne serait jamais appelee — du code mort qui ferait
+     *    croire a une seconde autorite.
+     *
+     * 2. Surcharger `getRouteKey()` pour rendre le slug a CASSE 40+ tests.
+     *    Le binder ci-dessus refuse volontairement un slug quand la route ne
+     *    porte pas de parametre `{organization}` — « un slug n'a de sens que
+     *    dans une Organization », le meme pouvant exister dans plusieurs.
+     *    Or `loops.show` (forme nue) et les vingt routes `admin.loops.*` n'en
+     *    portent aucun : elles recevaient le slug et rendaient 404.
+     *
+     * L'URL lisible se construit donc la ou l'Organization est connue —
+     * `publicUrl()` ci-dessous et `LoopController::loopRoute()` — jamais par
+     * une surcharge globale. Meme conclusion qu'en TASK-1693 pour `{user}`,
+     * ou `profileRouteKey()` existe precisement pour ne pas toucher aux 30
+     * routes d'administration.
+     */
 
     protected $fillable = [
         'organization_id',
@@ -208,6 +233,7 @@ class Loop extends Model
 
         return route('loops.show', $this);
     }
+
 
     /**
      * Every active owner. A Loop may have several; they all have equal rights.

@@ -1561,4 +1561,10 @@ return [
     'plugins_models_type_paid' => 'Payant approuvé',
     'plugins_models_paid_rejected' => ":model n'est pas approuvable : hors liste, tarif non relevé ou modèle inconnu du catalogue. Rien n'a été enregistré.",
     'plugins_models_fail_closed' => "Tant qu'un assistant n'a pas de modèle vérifié gratuit, il ne génère rien. Aucun repli automatique vers un autre modèle n'existe.",
+
+    // TASK-1717 — le slug de la Boucle, visible et modifiable.
+    'slug_label' => 'Adresse de la boucle (slug)',
+    'slug_placeholder' => 'ma-boucle',
+    'slug_help' => 'Apparaît dans l\'URL. Minuscules, chiffres et tirets. Laissez vide pour conserver l\'adresse actuelle.',
+    'slug_cannot_be_uuid' => 'Cette adresse ne peut pas avoir la forme d\'un identifiant technique.',
 ];
