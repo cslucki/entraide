@@ -88,26 +88,47 @@ class TASK1717LoopSlugRoutingTest extends TestCase
             ->assertOk();
     }
 
-    // TASK-1717 — PAS de garde « l'URL affichee porte le slug ».
+    public function test_le_catalogue_lie_les_boucles_par_leur_slug(): void
+    {
+        $loop = $this->boucle(['slug' => 'atelier-mosaique']);
+        // Une SECONDE Boucle : avec une seule, le catalogue redirige vers elle
+        // (mode mono-loop, T1679) et ne rend aucun lien a mesurer.
+        $this->boucle(['slug' => 'seconde-boucle']);
+
+        $html = $this->actingAs($this->membre)
+            ->get("/org/{$this->organisation->slug}/loops")->assertOk()->getContent();
+
+        // Le lien d'OUVERTURE de la Boucle — celui qu'on clique et qu'on
+        // partage — porte le slug.
+        $this->assertStringContainsString('href="'.route('organization.loops.show', [
+            'organization' => $this->organisation->slug, 'loop' => 'atelier-mosaique',
+        ]).'"', $html);
+
+        // Et il ne reste pas de lien d'ouverture en UUID. L'assertion vise le
+        // `href=` precis, et non « l'identifiant n'apparait nulle part » : les
+        // formulaires d'action de la carte — rejoindre, modifier, archiver —
+        // postent toujours vers l'identifiant, ce qui est correct et hors
+        // sujet ici.
+        $this->assertStringNotContainsString('href="'.route('organization.loops.show', [
+            'organization' => $this->organisation->slug, 'loop' => $loop->id,
+        ]).'"', $html);
+    }
+
+    // PAS de surcharge de `Loop::getRouteKey()`, et c'est mesure.
     //
-    // La conversion des liens internes est HORS PERIMETRE, et c'est une
-    // decision mesuree, pas un oubli. Deux facons de l'obtenir, toutes deux
-    // essayees puis retirees :
+    // Rendre le slug depuis `getRouteKey()` convertirait TOUTES les URL d'un
+    // coup — y compris celles des routes sans `{organization}`. Or
+    // `Route::bind('loop', ...)` refuse volontairement un slug la-bas (« le
+    // meme peut exister dans plusieurs »), donc `loops.show` en forme nue et
+    // les vingt routes `admin.loops.*` rendraient 404. Mesure : **40+ tests
+    // casses**.
     //
-    //  - surcharger `Loop::getRouteKey()` pour rendre le slug : **40+ tests
-    //    casses**. `Route::bind('loop', ...)` refuse volontairement un slug
-    //    quand la route ne porte pas de `{organization}` — le meme slug peut
-    //    exister dans plusieurs — donc `loops.show` en forme nue et les vingt
-    //    routes `admin.loops.*` recevaient un slug et rendaient 404 ;
-    //  - une redirection canonique sur la page de Boucle (idiome T1601) :
-    //    **~15 tests casses**, tous ceux qui ouvrent la page par UUID et
-    //    asserten un contenu, puisqu'ils recoivent desormais un 301.
-    //
-    // Les deux coutent des dizaines d'adaptations dans des suites que cette
-    // TASK n'a pas ecrites. Le besoin exprime — « qu'on puisse mettre un
-    // slug » — est servi sans elles : le slug se SAISIT, et l'adresse lisible
-    // FONCTIONNE deja (garde ci-dessus). Arbitrage MASTER consigne au TASK
-    // file.
+    // La conversion se fait donc dans les VUES qui construisent une URL
+    // org-scopee, la ou l'Organization est connue. Trois d'entre elles
+    // l'employaient deja (`dossiers/espaces`, `dossiers/show`,
+    // `members/index`) : la convention existait, elle n'etait pas appliquee
+    // partout. Cout reel de l'alignement : trois lignes de vue et UNE
+    // assertion de test.
 
     public function test_une_boucle_sans_slug_retombe_sur_son_identifiant(): void
     {

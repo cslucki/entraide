@@ -6,7 +6,15 @@
             : route('loops.create');
         $loopShowHref = function ($loop) use ($organizationRouteParam) {
             if ($organizationRouteParam && request()->routeIs('organization.*')) {
-                return route('organization.loops.show', ['organization' => $organizationRouteParam, 'loop' => $loop]);
+                // TASK-1717 — le SLUG dans l'URL org-scopee, l'identifiant en
+                // repli. Meme idiome que `dossiers/espaces`, `dossiers/show` et
+                // `members/index`, qui l'emploient deja : la convention
+                // existait, elle n'etait simplement pas appliquee ici.
+                //
+                // Seulement sur la branche ORG-SCOPEE : `Route::bind('loop')`
+                // refuse un slug quand la route ne porte pas d'`{organization}`,
+                // donc la forme nue ci-dessous garde le modele.
+                return route('organization.loops.show', ['organization' => $organizationRouteParam, 'loop' => $loop->slug ?: $loop->getKey()]);
             }
 
             return route('loops.show', $loop);
