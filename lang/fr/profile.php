@@ -90,11 +90,21 @@ return [
     'new_password' => 'Nouveau mot de passe',
     'confirm_password' => 'Confirmer le mot de passe',
 
-    'delete_account' => 'Supprimer le compte',
-    'delete_account_warning' => 'Une fois votre compte supprimé, toutes ses ressources et données seront définitivement effacées. Téléchargez au préalable toute information que vous souhaitez conserver.',
-    'delete_account_confirm' => 'Êtes-vous sûr de vouloir supprimer votre compte ?',
-    'delete_account_instructions' => 'Une fois votre compte supprimé, toutes ses ressources et données seront définitivement effacées. Saisissez votre mot de passe pour confirmer la suppression définitive.',
-    'delete_account_password' => 'Mot de passe',
+    // TASK-1716 — « supprimer » devient « fermer », parce que c'est ce qui se
+    // passe reellement : le compte est desactive, pas efface. Les anciennes
+    // clefs `delete_account_*` sont SUPPRIMEES plutot que laissees en place —
+    // les garder aurait laisse deux vocabulaires cohabiter, et le premier
+    // promettait un effacement definitif qui n'a jamais eu lieu (il levait un
+    // 500, voir `ProfileController::close()`).
+    'close_account' => 'Fermer mon compte',
+    'close_account_warning' => 'La fermeture désactive immédiatement votre compte : vous êtes déconnecté, vos accès sont révoqués et votre profil n\'est plus visible. Vos contributions et votre historique sont conservés. Seul un administrateur peut rouvrir un compte fermé.',
+    'close_account_confirm' => 'Êtes-vous sûr de vouloir fermer votre compte ?',
+    'close_account_instructions' => 'Saisissez votre mot de passe pour confirmer la fermeture de votre compte.',
+    'close_account_password' => 'Mot de passe',
+    'close_account_submit' => 'Fermer mon compte',
+    'close_account_erasure' => 'Demander également l\'effacement de mes données personnelles',
+    'close_account_erasure_help' => 'Un administrateur examinera votre demande. Certaines données ne peuvent pas être effacées lorsqu\'elles engagent une autre personne — un échange, un vote ou une écriture de points, par exemple.',
+    'close_account_done' => 'Votre compte est fermé. Vos accès ont été révoqués.',
 
     'profile_reminder_title' => 'Complétez votre profil avant de publier.',
     'profile_reminder_body' => 'Les champs :fields sont obligatoires — les membres ont besoin de savoir à qui ils ont affaire avant d\'échanger.',
