@@ -158,7 +158,9 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
         <a href="{{ $urlConnexion }}">{{ org_trans('ofsh.nav_login') }}</a>
         <a class="nav-dashboard" href="{{ $urlInscription }}" data-ofsh-nav-join>{{ org_trans('ofsh.cta_join') }}</a>
       @else
-        <a class="nav-dashboard" href="{{ route('dashboard') }}" data-ofsh-nav-dashboard>{{ org_trans('ofsh.nav_dashboard') }}</a>
+        {{-- TASK-1720 — menu de compte, partiel partage par les trois
+             gabarits de homepage autonomes. --}}
+        @include('organization.partials.account-menu', ['organization' => $organization, 'triggerClass' => 'nav-dashboard'])
       @endguest
     </nav>
 
@@ -180,7 +182,7 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
         <a href="{{ $urlConnexion }}">{{ org_trans('ofsh.nav_login') }}</a>
         <a class="nav-dashboard" href="{{ $urlInscription }}">{{ org_trans('ofsh.cta_join') }}</a>
       @else
-        <a class="nav-dashboard" href="{{ route('dashboard') }}">{{ org_trans('ofsh.nav_dashboard') }}</a>
+        @include('organization.partials.account-menu', ['organization' => $organization, 'triggerClass' => 'nav-dashboard'])
       @endguest
     </nav>
   </header>
@@ -255,11 +257,21 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
     </section>
   </main>
 
-  <section id="about" class="about-section" tabindex="-1">
-    <h2>{{ org_trans('ofsh.about_title') }}</h2>
-    <p>{{ org_trans('ofsh.about_body') }}</p>
-    <p class="about-line">{{ org_trans('ofsh.about_line') }}</p>
-  </section>
+  {{-- TASK-1720 — la section « Un collectif pour ne pas avancer seul » est
+       retiree de la HOMEPAGE. MASTER : « cela prend trop de place ».
+
+       Elle poussait la page a defiler sur un ecran de bureau alors que le
+       hero, lui, tient. Le discours n'est pas perdu : « A propos » et
+       « Decouvrir OFSH » menent tous deux a `organization.about`, une page
+       entiere qui le developpe. Aucun lien ne visait cette ancre — `#about`
+       n'etait la cible de rien, verifie.
+
+       Les trois clefs `ofsh.about_title`, `about_body` et `about_line` RESTENT
+       en place : `org_trans()` les lit a travers `TranslationOverrideService`,
+       un dictionnaire administrable par Organization. Les supprimer retirerait
+       trois entrees du vocabulaire qu'un administrateur peut reecrire. Aucune
+       personnalisation ne porte sur elles aujourd'hui (verifie en base), mais
+       la clef est l'offre, pas son usage sur une page. --}}
 
   {{-- TASK-1698 — le pied est servi EN ENTIER, connecte ou non, et chacune de
        ses destinations est BORNEE a l'Organization de l'URL. Seul « Un bug ? »

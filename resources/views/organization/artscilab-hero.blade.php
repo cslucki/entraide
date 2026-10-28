@@ -80,7 +80,9 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
             <a href="{{ route('organization.register', $organization) }}" class="btn-join">{{ org_trans('artscilab.nav_join') }}</a>
           @endif
         @else
-          <a href="{{ route('dashboard') }}" class="btn-join--outline">{{ org_trans('artscilab.nav_dashboard') }}</a>
+          {{-- TASK-1720 — meme menu de compte que les deux autres gabarits
+               autonomes, par le partiel partage. --}}
+          @include('organization.partials.account-menu', ['organization' => $organization, 'triggerClass' => 'btn-join--outline'])
         @endguest
       </nav>
     </div>

@@ -95,33 +95,9 @@ $secondaryCtaUrl = $showInternalHomepageContent
                deconnecter. Sinon on est oblige d'ouvrir une page, et de passer
                par le rail gauche » — trois ecrans pour quitter sa session.
 
-               Le gestionnaire JS de ce menu existe DEJA en bas de ce fichier
-               (`.user-menu` / `.user-trigger` / `.user-dropdown`) : il est reste
-               orphelin quand `506e6013` a remplace l'ancien menu avatar par un
-               bouton plat et supprime son CSS, sans retirer son script. On lui
-               rend donc son balisage au lieu d'en ecrire un second.
-
-               L'ancien menu portait DIX entrees — profil, reglages, points,
-               favoris, aide, bug, administration. Elles ne reviennent PAS : le
-               rail gauche les porte, et TASK-370 les a retirees d'ici a
-               dessein. Seules la destination du bouton et la sortie de session
-               sont ici, parce que c'est ce qui manquait.
-
-               Le lien direct vers le tableau de bord reste la PREMIERE entree :
-               le bouton ne doit pas perdre ce qu'il faisait deja. --}}
-          <div class="user-menu">
-            <button type="button" class="btn-join user-trigger" aria-expanded="false" aria-haspopup="true" data-marqueur="menu-compte-accueil">
-              {{ __('navigation.dashboard') }}
-              <i class="ti ti-chevron-down" aria-hidden="true"></i>
-            </button>
-            <div class="user-dropdown" hidden>
-              <a href="{{ route('dashboard') }}">{{ __('navigation.dashboard') }}</a>
-              <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit">{{ __('navigation.logout') }}</button>
-              </form>
-            </div>
-          </div>
+               Le menu est un PARTIEL partage par les trois gabarits de
+               homepage autonomes : voir son en-tete pour le pourquoi. --}}
+          @include('organization.partials.account-menu', ['organization' => $organization, 'triggerClass' => 'btn-join'])
         @endguest
       </nav>
       <button class="burger" aria-label="{{ __('common.open_menu') }}" aria-expanded="false" aria-controls="m-menu"><i class="ti ti-menu-2"></i></button>
@@ -141,14 +117,7 @@ $secondaryCtaUrl = $showInternalHomepageContent
     @guest
       <a href="{{ route('organization.login', $organization) }}" class="btn-join">{{ org_trans('hero.nav_login') }}</a>
     @else
-      <a href="{{ route('dashboard') }}">{{ __('navigation.dashboard') }}</a>
-      {{-- TASK-1720 — le menu burger de CE MEME gabarit souffrait du meme
-           manque. MASTER a decrit le Desktop ; laisser la sortie de session
-           disponible d'un cote seulement serait le defaut suivant. --}}
-      <form method="POST" action="{{ route('logout') }}">
-        @csrf
-        <button type="submit" data-marqueur="deconnexion-accueil-mobile">{{ __('navigation.logout') }}</button>
-      </form>
+      @include('organization.partials.account-menu', ['organization' => $organization, 'triggerClass' => 'btn-join'])
     @endguest
     <div class="m-lang" aria-label="Langue / Language">
       @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
@@ -424,17 +393,6 @@ $secondaryCtaUrl = $showInternalHomepageContent
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 })();
 
-(function () {
-  const menu = document.querySelector('.user-menu');
-  if (!menu) return;
-  const trigger = menu.querySelector('.user-trigger');
-  const dropdown = menu.querySelector('.user-dropdown');
-  const close = () => { dropdown.hidden = true; trigger.setAttribute('aria-expanded', 'false'); };
-  const open = () => { dropdown.hidden = false; trigger.setAttribute('aria-expanded', 'true'); };
-  trigger.addEventListener('click', e => { e.stopPropagation(); dropdown.hidden ? open() : close(); });
-  document.addEventListener('click', e => { if (!dropdown.hidden && !menu.contains(e.target)) close(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-})();
 </script>
 @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'bottom'])
 </body>
