@@ -626,7 +626,21 @@ class AdminLoopController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:5000',
             'visibility' => 'required|in:public,private',
+            // TASK-1717 — l'enonce citait explicitement le SuperAdmin comme
+            // porte d'entree du slug.
+            //
+            // La borne d'unicite est l'Organization DE LA BOUCLE, pas celle du
+            // SuperAdmin : depuis l'administration il modifie une Boucle d'un
+            // autre tenant que le sien, et verifier dans le sien repondrait a
+            // une autre question. La regle est lue au modele, seule autorite.
+            'slug' => Loop::slugRules((string) $loop->organization_id, $loop),
         ]);
+
+        // Champ vide = adresse INCHANGEE. Une URL publique ne doit pas
+        // disparaitre parce qu'on a corrige une description.
+        if (empty($data['slug'])) {
+            unset($data['slug']);
+        }
 
         $this->loopService->updateLoop($loop, $data);
 

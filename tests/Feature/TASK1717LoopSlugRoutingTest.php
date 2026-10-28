@@ -285,4 +285,112 @@ class TASK1717LoopSlugRoutingTest extends TestCase
                 'slug' => 'Mon Atelier !',
             ])->assertSessionHasErrors('slug');
     }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // 4. La TROISIEME porte : l'ecran SuperAdmin
+    // ───────────────────────────────────────────────────────────────────────
+
+    public function test_le_superadmin_voit_et_modifie_le_slug_d_une_autre_organization(): void
+    {
+        // La borne d'unicite est l'Organization DE LA BOUCLE, pas celle du
+        // SuperAdmin : il modifie ici une Boucle d'un AUTRE tenant que le
+        // sien, et verifier dans le sien repondrait a une autre question.
+        $autre = Organization::factory()->create(['slug' => 'org-1717-admin']);
+        $auteur = User::factory()->create(['organization_id' => $autre->id]);
+        $loop = Loop::factory()->create([
+            'organization_id' => $autre->id, 'slug' => 'ancienne-adresse',
+            'created_by' => $auteur->id, 'name' => 'Ailleurs',
+        ]);
+
+        $admin = User::factory()->create([
+            'organization_id' => $this->organisation->id, 'is_admin' => true,
+            'email_verified_at' => now(), 'approved_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.loops.edit', $loop))
+            ->assertOk()
+            ->assertSee('data-marqueur="champ-slug-boucle-admin"', false)
+            ->assertSee('ancienne-adresse', false);
+
+        $this->actingAs($admin)
+            ->put(route('admin.loops.update', $loop), [
+                'name' => 'Ailleurs',
+                'visibility' => 'private',
+                'slug' => 'nouvelle-adresse',
+            ])->assertSessionHasNoErrors();
+
+        $this->assertSame('nouvelle-adresse', $loop->fresh()->slug);
+    }
+
+    public function test_le_superadmin_ne_peut_pas_creer_une_collision_dans_le_tenant_de_la_boucle(): void
+    {
+        $autre = Organization::factory()->create(['slug' => 'org-1717-admin2']);
+        $auteur = User::factory()->create(['organization_id' => $autre->id]);
+        Loop::factory()->create(['organization_id' => $autre->id, 'slug' => 'deja-pris', 'created_by' => $auteur->id]);
+        $loop = Loop::factory()->create([
+            'organization_id' => $autre->id, 'slug' => 'la-mienne',
+            'created_by' => $auteur->id, 'name' => 'La mienne',
+        ]);
+
+        $admin = User::factory()->create([
+            'organization_id' => $this->organisation->id, 'is_admin' => true,
+            'email_verified_at' => now(), 'approved_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.loops.update', $loop), [
+                'name' => 'La mienne',
+                'visibility' => 'private',
+                'slug' => 'deja-pris',
+            ])->assertSessionHasErrors('slug');
+
+        $this->assertSame('la-mienne', $loop->fresh()->slug);
+    }
+
+    public function test_un_slug_vide_depuis_l_admin_conserve_l_adresse(): void
+    {
+        $autre = Organization::factory()->create(['slug' => 'org-1717-admin3']);
+        $auteur = User::factory()->create(['organization_id' => $autre->id]);
+        $loop = Loop::factory()->create([
+            'organization_id' => $autre->id, 'slug' => 'adresse-stable',
+            'created_by' => $auteur->id, 'name' => 'Stable',
+        ]);
+
+        $admin = User::factory()->create([
+            'organization_id' => $this->organisation->id, 'is_admin' => true,
+            'email_verified_at' => now(), 'approved_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.loops.update', $loop), ['name' => 'Renommee', 'visibility' => 'private'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('adresse-stable', $loop->fresh()->slug);
+    }
+
+    public function test_la_liste_admin_montre_le_slug_et_mene_aux_outils(): void
+    {
+        $autre = Organization::factory()->create(['slug' => 'org-1717-liste']);
+        $auteur = User::factory()->create(['organization_id' => $autre->id]);
+        $loop = Loop::factory()->create([
+            'organization_id' => $autre->id, 'slug' => 'adresse-visible',
+            'created_by' => $auteur->id, 'name' => 'Visible',
+        ]);
+
+        $admin = User::factory()->create([
+            'organization_id' => $this->organisation->id, 'is_admin' => true,
+            'email_verified_at' => now(), 'approved_at' => now(),
+        ]);
+
+        $html = $this->actingAs($admin)
+            ->get('/admin/loops?organization_id='.$autre->id)->assertOk()->getContent();
+
+        // Les marqueurs portent l'identifiant : l'assertion est ATTRIBUEE a
+        // CETTE ligne, et non a la presence du mot quelque part dans la page.
+        $this->assertStringContainsString('data-loop-slug="'.$loop->id.'"', $html);
+        $this->assertStringContainsString('adresse-visible', $html);
+        $this->assertStringContainsString('data-loop-configure="'.$loop->id.'"', $html);
+        $this->assertStringContainsString(route('admin.loops.configure', $loop), $html);
+    }
 }

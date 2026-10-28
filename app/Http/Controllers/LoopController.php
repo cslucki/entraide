@@ -402,60 +402,6 @@ class LoopController extends Controller
         ]);
     }
 
-    /**
-     * TASK-1717 — les segments statiques que `/loops/{loop}` ne doit pas voler.
-     *
-     * `/loops/create` est declare AVANT `/loops/{loop}` : une Boucle sluggee
-     * `create` serait donc parfaitement valide en base et DEFINITIVEMENT
-     * inatteignable par son URL. Un refus a la saisie vaut mieux qu'une page
-     * que personne ne comprend.
-     *
-     * @var list<string>
-     */
-    public const SLUGS_RESERVES = ['create'];
-
-    /**
-     * TASK-1717 — ce qu'un slug de Boucle a le droit d'etre.
-     *
-     * Quatre refus, et chacun a sa raison :
-     *
-     *  - la FORME (`a-z`, `0-9`, tirets simples) : un slug est une portion
-     *    d'URL, pas un titre. `Str::slug()` produit deja exactement cela a la
-     *    creation automatique — la saisie manuelle suit la meme regle ;
-     *  - les segments RESERVES, voir `SLUGS_RESERVES` ;
-     *  - la forme UUID : `resolveRouteBinding()` teste `Str::isUuid()` avant
-     *    de chercher un slug. Un slug en forme d'UUID serait donc cherche dans
-     *    `id`, et ne resoudrait jamais sa propre Boucle. Le refuser est la
-     *    seule facon de garder les deux formes d'URL sans ambiguite ;
-     *  - l'UNICITE **par Organization**, jamais globale : `loops` porte
-     *    `unique(['organization_id', 'slug'])` depuis sa creation, et deux
-     *    tenants ont le droit d'avoir chacun leur `boucle-daccueil`.
-     *
-     * `nullable` est deliberé : laisser le champ vide garde le comportement
-     * existant — slug genere a la creation, slug INCHANGE a la modification.
-     * Personne n'est oblige de s'occuper de son URL.
-     *
-     * @return array<int, mixed>
-     */
-    private function slugRules(string $organizationId, ?Loop $loop = null): array
-    {
-        return [
-            'nullable',
-            'string',
-            'max:80',
-            'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
-            'not_in:'.implode(',', self::SLUGS_RESERVES),
-            function (string $attribut, mixed $valeur, callable $echec) {
-                if (is_string($valeur) && Str::isUuid($valeur)) {
-                    $echec(__('loops.slug_cannot_be_uuid'));
-                }
-            },
-            Rule::unique('loops', 'slug')
-                ->where(fn ($query) => $query->where('organization_id', $organizationId))
-                ->ignore($loop?->getKey()),
-        ];
-    }
-
     public function store(Request $request): RedirectResponse
     {
         $organization = $this->resolveOrganization();
@@ -472,7 +418,7 @@ class LoopController extends Controller
             'category_ids.*' => 'string',
             'type' => ['nullable', Rule::in(app(LoopTypeRegistry::class)->availableKeys())],
             // TASK-1717 — le slug se choisit DES la creation.
-            'slug' => $this->slugRules($organization->id),
+            'slug' => Loop::slugRules($organization->id),
         ]);
 
         $loop = $this->loopService->createLoop(
@@ -551,7 +497,7 @@ class LoopController extends Controller
             // TASK-1717 — `ignore($loop)` : reenregistrer le formulaire sans
             // toucher au slug ne doit pas le declarer en collision avec
             // lui-meme.
-            'slug' => $this->slugRules($organization->id, $loop),
+            'slug' => Loop::slugRules($organization->id, $loop),
         ]);
 
         // Champ laisse vide = slug INCHANGE. Le retirer du lot plutot que
