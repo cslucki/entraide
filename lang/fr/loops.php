@@ -1561,4 +1561,13 @@ return [
     'plugins_models_type_paid' => 'Payant approuvé',
     'plugins_models_paid_rejected' => ":model n'est pas approuvable : hors liste, tarif non relevé ou modèle inconnu du catalogue. Rien n'a été enregistré.",
     'plugins_models_fail_closed' => "Tant qu'un assistant n'a pas de modèle vérifié gratuit, il ne génère rien. Aucun repli automatique vers un autre modèle n'existe.",
+
+    // TASK-1719 — l'ajout direct dans une Boucle (repli Blade).
+    'member_added_default_message' => 'Vous avez ete ajoute a la Boucle :loop.',
+    'member_added_mail_subject' => 'Vous avez ete ajoute a la Boucle :loop',
+    'member_added_mail_hello' => 'Bonjour :name,',
+    'member_added_mail_body_with_actor' => ':actor vous a ajoute a la Boucle « :loop » sur :organization. Vous en etes desormais membre.',
+    'member_added_mail_body' => 'Vous avez ete ajoute a la Boucle « :loop » sur :organization. Vous en etes desormais membre.',
+    'member_added_mail_cta' => 'Ouvrir la Boucle',
+    'member_added_mail_plain_link' => 'Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :',
 ];

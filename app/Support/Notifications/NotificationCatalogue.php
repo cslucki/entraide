@@ -72,6 +72,21 @@ final class NotificationCatalogue
     public const LOOP_INVITATION = 'loop.invitation';
 
     /**
+     * TASK-1719 — « on vous a AJOUTE », qui n'est pas « on vous a invite ».
+     *
+     * Deux faits distincts, donc deux cles — meme raison qu'en TASK-1381 pour
+     * les decisions d'adhesion. Une invitation appelle une reponse ; un ajout
+     * direct ne demande rien : la personne EST membre quand elle lit le
+     * message. Les fondre obligerait le rendu a relire l'objet metier pour
+     * savoir quoi ecrire, donc a dependre d'un etat qui a pu changer depuis.
+     *
+     * C'est le chemin « Ajouter des membres » de la Card Membres, mesure muet :
+     * il creait l'appartenance et RIEN d'autre — ni invitation, ni
+     * notification, ni email.
+     */
+    public const LOOP_MEMBER_ADDED = 'loop.member_added';
+
+    /**
      * TASK-1381 — la reponse a une demande d'adhesion.
      *
      * DEUX cles, pas une avec un statut. Une notification designe un FAIT, et
@@ -108,6 +123,15 @@ final class NotificationCatalogue
      * reecrire la chaine ailleurs evite qu'une seconde verite s'installe.
      */
     public const OBJECT_LOOP_INVITATION = 'loop_invitation';
+
+    /**
+     * TASK-1719 — l'objet d'un ajout direct est la BOUCLE, pas une invitation.
+     *
+     * Il n'existe aucune ligne `loop_invitations` sur ce chemin : pointer vers
+     * un objet qui n'a jamais ete cree rendrait la notification inexploitable
+     * des qu'on voudrait la relier a quelque chose.
+     */
+    public const OBJECT_LOOP = 'loop';
 
     /**
      * Les deux cles de decision partagent CE type d'objet.
@@ -173,6 +197,24 @@ final class NotificationCatalogue
                 // le planificateur cree desormais une livraison EMAIL, et le
                 // mailer legacy s'efface pour les membres de l'Organization.
                 // La retirer suffit a revenir en arriere.
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1719 — l'ajout direct dans une Boucle.
+        self::LOOP_MEMBER_ADDED => [
+            'category' => 'loop',
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                // IN_APP obligatoire, comme l'invitation : on ne se desabonne
+                // pas d'apprendre qu'on vient d'etre mis quelque part.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+
+                // EMAIL actif par defaut, et configurable. Actif parce que la
+                // personne n'a rien demande : rien ne garantit qu'elle
+                // reviendra d'elle-meme voir une Boucle dont elle ignore
+                // l'existence. Configurable parce que le fait reste visible
+                // dans le Centre, donc couper l'email ne fait rien perdre.
                 self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
             ],
         ],

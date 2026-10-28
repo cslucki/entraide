@@ -49,6 +49,8 @@ class NotificationTargetResolver
         return match ($notification->object_type) {
             NotificationCatalogue::OBJECT_LOOP_INVITATION => $this->loopInvitation($notification),
             NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST => $this->loopJoinRequest($notification),
+            // TASK-1719 — l'ajout direct mene a la Boucle elle-meme.
+            NotificationCatalogue::OBJECT_LOOP => $this->loop($notification),
             NotificationCatalogue::OBJECT_BLOG_COMMENT => $this->blogComment($notification),
             NotificationCatalogue::OBJECT_BLOG_POST => $this->blogPost($notification),
             default => null,
@@ -119,6 +121,66 @@ class NotificationTargetResolver
      * repondrait 404 ; on rend `null` et le Centre le dit honnetement, plutot
      * que d'envoyer quelqu'un sur une porte close.
      */
+    /**
+     * TASK-1719 — la cible d'un ajout direct : la Boucle.
+     *
+     * Les memes verifications que `loopJoinRequest()`, et pour les memes
+     * raisons — le tenant du destinataire est relu HORS Eloquent parce que ce
+     * code tourne aussi sous worker, ou aucune portee globale ne s'applique.
+     *
+     * Une difference, et elle compte : la personne vient d'etre AJOUTEE, donc
+     * son appartenance active est la condition normale et non une faveur. Si
+     * elle ne l'est plus — retiree entre l'ajout et l'envoi —, la cible devient
+     * nulle et la livraison est sautee plutot que d'annoncer un lien qui
+     * refusera.
+     */
+    private function loop(MemberNotification $notification): ?string
+    {
+        if ($notification->object_id === null) {
+            return null;
+        }
+
+        $boucle = Loop::query()
+            ->whereKey($notification->object_id)
+            ->where('organization_id', $notification->organization_id)
+            ->first();
+
+        if ($boucle === null) {
+            return null;
+        }
+
+        $tenantDuDestinataire = DB::table('users')
+            ->where('id', $notification->recipient_id)
+            ->value('organization_id');
+
+        if ($tenantDuDestinataire !== $notification->organization_id) {
+            return null;
+        }
+
+        $estMembreActif = LoopMember::query()
+            ->where('loop_id', $boucle->id)
+            ->where('user_id', $notification->recipient_id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $estMembreActif) {
+            return null;
+        }
+
+        $organisation = Organization::query()
+            ->whereKey($notification->organization_id)
+            ->first();
+
+        if ($organisation === null) {
+            return null;
+        }
+
+        return route('organization.loops.show', [
+            'organization' => $organisation,
+            'loop' => $boucle,
+        ]);
+    }
+
     private function loopJoinRequest(MemberNotification $notification): ?string
     {
         if ($notification->object_id === null) {

@@ -1525,4 +1525,13 @@ return [
     'plugins_models_type_paid' => 'Approved paid',
     'plugins_models_paid_rejected' => ':model cannot be approved: not on the shortlist, rate not recorded, or unknown to the catalog. Nothing was saved.',
     'plugins_models_fail_closed' => 'Until an assistant has a verified free model, it generates nothing. There is no automatic fallback to another model.',
+
+    // TASK-1719 — l'ajout direct dans une Boucle (repli Blade).
+    'member_added_default_message' => 'You have been added to the :loop Loop.',
+    'member_added_mail_subject' => 'You have been added to the :loop Loop',
+    'member_added_mail_hello' => 'Hello :name,',
+    'member_added_mail_body_with_actor' => ':actor added you to the :loop Loop on :organization. You are now a member.',
+    'member_added_mail_body' => 'You have been added to the :loop Loop on :organization. You are now a member.',
+    'member_added_mail_cta' => 'Open the Loop',
+    'member_added_mail_plain_link' => 'If the button does not work, copy this address into your browser:',
 ];
