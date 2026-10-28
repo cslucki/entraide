@@ -74,6 +74,19 @@ class RequireApprovedAccount
         'logout',
         'password.confirm',
         'password.confirm.store',
+        // TASK-1716 — fermer son compte reste possible en attendant.
+        //
+        // UNE entree nommee, et non l'ouverture de `profile.*`. La difference
+        // est tout l'interet : le docblock ci-dessus explique pourquoi le
+        // profil est ferme a un compte en attente — il n'a RIEN a y corriger,
+        // l'attente ne depend pas de lui. Mais renoncer, si. Enfermer
+        // quelqu'un dans une attente qu'il ne peut ni faire avancer ni quitter
+        // pour de bon serait la meme faute que de lui refuser `logout`.
+        //
+        // C'est aussi la raison pour laquelle `account.close` est une route
+        // GLOBALE declaree dans `routes/auth.php` : les onze routes de profil
+        // restent fermees, et une seule porte s'ouvre.
+        'account.close',
     ];
 
     /**

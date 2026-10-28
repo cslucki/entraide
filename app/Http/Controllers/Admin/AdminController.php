@@ -300,7 +300,20 @@ class AdminController extends Controller
 
         if ($user->id !== auth()->id()) {
             $update['is_admin'] = $request->boolean('is_admin');
-            $update['banned_at'] = $request->boolean('banned') ? ($user->banned_at ?? now()) : null;
+
+            // TASK-1716 — le TROISIEME chemin de reactivation, et le plus
+            // discret des trois : decocher « banni » sur ce formulaire ecrivait
+            // `banned_at = null`. Un administrateur venu changer une ville ou
+            // un libelle pouvait donc rouvrir un compte ferme par son
+            // proprietaire sans jamais voir le mot « debannir ».
+            //
+            // Sur un compte ferme volontairement, la case est IGNOREE — pas
+            // refusee : le reste du formulaire (nom, bio, Organization) doit
+            // continuer a s'enregistrer. La vue remplace la case par un renvoi
+            // vers « Reouvrir le compte », seule porte qui assume la decision.
+            if (! $user->estFermeVolontairement()) {
+                $update['banned_at'] = $request->boolean('banned') ? ($user->banned_at ?? now()) : null;
+            }
         }
 
         $user->update($update);
@@ -383,11 +396,98 @@ class AdminController extends Controller
         return back()->with('success', 'Utilisateur banni.');
     }
 
+    /**
+     * TASK-1716 — « Debannir » ne leve PLUS une fermeture volontaire.
+     *
+     * L'audit des chemins de reactivation (demande MASTER) en a trouve DEUX,
+     * pas un : celui-ci et `OrgAdminController::toggleUserBan()`. Tous deux
+     * ecrivaient `banned_at = null` a l'aveugle. Un administrateur qui voit
+     * « Banni » sur une ligne et clique « Debannir » rouvrait donc, sans le
+     * savoir, un compte que son proprietaire avait ferme — et lui rendait un
+     * acces qu'il n'avait pas demande.
+     *
+     * Le refus est explicite, pas un silence : le message renvoie vers
+     * l'action qui, elle, assume la decision (`reopenUser()`).
+     */
     public function unbanUser(User $user): RedirectResponse
     {
+        if ($user->estFermeVolontairement()) {
+            return back()->with('error', __('admin.users_closed_use_reopen'));
+        }
+
         $user->update(['banned_at' => null]);
 
         return back()->with('success', 'Utilisateur débanni.');
+    }
+
+    /**
+     * TASK-1716 — la reouverture EXPLICITE d'un compte ferme par son
+     * proprietaire.
+     *
+     * Elle existe parce que le refus de `unbanUser()` ne doit pas creer une
+     * impasse. La fermeture RESERVE l'adresse email (arbitrage MASTER) : sans
+     * cette porte, une personne qui ferme son compte par erreur ne pourrait ni
+     * y revenir ni se reinscrire avec la meme adresse. Le geste est seulement
+     * deplace la ou il est conscient — un bouton distinct, un autre libelle,
+     * une confirmation qui dit ce qu'elle fait.
+     *
+     * Les TROIS colonnes sont remises a `null`, et la troisieme demande une
+     * justification : rouvrir un compte contredit une demande d'effacement. La
+     * laisser en place afficherait une demande pendante sur un compte actif,
+     * que personne ne saurait plus comment traiter. L'effacement reste
+     * demandable a nouveau depuis le profil.
+     *
+     * `forceFill` et non `update` : les trois colonnes sont hors `$fillable`
+     * a dessein (voir `User::casts`).
+     */
+    /**
+     * TASK-1716 — enregistrer, ou retirer, une demande d'effacement.
+     *
+     * MASTER : « prevoir un canal de demande d'effacement apres fermeture ».
+     * La case a cocher du formulaire de fermeture couvre l'instant de la
+     * decision ; elle ne couvre pas l'APRES, et c'est la que le canal manquait
+     * vraiment — une fois le compte ferme, la personne est deconnectee et ne
+     * peut plus rien deposer par le produit. Sa demande arrive alors par un
+     * autre chemin, et elle vivait jusqu'ici dans une boite de reception.
+     *
+     * L'action est reservee a un compte FERME : enregistrer une demande
+     * d'effacement sur un compte actif ferait apparaitre une pastille rouge
+     * devant quelqu'un qui n'a rien demande, et le bon geste pour un compte
+     * actif est que la personne la depose elle-meme depuis son profil.
+     *
+     * Elle n'efface RIEN : la suppression reste l'ecran de TASK-1636, avec ses
+     * refus metier. Ce drapeau rend la demande visible et datee.
+     */
+    public function recordErasureRequest(Request $request, User $user): RedirectResponse
+    {
+        if (! $user->estFermeVolontairement()) {
+            return back()->with('error', __('admin.users_erasure_requires_closed'));
+        }
+
+        $demande = $request->boolean('demande');
+
+        $user->forceFill([
+            'erasure_requested_at' => $demande ? now() : null,
+        ])->save();
+
+        return back()->with('success', __($demande
+            ? 'admin.users_erasure_recorded'
+            : 'admin.users_erasure_withdrawn'));
+    }
+
+    public function reopenUser(User $user): RedirectResponse
+    {
+        if (! $user->estFermeVolontairement()) {
+            return back()->with('error', __('admin.users_reopen_not_closed'));
+        }
+
+        $user->forceFill([
+            'banned_at' => null,
+            'self_closed_at' => null,
+            'erasure_requested_at' => null,
+        ])->save();
+
+        return back()->with('success', __('admin.users_reopen_done'));
     }
 
     public function toggleUserAvailability(User $user): RedirectResponse

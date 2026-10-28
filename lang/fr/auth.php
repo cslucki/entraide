@@ -3,6 +3,11 @@
 return [
     'failed' => 'Ces identifiants ne correspondent pas à nos enregistrements.',
     'deactivated' => 'Votre compte a été désactivé. Veuillez contacter l\'administrateur.',
+    // TASK-1716 — un message DISTINCT de `deactivated`. « Contactez
+    // l'administrateur » envoyait reclamer une explication a quelqu'un qui
+    // venait de fermer son compte lui-meme : le message ne lui apprenait rien
+    // et laissait croire a une sanction.
+    'closed_by_owner' => 'Vous avez fermé ce compte. Contactez un administrateur si vous souhaitez le réouvrir ou demander l\'effacement de vos données personnelles.',
     'password' => 'Le mot de passe fourni est incorrect.',
     'throttle' => 'Tentatives de connexion trop nombreuses. Veuillez essayer de nouveau dans :seconds secondes.',
 

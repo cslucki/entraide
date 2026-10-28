@@ -534,6 +534,28 @@ return [
     'users_columns_hide_detail' => 'Masquer les colonnes détaillées',
     'users_approve_confirm' => 'Valider ce compte et lui ouvrir l\'accès ?',
     'users_approved_flash' => 'Le compte de :name est validé.',
+    // TASK-1716 — la fermeture volontaire, distincte du bannissement.
+    'users_closed_badge' => 'compte fermé',
+    'users_closed_title' => 'Cette personne a fermé son compte elle-même',
+    'users_closed_status' => 'Fermé',
+    'users_reopen_account' => 'Réouvrir le compte',
+    'users_reopen_confirm' => 'Réouvrir ce compte fermé par son propriétaire ? Ses accès seront rétablis, et toute demande d\'effacement de données en attente sera annulée.',
+    'users_reopen_done' => 'Compte réouvert. Toute demande d\'effacement en attente a été annulée.',
+    'users_reopen_not_closed' => 'Ce compte n\'a pas été fermé par son propriétaire : il n\'y a rien à réouvrir.',
+    'users_closed_use_reopen' => 'Ce compte a été fermé par son propriétaire, pas banni. Utilisez « Réouvrir le compte » pour assumer cette décision.',
+    'users_closed_org_admin_refused' => 'Ce compte a été fermé par son propriétaire. Seul un administrateur de la plateforme peut le réouvrir.',
+    // TASK-1716 — la demande d'effacement des donnees personnelles.
+    'users_erasure_badge' => 'effacement demandé',
+    'users_erasure_title' => 'Cette personne a demandé l\'effacement de ses données personnelles',
+    'users_erasure_review' => 'Traiter la demande d\'effacement',
+    'users_erasure_requested_on' => 'Demande enregistrée le :date.',
+    'users_erasure_record' => 'Enregistrer une demande d\'effacement',
+    'users_erasure_record_hint' => 'Cette personne a fermé son compte sans demander l\'effacement de ses données. Si elle en fait la demande par un autre moyen, enregistrez-la ici pour qu\'elle soit tracée.',
+    'users_erasure_record_confirm' => 'Enregistrer une demande d\'effacement des données personnelles pour ce compte ? Rien ne sera effacé : la demande devient visible et datée.',
+    'users_erasure_recorded' => 'Demande d\'effacement enregistrée. Rien n\'a été effacé.',
+    'users_erasure_withdraw' => 'Retirer la demande d\'effacement',
+    'users_erasure_withdrawn' => 'Demande d\'effacement retirée.',
+    'users_erasure_requires_closed' => 'Une demande d\'effacement ne s\'enregistre que sur un compte fermé. Un compte actif la dépose lui-même depuis son profil.',
     'users_pending_approval_badge' => 'en attente de validation',
     'users_pending_approval_title' => 'Ce compte attend votre validation pour accéder à son organisation',
     'org_membership_label_fr' => 'Libellé (français)',
@@ -1734,7 +1756,12 @@ return [
     'users_status_label' => 'Statut',
     'users_stat_total' => 'Comptes',
     'users_stat_available' => 'Disponibles',
-    'users_stat_banned' => 'Bannis',
+    // TASK-1716 — la tuile compte `banned_at IS NOT NULL`, donc les comptes
+    // FERMES PAR LEUR PROPRIETAIRE autant que les bannis. Le chiffre etait
+    // juste, le mot ne l'etait plus : « BANNIS 3 » quand deux des trois
+    // avaient ferme leur compte eux-memes. « Desactives » couvre les deux sans
+    // toucher a la requete — le detail se lit sur la ligne, qui distingue.
+    'users_stat_banned' => 'Désactivés',
     'users_stat_admins' => 'Administrateurs',
     'users_stat_new' => 'Nouveaux ce mois',
     'users_stat_unverified' => 'Non vérifiés',
