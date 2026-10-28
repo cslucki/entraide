@@ -444,7 +444,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile/ai-usage/offers', [UserAiUsageController::class, 'offers'])->name('profile.ai-offers');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    // TASK-1716 — `profile.destroy` a DISPARU, ici et dans la forme prefixee
+    // par l'Organization. Elle appelait `$user->delete()` nu, ce qui levait un
+    // 500 pour TOUT compte inscrit (FK RESTRICT sur `point_ledger` depuis
+    // TASK-1635). La fermeture volontaire la remplace : `account.close`, route
+    // GLOBALE et unique, declaree dans `routes/auth.php` — l'action n'a aucune
+    // raison d'etre scopee par Organization, on ne ferme pas un compte « dans
+    // une Organization », on le ferme.
 
     // Member AI Profile wizard
     Route::middleware('ai-profiles.enabled')->group(function () {
@@ -608,6 +614,19 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
     Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');
+    // TASK-1716 — la reouverture d'un compte ferme par son proprietaire.
+    //
+    // Une route a part, et non un drapeau sur `unban` : l'audit des chemins de
+    // reactivation a montre que le geste aveugle etait exactement le probleme.
+    // Deux routes, deux libelles, deux confirmations — l'administrateur sait
+    // laquelle des deux decisions il prend.
+    Route::patch('/users/{user}/reopen', [AdminController::class, 'reopenUser'])->name('users.reopen');
+    // TASK-1716 — la seconde moitie du canal d'effacement : une demande recue
+    // APRES la fermeture (par email, par courrier) devient tracable. La
+    // personne, elle, est deconnectee et ne peut plus rien deposer par le
+    // produit. Cette route n'efface rien — elle enregistre, ou retire, une
+    // DEMANDE.
+    Route::patch('/users/{user}/erasure-request', [AdminController::class, 'recordErasureRequest'])->name('users.erasure-request');
     Route::post('/users/{user}/adjust-points', [AdminController::class, 'adjustPoints'])->name('users.adjust-points');
     // TASK-1693 bug B — valider MANUELLEMENT la verification d'email d'un
     // compte. Geste de DEPANNAGE : il contourne une preuve de possession
@@ -1452,7 +1471,9 @@ Route::prefix('/org/{organization}')
             Route::get('/profile/ai-usage/offers', [UserAiUsageController::class, 'offers'])->name('profile.ai-offers');
             Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
             Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
-            Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+            // TASK-1716 — voir la note sur la forme nue, ligne ~446 : cette
+            // declaration est remplacee par la route globale `account.close`
+            // de `routes/auth.php`.
 
             // Member AI Profile wizard
             Route::middleware('ai-profiles.enabled')->group(function () {

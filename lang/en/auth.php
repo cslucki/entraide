@@ -15,6 +15,8 @@ return [
 
     'failed' => 'These credentials do not match our records.',
     'deactivated' => 'Your account has been deactivated. Please contact the administrator.',
+    // TASK-1716 — see the French file: a message DISTINCT from `deactivated`.
+    'closed_by_owner' => 'You closed this account. Contact an administrator if you would like it reopened, or to request the erasure of your personal data.',
     'password' => 'The provided password is incorrect.',
     'throttle' => 'Too many login attempts. Please try again in :seconds seconds.',
 
