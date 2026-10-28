@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Services\Loops\Exceptions\LoopInvitationRefusedException;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
@@ -272,13 +273,20 @@ class LoopMembersCard extends Component
             'inviteName' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $invitation = $invitations->invite(
-            $this->loop,
-            auth()->user(),
-            $data['inviteEmail'],
-            $data['inviteName'] ?: null,
-            null,
-        );
+        // TASK-1720 volet B — le refus metier remonte a l'ecran, nomme.
+        try {
+            $invitation = $invitations->invite(
+                $this->loop,
+                auth()->user(),
+                $data['inviteEmail'],
+                $data['inviteName'] ?: null,
+                null,
+            );
+        } catch (LoopInvitationRefusedException $refus) {
+            $this->errorMessage = $refus->getMessage();
+
+            return;
+        }
 
         $mailer->send($invitation);
 

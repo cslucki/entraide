@@ -1531,4 +1531,9 @@ return [
     'slug_placeholder' => 'my-loop',
     'slug_help' => 'Appears in the URL. Lowercase letters, digits and hyphens. Leave empty to keep the current address.',
     'slug_cannot_be_uuid' => 'This address cannot look like a technical identifier.',
+
+    // TASK-1720 volet B — refus d'inviter un compte existant non eligible.
+    'invitation_refused_email_unverified' => 'This person already has an account, but their e-mail address is not verified yet. They cannot join a Loop until they confirm it.',
+    'invitation_refused_pending_approval' => 'This person already has an account, but it is awaiting an administrator\'s approval. They will be able to join a Loop once it is approved.',
+    'invitation_refused_account_closed' => 'This account is closed or suspended: it cannot join a Loop.',
 ];

@@ -1567,4 +1567,9 @@ return [
     'slug_placeholder' => 'ma-boucle',
     'slug_help' => 'Apparaît dans l\'URL. Minuscules, chiffres et tirets. Laissez vide pour conserver l\'adresse actuelle.',
     'slug_cannot_be_uuid' => 'Cette adresse ne peut pas avoir la forme d\'un identifiant technique.',
+
+    // TASK-1720 volet B — refus d'inviter un compte existant non eligible.
+    'invitation_refused_email_unverified' => 'Cette personne a deja un compte, mais son adresse e-mail n\'est pas encore verifiee. Elle ne peut pas rejoindre une Boucle tant qu\'elle ne l\'a pas confirmee.',
+    'invitation_refused_pending_approval' => 'Cette personne a deja un compte, mais il attend la validation d\'un administrateur. Elle pourra rejoindre une Boucle une fois son compte valide.',
+    'invitation_refused_account_closed' => 'Ce compte est ferme ou suspendu : il ne peut pas rejoindre une Boucle.',
 ];

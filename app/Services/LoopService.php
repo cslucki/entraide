@@ -168,7 +168,19 @@ class LoopService
 
     public function addMemberByUserId(Loop $loop, string $userId, string $role = 'member', ?User $actor = null): LoopMember
     {
-        $user = User::assignable()->findOrFail($userId);
+        // TASK-1720 volet B — la garde SERVEUR, au point de passage oblige.
+        //
+        // Tous les chemins d'ajout finissent ici : la Card Membres, le
+        // controleur, l'administration. La poser plus haut laisserait les
+        // autres ouverts — c'est la lecon de T1693 bug L, deja apprise sur
+        // cette meme methode.
+        //
+        // `findOrFail` et non un refus explicite : l'appelant en masse
+        // (`addMembersFromOrganization`) attrape deja `ModelNotFoundException`
+        // et compte la personne comme « ignoree », ce qui est exactement le
+        // comportement voulu — on n'interrompt pas un ajout de dix personnes
+        // parce que l'une d'elles n'a pas confirme son adresse.
+        $user = User::eligibleForLoop()->findOrFail($userId);
 
         if ($loop->organization_id !== $user->organization_id) {
             throw new \RuntimeException('Cannot add member from a different organization to this loop.');
@@ -241,7 +253,8 @@ class LoopService
             ->where('status', 'active')
             ->pluck('user_id');
 
-        return User::assignable()
+        // TASK-1720 volet B — l'ecran ne propose que ce que le serveur accepte.
+        return User::eligibleForLoop()
             ->where('organization_id', $loop->organization_id)
             ->whereNotIn('id', $alreadyIn)
             ->orderBy('name')
@@ -409,7 +422,7 @@ class LoopService
             ->where('organization_id', $loop->organization_id)
             ->whereHas('referred', function ($q) use ($loop, $existingMemberUserIds) {
                 $q->where('organization_id', $loop->organization_id)
-                    ->assignable()
+                    ->eligibleForLoop()
                     ->whereNotIn('id', $existingMemberUserIds);
             })
             ->with('referred')
