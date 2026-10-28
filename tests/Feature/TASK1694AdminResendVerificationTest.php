@@ -88,13 +88,36 @@ class TASK1694AdminResendVerificationTest extends TestCase
     {
         $lien = (new VerifyEmailWithTemplate)->toMail($this->nonVerifie);
 
-        $url = null;
-        foreach ((array) $lien->viewData as $valeur) {
-            if (is_string($valeur) && str_contains($valeur, 'expires=')) {
-                $url = $valeur;
+        // TASK-1720 — on extrait l'URL, pas le document qui la contient.
+        //
+        // L'ancienne forme retenait la CHAINE de `viewData` contenant
+        // `expires=`. Or sur le chemin GABARIT — celui que prend reellement
+        // cet envoi, le gabarit `confirmation-email-suite-inscription` etant
+        // pose par migration — cette chaine est le corps HTML ENTIER. Le
+        // `parse_url()` qui suit s'appliquait donc a tout le document, et son
+        // `PHP_URL_QUERY` demarrait au PREMIER `?` rencontre, d'ou qu'il
+        // vienne : un `?` dans un nom, une raison sociale ou une ville de
+        // fabrique suffisait a faire disparaitre `expires`.
+        //
+        // Mesure : avec un nom contenant « ? », la cle devient ABSENTE —
+        // l'assertion tombait sans que rien du produit ne soit en cause. Le
+        // gate SQLite l'a vu une fois, et la gouvernance de
+        // `sqlite-known-failures.txt` est explicite : « les flakies se
+        // corrigent, ils ne s'inscrivent pas ».
+        //
+        // L'intention de la garde est INCHANGEE : le lien signe doit expirer
+        // 24 h apres CET envoi.
+        $url = $lien->actionUrl;
+
+        if ($url === null) {
+            foreach ((array) $lien->viewData as $valeur) {
+                if (is_string($valeur) && preg_match('#href="([^"]*expires=[^"]*)"#', $valeur, $trouve)) {
+                    $url = html_entity_decode($trouve[1]);
+
+                    break;
+                }
             }
         }
-        $url ??= $lien->actionUrl;
 
         $this->assertNotNull($url, 'le message doit porter une url signee');
 
