@@ -726,9 +726,27 @@ class OrgAdminController extends Controller
         ]);
     }
 
+    /**
+     * TASK-1716 — le SECOND chemin de reactivation trouve par l'audit.
+     *
+     * C'etait le plus dangereux des deux : un TOGGLE aveugle
+     * (`$user->banned_at ? null : now()`). Sur un compte ferme par son
+     * proprietaire, le bouton s'affichait « Debannir » et le clic rouvrait le
+     * compte — un administrateur d'Organization n'a aucun moyen de deviner,
+     * depuis cet ecran, qu'il ne regardait pas une sanction.
+     *
+     * Et contrairement au SuperAdmin, il n'obtient PAS d'action de
+     * reouverture : arbitrer une fermeture volontaire n'est pas une
+     * prerogative de tenant. Le refus renvoie vers le SuperAdmin, seul a
+     * disposer de `reopenUser()`.
+     */
     public function toggleUserBan(Organization $organization, User $user): RedirectResponse
     {
         abort_if($user->organization_id !== $organization->id, 404);
+
+        if ($user->estFermeVolontairement()) {
+            return back()->with('error', __('admin.users_closed_org_admin_refused'));
+        }
 
         $user->update([
             'banned_at' => $user->banned_at ? null : now(),

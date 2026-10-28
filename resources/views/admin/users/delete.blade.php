@@ -30,6 +30,53 @@
         </div>
         @endif
 
+        {{-- TASK-1716 — LE CANAL DE DEMANDE D'EFFACEMENT, des deux cotes.
+
+             En ARRIVANT : si la personne a demande l'effacement de ses donnees
+             en fermant son compte, l'administrateur le lit ici, date a l'appui.
+             Sans ce bloc, le drapeau n'aurait vecu que sur la pastille de la
+             liste, et celui qui ouvre la page depuis un lien direct ne saurait
+             pas pourquoi il est la.
+
+             APRES la fermeture : la personne est deconnectee et ne peut plus
+             rien demander par le produit. Le bouton ci-dessous est donc la
+             seconde moitie du canal — l'administrateur ENREGISTRE une demande
+             recue autrement (un email, un courrier), et elle devient tracable
+             au lieu de vivre dans une boite de reception.
+
+             Ce bloc n'efface RIEN. La suppression reste l'affaire des etats A
+             a C ci-dessous, inchanges depuis TASK-1636/1668. --}}
+        @if($cible->aDemandeEffacement())
+        <div class="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-800 dark:bg-rose-900/20"
+             data-marqueur="demande-effacement-enregistree">
+            <p class="text-sm font-medium text-rose-800 dark:text-rose-300">{{ __('admin.users_erasure_title') }}</p>
+            <p class="mt-1 text-xs text-rose-700 dark:text-rose-400">
+                {{ __('admin.users_erasure_requested_on', ['date' => $cible->erasure_requested_at->translatedFormat('d/m/Y à H:i')]) }}
+            </p>
+            <form method="POST" action="{{ route('admin.users.erasure-request', $cible) }}" class="mt-3">
+                @csrf @method('PATCH')
+                <input type="hidden" name="demande" value="0">
+                <button class="text-xs font-medium text-rose-700 dark:text-rose-400 hover:underline"
+                        data-marqueur="retirer-demande-effacement">
+                    {{ __('admin.users_erasure_withdraw') }}
+                </button>
+            </form>
+        </div>
+        @elseif($cible->estFermeVolontairement())
+        <div class="mb-5 rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800"
+             data-marqueur="enregistrer-demande-effacement">
+            <p class="text-sm text-gray-600 dark:text-gray-400">{{ __('admin.users_erasure_record_hint') }}</p>
+            <form method="POST" action="{{ route('admin.users.erasure-request', $cible) }}" class="mt-3"
+                  onsubmit="return confirm(@js(__('admin.users_erasure_record_confirm')))">
+                @csrf @method('PATCH')
+                <input type="hidden" name="demande" value="1">
+                <button class="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+                    {{ __('admin.users_erasure_record') }}
+                </button>
+            </form>
+        </div>
+        @endif
+
         {{-- ÉTAT A — la suppression est impossible. --}}
         @if(count($donnees['blocks']) > 0)
         <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 mb-5">

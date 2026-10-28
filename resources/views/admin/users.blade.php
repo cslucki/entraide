@@ -279,7 +279,17 @@
                                 <p class="font-medium text-gray-900 dark:text-gray-100 truncate">
                                     {{ $u->full_name }}
                                     @if($u->is_admin)<span class="ml-1 text-xs text-purple-600 dark:text-purple-400">[admin]</span>@endif
-                                    @if($u->banned_at)<span class="ml-1 text-xs text-red-500">[banni]</span>@endif
+                                    {{-- TASK-1716 — « banni » nommait une sanction que
+                                         personne n'avait prononcee. `banned_at` seul ne
+                                         disait pas QUI avait decide ; `self_closed_at` le
+                                         dit. Meme couleur, mot juste. --}}
+                                    @if($u->estFermeVolontairement())
+                                        <span class="ml-1 text-xs text-red-500"
+                                              title="{{ __('admin.users_closed_title') }}"
+                                              data-user-self-closed="{{ $u->id }}">[{{ __('admin.users_closed_status') }}]</span>
+                                    @elseif($u->banned_at)
+                                        <span class="ml-1 text-xs text-red-500">[banni]</span>
+                                    @endif
                                 </p>
                                 {{-- TASK-1714 volet 3 — l'adresse et ses pastilles sont
                                      SEPAREES. Elles vivaient dans le meme `<p class="truncate">`,
@@ -318,6 +328,25 @@
                                               data-user-pending-approval="{{ $u->id }}">
                                             <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>{{ __('admin.users_pending_approval_badge') }}
                                         </span>
+                                    @endif
+
+                                    {{-- TASK-1716 — la demande d'effacement est un LIEN,
+                                         pas une pastille muette.
+
+                                         Elle mene a l'ecran de suppression de TASK-1636,
+                                         qui calcule deja les refus metier — ledger,
+                                         transactions, gouvernance de Boucle. C'est tout
+                                         le canal : la demande se depose au profil, se
+                                         voit ici, et s'arbitre la ou l'outil existe
+                                         deja. Rien dans cette TASK n'efface
+                                         automatiquement sur ce drapeau. --}}
+                                    @if($u->aDemandeEffacement())
+                                        <a href="{{ route('admin.users.delete-page', $u) }}"
+                                           class="ml-1 inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 hover:underline"
+                                           title="{{ __('admin.users_erasure_title') }}"
+                                           data-user-erasure-requested="{{ $u->id }}">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>{{ __('admin.users_erasure_badge') }}
+                                        </a>
                                     @endif
                                 </p>
 
@@ -410,9 +439,18 @@
                     @endif
                     @if($vueDetaillee)
                     <td class="px-4 py-3">
+                        {{-- TASK-1716 — trois etats au lieu de deux : ferme par son
+                             proprietaire, banni par un administrateur, actif. La
+                             colonne disait « Banni » dans les deux premiers cas. --}}
                         <span class="inline-flex items-center gap-1 text-xs">
                             <span class="w-1.5 h-1.5 rounded-full {{ $u->banned_at ? 'bg-red-500' : ($u->is_available ? 'bg-green-500' : 'bg-gray-400') }}"></span>
-                            {{ $u->banned_at ? 'Banni' : ($u->is_available ? 'Disponible' : 'Indisponible') }}
+                            @if($u->estFermeVolontairement())
+                                <span data-user-status-closed="{{ $u->id }}">{{ __('admin.users_closed_status') }}</span>
+                            @elseif($u->banned_at)
+                                Banni
+                            @else
+                                {{ $u->is_available ? 'Disponible' : 'Indisponible' }}
+                            @endif
                         </span>
                     </td>
                     @endif
@@ -555,7 +593,22 @@
                             </form>
                             @endunless
 
-                            @if($u->banned_at)
+                            {{-- TASK-1716 — « Debannir » ne s'affiche plus sur un compte
+                                 ferme par son proprietaire : il levait la fermeture a
+                                 l'aveugle, et l'administrateur ne pouvait pas deviner
+                                 depuis ce bouton qu'il ne regardait pas une sanction.
+                                 Le controleur refuse aussi, cote serveur — ce `@if`
+                                 range l'ecran, il ne garde rien. --}}
+                            @if($u->estFermeVolontairement())
+                            <form method="POST" action="{{ route('admin.users.reopen', $u) }}"
+                                  onsubmit="return confirm(@js(__('admin.users_reopen_confirm')))">
+                                @csrf @method('PATCH')
+                                <button class="text-xs text-green-600 hover:underline whitespace-nowrap"
+                                        data-user-reopen="{{ $u->id }}">
+                                    {{ __('admin.users_reopen_account') }}
+                                </button>
+                            </form>
+                            @elseif($u->banned_at)
                             <form method="POST" action="{{ route('admin.users.unban', $u) }}">
                                 @csrf @method('PATCH')
                                 <button class="text-xs text-green-600 hover:underline">Débannir</button>

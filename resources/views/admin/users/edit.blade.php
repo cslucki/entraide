@@ -220,14 +220,33 @@
                 </label>
 
                 @if($user->id !== auth()->id())
-                <label class="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" name="banned" value="1" {{ old('banned', $user->banned_at ? '1' : '') ? 'checked' : '' }}
-                           class="rounded border-gray-300 dark:border-gray-600 text-red-600 focus:ring-red-500">
-                    <div>
-                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.banned') }}</span>
-                        <p class="text-xs text-gray-400">{{ __('admin.banned_hint') }}</p>
+                    {{-- TASK-1716 — sur un compte ferme par son proprietaire, la case
+                         « banni » DISPARAIT. Elle etait le troisieme chemin de
+                         reactivation, et le plus discret : la decocher ecrivait
+                         `banned_at = null`, donc un administrateur venu changer une
+                         ville rouvrait le compte sans voir le mot « debannir ».
+
+                         Le controleur ignore aussi la case cote serveur : ce bloc
+                         dit la verite a l'ecran, il ne garde rien a lui seul. --}}
+                    @if($user->estFermeVolontairement())
+                    <div class="flex items-start gap-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700"
+                         data-marqueur="compte-ferme-par-proprietaire">
+                        <span class="mt-1.5 w-2 h-2 rounded-full bg-red-500 flex-shrink-0" aria-hidden="true"></span>
+                        <div>
+                            <span class="text-sm font-medium text-red-800 dark:text-red-300">{{ __('admin.users_closed_status') }}</span>
+                            <p class="text-xs text-red-700 dark:text-red-400">{{ __('admin.users_closed_use_reopen') }}</p>
+                        </div>
                     </div>
-                </label>
+                    @else
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" name="banned" value="1" {{ old('banned', $user->banned_at ? '1' : '') ? 'checked' : '' }}
+                               class="rounded border-gray-300 dark:border-gray-600 text-red-600 focus:ring-red-500">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.banned') }}</span>
+                            <p class="text-xs text-gray-400">{{ __('admin.banned_hint') }}</p>
+                        </div>
+                    </label>
+                    @endif
                 @endif
             </div>
 
