@@ -418,8 +418,15 @@
                     data-loop-workspace-panel
                 >
                     <div class="flex min-h-0 flex-1 flex-col">
-                        {{-- Side card header. Desktop = docked card (title + expand only).
-                             Mobile = full-screen panel (back + close). --}}
+                        {{-- Side card header. Desktop = docked card (title,
+                             expand, close). Mobile = full-screen panel (back +
+                             close).
+
+                             TASK-1720 — la fermeture est desormais offerte sur
+                             les DEUX. Sur Desktop il fallait reduire la Card
+                             puis agrandir la ChatLoop, deux gestes a deux
+                             endroits pour une seule intention. MASTER : « c'est
+                             laborieux ». --}}
                         <div class="flex shrink-0 items-center gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                             {{-- Mobile only: back to chat --}}
                             <button
@@ -451,12 +458,24 @@
                                 <svg x-show="focus === 'tool'" x-cloak class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V5m0 4H5m4 0L4 4m11 5h4m-4 0V5m0 4 5-5M9 15v4m0-4H5m4 0-5 5m11-5h4m-4 0v4m0-4 5 5"/></svg>
                             </button>
 
-                            {{-- Mobile only: close --}}
+                            {{-- Fermer la Card. Desktop ET mobile.
+                                 `closeCard()` remet `activeCard` a null et
+                                 `focus` a `none` : `gridStyle()` rend alors
+                                 `1fr 0px 0px`, donc la ChatLoop occupe toute la
+                                 largeur. L'agrandissement demande par MASTER
+                                 est deja la consequence de la fermeture — rien
+                                 a ajouter a la machine d'etat.
+
+                                 Le bouton marche aussi depuis la Card AGRANDIE
+                                 (`focus === 'tool'`), ou il etait jusqu'ici
+                                 impossible de revenir au chat en un geste. --}}
                             <button
                                 type="button"
                                 x-on:click="closeCard()"
-                                class="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200 lg:hidden"
+                                data-marqueur="fermer-card-boucle"
+                                class="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                                 aria-label="{{ __('loops.cards_panel_close') }}"
+                                title="{{ __('loops.cards_panel_close') }}"
                             >
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
                             </button>

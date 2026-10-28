@@ -151,13 +151,24 @@
                 {{ $members->isEmpty() ? __('loops.cards.members.empty_title') : __('loops.members_segment_empty') }}
             </p>
         @else
+            {{-- TASK-1720 — « Retirer un membre » entre dans le menu 3 points.
+                 La capacite `loop_members.remove` etait declaree, accordee au
+                 proprietaire et deja resolue dans `$governance['remove']` ;
+                 ces deux valeurs en dur — `null` et `false` — etaient le seul
+                 endroit ou l'offre s'arretait. Le composant partage porte
+                 l'entree et la garde du dernier proprietaire : rien de neuf
+                 ici, un branchement.
+
+                 `remove-dispatch` et non `remove-route` : le retrait passe par
+                 la methode Livewire, donc par la fenetre de confirmation
+                 premium, et la Card ne se referme pas. --}}
             <x-loops.governance-roster
                 :members="$shownMembers"
                 :role-route="fn($m) => route('loops.members.role', $m)"
-                :remove-route="null"
+                remove-dispatch="removeMember"
                 :can-manage-owners="$governance['owners']"
                 :can-manage-facilitators="$governance['facilitators']"
-                :can-remove="false"
+                :can-remove="$governance['remove']"
                 :creator-id="$currentLoop->created_by"
                 :current-user-id="auth()->id()"
                 :highlight-ids="$addedIds"
@@ -188,4 +199,9 @@
             @include('livewire.partials.members-invitations')
         </x-loops.modal>
     @endif
+
+    {{-- TASK-1720 — la confirmation du retrait. Le composant existait deja et
+         sert la card Roadmap : il s'ouvre sur un evenement, appelle une methode
+         `$wire` et remplace le `window.confirm()` du navigateur. --}}
+    <x-confirm-dialog />
 </div>

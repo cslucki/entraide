@@ -1215,6 +1215,8 @@ return [
     'governance_demote_member' => 'Back to member',
     'governance_actions_for' => 'Actions for :name',
     'governance_remove' => 'Remove from the Loop',
+    'governance_remove_confirm_title' => 'Remove this person from the Loop?',
+    'governance_remove_confirm_body' => ':name will lose access to this Loop. Their messages and contributions stay in place. You can add them again later.',
     'governance_last_owner' => 'Last active owner — appoint another owner before changing this role or removing them.',
     'governance_last_owner_short' => 'Last active owner',
     'governance_creator' => 'Creator',
@@ -1531,4 +1533,17 @@ return [
     'slug_placeholder' => 'my-loop',
     'slug_help' => 'Appears in the URL. Lowercase letters, digits and hyphens. Leave empty to keep the current address.',
     'slug_cannot_be_uuid' => 'This address cannot look like a technical identifier.',
+
+    // TASK-1720 volet B — refus d'inviter un compte existant non eligible.
+    'invitation_refused_email_unverified' => 'This person already has an account, but their e-mail address is not verified yet. They cannot join a Loop until they confirm it.',
+    'invitation_refused_pending_approval' => 'This person already has an account, but it is awaiting an administrator\'s approval. They will be able to join a Loop once it is approved.',
+    'invitation_refused_account_closed' => 'This account is closed or suspended: it cannot join a Loop.',
+    // TASK-1719 — l'ajout direct dans une Boucle (repli Blade).
+    'member_added_default_message' => 'You have been added to the :loop Loop.',
+    'member_added_mail_subject' => 'You have been added to the :loop Loop',
+    'member_added_mail_hello' => 'Hello :name,',
+    'member_added_mail_body_with_actor' => ':actor added you to the :loop Loop on :organization. You are now a member.',
+    'member_added_mail_body' => 'You have been added to the :loop Loop on :organization. You are now a member.',
+    'member_added_mail_cta' => 'Open the Loop',
+    'member_added_mail_plain_link' => 'If the button does not work, copy this address into your browser:',
 ];

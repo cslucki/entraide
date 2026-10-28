@@ -305,6 +305,67 @@ class User extends Authenticatable implements MustVerifyEmail
         $query->whereNull('banned_at');
     }
 
+    /**
+     * TASK-1720 volet B — qui peut ENTRER dans une Boucle.
+     *
+     * ## Pourquoi une regle a part, et non `assignable()` elargi
+     *
+     * `assignable()` ne regarde que `banned_at`, et **quinze** surfaces s'y
+     * appuient : auteur d'article, repreneur d'une Organization, candidat a un
+     * transfert de propriete, listes d'administration. Y ajouter « email
+     * verifie » et « compte approuve » changerait toutes ces regles d'un coup,
+     * pour un besoin qui ne concerne que l'adhesion a une Boucle. Ce serait un
+     * second systeme d'approbation deguise en resserrement.
+     *
+     * Cette regle-ci ne redeclare rien : elle COMPOSE les predicats qui
+     * existent deja — `banned_at` (T1716, qui couvre aussi la fermeture
+     * volontaire), `email_verified_at` (T1694) et `approved_at` (T1714).
+     *
+     * ## Les trois refus
+     *
+     *  - **banni ou ferme** : `banned_at` porte les deux etats depuis T1716 ;
+     *  - **email non verifie** : on n'ouvre pas une Boucle a une adresse dont
+     *    personne n'a prouve qu'elle appartient a quelqu'un ;
+     *  - **approbation en attente** : la meme condition que
+     *    `attendApprobation()`, ecrite en SQL — `approved_at IS NULL` **ET**
+     *    l'Organization exige la validation. Un compte sans Organization n'est
+     *    jamais en attente, et une Organization qui n'exige rien n'attend
+     *    personne : les deux repassent.
+     *
+     * La traduction en SQL est deliberee : ces listes se construisent par
+     * requete, et filtrer en PHP apres coup ferait payer une pagination fausse.
+     */
+    public function scopeEligibleForLoop($query): void
+    {
+        $query->whereNull('banned_at')
+            ->whereNotNull('email_verified_at')
+            ->where(function ($q) {
+                $q->whereNotNull('approved_at')
+                    ->orWhereNull('organization_id')
+                    ->orWhereHas('organization', function ($org) {
+                        $org->where(function ($o) {
+                            $o->where('requires_account_approval', false)
+                                ->orWhereNull('requires_account_approval');
+                        });
+                    });
+            });
+    }
+
+    /**
+     * TASK-1720 volet B — la MEME regle, sur une instance deja chargee.
+     *
+     * Le scope sert les requetes ; celle-ci sert les gardes qui tiennent deja
+     * l'objet. Les deux doivent rendre le meme verdict, et c'est pourquoi
+     * celle-ci est ecrite a partir des memes trois predicats — et non d'une
+     * quatrieme formulation qui finirait par en diverger.
+     */
+    public function estEligiblePourUneBoucle(): bool
+    {
+        return $this->banned_at === null
+            && $this->hasVerifiedEmail()
+            && ! $this->attendApprobation();
+    }
+
     public function services(): HasMany
     {
         return $this->hasMany(Service::class);

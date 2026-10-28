@@ -7,7 +7,9 @@ use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\User;
+use App\Services\LoopGovernanceService;
 use App\Services\LoopInvitationService;
+use App\Services\Loops\Exceptions\LoopInvitationRefusedException;
 use App\Services\Loops\LoopInvitationMailer;
 use App\Services\LoopService;
 use App\Support\Loops\LoopPermissionResolver;
@@ -260,6 +262,81 @@ class LoopMembersCard extends Component
         $this->dispatch('loop-members-changed');
     }
 
+    /**
+     * TASK-1720 — « Retirer un membre », depuis le menu 3 points de la Card.
+     *
+     * ## Pourquoi ici, et pas dans une route
+     *
+     * Le premier jet posait une route `DELETE /loop-members/{member}` et un
+     * formulaire : fonctionnel, mais le POST redirigeait, la page se
+     * rechargeait et la Card se REFERMAIT — on perdait le segment choisi et le
+     * panneau ouvert, pour un geste qu'on repete souvent plusieurs fois de
+     * suite. MASTER : « faire que la card membre ne se ferme pas ».
+     *
+     * Le retrait vit donc dans le composant, appele par `$wire.call()` depuis
+     * la fenetre de confirmation. Seul le fragment de la Card est re-rendu :
+     * la liste se met a jour sous les yeux, rien ne se replie. La route et son
+     * action de controleur ont ete RETIREES — deux portes pour un meme geste,
+     * dont une que plus personne n'emprunte, c'est une surface a garder a jour
+     * pour rien.
+     *
+     * ## Les gardes sont les memes, et elles sont ici au bon endroit
+     *
+     * `/livewire/update` est un point d'entree HTTP comme un autre : le
+     * navigateur y poste le nom de la methode et ses parametres. Un identifiant
+     * d'adhesion quelconque arrive donc ici, et c'est pourquoi rien n'est
+     * deduit de ce que l'ecran a bien voulu afficher.
+     *
+     * - l'adhesion est cherchee DANS cette Boucle (`where loop_id`), ce qui
+     *   ecarte d'emblee toute adhesion d'une autre Boucle — donc de tout autre
+     *   tenant, une Boucle appartenant a une seule Organization ;
+     * - la permission demandee est `loop_members.remove`, pas
+     *   `loops.manage_owners` : retirer n'est pas changer un role. Elle est
+     *   accordee par defaut au `owner` et pas a l'`facilitator` — exactement la
+     *   demande ;
+     * - l'invariant du dernier proprietaire reste a
+     *   `LoopGovernanceService::removeMember()`, qui le porte pour les trois
+     *   surfaces. Le composant masque bien l'entree pour cette ligne, mais
+     *   l'ecran qui cache n'est pas la garde qui refuse.
+     *
+     * Le retrait passe le statut a `left` ; la ligne est CONSERVEE. C'est la
+     * doctrine du depot — on ne detruit pas la trace d'un passage dans une
+     * Boucle — et c'est ce que font deja les deux ecrans d'administration.
+     */
+    public function removeMember(string $memberId): void
+    {
+        $this->clearMessages();
+
+        $membre = LoopMember::query()
+            ->where('loop_id', $this->loop->id)
+            ->whereKey($memberId)
+            ->first();
+
+        if ($membre === null) {
+            $this->errorMessage = __('loops.governance_refused');
+
+            return;
+        }
+
+        abort_unless(
+            app(LoopPermissionResolver::class)->can(auth()->user(), $this->loop, 'loop_members.remove'),
+            403,
+        );
+
+        $resultat = app(LoopGovernanceService::class)->removeMember($membre);
+
+        if ($resultat === LoopGovernanceService::RESULT_OK) {
+            $this->noticeMessage = __('loops.governance_removed');
+            $this->dispatch('loop-members-changed');
+
+            return;
+        }
+
+        $this->errorMessage = $resultat === LoopGovernanceService::RESULT_LAST_OWNER
+            ? __('loops.governance_refused_last_owner')
+            : __('loops.governance_refused');
+    }
+
     // ── Inviter par courriel ────────────────────────────────────────────────
 
     public function sendInvitation(LoopInvitationService $invitations, LoopInvitationMailer $mailer): void
@@ -272,13 +349,20 @@ class LoopMembersCard extends Component
             'inviteName' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $invitation = $invitations->invite(
-            $this->loop,
-            auth()->user(),
-            $data['inviteEmail'],
-            $data['inviteName'] ?: null,
-            null,
-        );
+        // TASK-1720 volet B — le refus metier remonte a l'ecran, nomme.
+        try {
+            $invitation = $invitations->invite(
+                $this->loop,
+                auth()->user(),
+                $data['inviteEmail'],
+                $data['inviteName'] ?: null,
+                null,
+            );
+        } catch (LoopInvitationRefusedException $refus) {
+            $this->errorMessage = $refus->getMessage();
+
+            return;
+        }
 
         $mailer->send($invitation);
 

@@ -15,8 +15,14 @@
     <x-page-container>
         <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
             <div>
+                {{-- TASK-1720 — le sous-titre est retire. Il redisait ce que la
+                     page montre, et coutait une ligne en haut d'ecran avant la
+                     premiere rencontre. Decision MASTER : « cela prend de la
+                     place pour rien ».
+
+                     `events.agenda_subtitle` n'avait aucun autre usage : les
+                     deux clefs partent avec, dans les deux langues. --}}
                 <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('events.agenda_title') }}</h1>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('events.agenda_subtitle') }}</p>
             </div>
 
             {{-- TASK-1706 — organiser depuis l'agenda.

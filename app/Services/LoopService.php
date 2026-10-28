@@ -168,7 +168,19 @@ class LoopService
 
     public function addMemberByUserId(Loop $loop, string $userId, string $role = 'member', ?User $actor = null): LoopMember
     {
-        $user = User::assignable()->findOrFail($userId);
+        // TASK-1720 volet B — la garde SERVEUR, au point de passage oblige.
+        //
+        // Tous les chemins d'ajout finissent ici : la Card Membres, le
+        // controleur, l'administration. La poser plus haut laisserait les
+        // autres ouverts — c'est la lecon de T1693 bug L, deja apprise sur
+        // cette meme methode.
+        //
+        // `findOrFail` et non un refus explicite : l'appelant en masse
+        // (`addMembersFromOrganization`) attrape deja `ModelNotFoundException`
+        // et compte la personne comme « ignoree », ce qui est exactement le
+        // comportement voulu — on n'interrompt pas un ajout de dix personnes
+        // parce que l'une d'elles n'a pas confirme son adresse.
+        $user = User::eligibleForLoop()->findOrFail($userId);
 
         if ($loop->organization_id !== $user->organization_id) {
             throw new \RuntimeException('Cannot add member from a different organization to this loop.');
@@ -193,14 +205,17 @@ class LoopService
                 'role' => app(LoopRoleRegistry::class)->canonical($role),
             ]);
 
-            $this->resolvePendingJoinRequests($loop, $userId, $actor);
+            $soldees = $this->resolvePendingJoinRequests($loop, $userId, $actor);
+            // APRES la reactivation : on ne previent pas d'un fait qui n'a pas
+            // encore eu lieu, et qui pourrait encore echouer.
+            $this->notifierAjoutDirect($loop, $user, $actor, $soldees, $existing);
 
             return $existing;
         }
 
-        $this->resolvePendingJoinRequests($loop, $userId, $actor);
+        $soldees = $this->resolvePendingJoinRequests($loop, $userId, $actor);
 
-        return LoopMember::create([
+        $membre = LoopMember::create([
             'loop_id' => $loop->id,
             'user_id' => $userId,
             'role' => $role,
@@ -208,6 +223,10 @@ class LoopService
             'joined_at' => now(),
             'organization_id' => $loop->organization_id,
         ]);
+
+        $this->notifierAjoutDirect($loop, $user, $actor, $soldees, $membre);
+
+        return $membre;
     }
 
     /**
@@ -241,7 +260,8 @@ class LoopService
             ->where('status', 'active')
             ->pluck('user_id');
 
-        return User::assignable()
+        // TASK-1720 volet B — l'ecran ne propose que ce que le serveur accepte.
+        return User::eligibleForLoop()
             ->where('organization_id', $loop->organization_id)
             ->whereNotIn('id', $alreadyIn)
             ->orderBy('name')
@@ -409,7 +429,7 @@ class LoopService
             ->where('organization_id', $loop->organization_id)
             ->whereHas('referred', function ($q) use ($loop, $existingMemberUserIds) {
                 $q->where('organization_id', $loop->organization_id)
-                    ->assignable()
+                    ->eligibleForLoop()
                     ->whereNotIn('id', $existingMemberUserIds);
             })
             ->with('referred')
@@ -606,6 +626,75 @@ class LoopService
      * acteur hors tenant ; on rend donc la notification anonyme plutot que de
      * la faire echouer. Meme forme que pour les invitations.
      */
+    /**
+     * TASK-1719 — prevenir quelqu'un qu'on vient de l'AJOUTER a une Boucle.
+     *
+     * ## Le defaut, mesure dans le navigateur
+     *
+     * « Ajouter des membres » creait l'appartenance et RIEN d'autre : aucune
+     * invitation, aucune notification, aucun email. La personne se retrouvait
+     * dans une Boucle sans jamais l'apprendre.
+     *
+     * ## Posee ICI, et c'est la lecon de TASK-1693 bug L
+     *
+     * `addMembersFromOrganization()` serait le premier reflexe — c'est le
+     * chemin de la Card Membres. Mais l'ADMINISTRATION appelle
+     * `addMemberByUserId()` en direct, et n'en beneficierait pas : c'est
+     * exactement le defaut que T1693 a corrige en descendant la regle d'un
+     * cran. On ne le reintroduit pas.
+     *
+     * ## Les trois refus, et chacun evite un message FAUX
+     *
+     *  - **une demande d'adhesion vient d'etre soldee** : la personne a deja
+     *    recu `loop.join_request.accepted`, qui dit mieux la meme chose — elle
+     *    a demande, on a dit oui. Deux avis pour un fait, ce serait du bruit ;
+     *  - **aucun acteur** : un pack de donnees, un seeder ou une adhesion
+     *    libre n'ont personne a nommer. Un message « quelqu'un vous a
+     *    ajoute » sans ce quelqu'un ne vaut pas d'etre envoye ;
+     *  - **on s'ajoute soi-meme** : rejoindre une Boucle ouverte est un geste
+     *    qu'on vient de faire. S'en avertir serait absurde.
+     */
+    private function notifierAjoutDirect(
+        Loop $loop,
+        User $membre,
+        ?User $acteur,
+        int $demandesSoldees,
+        LoopMember $appartenance,
+    ): void {
+        if ($demandesSoldees > 0 || $acteur === null || $acteur->id === $membre->id) {
+            return;
+        }
+
+        try {
+            app(NotificationEmitter::class)->emit(
+                notificationKey: NotificationCatalogue::LOOP_MEMBER_ADDED,
+                organization: (string) $loop->organization_id,
+                recipient: $membre,
+                // Un UUID, comme l'exige `NotificationInvariants` — mesure : une
+                // chaine lisible y est REFUSEE, et le refus etait avale par le
+                // `catch` ci-dessous. Derive comme celui de l'invitation.
+                //
+                // La chaine porte la date d'adhesion : quelqu'un qui part puis
+                // revient doit pouvoir etre prevenu DE NOUVEAU, sans quoi son
+                // retour serait pris pour un rejeu.
+                eventId: (string) Uuid::uuid5(
+                    Uuid::NAMESPACE_URL,
+                    'bouclepro:notification:'.NotificationCatalogue::LOOP_MEMBER_ADDED
+                        .':'.$loop->id.':'.$membre->id.':'.optional($appartenance->joined_at)->getTimestamp(),
+                ),
+                objectType: NotificationCatalogue::objectTypeFor(NotificationCatalogue::LOOP_MEMBER_ADDED),
+                objectId: (string) $loop->id,
+                actor: $acteur->organization_id === $loop->organization_id ? $acteur : null,
+            );
+        } catch (NotificationEmissionConflict) {
+            // Deja prevenue du meme fait. Un rejeu n'est pas une anomalie.
+        } catch (\Throwable $echec) {
+            // L'ajout EST fait et enregistre : il ne se defait pas parce que
+            // l'avis n'a pas pu partir.
+            report($echec);
+        }
+    }
+
     private function notifierDecisionDAdhesion(
         LoopJoinRequest $joinRequest,
         string $notificationKey,

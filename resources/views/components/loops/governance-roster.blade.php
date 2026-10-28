@@ -17,7 +17,9 @@
 @props([
     'members',            // Collection<LoopMember>, active
     'roleRoute',          // fn(LoopMember): string
-    'removeRoute',        // fn(LoopMember): string|null
+    // TASK-1720 — par defaut absente : la Card Membres passe desormais
+    // `removeDispatch` a la place, et n'a plus de route a nommer.
+    'removeRoute' => null,  // fn(LoopMember): string, ou null
     'canManageOwners' => false,
     'canManageFacilitators' => false,
     'canRemove' => false,
@@ -46,6 +48,17 @@
     // fournie, la ligne du DERNIER proprietaire offre un transfert de
     // propriete plutot qu'une simple note expliquant qu'il est bloque.
     'transferRoute' => null,
+    // TASK-1720 — nom d'une methode Livewire, ou null.
+    //
+    // Quand il est fourni, « Retirer » n'est plus un formulaire qui redirige
+    // mais un bouton qui ouvre `x-confirm-dialog` et appelle cette methode par
+    // `$wire.call()`. La Card Membres s'en sert pour ne pas se refermer a
+    // chaque retrait, et pour remplacer le `window.confirm()` du navigateur.
+    //
+    // Les deux ecrans d'ADMINISTRATION ne le passent pas : ce sont des pages
+    // Blade ordinaires, sans composant Livewire autour, et leur formulaire
+    // `DELETE` continue de servir tel quel. Une seule regle, deux transports.
+    'removeDispatch' => null,
 ])
 
 @php
@@ -112,7 +125,9 @@
                     $canPromoteFacilitator = $role === $MEMBER && $canManageFacilitators;
                     $canDemoteOwner = $role === $OWNER && $canManageOwners && ! $isLastOwner;
                     $canDemoteFacilitator = $role === $FACILITATOR && $canManageFacilitators;
-                    $canDrop = $canRemove && $removeRoute && ! $isLastOwner;
+                    // TASK-1720 — l'un OU l'autre transport suffit : une route a
+                    // soumettre, ou une methode Livewire a appeler.
+                    $canDrop = $canRemove && ($removeRoute || $removeDispatch) && ! $isLastOwner;
                     $hasActions = $canPromoteOwner || $canPromoteFacilitator || $canDemoteOwner || $canDemoteFacilitator || $canDrop;
                 @endphp
 
@@ -287,15 +302,46 @@
                                 @endif
 
                                 @if($canDrop)
-                                    <form method="POST" action="{{ $removeRoute($member) }}"
-                                          onsubmit="return confirm('{{ __('loops.governance_remove') }} ?')"
-                                          class="mt-1 border-t border-gray-100 pt-1 dark:border-gray-800">
-                                        @csrf @method('DELETE')
-                                        <button type="submit"
-                                                class="w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
-                                            {{ __('loops.governance_remove') }}
-                                        </button>
-                                    </form>
+                                    {{-- TASK-1720 — le marqueur est pose sur
+                                         l'ELEMENT, pas devine depuis l'URL :
+                                         `/loop-members/{id}/role`, rendue juste
+                                         au-dessus, CONTIENT l'URL de retrait
+                                         comme prefixe. Une garde qui assertait
+                                         l'URL restait verte avec l'entree
+                                         desactivee — faux vert prouve par
+                                         contre-epreuve. --}}
+                                    @if($removeDispatch)
+                                        {{-- Transport Livewire : la fenetre de
+                                             confirmation appelle la methode, le
+                                             fragment se re-rend, et la Card
+                                             reste ouverte. --}}
+                                        <div class="mt-1 border-t border-gray-100 pt-1 dark:border-gray-800">
+                                            <button type="button"
+                                                    data-governance-remove="{{ $member->user_id }}"
+                                                    x-on:click="open = false; $dispatch('open-confirm', {
+                                                        title: @js(__('loops.governance_remove_confirm_title')),
+                                                        body: @js(__('loops.governance_remove_confirm_body', ['name' => $member->user?->publicDisplayName() ?? '—'])),
+                                                        confirmLabel: @js(__('loops.governance_remove')),
+                                                        danger: true,
+                                                        accept: @js($removeDispatch),
+                                                        params: ['{{ $member->id }}']
+                                                    })"
+                                                    class="w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
+                                                {{ __('loops.governance_remove') }}
+                                            </button>
+                                        </div>
+                                    @else
+                                        <form method="POST" action="{{ $removeRoute($member) }}"
+                                              data-governance-remove="{{ $member->user_id }}"
+                                              onsubmit="return confirm('{{ __('loops.governance_remove') }} ?')"
+                                              class="mt-1 border-t border-gray-100 pt-1 dark:border-gray-800">
+                                            @csrf @method('DELETE')
+                                            <button type="submit"
+                                                    class="w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
+                                                {{ __('loops.governance_remove') }}
+                                            </button>
+                                        </form>
+                                    @endif
                                 @endif
                             </div>
                         </div>

@@ -360,7 +360,20 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
      *
      * La cle dit « votre demande a ete acceptee ». Sans demande, elle mentirait.
      */
-    public function test_bulk_adding_someone_without_a_pending_request_notifies_nobody(): void
+    /**
+     * TASK-1720 — RENOMMEE et reecrite, pas supprimee.
+     *
+     * Elle affirmait « un ajout direct ne previent personne ». C'etait vrai
+     * tant que l'ajout etait MUET — et c'est precisement le defaut que T1720
+     * corrige : la personne se retrouvait dans une Boucle sans l'apprendre.
+     *
+     * Son intention, elle, reste entiere et c'est ce qu'elle mesure
+     * desormais : **ne pas confondre un ajout avec une decision d'adhesion**.
+     * Un ajout direct emet `loop.member_added`, et surtout PAS
+     * `loop.join_request.accepted`, qui annoncerait a quelqu'un qu'on a
+     * accepte une demande qu'il n'a jamais faite.
+     */
+    public function test_bulk_adding_someone_without_a_pending_request_announces_an_add_not_a_decision(): void
     {
         $org = $this->org();
         $loop = Loop::factory()->requestAccess()->create(['organization_id' => $org->id]);
@@ -375,7 +388,17 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
             ->call('add');
 
         $this->assertDatabaseHas('loop_members', ['loop_id' => $loop->id, 'user_id' => $nouveau->id]);
-        $this->assertSame(0, MemberNotification::count());
+
+        $this->assertSame(
+            0,
+            MemberNotification::where('notification_key', NotificationCatalogue::LOOP_JOIN_REQUEST_ACCEPTED)->count(),
+            "Personne n'a demande a rejoindre : aucune decision d'adhesion ne doit etre annoncee.",
+        );
+        $this->assertSame(
+            1,
+            MemberNotification::where('notification_key', NotificationCatalogue::LOOP_MEMBER_ADDED)->count(),
+            'Un ajout direct previent la personne — TASK-1720.',
+        );
     }
 
     // =====================================================================
@@ -460,7 +483,17 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
         $cible = app(NotificationTargetResolver::class)->resolve($notification);
 
         $this->assertNotNull($cible);
-        $this->assertStringContainsString('/'.$org->slug.'/loops/'.$loop->id, $cible);
+        // TASK-1720 — la cible porte desormais le SLUG de la Boucle.
+        //
+        // L'intention de la garde est inchangee : le lien profond nomme la
+        // bonne Organization et la bonne Boucle, sans contexte ambiant. Seule
+        // la FORME de l'identifiant bouge — `$loop->slug ?: $loop->getKey()`,
+        // l'idiome org-scope de TASK-1717, parce que cette URL part dans un
+        // courriel et se lit. Les anciennes URL en UUID resolvent toujours.
+        $this->assertStringContainsString(
+            '/'.$org->slug.'/loops/'.($loop->slug ?: $loop->getKey()),
+            $cible
+        );
     }
 
     /**
