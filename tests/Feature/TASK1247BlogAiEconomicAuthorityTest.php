@@ -152,11 +152,23 @@ class TASK1247BlogAiEconomicAuthorityTest extends TestCase
 
         // Un SuperAdmin de la plateforme agit depuis une autre Organization
         // courante : la trace atterrit dans l'Organization de l'ARTICLE.
+        //
+        // TASK-1726 — ce test DEPLACAIT le `$this->superAdmin` du decor vers
+        // `otherOrganization`. Il lui faut un SuperAdmin dont le tenant PROPRE
+        // est ailleurs : il en NAIT un ici, au lieu d'emmener celui du decor.
+        //
+        // La fixture y gagne au-dela du verrou : `$this->superAdmin` est
+        // partage par deux autres tests, qui l'attendent dans
+        // `$this->organization`. Le muter laissait une mutation d'etat partage
+        // au milieu d'un test — un ordre d'execution different et c'etaient
+        // eux qui tombaient.
         app()->instance('current_organization', $this->otherOrganization);
-        $this->superAdmin->organization_id = $this->otherOrganization->id;
-        $this->superAdmin->save();
+        $superAdminDAilleurs = User::factory()->create([
+            'organization_id' => $this->otherOrganization->id,
+            'is_admin' => true,
+        ]);
 
-        $this->service()->correct($this->post, $this->superAdmin);
+        $this->service()->correct($this->post, $superAdminDAilleurs);
 
         $this->assertSame($this->organization->id, AiProviderInvocation::query()->value('organization_id'));
         $this->assertSame($this->organization->id, AiInteraction::query()->value('organization_id'));
