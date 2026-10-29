@@ -70,6 +70,7 @@ use App\Support\Ai\Pricing\DynamicPricingSource;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Ops\ArtisanDatabaseGuard;
 use App\Support\Ops\DestructiveDatabaseGuard;
+use App\Support\Ops\ExternalEgressGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\Events\NotificationSent;
@@ -218,6 +219,12 @@ class AppServiceProvider extends ServiceProvider
         // aucune (`php artisan test --env=testing` resout APP_ENV a `local`).
         // Celui-ci regarde la CIBLE, que personne ne peut faire mentir.
         DestructiveDatabaseGuard::arm($this->app);
+
+        // TASK-1724 — et rien ne SORT d'un jumeau de PRODUCTION : ni appel
+        // HTTP, ni courriel. Arme sur la BASE visee, jamais sur `APP_ENV`.
+        // Couvre donc le web, la CLI, l'ordonnanceur et les workers, qui
+        // bootent tous ce fournisseur.
+        ExternalEgressGuard::arm($this->app);
 
         Paginator::useTailwind();
 
