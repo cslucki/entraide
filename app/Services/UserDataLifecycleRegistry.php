@@ -127,6 +127,17 @@ class UserDataLifecycleRegistry
             ['key' => 'dossiers', 'type' => 'sql', 'table' => 'dossiers', 'column' => 'owner_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'Owned dossiers require explicit transfer/ownership decision before deletion.'],
             ['key' => 'email_logs', 'type' => 'sql', 'table' => 'email_logs', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Email logs are operational audit.'],
             ['key' => 'favorites', 'type' => 'sql', 'table' => 'favorites', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'Favorites are personal user preferences and are not transferable.'],
+            // TASK-1727 — a password reset token became account-scoped, so it is
+            // now a real FK to users.id and the bidirectional guard in
+            // UserDataLifecycleRegistryTest requires it to be classified here.
+            //
+            // DELETE, and not even a question: a reset token is a live credential
+            // with a 60-minute life. Before TASK-1727 the table was keyed by
+            // email with no FK, so deleting an account LEFT ITS TOKEN BEHIND —
+            // and the next account registering that same address could have been
+            // opened by it. The FK is cascadeOnDelete; this entry is what makes
+            // the deletion preview SAY so.
+            ['key' => 'password_reset_tokens', 'type' => 'sql', 'table' => 'password_reset_tokens', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'A password reset token is a live credential tied to one account (TASK-1727): it must die with the account, never outlive it under an email key.'],
             ['key' => 'feed_post_comments', 'type' => 'sql', 'table' => 'feed_post_comments', 'column' => 'user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'Comment authorship is never transferred; retained feed discussion needs anonymized attribution.'],
             ['key' => 'feed_posts_pinned_by_id', 'type' => 'sql', 'table' => 'feed_posts', 'column' => 'pinned_by_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Pin attribution can be detached.'],
             ['key' => 'feed_posts', 'type' => 'sql', 'table' => 'feed_posts', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run considered feed posts transferable.'],
