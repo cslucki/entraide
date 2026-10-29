@@ -60,7 +60,7 @@ use Illuminate\Support\Facades\Schema;
  * jamais on suppose que ce n'est pas concerne. » Ici, c'est l'escalade : le
  * fait est ecrit, teste, et remonte.
  *
- * ET L'ESCALADE DOIT DIRE VRAI. Trois de ces douze portent du TEXTE redige
+ * ET L'ESCALADE DOIT DIRE VRAI. Trois de ces quatorze portent du TEXTE redige
  * par une personne — voir la liste. Les decrire comme des tables techniques
  * aurait vide l'escalade de son sens : elle aurait remonte un fait faux.
  */
@@ -79,7 +79,11 @@ class ScenarioSandboxPreflight
      * ne cree plus. En declarer une ici la ferait passer pour un fait du
      * schema, et le test ci-contre echouerait partout ailleurs.
      *
-     * Ce que ces douze sont, exactement :
+     * Ce que ces QUATORZE sont, exactement — et le nombre est tenu a jour
+     * parce que le docbloc ci-dessus exige que l'escalade dise vrai : il
+     * annoncait encore « douze » alors que T1711 en avait ajoute une
+     * treizieme, et T1727 fait la quatorzieme.
+     *
      *
      * - plateforme : `organizations`, `platform_ai_constitutions` ;
      * - administration du Manager lui-meme : `scenario_manifest_versions` ;
@@ -87,6 +91,8 @@ class ScenarioSandboxPreflight
      * - preferences par personne : `member_notification_preferences` ;
      * - pivots rattaches par leur parent : `blog_post_user`,
      *   `loop_roadmap_item_user`, `loop_plugin_ai_models`, `usage_references` ;
+     * - etats techniques sans contenu : `rollback_conservation` (T1711) et
+     *   `password_reset_tokens` (T1727) — voir leurs raisons dans la liste ;
      * - **du CONTENU REDIGE, et c'est le point faible connu de ce controle** :
      *   `blog_annotation_replies` (`content`), `blog_todo_threads` (`body`) et
      *   `blog_snapshots` (`content`, `comment`). Ce sont des textes ecrits par
@@ -113,6 +119,27 @@ class ScenarioSandboxPreflight
         'member_notification_preferences',
         'organization_requests',
         'organizations',
+        // TASK-1727 — un token de reinitialisation de mot de passe.
+        //
+        // Hors portee par NATURE, et la raison tient en un mot : ce n'est pas
+        // du contenu, c'est un identifiant de passage. La table ne porte pas
+        // d'`organization_id` (un token appartient a un COMPTE, jamais a un
+        // tenant), et sa ligne vaut 60 minutes.
+        //
+        // Ce que le preflight cherche, c'est le texte qu'une personne reelle
+        // aurait ecrit dans une sandbox et que le geste destructeur
+        // emporterait sans un mot. Un token n'est rien de tel : s'il
+        // disparait, la personne demande un nouveau lien. Rien n'est perdu
+        // qui ne se redemande.
+        //
+        // Et il ne peut de toute facon pas y en avoir a sauver : depuis
+        // TASK-1726 un compte reel ne se deplace plus dans une sandbox, donc
+        // les seuls tokens rattachables a une sandbox sont ceux de ses
+        // personas — que le Manager supprime lui-meme, et que la cle etrangere
+        // `cascadeOnDelete` emporte avec eux. `POLICY_DELETE` est declaree
+        // dans `UserDataLifecycleRegistry` : la suppression d'un compte y est
+        // donc deja traitee.
+        'password_reset_tokens',
         // TASK-1711 — archive d'un rollback de la release 1.709, hors
         // portee du Scenario Manager par nature : elle ne porte pas
         // d'`organization_id`, et ses lignes ne sont pas des donnees de
