@@ -270,10 +270,27 @@ class TASK1699OfshHomepageThemeTest extends TestCase
             $this->assertGreaterThanOrEqual(10, count($internes), 'La garde ne mesure presque rien : le filtre est trop etroit.');
 
             $globales = array_filter($internes, function (string $url): bool {
-                // Les seules URL de premier niveau tolerees : les assets, et le
+                // Les seules URL de premier niveau tolerees : les assets, le
                 // tableau de bord, qui est PERSONNEL et non tenant (c'est la
-                // borne ecrite de `ResolveUrlOrganization`, TASK-1601).
-                foreach (['/org/', '/css/', '/js/', '/img/', '/build/', '/storage/', '/dashboard', '/locale/', '/favicon'] as $tolere) {
+                // borne ecrite de `ResolveUrlOrganization`, TASK-1601), et la
+                // redirection GitHub.
+                //
+                // TASK-1725 — `/open-source/github` est AJOUTE a cette liste, et
+                // ce n'est pas un assouplissement de la garde : c'est une URL
+                // globale PAR CONCEPTION, au meme titre que `/dashboard`.
+                //
+                // Elle redirige vers LE depot — un seul, identique pour tous les
+                // locataires. `route:list` le confirme : il n'existe aucune forme
+                // `organization.open-source.github`, seulement la page
+                // `organization.open-source`, qui elle est bien scopee et que le
+                // pied sert deja sous sa forme prefixee. Verifie avant d'ecrire
+                // cette ligne, plutot que suppose.
+                //
+                // Les deux autres gabarits de homepage (`hero-v2`,
+                // `artscilab-hero`) servent ce meme lien depuis TASK-1613 ; OFSH
+                // est le dernier a le recevoir (demande Cyril du 29/10 : « Un
+                // bug ? · icone github »).
+                foreach (['/org/', '/css/', '/js/', '/img/', '/build/', '/storage/', '/dashboard', '/locale/', '/favicon', '/open-source/github'] as $tolere) {
                     if (str_starts_with($url, $tolere)) {
                         return false;
                     }
