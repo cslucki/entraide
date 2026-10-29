@@ -291,6 +291,53 @@ class TASK1075CatalogAndPresentationTest extends TestCase
         $this->assertSame('Nom corrige', $loop->fresh()->name);
     }
 
+    /**
+     * TASK-1725 — meme garde, mais sur le chemin du SUPERADMIN.
+     *
+     * Trois ecrans cablent desormais le meme trait : la Boucle d'un membre,
+     * l'administration d'Organization, et celle de la plateforme. La logique
+     * `false` / `null` est gardee UNE fois par le test voisin ; ce qui reste
+     * propre a chaque ecran, c'est son CABLAGE.
+     *
+     * Celui-ci merite sa garde parce que ses donnees traversent
+     * `LoopService::updateLoop()` au lieu d'un tableau construit a la main : il
+     * y a donc plus de chemin entre la decision et l'ecriture, et l'oubli du
+     * `unset()` des champs non-colonnes comme une mauvaise lecture du `false` s'y
+     * payeraient par la suppression du FICHIER.
+     *
+     * L'ecran d'Organization, lui, construit son tableau explicitement — moins
+     * de cablage, et Cyril l'a recette.
+     */
+    public function test_the_platform_admin_keeps_the_cover_when_not_touching_it(): void
+    {
+        Storage::fake('public');
+        $org = $this->org();
+        $loop = Loop::factory()->create([
+            'organization_id' => $org->id,
+            'name' => 'Avant',
+            'cover_image_path' => 'loop-covers/y/garde.jpg',
+        ]);
+        Storage::disk('public')->put('loop-covers/y/garde.jpg', 'fake');
+
+        $admin = User::factory()->create([
+            'organization_id' => $org->id,
+            'is_admin' => true,
+            'email_verified_at' => now(),
+        ]);
+        $this->withCurrentOrganization($org);
+
+        $this->actingAs($admin)
+            ->put(route('admin.loops.update', $loop), [
+                'name' => 'Nom corrige',
+                'visibility' => 'private',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('loop-covers/y/garde.jpg', $loop->fresh()->cover_image_path);
+        Storage::disk('public')->assertExists('loop-covers/y/garde.jpg');
+        $this->assertSame('Nom corrige', $loop->fresh()->name);
+    }
+
     // ── Join requests: store ─────────────────────────────────────────────────
 
     public function test_member_can_send_a_join_request_with_message(): void
