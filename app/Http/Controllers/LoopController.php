@@ -35,13 +35,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class LoopController extends Controller
 {
+    use \App\Support\Loops\CouvertureDeBoucle;
+
     /**
      * Combien d'outils la barre de ChatLoop montre directement.
      *
@@ -444,7 +445,7 @@ class LoopController extends Controller
         $loop->categories()->sync($this->resolveDomainIds($organization, $data['category_ids'] ?? []));
 
         if ($request->hasFile('cover_image')) {
-            $loop->update(['cover_image_path' => $this->storeCoverImage($request, $loop)]);
+            $loop->update(['cover_image_path' => $this->rangerCouverture($request, $loop)]);
         }
 
         // TASK-1076: optional post-creation step. Never blocking — the screen
@@ -508,11 +509,13 @@ class LoopController extends Controller
             unset($data['slug']);
         }
 
-        if ($request->boolean('remove_cover_image') && $loop->cover_image_path) {
-            $this->deleteCoverImage($loop->cover_image_path);
-            $data['cover_image_path'] = null;
-        } elseif ($request->hasFile('cover_image')) {
-            $data['cover_image_path'] = $this->storeCoverImage($request, $loop);
+        // TASK-1725 — le `false` distingue « n'y touche pas » de « efface ». Les
+        // confondre effacerait la couverture a chaque enregistrement du
+        // formulaire ou le champ reste vide, c'est-a-dire presque toujours.
+        $couverture = $this->couvertureDemandee($request, $loop);
+
+        if ($couverture !== false) {
+            $data['cover_image_path'] = $couverture;
         }
 
         $loop->categories()->sync($this->resolveDomainIds($organization, $data['category_ids'] ?? []));
@@ -639,28 +642,6 @@ class LoopController extends Controller
         }
 
         return route('loops.index', $query);
-    }
-
-    private function storeCoverImage(Request $request, Loop $loop): string
-    {
-        if ($loop->cover_image_path) {
-            $this->deleteCoverImage($loop->cover_image_path);
-        }
-
-        $filename = Str::random(32).'.'.$request->file('cover_image')->extension();
-
-        return $request->file('cover_image')->storeAs(
-            'loop-covers/'.$loop->id,
-            $filename,
-            'public',
-        );
-    }
-
-    private function deleteCoverImage(string $path): void
-    {
-        if (str_starts_with($path, 'loop-covers/') && Storage::disk('public')->exists($path)) {
-            Storage::disk('public')->delete($path);
-        }
     }
 
     public function show(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): View

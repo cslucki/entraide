@@ -526,6 +526,24 @@ return [
 
     // TASK-1714 volet 2 — administrator approval of accounts.
     // TASK-1725 — is the FR/EN switcher shown on public surfaces?
+    // TASK-1725 — creating a Loop from the Organization admin.
+    'org_admin_loop_create_title' => 'Create a Loop',
+    'org_admin_loop_create_submit' => 'Create the Loop',
+    'org_admin_loop_create_cta' => 'Create a Loop',
+    'org_admin_loop_created' => 'Loop created.',
+    'org_admin_loop_owner' => 'Owner',
+    'org_admin_loop_owner_placeholder' => 'Choose a member…',
+    'org_admin_loop_owner_hint' => 'The owner becomes the Loop owner and a member of it. Only members of this organization are listed here.',
+    'org_admin_loop_visibility' => 'Visibility',
+    'org_admin_loop_visibility_private' => 'Private',
+    'org_admin_loop_visibility_private_hint' => 'The Loop does not appear in the public catalogue.',
+    'org_admin_loop_visibility_public' => 'Public',
+    'org_admin_loop_visibility_public_hint' => 'The Loop is visible in the catalogue; joining still requires your approval.',
+    'org_admin_loop_type_hint' => 'The type sets the initial Card composition. It can be changed later.',
+    // TASK-1725 — cover image, on the edit screen.
+    'org_admin_loop_cover' => 'Cover image',
+    'org_admin_loop_cover_hint' => 'PNG, JPG or WEBP, 2 MB maximum. It illustrates the Loop in the catalogue.',
+    'org_admin_loop_cover_remove' => 'Remove the current cover',
     'org_multilingual_label' => 'Multilingual site',
     'org_multilingual_hint' => 'Shows the FR/EN switcher on the homepage, in the left rail and in the mobile bar. When unchecked, the interface stays in the display language chosen below. The admin area keeps its own switcher.',
     'org_requires_account_approval' => 'Administrator must approve the account after email confirmation',

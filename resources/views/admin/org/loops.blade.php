@@ -1,7 +1,23 @@
 <x-org-admin-layout :title="__('navigation.org_admin_loops')" :organization="$organization">
-    <div class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('navigation.org_admin_loops') }}</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('navigation.org_admin_manage_loops') }}</p>
+    {{-- TASK-1725 (demande Cyril, 29/10) — « on ne peut pas creer de boucle
+         depuis /org/{org}/admin/loops ». Il n'y avait pas seulement aucun
+         bouton : la ROUTE n'existait pas. Le voici, avec elle.
+
+         Pose dans l'en-tete, a droite du titre, et non au-dessus du tableau :
+         c'est l'action principale de cet ecran, pas un filtre. --}}
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('navigation.org_admin_loops') }}</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('navigation.org_admin_manage_loops') }}</p>
+        </div>
+        <a href="{{ route('organization.admin.loops.create', ['organization' => $organization->slug]) }}"
+           data-marqueur="creer-boucle"
+           class="inline-flex shrink-0 items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+            </svg>
+            {{ __('admin.org_admin_loop_create_cta') }}
+        </a>
     </div>
 
     <form method="GET" class="mb-5 flex flex-wrap gap-3">

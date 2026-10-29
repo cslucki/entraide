@@ -1848,6 +1848,16 @@ Route::prefix('/org/{organization}')
 
                 // Community
                 Route::get('/loops', [OrgAdminController::class, 'loops'])->name('loops');
+                // TASK-1725 (demande Cyril, 29/10) — l'admin d'Organization cree ses
+                // propres Boucles. Ces deux routes n'existaient tout simplement
+                // PAS : la surface portait `loops`, `loops.edit` et
+                // `loops.update`, mais aucun chemin de creation.
+                //
+                // Posees AVANT `/loops/{loop}/...` : `create` est un segment
+                // litteral, et une route parametree declaree d'abord le
+                // capturerait comme identifiant de Boucle.
+                Route::get('/loops/create', [OrgAdminController::class, 'createLoop'])->name('loops.create');
+                Route::post('/loops', [OrgAdminController::class, 'storeLoop'])->name('loops.store');
                 Route::get('/loops/{loop}/edit', [OrgAdminController::class, 'editLoop'])->name('loops.edit');
                 Route::put('/loops/{loop}', [OrgAdminController::class, 'updateLoop'])->name('loops.update');
                 Route::put('/loops/{loop}/cards', [OrgAdminController::class, 'updateLoopCards'])->name('loops.cards.update');
