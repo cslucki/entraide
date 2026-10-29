@@ -525,6 +525,9 @@ return [
     'org_membership_enabled_hint' => 'When enabled, a « Membership » input field appears in member profiles.',
 
     // TASK-1714 volet 2 — administrator approval of accounts.
+    // TASK-1725 — is the FR/EN switcher shown on public surfaces?
+    'org_multilingual_label' => 'Multilingual site',
+    'org_multilingual_hint' => 'Shows the FR/EN switcher on the homepage, in the left rail and in the mobile bar. When unchecked, the interface stays in the display language chosen below. The admin area keeps its own switcher.',
     'org_requires_account_approval' => 'Administrator must approve the account after email confirmation',
     'org_requires_account_approval_hint' => 'New sign-ups wait for your approval, even after confirming their address. Existing accounts are not affected.',
     'users_approve_account' => 'Approve account',

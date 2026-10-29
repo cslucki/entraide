@@ -526,6 +526,9 @@ return [
     'org_membership_enabled_hint' => 'Quand activé, un champ de saisie « Appartenance » apparaît dans le profil des membres.',
 
     // TASK-1714 volet 2 — approbation des comptes par un administrateur.
+    // TASK-1725 — le selecteur FR/EN s'affiche-t-il sur les surfaces publiques ?
+    'org_multilingual_label' => 'Site multilingue',
+    'org_multilingual_hint' => "Affiche le sélecteur FR/EN sur la page d'accueil, dans le rail de gauche et dans la barre mobile. Décoché, l'interface reste dans la langue d'affichage choisie ci-dessous. L'administration garde son sélecteur.",
     'org_requires_account_approval' => 'L\'administrateur doit valider le compte après confirmation email',
     'org_requires_account_approval_hint' => 'Les nouvelles inscriptions attendent votre validation, même après confirmation de leur adresse. Les comptes existants ne sont pas affectés.',
     'users_approve_account' => 'Valider compte',

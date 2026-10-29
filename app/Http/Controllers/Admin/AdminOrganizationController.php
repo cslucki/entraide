@@ -161,6 +161,8 @@ class AdminOrganizationController extends Controller
             'rerank_enabled' => 'nullable|boolean',
             'is_public' => 'nullable|boolean',
             'is_default' => 'nullable|boolean',
+            // TASK-1725 — « site multilingue » : le selecteur FR/EN s'affiche-t-il ?
+            'multilingual_enabled' => 'nullable|boolean',
             'loops_enabled' => 'nullable|boolean',
             'members_can_create_loops' => 'nullable|boolean',
             'subscriptions_enabled' => 'nullable|boolean',
@@ -210,6 +212,7 @@ class AdminOrganizationController extends Controller
         }
 
         $data['is_public'] = isset($data['is_public']);
+        $data['multilingual_enabled'] = ($data['multilingual_enabled'] ?? '0') === '1';
         $data['loops_enabled'] = ($data['loops_enabled'] ?? '0') === '1';
         $data['members_can_create_loops'] = ($data['members_can_create_loops'] ?? '0') === '1';
         $data['subscriptions_enabled'] = ($data['subscriptions_enabled'] ?? '0') === '1';

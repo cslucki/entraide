@@ -26,6 +26,22 @@
         : 0;
     $canSeeFlux = auth()->check() && auth()->user()->can('create', \App\Models\FeedPost::class);
     $loopsEnabled = $currentOrganization?->loops_enabled ?? $menuOrganization?->loops_enabled ?? true;
+
+    // TASK-1725 (demande Cyril, 29/10) — le selecteur FR/EN suit le drapeau
+    // « site multilingue » de l'Organization.
+    //
+    // MEME precedence que la garde IA plus bas, donc que la destination des liens
+    // de ce rail : le parametre d'URL s'il existe, sinon `$menuOrganization`.
+    // Jamais `currentOrganization()` en premier — sur une page sans prefixe elle
+    // rend l'Organization PAR DEFAUT de la plateforme, et le rail jugerait « main »
+    // pour un membre d'un autre locataire. Defaut mesure sur la garde IA de cette
+    // meme TASK.
+    //
+    // `?? false` et non `?? true` : sans Organization resolue il n'y a aucun site
+    // multilingue a servir, et le defaut de la colonne est lui aussi FAUX. Deux
+    // replis opposes entre la colonne et la vue finiraient par se contredire.
+    $organizationDuRail = request()->route('organization') ? $currentOrganization : $menuOrganization;
+    $multilingue = (bool) ($organizationDuRail?->multilingual_enabled ?? false);
     $bugReportUrl = $organizationRouteParam && Route::has('organization.bug-reports.index')
         ? route('organization.bug-reports.index', ['organization' => $organizationRouteParam])
         : route('bug-reports.index');
@@ -215,6 +231,7 @@
             <img src="{{ $brandLogoUrl }}" alt="" class="h-7 w-7" aria-hidden="true">
         </a>
 
+        @if($multilingue)
         <div class="mt-1.5 flex shrink-0 items-center gap-0.5 rounded-full bg-[var(--bp-panel)] px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-[var(--bp-border)]" aria-label="{{ __('navigation.language_switcher') }}">
             @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                 <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
@@ -228,6 +245,7 @@
                 </form>
             @endforeach
         </div>
+        @endif
 
         {{-- ── « Coopérer » ──────────────────────────────────────────────────
              Le seul bouton plein du rail : ce qu'on vient faire ici commence

@@ -57,6 +57,11 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       <a href="{{ organizationScopedUrl('home', 'organization.home') }}"><img class="logo" src="{{ asset('img/artscilab-icon.png') }}" alt="{{ $organization->name }}"></a>
     </div>
     <div class="nav-right">
+      {{-- TASK-1725 (demande Cyril, 29/10) — le selecteur FR/EN suit le drapeau
+           « site multilingue » de l'Organization. Decoche, l'interface reste dans la
+           langue d'affichage choisie, et le selecteur ne promet plus un choix que le
+           site ne propose pas. --}}
+      @if($organization->multilingual_enabled)
       <div class="lang" aria-label="Langue / Language">
         @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
           <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" class="inline">
@@ -66,6 +71,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
           @if (! $loop->last)<span class="sep">—</span>@endif
         @endforeach
       </div>
+      @endif
       <nav class="nav-links">
         {{-- TASK-1692, correctif post-CI — le LIEN reste public, la PAGE reste
              membre. Masquer le lien ne protegeait rien (la garde de route est

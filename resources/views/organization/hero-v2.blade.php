@@ -78,6 +78,11 @@ $secondaryCtaUrl = $showInternalHomepageContent
         @if($organization->subscriptions_enabled)
           <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
         @endif
+    {{-- TASK-1725 (demande Cyril, 29/10) — le selecteur FR/EN suit le drapeau
+        « site multilingue » de l'Organization. Decoche, l'interface reste dans la
+        langue d'affichage choisie, et le selecteur ne promet plus un choix que
+        le site ne propose pas. --}}
+    @if($organization->multilingual_enabled)
         <div class="lang" aria-label="Langue / Language">
           @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
             <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" class="inline">
@@ -86,6 +91,7 @@ $secondaryCtaUrl = $showInternalHomepageContent
             </form>
           @endforeach
         </div>
+    @endif
         @guest
           <a href="{{ route('organization.login', $organization) }}" class="btn-join">{{ org_trans('hero.nav_login') }}</a>
         @else
@@ -119,6 +125,11 @@ $secondaryCtaUrl = $showInternalHomepageContent
     @else
       @include('organization.partials.account-menu', ['organization' => $organization])
     @endguest
+    {{-- TASK-1725 (demande Cyril, 29/10) — le selecteur FR/EN suit le drapeau
+        « site multilingue » de l'Organization. Decoche, l'interface reste dans la
+        langue d'affichage choisie, et le selecteur ne promet plus un choix que
+        le site ne propose pas. --}}
+    @if($organization->multilingual_enabled)
     <div class="m-lang" aria-label="Langue / Language">
       @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
         <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" style="display:inline">
@@ -127,6 +138,7 @@ $secondaryCtaUrl = $showInternalHomepageContent
         </form>
       @endforeach
     </div>
+    @endif
   </div>
 
   {{-- HERO --}}

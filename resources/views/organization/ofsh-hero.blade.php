@@ -146,6 +146,11 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
 
     <nav class="nav-links" aria-label="{{ org_trans('ofsh.nav_menu') }}">
       <a href="{{ $urlApropos }}">{{ org_trans('ofsh.nav_about') }}</a>
+      {{-- TASK-1725 (demande Cyril, 29/10) — le selecteur FR/EN suit le drapeau
+           « site multilingue » de l'Organization. Decoche, l'interface reste dans la
+           langue d'affichage choisie, et le selecteur ne promet plus un choix que le
+           site ne propose pas. --}}
+      @if($organization->multilingual_enabled)
       <div class="lang" aria-label="Langue / Language">
         @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
           <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" class="inline">
@@ -154,6 +159,7 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
           </form>
         @endforeach
       </div>
+      @endif
       @guest
         <a href="{{ $urlConnexion }}">{{ org_trans('ofsh.nav_login') }}</a>
         {{-- TASK-1725 (demande Cyril, 29/10) — « Rejoindre le collectif » RETIRE du
@@ -185,6 +191,11 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
 
     <nav id="ofsh-mobile-menu" class="mobile-menu" aria-label="{{ org_trans('ofsh.nav_menu') }}" data-mobile-menu hidden>
       <a href="{{ $urlApropos }}">{{ org_trans('ofsh.nav_about') }}</a>
+      {{-- TASK-1725 (demande Cyril, 29/10) — le selecteur FR/EN suit le drapeau
+           « site multilingue » de l'Organization. Decoche, l'interface reste dans la
+           langue d'affichage choisie, et le selecteur ne promet plus un choix que le
+           site ne propose pas. --}}
+      @if($organization->multilingual_enabled)
       <div class="lang" aria-label="Langue / Language">
         @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
           <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" class="inline">
@@ -193,6 +204,7 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
           </form>
         @endforeach
       </div>
+      @endif
       @guest
         <a href="{{ $urlConnexion }}">{{ org_trans('ofsh.nav_login') }}</a>
         <a class="nav-dashboard" href="{{ $urlInscription }}">{{ org_trans('ofsh.cta_join') }}</a>
