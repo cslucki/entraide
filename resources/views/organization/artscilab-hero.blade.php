@@ -1,6 +1,25 @@
 <?php
 $settings = $organization->homepage_settings ?? [];
 $showInternalHomepageContent = (bool) ($showInternalHomepageContent ?? false);
+
+// TASK-1725 (demande Cyril, 29/10) — « les 4 cards n'ont pas de lien, il faut
+// ajouter des liens sur le meme principe que les autres homepages ».
+//
+// Le principe est celui d'`ofsh-hero` : la carte est TOUJOURS un lien. Membre,
+// elle mene a la surface interne ; non-membre, a la connexion BORNEE a cette
+// Organization. C'est le « tunnel voulu, pas une fuite » que TASK-1692 a ecrit
+// pour le lien « A propos » de ce meme gabarit, quelques lignes plus bas.
+//
+// Avant : la carte retombait sur un `<div>` inerte pour un non-membre. Elle
+// n'etait donc pas fermee, elle etait MORTE — on la voyait, on la survolait, et
+// rien ne se passait. Masquer le lien ne protegeait d'ailleurs rien : la garde de
+// route reste l'autorite, et c'est elle qui redirige.
+//
+// Les blocs d'avatars (`.ppl`) restent gates sur `$showInternalHomepageContent`,
+// eux : ce sont de vraies donnees de membres. Seul le LIEN change.
+$porte = fn (string $route, array $parametres = []): string => $showInternalHomepageContent
+    ? route($route, array_merge(['organization' => $organization->slug], $parametres))
+    : route('organization.login', ['organization' => $organization->slug]);
 $heroAvatars = collect($heroAvatars ?? []);
 $avatar = fn (int $index) => $heroAvatars->get($index) ?? asset('img/bouclepro-symbol.png');
 $settingText = fn (string $key, string $fallback) => filled($settings[$key] ?? null) && ! in_array($settings[$key], [
@@ -108,11 +127,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       <div class="orbit" id="bp-orbit">
         <div class="loop"></div>
 
-        @if($showInternalHomepageContent)
-        <a href="{{ route('organization.explorer', $organization).'?tab=requests' }}" class="ocard c1">
-        @else
-        <div class="ocard c1">
-        @endif
+        <a href="{{ $porte('organization.explorer') }}{{ $showInternalHomepageContent ? '?tab=requests' : '' }}" class="ocard c1">
           <div class="top">
             <span class="ic"><i class="ti ti-hand-stop"></i></span>
             <span class="lbl">{{ $settingText('card_1_label', 'artscilab.card_1_label') }}</span>
@@ -123,13 +138,9 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
             </div>
             <span class="more">+4</span>
           </div>@endif
-        @if($showInternalHomepageContent)</a>@else</div>@endif
+        </a>
 
-        @if($showInternalHomepageContent)
-        <a href="{{ route('organization.explorer', $organization) }}" class="ocard c2">
-        @else
-        <div class="ocard c2">
-        @endif
+        <a href="{{ $porte('organization.explorer') }}" class="ocard c2">
           <div class="top">
             <span class="ic"><i class="ti ti-lifebuoy"></i></span>
             <span class="lbl">{{ $settingText('card_2_label', 'artscilab.card_2_label') }}</span>
@@ -140,16 +151,12 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
             </div>
             <span class="more">+7</span>
           </div>@endif
-        @if($showInternalHomepageContent)</a>@else</div>@endif
+        </a>
 
         {{-- TASK-1608 — c3 porte l'intention EXPLORER (icone `ti-bulb`, libelle
              « Je suis actuellement fascine par… ») : elle mene desormais aux
              CONTENUS, pas a l'Annuaire. Meme arbitrage MASTER que `hero-v2`. --}}
-        @if($showInternalHomepageContent)
-        <a href="{{ route('organization.blog.index', $organization) }}" class="ocard c3">
-        @else
-        <div class="ocard c3">
-        @endif
+        <a href="{{ $porte('organization.blog.index') }}" class="ocard c3">
           <div class="top">
             <span class="ic"><i class="ti ti-bulb"></i></span>
             <span class="lbl">{{ $settingText('card_3_label', 'artscilab.card_3_label') }}</span>
@@ -160,18 +167,14 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
             </div>
             <span class="more">+3</span>
           </div>@endif
-        @if($showInternalHomepageContent)</a>@else</div>@endif
+        </a>
 
         {{-- c4 porte l'intention RELIER (icone `ti-friends`, libelle « Je pense
              que ces deux personnes devraient se rencontrer… ») : elle mene aux
              PERSONNES. Consequence acceptee par MASTER : plus aucune des quatre
              cartes ne mene au catalogue des Boucles — il reste atteint par le
              CTA secondaire, la navigation et le logigramme. --}}
-        @if($showInternalHomepageContent)
-        <a href="{{ route('organization.members.index', $organization) }}" class="ocard c4">
-        @else
-        <div class="ocard c4">
-        @endif
+        <a href="{{ $porte('organization.members.index') }}" class="ocard c4">
           <div class="top">
             <span class="ic"><i class="ti ti-friends"></i></span>
             <span class="lbl">{{ $settingText('card_4_label', 'artscilab.card_4_label') }}</span>
@@ -182,7 +185,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
             </div>
             <span class="more">+6</span>
           </div>@endif
-        @if($showInternalHomepageContent)</a>@else</div>@endif
+        </a>
 
         {{-- TASK-1725 (demande Cyril, 29/10) — sans IA, la mention disparait.
 

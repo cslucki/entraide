@@ -170,7 +170,23 @@ body.bp-artscilab::before{
   .bp-artscilab .stage{order:2}
   .bp-artscilab .orbit{--r:172px;width:460px;height:460px}
   .bp-artscilab .brand .logo{height:112px}
-  .bp-artscilab .nav-links a:not(.btn-join):not(.btn-join--outline){display:none}
+  /* TASK-1725 (demande Cyril, 29/10) — « le menu avatar ne contient pas
+     suffisamment de choix ». Capture : seule « Deconnexion » s'affichait.
+
+     La cause est ICI, et le partiel `account-menu` l'avait deja rencontree sur
+     ce gabarit — son propre commentaire la decrit : « Seuls Boucles (survole) et
+     Deconnexion (un `button`, que la regle ne visait pas) se lisaient ».
+
+     Sans le combinateur `>`, ce selecteur atteignait les `<a>` du PANNEAU du
+     menu, qui vit dans `.nav-links` : « Tableau de bord », « Profil et
+     parametres », « Boucles » et « Un bug ? » disparaissaient tous les quatre.
+     « Deconnexion » survivait pour la seule raison qu'elle est un `<button>` —
+     un indice qui aurait du alerter plus tot.
+
+     `>` borne la regle aux ENFANTS DIRECTS, c'est-a-dire aux liens de la barre
+     eux-memes. Le comportement voulu — masquer « A propos » sur telephone — est
+     inchange ; seul le panneau cesse d'etre touche. */
+  .bp-artscilab .nav-links > a:not(.btn-join):not(.btn-join--outline){display:none}
 }
 @media (max-width:760px){
   .bp-artscilab .orbit{--r:150px;width:392px;height:392px}
