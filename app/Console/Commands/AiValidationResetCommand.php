@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Support\AiValidation\AiValidationDatabaseGuard;
+use App\Support\Ops\DestructiveDatabaseGuard;
 use Database\Seeders\AiValidationDatasetSeeder;
 use Database\Seeders\ArtSciLabScenarioSeeder;
 use Illuminate\Console\Command;
@@ -41,6 +42,12 @@ class AiValidationResetCommand extends Command
 
             return self::SUCCESS;
         }
+
+        // TASK-1722 — cette destruction est VOULUE, et elle vient d'etre
+        // prouvee sure par `assertSafe()` puis confirmee par l'operateur.
+        // On le declare au garde global, qui refuse par defaut toute
+        // reconstruction hors base de test.
+        DestructiveDatabaseGuard::declarerIntention(AiValidationDatabaseGuard::ALLOWED_CONNECTION);
 
         $this->call('migrate:fresh', [
             '--database' => AiValidationDatabaseGuard::ALLOWED_CONNECTION,
