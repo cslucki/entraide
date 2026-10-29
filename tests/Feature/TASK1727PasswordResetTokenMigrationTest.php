@@ -194,6 +194,130 @@ class TASK1727PasswordResetTokenMigrationTest extends TestCase
             'et aucun token n\'est perdu au passage');
     }
 
+    // ── Concurrence : la fenetre lecture -> remplacement (revue MASTER) ─────
+
+    /**
+     * Le verrou est pris AVANT le premier comptage, et la copie est deja
+     * ecrite quand il l'est.
+     *
+     * ## Pourquoi mesurer l'ORDRE, et non seulement le resultat
+     *
+     * La perte concurrente ne se reproduit pas dans un test a connexion
+     * unique : il n'y a personne pour ecrire pendant la fenetre. Ce qui se
+     * mesure, en revanche, c'est que la fenetre est FERMEE PAR CONSTRUCTION —
+     * l'ordre des instructions. Et cet ordre est exactement ce qu'une
+     * relecture distraite defait, en remontant le comptage « pour l'avoir
+     * sous les yeux ».
+     *
+     * Les deux moteurs sont couverts par le meme test, parce que l'ordre les
+     * protege tous les deux : la creation de la table temporaire est
+     * l'ecriture qui escalade le verrou de fichier sous SQLite, et le
+     * `LOCK TABLE` qui la suit est ce qui exclut sous PostgreSQL.
+     */
+    public function test_le_verrou_precede_toute_lecture_de_la_table_source(): void
+    {
+        $org = Organization::factory()->create();
+        User::factory()->create(['organization_id' => $org->id, 'email' => 'ordre@exemple.test']);
+
+        $this->revenirALaFormeAnterieure();
+
+        DB::table('password_reset_tokens')->insert([
+            'email' => 'ordre@exemple.test',
+            'token' => Hash::make('jeton-ordre-1727'),
+            'created_at' => now(),
+        ]);
+
+        $instructions = [];
+        DB::listen(function ($requete) use (&$instructions): void {
+            $instructions[] = $requete->sql;
+        });
+
+        $this->migration()->up();
+
+        $creationTemp = $this->premierIndice($instructions, fn (string $sql): bool => str_contains($sql, 'create table') && str_contains($sql, 'password_reset_tokens_t1727'));
+        $premiereLecture = $this->premierIndice($instructions, fn (string $sql): bool => str_starts_with(strtolower(ltrim($sql)), 'select') && str_contains($sql, 'password_reset_tokens') && ! str_contains($sql, 't1727'));
+
+        $this->assertNotNull($creationTemp, 'la table temporaire doit etre creee');
+        $this->assertNotNull($premiereLecture, 'la table source doit etre lue');
+
+        // 1. L'ecriture qui escalade le verrou SQLite precede toute lecture.
+        $this->assertLessThan($premiereLecture, $creationTemp,
+            'la creation de la table temporaire doit PRECEDER la premiere lecture de la source');
+
+        // 2. Sous PostgreSQL, le verrou explicite est entre les deux.
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            $verrou = $this->premierIndice($instructions, fn (string $sql): bool => str_contains($sql, 'ACCESS EXCLUSIVE MODE'));
+
+            $this->assertNotNull($verrou, 'LOCK TABLE ... ACCESS EXCLUSIVE doit etre pris');
+            $this->assertGreaterThan($creationTemp, $verrou);
+            $this->assertLessThan($premiereLecture, $verrou,
+                'le verrou doit PRECEDER la premiere lecture, sinon le comptage reste aveugle');
+        }
+    }
+
+    /** @param callable(string): bool $predicat */
+    private function premierIndice(array $instructions, callable $predicat): ?int
+    {
+        foreach ($instructions as $i => $sql) {
+            if ($predicat($sql)) {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * PostgreSQL : le verrou BLOQUE REELLEMENT une ecriture concurrente.
+     *
+     * Le test d'ordre ci-dessus prouve que le verrou est pris au bon moment ;
+     * celui-ci prouve qu'il SERT a quelque chose. Les deux ensemble ferment la
+     * question — un verrou pris trop tard ne protege rien, un verrou qui
+     * n'exclut rien ne protege rien non plus.
+     *
+     * Une SECONDE connexion, donc un second PDO : c'est la seule facon
+     * d'eprouver un verrou. Elle recoit un `lock_timeout` court et tente un
+     * `INSERT` ; l'echec attendu est un depassement de delai, preuve que
+     * `ACCESS EXCLUSIVE` entre bien en conflit avec le `ROW EXCLUSIVE` que
+     * prend tout `INSERT`.
+     *
+     * Ignore sous SQLite, et pas par commodite : la base de test y est
+     * `:memory:`, ou chaque connexion ouvre sa PROPRE base. Deux connexions ne
+     * partagent donc aucun fichier, et le verrouillage de fichier de SQLite
+     * n'a rien a verrouiller. Le raisonnement SQLite est documente dans la
+     * migration et couvert par le test d'ordre.
+     */
+    public function test_pgsql_le_verrou_bloque_une_ecriture_concurrente(): void
+    {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('Verrou de table : PostgreSQL seulement (SQLite verrouille le fichier, et la base de test est :memory:).');
+        }
+
+        // Une connexion distincte vers la MEME base.
+        config(['database.connections.pgsql_concurrent' => config('database.connections.pgsql')]);
+        $concurrente = DB::connection('pgsql_concurrent');
+        $concurrente->statement("SET lock_timeout = '250ms'");
+
+        // Le verrou que prend la migration, pris ici a la main.
+        DB::statement('LOCK TABLE "password_reset_tokens" IN ACCESS EXCLUSIVE MODE');
+
+        try {
+            $concurrente->table('password_reset_tokens')->insert([
+                'user_id' => null,
+                'email' => 'concurrent@exemple.test',
+                'token' => Hash::make('jeton-concurrent'),
+                'created_at' => now(),
+            ]);
+
+            $this->fail("l'ecriture concurrente aurait du etre BLOQUEE par le verrou");
+        } catch (\Illuminate\Database\QueryException $e) {
+            $this->assertStringContainsString('lock timeout', strtolower($e->getMessage()),
+                "l'echec doit etre un depassement de delai de verrou, et non une autre erreur");
+        } finally {
+            $concurrente->disconnect();
+        }
+    }
+
     public function test_down_REFUSE_quand_deux_tokens_partagent_un_email(): void
     {
         // LE point du `down()` fail-closed exige par MASTER. La forme
