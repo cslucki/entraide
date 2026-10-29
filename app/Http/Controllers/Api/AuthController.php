@@ -89,15 +89,59 @@ class AuthController extends Controller
         ], 201);
     }
 
+    /**
+     * TASK-1728 (A3) — la connexion API designe un COMPTE (arbitrage MASTER D3).
+     *
+     * ## Ce qui a change
+     *
+     * `User::where('email', ...)->first()` est remplace par une resolution
+     * explicite. Le format de la reponse est INCHANGE, et le champ ajoute est
+     * FACULTATIF : aucun client existant n'est casse.
+     *
+     * ## Pourquoi un champ, et pas un contexte
+     *
+     * `ResolveApiOrganization` derive l'Organization de l'utilisateur
+     * AUTHENTIFIE, et retombe sur celle par defaut quand personne ne l'est. Or
+     * au moment du login, personne ne l'est encore : l'API n'avait donc
+     * AUCUNE facon de nommer son tenant. `routes/api.php` ne porte pas non
+     * plus de prefixe `/org/{slug}`. Un champ etait le seul chemin possible.
+     *
+     * ## Le refus est unique, et c'est voulu
+     *
+     * Slug inconnu, Organization inactive, adresse absente de cette
+     * Organization, adresse ambigue, mot de passe faux : **un seul message**.
+     * Distinguer le slug inconnu aurait fait de ce point d'entree un
+     * enumerateur d'Organizations ; distinguer l'ambiguite aurait annonce
+     * qu'une adresse existe dans plusieurs tenants.
+     */
     public function login(Request $request): JsonResponse
     {
         $data = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
+            // Facultatif, et jamais `exists` : un slug inconnu doit tomber
+            // dans le refus generique, pas dans une erreur de validation qui
+            // confirmerait quelles Organizations existent.
+            'organization' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
 
-        $user = User::where('email', $data['email'])->first();
+        $comptes = app(\App\Services\Users\LoginAccountResolver::class);
 
+        $slug = $data['organization'] ?? null;
+        $organization = $slug === null || $slug === ''
+            ? null
+            : \App\Models\Organization::query()->where('slug', $slug)->where('is_active', true)->first();
+
+        // Un slug FOURNI mais introuvable ne doit pas elargir la recherche a
+        // tous les tenants : ce serait l'inverse de ce qu'on a demande. On
+        // refuse, avec le message commun.
+        $user = ($slug !== null && $slug !== '' && $organization === null)
+            ? null
+            : $comptes->compteUnique($data['email'], $organization);
+
+        // `Hash::check` n'est evalue QUE sur un compte resolu : jamais compte
+        // par compte pour savoir lequel repond. Le mot de passe verifie une
+        // identite, il ne la choisit pas.
         if (! $user || ! Hash::check($data['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['Les identifiants fournis sont incorrects.'],

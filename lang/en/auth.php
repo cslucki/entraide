@@ -77,4 +77,11 @@ return [
     'new_password_label' => 'New password',
     'reset_password_button' => 'Reset password',
 
+
+    // TASK-1728 (A3) — le selecteur d'Organization du formulaire global,
+    // et la sortie de secours du parcours d'Organization.
+    'login_organization_label' => "Organization (optional)",
+    'login_organization_any' => "— All organizations —",
+    'login_organization_hint' => "Only needed if your address belongs to several organizations. Leave empty otherwise.",
+    'login_try_global' => "Is your account in another organization? Sign in here.",
 ];
