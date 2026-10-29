@@ -804,9 +804,26 @@ class AdminController extends Controller
         return back()->with('success', "Mot de passe de {$user->name} modifié.");
     }
 
+    /**
+     * TASK-1727 (A2) — le compte est DEJA designe, le broker ne le redevine plus.
+     *
+     * Cette route porte l'uuid du compte dans son URL
+     * (`/admin/users/{user}/send-password-reset`), et l'ancien code le jetait
+     * pour ne garder que l'email : `sendResetLink(['email' => $user->email])`
+     * laissait le broker re-resoudre par `retrieveByCredentials()->first()`.
+     * Un administrateur cliquait sur une ligne precise et le serveur
+     * recommencait la recherche a partir de la seule donnee ambigue dont il
+     * disposait.
+     *
+     * Le couple `id` + `email` referme cela sans forker le broker : la cle
+     * primaire ET l'adresse, donc au plus un compte, et jamais un autre que
+     * celui de la ligne cliquee.
+     */
     public function sendPasswordResetLink(User $user): RedirectResponse
     {
-        $status = Password::broker()->sendResetLink(['email' => $user->email]);
+        $status = Password::broker()->sendResetLink(
+            app(\App\Services\Users\PasswordResetAccountResolver::class)->credentials($user)
+        );
 
         if ($status === Password::RESET_LINK_SENT) {
             EmailLog::create([
