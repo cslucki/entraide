@@ -60,7 +60,7 @@ return new class extends Migration
     {
         return [
             'fr' => [
-                'name' => 'Demande d\'adhesion acceptee',
+                'name' => 'Demande d\'adhésion acceptée',
                 'subject' => 'Votre demande pour rejoindre la Boucle {{ loop_name }} a été acceptée',
                 'html' => '<p>Bonjour {{ recipient_name }},</p>'
                     .'<p>Votre demande pour rejoindre la Boucle <strong>{{ loop_name }}</strong> '

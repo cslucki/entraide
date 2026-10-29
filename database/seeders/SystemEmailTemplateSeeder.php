@@ -196,7 +196,7 @@ class SystemEmailTemplateSeeder extends Seeder
          * doivent donc rester identiques.
          */
         'loop_join_request_accepted' => [
-            'name_fr' => 'Demande d\'adhesion acceptee',
+            'name_fr' => 'Demande d\'adhésion acceptée',
             'name_en' => 'Join request accepted',
             'subject_fr' => 'Votre demande pour rejoindre la Boucle {{ loop_name }} a été acceptée',
             'subject_en' => 'Your request to join the {{ loop_name }} Loop has been accepted',

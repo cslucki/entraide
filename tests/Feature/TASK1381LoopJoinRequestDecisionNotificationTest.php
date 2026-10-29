@@ -407,7 +407,8 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
     // =====================================================================
 
     /**
-     * Les deux libelles arrivent jusqu'a l'ecran, et ils DIFFERENT.
+     * Les deux libelles arrivent jusqu'a l'ecran, ils DIFFERENT, et ils nomment
+     * la Boucle.
      *
      * Le Centre resout `keys.<cle avec des tirets bas>`. Une cle mal orthographiee
      * ne casse rien : elle retombe silencieusement sur « Notification », le repli
@@ -416,11 +417,26 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
      *
      * On mesure donc les DEUX libelles ensemble : verifier une seule ligne
      * laisserait passer une paire identique.
+     *
+     * TASK-1725 (demande Cyril, 29/10) — les attendus deviennent les formes
+     * NOMMEES, `keys_named`. « Votre demande d'adhesion a ete acceptee » ne
+     * disait pas LAQUELLE : le membre de plusieurs Boucles devait ouvrir pour
+     * savoir de quoi on lui parlait. Le repli silencieux que ce test surveille
+     * est desormais DOUBLE — une cle `keys_named` manquante retombe sur `keys`,
+     * qui retombe sur « Notification » — et c'est bien la forme nommee, la plus
+     * exterieure, qu'il faut mesurer : une assertion sur la forme generique
+     * resterait verte alors que le nom aurait disparu de l'ecran.
      */
     public function test_the_center_shows_a_distinct_label_for_each_decision(): void
     {
         [$org, $loop, $owner, $applicant, $premiereDemande] = $this->scenario();
         $this->withCurrentOrganization($org);
+
+        // Un nom DETERMINISTE, et sans caractere que Blade echapperait : le nom
+        // de fabrique porte parfois une apostrophe, et l'assertion comparerait
+        // alors une apostrophe droite a `&#039;`. Le test mesurerait
+        // l'echappement au lieu du libelle.
+        $loop->forceFill(['name' => 'Boucle Entraide'])->save();
 
         $this->actingAs($owner)->post(route('loop-join-requests.reject', $premiereDemande));
 
@@ -442,9 +458,18 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
         // l'environnement. Mesure faite egalement : la locale d'une requete de
         // test est `en`, pas celle de la CLI — supposer l'une pour l'autre
         // aurait teste un fichier de langue au lieu de l'autre.
+        // Le CADRE de la phrase reste ecrit en dur — c'est ce qui fait tenir le
+        // raisonnement ci-dessus. Seul le nom de la Boucle est interpole, et il
+        // vient du modele, pas d'un fichier de langue.
         $attendus = [
-            'fr' => ['Votre demande d’adhésion a été acceptée', 'Votre demande d’adhésion n’a pas été retenue'],
-            'en' => ['Your request to join was accepted', 'Your request to join was not accepted'],
+            'fr' => [
+                'Votre demande d’adhésion à « '.$loop->name.' » a été acceptée',
+                'Votre demande d’adhésion à « '.$loop->name.' » n’a pas été retenue',
+            ],
+            'en' => [
+                'Your request to join '.$loop->name.' was accepted',
+                'Your request to join '.$loop->name.' was not accepted',
+            ],
         ];
 
         foreach ($attendus as $locale => [$accepte, $refuse]) {

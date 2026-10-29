@@ -55,6 +55,26 @@ return [
         'loop_join_request_rejected' => 'Your request to join was not accepted',
     ],
 
+    /*
+     * TASK-1725 — the SAME facts, naming the Loop.
+     *
+     * A separate group rather than a `:loop` placeholder inside `keys`: the
+     * name is not always known at render time (deleted Loop, other tenant), and
+     * a sentence with a hole fed an empty string would read « Added to the Loop
+     * "" ». Both forms coexist; the view picks according to what it has.
+     *
+     * These keys are a SUBSET of `keys`: only notifications carrying a Loop.
+     */
+    'keys_named' => [
+        'loop_invitation' => 'Invitation to join the :loop Loop',
+        'loop_member_added' => 'Added to the :loop Loop',
+        'loop_join_request_accepted' => 'Your request to join :loop was accepted',
+        'loop_join_request_rejected' => 'Your request to join :loop was not accepted',
+    ],
+
+    // TASK-1725 — « Open » did not say what. The label now follows the object.
+    'open_loop' => 'Open the Loop',
+
     // Fallback when a catalogue key has no label yet. It must never show the
     // technical key: that means nothing to a member.
     'key_fallback' => 'Notification',

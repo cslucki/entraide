@@ -102,6 +102,8 @@ class NotificationCenterController extends Controller
         $slug = $request->route('organization');
 
         return view('notifications.index', [
+            // TASK-1725 — le NOM de la Boucle concernee, par notification.
+            'sujets' => $this->sujetsDesBoucles($notifications->getCollection(), (string) $organization->id),
             'notifications' => $notifications,
             'filtre' => $filtre,
             'nonLues' => $user->unreadNotificationsCount((string) $organization->id),
@@ -110,6 +112,156 @@ class NotificationCenterController extends Controller
             'routeOpen' => $slug ? 'organization.notifications.open' : 'notifications.open',
             'routeReadAll' => $slug ? 'organization.notifications.read-all' : 'notifications.read-all',
         ]);
+    }
+
+    /**
+     * TASK-1725 (demande Cyril, 29/10) — nommer la Boucle dont il est question.
+     *
+     * ## Le defaut
+     *
+     * « Ajout a une Boucle » et « Votre demande d'adhesion a ete acceptee » ne
+     * disent pas LAQUELLE. Un membre de plusieurs Boucles lisait donc un fait
+     * sans objet, et devait ouvrir pour savoir de quoi on lui parlait — ce que
+     * le libelle existe precisement pour lui epargner.
+     *
+     * ## Resolu au RENDU, et le stockage reste muet
+     *
+     * La doctrine de cet ecran est qu'une notification ne porte que des
+     * references, aucun texte : c'est ce qui fait qu'une notification vieille
+     * d'un mois n'ouvre aucune porte fermee depuis, et qu'un nom de Boucle
+     * change se repercute partout sans migration. Elle n'est pas enfreinte ici
+     * — rien de nouveau n'est ECRIT. Le nom est LU au moment de l'affichage, a
+     * la source, exactement comme la destination est lue au clic.
+     *
+     * ## En LOT, et ce n'est pas une optimisation gratuite
+     *
+     * La page en affiche vingt-cinq. Resoudre ligne par ligne ferait jusqu'a
+     * cinquante requetes — une par demande ou invitation, puis une par Boucle —
+     * sur un ecran que le membre ouvre a chaque badge. Deux requetes par type
+     * d'objet suffisent, et le cout cesse de dependre du nombre de lignes.
+     *
+     * ## Le nom n'est montre QUE si la cible est joignable
+     *
+     * Premiere version de ce correctif : le nom etait affiche des que la Boucle
+     * existait dans le tenant, au motif qu'il avait de toute facon deja ete
+     * porte a la connaissance de la personne. C'etait FAUX, et
+     * `TASK1374...::test_the_unreachable_state_leaks_nothing_about_the_target`
+     * l'a montre : une invitation REVOQUEE doit cesser de nommer la Boucle. Ce
+     * test ne garde pas une preference de libelle, il garde une regle — l'ecran
+     * ne laisse filtrer aucun fragment d'une cible dont la porte s'est refermee.
+     *
+     * Le verdict est donc demande a `NotificationTargetResolver`, seule autorite
+     * sur ce point. Recopier ici ses regles — invitation encore en attente,
+     * destinataire toujours dans l'Organization, Boucle non archivee,
+     * appartenance active — aurait fabrique une seconde autorite, et les deux
+     * copies auraient divergé au premier changement.
+     *
+     * ## Le cout, assume et borne
+     *
+     * Le resolveur travaille par notification : jusqu'a vingt-cinq appels sur
+     * une page pleine, un a deux acces chacun. C'est le prix de la correction,
+     * et il est paye uniquement sur les lignes qui PEUVENT etre nommees — une
+     * notification de commentaire ou d'article n'en declenche aucun. La
+     * resolution des NOMS, elle, reste en lot : une requete par type d'objet,
+     * plus une pour les Boucles, quel que soit le nombre de lignes.
+     *
+     * ## La borne de tenant est posee a la main
+     *
+     * Les scopes globaux sont retires — cette lecture doit marcher quel que
+     * soit le contexte ambiant — donc `organization_id` est compare
+     * explicitement. La notification a deja ete filtree par `forRecipient()` ;
+     * la Boucle est reverifiee quand meme, parce qu'une garde qui ne s'applique
+     * qu'une fois n'est pas une garde.
+     *
+     * @param  \Illuminate\Support\Collection<int, MemberNotification>  $notifications
+     * @return array<string, string>  identifiant de notification => nom de la Boucle
+     */
+    private function sujetsDesBoucles($notifications, string $organizationId): array
+    {
+        // notification => identifiant de Boucle, construit en trois passes selon
+        // ce que `object_id` designe : la Boucle elle-meme, une demande, ou une
+        // invitation.
+        $boucleParNotification = [];
+
+        $parType = $notifications->groupBy('object_type');
+
+        $direct = $parType->get(\App\Support\Notifications\NotificationCatalogue::OBJECT_LOOP);
+        foreach ($direct ?? [] as $notification) {
+            if ($notification->object_id !== null) {
+                $boucleParNotification[(string) $notification->id] = (string) $notification->object_id;
+            }
+        }
+
+        $indirects = [
+            \App\Support\Notifications\NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST => \App\Models\LoopJoinRequest::class,
+            \App\Support\Notifications\NotificationCatalogue::OBJECT_LOOP_INVITATION => \App\Models\LoopInvitation::class,
+        ];
+
+        foreach ($indirects as $type => $modele) {
+            $lignes = $parType->get($type);
+
+            if ($lignes === null || $lignes->isEmpty()) {
+                continue;
+            }
+
+            $identifiants = $lignes->pluck('object_id')->filter()->unique()->all();
+
+            if ($identifiants === []) {
+                continue;
+            }
+
+            $boucleParObjet = $modele::query()
+                ->withoutGlobalScopes()
+                ->whereIn('id', $identifiants)
+                ->where('organization_id', $organizationId)
+                ->pluck('loop_id', 'id');
+
+            foreach ($lignes as $notification) {
+                $boucle = $boucleParObjet[(string) $notification->object_id] ?? null;
+
+                if ($boucle !== null) {
+                    $boucleParNotification[(string) $notification->id] = (string) $boucle;
+                }
+            }
+        }
+
+        if ($boucleParNotification === []) {
+            return [];
+        }
+
+        $noms = \App\Models\Loop::query()
+            ->withoutGlobalScopes()
+            ->whereIn('id', array_values(array_unique($boucleParNotification)))
+            ->where('organization_id', $organizationId)
+            ->pluck('name', 'id');
+
+        $cibles = app(NotificationTargetResolver::class);
+        $parIdentifiant = $notifications->keyBy(fn ($notification) => (string) $notification->id);
+
+        $sujets = [];
+
+        foreach ($boucleParNotification as $notificationId => $boucleId) {
+            $nom = $noms[$boucleId] ?? null;
+
+            // Une Boucle supprimee, ou d'un autre tenant, ne donne PAS de nom :
+            // la ligne retombe alors sur le libelle sans objet, qui reste juste.
+            if (! is_string($nom) || $nom === '') {
+                continue;
+            }
+
+            $notification = $parIdentifiant->get($notificationId);
+
+            // La porte s'est-elle refermee ? Si oui, on ne nomme RIEN — l'ecran
+            // dira « plus accessible » au clic, et le libelle generique est
+            // alors la seule forme honnete.
+            if ($notification === null || $cibles->resolve($notification) === null) {
+                continue;
+            }
+
+            $sujets[$notificationId] = $nom;
+        }
+
+        return $sujets;
     }
 
     public function read(Request $request): RedirectResponse
