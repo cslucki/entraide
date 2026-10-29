@@ -1,4 +1,5 @@
 @props(['showInternalNavigation' => true])
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 
 @php
     $routeName = request()->route()?->getName() ?? '';
@@ -41,6 +42,23 @@
         ? auth()->user()->unreadNotificationsCount((string) $notificationsOrganization->id)
         : 0;
     $canSeeFlux = auth()->check() && auth()->user()->can('create', \App\Models\FeedPost::class);
+
+    // TASK-1725 (demande Cyril, 29/10) — l'Organization qui decide si l'entree
+    // « Mon profil IA » parait.
+    //
+    // La garde suit la MEME precedence que `$organizationRouteParam` ci-dessus,
+    // donc que la destination du lien : le parametre d'URL s'il existe, sinon
+    // l'Organization du MEMBRE.
+    //
+    // Et jamais `currentOrganization()` en premier : sur une route non prefixee
+    // elle rend l'Organization PAR DEFAUT de la plateforme — le commentaire de
+    // `$notificationsOrganization` juste au-dessus le dit deja pour le badge.
+    // La garde jugerait « main » pendant que le lien pointe vers le tenant du
+    // membre, et l'entree disparaitrait pour quelqu'un dont l'IA est allumee.
+    // Mesure faite sur le rail : c'est exactement ce qui s'est produit.
+    $aiMenuOrganization = request()->route('organization')
+        ? currentOrganization()
+        : (auth()->check() ? (auth()->user()->organization ?? currentOrganization()) : null);
 
     if (! $organizationRouteParam && request()->routeIs('organization.*') && isset($currentOrganization)) {
         $organizationRouteParam = $currentOrganization;
@@ -377,7 +395,12 @@
                     </form>
                     @endif
                     <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()->profileRouteKey()]) : route('profile.show', auth()->user()->profileRouteKey())">{{ __('navigation.profile') }}</x-dropdown-link>
-                    @if(!$currentOrganization || $currentOrganization->ai_profiles_enabled)
+                    {{-- TASK-1725 — l'autorite UNIQUE, pas le seul choix produit.
+                         `ai_profiles_enabled` seul ignorait l'interrupteur maitre
+                         « Activer les fonctions IA » : l'entree restait au menu d'une
+                         Organization dont l'IA est eteinte, et menait a un assistant
+                         que le serveur refuse. Meme defaut qu'en TASK-1693 bug AF. --}}
+                    @if($_aiGate->memberAgentAvailableFor($aiMenuOrganization))
                     <x-dropdown-link :href="$routeUrl('agent-ia.wizard', 'organization.agent-ia.wizard')" data-topbar-ai-wizard>{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     @endif
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>

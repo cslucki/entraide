@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -51,12 +52,43 @@ class TASK1698NavigationFurnitureTenantTest extends TestCase
     private function membre(): User
     {
         Organization::factory()->create(['slug' => 'main', 'is_active' => true, 'is_default' => true]);
-        $this->ofsh = Organization::factory()->create(['slug' => 'ofsh', 'is_active' => true]);
+        $this->ofsh = Organization::factory()->create([
+            'slug' => 'ofsh',
+            'is_active' => true,
+            // TASK-1725 — l'IA doit etre ALLUMEE pour que le lien « Mon profil
+            // IA » existe. Ce fichier mesure le PREFIXE des liens de mobilier,
+            // pas la garde qui les fait paraitre : depuis la demande Cyril du
+            // 29/10, l'entree suit `AiSurfaceGate::memberAgentAvailableFor()`,
+            // qui exige le reglage produit ET une IA techniquement utilisable.
+            // Sans ce decor, les deux gardes ci-dessous mesureraient l'absence
+            // du lien au lieu de son prefixe.
+            'ai_profiles_enabled' => true,
+        ]);
+
+        $this->allumerLIA($this->ofsh);
 
         return User::factory()->complete()->create([
             'organization_id' => $this->ofsh->id,
             'email_verified_at' => now(),
         ]);
+    }
+
+    /**
+     * L'IA devient utilisable : active, avec fournisseur, modele et credential.
+     *
+     * Meme decor que `TASK1693AiSurfacesFollowTheSwitchTest::allumerLIA()`, et
+     * l'oubli de `forgetInstance()` y est documente : le gate memorise sa
+     * reponse par Organization, donc une instance deja resolue rendrait la
+     * reponse d'AVANT ce reglage.
+     */
+    private function allumerLIA(Organization $organization): void
+    {
+        OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $organization->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
+
+        app()->forgetInstance(\App\Support\Ai\AiSurfaceGate::class);
     }
 
     /**

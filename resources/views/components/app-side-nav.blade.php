@@ -454,7 +454,38 @@
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/><path d="M4.5 20.25a8.25 8.25 0 1116.5 0"/></svg>
                                 <span>{{ __('navigation.profile') }}</span>
                             </a>
-                            @if(!$currentOrganization || $currentOrganization->ai_profiles_enabled)
+                            {{-- TASK-1725 (demande Cyril, 29/10) — l'autorite UNIQUE, pas le
+                                 seul choix produit.
+
+                                 La condition lisait `ai_profiles_enabled` : le reglage
+                                 « profils IA », et rien d'autre. Elle ignorait
+                                 « Activer les fonctions IA pour cette organisation » —
+                                 l'interrupteur maitre. Sur une Organization dont l'IA est
+                                 ETEINTE, l'entree restait donc au menu et menait a un
+                                 assistant que le serveur refuse. C'est mot pour mot le
+                                 defaut corrige en TASK-1693 bug AF sur l'etape d'accueil ;
+                                 il survivait ici.
+
+                                 `memberAgentAvailableFor()` porte les DEUX conditions, et
+                                 ce gabarit n'en ecrit aucune. Le service etait deja injecte
+                                 en tete de ce fichier (ligne 1) sans etre employe ici.
+
+                                 L'Organization interrogee est celle vers laquelle le lien
+                                 POINTE, et c'est `$organizationRouteParam` qui la decide
+                                 juste en dessous : le parametre d'URL s'il existe, sinon
+                                 `$menuOrganization`. La garde suit donc la MEME precedence.
+
+                                 Premier jet : `$currentOrganization ?? $menuOrganization`,
+                                 par analogie avec `$loopsEnabled`. FAUX, et
+                                 `TASK1698NavigationFurnitureTenantTest` l'a montre — sur une
+                                 page SANS prefixe (`/profile/edit`), `currentOrganization()`
+                                 rend l'Organization PAR DEFAUT de la plateforme, pas celle du
+                                 membre. La garde jugeait « main » pendant que le lien
+                                 pointait vers « ofsh » : l'entree disparaissait pour un
+                                 membre dont l'IA est pourtant allumee. C'est exactement le
+                                 defaut que T1698 avait corrige sur l'URL, reparu sur la
+                                 condition. --}}
+                            @if($_aiGate->memberAgentAvailableFor(request()->route('organization') ? $currentOrganization : $menuOrganization))
                             {{-- TASK-1698 — meme defaut que dans la topbar : `route()` nu alors que
                                  ce fichier scope deja ailleurs par `$organizationRouteParam`,
                                  qui porte le repli vers l'Organization du membre (ligne 9). --}}
