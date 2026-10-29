@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Users\LoginAccountResolver;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -82,7 +84,21 @@ class TASK1728MultiOrganizationAuthTest extends TestCase
      */
     private function deuxHomonymes(string $email, string $motDePasseB): array
     {
-        DB::statement('DROP INDEX users_email_unique');
+        // `dropUnique()` et NON un `DROP INDEX` ecrit a la main.
+        //
+        // Defaut attrape par le gate PostgreSQL, et SQLite ne pouvait pas le
+        // voir : sous PostgreSQL, `users_email_unique` est une CONTRAINTE
+        // adossee a un index, et `DROP INDEX` y echoue avec « cannot drop
+        // index ... because constraint ... requires it ». Sous SQLite c'est un
+        // index nu, et l'instruction passait.
+        //
+        // Le constructeur de schema sait laquelle des deux formes employer —
+        // `alter table ... drop constraint` d'un cote, `drop index` de
+        // l'autre. Ecrire le DDL a la main, c'etait choisir un moteur sans le
+        // dire.
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropUnique('users_email_unique');
+        });
 
         $a = $this->compte($this->publiqueA, $email);
 
