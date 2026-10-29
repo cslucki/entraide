@@ -192,33 +192,25 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
       @endguest
     </nav>
 
-    <button class="burger" type="button" aria-expanded="false" aria-label="{{ org_trans('ofsh.open_menu') }}" aria-controls="ofsh-mobile-menu" data-menu-toggle>
-      <svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-    </button>
+    {{-- TASK-1725 (demande Cyril, 29/10) — le menu BURGER est retire ; sur
+         telephone la barre est celle du bureau.
 
-    <nav id="ofsh-mobile-menu" class="mobile-menu" aria-label="{{ org_trans('ofsh.nav_menu') }}" data-mobile-menu hidden>
-      <a href="{{ $urlApropos }}">{{ org_trans('ofsh.nav_about') }}</a>
-      {{-- TASK-1725 (demande Cyril, 29/10) — le selecteur FR/EN suit le drapeau
-           « site multilingue » de l'Organization. Decoche, l'interface reste dans la
-           langue d'affichage choisie, et le selecteur ne promet plus un choix que le
-           site ne propose pas. --}}
-      @if($organization->multilingual_enabled)
-      <div class="lang" aria-label="Langue / Language">
-        @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
-          <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" class="inline">
-            @csrf
-            <button type="submit" class="{{ app()->getLocale() === $code ? 'active' : '' }}">{{ $label }}</button>
-          </form>
-        @endforeach
-      </div>
-      @endif
-      @guest
-        <a href="{{ $urlConnexion }}">{{ org_trans('ofsh.nav_login') }}</a>
-        <a class="nav-dashboard" href="{{ $urlInscription }}">{{ org_trans('ofsh.cta_join') }}</a>
-      @else
-        @include('organization.partials.account-menu', ['organization' => $organization])
-      @endguest
-    </nav>
+         Il ne contenait plus que « A propos » et le selecteur FR/EN — lequel
+         disparait desormais sur une Organization non multilingue (meme TASK).
+         Un bouton qui ouvre un panneau d'un seul lien coute un geste pour rien,
+         et cachait l'avatar derriere deux clics alors que tout le reste de
+         l'application le montre d'emblee sur telephone.
+
+         Rien de nouveau n'est ecrit : `nav-links` cesse simplement d'etre
+         masquee sous 720 px. Elle porte deja « A propos » et, selon l'etat de la
+         session, « Se connecter » ou le menu de compte — le MEME partiel que le
+         bureau, donc les memes entrees, ce que la demande appelle « exactement
+         comme la version desktop ».
+
+         Le script `js/ofsh-hero.js` n'animait QUE ce menu : il est supprime
+         avec lui, ainsi que son inclusion. Son garde `if (!toggle || !menu)`
+         aurait certes rendu la page silencieuse, mais une requete HTTP sur
+         chaque visite pour un fichier sans effet n'a pas de raison d'etre. --}}
   </header>
 
   @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'top'])
@@ -341,6 +333,5 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
 </div>
 
 @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'bottom'])
-<script src="{{ asset('js/ofsh-hero.js') }}?v={{ filemtime(public_path('js/ofsh-hero.js')) }}" defer></script>
 </body>
 </html>

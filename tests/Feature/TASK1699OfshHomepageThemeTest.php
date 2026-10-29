@@ -130,7 +130,11 @@ class TASK1699OfshHomepageThemeTest extends TestCase
         // Le gabarit OFSH, et pas un autre : ses quatre cartes d'orbite et sa
         // feuille de style lui sont propres.
         $this->assertStringContainsString('css/ofsh-hero.css', $html);
-        $this->assertStringContainsString('js/ofsh-hero.js', $html);
+        // TASK-1725 — l'assertion sur `js/ofsh-hero.js` est RETIREE : ce script
+        // n'animait que le menu burger, supprime a la demande de Cyril le 29/10,
+        // et le fichier est parti avec lui. La signature du gabarit tient par sa
+        // feuille de style et ses quatre cartes d'orbite, juste en dessous —
+        // l'intention de ce test est donc intacte.
         foreach (['help', 'offer', 'share', 'together'] as $carte) {
             $this->assertStringContainsString('data-ofsh-card="'.$carte.'"', $html);
         }
