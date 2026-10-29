@@ -35,7 +35,80 @@
                            required autofocus autocomplete="username"
                            class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
                     <x-input-error :messages="$errors->get('email')" class="mt-1.5" />
+
+                    {{-- TASK-1728 (A3) — la sortie de secours du parcours
+                         d'Organization (arbitrage MASTER D1).
+
+                         `/org/{slug}/login` n'authentifie plus que les comptes
+                         DE ce tenant. Quelqu'un qui arrive ici par un favori,
+                         alors que son compte vit ailleurs, recevrait sinon un
+                         « identifiants incorrects » definitif sans savoir quoi
+                         faire — et on ne peut pas lui dire ou est son compte
+                         sans reveler son appartenance.
+
+                         Ce lien est donc affiche a TOUT echec, sans condition
+                         sur la cause : il ne distingue pas le mauvais mot de
+                         passe du mauvais tenant, et ne constitue donc aucun
+                         oracle. Il dit seulement qu'une autre porte existe. --}}
+                    @if($isOrg && $errors->has('email'))
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400" data-login-global-fallback>
+                        <a href="{{ route('login') }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
+                            {{ __('auth.login_try_global') }}
+                        </a>
+                    </p>
+                    @endif
                 </div>
+
+                {{-- TASK-1728 (A3) — le selecteur d'Organization, FACULTATIF.
+
+                     ## Ce qu'il est, et ce qu'il n'est pas
+
+                     Il ne liste que des Organizations PUBLIQUES et ACTIVES. La
+                     liste est donc la meme pour tout visiteur et ne dit RIEN
+                     de personne : aucune appartenance individuelle n'y
+                     apparait. C'est la condition qui rend acceptable un tel
+                     champ sur une page ouverte a qui n'est pas authentifie —
+                     proposer les Organizations de la personne aurait fait de
+                     ce formulaire un oracle d'appartenance.
+
+                     ## Pourquoi « facultatif » et pas « requis »
+
+                     Tant que `users.email` est globalement unique, une adresse
+                     ne designe qu'un compte : la selection n'a rien a
+                     departager et le parcours historique continue sans elle.
+                     La rendre obligatoire aurait casse toutes les connexions
+                     existantes pour un besoin qui n'existe pas encore.
+
+                     ## Les Organizations privees
+
+                     Absentes de cette liste, par construction. Leur equivalent
+                     est leur propre porte — `/org/{slug}/login` —, et elle n'a
+                     pas besoin d'etre annoncee ici pour fonctionner.
+
+                     Rien sur `/org/{slug}/login` : l'Organization y vient de la
+                     ROUTE, et le serveur refuse qu'un champ poste la
+                     contredise. --}}
+                @if(! $isOrg && ($organizationsProposables ?? collect())->isNotEmpty())
+                <div>
+                    <label for="organization" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ __('auth.login_organization_label') }}
+                    </label>
+                    <select id="organization" name="organization"
+                            data-login-organization-selector
+                            class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
+                        <option value="">{{ __('auth.login_organization_any') }}</option>
+                        @foreach($organizationsProposables as $proposable)
+                        <option value="{{ $proposable->slug }}" {{ old('organization') === $proposable->slug ? 'selected' : '' }}>
+                            {{ $proposable->name }}
+                        </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                        {{ __('auth.login_organization_hint') }}
+                    </p>
+                    <x-input-error :messages="$errors->get('organization')" class="mt-1.5" />
+                </div>
+                @endif
 
                 <!-- Mot de passe -->
                 <div>

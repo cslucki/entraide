@@ -67,4 +67,11 @@ return [
     'reset_password_subtitle' => 'Choisissez un nouveau mot de passe pour votre compte.',
     'new_password_label' => 'Nouveau mot de passe',
     'reset_password_button' => 'Réinitialiser le mot de passe',
+
+    // TASK-1728 (A3) — le selecteur d'Organization du formulaire global,
+    // et la sortie de secours du parcours d'Organization.
+    'login_organization_label' => "Organisation (facultatif)",
+    'login_organization_any' => "— Toutes les organisations —",
+    'login_organization_hint' => "Utile seulement si votre adresse est rattachée à plusieurs organisations. Laissez vide sinon.",
+    'login_try_global' => "Votre compte appartient à une autre organisation ? Connectez-vous ici.",
 ];
