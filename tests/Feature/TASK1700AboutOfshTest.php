@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -55,6 +56,25 @@ class TASK1700AboutOfshTest extends TestCase
             'locale' => 'fr',
             'homepage_template' => 'ofsh_hero',
         ]);
+
+        // TASK-1725 (arbitrage Cyril, 29/10) — la section 7 « Une technologie au
+        // service de l'humain » ne parait plus que si l'IA de l'Organization est
+        // disponible : elle promettait sinon des outils qui ne tournent pas, et
+        // prenait un engagement formel sur eux.
+        //
+        // Ce fichier garde le CONTRAT EDITORIAL de la page — ses huit sections,
+        // ses huit titres, ses ancres. Il doit donc allumer l'IA, sinon il
+        // mesurerait la nouvelle garde au lieu de son objet.
+        //
+        // QUATRIEME reparation de ce type dans cette TASK : chaque garde posee sur
+        // la disponibilite de l'IA se propage aux decors qui ne pensaient pas a
+        // elle. Meme `allumerLIA()` que TASK1693AiSurfacesFollowTheSwitchTest.
+        OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $this->ofsh->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
+
+        app()->forgetInstance(\App\Support\Ai\AiSurfaceGate::class);
 
         // Le temoin : une Organization au gabarit par defaut. Sa page « A
         // propos » ne doit pas bouger d'un octet.
