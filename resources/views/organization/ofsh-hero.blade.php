@@ -319,15 +319,58 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
        ses destinations est BORNEE a l'Organization de l'URL. Seul « Un bug ? »
        exige encore d'etre membre : c'est voulu, et c'est le seul mur du pied.
        Voir le pied de `hero-v2`, dont celui-ci reprend les destinations. --}}
+  {{-- TASK-1725 (demande Cyril, 29/10) — le pied se lit en TROIS lignes sur
+       telephone, et le credit de portage porte son symbole.
+
+           Mycelium · Logigramme
+           OpenSource · Mentions legales
+           Un bug ? · (github)  1.725
+
+       ## Les paires, et pourquoi pas un `flex-wrap` libre
+
+       TASK-1698 avait pose `flex-wrap` sur `.footer-right` pour que les six
+       entrees cessent de deborder a 390 px. Ca ne debordait plus, mais la
+       coupure tombait ou la largeur voulait : Cyril, capture a l'appui — « ne
+       fait vraiment pas premium ». Les liens vont donc par PAIRES insecables, et
+       c'est le groupe qui porte le retour a la ligne. Le separateur appartient
+       au groupe : il ne peut plus ouvrir une ligne.
+
+       ## Le symbole BouclePro
+
+       Demande explicite — « on pourrait ajouter le Propulse par BouclePro avec le
+       petit logo comme launchpals ». Le texte etait deja la, le symbole non. La
+       forme est reprise de `artscilab-hero` (`.foot-left` + `.foot-symbol`),
+       seule reference existante, pour que les deux pieds se ressemblent.
+
+       Le symbole est purement DECORATIF : `alt=""` et `aria-hidden` — le texte a
+       cote dit deja tout, et le faire lire deux fois est une gene pour qui
+       ecoute la page. --}}
   <footer class="footer">
-    <span>{{ org_trans('ofsh.powered_by') }}</span>
+    <div class="footer-credit">
+      <span>{{ org_trans('ofsh.powered_by') }}</span>
+      <img class="footer-symbol" src="{{ asset('img/bouclepro-symbol.png') }}" alt="" aria-hidden="true">
+    </div>
     <div class="footer-right">
-      <a href="{{ route('organization.mycelium', ['organization' => $organization->slug]) }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
-      <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
-      <a href="{{ route('organization.mentions-legales', ['organization' => $organization->slug]) }}">{{ __('footer.mentions_legales') }}</a>
-      <a href="{{ route('organization.open-source', ['organization' => $organization->slug]) }}" data-footer-opensource>{{ __('footer.opensource') }}</a>
-      <a href="{{ route('organization.bug-reports.index', ['organization' => $organization->slug]) }}" data-footer-bug>{{ __('footer.bug') }}</a>
-      <span>{{ config('app.version') }}</span>
+      <span class="footer-pair">
+        <a href="{{ route('organization.mycelium', ['organization' => $organization->slug]) }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
+        <span class="footer-sep" aria-hidden="true">·</span>
+        <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
+      </span>
+      <span class="footer-pair">
+        <a href="{{ route('organization.open-source', ['organization' => $organization->slug]) }}" data-footer-opensource>{{ __('footer.opensource') }}</a>
+        <span class="footer-sep" aria-hidden="true">·</span>
+        <a href="{{ route('organization.mentions-legales', ['organization' => $organization->slug]) }}">{{ __('footer.mentions_legales') }}</a>
+      </span>
+      <span class="footer-pair">
+        <a href="{{ route('organization.bug-reports.index', ['organization' => $organization->slug]) }}" data-footer-bug>{{ __('footer.bug') }}</a>
+        <span class="footer-sep" aria-hidden="true">·</span>
+        <a href="{{ route('open-source.github') }}" target="_blank" rel="noopener"
+           data-footer-github
+           aria-label="{{ __('open_source.github_aria') }}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.8 10.9.6.1.8-.2.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11 11 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.7.2 2.9.1 3.2.8.9 1.2 1.9 1.2 3.2 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .4.2.7.8.6 4.5-1.5 7.8-5.8 7.8-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
+        </a>
+        <span class="footer-version">{{ config('app.version') }}</span>
+      </span>
     </div>
   </footer>
 </div>

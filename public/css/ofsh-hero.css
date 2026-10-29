@@ -516,11 +516,31 @@ h1 span:last-child {color:#0C2B50;}
    `.footer` portait deja `flex-wrap:wrap` depuis la maquette ; c'est sa rangee
    DROITE qui ne l'avait pas. Rien d'autre ne change.
    ------------------------------------------------------------------------- */
+/* TASK-1725 (demande Cyril, 29/10) — les paires, et le symbole du credit.
+
+   Ces regles sont dans la passe de SURCHARGE, la seule qui gouverne : la passe
+   de base plus haut declare aussi `.footer` et `.footer-right`, et une valeur
+   posee la-bas serait masquee. Trois fois le piege dans cette TASK, voir la note
+   de `.orbit-card`. */
+.footer-credit{display:flex;align-items:center;gap:6px}
+.footer-credit .footer-symbol{height:1.4em;width:auto;display:block;opacity:.95}
+/* Le groupe est INSECABLE : son separateur ne peut donc pas ouvrir une ligne,
+   ce qui arrivait quand la coupure tombait ou la largeur voulait. */
+.footer-right .footer-pair{display:inline-flex;align-items:center;white-space:nowrap}
+.footer-right .footer-pair .footer-sep{margin:0 .4rem;opacity:.65}
+.footer-right .footer-pair .footer-version{margin-left:.5rem}
+
 @media (max-width: 720px) {
+  /* TASK-1698 avait pose `flex-wrap` ici pour que les six entrees cessent de
+     deborder a 390 px. Ca ne debordait plus, mais la coupure tombait n'importe
+     ou. `flex-basis:100%` sur le GROUPE donne les trois lignes demandees. */
   .footer-right {
     flex-wrap: wrap;
     justify-content: center;
     row-gap: 8px;
     column-gap: 16px;
   }
+  .footer-right .footer-pair {flex:0 0 100%; justify-content:center;}
+  /* Le credit passe au-dessus et se centre, comme chez launchpals. */
+  .footer-credit {justify-content:center;}
 }

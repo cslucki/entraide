@@ -145,6 +145,15 @@ body.bp-hero-v2{
 .bp-hero-v2 .foot-links{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:14px;justify-self:end}
 .bp-hero-v2 .foot-links a,.bp-hero-v2 .foot-links span{color:#9AA0AE;font-weight:500;display:inline-flex;align-items:center;transition:color .15s}
 .bp-hero-v2 .foot-links a:hover{color:var(--ink-soft)}
+/* TASK-1725 — les liens du pied vont par PAIRES.
+
+   Le groupe est insecable : son separateur « · » ne peut donc pas se retrouver
+   en tete de ligne, ce qui arrivait quand `flex-wrap` coupait ou il voulait.
+   Sur bureau, le `gap` de `.foot-links` separe les groupes comme il separait les
+   liens — rien ne bouge. */
+.bp-hero-v2 .foot-links .foot-pair{display:inline-flex;align-items:center;white-space:nowrap}
+.bp-hero-v2 .foot-links .foot-pair .foot-sep{margin:0 .4rem;opacity:.6}
+.bp-hero-v2 .foot-links .foot-pair .foot-version{margin-left:.55rem}
 
 /* ============ ORBIT ============ */
 .bp-hero-v2 .orbit{position:relative;width:100%;max-width:600px;margin-left:auto;aspect-ratio:1/1;--R:clamp(112px,21vw,152px)}
@@ -383,6 +392,12 @@ body.bp-hero-v2{
   .bp-hero-v2 .foot{grid-template-columns:1fr;justify-items:center;gap:9px;text-align:center;margin-top:14px}
   .bp-hero-v2 .foot-credit,.bp-hero-v2 .foot-links{justify-self:center}
   .bp-hero-v2 .foot-links{justify-content:center}
+  /* TASK-1725 — UN groupe par ligne, et c'est ce qui donne les trois lignes
+     demandees. `flex-basis:100%` force le retour : laisser `flex-wrap` decider
+     reproduisait exactement les lignes bancales de la capture, ou « Mentions
+     legales » et « OpenSource » se retrouvaient avec « Un bug ? » pendant que la
+     version partait seule. */
+  .bp-hero-v2 .foot-links .foot-pair{flex:0 0 100%;justify-content:center}
 }
 
 @media (max-width:380px){
