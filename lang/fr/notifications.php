@@ -91,5 +91,23 @@ return [
                 .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
                 .'<p>A bientot,<br>L\'equipe BouclePro</p>',
         ],
+        // TASK-1725 — dernier recours pour la demande d'adhesion ACCEPTEE.
+        //
+        // Trois couches, de la plus specifique a la plus generale :
+        // `SystemEmailTemplate` (autorite administrable, par Organization et
+        // locale), puis la vue `emails.loop-join-request-accepted` quand le
+        // gabarit manque ou echoue, puis CES clefs quand le livreur ne sait
+        // meme plus de quel objet il parle. Volontairement neutre : elle ne
+        // nomme ni la Boucle ni le decideur, parce qu'a ce niveau on ne les a
+        // plus. Le contrat de coherence TASK-1379 l'exige pour toute cle
+        // portant le canal EMAIL.
+        'loop_join_request_accepted' => [
+            'subject' => 'Votre demande pour rejoindre une Boucle a ete acceptee',
+            'body' => '<p>Bonjour,</p>'
+                .'<p>Votre demande pour rejoindre une Boucle sur BouclePro a ete acceptee. Vous en etes desormais membre.</p>'
+                .'<p><a href=":url">Ouvrir la Boucle</a></p>'
+                .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
+                .'<p>A bientot,<br>L\'equipe BouclePro</p>',
+        ],
     ],
 ];

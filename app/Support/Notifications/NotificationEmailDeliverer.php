@@ -5,6 +5,7 @@ namespace App\Support\Notifications;
 use App\Models\EmailLog;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
+use App\Models\LoopJoinRequest;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
 use App\Models\User;
@@ -456,6 +457,45 @@ final class NotificationEmailDeliverer
 
             $reel = $mailer->composeForMember($loop, $destinataire, $acteur, $cible, $locale);
             $expurge = $mailer->composeForMember($loop, $destinataire, $acteur, self::LIEN_EXPURGE, $locale);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
+        // TASK-1725 (demande Cyril, 29/10) — la demande d'adhesion ACCEPTEE.
+        //
+        // L'objet de la notification est la DEMANDE, pas la Boucle : il faut donc
+        // la relire pour atteindre la Boucle. Scopes retires puis frontiere de
+        // tenant reposee a la main, comme partout sur ce chemin — ce code tourne
+        // aussi sous worker, ou `current_organization` n'existe pas et ou le
+        // fail-closed du scope rendrait l'objet introuvable.
+        if ($cle === NotificationCatalogue::LOOP_JOIN_REQUEST_ACCEPTED) {
+            $demande = LoopJoinRequest::query()
+                ->withoutGlobalScopes()
+                ->whereKey((string) $notification->object_id)
+                // Reverifiee ICI aussi : une notification survit a bien des
+                // changements, et une garde qui ne s'applique qu'a l'ecriture
+                // n'est pas une garde.
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($demande === null) {
+                return null;
+            }
+
+            $loop = Loop::withoutGlobalScopes()->find((string) $demande->loop_id);
+
+            if ($loop === null) {
+                return null;
+            }
+
+            $decideur = $notification->actor_id ? User::find((string) $notification->actor_id) : null;
+
+            $reel = $mailer->composeForJoinRequestAccepted($loop, $destinataire, $decideur, $cible, $locale);
+            $expurge = $mailer->composeForJoinRequestAccepted($loop, $destinataire, $decideur, self::LIEN_EXPURGE, $locale);
 
             return [
                 'subject' => $reel['subject'],

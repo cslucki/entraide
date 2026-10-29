@@ -209,6 +209,85 @@ class LoopInvitationMailer
     }
 
     /**
+     * TASK-1725 — le courriel qui dit « votre demande est ACCEPTEE ».
+     *
+     * ## Son propre gabarit, et pour la meme raison que `loop_member_added`
+     *
+     * `loop_member_added` dit « X vous a ajoute ». Or ici la personne a FAIT la
+     * demarche et attend une reponse : le fait marquant n'est pas qu'on l'ait
+     * mise quelque part, c'est qu'on ait dit oui. Emprunter l'autre gabarit
+     * effacerait sa demande de l'histoire — et priverait le SuperAdmin de la
+     * possibilite d'ecrire a un demandeur ce qu'il ne veut pas ecrire a une
+     * personne ajoutee d'office.
+     *
+     * Memes variables, meme resolveur, meme repli : aucun systeme nouveau.
+     * `sender_name` est le decideur, et il peut etre vide — une acceptation
+     * automatique n'a personne a nommer, et le gabarit par defaut ne le cite
+     * donc pas.
+     *
+     * `invitation_url` mene a la Boucle. Aucun jeton a suivre : la personne en
+     * est membre a l'instant ou elle lit le message.
+     *
+     * `expires_at` repart vide : une acceptation n'expire pas.
+     *
+     * @return array{subject: string, body: string, fallback_reason: string|null}
+     */
+    public function composeForJoinRequestAccepted(
+        Loop $loop,
+        User $demandeur,
+        ?User $decideur = null,
+        ?string $urlOverride = null,
+        ?string $locale = null,
+    ): array {
+        $langue = $locale ?: app()->getLocale();
+        $langueOrigine = app()->getLocale();
+        app()->setLocale($langue);
+
+        try {
+            $organization = $loop->organization;
+
+            // Le SLUG, comme `composeForMember()` : un lien de courriel se lit
+            // et se colle. Ce repli ne sert qu'a defaut d'`$urlOverride`, que le
+            // pipeline de notification fournit toujours.
+            $url = $urlOverride ?? route('organization.loops.show', [
+                'organization' => $loop->organization?->slug ?? $loop->organization_id,
+                'loop' => $loop->slug ?: $loop->getKey(),
+            ]);
+
+            return $this->rendreGabarit(
+                slug: 'loop_join_request_accepted',
+                organizationId: (string) $loop->organization_id,
+                langue: $langue,
+                sender: $decideur,
+                vars: [
+                    'recipient_name' => $demandeur->publicDisplayName(),
+                    'recipient_email' => $demandeur->email,
+                    'sender_name' => $decideur?->fullName ?? '',
+                    'organization_name' => $organization?->name ?? '',
+                    'loop_name' => $loop->name ?? '',
+                    'loop_tagline' => $loop->tagline ?? '',
+                    'personal_message' => __('loops.join_request_accepted_default_message', ['loop' => $loop->name]),
+                    'invitation_url' => $url,
+                    'expires_at' => '',
+                    'app_name' => config('app.name'),
+                ],
+                repli: fn () => [
+                    'subject' => __('loops.join_request_accepted_mail_subject', ['loop' => $loop->name]),
+                    'html' => view('emails.loop-join-request-accepted', [
+                        'loop' => $loop,
+                        'organization' => $organization,
+                        'demandeur' => $demandeur,
+                        'decideur' => $decideur,
+                        'url' => $url,
+                    ])->render(),
+                ],
+            );
+        } finally {
+            app()->setLocale($langueOrigine);
+        }
+    }
+
+    /**
      * TASK-1719 — resoudre le gabarit `loop_invitation`, l'interpoler, et
      * retomber proprement. En UN seul endroit.
      *

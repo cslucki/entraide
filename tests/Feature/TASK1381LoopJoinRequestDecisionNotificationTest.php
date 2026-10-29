@@ -38,8 +38,9 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
 
         // `phpunit.xml` fixe QUEUE_CONNECTION=sync : sans cela, toute livraison
         // planifiee partirait au milieu de l'appel qu'on est en train de
-        // mesurer. Aucune cle de cette tranche ne declare EMAIL, mais le test
-        // doit le PROUVER, pas le supposer — d'ou la fausse file.
+        // mesurer. La fausse file sert desormais DEUX mesures opposees —
+        // « accepte » pousse un email (TASK-1725), « refuse » n'en pousse
+        // aucun — et chacune doit etre PROUVEE, pas supposee.
         Queue::fake();
     }
 
@@ -553,32 +554,72 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
     }
 
     // =====================================================================
-    // Aucun email, et rien sur la file `default`
+    // L'email : sur « accepte », et sur lui SEUL
     // =====================================================================
 
     /**
-     * Le catalogue ne declare pas EMAIL sur ces cles : rien ne doit partir.
+     * TASK-1725 (demande Cyril, 29/10) — accepter ENVOIE un email.
      *
-     * L'absence de la ligne suffit — aucun garde d'appel n'est necessaire, et
-     * c'est precisement ce qu'on mesure. Aucun job, sur aucune file.
+     * Ce test REMPLACE `test_no_email_is_planned_for_these_keys()`, qui
+     * affirmait l'inverse. Il ne s'agit pas d'un test qu'on assouplit pour
+     * faire passer du code : l'ancienne assertion portait une DECISION
+     * PRODUIT — « le Centre suffit » — que MASTER a revisee. Ce qui la
+     * remplace est aussi exigeant, dans l'autre sens.
+     *
+     * On mesure le PLAN, pas l'envoi : la livraison est creee et le job pousse.
+     * Ce qui part reellement dans la boite est l'affaire de
+     * `NotificationEmailDeliverer`, mesure ailleurs.
      */
-    public function test_no_email_is_planned_for_these_keys(): void
+    public function test_an_accepted_request_plans_an_email(): void
     {
         [$org, $loop, $owner, $applicant, $joinRequest] = $this->scenario();
         $this->withCurrentOrganization($org);
 
         $this->actingAs($owner)->post(route('loop-join-requests.accept', $joinRequest));
 
-        Queue::assertNothingPushed();
-        $this->assertDatabaseCount('member_notification_deliveries', 0);
-        $this->assertFalse(NotificationCatalogue::allowsChannel(
+        $this->assertTrue(NotificationCatalogue::allowsChannel(
             NotificationCatalogue::LOOP_JOIN_REQUEST_ACCEPTED,
             NotificationCatalogue::CHANNEL_EMAIL,
         ));
+
+        Queue::assertPushed(\App\Jobs\SendNotificationEmail::class);
+
+        $notification = MemberNotification::where('recipient_id', $applicant->id)->firstOrFail();
+
+        // La livraison EMAIL existe, et elle vise bien CETTE notification : sans
+        // la seconde borne, une ligne laissee par un autre fait rendrait
+        // l'assertion vraie pour la mauvaise raison.
+        $this->assertDatabaseHas('member_notification_deliveries', [
+            'notification_id' => $notification->id,
+            'channel' => NotificationCatalogue::CHANNEL_EMAIL,
+        ]);
+    }
+
+    /**
+     * TASK-1725 — refuser n'envoie RIEN, et c'est la moitie du contrat
+     * TASK-1381 qui demeure.
+     *
+     * Un refus n'ouvre aucune porte et n'appelle aucun geste : le pousser dans
+     * la boite de quelqu'un ajoute une peine sans rien lui permettre. Le fait
+     * reste dans le Centre pour qui va voir.
+     *
+     * Cette garde est ce qui empeche qu'on etende l'email a « refuse » par
+     * symetrie apparente, sans decision.
+     */
+    public function test_a_rejected_request_still_plans_no_email(): void
+    {
+        [$org, $loop, $owner, $applicant, $joinRequest] = $this->scenario();
+        $this->withCurrentOrganization($org);
+
+        $this->actingAs($owner)->post(route('loop-join-requests.reject', $joinRequest));
+
         $this->assertFalse(NotificationCatalogue::allowsChannel(
             NotificationCatalogue::LOOP_JOIN_REQUEST_REJECTED,
             NotificationCatalogue::CHANNEL_EMAIL,
         ));
+
+        Queue::assertNothingPushed();
+        $this->assertDatabaseCount('member_notification_deliveries', 0);
     }
 
     // =====================================================================

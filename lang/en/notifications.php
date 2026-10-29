@@ -91,5 +91,16 @@ return [
                 .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
                 .'<p>See you soon,<br>The BouclePro team</p>',
         ],
+        // TASK-1725 — ultimate fallback for an ACCEPTED join request. See the
+        // French file for the three layers; deliberately neutral, because at
+        // this level neither the Loop nor the decider is known any more.
+        'loop_join_request_accepted' => [
+            'subject' => 'Your request to join a Loop has been accepted',
+            'body' => '<p>Hello,</p>'
+                .'<p>Your request to join a Loop on BouclePro has been accepted. You are now a member.</p>'
+                .'<p><a href=":url">Open the Loop</a></p>'
+                .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
+                .'<p>See you soon,<br>The BouclePro team</p>',
+        ],
     ],
 ];

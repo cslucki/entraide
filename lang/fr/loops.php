@@ -1580,6 +1580,15 @@ return [
     'invitation_refused_account_closed' => 'Ce compte est ferme ou suspendu : il ne peut pas rejoindre une Boucle.',
     // TASK-1719 — l'ajout direct dans une Boucle (repli Blade).
     'member_added_default_message' => 'Vous avez ete ajoute a la Boucle :loop.',
+    // TASK-1725 — la demande d'adhesion acceptee. Le fait marquant est le OUI,
+    // pas l'arrivee dans la Boucle : le texte repond a une demarche.
+    'join_request_accepted_default_message' => 'Votre demande pour rejoindre la Boucle :loop a ete acceptee.',
+    'join_request_accepted_mail_subject' => 'Votre demande pour rejoindre la Boucle :loop a ete acceptee',
+    'join_request_accepted_mail_hello' => 'Bonjour :name,',
+    'join_request_accepted_mail_body_with_actor' => ':actor a accepte votre demande pour rejoindre la Boucle « :loop » sur :organization. Vous en etes desormais membre.',
+    'join_request_accepted_mail_body' => 'Votre demande pour rejoindre la Boucle « :loop » sur :organization a ete acceptee. Vous en etes desormais membre.',
+    'join_request_accepted_mail_cta' => 'Ouvrir la Boucle',
+    'join_request_accepted_mail_plain_link' => 'Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :',
     'member_added_mail_subject' => 'Vous avez ete ajoute a la Boucle :loop',
     'member_added_mail_hello' => 'Bonjour :name,',
     'member_added_mail_body_with_actor' => ':actor vous a ajoute a la Boucle « :loop » sur :organization. Vous en etes desormais membre.',

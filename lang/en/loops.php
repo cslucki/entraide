@@ -1540,6 +1540,14 @@ return [
     'invitation_refused_account_closed' => 'This account is closed or suspended: it cannot join a Loop.',
     // TASK-1719 — l'ajout direct dans une Boucle (repli Blade).
     'member_added_default_message' => 'You have been added to the :loop Loop.',
+    // TASK-1725 — an accepted join request. The news is the YES, not the arrival.
+    'join_request_accepted_default_message' => 'Your request to join the :loop Loop has been accepted.',
+    'join_request_accepted_mail_subject' => 'Your request to join the :loop Loop has been accepted',
+    'join_request_accepted_mail_hello' => 'Hello :name,',
+    'join_request_accepted_mail_body_with_actor' => ':actor accepted your request to join the :loop Loop on :organization. You are now a member.',
+    'join_request_accepted_mail_body' => 'Your request to join the :loop Loop on :organization has been accepted. You are now a member.',
+    'join_request_accepted_mail_cta' => 'Open the Loop',
+    'join_request_accepted_mail_plain_link' => 'If the button does not work, copy this address into your browser:',
     'member_added_mail_subject' => 'You have been added to the :loop Loop',
     'member_added_mail_hello' => 'Hello :name,',
     'member_added_mail_body_with_actor' => ':actor added you to the :loop Loop on :organization. You are now a member.',

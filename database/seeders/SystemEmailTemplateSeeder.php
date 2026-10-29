@@ -174,6 +174,41 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        /**
+         * TASK-1725 (demande Cyril, 29/10) — la demande d'adhesion ACCEPTEE.
+         *
+         * Son propre gabarit, pour la raison qui avait deja separe
+         * `loop_member_added` de `loop_invitation` : « on vous a ajoute » n'est
+         * pas « on a dit oui a votre demande ». Ici la personne a fait la
+         * demarche et attend une reponse ; le texte repond, il n'annonce pas.
+         *
+         * Le defaut ne nomme PAS le decideur : une acceptation peut n'avoir
+         * aucun acteur identifie (demande soldee par un ajout direct), et le
+         * gabarit afficherait alors un nom vide en tete de phrase.
+         * `sender_name` reste declaree pour qui veut l'ecrire.
+         *
+         * `loop_tagline` et `expires_at` sont declarees pour l'homogeneite de la
+         * famille et non employees : une acceptation n'expire pas, et une
+         * accroche n'apprend rien a qui vient d'entrer (recette TASK-1720).
+         *
+         * La migration `2026_10_29_140000` pose les deux memes lignes sur les
+         * bases DEJA installees, qu'un seeder ne revisite pas. Les deux textes
+         * doivent donc rester identiques.
+         */
+        'loop_join_request_accepted' => [
+            'name_fr' => 'Demande d\'adhesion acceptee',
+            'name_en' => 'Join request accepted',
+            'subject_fr' => 'Votre demande pour rejoindre la Boucle {{ loop_name }} a été acceptée',
+            'subject_en' => 'Your request to join the {{ loop_name }} Loop has been accepted',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Votre demande pour rejoindre la Boucle <strong>{{ loop_name }}</strong> au sein de {{ organization_name }} a été acceptée. Vous en êtes désormais membre.</p><p><a href="{{ invitation_url }}">Ouvrir la Boucle</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ invitation_url }}</p><p>À bientôt,<br>{{ app_name }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>Your request to join the <strong>{{ loop_name }}</strong> Loop in {{ organization_name }} has been accepted. You are now a member.</p><p><a href="{{ invitation_url }}">Open the Loop</a></p><p>If the link does not work, copy this address into your browser:<br>{{ invitation_url }}</p><p>See you soon,<br>{{ app_name }}</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
+                'loop_name', 'loop_tagline', 'personal_message', 'invitation_url',
+                'expires_at', 'app_name',
+            ],
+        ],
+
         'loop_invitation' => [
             'name_fr' => 'Invitation à rejoindre une Boucle',
             'name_en' => 'Invitation to join a Loop',
