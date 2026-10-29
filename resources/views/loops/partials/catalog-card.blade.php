@@ -57,7 +57,31 @@
         @endif
 
         <div class="absolute right-3 top-3 flex items-center gap-2">
-            <x-loops.access-badge :loop="$item" variant="overlay" />
+            {{-- TASK-1725 (demande Cyril, 29/10) — « Accès sur demande » ne
+                 s'affiche plus a qui est DEJA entre.
+
+                 Le badge dit comment FRANCHIR la porte. Pour un membre, la porte
+                 est franchie : le renseignement est sans objet, et la carte porte
+                 deja en haut a gauche la pastille qui dit « Propriétaire » ou
+                 « Membre ». Deux etiquettes pour un meme fait alourdissaient la
+                 carte sans rien apprendre. Cyril : « ceci alourdit l'interface ».
+
+                 `is_member` est le bon predicat, et c'est le MEME que celui de la
+                 pastille de role ci-dessus : `VisibleLoops` l'annote sur
+                 l'existence d'une adhesion `status = active`, SANS condition de
+                 role — owner, animateur et membre simple le portent donc tous.
+                 C'est mot pour mot « peu importe son role ».
+
+                 Un administrateur d'Organization qui n'a PAS rejoint garde le
+                 badge, et c'est juste : il n'est pas entre, le renseignement le
+                 concerne encore.
+
+                 Le badge reste INCHANGE sur la page de presentation, qui est
+                 justement celle que recoit un non-membre (T1075 — « privee » ne
+                 veut pas dire cachee). C'est la qu'il sert. --}}
+            @unless($item->is_member)
+                <x-loops.access-badge :loop="$item" variant="overlay" />
+            @endunless
 
             @can('update', $item)
                 <a href="{{ $loopEditHref($item) }}"
