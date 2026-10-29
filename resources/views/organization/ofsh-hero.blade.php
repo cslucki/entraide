@@ -156,7 +156,22 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
       </div>
       @guest
         <a href="{{ $urlConnexion }}">{{ org_trans('ofsh.nav_login') }}</a>
-        <a class="nav-dashboard" href="{{ $urlInscription }}" data-ofsh-nav-join>{{ org_trans('ofsh.cta_join') }}</a>
+        {{-- TASK-1725 (demande Cyril, 29/10) — « Rejoindre le collectif » RETIRE du
+             bandeau haut pour un visiteur deconnecte.
+
+             Le meme appel vit deja dans le hero, quelques centaines de pixels plus
+             bas et bien plus visible (`data-ofsh-cta-primary`, meme destination
+             `$urlInscription`). Deux boutons identiques a l'ecran se disputaient le
+             meme geste. Cyril : « on a deja un bouton similaire en bas a droite ».
+
+             « Se connecter » RESTE : c'est l'autre geste, et il n'a pas de double
+             dans le hero.
+
+             Le menu BURGER garde son entree, volontairement : la demande vise le
+             bouton « en haut a droite », et dans le menu l'entree n'est pas un
+             doublon flottant mais la moitie d'une paire de destinations. L'oter
+             laisserait « Se connecter » seul, et un visiteur venu s'inscrire par le
+             menu n'y trouverait plus rien. --}}
       @else
         {{-- TASK-1720 — menu de compte, partiel partage par les trois
              gabarits de homepage autonomes. --}}
