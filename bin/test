@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+#
+# TASK-1722 — le lanceur de tests VERSIONNE.
+#
+# ## Pourquoi il existe
+#
+# `ai/scripts/safe-test.sh` fait le bon travail mais vit sous `ai/`, que
+# `.gitignore:18` exclut en entier. Il n'est donc ni partage, ni revu en PR,
+# ni present dans un autre clone : sa fiabilite repose a 100 % sur le reflexe
+# de l'invoquer. Le 28/10, ce reflexe a lache et la base de developpement a
+# ete reconstruite.
+#
+# Ce fichier-ci est SUIVI par Git. Il ne remplace pas le garde applicatif
+# ({@see app/Support/Ops/DestructiveDatabaseGuard.php}), qui reste la vraie
+# protection : il supprime l'occasion, le garde supprime la consequence.
+#
+# ## Ce qu'il refuse
+#
+# `--env`. Mesure du 28/10, et elle est contre-intuitive :
+#
+#     php artisan test --env=testing   ->  APP_ENV=local | pgsql | bouclepro
+#     php artisan test                 ->  APP_ENV=testing | sqlite | :memory:
+#
+# Passer `--env=testing` fait retomber APP_ENV sur `local`, la configuration
+# reelle reprend la main, et le banc vise la base de travail. L'option n'a
+# aucun usage legitime ici : la suite choisit son environnement toute seule.
+#
+# Usage :
+#   bin/test                       toute la suite
+#   bin/test --filter=MaClasse     filtre habituel de PHPUnit
+#   bin/test --help                l'aide d'artisan test
+
+set -euo pipefail
+
+RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$RACINE"
+
+for argument in "$@"; do
+    case "$argument" in
+        --env|--env=*|-e)
+            cat >&2 <<'MSG'
+REFUSE — l'option `--env` est interdite sur la suite de tests.
+
+Mesure (TASK-1722, incident du 28/10) :
+
+    php artisan test --env=testing   ->  APP_ENV=local | pgsql | bouclepro
+    php artisan test                 ->  APP_ENV=testing | sqlite | :memory:
+
+`--env=testing` fait retomber APP_ENV sur `local` : la configuration reelle
+reprend la main et le banc vise la base de TRAVAIL. C'est ainsi que
+`bouclepro` a ete reconstruite.
+
+Relancez sans l'option : la suite choisit son environnement elle-meme.
+MSG
+            exit 64
+            ;;
+    esac
+done
+
+# Un cache de configuration fige `config()` : le banc lirait alors des valeurs
+# compilees depuis le `.env` reel, quoi que phpunit.xml declare.
+if [ -f bootstrap/cache/config.php ]; then
+    echo "REFUSE — bootstrap/cache/config.php est present." >&2
+    echo "Il figerait la configuration du banc sur celle du poste." >&2
+    echo "Lancez 'php artisan config:clear', puis relancez." >&2
+    exit 65
+fi
+
+exec php artisan test "$@"

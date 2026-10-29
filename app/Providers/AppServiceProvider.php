@@ -7,8 +7,8 @@ use App\Ai\Context\ContextBuilder;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Events\LoopMessageCreated;
-use App\Http\Middleware\ResolveOrganization;
 use App\Http\Middleware\EnsureOrganizationMember;
+use App\Http\Middleware\ResolveOrganization;
 use App\Jobs\GenerateAiAgentResponse;
 use App\Models\AiConfig;
 use App\Models\BlogPost;
@@ -28,7 +28,6 @@ use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
-use App\Services\UserSlugService;
 use App\Observers\BlogPostObserver;
 use App\Observers\DossierFileObserver;
 use App\Observers\DossierObserver;
@@ -51,6 +50,7 @@ use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\FakeAIProvider;
 use App\Services\Ai\Logging\AiBenchmarkLogger;
+use App\Services\Ai\LoopPluginAiModels;
 use App\Services\Ai\Persistence\AdminAiInteractionPersistence;
 use App\Services\Ai\Providers\LoggingSupervisionProvider;
 use App\Services\Ai\Providers\OllamaSupervisionProvider;
@@ -63,10 +63,13 @@ use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\LoopTypeSettingsService;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
+use App\Services\UserSlugService;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiFabContext;
+use App\Support\Ai\Pricing\DynamicPricingSource;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Ops\ArtisanDatabaseGuard;
+use App\Support\Ops\DestructiveDatabaseGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\Events\NotificationSent;
@@ -102,8 +105,8 @@ class AppServiceProvider extends ServiceProvider
         // fusionnerait la configuration au boot : `config:cache` figerait la
         // fusion dans un fichier, et une preuve de gratuite perimee serait
         // servie indefiniment.
-        $this->app->bind(\App\Support\Ai\Pricing\DynamicPricingSource::class,
-            \App\Services\Ai\LoopPluginAiModels::class);
+        $this->app->bind(DynamicPricingSource::class,
+            LoopPluginAiModels::class);
 
         // Singleton for its per-request memo: card presets are asked for on
         // every workspace render, and a fresh instance per resolution would
@@ -208,6 +211,13 @@ class AppServiceProvider extends ServiceProvider
         // contredit la base reellement visee. Ne s'arme QUE sur contradiction :
         // sans elle, ce garde n'existe pas.
         ArtisanDatabaseGuard::arm($this->app);
+
+        // TASK-1722 — et la DESTRUCTION de masse, quel que soit
+        // l'environnement. Le garde ci-dessus ne s'arme que sur une
+        // CONTRADICTION d'environnement ; l'incident du 28/10 n'en portait
+        // aucune (`php artisan test --env=testing` resout APP_ENV a `local`).
+        // Celui-ci regarde la CIBLE, que personne ne peut faire mentir.
+        DestructiveDatabaseGuard::arm($this->app);
 
         Paginator::useTailwind();
 
