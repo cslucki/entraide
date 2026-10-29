@@ -304,6 +304,21 @@ $secondaryCtaUrl = $showInternalHomepageContent
         </div>
       </div>
 
+      {{-- TASK-1725 (demande Cyril, 29/10) — sans IA, la mention disparait.
+
+           Cette phrase est une PROMESSE sur le fonctionnement du produit. Sur une
+           Organization dont l'IA est eteinte, elle decrit quelque chose qui
+           n'arrive pas : la page annoncait un role que rien ne joue.
+
+           Le bloc ENTIER part, pas seulement le texte — la fleche decorative
+           pointerait sinon vers un vide.
+
+           `availableFor()` et non `memberAgentAvailableFor()` : la phrase parle du
+           role de l'IA dans les echanges, pas des agents de profil. Couper le
+           reglage « profils IA » ne doit pas effacer un propos qui reste vrai.
+           C'est l'autorite que `/org/{org}/admin/ai` gouverne, celle que Cyril a
+           designee. --}}
+      @if(app(\App\Support\Ai\AiSurfaceGate::class)->availableFor((string) $organization->id))
       <div class="ai-note" data-anim>
         <svg width="34" height="40" viewBox="0 0 34 40" fill="none">
           <path d="M7 36 C 6 18, 14 8, 30 6" stroke="#B7BAC8" stroke-width="2" stroke-linecap="round"/>
@@ -311,6 +326,7 @@ $secondaryCtaUrl = $showInternalHomepageContent
         </svg>
         <p>{{ $settings['ai_note'] ?? org_trans('hero.ai_note') }}</p>
       </div>
+      @endif
     </section>
     @endif
 

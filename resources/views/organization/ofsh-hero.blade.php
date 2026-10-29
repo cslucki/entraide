@@ -253,7 +253,23 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
         <div class="card-copy"><h2>{{ $cartes['together']['titre'] }}</h2><small>{{ $cartes['together']['desc'] }}</small></div>
       </a>
 
+      {{-- TASK-1725 (demande Cyril, 29/10) — sans IA, la mention disparait.
+
+           Cette phrase est une PROMESSE sur le fonctionnement du produit. Sur une
+           Organization dont l'IA est eteinte, elle decrit quelque chose qui
+           n'arrive pas : la page annoncait un role que rien ne joue.
+
+           Le bloc ENTIER part, pas seulement le texte — la fleche decorative
+           pointerait sinon vers un vide.
+
+           `availableFor()` et non `memberAgentAvailableFor()` : la phrase parle du
+           role de l'IA dans les echanges, pas des agents de profil. Couper le
+           reglage « profils IA » ne doit pas effacer un propos qui reste vrai.
+           C'est l'autorite que `/org/{org}/admin/ai` gouverne, celle que Cyril a
+           designee. --}}
+      @if(app(\App\Support\Ai\AiSurfaceGate::class)->availableFor((string) $organization->id))
       <p class="orbit-note">{{ $texte('ai_note', 'ofsh.ai_note') }}</p>
+      @endif
     </section>
   </main>
 

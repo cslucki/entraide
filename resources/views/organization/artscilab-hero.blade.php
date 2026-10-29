@@ -178,6 +178,21 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
           </div>@endif
         @if($showInternalHomepageContent)</a>@else</div>@endif
 
+        {{-- TASK-1725 (demande Cyril, 29/10) — sans IA, la mention disparait.
+
+           Cette phrase est une PROMESSE sur le fonctionnement du produit. Sur une
+           Organization dont l'IA est eteinte, elle decrit quelque chose qui
+           n'arrive pas : la page annoncait un role que rien ne joue.
+
+           Le bloc ENTIER part, pas seulement le texte — la fleche decorative
+           pointerait sinon vers un vide.
+
+           `availableFor()` et non `memberAgentAvailableFor()` : la phrase parle du
+           role de l'IA dans les echanges, pas des agents de profil. Couper le
+           reglage « profils IA » ne doit pas effacer un propos qui reste vrai.
+           C'est l'autorite que `/org/{org}/admin/ai` gouverne, celle que Cyril a
+           designee. --}}
+        @if(app(\App\Support\Ai\AiSurfaceGate::class)->availableFor((string) $organization->id))
         <div class="ainote">
           <svg width="32" height="40" viewBox="0 0 34 40" fill="none" aria-hidden="true">
             <path d="M27 36 C 28 18, 20 8, 4 6" stroke="rgba(255,255,255,.82)" stroke-width="2" stroke-linecap="round"/>
@@ -185,6 +200,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
           </svg>
           <p>{!! $settingText('ai_note', 'artscilab.ai_note') !!}</p>
         </div>
+        @endif
       </div>
     </section>
   @include('organization.partials.workshops-block', ['publicWorkshops' => $publicWorkshops ?? collect(), 'organization' => $organization])
