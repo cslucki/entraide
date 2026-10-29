@@ -551,9 +551,20 @@
                         </div>
 
                         <div class="border-t border-gray-100 py-2 dark:border-gray-700">
-                            <a href="{{ route('help') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                            {{-- TASK-1725 (demande Cyril, 29/10) — « A propos » remplace « Aide »
+                                 dans le menu avatar, pour TOUTES les Organizations.
+
+                                 Le lien est ORG-SCOPE, la ou `route('help')` ne l'etait pas :
+                                 meme idiome que les autres liens de ce menu, le parametre
+                                 d'URL s'il existe, sinon l'Organization du membre
+                                 (`$organizationRouteParam`, ligne 9). Une page « a propos »
+                                 appartient a un locataire — l'envoyer vers la forme globale
+                                 ferait lire la presentation de l'Organization PAR DEFAUT de
+                                 la plateforme. C'est le defaut que TASK-1698 a corrige sur
+                                 six liens de ce meme fichier ; celui-ci y avait echappe. --}}
+                            <a href="{{ $organizationRouteParam && Route::has('organization.about') ? route('organization.about', ['organization' => $organizationRouteParam]) : route('about') }}" data-side-nav-about @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.178-.43.326-.67.442-.745.361-1.451.999-1.451 1.827v.75"/><path d="M12 18h.01"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                <span>{{ __('navigation.help') }}</span>
+                                <span>{{ __('navigation.about') }}</span>
                             </a>
                             <a href="{{ $bugReportUrl }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>

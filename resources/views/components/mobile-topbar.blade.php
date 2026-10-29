@@ -439,7 +439,16 @@
                     <x-dropdown-link :href="$routeUrl('blog.my-posts', 'organization.blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
                     <x-dropdown-link :href="$routeUrl('profile.edit', 'organization.profile.edit')" data-topbar-settings>{{ __('navigation.settings') }}</x-dropdown-link>
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                    <x-dropdown-link :href="organizationScopedUrl('mentions-legales', 'organization.mentions-legales')">{{ __('navigation.legal_notices') }}</x-dropdown-link>
+                    {{-- TASK-1725 (demande Cyril, 29/10) — « A propos » remplace
+                         « Mentions legales » dans le menu avatar mobile.
+
+                         `$routeUrl` et non `organizationScopedUrl` : ce dernier lit
+                         `request()->segment(1)` et retombe donc sur la route GLOBALE sur
+                         toute page sans prefixe — `/dashboard`, `/profile/edit`. Le helper
+                         de ce fichier, lui, porte le repli vers l'Organization du MEMBRE
+                         (TASK-1698). La demande dit « pointe vers /org/{slug}/about » : il
+                         faut donc celui qui sait quel slug. --}}
+                    <x-dropdown-link :href="$routeUrl('about', 'organization.about')" data-topbar-about>{{ __('navigation.about') }}</x-dropdown-link>
                     <a href="{{ $bugReportUrl }}" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 text-amber-700 transition duration-150 ease-in-out hover:bg-amber-50 focus:bg-amber-50 focus:outline-none dark:text-amber-300 dark:hover:bg-amber-950/40 dark:focus:bg-amber-950/40">
                         {{ __('navigation.report_bug') }}
                     </a>
