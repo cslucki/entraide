@@ -39,18 +39,18 @@ class LoopPolicyTest extends TestCase
 
     public function test_organization_admin_is_authorized_even_when_members_can_create_loops_is_off(): void
     {
-        $orgAdmin = User::factory()->create();
-        $organization = $this->org(['members_can_create_loops' => false, 'admin_id' => $orgAdmin->id]);
-        $orgAdmin->update(['organization_id' => $organization->id]);
+        $organization = $this->org(['members_can_create_loops' => false]);
+        $orgAdmin = User::factory()->create(['organization_id' => $organization->id]);
+        $organization->update(['admin_id' => $orgAdmin->id]);
 
         $this->assertTrue(Gate::forUser($orgAdmin->fresh())->allows('create', [Loop::class, $organization]));
     }
 
     public function test_everyone_is_refused_when_loops_enabled_is_off(): void
     {
-        $orgAdmin = User::factory()->create();
-        $organization = $this->org(['loops_enabled' => false, 'members_can_create_loops' => true, 'admin_id' => $orgAdmin->id]);
-        $orgAdmin->update(['organization_id' => $organization->id]);
+        $organization = $this->org(['loops_enabled' => false, 'members_can_create_loops' => true]);
+        $orgAdmin = User::factory()->create(['organization_id' => $organization->id]);
+        $organization->update(['admin_id' => $orgAdmin->id]);
         $member = User::factory()->create(['organization_id' => $organization->id]);
 
         $this->assertFalse(Gate::forUser($orgAdmin->fresh())->allows('create', [Loop::class, $organization]));

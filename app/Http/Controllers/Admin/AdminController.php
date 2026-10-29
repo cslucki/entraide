@@ -199,8 +199,11 @@ class AdminController extends Controller
 
     public function editUser(User $user): View
     {
-        $organizations = Organization::where('is_active', true)->orderBy('name')->get();
-
+        // TASK-1726 — plus de liste d'Organizations a proposer : la fiche
+        // AFFICHE desormais le tenant du compte, elle ne le choisit plus. La
+        // requete partait avec le selecteur ; la laisser aurait charge toutes
+        // les Organizations actives a chaque ouverture de fiche pour une
+        // variable que plus aucune vue ne lit.
         $userOrg = $user->organization;
         $localeColumn = app()->getLocale() === 'en' ? 'name_en' : 'name_fr';
 
@@ -216,16 +219,28 @@ class AdminController extends Controller
             $countries = Country::where('active', true)->orderBy($localeColumn)->get();
         }
 
-        return view('admin.users.edit', compact('user', 'organizations', 'countries'));
+        return view('admin.users.edit', compact('user', 'countries'));
     }
 
     public function updateUser(Request $request, User $user): RedirectResponse
     {
-        $organization = $this->resolveOrganizationFromInput($request->input('organization_id'));
-
-        if ($refus = $this->refuserSiSandboxScenarioManager($user, $organization)) {
-            return $refus;
-        }
+        // TASK-1726 — cet ecran ne touche PLUS a l'Organization du compte.
+        //
+        // Le defaut corrige ici etait le plus discret du lot : la ligne
+        // supprimee ci-dessus lisait `organization_id` dans la requete et,
+        // quand le champ etait ABSENT, repliait sur
+        // `DefaultOrganizationResolver`. Un PUT qui ne parlait pas
+        // d'Organization — un appel d'API, un formulaire partiel, un test —
+        // deplacait donc le compte vers l'Organization par defaut de la
+        // plateforme sans que personne ne l'ait demande. Le formulaire complet
+        // masquait le probleme en repostant toujours la valeur courante.
+        //
+        // Desormais l'Organization du compte est une donnee qu'on LIT ici,
+        // jamais qu'on ecrit : elle sert encore a savoir si le tenant utilise
+        // les adhesions, et c'est tout. La garde sandbox T1650 a disparu avec
+        // le besoin — il n'y a plus de destination a refuser, puisqu'il n'y a
+        // plus de deplacement.
+        $organization = $user->organization;
 
         $data = $request->validate([
             'first_name' => 'nullable|string|max:255',
@@ -243,7 +258,6 @@ class AdminController extends Controller
             'postal_code' => 'nullable|string|max:30',
             'website' => 'nullable|url|max:255',
             'linkedin_url' => 'nullable|url|max:255',
-            'organization_id' => 'nullable|uuid|exists:organizations,id',
             'avatar' => 'nullable|image|mimes:jpeg,png,webp|max:2048',
             'is_available' => 'boolean',
             'is_admin' => 'boolean',
@@ -285,11 +299,14 @@ class AdminController extends Controller
             'postal_code' => $data['postal_code'] ?? null,
             'website' => $data['website'] ?? null,
             'linkedin_url' => $data['linkedin_url'] ?? null,
-            'organization_id' => $organization->id,
             'is_available' => $request->boolean('is_available'),
         ];
 
-        if ($organization->membership_enabled) {
+        // TASK-1726 — `?->` et non `->` : un compte orphelin (Organization
+        // supprimee) n'a plus de tenant a interroger. L'ancien code ne pouvait
+        // pas rencontrer ce cas, parce qu'il venait d'en FABRIQUER une par
+        // repli — et c'est precisement ce repli qu'on retire.
+        if ($organization?->membership_enabled) {
             $request->validate(['membership_value' => 'nullable|string|max:255']);
             $update['membership_value'] = $request->input('membership_value');
         }
@@ -747,7 +764,7 @@ class AdminController extends Controller
             'points' => 'required|integer|min:0',
         ]);
 
-        $organization = $this->resolveOrganizationFromInput();
+        $organization = $this->organizationDAccueilParDefaut();
 
         $user = User::create([
             'name' => $data['name'],
@@ -814,29 +831,6 @@ class AdminController extends Controller
         };
     }
 
-    public function assignOrganization(Request $request, User $user): RedirectResponse
-    {
-        if ($user->id === auth()->id()) {
-            return back()->with('error', 'Vous ne pouvez pas vous affecter vous-même.');
-        }
-
-        $data = $request->validate([
-            'organization_id' => ['nullable', 'uuid', 'exists:organizations,id'],
-        ]);
-
-        $organization = $this->resolveOrganizationFromInput($data['organization_id'] ?? null);
-
-        if ($refus = $this->refuserSiSandboxScenarioManager($user, $organization)) {
-            return $refus;
-        }
-
-        $user->update([
-            'organization_id' => $organization->id,
-        ]);
-
-        return back()->with('success', "{$user->name} affecté à l'organisation {$organization->name}.");
-    }
-
     public function loginAsUser(User $user): RedirectResponse
     {
         if ($user->banned_at) {
@@ -875,16 +869,21 @@ class AdminController extends Controller
         return redirect()->route('admin.users');
     }
 
-    private function resolveOrganizationFromInput(?string $organizationId = null): Organization
+    /**
+     * TASK-1726 — l'Organization d'ACCUEIL d'un compte qu'on cree.
+     *
+     * S'appelait `resolveOrganizationFromInput()` et acceptait un
+     * `organization_id` venu de la requete : ce parametre ne servait qu'aux
+     * deux chemins de reaffectation, supprimes. Son unique appelant restant
+     * (`storeUser()`) ne passait deja rien, et une Organization CHOISIE n'a
+     * plus de sens qu'a la creation — un compte ne bouge plus ensuite.
+     *
+     * La branche `Organization::withTrashed()` part avec le parametre : elle
+     * permettait d'affecter quelqu'un a une Organization effacee en douce.
+     * Rien ne cree dans une Organization supprimee.
+     */
+    private function organizationDAccueilParDefaut(): Organization
     {
-        if ($organizationId) {
-            $organization = Organization::withTrashed()->find($organizationId);
-
-            if ($organization) {
-                return $organization;
-            }
-        }
-
         $organization = DefaultOrganizationResolver::resolve();
 
         if ($organization) {
@@ -894,71 +893,6 @@ class AdminController extends Controller
         throw ValidationException::withMessages([
             'organization_id' => 'Aucune organisation par défaut active n\'est disponible.',
         ]);
-    }
-
-    /**
-     * TASK-1650 — une sandbox Scenario Manager n'est pas une Organization
-     * comme les autres, et cette surface generique ne doit pas y toucher.
-     *
-     * ## Le sinistre, mesure par deux relecteurs independants
-     *
-     * Rien a forcer, rien a deviner : cet ecran accepte n'importe quelle
-     * Organization. On place un vrai prospect dans une sandbox, il ecrit dans
-     * un ChatLoop, on le remet ensuite dans sa vraie Organization — puis le
-     * Scenario Manager reinitialise ou retire la sandbox, et les Boucles
-     * partent avec `loop_messages` en CASCADE. Ses messages sont detruits, et
-     * plus personne ne sait qu'ils ont existe.
-     *
-     * Le preflight du Scenario Manager DETECTE cette contamination avant de
-     * detruire. Mais detecter n'est pas empecher : verdict MASTER du 27/09,
-     * « tant qu'une surface PROD existante permet d'injecter un vrai
-     * utilisateur dans leur cible, leur securite n'est pas fermee ».
-     *
-     * ## Les deux sens, pas un seul
-     *
-     * Interdire l'entree laisserait la SORTIE ouverte, et c'est exactement le
-     * chemin qui rend le contenu orphelin : la personne s'en va, son contenu
-     * reste dans la sandbox et meurt avec elle. Source OU destination sandbox
-     * : refus.
-     *
-     * ## Ce que ce refus n'est PAS
-     *
-     * Ni un systeme de roles, ni une refonte de cet ecran, ni une migration.
-     * Les personas d'une sandbox appartiennent au Scenario Manager, qui les
-     * cree et les detruit ; les comptes reels appartiennent aux vraies
-     * Organizations. Le refus ne fait que dire ou passe la frontiere.
-     */
-    private function refuserSiSandboxScenarioManager(User $user, Organization $destination): ?RedirectResponse
-    {
-        // Rien ne BOUGE : il n'y a rien a interdire.
-        //
-        // Sans cette sortie, corriger le nom d'un persona depuis sa fiche
-        // devenait impossible — la fiche renvoie l'Organization courante, et
-        // la garde la lisait comme une affectation vers une sandbox. Une
-        // garde qui gele ce qu'elle protege finit par etre retiree.
-        if ($user->organization_id !== null && $destination->getKey() === $user->organization_id) {
-            return null;
-        }
-
-        if ($destination->scenario_sandbox_created_at !== null) {
-            return back()->with('error', sprintf(
-                "« %s » est une sandbox de scenario : on n'y affecte pas de compte depuis cet ecran. Les personas d'une sandbox sont geres par le Scenario Manager.",
-                $destination->name
-            ));
-        }
-
-        $origine = $user->organization_id === null
-            ? null
-            : Organization::withTrashed()->find($user->organization_id);
-
-        if ($origine !== null && $origine->scenario_sandbox_created_at !== null) {
-            return back()->with('error', sprintf(
-                "Ce compte est rattache a la sandbox de scenario « %s » : il ne se deplace pas depuis cet ecran. Son contenu resterait dans la sandbox et serait detruit avec elle.",
-                $origine->name
-            ));
-        }
-
-        return null;
     }
 
     private function adminOrganizations(): Collection

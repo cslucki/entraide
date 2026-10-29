@@ -72,10 +72,9 @@ class TASK1075JoinRequestManagementTest extends TestCase
 
     public function test_organization_admin_can_accept_and_reject(): void
     {
-        $orgAdmin = User::factory()->create();
         $org = $this->org();
+        $orgAdmin = User::factory()->create(['organization_id' => $org->id]);
         $org->update(['admin_id' => $orgAdmin->id]);
-        $orgAdmin->update(['organization_id' => $org->id]);
         $loop = Loop::factory()->requestAccess()->create(['organization_id' => $org->id]);
         $applicant1 = User::factory()->create(['organization_id' => $org->id]);
         $applicant2 = User::factory()->create(['organization_id' => $org->id]);

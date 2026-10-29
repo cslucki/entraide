@@ -650,7 +650,6 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users/{user}/send-email', [AdminController::class, 'sendEmailToUser'])->name('users.send-email');
     Route::post('/users/{user}/password', [AdminController::class, 'changePassword'])->name('users.password');
     Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordResetLink'])->name('users.send-password-reset');
-    Route::patch('/users/{user}/assign-organization', [AdminController::class, 'assignOrganization'])->name('users.assign-organization');
     Route::post('/users/{user}/login-as', [AdminController::class, 'loginAsUser'])->name('users.login-as');
     Route::get('/users/{user}/delete-preview', [AdminController::class, 'deletePreview'])->name('users.delete-preview');
     Route::post('/users/{user}/delete', [AdminController::class, 'deleteUser'])->name('users.delete');

@@ -46,11 +46,15 @@ class TASK1108UnavailableLoopTypesTest extends TestCase
 
         // L'admin d'Organization est designe par `organizations.admin_id`, et
         // non par un drapeau sur l'utilisateur.
-        $this->orgAdmin = User::factory()->create();
+        //
+        // TASK-1726 — l'Organization d'abord, le compte NE dedans, `admin_id`
+        // ensuite. L'ordre inverse obligeait a DEPLACER le compte apres coup,
+        // ce que l'immuabilite refuse desormais.
         $this->org = Organization::factory()->create([
-            'is_active' => true, 'loops_enabled' => true, 'admin_id' => $this->orgAdmin->id,
+            'is_active' => true, 'loops_enabled' => true,
         ]);
-        $this->orgAdmin->update(['organization_id' => $this->org->id]);
+        $this->orgAdmin = User::factory()->create(['organization_id' => $this->org->id]);
+        $this->org->update(['admin_id' => $this->orgAdmin->id]);
 
         $this->superAdmin = User::factory()->create(['organization_id' => $this->org->id, 'is_admin' => true]);
         $this->proprietaire = User::factory()->create(['organization_id' => $this->org->id]);

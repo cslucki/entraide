@@ -46,11 +46,11 @@ class TASK1090PresetConfiguratorTest extends TestCase
     {
         parent::setUp();
 
-        $this->orgAdmin = User::factory()->create();
         $this->org = Organization::factory()->create([
-            'is_active' => true, 'admin_id' => $this->orgAdmin->id,
+            'is_active' => true,
         ]);
-        $this->orgAdmin->update(['organization_id' => $this->org->id]);
+        $this->orgAdmin = User::factory()->create(['organization_id' => $this->org->id]);
+        $this->org->update(['admin_id' => $this->orgAdmin->id]);
 
         // TASK-1693 bug AP — une Card de categorie « ai » ne parait que si l'IA
         // est UTILISABLE pour l'Organization. Ce fichier mesure la COMPOSITION
@@ -60,7 +60,6 @@ class TASK1090PresetConfiguratorTest extends TestCase
             ['organization_id' => $this->org->id],
             ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
         );
-
 
         $this->superAdmin = User::factory()->create([
             'is_admin' => true, 'organization_id' => $this->org->id,

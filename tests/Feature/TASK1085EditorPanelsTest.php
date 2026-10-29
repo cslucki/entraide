@@ -33,11 +33,11 @@ class TASK1085EditorPanelsTest extends TestCase
     {
         parent::setUp();
 
-        $this->author = User::factory()->create();
         $this->org = Organization::factory()->create([
-            'is_active' => true, 'admin_id' => $this->author->id,
+            'is_active' => true,
         ]);
-        $this->author->update(['organization_id' => $this->org->id]);
+        $this->author = User::factory()->create(['organization_id' => $this->org->id]);
+        $this->org->update(['admin_id' => $this->author->id]);
 
         app()->instance('current_organization', $this->org);
     }

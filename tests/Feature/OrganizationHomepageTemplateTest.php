@@ -27,7 +27,10 @@ class OrganizationHomepageTemplateTest extends TestCase
         $this->org = Organization::factory()->create(['slug' => 'test-org', 'is_active' => true, 'is_public' => true]);
         $this->otherOrg = Organization::factory()->create(['slug' => 'other-org', 'is_active' => true, 'is_public' => true]);
         $this->admin = User::factory()->create(['is_admin' => true]);
-        $this->user = User::factory()->create(['is_admin' => false]);
+        // TASK-1726 — membre de `$this->org` DES SA CREATION. Deux tests le
+        // deplacaient ici pour mesurer le hero authentifie ; l'Organization
+        // existe deja deux lignes plus haut, le detour n'avait pas de raison.
+        $this->user = User::factory()->create(['is_admin' => false, 'organization_id' => $this->org->id]);
     }
 
     /**
@@ -90,7 +93,6 @@ class OrganizationHomepageTemplateTest extends TestCase
     public function test_authenticated_hero_shows_dashboard_button(): void
     {
         $this->org->update(['homepage_template' => 'bouclepro_hero_v2']);
-        $this->user->update(['organization_id' => $this->org->id]);
 
         $response = $this->actingAs($this->user)->get('/org/test-org');
 
@@ -360,7 +362,6 @@ class OrganizationHomepageTemplateTest extends TestCase
     public function test_artscilab_hero_shows_dashboard_button_when_authenticated(): void
     {
         $this->org->update(['homepage_template' => 'artscilab_hero']);
-        $this->user->update(['organization_id' => $this->org->id]);
 
         $response = $this->actingAs($this->user)->get('/org/test-org');
 

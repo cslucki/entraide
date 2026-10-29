@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Traits\HasOrganizationId;
 use App\Services\ReferralCodeGenerator;
+use App\Services\Users\Exceptions\UserOrganizationImmutableException;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -56,6 +57,77 @@ class User extends Authenticatable implements MustVerifyEmail
             if (! $user->isDirty('referral_code')) {
                 $user->referral_code = app(ReferralCodeGenerator::class)->generate($user);
             }
+        });
+
+        /**
+         * TASK-1726 — un compte appartient a UNE Organization, et n'en change
+         * plus.
+         *
+         * ## La decision produit
+         *
+         * `Organization` EST le tenant (`Loop` ne l'est pas). Deplacer un
+         * compte d'un tenant vers un autre laisse derriere lui tout ce qu'il a
+         * produit : 48 tables portent `organization_id`, l'economie du compte
+         * (`points_balance`, `rating`, `membership_value`) est comptee par
+         * tenant, et son contenu — messages de Boucle, contacts CRM, dossiers
+         * — reste ou il a ete ecrit. Le compte arrivait donc dans sa nouvelle
+         * Organization avec un solde et une reputation gagnes ailleurs, tandis
+         * que son ancien tenant gardait des lignes dont l'auteur n'etait plus
+         * membre. Arbitrage MASTER : pour rejoindre une autre Organization, on
+         * aura un compte DISTINCT, au besoin avec le meme email.
+         *
+         * ## Ce que cette garde couvre, et ce qu'elle ne couvre pas
+         *
+         * Elle est posee sur `updating`, donc sur les ecritures PAR LE MODELE
+         * — `save()`, `update()`, `fill()->save()`, `forceFill()->save()`,
+         * `updateOrCreate()` sur une ligne existante. C'est le chemin de tous
+         * les ecrans : `organization_id` reste dans `$fillable` parce que
+         * `User::create()` en a besoin (une vingtaine de sites de creation le
+         * passent en assignation de masse), et le retirer aurait fait
+         * disparaitre la valeur en SILENCE a la creation — exactement le genre
+         * de panne qu'on ne voit qu'en recette.
+         *
+         * Elle ne se declenche PAS sur un UPDATE de masse par le constructeur
+         * de requetes (`$organization->users()->update(...)`), qui ne leve
+         * aucun evenement de modele. Ce n'est pas un oubli : ce sont les trois
+         * seules exceptions legitimes recensees a l'audit du 29/10, et toutes
+         * trois passent deja par ce chemin, avec un predicat qui les borne.
+         *
+         *   - suppression definitive d'une Organization
+         *     (`AdminOrganizationController::destroy`) : ses membres sont
+         *     detaches a NULL, parce que le tenant n'existe plus. Il n'y a pas
+         *     de destination a choisir.
+         *   - reparation des comptes orphelins
+         *     (`AdminAssignDataController`, `BackfillUsersOrganizationSeeder`)
+         *     : `whereNull('organization_id')` — ces deux surfaces ne touchent
+         *     QUE des lignes sans tenant, donc ne deplacent rien.
+         *
+         * ## Le cas NULL, et pourquoi il est autorise
+         *
+         * Rattacher un compte ORPHELIN (`organization_id` a NULL) n'est pas un
+         * deplacement : c'est la premiere affectation d'un compte que la
+         * suppression d'une Organization a laisse sans tenant. Le refus porte
+         * donc sur la valeur D'ORIGINE : des lors qu'un compte a une
+         * Organization, il la garde. Un passage vers NULL est refuse aussi —
+         * detacher, c'est perdre le tenant, et seul l'effacement de
+         * l'Organization elle-meme a le droit de le faire.
+         */
+        static::updating(function (User $user) {
+            if (! $user->isDirty('organization_id')) {
+                return;
+            }
+
+            $origine = $user->getOriginal('organization_id');
+
+            if ($origine === null) {
+                return;
+            }
+
+            throw new UserOrganizationImmutableException(
+                (string) $user->getKey(),
+                (string) $origine,
+                $user->organization_id === null ? null : (string) $user->organization_id,
+            );
         });
 
         static::saved(function (User $user) {

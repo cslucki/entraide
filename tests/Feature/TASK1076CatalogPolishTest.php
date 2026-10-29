@@ -155,9 +155,9 @@ class TASK1076CatalogPolishTest extends TestCase
 
     public function test_organization_admin_sees_the_edit_action_on_the_card(): void
     {
-        $orgAdmin = User::factory()->create();
-        $org = $this->org(['admin_id' => $orgAdmin->id]);
-        $orgAdmin->update(['organization_id' => $org->id]);
+        $org = $this->org();
+        $orgAdmin = User::factory()->create(['organization_id' => $org->id]);
+        $org->update(['admin_id' => $orgAdmin->id]);
         $loop = Loop::factory()->create(['organization_id' => $org->id]);
         $this->padCatalog($org);
         $this->withCurrentOrganization($org);

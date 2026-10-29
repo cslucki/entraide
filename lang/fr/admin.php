@@ -1787,10 +1787,12 @@ return [
     'users_stat_new' => 'Nouveaux ce mois',
     'users_stat_unverified' => 'Non vérifiés',
     'users_stat_unverified_hint' => 'Afficher ces comptes',
-    'users_assign_organization' => 'Affecter à une organisation',
-    'users_assign_organization_none' => '— Organisation par défaut de la plateforme —',
-    'users_assign_organization_submit' => 'Affecter',
-    'users_assign_organization_none_short' => '— plateforme —',
+    // TASK-1726 — les quatre cles `users_assign_organization*` ont ete retirees
+    // avec le controle qu'elles libellaient : un compte ne change plus
+    // d'Organization. Ces deux-la les remplacent, et ne libellent qu'un
+    // AFFICHAGE.
+    'users_organization_none' => 'Aucune organisation',
+    'users_organization_immutable_hint' => "L'organisation d'un compte est définitive et ne peut pas être modifiée.",
     'users_results_count' => ':count résultat(s) pour ce filtre',
     'users_status_available' => 'Disponible',
     'users_status_unavailable' => 'Indisponible',

@@ -37,11 +37,11 @@ class TASK1079PermissionResolverTest extends TestCase
     {
         parent::setUp();
 
-        $this->orgAdmin = User::factory()->create();
         $this->org = Organization::factory()->create([
-            'loops_enabled' => true, 'is_active' => true, 'admin_id' => $this->orgAdmin->id,
+            'loops_enabled' => true, 'is_active' => true,
         ]);
-        $this->orgAdmin->update(['organization_id' => $this->org->id]);
+        $this->orgAdmin = User::factory()->create(['organization_id' => $this->org->id]);
+        $this->org->update(['admin_id' => $this->orgAdmin->id]);
 
         $this->loop = Loop::factory()->create([
             'organization_id' => $this->org->id, 'status' => 'active', 'type' => 'general',
