@@ -81,28 +81,35 @@ $porte = fn (string $route, array $parametres = []): string => $showInternalHome
     ? route($route, array_merge(['organization' => $organization->slug], $parametres))
     : route('organization.login', ['organization' => $organization->slug]);
 
+// TASK-1725 (demande Cyril, 29/10) — les quatre cartes ne gardent QUE leur titre.
+//
+// « J'ai besoin d'entraide » se suffit ; « Un conseil, une question, une
+// difficulte » repetait la meme idee en plus petit. Cyril : « afin de gagner de
+// l'espace », pour que la page tienne sans defilement sur un ecran de bureau.
+//
+// La cle `desc` part de ce tableau avec le `<small>` : une donnee qu'on calcule
+// et que personne n'affiche est une invitation a croire qu'elle sert encore.
+// Les clefs de langue `ofsh.card_*_desc` RESTENT en place, elles : les retirer
+// obligerait a reecrire quatre traductions dans deux langues si la decision se
+// revisait, pour un gain nul.
 $cartes = [
     'help' => [
         'url' => $porte('organization.explorer'),
         'titre' => $texte('card_help_label', 'ofsh.card_help_title'),
-        'desc' => org_trans('ofsh.card_help_desc'),
     ],
     'offer' => [
         'url' => $showInternalHomepageContent
             ? route('organization.explorer', ['organization' => $organization->slug]).'?tab=requests'
             : route('organization.login', ['organization' => $organization->slug]),
         'titre' => $texte('card_offer_label', 'ofsh.card_offer_title'),
-        'desc' => org_trans('ofsh.card_offer_desc'),
     ],
     'share' => [
         'url' => $porte('organization.blog.index'),
         'titre' => $texte('card_share_label', 'ofsh.card_share_title'),
-        'desc' => org_trans('ofsh.card_share_desc'),
     ],
     'together' => [
         'url' => $porte('organization.loops.index'),
         'titre' => $texte('card_together_label', 'ofsh.card_together_title'),
-        'desc' => org_trans('ofsh.card_together_desc'),
     ],
 ];
 
@@ -262,22 +269,22 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
 
       <a class="orbit-card card-help" href="{{ $cartes['help']['url'] }}" data-ofsh-card="help">
         <span class="symbol" aria-hidden="true"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.8 2.8 0 0 1 5.2 1.4c0 2-2.7 2.3-2.7 4.2"/><path d="M12 17.7h.01"/></svg></span>
-        <div class="card-copy"><h2>{{ $cartes['help']['titre'] }}</h2><small>{{ $cartes['help']['desc'] }}</small></div>
+        <div class="card-copy"><h2>{{ $cartes['help']['titre'] }}</h2></div>
       </a>
 
       <a class="orbit-card card-offer" href="{{ $cartes['offer']['url'] }}" data-ofsh-card="offer">
         <span class="symbol" aria-hidden="true"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 8.6c0 4.2-8.8 9.7-8.8 9.7S3.2 12.8 3.2 8.6a4.6 4.6 0 0 1 8.8-1.7 4.6 4.6 0 0 1 8.8 1.7z"/></svg></span>
-        <div class="card-copy"><h2>{{ $cartes['offer']['titre'] }}</h2><small>{{ $cartes['offer']['desc'] }}</small></div>
+        <div class="card-copy"><h2>{{ $cartes['offer']['titre'] }}</h2></div>
       </a>
 
       <a class="orbit-card card-share" href="{{ $cartes['share']['url'] }}" data-ofsh-card="share">
         <span class="symbol" aria-hidden="true"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.2C9.4 4.8 6.4 4.8 3 5.4v12.2c3.4-.6 6.4-.6 9 1 2.6-1.6 5.6-1.6 9-1V5.4c-3.4-.6-6.4-.6-9 .8z"/><path d="M12 6.2v12.4"/></svg></span>
-        <div class="card-copy"><h2>{{ $cartes['share']['titre'] }}</h2><small>{{ $cartes['share']['desc'] }}</small></div>
+        <div class="card-copy"><h2>{{ $cartes['share']['titre'] }}</h2></div>
       </a>
 
       <a class="orbit-card card-together" href="{{ $cartes['together']['url'] }}" data-ofsh-card="together">
         <span class="symbol" aria-hidden="true"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="2.5"/><circle cx="17.5" cy="9" r="2"/><path d="M3.5 19v-1.4A5.5 5.5 0 0 1 9 12.2a5.5 5.5 0 0 1 5.5 5.4V19H3.5z"/><path d="M16 13.4a4.3 4.3 0 0 1 4.5 4.2V19h-4"/></svg></span>
-        <div class="card-copy"><h2>{{ $cartes['together']['titre'] }}</h2><small>{{ $cartes['together']['desc'] }}</small></div>
+        <div class="card-copy"><h2>{{ $cartes['together']['titre'] }}</h2></div>
       </a>
 
       {{-- TASK-1725 (demande Cyril, 29/10) — sans IA, la mention disparait.
