@@ -38,8 +38,9 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
 
         // `phpunit.xml` fixe QUEUE_CONNECTION=sync : sans cela, toute livraison
         // planifiee partirait au milieu de l'appel qu'on est en train de
-        // mesurer. Aucune cle de cette tranche ne declare EMAIL, mais le test
-        // doit le PROUVER, pas le supposer — d'ou la fausse file.
+        // mesurer. La fausse file sert desormais DEUX mesures opposees —
+        // « accepte » pousse un email (TASK-1725), « refuse » n'en pousse
+        // aucun — et chacune doit etre PROUVEE, pas supposee.
         Queue::fake();
     }
 
@@ -406,7 +407,8 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
     // =====================================================================
 
     /**
-     * Les deux libelles arrivent jusqu'a l'ecran, et ils DIFFERENT.
+     * Les deux libelles arrivent jusqu'a l'ecran, ils DIFFERENT, et ils nomment
+     * la Boucle.
      *
      * Le Centre resout `keys.<cle avec des tirets bas>`. Une cle mal orthographiee
      * ne casse rien : elle retombe silencieusement sur « Notification », le repli
@@ -415,11 +417,26 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
      *
      * On mesure donc les DEUX libelles ensemble : verifier une seule ligne
      * laisserait passer une paire identique.
+     *
+     * TASK-1725 (demande Cyril, 29/10) — les attendus deviennent les formes
+     * NOMMEES, `keys_named`. « Votre demande d'adhesion a ete acceptee » ne
+     * disait pas LAQUELLE : le membre de plusieurs Boucles devait ouvrir pour
+     * savoir de quoi on lui parlait. Le repli silencieux que ce test surveille
+     * est desormais DOUBLE — une cle `keys_named` manquante retombe sur `keys`,
+     * qui retombe sur « Notification » — et c'est bien la forme nommee, la plus
+     * exterieure, qu'il faut mesurer : une assertion sur la forme generique
+     * resterait verte alors que le nom aurait disparu de l'ecran.
      */
     public function test_the_center_shows_a_distinct_label_for_each_decision(): void
     {
         [$org, $loop, $owner, $applicant, $premiereDemande] = $this->scenario();
         $this->withCurrentOrganization($org);
+
+        // Un nom DETERMINISTE, et sans caractere que Blade echapperait : le nom
+        // de fabrique porte parfois une apostrophe, et l'assertion comparerait
+        // alors une apostrophe droite a `&#039;`. Le test mesurerait
+        // l'echappement au lieu du libelle.
+        $loop->forceFill(['name' => 'Boucle Entraide'])->save();
 
         $this->actingAs($owner)->post(route('loop-join-requests.reject', $premiereDemande));
 
@@ -441,9 +458,18 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
         // l'environnement. Mesure faite egalement : la locale d'une requete de
         // test est `en`, pas celle de la CLI — supposer l'une pour l'autre
         // aurait teste un fichier de langue au lieu de l'autre.
+        // Le CADRE de la phrase reste ecrit en dur — c'est ce qui fait tenir le
+        // raisonnement ci-dessus. Seul le nom de la Boucle est interpole, et il
+        // vient du modele, pas d'un fichier de langue.
         $attendus = [
-            'fr' => ['Votre demande d’adhésion a été acceptée', 'Votre demande d’adhésion n’a pas été retenue'],
-            'en' => ['Your request to join was accepted', 'Your request to join was not accepted'],
+            'fr' => [
+                'Votre demande d’adhésion à « '.$loop->name.' » a été acceptée',
+                'Votre demande d’adhésion à « '.$loop->name.' » n’a pas été retenue',
+            ],
+            'en' => [
+                'Your request to join '.$loop->name.' was accepted',
+                'Your request to join '.$loop->name.' was not accepted',
+            ],
         ];
 
         foreach ($attendus as $locale => [$accepte, $refuse]) {
@@ -553,32 +579,72 @@ class TASK1381LoopJoinRequestDecisionNotificationTest extends TestCase
     }
 
     // =====================================================================
-    // Aucun email, et rien sur la file `default`
+    // L'email : sur « accepte », et sur lui SEUL
     // =====================================================================
 
     /**
-     * Le catalogue ne declare pas EMAIL sur ces cles : rien ne doit partir.
+     * TASK-1725 (demande Cyril, 29/10) — accepter ENVOIE un email.
      *
-     * L'absence de la ligne suffit — aucun garde d'appel n'est necessaire, et
-     * c'est precisement ce qu'on mesure. Aucun job, sur aucune file.
+     * Ce test REMPLACE `test_no_email_is_planned_for_these_keys()`, qui
+     * affirmait l'inverse. Il ne s'agit pas d'un test qu'on assouplit pour
+     * faire passer du code : l'ancienne assertion portait une DECISION
+     * PRODUIT — « le Centre suffit » — que MASTER a revisee. Ce qui la
+     * remplace est aussi exigeant, dans l'autre sens.
+     *
+     * On mesure le PLAN, pas l'envoi : la livraison est creee et le job pousse.
+     * Ce qui part reellement dans la boite est l'affaire de
+     * `NotificationEmailDeliverer`, mesure ailleurs.
      */
-    public function test_no_email_is_planned_for_these_keys(): void
+    public function test_an_accepted_request_plans_an_email(): void
     {
         [$org, $loop, $owner, $applicant, $joinRequest] = $this->scenario();
         $this->withCurrentOrganization($org);
 
         $this->actingAs($owner)->post(route('loop-join-requests.accept', $joinRequest));
 
-        Queue::assertNothingPushed();
-        $this->assertDatabaseCount('member_notification_deliveries', 0);
-        $this->assertFalse(NotificationCatalogue::allowsChannel(
+        $this->assertTrue(NotificationCatalogue::allowsChannel(
             NotificationCatalogue::LOOP_JOIN_REQUEST_ACCEPTED,
             NotificationCatalogue::CHANNEL_EMAIL,
         ));
+
+        Queue::assertPushed(\App\Jobs\SendNotificationEmail::class);
+
+        $notification = MemberNotification::where('recipient_id', $applicant->id)->firstOrFail();
+
+        // La livraison EMAIL existe, et elle vise bien CETTE notification : sans
+        // la seconde borne, une ligne laissee par un autre fait rendrait
+        // l'assertion vraie pour la mauvaise raison.
+        $this->assertDatabaseHas('member_notification_deliveries', [
+            'notification_id' => $notification->id,
+            'channel' => NotificationCatalogue::CHANNEL_EMAIL,
+        ]);
+    }
+
+    /**
+     * TASK-1725 — refuser n'envoie RIEN, et c'est la moitie du contrat
+     * TASK-1381 qui demeure.
+     *
+     * Un refus n'ouvre aucune porte et n'appelle aucun geste : le pousser dans
+     * la boite de quelqu'un ajoute une peine sans rien lui permettre. Le fait
+     * reste dans le Centre pour qui va voir.
+     *
+     * Cette garde est ce qui empeche qu'on etende l'email a « refuse » par
+     * symetrie apparente, sans decision.
+     */
+    public function test_a_rejected_request_still_plans_no_email(): void
+    {
+        [$org, $loop, $owner, $applicant, $joinRequest] = $this->scenario();
+        $this->withCurrentOrganization($org);
+
+        $this->actingAs($owner)->post(route('loop-join-requests.reject', $joinRequest));
+
         $this->assertFalse(NotificationCatalogue::allowsChannel(
             NotificationCatalogue::LOOP_JOIN_REQUEST_REJECTED,
             NotificationCatalogue::CHANNEL_EMAIL,
         ));
+
+        Queue::assertNothingPushed();
+        $this->assertDatabaseCount('member_notification_deliveries', 0);
     }
 
     // =====================================================================

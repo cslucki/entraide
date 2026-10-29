@@ -526,6 +526,27 @@ return [
     'org_membership_enabled_hint' => 'Quand activé, un champ de saisie « Appartenance » apparaît dans le profil des membres.',
 
     // TASK-1714 volet 2 — approbation des comptes par un administrateur.
+    // TASK-1725 — le selecteur FR/EN s'affiche-t-il sur les surfaces publiques ?
+    // TASK-1725 — creation d'une Boucle depuis l'administration d'Organization.
+    'org_admin_loop_create_title' => 'Créer une Boucle',
+    'org_admin_loop_create_submit' => 'Créer la Boucle',
+    'org_admin_loop_create_cta' => 'Créer une Boucle',
+    'org_admin_loop_created' => 'Boucle créée.',
+    'org_admin_loop_owner' => 'Responsable',
+    'org_admin_loop_owner_placeholder' => 'Choisir un membre…',
+    'org_admin_loop_owner_hint' => "Le responsable devient propriétaire de la Boucle et en est membre d'office. Seuls les membres de cette organisation apparaissent ici.",
+    'org_admin_loop_visibility' => 'Visibilité',
+    'org_admin_loop_visibility_private' => 'Privée',
+    'org_admin_loop_visibility_private_hint' => "La Boucle n'apparaît pas dans le catalogue public.",
+    'org_admin_loop_visibility_public' => 'Publique',
+    'org_admin_loop_visibility_public_hint' => 'La Boucle est visible dans le catalogue ; rejoindre reste soumis à votre accord.',
+    'org_admin_loop_type_hint' => 'Le type définit la composition initiale des Cards. Il reste modifiable ensuite.',
+    // TASK-1725 — image de couverture, sur l'ecran de modification.
+    'org_admin_loop_cover' => 'Image de couverture',
+    'org_admin_loop_cover_hint' => 'PNG, JPG ou WEBP, 2 Mo au maximum. Elle illustre la Boucle dans le catalogue.',
+    'org_admin_loop_cover_remove' => 'Supprimer la couverture actuelle',
+    'org_multilingual_label' => 'Site multilingue',
+    'org_multilingual_hint' => "Affiche le sélecteur FR/EN sur la page d'accueil, dans le rail de gauche et dans la barre mobile. Décoché, l'interface reste dans la langue d'affichage choisie ci-dessous. L'administration garde son sélecteur.",
     'org_requires_account_approval' => 'L\'administrateur doit valider le compte après confirmation email',
     'org_requires_account_approval_hint' => 'Les nouvelles inscriptions attendent votre validation, même après confirmation de leur adresse. Les comptes existants ne sont pas affectés.',
     'users_approve_account' => 'Valider compte',
@@ -1869,6 +1890,16 @@ return [
     'points_reset' => 'Remettre a zero (:balance pts)',
     'points_member_any' => '— Tous les membres —',
     'points_adjust_hint' => 'Choisissez une personne puis « Filtrer » pour ajouter, retirer ou remettre a zero ses points.',
+
+    // TASK-1725 bug 1 — le mot de passe se change depuis la FICHE, plus depuis
+    // la liste. Libelles explicites : la carte porte le nom de la personne
+    // editee, ce que le panneau deplie de la liste ne pouvait pas faire.
+    'password_section' => 'Mot de passe',
+    'password_section_hint' => "Definir directement un nouveau mot de passe. Le membre n'en est pas averti : pour qu'il choisisse le sien, employez plutot l'envoi d'un lien de reinitialisation depuis la liste des membres.",
+    'password_new' => 'Nouveau mot de passe',
+    'password_confirm' => 'Confirmer le mot de passe',
+    'password_min_hint' => '8 caracteres au minimum.',
+    'password_submit' => 'Changer le mot de passe',
     'points_section' => 'Points',
     'points_section_hint' => "Un grand livre est append-only : corriger AJOUTE une ecriture, cela n'en modifie et n'en supprime aucune.",
     'points_current_balance' => 'Solde actuel :',

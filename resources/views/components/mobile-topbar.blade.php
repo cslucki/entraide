@@ -1,4 +1,5 @@
 @props(['showInternalNavigation' => true])
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 
 @php
     $routeName = request()->route()?->getName() ?? '';
@@ -41,6 +42,36 @@
         ? auth()->user()->unreadNotificationsCount((string) $notificationsOrganization->id)
         : 0;
     $canSeeFlux = auth()->check() && auth()->user()->can('create', \App\Models\FeedPost::class);
+
+    // TASK-1725 (demande Cyril, 29/10) — l'Organization qui decide si l'entree
+    // « Mon profil IA » parait.
+    //
+    // La garde suit la MEME precedence que `$organizationRouteParam` ci-dessus,
+    // donc que la destination du lien : le parametre d'URL s'il existe, sinon
+    // l'Organization du MEMBRE.
+    //
+    // Et jamais `currentOrganization()` en premier : sur une route non prefixee
+    // elle rend l'Organization PAR DEFAUT de la plateforme — le commentaire de
+    // `$notificationsOrganization` juste au-dessus le dit deja pour le badge.
+    // La garde jugerait « main » pendant que le lien pointe vers le tenant du
+    // membre, et l'entree disparaitrait pour quelqu'un dont l'IA est allumee.
+    // Mesure faite sur le rail : c'est exactement ce qui s'est produit.
+    $aiMenuOrganization = request()->route('organization')
+        ? currentOrganization()
+        : (auth()->check() ? (auth()->user()->organization ?? currentOrganization()) : null);
+
+    // TASK-1725 (demande Cyril, 29/10) — le selecteur FR/EN suit le drapeau
+    // « site multilingue ». MEME Organization que la garde IA ci-dessus, donc
+    // meme precedence que les liens de cette barre.
+    //
+    // Cyril a demande explicitement les versions bureau ET mobile : un reglage
+    // nomme « site multilingue » qui ne vaudrait que sur certaines tailles
+    // d'ecran serait un piege a recette — le selecteur aurait disparu du rail et
+    // survecu ici, pour la meme Organization.
+    //
+    // `?? false` comme le defaut de la colonne : deux replis opposes entre la
+    // base et la vue finiraient par se contredire.
+    $multilingue = (bool) ($aiMenuOrganization?->multilingual_enabled ?? false);
 
     if (! $organizationRouteParam && request()->routeIs('organization.*') && isset($currentOrganization)) {
         $organizationRouteParam = $currentOrganization;
@@ -296,6 +327,8 @@
         </div>
         <div class="flex items-center gap-2.5">
              @if(auth()->check() && $showInternalNavigation)
+             {{-- TASK-1725 — selecteur FR/EN sous le drapeau « site multilingue ». --}}
+             @if($multilingue)
              <div class="flex shrink-0 items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
                  @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                       <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
@@ -309,6 +342,7 @@
                      </form>
                  @endforeach
              </div>
+             @endif
              <button type="button" @click="$store.darkMode.toggle()" class="w-9 h-9 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
                 <svg class="block w-5 h-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 <svg class="hidden w-5 h-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
@@ -377,7 +411,12 @@
                     </form>
                     @endif
                     <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()->profileRouteKey()]) : route('profile.show', auth()->user()->profileRouteKey())">{{ __('navigation.profile') }}</x-dropdown-link>
-                    @if(!$currentOrganization || $currentOrganization->ai_profiles_enabled)
+                    {{-- TASK-1725 — l'autorite UNIQUE, pas le seul choix produit.
+                         `ai_profiles_enabled` seul ignorait l'interrupteur maitre
+                         « Activer les fonctions IA » : l'entree restait au menu d'une
+                         Organization dont l'IA est eteinte, et menait a un assistant
+                         que le serveur refuse. Meme defaut qu'en TASK-1693 bug AF. --}}
+                    @if($_aiGate->memberAgentAvailableFor($aiMenuOrganization))
                     <x-dropdown-link :href="$routeUrl('agent-ia.wizard', 'organization.agent-ia.wizard')" data-topbar-ai-wizard>{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     @endif
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
@@ -400,7 +439,16 @@
                     <x-dropdown-link :href="$routeUrl('blog.my-posts', 'organization.blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
                     <x-dropdown-link :href="$routeUrl('profile.edit', 'organization.profile.edit')" data-topbar-settings>{{ __('navigation.settings') }}</x-dropdown-link>
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                    <x-dropdown-link :href="organizationScopedUrl('mentions-legales', 'organization.mentions-legales')">{{ __('navigation.legal_notices') }}</x-dropdown-link>
+                    {{-- TASK-1725 (demande Cyril, 29/10) — « A propos » remplace
+                         « Mentions legales » dans le menu avatar mobile.
+
+                         `$routeUrl` et non `organizationScopedUrl` : ce dernier lit
+                         `request()->segment(1)` et retombe donc sur la route GLOBALE sur
+                         toute page sans prefixe — `/dashboard`, `/profile/edit`. Le helper
+                         de ce fichier, lui, porte le repli vers l'Organization du MEMBRE
+                         (TASK-1698). La demande dit « pointe vers /org/{slug}/about » : il
+                         faut donc celui qui sait quel slug. --}}
+                    <x-dropdown-link :href="$routeUrl('about', 'organization.about')" data-topbar-about>{{ __('navigation.about') }}</x-dropdown-link>
                     <a href="{{ $bugReportUrl }}" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 text-amber-700 transition duration-150 ease-in-out hover:bg-amber-50 focus:bg-amber-50 focus:outline-none dark:text-amber-300 dark:hover:bg-amber-950/40 dark:focus:bg-amber-950/40">
                         {{ __('navigation.report_bug') }}
                     </a>
@@ -416,6 +464,8 @@
                 </x-slot>
             </x-dropdown>
              @else
+             {{-- TASK-1725 — selecteur FR/EN sous le drapeau « site multilingue ». --}}
+             @if($multilingue)
              <div class="flex shrink-0 items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
                  @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                       <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
@@ -429,6 +479,7 @@
                      </form>
                  @endforeach
              </div>
+             @endif
              <button @click="$store.darkMode.toggle()" class="w-9 h-9 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
                 <svg class="block w-5 h-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 <svg class="hidden w-5 h-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>

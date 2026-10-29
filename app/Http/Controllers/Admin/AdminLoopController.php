@@ -33,6 +33,13 @@ use Illuminate\View\View;
 
 class AdminLoopController extends Controller
 {
+    // TASK-1725 — l'image de couverture, TROISIEME consommateur du meme trait
+    // apres `LoopController` et `OrgAdminController`. C'est ici que
+    // l'extraction paie : la regle de nommage du fichier, la suppression de
+    // l'ancienne image et la garde `loop-covers/` ne sont ecrites qu'une fois
+    // pour trois ecrans.
+    use \App\Support\Loops\CouvertureDeBoucle;
+
     public function __construct(
         private readonly LoopService $loopService,
     ) {}
@@ -634,13 +641,31 @@ class AdminLoopController extends Controller
             // autre tenant que le sien, et verifier dans le sien repondrait a
             // une autre question. La regle est lue au modele, seule autorite.
             'slug' => Loop::slugRules((string) $loop->organization_id, $loop),
-        ]);
+            // TASK-1725 (demande Cyril, 29/10) — « on ne peut pas
+            // inserer/modifier/supprimer l'image de couverture dans le
+            // superadmin ». Les regles viennent du trait, elles ne sont pas
+            // reecrites : trois ecrans, une seule definition.
+        ] + $this->reglesDeCouverture());
 
         // Champ vide = adresse INCHANGEE. Une URL publique ne doit pas
         // disparaitre parce qu'on a corrige une description.
         if (empty($data['slug'])) {
             unset($data['slug']);
         }
+
+        // TASK-1725 — `false` veut dire « n'y touche pas », `null` « efface ».
+        // Les confondre supprimerait le FICHIER a chaque enregistrement ou le
+        // champ reste vide, c'est-a-dire presque tous.
+        $couverture = $this->couvertureDemandee($request, $loop);
+
+        if ($couverture !== false) {
+            $data['cover_image_path'] = $couverture;
+        }
+
+        // Les champs du formulaire qui ne sont pas des colonnes ne descendent
+        // pas au service : il ecrirait `cover_image` et `remove_cover_image`
+        // dans la table.
+        unset($data['cover_image'], $data['remove_cover_image']);
 
         $this->loopService->updateLoop($loop, $data);
 

@@ -525,6 +525,27 @@ return [
     'org_membership_enabled_hint' => 'When enabled, a « Membership » input field appears in member profiles.',
 
     // TASK-1714 volet 2 — administrator approval of accounts.
+    // TASK-1725 — is the FR/EN switcher shown on public surfaces?
+    // TASK-1725 — creating a Loop from the Organization admin.
+    'org_admin_loop_create_title' => 'Create a Loop',
+    'org_admin_loop_create_submit' => 'Create the Loop',
+    'org_admin_loop_create_cta' => 'Create a Loop',
+    'org_admin_loop_created' => 'Loop created.',
+    'org_admin_loop_owner' => 'Owner',
+    'org_admin_loop_owner_placeholder' => 'Choose a member…',
+    'org_admin_loop_owner_hint' => 'The owner becomes the Loop owner and a member of it. Only members of this organization are listed here.',
+    'org_admin_loop_visibility' => 'Visibility',
+    'org_admin_loop_visibility_private' => 'Private',
+    'org_admin_loop_visibility_private_hint' => 'The Loop does not appear in the public catalogue.',
+    'org_admin_loop_visibility_public' => 'Public',
+    'org_admin_loop_visibility_public_hint' => 'The Loop is visible in the catalogue; joining still requires your approval.',
+    'org_admin_loop_type_hint' => 'The type sets the initial Card composition. It can be changed later.',
+    // TASK-1725 — cover image, on the edit screen.
+    'org_admin_loop_cover' => 'Cover image',
+    'org_admin_loop_cover_hint' => 'PNG, JPG or WEBP, 2 MB maximum. It illustrates the Loop in the catalogue.',
+    'org_admin_loop_cover_remove' => 'Remove the current cover',
+    'org_multilingual_label' => 'Multilingual site',
+    'org_multilingual_hint' => 'Shows the FR/EN switcher on the homepage, in the left rail and in the mobile bar. When unchecked, the interface stays in the display language chosen below. The admin area keeps its own switcher.',
     'org_requires_account_approval' => 'Administrator must approve the account after email confirmation',
     'org_requires_account_approval_hint' => 'New sign-ups wait for your approval, even after confirming their address. Existing accounts are not affected.',
     'users_approve_account' => 'Approve account',
@@ -1849,6 +1870,15 @@ return [
     'points_reset' => 'Reset to zero (:balance pts)',
     'points_member_any' => '— All members —',
     'points_adjust_hint' => 'Pick a person then “Filter” to add, remove or reset their points.',
+
+    // TASK-1725 bug 1 — passwords are changed from the member's RECORD, no
+    // longer from the list.
+    'password_section' => 'Password',
+    'password_section_hint' => 'Set a new password directly. The member is not notified: to let them choose their own, send a reset link from the member list instead.',
+    'password_new' => 'New password',
+    'password_confirm' => 'Confirm password',
+    'password_min_hint' => '8 characters minimum.',
+    'password_submit' => 'Change password',
     'points_section' => 'Points',
     'points_section_hint' => 'A ledger is append-only: a correction ADDS an entry, it never edits or deletes one.',
     'points_current_balance' => 'Current balance:',

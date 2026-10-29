@@ -84,6 +84,11 @@ return [
     'sure' => 'Sûr ?',
     'yes' => 'Oui',
     'no' => 'Non',
+    // TASK-1725 — le tableau de bord d'une personne qui a fini son accueil et
+    // n'a plus rien d'actif. Sans ces deux lignes la page serait blanche : les
+    // cards vides ne s'affichent plus, et la card d'accueil a disparu.
+    'nothing_yet_title' => 'Rien en cours pour le moment',
+    'nothing_yet_body' => 'Proposez une aide ou formulez une demande : votre tableau de bord se remplira au fil de vos échanges.',
     'no_active_service' => 'Aucun service actif.',
     'create_service' => 'Créer un service',
     'my_requests' => 'Mes demandes d\'aide',

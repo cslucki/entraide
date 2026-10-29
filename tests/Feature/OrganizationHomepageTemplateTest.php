@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -27,6 +28,23 @@ class OrganizationHomepageTemplateTest extends TestCase
         $this->otherOrg = Organization::factory()->create(['slug' => 'other-org', 'is_active' => true, 'is_public' => true]);
         $this->admin = User::factory()->create(['is_admin' => true]);
         $this->user = User::factory()->create(['is_admin' => false]);
+    }
+
+    /**
+     * L'IA devient utilisable : active, avec fournisseur, modele et credential.
+     *
+     * Meme decor que `TASK1693AiSurfacesFollowTheSwitchTest::allumerLIA()`. Le
+     * `forgetInstance()` n'est pas optionnel : le gate memorise sa reponse par
+     * Organization, donc une instance deja resolue rendrait la reponse d'AVANT.
+     */
+    private function allumerLIA(Organization $organization): void
+    {
+        OrganizationAiSetting::query()->updateOrCreate(
+            ['organization_id' => $organization->id],
+            ['is_enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-test'],
+        );
+
+        app()->forgetInstance(\App\Support\Ai\AiSurfaceGate::class);
     }
 
     public function test_fallback_when_no_template(): void
@@ -157,6 +175,15 @@ class OrganizationHomepageTemplateTest extends TestCase
 
     public function test_homepage_settings_update_are_visible_on_public_hero(): void
     {
+        // TASK-1725 — l'IA doit etre ALLUMEE pour que la mention « ai_note »
+        // atteigne la page. Depuis la demande Cyril du 29/10, la phrase sur le
+        // role de l'IA disparait d'une homepage dont l'Organization a l'IA
+        // eteinte : elle promettrait un role que rien ne joue. Ce test mesure
+        // que les REGLAGES de homepage atteignent le bandeau public — et
+        // `ai_note` est l'un des neuf qu'il verifie, donc son decor doit rendre
+        // la mention affichable.
+        $this->allumerLIA($this->org);
+
         $this->actingAs($this->admin)->put(route('admin.organizations.homepage.update', $this->org), [
             'homepage_template' => 'bouclepro_hero_v2',
             'subheadline' => 'Visible public subtitle',

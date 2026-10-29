@@ -51,7 +51,12 @@
         <section class="mb-6 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800 sm:p-6">
             <h2 class="mb-4 text-sm font-semibold text-gray-800 dark:text-gray-100">Identité de la Boucle</h2>
 
-            <form method="POST" action="{{ route('organization.admin.loops.update', ['organization' => $organization->slug, 'loop' => $currentLoop->id]) }}" class="space-y-4">
+            {{-- TASK-1725 (demande Cyril, 29/10) — `enctype` AJOUTE. Sans lui le
+                 navigateur envoie le formulaire en `urlencoded` et le fichier
+                 n'arrive JAMAIS au serveur : `hasFile()` repond faux, la
+                 validation passe, et l'ecran annonce un enregistrement reussi
+                 sans que l'image ait bouge. Un echec entierement silencieux. --}}
+            <form method="POST" action="{{ route('organization.admin.loops.update', ['organization' => $organization->slug, 'loop' => $currentLoop->id]) }}" class="space-y-4" enctype="multipart/form-data">
                 @csrf @method('PUT')
 
                 <label class="block">
@@ -90,6 +95,40 @@
                         @endforeach
                     </div>
                     <x-input-error :messages="$errors->get('type')" class="mt-1" />
+                </fieldset>
+
+                {{-- TASK-1725 — l'image de couverture.
+
+                     L'apercu est rendu depuis `cover_image_url`, l'accesseur du
+                     modele : la vue ne reconstruit aucun chemin de stockage.
+
+                     La case de retrait n'apparait QUE s'il y a une image a
+                     retirer. Offrir « supprimer la couverture » quand il n'y en
+                     a pas est un geste sans effet, donc un piege. --}}
+                <fieldset class="space-y-2">
+                    <legend class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('admin.org_admin_loop_cover') }}</legend>
+                    <p class="text-xs text-gray-400">{{ __('admin.org_admin_loop_cover_hint') }}</p>
+
+                    @if($currentLoop->cover_image_path)
+                        <img src="{{ $currentLoop->cover_image_url }}" alt=""
+                             data-marqueur="apercu-couverture"
+                             class="h-28 w-full rounded-xl object-cover sm:w-64">
+                    @endif
+
+                    <input type="file" name="cover_image" accept="image/png,image/jpeg,image/webp"
+                           data-marqueur="champ-couverture"
+                           class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-300">
+                    <x-input-error :messages="$errors->get('cover_image')" class="mt-1" />
+
+                    @if($currentLoop->cover_image_path)
+                        <label class="flex cursor-pointer items-center gap-2">
+                            <input type="hidden" name="remove_cover_image" value="0">
+                            <input type="checkbox" name="remove_cover_image" value="1"
+                                   data-marqueur="retrait-couverture"
+                                   class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                            <span class="text-xs text-gray-600 dark:text-gray-300">{{ __('admin.org_admin_loop_cover_remove') }}</span>
+                        </label>
+                    @endif
                 </fieldset>
 
                 <button type="submit"

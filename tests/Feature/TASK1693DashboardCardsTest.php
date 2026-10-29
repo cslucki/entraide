@@ -59,6 +59,43 @@ class TASK1693DashboardCardsTest extends TestCase
         Http::fake();
     }
 
+    /**
+     * TASK-1725 — les quatre cards ont desormais besoin d'AVOIR quelque chose.
+     *
+     * Depuis la demande Cyril du 29/10, une card vide ne s'affiche plus : un
+     * nouvel arrivant ne voit que son On-boarding. Les tests de ce fichier
+     * mesurent la FORME des cards — ouvertes, avec leur bouton « Nouveau »,
+     * avec ou sans ascenseur — et non leur presence inconditionnelle. Ils
+     * doivent donc poser de quoi les faire paraitre.
+     *
+     * Un seul echange suffit pour DEUX cards : « Entraide » et « Messagerie »
+     * lisent le meme perimetre de transactions (c'est l'union posee au bug T).
+     */
+    private function peupleLesQuatreCards(): void
+    {
+        Service::factory()->forUser($this->membre)->create([
+            'organization_id' => $this->organization->id,
+            'status' => 'active',
+        ]);
+
+        ServiceRequest::factory()->forUser($this->membre)->create([
+            'organization_id' => $this->organization->id,
+            'status' => 'open',
+        ]);
+
+        $autre = User::factory()->complete()->create([
+            'organization_id' => $this->organization->id,
+            'email_verified_at' => now(),
+        ]);
+
+        \App\Models\Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            'buyer_id' => $this->membre->id,
+            'seller_id' => $autre->id,
+            'status' => 'accepted',
+        ]);
+    }
+
     private function page(): string
     {
         return $this->actingAs($this->membre)
@@ -70,6 +107,8 @@ class TASK1693DashboardCardsTest extends TestCase
     /** LE defaut signale : les quatre cards arrivent OUVERTES. */
     public function test_every_card_arrives_open(): void
     {
+        $this->peupleLesQuatreCards();
+
         $html = $this->page();
 
         foreach (['services', 'requests', 'exchanges', 'messages'] as $card) {
@@ -139,6 +178,8 @@ class TASK1693DashboardCardsTest extends TestCase
      */
     public function test_the_new_buttons_are_real_buttons(): void
     {
+        $this->peupleLesQuatreCards();
+
         $html = $this->page();
 
         foreach (['services', 'requests'] as $card) {
@@ -158,6 +199,8 @@ class TASK1693DashboardCardsTest extends TestCase
      */
     public function test_exchanges_and_messages_get_their_own_new_button(): void
     {
+        $this->peupleLesQuatreCards();
+
         $html = $this->page();
         $slug = $this->organization->slug;
 
@@ -179,6 +222,8 @@ class TASK1693DashboardCardsTest extends TestCase
      */
     public function test_the_new_button_is_never_inside_the_toggle(): void
     {
+        $this->peupleLesQuatreCards();
+
         $html = $this->page();
 
         foreach (['services', 'requests', 'exchanges', 'messages'] as $card) {

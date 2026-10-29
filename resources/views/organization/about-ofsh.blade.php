@@ -68,16 +68,42 @@ $icones = [
 $realites = ['1' => '#097FD5', '2' => '#158C68', '3' => '#FFC247', '4' => '#F26A35', '5' => '#097FD5', '6' => '#158C68'];
 $valeurs = ['1' => '#097FD5', '2' => '#158C68', '3' => '#FFC247', '4' => '#F26A35'];
 
-$rubriques = [
+// TASK-1725 (arbitrage Cyril, 29/10) — la section 7 disparait quand l'IA de
+// l'Organization est eteinte, ET son entree de sommaire avec elle.
+//
+// ## Pourquoi la section entiere, et pas seulement son titre
+//
+// Le bug 7 avait retire de la page d'ACCUEIL la phrase « L'IA facilite les
+// echanges. L'entraide reste humaine ». Cette phrase est aussi le TITRE de la
+// section 7 — mais ici elle vient avec quatre affirmations de plus : un
+// sur-titre, deux paragraphes decrivant ce que l'IA fait, et un ENGAGEMENT
+// encadre (« Aucune contribution n'est publiee automatiquement sans validation
+// humaine »). Sur une Organization a IA eteinte, la section promet des outils qui
+// n'existent pas et prend un engagement sur ce qui ne tourne pas.
+//
+// ## Les deux vont ENSEMBLE
+//
+// Masquer la section sans retirer son entree du sommaire laisserait une ancre
+// qui ne mene nulle part. Le sommaire est donc filtre par le MEME predicat.
+// `array_filter` retire la cle dont la valeur est `null`, et l'ordre des sept
+// autres est conserve.
+//
+// `availableFor()` et non `memberAgentAvailableFor()` : la section parle du role
+// de l'IA dans les echanges, pas des agents de profil. Meme autorite que le bug 7
+// sur les trois homepages.
+$iaDisponible = app(\App\Support\Ai\AiSurfaceGate::class)
+    ->availableFor((string) $organization->id);
+
+$rubriques = array_filter([
     's-intro' => 'about_nav_1',
     's-purpose' => 'about_nav_2',
     's-values' => 'about_nav_3',
     's-ways' => 'about_nav_4',
     's-loops' => 'about_nav_5',
     's-quiet' => 'about_nav_6',
-    's-ai' => 'about_nav_7',
+    's-ai' => $iaDisponible ? 'about_nav_7' : null,
     's-join' => 'about_nav_8',
-];
+]);
 ?>
 <!DOCTYPE html>
 {{-- TASK-1471 : la clé de thème est posée côté SERVEUR. --}}
@@ -221,7 +247,13 @@ $rubriques = [
     </div>
   </section>
 
-  {{-- 7 ─ Une technologie au service de l'humain --}}
+  {{-- 7 ─ Une technologie au service de l'humain.
+
+       TASK-1725 (arbitrage Cyril, 29/10) — masquee quand l'IA de l'Organization
+       est eteinte. Le predicat est celui du sommaire, calcule UNE fois en tete de
+       fichier : deux conditions pour une meme decision finiraient par se
+       contredire, et l'ancre du sommaire ne menerait plus nulle part. --}}
+  @if($iaDisponible)
   <section class="of-panel of-panel--ai" id="s-ai">
     <div class="of-panel__content">
       <p class="of-kicker">{{ org_trans('ofsh.about_s7_kicker') }}</p>
@@ -237,6 +269,7 @@ $rubriques = [
       </p>
     </div>
   </section>
+  @endif
 
   {{-- 8 ─ Rejoindre le collectif --}}
   <section class="of-panel of-panel--join" id="s-join">

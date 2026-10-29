@@ -38,6 +38,15 @@ class T0751UserDashboardMyRequestsServicesTest extends TestCase
         [$org] = $this->createOrganizations();
         $user = $this->createUserForOrganization($org);
 
+        // TASK-1725 — la card doit avoir de quoi paraitre. Depuis la demande
+        // Cyril du 29/10, une card vide ne s'affiche plus : un nouvel arrivant
+        // ne voit que son On-boarding. Ce test mesure le lien « Voir tout » DE
+        // la card des demandes, donc il lui faut une demande.
+        ServiceRequest::factory()->forUser($user)->create([
+            'organization_id' => $org->id,
+            'status' => 'open',
+        ]);
+
         $this->actingAs($user)
             ->get('/dashboard')
             ->assertOk()

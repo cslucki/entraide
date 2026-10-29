@@ -1,3 +1,4 @@
+@inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 @php
     $user = auth()->user();
     $organizationRouteParam = request()->route('organization') ?: currentOrganization()?->slug ?: $user?->organization?->slug;
@@ -36,7 +37,30 @@
             'url' => $routeUrl('agent-ia.wizard', 'organization.agent-ia.wizard'),
             'active' => request()->routeIs('agent-ia.*', 'organization.agent-ia.*'),
             'icon' => 'M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M14.25 3.104v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M5 14.5l-1.402 1.402c-1.232 1.232-.65 3.318 1.067 3.611A48.309 48.309 0 0012 21c2.773 0 5.491-.235 8.135-.687 1.718-.293 2.3-2.379 1.067-3.61L19.8 15.3',
-            'visible' => ! $currentOrganization || $currentOrganization->ai_profiles_enabled,
+            // TASK-1725 (demande Cyril, 29/10) — « Agent IA » disparait quand l'IA
+            // de l'Organization est eteinte.
+            //
+            // La condition lisait `ai_profiles_enabled` : le reglage « profils IA »,
+            // et rien d'autre. Elle ignorait « Activer les fonctions IA pour cette
+            // organisation » — l'interrupteur maitre. L'entree restait donc au
+            // tableau de bord et menait a un assistant que le serveur refuse. Mot
+            // pour mot le defaut corrige en TASK-1693 bug AF sur l'etape d'accueil ;
+            // il survivait sur cinq surfaces de navigation, celle-ci comprise.
+            //
+            // `memberAgentAvailableFor()` porte les DEUX conditions, et ce gabarit
+            // n'en ecrit aucune.
+            //
+            // `$currentOrganization` est l'Organization que ce fichier a DEJA
+            // resolue pour ses liens (`currentOrganization()` puis celle du
+            // membre) : la garde juge donc le meme tenant que celui vers lequel
+            // l'entree pointe. En interroger un autre ferait se contredire la garde
+            // et sa destination.
+            //
+            // Le `! $currentOrganization ||` disparait a dessein :
+            // `memberAgentAvailableFor(null)` rend FAUX. Sans Organization il n'y a
+            // aucun agent a configurer, et l'ancienne forme laissait justement
+            // passer ce cas.
+            'visible' => $_aiGate->memberAgentAvailableFor($currentOrganization),
         ],
         [
             'key' => 'favorites',

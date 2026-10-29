@@ -198,12 +198,30 @@ class DashboardController extends Controller
             static fn (array $step): bool => $step['status'] !== 'disabled' || $step['cta_url'] !== null,
         ));
 
+        // TASK-1725 (demande Cyril, 29/10) — « si aucune transaction on n'affiche
+        // pas la card concernee », et le cas que cette regle ouvre.
+        //
+        // Les deux booleens sont calcules ICI plutot que dans la vue : la vue
+        // devrait sinon reconstruire la condition de l'accueil une seconde fois,
+        // et deux copies d'une meme regle finissent par ne plus dire la meme
+        // chose. `$onboardingSteps` est deja filtre des etapes verrouillees qui
+        // ne menent nulle part (bug AG) — c'est donc bien le MEME total que
+        // celui affiche « x/y » dans la card.
+        $aucuneDonnee = $myServices->isEmpty()
+            && $myRequests->isEmpty()
+            && $exchanges->isEmpty()
+            && $recentMessages->isEmpty();
+
+        $onboardingTermine = collect($onboardingSteps)
+            ->every(static fn (array $etape): bool => $etape['status'] === 'done');
+
         return view('dashboard', compact(
             'user',
             'myServices', 'myRequests', 'exchanges', 'recentMessages',
             'referralCode', 'referralLink', 'sentReferralsCount', 'activatedReferralsCount', 'referralPointsEarned',
             'aiProfile', 'onboardingSteps', 'requestCreateUrl',
             'aiProfileDisabled', 'subscriptionsEnabled',
+            'aucuneDonnee', 'onboardingTermine',
         ));
     }
 
