@@ -93,6 +93,10 @@ class TASK1724ExternalEgressGuardTest extends TestCase
             'une plage privee' => ['192.168.1.20', false],
             'un hote vide' => ['', false],
             'une ruse de prefixe' => ['127.0.0.1.exemple.com', false],
+            // `0.0.0.0` est une adresse d'ECOUTE, pas de destination :
+            // l'admettre revenait a traiter une cible indeterminee comme
+            // locale.
+            'toutes interfaces' => ['0.0.0.0', false],
         ];
     }
 
@@ -119,6 +123,20 @@ class TASK1724ExternalEgressGuardTest extends TestCase
             'sendmail' => [['transport' => 'sendmail'], false],
             'un transport inconnu' => [['transport' => 'quelque_chose'], false],
             'aucun transport' => [[], false],
+            // `failover` et `roundrobin` DELEGUENT : leur destination depend
+            // de leur propre liste de mailers. Les blanchir blanchirait ce
+            // qu'ils enveloppent.
+            'failover' => [['transport' => 'failover'], false],
+            'roundrobin' => [['transport' => 'roundrobin'], false],
+            // MAIL_URL gouverne, DANS LES DEUX SENS.
+            'host local mais URL externe' => [
+                ['transport' => 'smtp', 'host' => '127.0.0.1', 'port' => 1025, 'url' => 'smtp://u:p@smtp.exemple.com:587'],
+                false,
+            ],
+            'host externe mais URL locale' => [
+                ['transport' => 'smtp', 'host' => 'smtp.exemple.com', 'url' => 'smtp://127.0.0.1:1025'],
+                true,
+            ],
         ];
     }
 
@@ -133,6 +151,35 @@ class TASK1724ExternalEgressGuardTest extends TestCase
     public function test_only_a_local_mailer_is_allowed(array $reglage, bool $attendu): void
     {
         $this->assertSame($attendu, ExternalEgressGuard::mailerEstLocal($reglage));
+    }
+
+    /**
+     * Le reglage effectif est celui que LARAVEL emploiera.
+     *
+     * Calque de `MailManager::getConfig()` : quand `url` est fourni, il est
+     * fusionne et son `driver` devient le `transport`. Lire `host` seul etait
+     * faux DEUX fois — trop permissif quand l'url pointait dehors, trop
+     * strict quand elle pointait le bouclage.
+     */
+    public function test_the_effective_mail_config_follows_the_url(): void
+    {
+        $resolu = ExternalEgressGuard::reglageMailEffectif([
+            'transport' => 'smtp',
+            'host' => '127.0.0.1',
+            'url' => 'smtp://u:p@smtp.exemple.com:587',
+        ]);
+
+        $this->assertSame('smtp.exemple.com', $resolu['host'], "l'url gouverne l'hote");
+        $this->assertSame('smtp', $resolu['transport'], 'le driver de l\'url devient le transport');
+        $this->assertArrayNotHasKey('driver', $resolu, 'le driver est consomme, comme dans MailManager');
+    }
+
+    /** Sans `url`, le reglage passe tel quel : aucune transformation surprise. */
+    public function test_a_config_without_url_is_untouched(): void
+    {
+        $reglage = ['transport' => 'smtp', 'host' => '127.0.0.1', 'port' => 1025];
+
+        $this->assertSame($reglage, ExternalEgressGuard::reglageMailEffectif($reglage));
     }
 
     // =====================================================================
