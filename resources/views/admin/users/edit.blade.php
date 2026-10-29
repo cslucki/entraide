@@ -270,6 +270,73 @@
             </div>
         </form>
 
+        {{-- TASK-1725 bug 1 (demande Cyril, 29/10) — changer le mot de passe depuis
+             la FICHE, et non plus depuis la liste.
+
+             ## Pourquoi le geste quitte la liste
+
+             La liste portait un panneau deplie en Alpine, large de 60 unites,
+             pose en `absolute` dans une cellule de tableau. Il obligeait a viser
+             un libelle « Mdp » de la taille d'un mot au bout d'une colonne
+             Actions deja saturee — TASK-1714 avait justement masque cinq colonnes
+             pour lui gagner de la place. Un geste qui redefinit un acces se
+             decide sur la fiche de la personne, ou son nom et son adresse sont
+             sous les yeux.
+
+             ## Hors du formulaire principal, et ce n'est pas un detail
+
+             Ce bloc est pose APRES `</form>`, comme la carte Points juste en
+             dessous. Imbriquer un `<form>` dans un autre est invalide en HTML et
+             le navigateur recolle l'arbre a sa facon : le formulaire interieur
+             disparait ou avale les champs du premier. Rien ne le signale cote
+             serveur et les tests passent — defaut deja paye en TASK-1668.
+
+             Le mot de passe n'est donc PAS un champ de `admin.users.update` : il
+             garde sa route POST dediee et son propre bouton. Un champ parmi les
+             autres exigerait de ne hacher que s'il est rempli, et l'oubli de
+             cette garde ecraserait le mot de passe a chaque enregistrement de la
+             fiche.
+
+             Route et controleur sont ceux d'avant, inchanges :
+             `AdminController::changePassword()` valide `min:8|confirmed` et
+             termine par `back()`, donc le retour se fait sur cette fiche. --}}
+        <div class="mt-5 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 space-y-4"
+             data-user-password-panel="{{ $user->id }}">
+            <div>
+                <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    {{ __('admin.password_section') }}
+                </h2>
+                <p class="mt-1 text-xs text-gray-400">{{ __('admin.password_section_hint') }}</p>
+            </div>
+
+            <form method="POST" action="{{ route('admin.users.password', $user) }}" class="space-y-3">
+                @csrf
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <div>
+                        <label for="admin-user-password" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            {{ __('admin.password_new') }}
+                        </label>
+                        <input type="password" name="password" id="admin-user-password"
+                               required minlength="8" autocomplete="new-password"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                    </div>
+                    <div>
+                        <label for="admin-user-password-confirmation" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            {{ __('admin.password_confirm') }}
+                        </label>
+                        <input type="password" name="password_confirmation" id="admin-user-password-confirmation"
+                               required minlength="8" autocomplete="new-password"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400">{{ __('admin.password_min_hint') }}</p>
+                <button type="submit"
+                        class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded-lg transition">
+                    {{ __('admin.password_submit') }}
+                </button>
+            </form>
+        </div>
+
         {{-- TASK-1693 bug F — corriger le solde depuis la fiche.
 
              ## Hors du formulaire principal, et ce n'est pas un detail

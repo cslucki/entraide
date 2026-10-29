@@ -1849,6 +1849,15 @@ return [
     'points_reset' => 'Reset to zero (:balance pts)',
     'points_member_any' => '— All members —',
     'points_adjust_hint' => 'Pick a person then “Filter” to add, remove or reset their points.',
+
+    // TASK-1725 bug 1 — passwords are changed from the member's RECORD, no
+    // longer from the list.
+    'password_section' => 'Password',
+    'password_section_hint' => 'Set a new password directly. The member is not notified: to let them choose their own, send a reset link from the member list instead.',
+    'password_new' => 'New password',
+    'password_confirm' => 'Confirm password',
+    'password_min_hint' => '8 characters minimum.',
+    'password_submit' => 'Change password',
     'points_section' => 'Points',
     'points_section_hint' => 'A ledger is append-only: a correction ADDS an entry, it never edits or deletes one.',
     'points_current_balance' => 'Current balance:',

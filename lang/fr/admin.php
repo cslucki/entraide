@@ -1869,6 +1869,16 @@ return [
     'points_reset' => 'Remettre a zero (:balance pts)',
     'points_member_any' => '— Tous les membres —',
     'points_adjust_hint' => 'Choisissez une personne puis « Filtrer » pour ajouter, retirer ou remettre a zero ses points.',
+
+    // TASK-1725 bug 1 — le mot de passe se change depuis la FICHE, plus depuis
+    // la liste. Libelles explicites : la carte porte le nom de la personne
+    // editee, ce que le panneau deplie de la liste ne pouvait pas faire.
+    'password_section' => 'Mot de passe',
+    'password_section_hint' => "Definir directement un nouveau mot de passe. Le membre n'en est pas averti : pour qu'il choisisse le sien, employez plutot l'envoi d'un lien de reinitialisation depuis la liste des membres.",
+    'password_new' => 'Nouveau mot de passe',
+    'password_confirm' => 'Confirmer le mot de passe',
+    'password_min_hint' => '8 caracteres au minimum.',
+    'password_submit' => 'Changer le mot de passe',
     'points_section' => 'Points',
     'points_section_hint' => "Un grand livre est append-only : corriger AJOUTE une ecriture, cela n'en modifie et n'en supprime aucune.",
     'points_current_balance' => 'Solde actuel :',

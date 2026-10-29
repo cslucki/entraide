@@ -669,32 +669,6 @@
                                     {{ __('admin.users_password_reset_link') }}
                                 </button>
                             </form>
-
-                            <!-- Changer le mot de passe -->
-                            <div x-data="{ pwOpen: false }" class="relative">
-                                <button @click="pwOpen = !pwOpen"
-                                        class="text-xs text-gray-400 hover:text-orange-500">Mdp</button>
-                                <div x-show="pwOpen" x-cloak @click.outside="pwOpen = false"
-                                     class="absolute right-0 mt-1 w-60 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-10 p-3">
-                                    <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                        Changer le mot de passe
-                                    </p>
-                                    <form method="POST" action="{{ route('admin.users.password', $u) }}"
-                                          class="space-y-2">
-                                        @csrf
-                                        <input type="password" name="password" placeholder="Nouveau mdp"
-                                               required minlength="8"
-                                               class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-                                        <input type="password" name="password_confirmation" placeholder="Confirmer"
-                                               required minlength="8"
-                                               class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-                                        <button type="submit"
-                                                class="w-full px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs rounded transition">
-                                            Changer
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
                         </div>
                     </td>
                 </tr>

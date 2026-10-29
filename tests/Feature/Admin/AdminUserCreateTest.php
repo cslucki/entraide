@@ -142,6 +142,11 @@ class AdminUserCreateTest extends TestCase
     }
 
     // ── Change password ───────────────────────────────────────────────────────
+    // TASK-1725 bug 1 — le geste n'a pas change d'AUTORITE, il a change de LIEU.
+    // Les trois tests ci-dessous (POST) continuent de mesurer la route, qui est
+    // intacte. Les trois suivants mesurent le deplacement lui-meme : sans eux, un
+    // retour en arriere sur l'une des deux vues passerait inapercu, puisque la
+    // route resterait verte dans les deux cas.
 
     public function test_admin_can_change_user_password(): void
     {
@@ -181,6 +186,54 @@ class AdminUserCreateTest extends TestCase
                 'password_confirmation' => 'short',
             ])
             ->assertSessionHasErrors('password');
+    }
+    // ── TASK-1725 bug 1 : ou vit le formulaire ─────────────────────────────────
+
+    public function test_edit_page_carries_the_password_form(): void
+    {
+        $admin = $this->makeAdmin();
+        $target = User::factory()->create();
+
+        $this->actingAs($admin)
+            ->get(route('admin.users.edit', $target))
+            ->assertOk()
+            // L'action du formulaire, pas seulement un libelle : c'est elle qui
+            // prouve que le bloc poste bien sur la route de changement, et que la
+            // fiche visee est celle de CETTE personne.
+            ->assertSee(route('admin.users.password', $target), false)
+            ->assertSee('name="password_confirmation"', false)
+            ->assertSee(__('admin.password_submit'));
+    }
+
+    public function test_users_list_no_longer_carries_the_password_form(): void
+    {
+        $admin = $this->makeAdmin();
+        $target = User::factory()->create();
+
+        $reponse = $this->actingAs($admin)->get(route('admin.users'))->assertOk();
+
+        // La personne est bien dans le tableau : sans cette garde, un filtre qui
+        // viderait la liste rendrait l'absence ci-dessous vraie pour la mauvaise
+        // raison.
+        $reponse->assertSee($target->email);
+
+        $reponse->assertDontSee(route('admin.users.password', $target), false);
+        $reponse->assertDontSee('name="password_confirmation"', false);
+    }
+
+    public function test_users_list_still_carries_the_password_reset_link(): void
+    {
+        $admin = $this->makeAdmin();
+        $target = User::factory()->create();
+
+        // Geste DISTINCT, volontairement conserve sur la liste : il envoie un lien
+        // au membre au lieu de lui imposer un mot de passe, donc il respecte la
+        // preuve de possession de l'adresse et il est trace dans EmailLog.
+        $this->actingAs($admin)
+            ->get(route('admin.users'))
+            ->assertOk()
+            ->assertSee(route('admin.users.send-password-reset', $target), false)
+            ->assertSee(__('admin.users_password_reset_link'));
     }
 
     public function test_non_admin_cannot_change_password(): void
