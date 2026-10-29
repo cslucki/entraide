@@ -275,6 +275,29 @@ final class DestructiveDatabaseGuard
      * sqlite est toujours sur : `:memory:` ne survit pas au processus, et un
      * fichier sqlite de banc est jetable par construction.
      */
+    /**
+     * Ce reglage designe-t-il un BANC ?
+     *
+     * Publique parce que c'est LA decision de ce garde, et qu'elle doit
+     * pouvoir etre prouvee seule. Les deux gardes du depot s'arment dans un
+     * ordre qui depend de l'environnement : une garde qui passerait par
+     * l'exception finale testerait « lequel a parle en premier », pas la
+     * regle. Ici on interroge la regle.
+     *
+     * Le reglage est resolu comme Laravel le resoudra, `url` compris.
+     *
+     * @param  array<string, mixed>  $reglage
+     */
+    public static function viseUnBanc(array $reglage): bool
+    {
+        $resolu = (new ConfigurationUrlParser)->parseConfiguration($reglage);
+
+        return self::estAutorisee(
+            (string) ($resolu['driver'] ?? ''),
+            (string) ($resolu['database'] ?? ''),
+        );
+    }
+
     private static function estAutorisee(string $pilote, string $base): bool
     {
         if ($pilote === 'sqlite') {

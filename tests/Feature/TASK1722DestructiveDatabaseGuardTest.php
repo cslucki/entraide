@@ -3,7 +3,11 @@
 namespace Tests\Feature;
 
 use App\Support\Ops\DestructiveDatabaseGuard;
+use Illuminate\Database\Connection;
+use Illuminate\Database\Events\ConnectionEstablished;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -12,11 +16,19 @@ use Tests\TestCase;
  *
  * ## Ce que ces gardes mesurent, et ce qu'elles ne font JAMAIS
  *
- * Elles n'executent aucune commande destructrice. Elles ouvrent une connexion
- * vers une base JETABLE et vide (`bouclepro_t1722_scratch`), puis tentent une
- * ecriture triviale : le garde doit la refuser parce que le NOM de la base ne
- * designe pas un banc. Consigne MASTER : « prouver le refus des chemins
- * dangereux sans jamais les executer sur une vraie base de developpement ».
+ * Elles n'executent aucune commande destructrice et n'exigent AUCUNE
+ * infrastructure : la connexion reste sqlite en memoire, on lui fait
+ * seulement DECLARER le pilote et le nom d'une base de travail. Les
+ * instructions s'executent donc pour de vrai, et le garde doit refuser
+ * l'ecriture tout en laissant passer la lecture.
+ *
+ * Premier jet corrige : ces gardes visaient une base jetable LOCALE. Elles
+ * passaient ici et ont rougi la CI, qui n'a pas cette base — une garde de
+ * securite qui exige l'infrastructure de son auteur ne protege personne
+ * d'autre que lui.
+ *
+ * Consigne MASTER : « prouver le refus des chemins dangereux sans jamais les
+ * executer sur une vraie base de developpement ».
  *
  * ## Pourquoi pas `Artisan::call('migrate:fresh')`
  *
@@ -36,55 +48,88 @@ use Tests\TestCase;
  */
 class TASK1722DestructiveDatabaseGuardTest extends TestCase
 {
-    private const JETABLE = 'bouclepro_t1722_scratch';
+    /**
+     * Le nom d'une base de TRAVAIL, porte par une connexion sqlite reelle.
+     *
+     * ## Pourquoi ce montage plutot qu'une vraie base PostgreSQL
+     *
+     * Le premier jet de ces gardes visait une base jetable locale. Elles
+     * passaient ici et ont ROUGI la CI, qui n'a evidemment pas cette base :
+     * une garde de securite qui exige une infrastructure locale ne protege
+     * personne d'autre que son auteur.
+     *
+     * On fabrique donc une connexion qui MENT sur son identite — meme procede
+     * que `TASK1367ArtisanDatabaseGuardTest` : le moteur reste sqlite en
+     * memoire, donc les instructions s'executent pour de vrai, mais le pilote
+     * et le nom declares sont ceux d'une base de travail. Le garde lit la
+     * configuration, voit `pgsql` / `bouclepro`, et doit refuser.
+     *
+     * Ce montage prouve les deux moities d'un coup, partout, sans serveur :
+     * l'ecriture est refusee, et la lecture passe.
+     */
+    private const NOM_DE_TRAVAIL = 'bouclepro';
 
-    private function reglagePgsql(): array
+    /**
+     * Une connexion sqlite reelle qui se DECLARE pgsql sur une base de travail.
+     */
+    private function connexionDeguisee(string $base): Connection
     {
-        $defaut = config('database.connections.pgsql');
+        $connexion = DB::connection();
 
-        return is_array($defaut) ? $defaut : [];
+        $propriete = new \ReflectionProperty(Connection::class, 'config');
+        $config = $propriete->getValue($connexion);
+
+        $this->configOrigine ??= $config;
+
+        $config['driver'] = 'pgsql';
+        $config['database'] = $base;
+        $propriete->setValue($connexion, $config);
+
+        // Le garde s'arme a l'etablissement : on rejoue l'evenement sur la
+        // connexion devenue suspecte.
+        Event::dispatch(
+            new ConnectionEstablished($connexion)
+        );
+
+        return $connexion;
     }
 
-    private function connexionVers(string $nom, string $base): void
-    {
-        config(["database.connections.{$nom}" => array_merge($this->reglagePgsql(), [
-            'driver' => 'pgsql',
-            'database' => $base,
-        ])]);
-    }
+    private ?array $configOrigine = null;
 
-    private function exigePostgres(): void
+    protected function tearDown(): void
     {
-        if (! extension_loaded('pdo_pgsql')) {
-            $this->markTestSkipped('PostgreSQL indisponible sur ce banc.');
+        if ($this->configOrigine !== null) {
+            $propriete = new \ReflectionProperty(Connection::class, 'config');
+            $propriete->setValue(DB::connection(), $this->configOrigine);
+            $this->configOrigine = null;
         }
+
+        parent::tearDown();
     }
 
     /**
      * LE cas du 28/10 : un test qui ecrit dans une base de travail.
      *
      * L'assertion porte sur le REFUS, pas sur le libelle d'une couche
-     * precise. Deux gardes INDEPENDANTS couvrent desormais ce geste, et
-     * lequel parle en premier depend de l'environnement :
+     * precise. Deux gardes INDEPENDANTS couvrent ce geste, et lequel parle en
+     * premier depend de l'environnement :
      *
-     * - sous `bin/test`, `APP_ENV` vaut `testing` : {@see ArtisanDatabaseGuard}
-     *   (TASK-1367) voit la contradiction « testing annonce, pgsql vise » et
-     *   refuse — c'est lui qu'on entend ici ;
+     * - sous `bin/test`, `APP_ENV` vaut `testing` : `ArtisanDatabaseGuard`
+     *   (TASK-1367) voit la contradiction « testing annonce, pgsql vise » ;
      * - sous `php artisan test --env=testing`, `APP_ENV` retombe a `local` :
      *   ce garde-la se TAIT, et seule la couche de TASK-1722 subsiste.
      *
-     * Asserter le libelle du premier aurait donc rendu la garde muette sur le
-     * seul cas qui a detruit la base. C'est le refus qui est l'invariant.
+     * Asserter le libelle du premier aurait rendu la garde muette sur le seul
+     * cas qui a detruit la base.
      */
     public function test_a_test_cannot_write_to_a_work_database(): void
     {
-        $this->exigePostgres();
-        $this->connexionVers('t1722_travail', self::JETABLE);
+        $connexion = $this->connexionDeguisee(self::NOM_DE_TRAVAIL);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageMatches('/(ECRITURE DE BANC REFUSEE|ECRITURE REFUSEE)/');
 
-        DB::connection('t1722_travail')->statement('CREATE TABLE t1722_jamais (id int)');
+        $connexion->statement('create table t1722_jamais (id integer)');
     }
 
     /**
@@ -93,39 +138,72 @@ class TASK1722DestructiveDatabaseGuardTest extends TestCase
      */
     public function test_reading_a_work_database_stays_possible(): void
     {
-        $this->exigePostgres();
-        $this->connexionVers('t1722_lecture', self::JETABLE);
+        $connexion = $this->connexionDeguisee(self::NOM_DE_TRAVAIL);
 
-        $this->assertSame(1, (int) DB::connection('t1722_lecture')->selectOne('select 1 as n')->n);
+        $this->assertSame(1, (int) $connexion->selectOne('select 1 as n')->n);
     }
 
     /**
-     * Le nom lu est celui que LARAVEL resoudra : `DB_URL` gouverne quand il
-     * est la, et la cle `database` peut alors designer tout autre chose.
+     * `DB_URL` gouverne quand il est la, et la cle `database` peut alors
+     * designer tout autre chose.
+     *
+     * On interroge la REGLE, pas l'exception finale : les deux gardes du
+     * depot s'arment dans un ordre qui depend de l'environnement, et
+     * `ArtisanDatabaseGuard` rapporte le nom non resolu. Passer par le message
+     * aurait teste « lequel a parle en premier ».
      */
-    public function test_a_database_url_cannot_smuggle_a_work_database_past_the_guard(): void
+    public function test_a_database_url_cannot_smuggle_a_work_database_past_the_rule(): void
     {
-        $this->exigePostgres();
-        $reglage = $this->reglagePgsql();
-
-        $hote = $reglage['host'] ?? '127.0.0.1';
-        $port = $reglage['port'] ?? '5432';
-        $utilisateur = rawurlencode((string) ($reglage['username'] ?? ''));
-        $motDePasse = rawurlencode((string) ($reglage['password'] ?? ''));
-
-        config(['database.connections.t1722_url' => array_merge($reglage, [
+        $leurre = [
             'driver' => 'pgsql',
-            'url' => "pgsql://{$utilisateur}:{$motDePasse}@{$hote}:{$port}/".self::JETABLE,
-            // Le leurre : un nom de banc dans la cle qu'un garde naif lirait.
+            'url' => 'pgsql://personne@127.0.0.1:5432/'.self::NOM_DE_TRAVAIL,
+            // Le nom de banc que lirait un garde naif.
             'database' => 'quelque_chose_test',
-        ])]);
+        ];
 
-        $this->expectException(RuntimeException::class);
-        // Le nom REEL doit apparaitre dans le refus, quelle que soit la couche
-        // qui parle : c'est la preuve que le leurre `database` n'a pas servi.
-        $this->expectExceptionMessageMatches('/'.self::JETABLE.'/');
+        $this->assertFalse(
+            DestructiveDatabaseGuard::viseUnBanc($leurre),
+            "l'url designe une base de travail : le leurre `database` ne doit pas la blanchir"
+        );
+    }
 
-        DB::connection('t1722_url')->statement('CREATE TABLE t1722_jamais (id int)');
+    /** La reciproque : une url qui designe VRAIMENT un banc passe. */
+    public function test_a_database_url_pointing_at_a_test_database_is_allowed(): void
+    {
+        $this->assertTrue(DestructiveDatabaseGuard::viseUnBanc([
+            'driver' => 'pgsql',
+            'url' => 'pgsql://personne@127.0.0.1:5432/bouclepro_test',
+            'database' => 'bouclepro',
+        ]), "l'url designe un banc : c'est elle qui gouverne, pas la cle `database`");
+    }
+
+    /** @return array<string, array{0: array<string, mixed>, 1: bool}> */
+    public static function reglages(): array
+    {
+        return [
+            'sqlite en memoire' => [['driver' => 'sqlite', 'database' => ':memory:'], true],
+            'sqlite fichier' => [['driver' => 'sqlite', 'database' => '/tmp/banc.sqlite'], true],
+            'la base de la CI' => [['driver' => 'pgsql', 'database' => 'bouclepro_test'], true],
+            'la base de travail' => [['driver' => 'pgsql', 'database' => 'bouclepro'], false],
+            'un jumeau PROD' => [['driver' => 'pgsql', 'database' => 'bouclepro_prod_baseline_1714_20261028'], false],
+            'la PROD' => [['driver' => 'pgsql', 'database' => 'entraide'], false],
+            'nom vide' => [['driver' => 'pgsql', 'database' => ''], false],
+            'reglage vide' => [[], false],
+        ];
+    }
+
+    /**
+     * La table de verite de la regle, cas par cas.
+     *
+     * « nom vide » et « reglage vide » valent FALSE : fail-closed. Ne pas
+     * savoir ce qu'on vise n'autorise pas a ecrire.
+     *
+     * @param  array<string, mixed>  $reglage
+     */
+    #[DataProvider('reglages')]
+    public function test_the_rule_classifies_each_target(array $reglage, bool $attendu): void
+    {
+        $this->assertSame($attendu, DestructiveDatabaseGuard::viseUnBanc($reglage));
     }
 
     /** sqlite est toujours un banc : la suite entiere en depend. */
