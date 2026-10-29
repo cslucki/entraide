@@ -20,6 +20,7 @@ use App\Models\Tag;
 use App\Models\Transaction;
 use App\Notifications\WelcomeNotification;
 use App\Models\User;
+use App\Rules\UniqueEmailInOrganization;
 use App\Services\Admin\PlatformDashboardMetrics;
 use App\Services\EmailerService;
 use App\Services\UserDataLifecycleRegistry;
@@ -247,7 +248,15 @@ class AdminController extends Controller
             'name' => 'required|string|max:255',
             // TASK-1693 bug Z — l'adresse publique du profil.
             'slug' => 'nullable|string|max:60',
-            'email' => 'required|email|max:255|unique:users,email,'.$user->id,
+            // TASK-1729 (A4) + arbitrage MASTER D3 — `lowercase` AJOUTE.
+            //
+            // Cet ecran etait le seul des quatre a enregistrer une adresse sans
+            // la normaliser, et `OrganizationInvitationService` en avait deja
+            // souffert : `Alice@x.com` passait quand on invitait `alice@x.com`.
+            // Sans cette ligne, le nouveau composite serait contournable par la
+            // casse le jour meme de sa pose.
+            'email' => ['required', 'email', 'lowercase', 'max:255',
+                new UniqueEmailInOrganization($user->organization_id, $user->id)],
             'phone' => 'nullable|string|max:30',
             'bio' => 'nullable|string|max:500',
             'city' => 'nullable|string|max:255',
@@ -758,7 +767,11 @@ class AdminController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email',
+            // TASK-1729 (A4) + D3 — meme ajout de `lowercase` que ci-dessus.
+            // L'Organization d'accueil est celle resolue plus bas par
+            // `organizationDAccueilParDefaut()` ; la regle la resout ici.
+            'email' => ['required', 'email', 'lowercase', 'max:255',
+                new UniqueEmailInOrganization($this->organizationDAccueilParDefaut()->getKey())],
             'password' => 'required|string|min:8|confirmed',
             'is_admin' => 'boolean',
             'points' => 'required|integer|min:0',

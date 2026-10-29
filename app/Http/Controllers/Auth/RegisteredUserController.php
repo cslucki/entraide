@@ -8,6 +8,7 @@ use App\Models\Country;
 use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\User;
+use App\Rules\UniqueEmailInOrganization;
 use App\Rules\NomDePersonneAcceptable;
 use App\Rules\TurnstileValide;
 use App\Services\Acquisition\AcquisitionEventRecorder;
@@ -172,6 +173,20 @@ class RegisteredUserController extends Controller
         $menu = $this->menuEstPropose($arrivee);
         $ouvertes = $menu ? $this->organizationsOuvertes() : collect();
 
+        // TASK-1729 (A4) — l'Organization d'accueil, resolue AVANT la
+        // validation parce que la regle d'unicite en a besoin.
+        //
+        // L'expression est celle qui vivait APRES le `validate()`, deplacee
+        // telle quelle. Elle est sure ici pour la raison que son commentaire
+        // d'origine donnait deja : `firstWhere` puise dans `$ouvertes`, la
+        // liste DEJA validee, donc un slug inconnu rend `null` et l'on retombe
+        // sur l'Organization d'arrivee. Et si ce slug est invalide, la regle
+        // `organisation_confirmee` ci-dessous refuse de toute facon la
+        // requete : aucun compte ne nait.
+        $organization = $menu
+            ? ($ouvertes->firstWhere('slug', $request->string('organisation_confirmee')->toString()) ?? $arrivee)
+            : $arrivee;
+
         $request->validate([
             'attribution' => ['sometimes', 'array:shortcut,utm_source,utm_medium,utm_campaign'],
             'attribution.shortcut' => ['nullable', 'string', 'max:32'],
@@ -184,7 +199,13 @@ class RegisteredUserController extends Controller
             // email de bienvenue.
             'name' => ['required', 'string', 'max:255', new NomDePersonneAcceptable],
             'first_name' => ['required', 'string', 'max:255', new NomDePersonneAcceptable],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            // TASK-1729 (A4) — l'unicite devient celle de l'ORGANIZATION d'accueil.
+            // `unique:User::class` posait la question a la plateforme entiere ;
+            // elle se pose desormais au tenant dans lequel on s'inscrit, et sans
+            // distinction de casse. L'Organization est resolue plus bas, mais la
+            // regle en a besoin MAINTENANT : on la resout donc en amont.
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255',
+                new UniqueEmailInOrganization($organization?->getKey())],
             'phone' => ['required', 'string', 'max:30'],
             'country_code' => ['required', 'string', 'size:2', 'exists:countries,code'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
@@ -232,12 +253,7 @@ class RegisteredUserController extends Controller
         ]);
 
         // L'organisation DESIGNEE l'emporte quand le menu existe ; sinon celle
-        // de l'URL. `firstWhere` puise dans la liste deja validee : aucune
-        // seconde requete, et aucun slug non verifie ne peut arriver ici.
-        $organization = $menu
-            ? ($ouvertes->firstWhere('slug', $request->string('organisation_confirmee')->toString()) ?? $arrivee)
-            : $arrivee;
-
+        // de l'URL. Resolue plus haut, avant la validation — voir TASK-1729.
         if (! $organization) {
             throw ValidationException::withMessages([
                 'email' => 'Aucune organisation active n\'est disponible pour l\'inscription.',

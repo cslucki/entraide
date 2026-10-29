@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PointLedger;
 use App\Models\User;
+use App\Rules\UniqueEmailInOrganization;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\JsonResponse;
 use App\Support\ScenarioManager\SandboxGuard;
@@ -17,16 +18,23 @@ class AuthController extends Controller
 {
     public function register(Request $request): JsonResponse
     {
+        // TASK-1729 (A4) — l'Organization d'accueil est resolue AVANT la
+        // validation, parce que la regle d'unicite en a besoin : une adresse
+        // n'est plus unique « sur la plateforme » mais DANS un tenant. Elle
+        // etait resolue juste apres ; elle ne l'est plus qu'ici, et la ligne
+        // qui suivait a disparu.
+        $organization = currentOrganization() ?? DefaultOrganizationResolver::resolve();
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'first_name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users'],
+            // TASK-1729 (A4) — unicite par Organization d'accueil, sans casse.
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255',
+                new UniqueEmailInOrganization($organization?->getKey())],
             'phone' => ['required', 'string', 'max:30'],
             'country_code' => ['required', 'string', 'size:2', 'exists:countries,code'],
             'password' => ['required', 'confirmed', Password::defaults()],
         ]);
-
-        $organization = currentOrganization() ?? DefaultOrganizationResolver::resolve();
 
         // TASK-1650 — le MEME refus que la route web, par le MEME predicat.
         //

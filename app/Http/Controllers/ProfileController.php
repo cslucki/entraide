@@ -14,6 +14,7 @@ use App\Rules\NomDePersonneAcceptable;
 use App\Services\UserSlugService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use App\Rules\UniqueEmailInOrganization;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
@@ -274,7 +275,11 @@ class ProfileController extends Controller
             // cette regle, il suffirait de s'inscrire proprement puis de se
             // renommer.
             'name' => ['required', 'string', 'max:255', new NomDePersonneAcceptable],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email,'.$request->user()->id],
+            // TASK-1729 (A4) — unicite dans SON Organization, son propre compte
+            // excepte. L'Organization n'est pas un choix ici : elle est celle du
+            // compte, et elle est immuable depuis T1726.
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255',
+                new UniqueEmailInOrganization($request->user()->organization_id, $request->user()->id)],
             'phone' => ['required', 'string', 'max:30'],
             'show_email' => ['nullable', 'boolean'],
             'show_phone' => ['nullable', 'boolean'],
