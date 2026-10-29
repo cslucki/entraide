@@ -41,11 +41,11 @@ class TASK1086LoopLifecycleTest extends TestCase
     {
         parent::setUp();
 
-        $this->orgAdmin = User::factory()->create();
         $this->org = Organization::factory()->create([
-            'is_active' => true, 'admin_id' => $this->orgAdmin->id,
+            'is_active' => true,
         ]);
-        $this->orgAdmin->update(['organization_id' => $this->org->id]);
+        $this->orgAdmin = User::factory()->create(['organization_id' => $this->org->id]);
+        $this->org->update(['admin_id' => $this->orgAdmin->id]);
 
         $this->owner = $this->userInOrg();
         $this->facilitator = $this->userInOrg();

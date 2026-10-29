@@ -4,6 +4,7 @@ namespace Tests\Feature\Admin;
 
 use App\Models\Organization;
 use App\Models\User;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class AdminUsersTest extends TestCase
@@ -180,60 +181,40 @@ class AdminUsersTest extends TestCase
             ->assertSee(__('admin.mark_available'));
     }
 
-    // ── Assign community ──────────────────────────────────────────────────────
+    // ── Organization immuable (TASK-1726) ────────────────────────────────────
 
-    public function test_admin_can_assign_user_to_community(): void
+    /**
+     * Les QUATRE tests qui vivaient ici mesuraient
+     * `PATCH /admin/users/{user}/assign-organization` : affecter un compte,
+     * le renvoyer a l'Organization par defaut en postant un champ vide,
+     * s'interdire de s'affecter soi-meme, refuser un uuid inconnu.
+     *
+     * Ils sont remplaces par celui-ci, et non simplement supprimes : une
+     * capacite retiree doit laisser une trace de son retrait a l'endroit meme
+     * ou elle etait prouvee, sinon la prochaine relecture conclut a un oubli.
+     *
+     * Le reste de la preuve T1726 — refus par le modele, conservation a
+     * l'edition, exceptions legitimes — vit dans
+     * `tests/Feature/TASK1726OrganizationImmuableTest.php`.
+     */
+    public function test_la_route_d_affectation_d_organization_n_existe_plus(): void
     {
+        $this->assertFalse(
+            Route::has('admin.users.assign-organization'),
+            "La route d'affectation doit avoir disparu, pas seulement son bouton."
+        );
+
         $admin = $this->makeAdmin();
-        $user = User::factory()->create(['organization_id' => null]);
-        $organization = Organization::factory()->create(['is_active' => true]);
-
-        $this->actingAs($admin)
-            ->patch(route('admin.users.assign-organization', $user), ['organization_id' => $organization->id])
-            ->assertRedirect()
-            ->assertSessionHas('success');
-
-        $this->assertEquals($organization->id, $user->fresh()->organization_id);
-    }
-
-    public function test_blank_assignment_moves_user_to_default_organization(): void
-    {
-        $admin = $this->makeAdmin();
-        $defaultOrganization = Organization::factory()->create(['slug' => 'main', 'is_active' => true, 'is_default' => true]);
         $organization = Organization::factory()->create(['is_active' => true]);
         $user = User::factory()->create(['organization_id' => $organization->id]);
 
+        // L'URL en dur, parce que `route()` ne sait plus la construire. C'est
+        // le serveur qu'on mesure ici, pas le helper.
         $this->actingAs($admin)
-            ->patch(route('admin.users.assign-organization', $user), ['organization_id' => null])
-            ->assertRedirect()
-            ->assertSessionHas('success');
+            ->patch('/admin/users/'.$user->id.'/assign-organization', ['organization_id' => $organization->id])
+            ->assertNotFound();
 
-        $this->assertEquals($defaultOrganization->id, $user->fresh()->organization_id);
-    }
-
-    public function test_admin_cannot_assign_themselves_to_organization(): void
-    {
-        $admin = $this->makeAdmin();
-        $organization = Organization::factory()->create(['is_active' => true]);
-
-        $this->actingAs($admin)
-            ->patch(route('admin.users.assign-organization', $admin), ['organization_id' => $organization->id])
-            ->assertRedirect()
-            ->assertSessionHas('error');
-
-        $this->assertNotNull($admin->fresh()->organization_id);
-    }
-
-    public function test_assign_organization_rejects_invalid_organization_id(): void
-    {
-        $admin = $this->makeAdmin();
-        $user = User::factory()->create(['organization_id' => null]);
-
-        $this->actingAs($admin)
-            ->patch(route('admin.users.assign-organization', $user), ['organization_id' => 'nonexistent-uuid'])
-            ->assertSessionHasErrors('organization_id');
-
-        $this->assertNull($user->fresh()->organization_id);
+        $this->assertSame($organization->id, $user->fresh()->organization_id);
     }
 
     public function test_admin_users_list_shows_community_column(): void

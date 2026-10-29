@@ -396,7 +396,23 @@ class TASK1261CreditLedgerCutoverTest extends TestCase
         ]);
 
         // memberA change d'Organization en cours de mois.
-        $this->memberA->update(['organization_id' => $this->orgB->id]);
+        //
+        // TASK-1726 — le PRODUIT ne permet plus ce changement, mais l'etat que
+        // ce test mesure reste atteignable, et il existe deja en base :
+        //
+        //   - les lignes ecrites AVANT T1726, du temps ou `/admin/users`
+        //     reaffectait les comptes. Elles ne disparaissent pas ;
+        //   - la suppression d'une Organization, qui detache ses membres a
+        //     NULL, suivie d'une reparation d'orphelins vers une AUTRE
+        //     Organization. Deux gestes legitimes, meme resultat.
+        //
+        // La fixture passe donc par le constructeur de requetes — le chemin
+        // qu'emploient ces deux reparations — au lieu du modele, qui refuse. Ce
+        // n'est pas un contournement de la garde : c'est le seul chemin par
+        // lequel cet etat se produit encore, donc le seul qui le simule
+        // fidelement.
+        User::query()->whereKey($this->memberA->getKey())->update(['organization_id' => $this->orgB->id]);
+        $this->memberA->refresh();
 
         // Ligne ecrite APRES le changement, sous le nouveau tenant.
         $this->ledgerRow([

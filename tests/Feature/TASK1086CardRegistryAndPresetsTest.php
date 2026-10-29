@@ -35,11 +35,11 @@ class TASK1086CardRegistryAndPresetsTest extends TestCase
     {
         parent::setUp();
 
-        $this->admin = User::factory()->create(['is_admin' => true]);
         $this->org = Organization::factory()->create([
-            'is_active' => true, 'admin_id' => $this->admin->id,
+            'is_active' => true,
         ]);
-        $this->admin->update(['organization_id' => $this->org->id]);
+        $this->admin = User::factory()->create(['is_admin' => true, 'organization_id' => $this->org->id]);
+        $this->org->update(['admin_id' => $this->admin->id]);
 
         app()->instance('current_organization', $this->org);
     }

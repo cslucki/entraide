@@ -1769,10 +1769,10 @@ return [
     'users_stat_new' => 'New this month',
     'users_stat_unverified' => 'Unverified',
     'users_stat_unverified_hint' => 'Show these accounts',
-    'users_assign_organization' => 'Assign to an organization',
-    'users_assign_organization_none' => '— Platform default organization —',
-    'users_assign_organization_submit' => 'Assign',
-    'users_assign_organization_none_short' => '— platform —',
+    // TASK-1726 — see the French file: the account no longer moves between
+    // Organizations, so these keys label a READ-ONLY display.
+    'users_organization_none' => 'No organization',
+    'users_organization_immutable_hint' => "An account's organization is permanent and cannot be changed.",
     'users_results_count' => ':count result(s) for this filter',
     'users_status_available' => 'Available',
     'users_status_unavailable' => 'Unavailable',

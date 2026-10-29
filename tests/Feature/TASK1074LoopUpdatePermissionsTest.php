@@ -47,9 +47,9 @@ class TASK1074LoopUpdatePermissionsTest extends TestCase
 
     public function test_organization_admin_is_authorized_to_update_even_without_membership(): void
     {
-        $orgAdmin = User::factory()->create();
-        $organization = $this->org(['admin_id' => $orgAdmin->id]);
-        $orgAdmin->update(['organization_id' => $organization->id]);
+        $organization = $this->org();
+        $orgAdmin = User::factory()->create(['organization_id' => $organization->id]);
+        $organization->update(['admin_id' => $orgAdmin->id]);
         $loop = $this->loop($organization);
 
         $this->assertTrue(Gate::forUser($orgAdmin->fresh())->allows('update', $loop));
@@ -177,9 +177,9 @@ class TASK1074LoopUpdatePermissionsTest extends TestCase
 
     public function test_organization_admin_can_update_loop_they_do_not_belong_to_as_member(): void
     {
-        $orgAdmin = User::factory()->create();
-        $organization = $this->org(['admin_id' => $orgAdmin->id]);
-        $orgAdmin->update(['organization_id' => $organization->id]);
+        $organization = $this->org();
+        $orgAdmin = User::factory()->create(['organization_id' => $organization->id]);
+        $organization->update(['admin_id' => $orgAdmin->id]);
         $loop = $this->loop($organization, ['name' => 'Boucle gérée']);
         $this->withCurrentOrganization($organization);
 

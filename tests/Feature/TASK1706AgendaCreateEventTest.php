@@ -65,14 +65,13 @@ class TASK1706AgendaCreateEventTest extends TestCase
     {
         parent::setUp();
 
-        $this->orgAdmin = User::factory()->create();
         $this->org = Organization::factory()->create([
             'is_active' => true,
             'slug' => 'org-1706',
-            'admin_id' => $this->orgAdmin->id,
             'loops_enabled' => true,
         ]);
-        $this->orgAdmin->update(['organization_id' => $this->org->id]);
+        $this->orgAdmin = User::factory()->create(['organization_id' => $this->org->id]);
+        $this->org->update(['admin_id' => $this->orgAdmin->id]);
 
         $this->proprietaire = $this->membreDeLOrg();
         $this->membre = $this->membreDeLOrg();

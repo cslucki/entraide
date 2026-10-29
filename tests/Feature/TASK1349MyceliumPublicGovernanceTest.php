@@ -67,16 +67,14 @@ class TASK1349MyceliumPublicGovernanceTest extends TestCase
     {
         parent::setUp();
 
-        $this->superAdmin = User::factory()->create(['is_admin' => true]);
-        $this->adminA = User::factory()->create();
-        $this->adminB = User::factory()->create();
+        $this->organizationA = Organization::factory()->create(['is_active' => true, 'slug' => 'myc-a', 'name' => 'Mycelium A']);
+        $this->adminA = User::factory()->create(['organization_id' => $this->organizationA->id]);
+        $this->superAdmin = User::factory()->create(['is_admin' => true, 'organization_id' => $this->organizationA->id]);
+        $this->organizationA->update(['admin_id' => $this->adminA->id]);
+        $this->organizationB = Organization::factory()->create(['is_active' => true, 'slug' => 'myc-b', 'name' => 'Mycelium B']);
+        $this->adminB = User::factory()->create(['organization_id' => $this->organizationB->id]);
+        $this->organizationB->update(['admin_id' => $this->adminB->id]);
 
-        $this->organizationA = Organization::factory()->create(['is_active' => true, 'slug' => 'myc-a', 'name' => 'Mycelium A', 'admin_id' => $this->adminA->id]);
-        $this->organizationB = Organization::factory()->create(['is_active' => true, 'slug' => 'myc-b', 'name' => 'Mycelium B', 'admin_id' => $this->adminB->id]);
-
-        $this->adminA->update(['organization_id' => $this->organizationA->id]);
-        $this->adminB->update(['organization_id' => $this->organizationB->id]);
-        $this->superAdmin->update(['organization_id' => $this->organizationA->id]);
         $this->memberA = User::factory()->create(['organization_id' => $this->organizationA->id]);
         $this->memberB = User::factory()->create(['organization_id' => $this->organizationB->id]);
 

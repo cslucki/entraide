@@ -147,8 +147,23 @@ class ArtSciLabScenarioSeeder extends Seeder
         $users = [];
         foreach ($people as $key => [$name, $firstName, $city, $country, $countryCode, $bio]) {
             $email = $key.'@artscilab-demo.test';
+            // TASK-1726 — la recherche porte sur (email, Organization), pas
+            // sur l'email seul.
+            //
+            // Avec `['email' => …]` pour unique critere, `updateOrCreate`
+            // trouvait n'importe quel compte portant cette adresse — y compris
+            // un compte REEL d'une autre Organization — puis lui reecrivait
+            // `organization_id` : le pack ne provisionnait pas un persona, il
+            // DEPLACAIT quelqu'un dans sa sandbox, avec son nom, sa bio et un
+            // mot de passe connu. C'est la variante seeder du defaut que
+            // TASK-1726 ferme sur `/admin/users`.
+            //
+            // Avec le couple, un homonyme d'une autre Organization n'est plus
+            // trouve : le pack tente alors de CREER, et l'unique global sur
+            // `users.email` refuse. Le pack casse, bruyamment, a la ligne —
+            // au lieu de reussir en volant un compte. C'est le bon echec.
             $user = User::updateOrCreate(
-                ['email' => $email],
+                ['email' => $email, 'organization_id' => $organization->id],
                 [
                     'organization_id' => $organization->id,
                     'name' => $name,

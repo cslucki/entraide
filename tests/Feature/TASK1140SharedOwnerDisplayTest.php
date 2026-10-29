@@ -246,7 +246,13 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
         // `isDisplayableIn` protege aussi le cloisonnement : un proprietaire
         // d'une autre Organization ne doit pas etre nomme ici.
         $this->partager($this->partage);
-        $this->proprietaire->forceFill(['organization_id' => $this->autreOrg->id])->save();
+        // TASK-1726 — fixture : l'etat « ce compte est ailleurs / sans tenant »
+        // reste atteignable (suppression d'Organization, puis reparation des
+        // orphelins), mais plus par le MODELE, qui refuse desormais tout
+        // deplacement. On le pose donc par le constructeur de requetes — le
+        // chemin exact de ces deux reparations.
+        User::query()->whereKey($this->proprietaire->getKey())->update(['organization_id' => $this->autreOrg->id]);
+        $this->proprietaire->refresh();
 
         $html = $this->pagePartages();
 

@@ -119,7 +119,13 @@ class TASK1373NotificationCenterTest extends TestCase
         $ancienne = $this->emettre(destinataire: $this->alice);
         $ancienneBis = $this->emettre(destinataire: $this->alice);
 
-        $this->alice->forceFill(['organization_id' => $this->orgDefaut->id])->save();
+        // TASK-1726 — fixture : l'etat « ce compte est ailleurs / sans tenant »
+        // reste atteignable (suppression d'Organization, puis reparation des
+        // orphelins), mais plus par le MODELE, qui refuse desormais tout
+        // deplacement. On le pose donc par le constructeur de requetes — le
+        // chemin exact de ces deux reparations.
+        User::query()->whereKey($this->alice->getKey())->update(['organization_id' => $this->orgDefaut->id]);
+        $this->alice->refresh();
 
         $nouvelle = $this->emettre(organisation: $this->orgDefaut, destinataire: $this->alice);
 

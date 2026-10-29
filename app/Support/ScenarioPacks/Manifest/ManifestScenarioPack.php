@@ -166,8 +166,17 @@ class ManifestScenarioPack implements ScenarioPackDefinition
                 $responsables[] = $key;
             }
 
+            // TASK-1726 — (email, Organization) en critere, comme les deux
+            // autres packs. Celui-ci etait deja sain, mais par ACCIDENT :
+            // `sandboxEmail()` prefixe l'adresse du slug de la sandbox, si
+            // bien qu'aucun compte reel ne pouvait porter la meme. Une surete
+            // qui depend de la forme d'un helper voisin se perd le jour ou le
+            // helper change ; le couple la rend structurelle.
             $user = User::updateOrCreate(
-                ['email' => $this->sandboxEmail($organization, (string) $declared->email)],
+                [
+                    'email' => $this->sandboxEmail($organization, (string) $declared->email),
+                    'organization_id' => $organization->id,
+                ],
                 [
                     'organization_id' => $organization->id,
                     'first_name' => (string) $declared->first_name,

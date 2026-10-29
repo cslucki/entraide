@@ -167,10 +167,8 @@ class AdminCommunitiesTest extends TestCase
     public function test_admin_can_delete_organization(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        $user = User::factory()->create();
         $organization = Organization::factory()->create();
-
-        $user->update(['organization_id' => $organization->id]);
+        $user = User::factory()->create(['organization_id' => $organization->id]);
 
         $this->actingAs($admin)->delete(route('admin.organizations.destroy', $organization))
             ->assertRedirect();

@@ -43,10 +43,9 @@ class TASK1075LoopDiscoveryPolicyTest extends TestCase
 
     public function test_organization_admin_without_membership_cannot_view_workspace(): void
     {
-        $orgAdmin = User::factory()->create();
         $org = $this->org();
+        $orgAdmin = User::factory()->create(['organization_id' => $org->id]);
         $org->update(['admin_id' => $orgAdmin->id]);
-        $orgAdmin->update(['organization_id' => $org->id]);
         $loop = Loop::factory()->create(['organization_id' => $org->id]);
 
         // Deliberate: workspace access is membership-only, no admin bypass.
@@ -202,10 +201,9 @@ class TASK1075LoopDiscoveryPolicyTest extends TestCase
 
     public function test_organization_admin_can_manage_join_requests(): void
     {
-        $orgAdmin = User::factory()->create();
         $org = $this->org();
+        $orgAdmin = User::factory()->create(['organization_id' => $org->id]);
         $org->update(['admin_id' => $orgAdmin->id]);
-        $orgAdmin->update(['organization_id' => $org->id]);
         $loop = Loop::factory()->requestAccess()->create(['organization_id' => $org->id]);
 
         $this->assertTrue(Gate::forUser($orgAdmin->fresh())->allows('manageJoinRequests', $loop));

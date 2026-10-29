@@ -789,7 +789,13 @@ class TASK1372NotificationCoreTest extends TestCase
 
         // Bob quitte l'Organization — exactement ce que fait la suppression
         // d'une Organization, qui detache ses membres.
-        $this->bob->forceFill(['organization_id' => null])->save();
+        // TASK-1726 — fixture : l'etat « ce compte est ailleurs / sans tenant »
+        // reste atteignable (suppression d'Organization, puis reparation des
+        // orphelins), mais plus par le MODELE, qui refuse desormais tout
+        // deplacement. On le pose donc par le constructeur de requetes — le
+        // chemin exact de ces deux reparations.
+        User::query()->whereKey($this->bob->getKey())->update(['organization_id' => null]);
+        $this->bob->refresh();
 
         $rejeu = $this->emettre(evenement: $evenement, acteur: $this->bob);
 
@@ -828,7 +834,8 @@ class TASK1372NotificationCoreTest extends TestCase
         $evenement = (string) Str::uuid();
         $this->emettre(evenement: $evenement, objetId: (string) Str::uuid(), acteur: $this->bob);
 
-        $this->bob->forceFill(['organization_id' => null])->save();
+        User::query()->whereKey($this->bob->getKey())->update(['organization_id' => null]);
+        $this->bob->refresh();
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('actor does not belong to the target Organization');
@@ -850,7 +857,8 @@ class TASK1372NotificationCoreTest extends TestCase
         $this->emettre(evenement: $evenement, destinataire: $this->alice);
 
         // Alice change d'Organization ; l'ancienne notification reste dans A.
-        $this->alice->forceFill(['organization_id' => $this->orgB->id])->save();
+        User::query()->whereKey($this->alice->getKey())->update(['organization_id' => $this->orgB->id]);
+        $this->alice->refresh();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('outside the target Organization');
@@ -861,7 +869,8 @@ class TASK1372NotificationCoreTest extends TestCase
     /** Mais un acteur parti ne peut pas fonder une NOUVELLE notification. */
     public function test_a_departed_actor_still_cannot_found_a_new_notification(): void
     {
-        $this->bob->forceFill(['organization_id' => null])->save();
+        User::query()->whereKey($this->bob->getKey())->update(['organization_id' => null]);
+        $this->bob->refresh();
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('actor does not belong to the target Organization');

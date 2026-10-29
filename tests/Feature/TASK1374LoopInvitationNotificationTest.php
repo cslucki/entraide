@@ -296,7 +296,13 @@ class TASK1374LoopInvitationNotificationTest extends TestCase
         $this->service->invite($this->loop, $this->senderA, $this->membreA->email);
         $ancienne = MemberNotification::query()->firstOrFail();
 
-        $this->membreA->forceFill(['organization_id' => $this->orgB->id])->save();
+        // TASK-1726 — fixture : l'etat « ce compte est ailleurs / sans tenant »
+        // reste atteignable (suppression d'Organization, puis reparation des
+        // orphelins), mais plus par le MODELE, qui refuse desormais tout
+        // deplacement. On le pose donc par le constructeur de requetes — le
+        // chemin exact de ces deux reparations.
+        User::query()->whereKey($this->membreA->getKey())->update(['organization_id' => $this->orgB->id]);
+        $this->membreA->refresh();
 
         $this->actingAs($this->membreA->fresh())->get(route('notifications.index'))
             ->assertOk()
