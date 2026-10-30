@@ -49,6 +49,32 @@ class OrganizationInvitationController extends Controller
             $user = $outcome['user'];
             $organization = $outcome['invitation']?->organization;
 
+            // TASK-1732 (A6) — TRANSITION DE SESSION COMPLETE avant la
+            // connexion (exigence MASTER 1).
+            //
+            // Il n'y avait ici AUCUNE regeneration : `Auth::login()` posait
+            // l'identite dans la session deja en cours. C'etait une fixation de
+            // session ordinaire tant que seul un visiteur anonyme pouvait
+            // arriver ici. Depuis A6, la personne qui clique peut etre
+            // CONNECTEE sur son compte d'une autre Organization — et c'est le
+            // cas nominal que MASTER a valide (arbitrage A). Elle heriterait
+            // alors du contenu de la session de l'autre compte.
+            //
+            // `invalidate()` et pas seulement `regenerate()` : c'est la lecon
+            // payee en T1730. `regenerate()` change l'identifiant mais
+            // CONSERVE le contenu — `auth.password_confirmed_at` (une
+            // confirmation de mot de passe faite sur l'AUTRE compte, qui
+            // deverrouille ici les ecrans sensibles) et `url.intended` (une
+            // destination visee dans l'AUTRE tenant, vers laquelle
+            // `redirect()->intended()` plus bas enverrait) passaient d'un compte
+            // a l'autre. `invalidate()` vide, et c'est ce qu'il faut quand
+            // l'identite change.
+            //
+            // `regenerateToken()` ensuite : le jeton CSRF appartient a la
+            // session qu'on vient de jeter.
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
             Auth::login($user);
 
             // Second step before anything else: the account was born with a
@@ -72,7 +98,12 @@ class OrganizationInvitationController extends Controller
             OrganizationInvitationService::RESULT_EXPIRED => __('organization_invitations.flash_expired'),
             OrganizationInvitationService::RESULT_REVOKED => __('organization_invitations.flash_revoked'),
             OrganizationInvitationService::RESULT_SANDBOX_FORBIDDEN => __('organization_invitations.flash_sandbox_forbidden'),
-            OrganizationInvitationService::RESULT_EMAIL_USED_ELSEWHERE => __('organization_invitations.flash_email_used_elsewhere'),
+            // TASK-1732 (A6) — message GENERIQUE, et c'est l'arbitrage MASTER B.
+            // Le refus ne dit pas pourquoi : dire « un compte sans Organization
+            // porte cette adresse » renseignerait un visiteur non authentifie
+            // sur l'etat de la plateforme. Il invite a contacter le support,
+            // seul geste utile ici — la personne n'y peut rien.
+            OrganizationInvitationService::RESULT_EMAIL_NOT_INVITABLE => __('organization_invitations.flash_not_invitable'),
             default => __('organization_invitations.flash_invalid'),
         };
 

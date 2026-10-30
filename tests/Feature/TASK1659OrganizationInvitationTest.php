@@ -2,14 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Models\EmailLog;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\OrganizationInvitation;
 use App\Models\SystemEmailTemplate;
 use App\Models\User;
+use App\Services\OrganizationInvitationMailer;
+use Database\Seeders\SystemEmailTemplateSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Mime\Email;
 use Tests\TestCase;
@@ -356,7 +360,7 @@ class TASK1659OrganizationInvitationTest extends TestCase
             'to_email' => 'template@example.test',
             'status' => 'sent',
         ]);
-        $log = \App\Models\EmailLog::where('to_email', 'template@example.test')->firstOrFail();
+        $log = EmailLog::where('to_email', 'template@example.test')->firstOrFail();
         $this->assertSame('system_email_template', $log->data['template_used']);
     }
 
@@ -376,11 +380,11 @@ class TASK1659OrganizationInvitationTest extends TestCase
     public function test_the_seeded_template_produces_a_styled_email_not_bare_html(): void
     {
         $org = $this->org();
-        $this->seed(\Database\Seeders\SystemEmailTemplateSeeder::class);
+        $this->seed(SystemEmailTemplateSeeder::class);
 
         $this->inviteWithHost($org, null, 'miseenforme@example.test')->assertRedirect();
 
-        $log = \App\Models\EmailLog::where('to_email', 'miseenforme@example.test')->firstOrFail();
+        $log = EmailLog::where('to_email', 'miseenforme@example.test')->firstOrFail();
         $this->assertSame('system_email_template', $log->data['template_used'], 'Ce test doit porter sur le gabarit administrable, pas sur le repli.');
 
         $html = $this->sentHtml();
@@ -393,7 +397,7 @@ class TASK1659OrganizationInvitationTest extends TestCase
     /** L'exemple fourni par MASTER, tunnel Cloudflare. */
     private const HOST_TUNNEL = 'https://mariah-voted-groups-pst.trycloudflare.com/';
 
-    private function inviteWithHost(Organization $org, ?string $host, string $email): \Illuminate\Testing\TestResponse
+    private function inviteWithHost(Organization $org, ?string $host, string $email): TestResponse
     {
         return $this->actingAs($this->superAdmin())
             ->post(route('admin.users.bulk-create.invitations.store'), array_filter([
@@ -543,7 +547,7 @@ class TASK1659OrganizationInvitationTest extends TestCase
         ]);
 
         app()->detectEnvironment(fn () => 'production');
-        app(\App\Services\OrganizationInvitationMailer::class)->send($invitation);
+        app(OrganizationInvitationMailer::class)->send($invitation);
 
         $html = $this->sentHtml();
         $this->assertStringNotContainsString('trycloudflare.com', $html);
@@ -591,21 +595,43 @@ class TASK1659OrganizationInvitationTest extends TestCase
         $this->assertTrue(Hash::check('le-mot-de-passe-prive-d-alice', $alice->fresh()->password));
     }
 
-    public function test_case_c_is_not_bypassable_by_email_casing(): void
+    /**
+     * INVERSE par TASK-1732 (A6), arbitrage MASTER F.
+     *
+     * Ce test affirmait l'inverse : « le Cas C n'est pas contournable par la
+     * casse », et il verifiait qu'AUCUNE invitation n'etait creee. Le Cas C est
+     * leve — un homonyme dans une autre Organization est le cas nominal.
+     *
+     * Ce qu'il mesure maintenant est la MEME subtilite de casse, mais du bon
+     * cote : la difference de casse ne doit pas empecher le compte frere de se
+     * creer, et surtout elle ne doit pas faire croire a une collision DANS
+     * l'organisation invitante. Le test est conserve, pas supprime, parce que
+     * `LOWER()` reste la clause dont tout depend ici.
+     */
+    public function test_a_sibling_account_is_created_despite_a_different_email_casing(): void
     {
         $orgA = $this->org();
         $orgB = $this->org();
         // Compte existant enregistre avec une majuscule (possible : /admin/users n'impose pas `lowercase`).
-        User::factory()->create(['organization_id' => $orgB->id, 'email' => 'Bob@example.test']);
+        $ailleurs = User::factory()->create(['organization_id' => $orgB->id, 'email' => 'Bob@example.test']);
 
         $this->actingAs($this->superAdmin())->post(route('admin.users.bulk-create.invitations.store'), [
             'organization_id' => $orgA->id,
             'people' => [['first_name' => 'Bob', 'last_name' => 'X', 'email' => 'bob@example.test']],
         ]);
 
-        $this->assertDatabaseMissing('organization_invitations', ['recipient_email' => 'bob@example.test']);
-    }
+        $invitation = OrganizationInvitation::where('recipient_email', 'bob@example.test')->first();
+        $this->assertNotNull($invitation, 'La casse ne doit plus faire refuser l\'invitation.');
+        $this->assertSame($orgA->id, $invitation->organization_id);
 
+        // Et le clic cree bien le frere DANS orgA, l'autre compte intouche.
+        $this->post(route('organization-invitations.accept', $invitation->token))->assertRedirect();
+
+        $frere = User::where('organization_id', $orgA->id)->whereRaw('LOWER(email) = ?', ['bob@example.test'])->first();
+        $this->assertNotNull($frere, 'Le compte frere doit exister dans l\'Organization invitante.');
+        $this->assertNotSame($ailleurs->id, $frere->id, 'Le frere est un AUTRE compte, jamais celui de l\'autre tenant.');
+        $this->assertSame($orgB->id, $ailleurs->fresh()->organization_id, 'Le compte de l\'autre tenant ne bouge jamais.');
+    }
 
     /** Constat 4 de la revue 1 : une Organization DESACTIVEE n'accepte plus. */
     public function test_a_deactivated_organization_no_longer_accepts_an_invitation(): void
@@ -634,7 +660,6 @@ class TASK1659OrganizationInvitationTest extends TestCase
         $this->assertNull(OrganizationInvitation::normalizeHostOverride('https://tunnel.example\\collect'));
         $this->assertNull(OrganizationInvitation::normalizeHostOverride('https://tunnel.example\\'));
     }
-
 
     /**
      * Constat 2 de la revue 2 : la garde sur l'Organization etait
@@ -869,14 +894,14 @@ class TASK1659OrganizationInvitationTest extends TestCase
     public function test_the_email_history_link_lands_on_invitation_emails_only(): void
     {
         $org = $this->org();
-        \App\Models\EmailLog::create([
+        EmailLog::create([
             'organization_id' => $org->id,
             'to_email' => 'invitation@example.test',
             'subject' => 'Sujet invitation',
             'status' => 'sent',
             'data' => ['source' => 'organization-invitation'],
         ]);
-        \App\Models\EmailLog::create([
+        EmailLog::create([
             'organization_id' => $org->id,
             'to_email' => 'autrechose@example.test',
             'subject' => 'Sujet hors perimetre',
@@ -900,14 +925,14 @@ class TASK1659OrganizationInvitationTest extends TestCase
     public function test_searching_within_the_invitation_history_stays_inside_that_perimeter(): void
     {
         $org = $this->org();
-        \App\Models\EmailLog::create([
+        EmailLog::create([
             'organization_id' => $org->id,
             'to_email' => 'dedans@example.test',
             'subject' => 'Bienvenue',
             'status' => 'sent',
             'data' => ['source' => 'organization-invitation'],
         ]);
-        \App\Models\EmailLog::create([
+        EmailLog::create([
             'organization_id' => $org->id,
             'to_email' => 'dehors@example.test',
             'subject' => 'Bienvenue',
@@ -942,9 +967,21 @@ class TASK1659OrganizationInvitationTest extends TestCase
         $this->assertDatabaseMissing('email_logs', ['to_email' => 'deja@example.test']);
     }
 
-    public function test_email_used_in_another_organization_is_blocked_no_email_no_mutation(): void
+    /**
+     * INVERSE par TASK-1732 (A6), arbitrage MASTER F.
+     *
+     * Ce test s'appelait `..._is_blocked_no_email_no_mutation` et affirmait
+     * qu'une adresse employee dans une autre Organization ne recevait AUCUNE
+     * invitation. C'etait le Cas C, et c'etait une decision — pas une
+     * contrainte technique. A6 l'a renversee.
+     *
+     * La derniere assertion, elle, ne change PAS d'un signe : le compte de
+     * l'autre tenant n'est jamais deplace (T1726). C'est la seule ligne de
+     * l'ancien test qui etait un invariant et non un choix produit, et c'est
+     * pour cela que le test est inverse au lieu d'etre supprime.
+     */
+    public function test_email_used_in_another_organization_is_now_invited_normally(): void
     {
-        Mail::fake();
         $orgA = $this->org();
         $orgB = $this->org();
         $existing = User::factory()->create(['organization_id' => $orgA->id, 'email' => 'ailleurs@example.test']);
@@ -957,8 +994,14 @@ class TASK1659OrganizationInvitationTest extends TestCase
             ],
         ]);
 
-        $this->assertDatabaseMissing('organization_invitations', ['recipient_email' => 'ailleurs@example.test']);
-        $this->assertDatabaseMissing('email_logs', ['to_email' => 'ailleurs@example.test']);
+        $this->assertDatabaseHas('organization_invitations', [
+            'recipient_email' => 'ailleurs@example.test',
+            'organization_id' => $orgB->id,
+            'status' => OrganizationInvitation::STATUS_PENDING,
+        ]);
+        // L'email part : c'est tout l'objet d'A6, la personne doit pouvoir venir.
+        $this->assertDatabaseHas('email_logs', ['to_email' => 'ailleurs@example.test']);
+        // INVARIANT INCHANGE (T1726) : le compte existant ne bouge jamais.
         $this->assertSame($orgA->id, $existing->fresh()->organization_id, 'The existing user must never be relocated.');
     }
 

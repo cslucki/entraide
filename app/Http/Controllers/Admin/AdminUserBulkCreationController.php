@@ -155,7 +155,11 @@ class AdminUserBulkCreationController extends Controller
         $created = 0;
         $resent = 0;
         $alreadyMember = [];
-        $usedElsewhere = [];
+        // TASK-1732 (A6) — renomme depuis `$usedElsewhere`. Le cas compte
+        // desormais les adresses qu'on ne peut PAS inviter (un compte sans
+        // Organization les porte), et non plus celles employees dans un autre
+        // tenant : celles-la sont invitees normalement.
+        $notInvitable = [];
 
         foreach ($validated['people'] as $person) {
             $outcome = $this->invitations->invite(
@@ -177,8 +181,8 @@ class AdminUserBulkCreationController extends Controller
                 $resent++;
             } elseif ($outcome['case'] === OrganizationInvitationService::CASE_ALREADY_MEMBER) {
                 $alreadyMember[] = $person['email'];
-            } elseif ($outcome['case'] === OrganizationInvitationService::CASE_EMAIL_USED_ELSEWHERE) {
-                $usedElsewhere[] = $person['email'];
+            } elseif ($outcome['case'] === OrganizationInvitationService::CASE_EMAIL_NOT_INVITABLE) {
+                $notInvitable[] = $person['email'];
             }
             // CASE_SANDBOX_FORBIDDEN cannot occur here: already refused above
             // for the whole batch before the loop starts.
@@ -188,7 +192,7 @@ class AdminUserBulkCreationController extends Controller
             'created' => $created,
             'resent' => $resent,
             'alreadyMember' => $alreadyMember,
-            'usedElsewhere' => $usedElsewhere,
+            'notInvitable' => $notInvitable,
         ]);
     }
 
