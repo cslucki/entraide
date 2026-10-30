@@ -456,6 +456,89 @@ class TASK1731AccountLinkTest extends TestCase
             'la decision est prise HORS transaction : le verrou a ete relache avant, il ne protege rien');
     }
 
+    // ── integrite de la BASE, en contournant le service ───────────────────
+
+    /**
+     * Une ecriture SQL DIRECTE ne peut pas creer une auto-liaison.
+     *
+     * Exigence MASTER : « la CI verte ne demontre pas cette propriete sur
+     * SQLite ». Elle avait raison de le dire — les tests precedents passent
+     * tous par le service, qui refuse de lui-meme. Ils ne prouvent donc RIEN
+     * de ce que la base garantit.
+     *
+     * Ici on contourne deliberement le service ET le modele : un `INSERT` par
+     * le constructeur de requetes, qui est exactement ce qu'ecrirait une
+     * commande de maintenance, un seeder ou une migration pressee. Le refus
+     * doit venir de la BASE.
+     *
+     * Les deux moteurs l'expriment differemment — contrainte `CHECK` sur
+     * PostgreSQL, declencheur sur SQLite — et c'est precisement pour cela que
+     * ce test existe sur les deux.
+     */
+    public function test_une_ecriture_SQL_directe_ne_peut_pas_creer_une_auto_liaison(): void
+    {
+        $moi = $this->compte($this->orgA, 'moi@exemple.test', 'secret-a');
+
+        $this->expectException(\Illuminate\Database\QueryException::class);
+
+        DB::table('account_links')->insert([
+            'id' => (string) Str::uuid(),
+            'user_a_id' => $moi->getKey(),
+            'user_b_id' => $moi->getKey(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    /**
+     * Et une MISE A JOUR ne peut pas transformer une paire valide en
+     * auto-liaison.
+     *
+     * C'est la moitie qu'un declencheur `BEFORE INSERT` seul aurait laissee
+     * ouverte : une contrainte `CHECK` surveille la ligne, un declencheur ne
+     * surveille que l'operation qu'il ecoute. Sans ce test, l'asymetrie entre
+     * les deux moteurs serait passee inapercue.
+     */
+    public function test_une_mise_a_jour_SQL_directe_ne_peut_pas_creer_une_auto_liaison(): void
+    {
+        $a = $this->compte($this->orgA, 'moi@exemple.test', 'secret-a');
+        $b = $this->compte($this->orgB, 'moi@exemple.test', 'secret-b');
+        $lien = $this->lier($a, $b);
+
+        $this->expectException(\Illuminate\Database\QueryException::class);
+
+        DB::table('account_links')
+            ->where('id', $lien->getKey())
+            ->update(['user_b_id' => $lien->user_a_id]);
+    }
+
+    /**
+     * Le rollback de migration emporte bien l'interdiction, et la remet.
+     *
+     * Ni la contrainte `CHECK` ni les declencheurs ne sont supprimes
+     * explicitement par `down()` : les deux moteurs les emportent avec la
+     * table. C'est vrai, mais ce n'etait pas DEMONTRE — exigence MASTER. On le
+     * mesure en refaisant le cycle complet et en verifiant que la base refuse
+     * de nouveau.
+     */
+    public function test_le_rollback_puis_la_remigration_retablissent_l_interdiction(): void
+    {
+        $this->artisan('migrate:rollback', ['--step' => 1])->assertSuccessful();
+        $this->artisan('migrate')->assertSuccessful();
+
+        $moi = $this->compte($this->orgA, 'moi@exemple.test', 'secret-a');
+
+        $this->expectException(\Illuminate\Database\QueryException::class);
+
+        DB::table('account_links')->insert([
+            'id' => (string) Str::uuid(),
+            'user_a_id' => $moi->getKey(),
+            'user_b_id' => $moi->getKey(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────
 
     private function compte(Organization $org, string $email, string $motDePasse): User

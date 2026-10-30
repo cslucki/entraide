@@ -20,16 +20,34 @@ use Illuminate\Support\Facades\Schema;
  * Exigence MASTER (30/10) : « unicite de la paire et interdiction de
  * l'auto-liaison EN BASE ».
  *
- * ## L'auto-liaison : contrainte CHECK sur PostgreSQL, et seulement la
+ * ## L'auto-liaison est interdite PAR LA BASE sur les DEUX moteurs
  *
- * `CHECK (user_a_id <> user_b_id)` dit exactement la regle. PostgreSQL
- * l'accepte en `ALTER TABLE`; SQLite ne sait PAS ajouter une contrainte apres
- * coup, et la poser a la creation exigerait d'ecrire le `CREATE TABLE` a la
- * main, donc de renoncer a la gestion des cles etrangeres par le constructeur
- * de schema. L'asymetrie est ASSUMEE et declaree ici plutot que masquee : sur
- * SQLite, l'interdiction est tenue par le service et par un test qui tente
- * explicitement l'auto-liaison. Le banc local tourne sur SQLite, la gate
- * PostgreSQL exerce la contrainte reelle.
+ * Exigence MASTER, maintenue apres verification : une CI verte sur SQLite ne
+ * demontre rien si la regle n'y est tenue que par le code applicatif.
+ *
+ * **Il n'existe aucune declaration portable.** Verifie sur la version
+ * installee, Laravel 13.7.0 : le `Blueprint` n'expose aucune methode de
+ * contrainte `CHECK`, et aucune grammaire de schema n'en compile. Deux
+ * expressions d'une meme regle sont donc necessaires :
+ *
+ *  - **PostgreSQL** : `CHECK (user_a_id <> user_b_id)`, ajoutee en
+ *    `ALTER TABLE`. Elle couvre `INSERT` ET `UPDATE` d'office.
+ *  - **SQLite** : deux DECLENCHEURS, `BEFORE INSERT` et `BEFORE UPDATE`, avec
+ *    `RAISE(ABORT)`. SQLite ne sait pas ajouter une contrainte apres coup,
+ *    mais il sait poser un declencheur — et le refus vient bien de la BASE
+ *    (`SQLSTATE[23000]`), donc il tient contre n'importe quel ecrivain, y
+ *    compris du SQL direct qui contournerait le service.
+ *
+ * **DEUX declencheurs et pas un** : c'est la limite du mecanisme, et elle se
+ * paie en oubli. Une contrainte `CHECK` surveille la ligne ; un declencheur ne
+ * surveille que l'operation qu'il ecoute. N'ecouter que l'insertion laisserait
+ * transformer une paire valide en auto-liaison par une simple mise a jour.
+ *
+ * **Le rollback** : aucune suppression explicite n'est necessaire — les deux
+ * moteurs emportent ces objets avec la table (`DROP TABLE` detruit les
+ * declencheurs SQLite comme la contrainte PostgreSQL). Ce n'est pas suppose :
+ * un test fait `down()` puis `up()` et verifie que l'interdiction est de
+ * nouveau tenue.
  *
  * ## Pas d'`organization_id`, et c'est le sujet
  *
@@ -64,10 +82,36 @@ return new class extends Migration
             $table->unique(['user_a_id', 'user_b_id'], 'account_links_pair_unique');
         });
 
-        if (Schema::getConnection()->getDriverName() === 'pgsql') {
+        $this->interdireLAutoLiaison();
+    }
+
+    /**
+     * La meme regle, dans les deux langues que parlent les deux moteurs.
+     */
+    private function interdireLAutoLiaison(): void
+    {
+        $connexion = Schema::getConnection();
+
+        if ($connexion->getDriverName() === 'pgsql') {
             DB::statement(
                 'ALTER TABLE account_links ADD CONSTRAINT account_links_not_self CHECK (user_a_id <> user_b_id)'
             );
+
+            return;
+        }
+
+        if ($connexion->getDriverName() !== 'sqlite') {
+            return;
+        }
+
+        foreach (['insert' => 'INSERT', 'update' => 'UPDATE'] as $suffixe => $operation) {
+            DB::statement(sprintf(
+                'CREATE TRIGGER account_links_not_self_%s BEFORE %s ON account_links '
+                .'FOR EACH ROW WHEN NEW.user_a_id = NEW.user_b_id '
+                ."BEGIN SELECT RAISE(ABORT, 'account_links: un compte ne peut pas etre lie a lui-meme'); END",
+                $suffixe,
+                $operation,
+            ));
         }
     }
 
