@@ -6,6 +6,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 
 /**
  * TASK-1727 (A2) — QUEL compte une reinitialisation concerne-t-elle ?
@@ -38,6 +39,16 @@ use Illuminate\Support\Facades\Password;
  * — indiscernable d'une adresse inconnue. L'appelant produit la meme reponse
  * dans les deux cas, et rien ne dit jamais « cette personne existe, mais
  * ailleurs ».
+ *
+ * ## TASK-1733 (A7) — la recherche est INSENSIBLE A LA CASSE
+ *
+ * Elle ne l'etait pas, et le silence rendait le defaut invisible : une demande
+ * de lien rend TOUJOURS « un lien vous a ete envoye », qu'un compte ait ete
+ * trouve ou non — c'est voulu, c'est la non-enumeration. Un compte enregistre
+ * `Majuscule@exemple.test` ne recevait donc jamais rien quand la personne
+ * tapait son adresse en minuscules, et **rien ne le disait**. Meme cause et
+ * meme correction que {@see LoginAccountResolver} : le raisonnement complet est
+ * la-bas.
  */
 class PasswordResetAccountResolver
 {
@@ -45,13 +56,16 @@ class PasswordResetAccountResolver
      * Les comptes qu'une DEMANDE de lien concerne.
      *
      * @param  Organization|null  $organization  le tenant du parcours ; `null`
-     *         pour le parcours global, qui ne filtre pas.
+     *                                           pour le parcours global, qui ne filtre pas.
      * @return Collection<int, User>
      */
     public function comptesCibles(string $email, ?Organization $organization = null): Collection
     {
         return User::query()
-            ->where('email', $email)
+            // TASK-1733 (A7) — `LOWER()` des deux cotes, meme forme que les
+            // index de T1729 et que la regle d'unicite. Voir
+            // {@see LoginAccountResolver::candidats()}.
+            ->whereRaw('LOWER(email) = ?', [Str::lower($email)])
             ->when(
                 $organization !== null,
                 // D3 — un reset demande depuis `/org/X` ne peut cibler qu'un
@@ -60,12 +74,14 @@ class PasswordResetAccountResolver
                 // possede et qui ne s'invente pas.
                 fn ($query) => $query->where('organization_id', $organization->getKey())
             )
-            // Pas de `first()`, et pas de `limit`. Aujourd'hui l'unique global
-            // sur `users.email` borne ce resultat a un element au plus — T1727
-            // ne touche pas a cette contrainte. La forme Collection est ce qui
-            // rendra le jour venu (A4) le comportement correct sans reecrire
-            // cette methode : chaque compte recevra SON lien, portant SON
-            // token, parce que la table peut desormais en porter plusieurs.
+            // Pas de `first()`, et pas de `limit`.
+            //
+            // A l'ecriture de T1727, l'unique global sur `users.email` bornait
+            // ce resultat a un element au plus, et la forme Collection etait un
+            // pari sur A4. **A4 a eu lieu** (T1729, 30/10) : le pluriel est
+            // reel, et il se tient sans que cette methode ait ete reecrite —
+            // chaque compte recoit SON lien, portant SON token, parce que la
+            // table peut en porter plusieurs.
             ->orderBy('id')
             ->get();
     }
@@ -95,11 +111,18 @@ class PasswordResetAccountResolver
     /**
      * Les credentials a passer au broker STOCK pour qu'il ne redevine rien.
      *
-     * `retrieveByCredentials()` ajoute un `where` par cle fournie : `id` est la
-     * cle primaire, `email` une colonne unique — la paire designe au plus un
-     * compte. Un couple incoherent (un `id` et un `email` qui ne vont pas
-     * ensemble) rend `null`, donc un refus, jamais l'ouverture d'un autre
-     * compte.
+     * `retrieveByCredentials()` ajoute un `where` par cle fournie. `id` est la
+     * cle primaire : elle designe a elle seule au plus un compte, et l'`email`
+     * ne fait que confirmer. Un couple incoherent (un `id` et un `email` qui ne
+     * vont pas ensemble) rend `null`, donc un refus, jamais l'ouverture d'un
+     * autre compte.
+     *
+     * TASK-1733 (A7) : ce raisonnement reposait sur « `email` est une colonne
+     * unique », ce qui est FAUX depuis A4. Il tient quand meme — mais par la
+     * cle primaire seule, et il faut le dire ainsi. L'`email` passe ici est
+     * d'ailleurs la valeur STOCKEE, relue sur la ligne : la comparaison exacte
+     * du broker porte donc sur la casse reelle du compte, et n'a pas besoin de
+     * `LOWER()`.
      *
      * @return array{id: string, email: string}
      */
