@@ -6,10 +6,16 @@ use App\Models\Organization;
 use App\Models\ScenarioPackEntity;
 use App\Models\ScenarioPackLoad;
 use App\Support\ScenarioPacks\Contracts\ScenarioPackDefinition;
+use App\Support\ScenarioPacks\Exceptions\ScenarioPackOwnershipUnknownException;
 use App\Support\ScenarioPacks\ScenarioPackLoader;
 use App\Support\ScenarioPacks\ScenarioPackLoadResult;
+use App\Support\ScenarioPacks\ScenarioPackRemover;
+use App\Support\Tenancy\OrganizationDetachGuard;
+use App\Support\Tenancy\OrganizationDetachRefused;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -50,6 +56,13 @@ class ManifestSandboxLoadService
     public function __construct(
         private readonly ScenarioSandboxProvisioner $provisioner,
         private readonly ScenarioPackLoader $loader,
+        // TASK-1729 phase 2 — valeur par defaut, et ce n'est pas de la
+        // commodite : la couture de test de ce service construit des
+        // sous-classes anonymes avec DEUX arguments. Un troisieme parametre
+        // requis aurait casse ces tests, et la correction aurait porte sur
+        // eux plutot que sur le defaut. Meme forme que `ScenarioPackRemover`,
+        // qui se donne lui aussi son purgeur par defaut.
+        private readonly ScenarioPackRemover $remover = new ScenarioPackRemover,
     ) {}
 
     /**
@@ -219,10 +232,101 @@ class ManifestSandboxLoadService
 
     /**
      * Defait exactement ce que CETTE invocation a cree, et rien d'autre.
+     *
+     * ## Le defaut corrige — TASK-1729 phase 2, arbitrage MASTER
+     *
+     * Ce nettoyage etait le plus dangereux des cinq `forceDelete()`
+     * d'Organization du depot, et le seul dont l'atteignabilite soit PROUVEE :
+     * deux de ses trois appelants (la course perdue sur le digest, et l'echec
+     * d'inscription de la provenance) tournent APRES un
+     * `loader->load()` reussi ET committe. Les 22 personas du monde existent
+     * donc, rattaches a cette Organization.
+     *
+     * Or l'ancienne ecriture ne supprimait que la ligne de chargement, jamais
+     * les comptes. La FK `users.organization_id ON DELETE SET NULL` les
+     * DETACHAIT — et depuis A4, un compte sans Organization dont l'adresse est
+     * portee ailleurs est un compte MUET : ni login, ni reinitialisation.
+     *
+     * Et cela cassait l'invariant SANS aucune concurrence. `sandboxEmail()`
+     * prefixe l'adresse du slug de la sandbox, et le provisionneur ne reserve
+     * les slugs que parmi les Organizations VIVANTES : un `discard()` libere
+     * le slug, le chargement suivant du meme manifeste le reprend, et ses
+     * membres portent EXACTEMENT les adresses des orphelins laisses par le
+     * premier. Au second `discard()`, le `SET NULL` poussait ces lignes dans
+     * `users_email_orphan_unique` ou les adresses existaient deja : violation
+     * 23505 non rattrapee, et sous PostgreSQL une transaction avortee.
+     *
+     * ## Ce que fait la correction, et ce qu'elle refuse de faire
+     *
+     * Elle ne purge RIEN elle-meme. Elle appelle le `ScenarioPackRemover`,
+     * c'est-a-dire l'autorite d'ownership du moteur — deja ecrite, deja
+     * testee : il purge les entites dont le registre prouve l'ownership
+     * `created`, laisse les `reused`, et REFUSE tout quand l'ownership est
+     * inconnu. Un compte reel, un compte etranger, un compte seulement
+     * reference ne peut donc pas etre supprime ici. Recopier une boucle de
+     * purge aurait produit une seconde regle d'ownership — et c'est la copie
+     * qu'on oublie de corriger.
+     *
+     * Puis la garde D1, sous verrou, mesure ce qui est ENCORE rattache : s'il
+     * reste un compte dont le detachement rendrait une adresse ambigue, tout
+     * est annule.
+     *
+     * ## Pourquoi un refus ne remonte PAS
+     *
+     * Les trois appelants sont des chemins d'echec qui doivent rendre
+     * l'exception D'ORIGINE — c'est une propriete de ce fichier, ecrite et
+     * testee : masquer un defaut metier derriere un incident de nettoyage
+     * ferait disparaitre le defaut. Un refus de nettoyage laisse donc la
+     * sandbox ENTIERE, sa ligne de chargement incluse, ce qui la laisse
+     * retirable par l'ecran Remove — strictement mieux que l'ancien etat, qui
+     * la detruisait en orphelinant ses comptes. Le fait est journalise, jamais
+     * avale en silence.
+     *
+     * La transaction est ce qui rend ce « tout ou rien » vrai : si la garde
+     * refuse, la purge que le remover vient de faire est annulee avec elle.
+     * Aucune suppression partielle n'est possible.
      */
     private function discard(Organization $organization): void
     {
-        ScenarioPackLoad::query()->where('organization_id', $organization->id)->delete();
-        $organization->forceDelete();
+        try {
+            DB::transaction(function () use ($organization): void {
+                $chargements = ScenarioPackLoad::query()
+                    ->where('organization_id', $organization->id)
+                    ->pluck('pack_id');
+
+                foreach ($chargements as $packId) {
+                    $this->remover->remove((string) $packId, $organization);
+                }
+
+                // Ceinture : `remove()` supprime la ligne de chargement de
+                // chaque pack qu'il traite, mais une ligne sans `pack_id`
+                // exploitable ne doit pas survivre a la sandbox.
+                ScenarioPackLoad::query()->where('organization_id', $organization->id)->delete();
+
+                OrganizationDetachGuard::verrouillerEtRefuserSiAmbigu($organization);
+
+                $organization->forceDelete();
+            });
+        } catch (OrganizationDetachRefused|ScenarioPackOwnershipUnknownException|QueryException $refus) {
+            // `QueryException` est dans la liste pour une raison precise, et
+            // c'est la meme que les deux autres.
+            //
+            // La purge du remover peut echouer sur une contrainte `RESTRICT` :
+            // T1635/T1636 en ont pose sur les ecritures de points, les votes,
+            // les soumissions et les transactions, et une sandbox qui a
+            // REELLEMENT servi en porte. `ScenarioLifecycleService` traite deja
+            // ce cas comme un refus metier, pas comme un incident.
+            //
+            // Le laisser remonter d'ici aurait casse l'invariant de ce
+            // fichier — « rendre TOUJOURS l'exception d'origine » — en
+            // remplacant le defaut qu'on essayait de signaler par un incident
+            // de nettoyage. Le `rollback` de la transaction ci-dessus garantit
+            // par ailleurs qu'aucune purge partielle ne subsiste.
+            Log::warning('TASK-1729 — nettoyage de sandbox refuse, la sandbox est conservee ENTIERE.', [
+                'organization_id' => $organization->id,
+                'organization_slug' => $organization->slug,
+                'raison' => $refus->getMessage(),
+            ]);
+        }
     }
 }

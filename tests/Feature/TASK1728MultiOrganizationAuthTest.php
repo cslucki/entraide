@@ -5,11 +5,9 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Users\LoginAccountResolver;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -58,47 +56,29 @@ class TASK1728MultiOrganizationAuthTest extends TestCase
     }
 
     /**
-     * Cree deux VRAIS homonymes, le temps de ce test seulement.
+     * Cree deux VRAIS homonymes.
      *
-     * ## Pourquoi ce detour est necessaire, et pourquoi il est legitime
+     * ## Ce que ce helper faisait, et pourquoi il ne le fait plus
      *
-     * `UNIQUE(users.email)` est une contrainte de BASE : son retrait est
-     * l'etape A4, hors du perimetre de T1728. Deux comptes ne peuvent donc pas
-     * partager une adresse aujourd'hui — et c'est precisement ce qui rend
-     * l'ambiguite INOBSERVABLE par les voies normales.
+     * `UNIQUE(users.email)` etait une contrainte de BASE : deux comptes ne
+     * pouvaient pas partager une adresse, et l'ambiguite que T1728 gere etait
+     * donc INOBSERVABLE par les voies normales. Ce helper retirait l'index le
+     * temps du test — `Schema::table(...)->dropUnique('users_email_unique')` —,
+     * la transaction de `RefreshDatabase` le restaurant aussitot.
      *
-     * Deux sabotages l'ont prouve : remplacer le refus d'ambiguite par un
-     * `->first()`, et faire re-resoudre la confirmation de mot de passe par
-     * email, laissaient la suite ENTIEREMENT VERTE. Mes tests d'homonymie
-     * d'origine employaient deux adresses DIFFERENTES : ils passaient avec
-     * l'ancien code comme avec le neuf, donc ne mesuraient rien.
+     * **TASK-1729 (A4) a retire cet index pour de bon** et l'a remplace par
+     * `UNIQUE(organization_id, LOWER(email))` plus un index partiel sur les
+     * orphelins. Deux comptes de MEME adresse dans DEUX Organizations sont
+     * donc creables normalement, et l'artifice n'a plus d'objet : il echouait
+     * meme, faute d'index a retirer.
      *
-     * On retire donc l'index le temps du test. Rien n'est modifie au schema :
-     * `RefreshDatabase` enveloppe chaque test dans une transaction, et la
-     * contrainte est de retour a la ligne suivante. C'est l'equivalent, pour
-     * A3, du test isole du depot de tokens en T1727 — mesurer AUJOURD'HUI le
-     * comportement que A4 rendra atteignable.
+     * Les tests qui s'en servent sont INCHANGES — c'est ce qui montre que
+     * T1728 avait ete ecrite pour cet etat sans pouvoir l'atteindre.
      *
      * @return array{0: User, 1: User}
      */
     private function deuxHomonymes(string $email, string $motDePasseB): array
     {
-        // `dropUnique()` et NON un `DROP INDEX` ecrit a la main.
-        //
-        // Defaut attrape par le gate PostgreSQL, et SQLite ne pouvait pas le
-        // voir : sous PostgreSQL, `users_email_unique` est une CONTRAINTE
-        // adossee a un index, et `DROP INDEX` y echoue avec « cannot drop
-        // index ... because constraint ... requires it ». Sous SQLite c'est un
-        // index nu, et l'instruction passait.
-        //
-        // Le constructeur de schema sait laquelle des deux formes employer —
-        // `alter table ... drop constraint` d'un cote, `drop index` de
-        // l'autre. Ecrire le DDL a la main, c'etait choisir un moteur sans le
-        // dire.
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropUnique('users_email_unique');
-        });
-
         $a = $this->compte($this->publiqueA, $email);
 
         $b = User::factory()->create([

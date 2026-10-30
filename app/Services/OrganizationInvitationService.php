@@ -104,18 +104,49 @@ class OrganizationInvitationService
             // on invitait `alice@x.com`, et le Cas C etait contourne — deux
             // comptes pour une seule boite. Meme clause que
             // LoopInvitationService, dont ce service reprend le patron.
-            $existingUser = User::whereRaw('LOWER(email) = ?', [$email])->lockForUpdate()->first();
+            // TASK-1729 (A4) — DEUX recherches, et l'ordre est la correction.
+            //
+            // Une seule recherche GLOBALE suivie d'un `->first()` suffisait
+            // tant que l'adresse etait unique sur la plateforme. Depuis A4 elle
+            // peut exister dans PLUSIEURS Organizations : `->first()` pouvait
+            // alors rendre le compte d'un AUTRE tenant et faire repondre
+            // « adresse employee ailleurs » a propos de quelqu'un qui est deja
+            // membre ICI. On demande donc d'abord a CETTE Organization.
+            $membreIci = User::query()
+                ->where('organization_id', $organization->id)
+                ->whereRaw('LOWER(email) = ?', [$email])
+                ->lockForUpdate()
+                ->first();
+
+            if ($membreIci) {
+                return ['case' => self::CASE_ALREADY_MEMBER, 'invitation' => null, 'user' => $membreIci];
+            }
+
+            $existingUser = User::query()
+                ->whereRaw('LOWER(email) = ?', [$email])
+                ->lockForUpdate()
+                ->first();
 
             if ($existingUser) {
-                if ($existingUser->organization_id === $organization->id) {
-                    return ['case' => self::CASE_ALREADY_MEMBER, 'invitation' => null, 'user' => $existingUser];
-                }
-
-                // Cas C — the schema makes a second User for this e-mail
-                // impossible (users.email is a GLOBAL unique index), and
-                // moving the existing account would silently relocate its
-                // content without it (the exact defect measured ahead of
-                // TASK-1639). So: no invitation, no e-mail, no mutation.
+                // Cas C — CHOIX PRODUIT, en attente de A6 (arbitrage MASTER D2).
+                //
+                // Ce commentaire disait : « the schema makes a second User for
+                // this e-mail impossible (users.email is a GLOBAL unique
+                // index) ». **C'est devenu FAUX avec TASK-1729** : le schema
+                // autorise desormais un second compte, un par Organization.
+                //
+                // Le refus reste, mais il ne repose plus sur une impossibilite
+                // technique — il repose sur une decision : creer ce compte
+                // frere est l'etape A6, avec sa liaison explicite et sa preuve
+                // de controle de chaque compte. D'ici la, on ne cree rien dans
+                // le dos de personne : pas d'invitation, pas d'email, aucune
+                // mutation. Et surtout, deplacer le compte existant reste
+                // interdit — c'est T1726, et c'etait le defaut mesure avant
+                // TASK-1639.
+                //
+                // Un commentaire qui invoque une garantie de schema disparue
+                // est pire que pas de commentaire : il fait raisonner juste sur
+                // une premisse fausse.
                 return ['case' => self::CASE_EMAIL_USED_ELSEWHERE, 'invitation' => null, 'user' => $existingUser];
             }
 
@@ -310,9 +341,23 @@ class OrganizationInvitationService
                 return ['result' => self::RESULT_SANDBOX_FORBIDDEN, 'invitation' => $invitation, 'user' => null];
             }
 
-            $existingUser = User::whereRaw('LOWER(email) = ?', [OrganizationInvitation::normalizeEmail($invitation->recipient_email)])
+            // TASK-1729 (A4) — meme correction qu'a l'envoi, et pour la meme
+            // raison : CETTE Organization d'abord. Une recherche globale suivie
+            // d'un `->first()` pouvait rendre le compte d'un autre tenant et
+            // faire repondre « adresse employee ailleurs » a quelqu'un qui est
+            // deja membre ici — donc refuser une invitation parfaitement
+            // legitime.
+            $adresse = OrganizationInvitation::normalizeEmail($invitation->recipient_email);
+
+            $existingUser = User::query()
+                ->where('organization_id', $organization->id)
+                ->whereRaw('LOWER(email) = ?', [$adresse])
                 ->lockForUpdate()
-                ->first();
+                ->first()
+                ?? User::query()
+                    ->whereRaw('LOWER(email) = ?', [$adresse])
+                    ->lockForUpdate()
+                    ->first();
 
             if ($existingUser) {
                 if ($existingUser->organization_id !== $organization->id) {

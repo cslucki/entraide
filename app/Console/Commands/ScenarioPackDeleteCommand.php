@@ -5,7 +5,10 @@ namespace App\Console\Commands;
 use App\Models\Organization;
 use App\Models\ScenarioPackLoad;
 use App\Support\ScenarioPacks\ScenarioPackRemover;
+use App\Support\Tenancy\OrganizationDetachGuard;
+use App\Support\Tenancy\OrganizationDetachRefused;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
@@ -61,7 +64,31 @@ class ScenarioPackDeleteCommand extends Command
             // peut pas etre purgee par le moteur. C'est ce drapeau, ecrit au
             // chargement, qui autorise — seul — le retour a l'etat ABSENT.
             $slug = $organization->slug;
-            $organization->forceDelete();
+
+            // TASK-1729 phase 2 — la garde D1, et la transaction qui la tient.
+            //
+            // Ce site etait le plus nu des quatre : aucun preflight, aucun
+            // controle de contenu etranger, et le `forceDelete()` HORS de la
+            // transaction de `remove()`. L'Organization peut avoir vecu des
+            // semaines et porter des comptes que ce chargement n'a jamais
+            // inscrits ; la FK `ON DELETE SET NULL` les detache ici sans qu'une
+            // ligne de PHP ecrive dans `users`.
+            try {
+                DB::transaction(function () use ($organization): void {
+                    OrganizationDetachGuard::verrouillerEtRefuserSiAmbigu($organization);
+
+                    $organization->forceDelete();
+                });
+            } catch (OrganizationDetachRefused $refus) {
+                // Le pack est retire — c'est fait, et c'etait le geste demande.
+                // Seule l'Organization survit, et on dit pourquoi. `FAILURE`
+                // parce que l'etat final n'est pas celui que la commande
+                // annonce ; aucune suppression partielle n'a eu lieu.
+                $this->error($refus->getMessage());
+
+                return self::FAILURE;
+            }
+
             $this->info("Organization '{$slug}' supprimee : elle avait ete creee par ce chargement.");
         }
 

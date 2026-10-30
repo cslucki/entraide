@@ -14,6 +14,7 @@ use App\Rules\NomDePersonneAcceptable;
 use App\Services\UserSlugService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use App\Rules\UniqueEmailInOrganization;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
@@ -21,6 +22,8 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Intervention\Image\Laravel\Facades\Image;
+use App\Support\Tenancy\UserWriteLock;
+use Illuminate\Support\Facades\DB;
 
 class ProfileController extends Controller
 {
@@ -274,7 +277,11 @@ class ProfileController extends Controller
             // cette regle, il suffirait de s'inscrire proprement puis de se
             // renommer.
             'name' => ['required', 'string', 'max:255', new NomDePersonneAcceptable],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email,'.$request->user()->id],
+            // TASK-1729 (A4) — unicite dans SON Organization, son propre compte
+            // excepte. L'Organization n'est pas un choix ici : elle est celle du
+            // compte, et elle est immuable depuis T1726.
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255',
+                new UniqueEmailInOrganization($request->user()->organization_id, $request->user()->id)],
             'phone' => ['required', 'string', 'max:30'],
             'show_email' => ['nullable', 'boolean'],
             'show_phone' => ['nullable', 'boolean'],
@@ -337,13 +344,36 @@ class ProfileController extends Controller
         $data['show_email'] = $request->has('show_email');
         $data['show_phone'] = $request->has('show_phone');
 
-        $request->user()->fill($data);
+        // TASK-1729 phase 2 — l'enregistrement du profil passe sous verrou.
+        //
+        // Changer son adresse est une ecriture sur `users` comme une autre, et
+        // la regle d'unicite ci-dessus tourne hors transaction. La fenetre y
+        // etait meme plus large qu'ailleurs : entre la validation et ce
+        // `save()`, le controleur redimensionne et ecrit un avatar sur le
+        // disque. Une inscription concurrente, ou la suppression d'une
+        // Organization qui detache ses membres, pouvait donc prendre l'adresse
+        // pendant ce temps-la.
+        //
+        // Le recontrole porte la MEME portee que la regle : son Organization,
+        // son propre compte excepte. L'Organization est lue sur le compte et
+        // non sur l'URL — elle est immuable depuis TASK-1726.
+        $moiAEnregistrer = $request->user();
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
-        }
+        DB::transaction(function () use ($moiAEnregistrer, $data) {
+            UserWriteLock::acquire();
 
-        $request->user()->save();
+            UniqueEmailInOrganization::refuserSiPrise(
+                'email', $data['email'], $moiAEnregistrer->organization_id, $moiAEnregistrer->id
+            );
+
+            $moiAEnregistrer->fill($data);
+
+            if ($moiAEnregistrer->isDirty('email')) {
+                $moiAEnregistrer->email_verified_at = null;
+            }
+
+            $moiAEnregistrer->save();
+        });
 
         // TASK-1693 / bug A — destination DETERMINISTE, jamais `intended()`.
         //

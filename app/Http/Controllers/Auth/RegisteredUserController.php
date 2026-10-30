@@ -8,6 +8,7 @@ use App\Models\Country;
 use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\User;
+use App\Rules\UniqueEmailInOrganization;
 use App\Rules\NomDePersonneAcceptable;
 use App\Rules\TurnstileValide;
 use App\Services\Acquisition\AcquisitionEventRecorder;
@@ -19,10 +20,12 @@ use App\Services\ReferralService;
 use App\Services\Security\TurnstileVerifier;
 use App\Services\Workshops\WorkshopResumption;
 use App\Support\Tenancy\DefaultOrganizationResolver;
+use App\Support\Tenancy\UserWriteLock;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
@@ -172,6 +175,20 @@ class RegisteredUserController extends Controller
         $menu = $this->menuEstPropose($arrivee);
         $ouvertes = $menu ? $this->organizationsOuvertes() : collect();
 
+        // TASK-1729 (A4) — l'Organization d'accueil, resolue AVANT la
+        // validation parce que la regle d'unicite en a besoin.
+        //
+        // L'expression est celle qui vivait APRES le `validate()`, deplacee
+        // telle quelle. Elle est sure ici pour la raison que son commentaire
+        // d'origine donnait deja : `firstWhere` puise dans `$ouvertes`, la
+        // liste DEJA validee, donc un slug inconnu rend `null` et l'on retombe
+        // sur l'Organization d'arrivee. Et si ce slug est invalide, la regle
+        // `organisation_confirmee` ci-dessous refuse de toute facon la
+        // requete : aucun compte ne nait.
+        $organization = $menu
+            ? ($ouvertes->firstWhere('slug', $request->string('organisation_confirmee')->toString()) ?? $arrivee)
+            : $arrivee;
+
         $request->validate([
             'attribution' => ['sometimes', 'array:shortcut,utm_source,utm_medium,utm_campaign'],
             'attribution.shortcut' => ['nullable', 'string', 'max:32'],
@@ -184,7 +201,13 @@ class RegisteredUserController extends Controller
             // email de bienvenue.
             'name' => ['required', 'string', 'max:255', new NomDePersonneAcceptable],
             'first_name' => ['required', 'string', 'max:255', new NomDePersonneAcceptable],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            // TASK-1729 (A4) — l'unicite devient celle de l'ORGANIZATION d'accueil.
+            // `unique:User::class` posait la question a la plateforme entiere ;
+            // elle se pose desormais au tenant dans lequel on s'inscrit, et sans
+            // distinction de casse. L'Organization est resolue plus bas, mais la
+            // regle en a besoin MAINTENANT : on la resout donc en amont.
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255',
+                new UniqueEmailInOrganization($organization?->getKey())],
             'phone' => ['required', 'string', 'max:30'],
             'country_code' => ['required', 'string', 'size:2', 'exists:countries,code'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
@@ -232,12 +255,7 @@ class RegisteredUserController extends Controller
         ]);
 
         // L'organisation DESIGNEE l'emporte quand le menu existe ; sinon celle
-        // de l'URL. `firstWhere` puise dans la liste deja validee : aucune
-        // seconde requete, et aucun slug non verifie ne peut arriver ici.
-        $organization = $menu
-            ? ($ouvertes->firstWhere('slug', $request->string('organisation_confirmee')->toString()) ?? $arrivee)
-            : $arrivee;
-
+        // de l'URL. Resolue plus haut, avant la validation — voir TASK-1729.
         if (! $organization) {
             throw ValidationException::withMessages([
                 'email' => 'Aucune organisation active n\'est disponible pour l\'inscription.',
@@ -268,41 +286,77 @@ class RegisteredUserController extends Controller
             ]);
         }
 
-        $user = User::create([
-            'name' => $request->name,
-            'first_name' => $request->first_name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'country_code' => $request->country_code,
-            'password' => Hash::make($request->password),
-            'points_balance' => 100,
-            'organization_id' => $organization->id,
-        ]);
-
-        // TASK-1714 volet 2 — l'approbation, posee HORS assignation de masse.
+        // TASK-1729 phase 2 — le compte nait sous VERROU, et son adresse est
+        // recontrolee a l'interieur.
         //
-        // `approved_at` n'est deliberement PAS dans `User::$fillable`, comme
-        // `email_verified_at` et `must_set_password` : un drapeau qui ouvre
-        // l'acces ne doit pas pouvoir etre bascule par un formulaire qui
-        // recopierait trop large. `forceFill()` est le seul chemin, et il est
-        // ici explicite.
+        // ## Ce qui etait ouvert
         //
-        // `now()` quand l'Organization n'exige rien, jamais `null` : un compte
-        // approuve doit l'etre EXPLICITEMENT en base, pour qu'un `SELECT`
-        // reponde a « qui attend ? » sans connaitre le reglage. C'est aussi ce
-        // qui rend la non-retroactivite stable — activer le reglage plus tard
-        // ne remet personne en attente.
-        $user->forceFill([
-            'approved_at' => $organization->requires_account_approval ? null : now(),
-        ])->save();
+        // `/register` est une route PUBLIQUE. La regle d'unicite ci-dessus
+        // tourne dans `$request->validate()`, donc hors transaction : entre
+        // elle et le `User::create()` d'ici, une seconde inscription — ou la
+        // suppression d'une Organization, qui DETACHE ses membres — pouvait
+        // creer l'adresse qui rend le controle faux. On obtenait alors soit un
+        // orphelin muet, soit une violation d'index, c'est-a-dire un 500 sur
+        // une collision parfaitement ordinaire.
+        //
+        // ## Pourquoi le verrou n'entoure pas la validation
+        //
+        // `$request->validate()` valide aussi le defi Turnstile, qui appelle
+        // Cloudflare. Tenir `SHARE ROW EXCLUSIVE` sur `users` pendant un
+        // aller-retour reseau aurait bloque toutes les ecritures de comptes de
+        // l'application le temps d'une latence exterieure. Le verrou entoure
+        // donc le recontrole et l'ecriture, et rien d'autre — quelques
+        // instructions.
+        //
+        // Le ledger de bienvenue est DEDANS : 100 points et la ligne qui les
+        // justifie sont le meme fait. Les evenements, l'attribution Guest et le
+        // `Auth::login()` sont DEHORS — ils envoient des emails et parlent au
+        // reseau, et aucun ne participe a l'unicite.
+        $user = DB::transaction(function () use ($request, $organization) {
+            UserWriteLock::acquire();
 
-        PointLedger::create([
-            'user_id' => $user->id,
-            'transaction_id' => null,
-            'delta' => 100,
-            'organization_id' => $user->organization_id,
-            'reason' => 'welcome_bonus',
-        ]);
+            UniqueEmailInOrganization::refuserSiPrise(
+                'email', $request->email, $organization->getKey()
+            );
+
+            $user = User::create([
+                'name' => $request->name,
+                'first_name' => $request->first_name,
+                'email' => $request->email,
+                'phone' => $request->phone,
+                'country_code' => $request->country_code,
+                'password' => Hash::make($request->password),
+                'points_balance' => 100,
+                'organization_id' => $organization->id,
+            ]);
+
+            // TASK-1714 volet 2 — l'approbation, posee HORS assignation de masse.
+            //
+            // `approved_at` n'est deliberement PAS dans `User::$fillable`, comme
+            // `email_verified_at` et `must_set_password` : un drapeau qui ouvre
+            // l'acces ne doit pas pouvoir etre bascule par un formulaire qui
+            // recopierait trop large. `forceFill()` est le seul chemin, et il est
+            // ici explicite.
+            //
+            // `now()` quand l'Organization n'exige rien, jamais `null` : un compte
+            // approuve doit l'etre EXPLICITEMENT en base, pour qu'un `SELECT`
+            // reponde a « qui attend ? » sans connaitre le reglage. C'est aussi ce
+            // qui rend la non-retroactivite stable — activer le reglage plus tard
+            // ne remet personne en attente.
+            $user->forceFill([
+                'approved_at' => $organization->requires_account_approval ? null : now(),
+            ])->save();
+
+            PointLedger::create([
+                'user_id' => $user->id,
+                'transaction_id' => null,
+                'delta' => 100,
+                'organization_id' => $user->organization_id,
+                'reason' => 'welcome_bonus',
+            ]);
+
+            return $user;
+        });
 
         // TASK-1464 (audit OPUS final P1-2, Growth V3 §5) : le chemin « lien court → inscription » a un porteur.
         // Au POST seulement (afficher le formulaire ne cree rien) : si aucun cookie Guest de CETTE Organization et
