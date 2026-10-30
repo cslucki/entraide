@@ -74,4 +74,19 @@ return [
     'login_organization_any' => "— Toutes les organisations —",
     'login_organization_hint' => "Utile seulement si votre adresse est rattachée à plusieurs organisations. Laissez vide sinon.",
     'login_try_global' => "Votre compte appartient à une autre organisation ? Connectez-vous ici.",
+
+    // TASK-1730 (A5a) — la bascule entre comptes d'Organizations differentes.
+    //
+    // `switch_failed` couvre CINQ causes d'un seul message : organisation
+    // inconnue, adresse absente, ambiguite, mot de passe faux, compte
+    // inutilisable. Les distinguer ferait de cet ecran un oracle
+    // d'appartenance ; le motif precis part au journal.
+    'switch_failed' => 'Impossible de passer sur ce compte. Verifiez l\'organisation choisie et le mot de passe de ce compte.',
+    'switch_already_here' => 'Vous etes deja connecte sur le compte de cette organisation.',
+    'switch_title' => 'Changer de compte',
+    'switch_intro' => 'Si votre adresse porte un compte dans une autre organisation, indiquez laquelle et saisissez le mot de passe DE CE COMPTE. Vous serez deconnecte du compte actuel.',
+    'switch_organization_label' => 'Organisation du compte visé',
+    'switch_organization_placeholder' => 'Choisir une organisation',
+    'switch_password_label' => 'Mot de passe du compte visé',
+    'switch_submit' => 'Passer sur ce compte',
 ];

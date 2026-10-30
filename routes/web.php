@@ -63,6 +63,7 @@ use App\Http\Controllers\Admin\OrgWorkshopRegistrantsController;
 use App\Http\Controllers\Admin\OrgWorkshopSessionController;
 use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
+use App\Http\Controllers\Auth\AccountSwitchController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -434,6 +435,21 @@ Route::middleware('auth')->group(function () {
     Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'storeRequest'])->middleware('throttle:5,1')->name('reports.request');
     Route::post('/reports/user/{user}', [ReportController::class, 'storeUser'])->middleware('throttle:5,1')->name('reports.user');
     Route::post('/bugs', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
+
+    // TASK-1730 (A5a) — passer a SON autre compte, dans une autre Organization.
+    //
+    // Routes GLOBALES et non prefixees par `/org/{organization}`, delibere :
+    // le geste consiste precisement a QUITTER le tenant courant. Les declarer
+    // sous un prefixe de tenant aurait fait dependre la sortie de l'endroit
+    // d'ou l'on part.
+    //
+    // Elles vivent dans le groupe `auth`, donc sous les gardes habituelles du
+    // groupe `web` : un compte non verifie ou en attente d'approbation ne les
+    // atteint pas. C'est une limite ASSUMEE et documentee dans la fiche —
+    // se deconnecter puis se reconnecter reste ouvert a ces comptes, `logout`
+    // etant explicitement autorise par les deux gardes.
+    Route::get('/switch-account', [AccountSwitchController::class, 'create'])->name('account.switch');
+    Route::post('/switch-account', [AccountSwitchController::class, 'store'])->name('account.switch.store');
 
     // Profile
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
