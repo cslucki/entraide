@@ -5,8 +5,10 @@ namespace App\Rules;
 use App\Models\User;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * TASK-1729 (A4) — une adresse est unique DANS une Organization, sans
@@ -85,14 +87,73 @@ class UniqueEmailInOrganization implements ValidationRule
             return;
         }
 
-        $existe = User::query()
+        if (self::estPrise($value, $this->organizationId, $this->ignoreUserId)) {
+            $fail('validation.unique')->translate(['attribute' => $attribute]);
+        }
+    }
+
+    /**
+     * Le MEME refus, mais leve — a employer sous verrou, juste avant l'ecriture.
+     *
+     * ## Pourquoi un second controle, et pourquoi il ne peut pas remplacer le premier
+     *
+     * La regle ci-dessus tourne dans `$request->validate()`, et c'est la bonne
+     * place : elle rend les messages de tous les champs d'un coup, et elle
+     * s'execute SANS verrou. Mais entre elle et l'ecriture il y a un trou que
+     * rien ne ferme — `/register` est publique, deux requetes peuvent y passer
+     * en meme temps, et en READ COMMITTED chaque instruction prend un
+     * instantane neuf. Le controle de validation est donc un controle
+     * d'ERGONOMIE ; celui-ci est le controle d'INTEGRITE.
+     *
+     * On ne pouvait pas simplement poser le verrou autour de
+     * `$request->validate()` : l'inscription web y valide aussi le defi
+     * Turnstile, qui appelle Cloudflare. Tenir `SHARE ROW EXCLUSIVE` sur
+     * `users` pendant un aller-retour reseau aurait bloque toutes les
+     * ecritures de comptes de l'application le temps d'une latence
+     * exterieure. Le verrou doit entourer le controle et l'ecriture, et
+     * RIEN d'autre.
+     *
+     * Les deux controles posent la MEME question — `estPrise()` est la seule
+     * implementation. C'est ce qui garantit qu'une collision ordinaire se
+     * presente comme un message de champ, jamais comme un 500 : si le premier
+     * laisse passer, le second refuse avec le meme libelle au meme champ.
+     */
+    public static function refuserSiPrise(
+        string $attribut,
+        mixed $valeur,
+        ?string $organizationId,
+        ?string $ignoreUserId = null,
+    ): void {
+        if (! is_string($valeur) || $valeur === '') {
+            return;
+        }
+
+        if (! self::estPrise($valeur, $organizationId, $ignoreUserId)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            $attribut => [trans('validation.unique', ['attribute' => $attribut])],
+        ]);
+    }
+
+    /**
+     * L'UNIQUE implementation de la question « cette adresse est-elle prise ? ».
+     *
+     * Partagee par la regle de validation et par le refus sous verrou. Les
+     * avoir ecrites deux fois aurait donne deux reponses le jour ou l'une
+     * change — et c'est la copie qu'on oublie de corriger.
+     */
+    private static function estPrise(string $value, ?string $organizationId, ?string $ignoreUserId): bool
+    {
+        return User::query()
             // `LOWER()` des deux cotes : la colonne est sensible a la casse
             // sous PostgreSQL, et c'est la forme exacte que portent les index
             // uniques de la migration. La regle et la base doivent repondre a
             // la MEME question, sinon l'une promet ce que l'autre refuse.
             ->whereRaw('LOWER(email) = ?', [Str::lower($value)])
             ->when(
-                $this->organizationId === null,
+                $organizationId === null,
                 // Compte SANS Organization : toute homonymie le rend muet, y
                 // compris avec un membre. Aucun filtre de portee, donc.
                 fn ($query) => $query,
@@ -100,18 +161,14 @@ class UniqueEmailInOrganization implements ValidationRule
                 // est legitime (A4), mais un ORPHELIN homonyme ne l'est pas —
                 // c'est lui qu'on rendrait muet. D'ou les deux branches.
                 fn ($query) => $query->where(fn ($q) => $q
-                    ->where('organization_id', $this->organizationId)
+                    ->where('organization_id', $organizationId)
                     ->orWhereNull('organization_id')),
             )
             ->when(
-                $this->ignoreUserId !== null,
-                fn ($query) => $query->whereKeyNot($this->ignoreUserId),
+                $ignoreUserId !== null,
+                fn ($query) => $query->whereKeyNot($ignoreUserId),
             )
             ->exists();
-
-        if ($existe) {
-            $fail('validation.unique')->translate(['attribute' => $attribute]);
-        }
     }
 
     /**
@@ -126,7 +183,7 @@ class UniqueEmailInOrganization implements ValidationRule
      * `LOWER()`, et le jour ou l'une changera l'autre devra suivre.
      *
      * @param  list<string>  $adresses
-     * @return \Illuminate\Support\Collection<int, string> les adresses en conflit
+     * @return Collection<int, string> les adresses en conflit
      */
     public static function adressesEnConflitHorsOrganization(array $adresses, string $organizationId)
     {

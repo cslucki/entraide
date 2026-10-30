@@ -29,6 +29,7 @@ use App\Services\Users\UserDeletionExecutor;
 use App\Support\ScenarioManifest\ManifestAvatarBank;
 use App\Support\Devices\DeviceKind;
 use App\Support\Tenancy\DefaultOrganizationResolver;
+use App\Support\Tenancy\UserWriteLock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -342,7 +343,21 @@ class AdminController extends Controller
             }
         }
 
-        $user->update($update);
+        // TASK-1729 phase 2 — verrou et recontrole, comme les trois autres portes.
+        //
+        // Cet ecran etait le plus expose des cinq : il valide, puis attribue un
+        // slug public, puis remplace eventuellement un avatar sur le disque,
+        // AVANT d'ecrire. Toute cette duree separait le controle d'unicite de
+        // l'ecriture qu'il etait suppose couvrir.
+        DB::transaction(function () use ($user, $update) {
+            UserWriteLock::acquire();
+
+            UniqueEmailInOrganization::refuserSiPrise(
+                'email', $update['email'], $user->organization_id, $user->id
+            );
+
+            $user->update($update);
+        });
 
         return back()->with('success', "Profil de {$user->name} mis à jour.");
     }
@@ -779,29 +794,45 @@ class AdminController extends Controller
 
         $organization = $this->organizationDAccueilParDefaut();
 
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-            'organization_id' => $organization->id,
-            'is_admin' => $data['is_admin'] ?? false,
-            'points_balance' => $data['points'],
-        ]);
+        // TASK-1729 phase 2 — verrou et recontrole.
+        //
+        // La creation depuis l'administration vise l'Organization d'accueil par
+        // defaut, c'est-a-dire la plus peuplee et la plus exposee aux
+        // inscriptions publiques concurrentes. C'est la porte ou la collision
+        // est la PLUS probable, pas la moins.
+        $user = DB::transaction(function () use ($data, $organization) {
+            UserWriteLock::acquire();
 
-        // TASK-1714 volet 2 (arbitrage MASTER A2) — approuve d'office. Le geste
-        // de creation par un SuperAdmin EST l'approbation : lui demander de
-        // valider ce qu'il vient de creer n'ajouterait aucune decision.
-        // Hors assignation de masse, comme les autres drapeaux d'acces.
-        $user->forceFill(['approved_at' => now()])->save();
+            UniqueEmailInOrganization::refuserSiPrise(
+                'email', $data['email'], $organization->getKey()
+            );
 
-        if ($data['points'] > 0) {
-            PointLedger::create([
-                'user_id' => $user->id,
-                'delta' => $data['points'],
-                'organization_id' => $user->organization_id,
-                'reason' => 'welcome_bonus',
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+                'organization_id' => $organization->id,
+                'is_admin' => $data['is_admin'] ?? false,
+                'points_balance' => $data['points'],
             ]);
-        }
+
+            // TASK-1714 volet 2 (arbitrage MASTER A2) — approuve d'office. Le geste
+            // de creation par un SuperAdmin EST l'approbation : lui demander de
+            // valider ce qu'il vient de creer n'ajouterait aucune decision.
+            // Hors assignation de masse, comme les autres drapeaux d'acces.
+            $user->forceFill(['approved_at' => now()])->save();
+
+            if ($data['points'] > 0) {
+                PointLedger::create([
+                    'user_id' => $user->id,
+                    'delta' => $data['points'],
+                    'organization_id' => $user->organization_id,
+                    'reason' => 'welcome_bonus',
+                ]);
+            }
+
+            return $user;
+        });
 
         return redirect()->route('admin.users')->with('success', "Utilisateur {$user->name} créé avec succès.");
     }
