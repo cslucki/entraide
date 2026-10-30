@@ -84,4 +84,19 @@ return [
     'login_organization_any' => "— All organizations —",
     'login_organization_hint' => "Only needed if your address belongs to several organizations. Leave empty otherwise.",
     'login_try_global' => "Is your account in another organization? Sign in here.",
+
+    // TASK-1730 (A5a) — la bascule entre comptes d'Organizations differentes.
+    //
+    // `switch_failed` couvre CINQ causes d'un seul message : organisation
+    // inconnue, adresse absente, ambiguite, mot de passe faux, compte
+    // inutilisable. Les distinguer ferait de cet ecran un oracle
+    // d'appartenance ; le motif precis part au journal.
+    'switch_failed' => 'Cannot switch to that account. Check the organization you picked and that account\'s password.',
+    'switch_already_here' => 'You are already signed in to this organization\'s account.',
+    'switch_title' => 'Switch account',
+    'switch_intro' => 'If your address has an account in another organization, pick it and enter THAT account\'s password. You will be signed out of the current one.',
+    'switch_organization_label' => 'Organization of the target account',
+    'switch_organization_placeholder' => 'Choose an organization',
+    'switch_password_label' => 'Password of the target account',
+    'switch_submit' => 'Switch to that account',
 ];

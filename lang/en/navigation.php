@@ -26,6 +26,8 @@ return [
     'my_dossiers' => 'Folders',
     'settings' => 'Profile and settings',
     'administration' => 'Administration',
+    // TASK-1730 (A5a) — passer a son autre compte, dans une autre Organization.
+    'switch_account' => 'Switch account',
     'logout' => 'Log out',
     'login' => 'Log in',
     'register' => 'Sign up',

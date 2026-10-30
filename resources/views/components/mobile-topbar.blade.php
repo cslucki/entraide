@@ -456,7 +456,10 @@
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     <x-dropdown-link :href="route('admin.dashboard')"><span class="text-purple-600 dark:text-purple-400 font-medium">{{ __('navigation.administration') }}</span></x-dropdown-link>
                     @endif
+                    {{-- TASK-1730 (A5a) — passer a SON autre compte. Meme entree
+                         qu'aux deux autres surfaces du menu avatar. --}}
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                    <x-dropdown-link :href="route('account.switch')" data-nav-account-switch>{{ __('navigation.switch_account') }}</x-dropdown-link>
                     <form method="POST" action="{{ $currentOrganization ? route('organization.logout', $currentOrganization) : route('logout') }}">
                         @csrf
                         <x-dropdown-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();">{{ __('navigation.logout') }}</x-dropdown-link>
