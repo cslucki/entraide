@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Country;
 use App\Models\Organization;
 use App\Rules\UniqueEmailInOrganization;
+use App\Support\Tenancy\UserWriteLock;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\AiRerankSettings;
@@ -444,28 +445,51 @@ class AdminOrganizationController extends Controller
         // Le refus est rendu AVANT toute ecriture, et nomme les adresses en
         // cause : l'operateur peut agir (supprimer ou transferer le compte en
         // conflit) au lieu de lire un 500.
-        $conflits = UniqueEmailInOrganization::adressesEnConflitHorsOrganization(
-            $organization->users()->pluck('email')->all(),
-            (string) $organization->getKey(),
-        );
+        // REVUE F2 — le controle et le detachement sont SOLIDAIRES.
+        //
+        // Ce controle vivait AVANT la transaction. Entre lui et le detachement,
+        // une inscription concurrente — `/register` est PUBLIQUE — pouvait
+        // creer le compte qui le rend faux : on detachait alors un compte en le
+        // rendant muet, ou l'on levait une violation d'unicite, donc un 500,
+        // apres avoir annonce que tout allait bien.
+        //
+        // La transaction seule n'y suffisait pas : en READ COMMITTED chaque
+        // instruction prend un instantane neuf. `UserWriteLock` prend donc un
+        // verrou qui tient jusqu'au commit — `SHARE ROW EXCLUSIVE` sous
+        // PostgreSQL, escalade de fichier sous SQLite.
+        //
+        // Le refus est RENDU par la transaction, pas leve : une collision
+        // metier n'est pas une panne, et ne doit pas sortir en 500.
+        $resultat = DB::transaction(function () use ($organization) {
+            UserWriteLock::acquire();
 
-        if ($conflits->isNotEmpty()) {
-            return back()->with('error', sprintf(
-                "Suppression refusee : %d adresse(s) de cette organisation sont aussi portees par un compte exterieur (%s). "
-                .'Detacher ces comptes les rendrait inconnectables. Supprimez ou transferez le compte en conflit, puis recommencez.',
-                $conflits->count(),
-                $conflits->take(3)->implode(', ')
-            ));
-        }
+            $conflits = UniqueEmailInOrganization::adressesEnConflitHorsOrganization(
+                $organization->users()->pluck('email')->all(),
+                (string) $organization->getKey(),
+            );
 
-        DB::transaction(function () use ($organization) {
+            if ($conflits->isNotEmpty()) {
+                return back()->with('error', sprintf(
+                    "Suppression refusee : %d adresse(s) de cette organisation sont aussi portees par un compte exterieur (%s). "
+                    .'Detacher ces comptes les rendrait inconnectables. Supprimez ou transferez le compte en conflit, puis recommencez.',
+                    $conflits->count(),
+                    $conflits->take(3)->implode(', ')
+                ));
+            }
+
             $organization->users()->update(['organization_id' => null]);
             $organization->services()->update(['organization_id' => null]);
             $organization->serviceRequests()->update(['organization_id' => null]);
             $organization->transactions()->update(['organization_id' => null]);
 
             $organization->forceDelete();
+
+            return null;
         });
+
+        if ($resultat !== null) {
+            return $resultat;
+        }
 
         return back()->with('success', "Organisation « {$organization->name} » supprimée définitivement.");
     }

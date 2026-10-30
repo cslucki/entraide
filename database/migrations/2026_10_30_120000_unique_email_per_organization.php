@@ -51,6 +51,16 @@ use Illuminate\Support\Facades\Schema;
  *
  * ## Ce que cette migration NE fait pas
  *
+ * ## Ce que les index NE peuvent pas garantir (revue F1)
+ *
+ * La paire « un compte SANS Organization / un membre » portant la meme adresse
+ * n'est pas exprimable par un index unique — elle porte sur deux lignes dont
+ * l'une a `organization_id` nul et l'autre non. Elle est pourtant la plus
+ * nuisible : un orphelin n'a qu'une porte, le login GLOBAL, qui refuse une
+ * adresse ambigue (T1728). Le preflight la detecte donc ici, et quatre gardes
+ * applicatives l'empechent de naitre ensuite — voir
+ * `App\Rules\UniqueEmailInOrganization`.
+ *
  * Elle ne supprime, ne deplace et ne reecrit **aucune ligne**. Elle remplace
  * des index. C'est la seule etape du chantier dont l'etat de depart est
  * trivialement sain : l'unique global garantit qu'il n'existe aujourd'hui
@@ -167,16 +177,45 @@ return new class extends Migration
             ->havingRaw('COUNT(*) > 1')
             ->get();
 
-        if ($intraOrg->isEmpty() && $orphelins->isEmpty()) {
+        // REVUE F1 — la paire ORPHELIN / MEMBRE, que les deux index ne
+        // couvrent pas.
+        //
+        // Elle n'est pas exprimable par un index unique : elle porte sur deux
+        // lignes dont l'une a `organization_id` nul et l'autre non. Et elle est
+        // pourtant la plus nuisible des trois — un compte sans Organization n'a
+        // qu'une porte, le login GLOBAL, qui refuse une adresse ambigue
+        // (T1728). Laisser passer cette paire, c'est laisser des comptes MUETS
+        // en base.
+        //
+        // La comparaison est en `LOWER()` comme les deux autres : une variante
+        // de casse rend tout autant muet.
+        $orphelinsAdresses = DB::table('users')
+            ->selectRaw('LOWER(email) as adresse')
+            ->whereNull('organization_id')
+            ->pluck('adresse');
+
+        $orphelinContreMembre = $orphelinsAdresses->isEmpty()
+            ? collect()
+            : DB::table('users')
+                ->selectRaw('LOWER(email) as adresse')
+                ->whereNotNull('organization_id')
+                ->whereIn(DB::raw('LOWER(email)'), $orphelinsAdresses->unique()->values()->all())
+                ->pluck('adresse')
+                ->unique()
+                ->values();
+
+        if ($intraOrg->isEmpty() && $orphelins->isEmpty() && $orphelinContreMembre->isEmpty()) {
             return;
         }
 
         throw new RuntimeException(sprintf(
             "TASK-1729 : bascule refusee, des doublons logiques existent deja. Rien n'a ete modifie.\n".
             "  memes (Organization, adresse) : %s\n".
-            '  memes adresses sans Organization : %s',
+            "  memes adresses sans Organization : %s\n".
+            '  adresses partagees entre un compte SANS Organization et un membre : %s',
             $intraOrg->isEmpty() ? 'aucun' : $intraOrg->map(fn ($l) => $l->adresse.' x'.$l->n)->implode(', '),
             $orphelins->isEmpty() ? 'aucun' : $orphelins->map(fn ($l) => $l->adresse.' x'.$l->n)->implode(', '),
+            $orphelinContreMembre->isEmpty() ? 'aucune' : $orphelinContreMembre->implode(', '),
         ));
     }
 

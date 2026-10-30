@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
+use App\Support\Tenancy\UserWriteLock;
 use App\Support\AssignData\Dataset;
 use App\Support\AssignData\DatasetClassification;
 use App\Support\AssignData\DatasetRegistry;
@@ -222,29 +223,41 @@ class AdminAssignDataController extends Controller
         // Deux collisions possibles, et les deux sont couvertes : un orphelin
         // contre un MEMBRE de la cible, et deux orphelins entre eux — qui
         // atterriraient tous deux dans la meme Organization.
-        if ($definition->table === 'users') {
-            $conflits = $this->adressesEnConflitAvecLaCible($organization);
+        // REVUE F2 — meme correction qu'a la suppression d'Organization : le
+        // controle vivait AVANT la transaction, et une inscription concurrente
+        // pouvait le rendre faux entre les deux. Controle et ecriture sont
+        // desormais solidaires, sous verrou.
+        $resultat = DB::transaction(function () use ($definition, $organization) {
+            if ($definition->table === 'users') {
+                UserWriteLock::acquire();
 
-            if ($conflits->isNotEmpty()) {
-                return back()->with('error', sprintf(
-                    'Rattachement refuse : %d adresse(s) existeraient en double dans « %s » (%s). '
-                    .'Une adresse est unique par organisation. Traitez ces comptes, puis recommencez.',
-                    $conflits->count(),
-                    $organization->name,
-                    $conflits->take(3)->implode(', ')
-                ));
+                $conflits = $this->adressesEnConflitAvecLaCible($organization);
+
+                if ($conflits->isNotEmpty()) {
+                    return ['refus' => back()->with('error', sprintf(
+                        'Rattachement refuse : %d adresse(s) existeraient en double dans « %s » (%s). '
+                        .'Une adresse est unique par organisation. Traitez ces comptes, puis recommencez.',
+                        $conflits->count(),
+                        $organization->name,
+                        $conflits->take(3)->implode(', ')
+                    ))];
+                }
             }
-        }
 
-        $updated = DB::transaction(
             // `whereNull` : on ne touche QUE les lignes sans Organization.
             // L'ancien UPDATE n'avait pas cette condition et reecrivait tout
             // le dataset, y compris les lignes deja rattachees ailleurs.
             // Seule `organization_id` est ecrite — aucune autre colonne.
-            fn () => $definition->query()
+            return ['mises_a_jour' => $definition->query()
                 ->whereNull('organization_id')
-                ->update(['organization_id' => $organization->getKey()])
-        );
+                ->update(['organization_id' => $organization->getKey()])];
+        });
+
+        if (isset($resultat['refus'])) {
+            return $resultat['refus'];
+        }
+
+        $updated = $resultat['mises_a_jour'];
 
         Log::info('assign-data executed', [
             'admin_id' => $request->user()?->id,

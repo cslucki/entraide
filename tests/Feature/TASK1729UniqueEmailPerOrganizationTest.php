@@ -132,14 +132,98 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
         $this->compte(null, 'orphelin@exemple.test');
     }
 
-    public function test_un_orphelin_et_un_membre_peuvent_partager_une_adresse(): void
+    /**
+     * REVUE F1 — ce test affirmait l'INVERSE, et c'etait un defaut.
+     *
+     * Il disait « un orphelin et un membre peuvent partager une adresse », en
+     * raisonnant sur ce que l'index partiel laisse passer plutot que sur ce que
+     * la personne peut faire ensuite. Or un compte sans Organization n'a
+     * **qu'une porte** — le login GLOBAL —, et cette porte refuse une adresse
+     * ambigue par conception (T1728). Cette paire produit donc un compte
+     * **MUET** : ni connexion, ni lien de reinitialisation.
+     *
+     * La base ne peut pas l'interdire : la paire porte sur deux lignes dont
+     * l'une a `organization_id` nul et l'autre non, ce qu'aucun index unique
+     * n'exprime. Ce sont les QUATRE gardes applicatives qui la tiennent, et ce
+     * test mesure la premiere — la regle de validation.
+     */
+    public function test_un_membre_ne_peut_PAS_prendre_l_adresse_d_un_orphelin(): void
     {
-        // L'autre sens : l'index partiel ne vise QUE les orphelins entre eux.
         $orphelin = $this->compte(null, 'mixte@exemple.test');
-        $membre = $this->compte($this->orgA, 'mixte@exemple.test');
 
+        // LES PARCOURS ANONYMES D'ABORD, et ce n'est pas un detail de style :
+        // `actingAs()` ne se defait pas. Mesurer `/admin/users` en premier
+        // aurait laisse les deux POST suivants AUTHENTIFIES, donc rediriges par
+        // le middleware `guest` avant toute validation — et le test aurait
+        // echoue en annoncant un defaut qui n'existe pas. C'est ce qui s'est
+        // passe a la premiere ecriture de ce test.
+        $this->post('/org/'.$this->orgA->slug.'/register', $this->inscription(['email' => 'mixte@exemple.test']))
+            ->assertSessionHasErrors('email');
+
+        $this->postJson('/api/auth/register', $this->inscriptionApi(['email' => 'mixte@exemple.test']))
+            ->assertStatus(422)->assertJsonValidationErrors('email');
+
+        // Et seulement maintenant la porte d'administration.
+        $defaut = Organization::factory()->create(['slug' => 'f1-defaut', 'is_active' => true, 'is_default' => true]);
+        $admin = $this->compte($defaut, 'f1-admin@exemple.test');
+        $admin->forceFill(['is_admin' => true])->save();
+
+        $this->actingAs($admin)->post(route('admin.users.store'), [
+            'name' => 'Tentative',
+            'email' => 'mixte@exemple.test',
+            'password' => 'motdepasse1729',
+            'password_confirmation' => 'motdepasse1729',
+            'points' => 0,
+        ])->assertSessionHasErrors('email');
+
+        $this->assertSame(1, User::query()->whereRaw('LOWER(email) = ?', ['mixte@exemple.test'])->count());
         $this->assertNull($orphelin->fresh()->organization_id);
-        $this->assertSame($this->orgA->id, $membre->fresh()->organization_id);
+    }
+
+    public function test_un_orphelin_ne_peut_PAS_prendre_l_adresse_d_un_membre_par_son_profil(): void
+    {
+        // Le quatrieme chemin : la modification d'email. Un orphelin qui
+        // prendrait l'adresse d'un membre se rendrait muet lui-meme.
+        $membre = $this->compte($this->orgA, 'f1-membre@exemple.test');
+        $orphelin = User::factory()->create([
+            'organization_id' => null,
+            'email' => 'f1-orphelin@exemple.test',
+            'password' => Hash::make('password'),
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($orphelin)
+            ->put(route('profile.update'), $this->profil($orphelin, ['email' => $membre->email]))
+            ->assertSessionHasErrors('email');
+
+        $this->assertSame('f1-orphelin@exemple.test', $orphelin->fresh()->email);
+    }
+
+    public function test_un_membre_ne_peut_PAS_prendre_par_son_profil_l_adresse_d_un_orphelin(): void
+    {
+        $orphelin = $this->compte(null, 'f1-orph-profil@exemple.test');
+        $membre = $this->compte($this->orgA, 'f1-membre-profil@exemple.test');
+
+        $this->actingAs($membre)
+            ->put(route('profile.update'), $this->profil($membre, ['email' => 'F1-ORPH-PROFIL@exemple.test']))
+            ->assertSessionHasErrors('email');
+
+        $this->assertSame('f1-membre-profil@exemple.test', $membre->fresh()->email);
+        $this->assertSame('f1-orph-profil@exemple.test', $orphelin->fresh()->email);
+    }
+
+    public function test_les_homonymes_INTER_ORGANIZATIONS_restent_acceptes_par_les_quatre_portes(): void
+    {
+        // L'AUTRE SENS, sans lequel la correction F1 pourrait tout refuser et
+        // rester verte sur les trois tests ci-dessus — en annulant A4 au
+        // passage.
+        $this->compte($this->orgB, 'f1-ok@exemple.test');
+
+        // Inscription WEB dans orgA : accepte.
+        $this->post('/org/'.$this->orgA->slug.'/register', $this->inscription(['email' => 'f1-ok@exemple.test']))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(2, User::query()->whereRaw('LOWER(email) = ?', ['f1-ok@exemple.test'])->count());
     }
 
     // ── 4. Les cinq portes de creation / modification ───────────────────────

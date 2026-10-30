@@ -35,12 +35,42 @@ use Illuminate\Support\Str;
  * regle. Ici on produit un MESSAGE lisible au bon champ, pour qu'une
  * collision ordinaire ne se presente pas comme une erreur 500.
  *
- * ## Le cas des comptes sans Organization
+ * ## Les comptes sans Organization — la regle est ASYMETRIQUE (revue F1)
  *
- * `organizationId` a `null` vise les orphelins, et la comparaison porte alors
- * sur `organization_id IS NULL` — jamais sur « n'importe quelle
- * Organization ». C'est le pendant exact de l'index partiel : deux orphelins
- * ne peuvent pas partager une adresse, mais un orphelin et un membre peuvent.
+ * | paire | autorise ? |
+ * |---|---|
+ * | membre(orgA) / membre(orgB) | **oui** — c'est tout l'objet de A4 |
+ * | membre / membre, meme Organization | non — index composite |
+ * | orphelin / orphelin | non — index partiel |
+ * | **orphelin / membre** | **NON** — et c'etait le defaut F1 |
+ *
+ * La derniere ligne n'est pas une symetrie oubliee, c'est une consequence de
+ * T1728 : un compte sans Organization n'a **qu'une porte**, le login GLOBAL,
+ * et cette porte refuse une adresse ambigue par conception. Un orphelin qui
+ * partage son adresse avec n'importe quel autre compte est donc un compte
+ * MUET — il ne peut ni se connecter, ni demander un lien de reinitialisation.
+ *
+ * J'avais d'abord ecrit un test AFFIRMANT que cette paire etait permise, en
+ * raisonnant sur ce que l'index laisse passer plutot que sur ce que la
+ * personne peut faire ensuite. La revue MASTER l'a releve : le schema
+ * l'autorise, le produit ne doit pas.
+ *
+ * ## Ce que la BASE garantit, et ce qu'elle ne peut pas garantir
+ *
+ * Les deux index couvrent « orphelin/orphelin » et « meme Organization ». La
+ * paire « orphelin/membre » n'est PAS exprimable par un index unique — elle
+ * porte sur deux lignes dont l'une a `organization_id` nul et l'autre non.
+ * Elle est donc tenue par l'APPLICATION, en quatre endroits et pas un de
+ * moins :
+ *
+ *   - cette regle, sur les quatre portes de creation/modification d'email ;
+ *   - le preflight de la migration, pour l'etat deja en base ;
+ *   - la garde de suppression d'Organization (D1), qui refuse de FABRIQUER un
+ *     orphelin ambigu ;
+ *   - la garde de rattachement en masse, pour le sens inverse.
+ *
+ * Dire que la base l'empeche serait faux ; ces quatre-la sont la liste
+ * complete, et aucun autre chemin ne cree d'orphelin.
  */
 class UniqueEmailInOrganization implements ValidationRule
 {
@@ -63,8 +93,15 @@ class UniqueEmailInOrganization implements ValidationRule
             ->whereRaw('LOWER(email) = ?', [Str::lower($value)])
             ->when(
                 $this->organizationId === null,
-                fn ($query) => $query->whereNull('organization_id'),
-                fn ($query) => $query->where('organization_id', $this->organizationId),
+                // Compte SANS Organization : toute homonymie le rend muet, y
+                // compris avec un membre. Aucun filtre de portee, donc.
+                fn ($query) => $query,
+                // Compte D'UNE Organization : son homonyme dans un AUTRE tenant
+                // est legitime (A4), mais un ORPHELIN homonyme ne l'est pas —
+                // c'est lui qu'on rendrait muet. D'ou les deux branches.
+                fn ($query) => $query->where(fn ($q) => $q
+                    ->where('organization_id', $this->organizationId)
+                    ->orWhereNull('organization_id')),
             )
             ->when(
                 $this->ignoreUserId !== null,
@@ -78,7 +115,9 @@ class UniqueEmailInOrganization implements ValidationRule
     }
 
     /**
-     * Les doublons LOGIQUES d'une adresse, toutes Organizations confondues.
+     * Les adresses qui deviendraient ambigues si ces comptes etaient DETACHES.
+     *
+     * Sert la garde de suppression d'Organization (arbitrage MASTER D1).
      *
      * Sert la garde de suppression d'Organization (arbitrage MASTER D1) : avant
      * de detacher un membre, on doit savoir si son adresse est portee par un
