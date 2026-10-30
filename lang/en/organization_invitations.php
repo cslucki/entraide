@@ -44,7 +44,9 @@ return [
     'flash_expired' => 'This invitation link has expired.',
     'flash_revoked' => 'This invitation link has been revoked.',
     'flash_sandbox_forbidden' => 'This organization does not accept direct invitations.',
-    'flash_email_used_elsewhere' => 'This address is already associated with another BouclePro account.',
+    // TASK-1732 (A6) — replaces `flash_email_used_elsewhere`: see the French
+    // file for the reasoning. The remaining refusal says nothing about why.
+    'flash_not_invitable' => 'This invitation cannot be accepted. Please contact support.',
     'flash_invalid' => 'This invitation link is not valid.',
 
     // "Test host" (local/testing only)
