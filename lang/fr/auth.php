@@ -89,4 +89,27 @@ return [
     'switch_organization_placeholder' => 'Choisir une organisation',
     'switch_password_label' => 'Mot de passe du compte visé',
     'switch_submit' => 'Passer sur ce compte',
+
+    // TASK-1731 (A5b) — la liaison explicite et revocable entre comptes.
+    //
+    // `link_failed` couvre plusieurs causes d'un seul message : organisation
+    // inconnue, adresse absente, ambiguite, l'un ou l'autre mot de passe faux.
+    // Les distinguer permettrait d'eprouver le mot de passe d'un compte qu'on
+    // ne controle pas. `link_already_exists` est la seule exception : il ne dit
+    // rien que la personne ne lise deja sur sa propre liste.
+    'link_failed' => 'Impossible de lier ces comptes. Verifiez l\'organisation, l\'adresse et les deux mots de passe.',
+    'link_already_exists' => 'Ces deux comptes sont deja lies.',
+    'link_created' => 'Les deux comptes sont maintenant lies. Vous pourrez passer de l\'un a l\'autre sans redonner le mot de passe de l\'autre compte.',
+    'link_revoked' => 'Le lien est revoque. Il faudra de nouveau le mot de passe du compte vise pour y passer.',
+    'links_title' => 'Comptes lies',
+    'links_intro' => 'Lier deux de vos comptes permet de passer de l\'un a l\'autre sans redonner le mot de passe de l\'autre compte. Les donnees des deux organisations restent separees, et vous pouvez revoquer le lien a tout moment, depuis l\'un comme l\'autre.',
+    'links_empty' => 'Aucun compte lie pour l\'instant.',
+    'links_add_title' => 'Lier un autre de vos comptes',
+    'links_target_email' => 'Adresse du compte a lier',
+    'links_target_password' => 'Mot de passe de ce compte',
+    'links_own_password' => 'Votre mot de passe actuel',
+    'links_submit' => 'Lier ce compte',
+    'links_revoke' => 'Revoquer',
+    'links_switch' => 'Passer sur ce compte',
+    'links_confirm_password' => 'Votre mot de passe (confirmation)',
 ];

@@ -38,6 +38,15 @@ class UserDataLifecycleRegistry
             // durabilite economique n'est pas le role de cette table mais celui
             // du ledger `ai_provider_invocations` (sans contenu, sans FK).
             ['key' => 'ai_interactions', 'type' => 'sql', 'table' => 'ai_interactions', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'User AI interactions carry the full personal prompt and response; the FK cascades (NOT NULL, ON DELETE CASCADE) and the registry says so. The economic fact of each call lives in the content-free ledger ai_provider_invocations, which survives (TASK-1254).'],
+            // TASK-1731 (A5b) — un lien entre deux comptes, UNE entree par
+            // colonne parce que la table porte DEUX cles etrangeres vers
+            // `users`. `org_scope` vaut `none` et ce n'est pas un oubli : la
+            // table est INTER-TENANT par construction, elle relie deux comptes
+            // d'Organizations differentes et ne peut donc porter aucun
+            // `organization_id`.
+            ['key' => 'account_links_user_a', 'type' => 'sql', 'table' => 'account_links', 'column' => 'user_a_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'none', 'justification' => 'An account link is a personal authorisation to switch to another account. It belongs to both accounts and must not outlive either of them (FK ON DELETE CASCADE, and the registry says so). It carries no content and no audit value (TASK-1731).'],
+            ['key' => 'account_links_user_b', 'type' => 'sql', 'table' => 'account_links', 'column' => 'user_b_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'none', 'justification' => 'The other side of the same link. Declared separately because the completeness guard reasons per COLUMN: a table with two FKs to users that declared only one would leave half the relation unaccounted for (TASK-1731).'],
+            ['key' => 'account_links_created_by', 'type' => 'sql', 'table' => 'account_links', 'column' => 'created_by_user_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'none', 'justification' => 'Trace of who created the link, nullable and ON DELETE SET NULL. Detached rather than deleted: the link itself belongs to both accounts and must survive the departure of whoever happened to create it (TASK-1731).'],
             ['key' => 'rollback_conservation', 'type' => 'sql', 'table' => 'rollback_conservation', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'none', 'justification' => 'A rollback of release 1.709 stores public slugs derived from names, so personal data. The archive has no organization_id, hence org_scope none; deleting the account must delete its rows here too (TASK-1711).'],
             // TASK-1315 : le fil du Shell « BouclePro IA ». Meme raison, meme
             // regime que `ai_interactions` juste au-dessus — la ligne porte la

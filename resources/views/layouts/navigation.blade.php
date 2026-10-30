@@ -204,6 +204,7 @@
                              quoi l'entree disparaitrait selon le gabarit ou la largeur
                              d'ecran — exactement le defaut de T1725. --}}
                         <x-dropdown-link :href="route('account.switch')" data-nav-account-switch>{{ __('navigation.switch_account') }}</x-dropdown-link>
+                        <x-dropdown-link :href="route('account.links')" data-nav-account-links>{{ __('navigation.linked_accounts') }}</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <form method="POST" action="{{ $currentOrganization ? route('organization.logout', $currentOrganization) : route('logout') }}">
                             @csrf
@@ -317,6 +318,7 @@
                 @endif
                 {{-- TASK-1730 (A5a) — meme entree que le menu avatar ci-dessus. --}}
                 <x-responsive-nav-link :href="route('account.switch')" data-nav-account-switch>{{ __('navigation.switch_account') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('account.links')" data-nav-account-links>{{ __('navigation.linked_accounts') }}</x-responsive-nav-link>
                 <form method="POST" action="{{ $currentOrganization ? route('organization.logout', $currentOrganization) : route('logout') }}">
                     @csrf
                     <x-responsive-nav-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();">{{ __('navigation.logout') }}</x-responsive-nav-link>
