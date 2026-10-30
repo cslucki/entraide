@@ -36,8 +36,18 @@
                     @foreach ($result['alreadyMember'] as $email)
                         <p class="text-amber-700 dark:text-amber-400">{{ $email }} — cette personne possède déjà un compte dans cette organisation.</p>
                     @endforeach
-                    @foreach ($result['usedElsewhere'] as $email)
-                        <p class="text-red-700 dark:text-red-400">{{ $email }} — cette adresse possède déjà un compte BouclePro associé à une autre organisation. Le multi-Organization n'est pas encore pris en charge.</p>
+                    {{-- TASK-1732 (A6) : remplace la liste « usedElsewhere ».
+                         Elle annonçait « cette adresse possède déjà un compte
+                         BouclePro associé à une autre organisation » — donc
+                         elle renseignait l'administrateur de CETTE Organization
+                         sur les comptes des autres (exigence MASTER 3,
+                         non-énumération). Ce cas n'existe plus : une adresse
+                         déjà employée dans un autre tenant est désormais
+                         invitée normalement, et un compte frère se crée au clic.
+                         Ce qui reste est une anomalie de plateforme — un compte
+                         sans Organization —, annoncée sans en dire la cause. --}}
+                    @foreach ($result['notInvitable'] as $email)
+                        <p class="text-red-700 dark:text-red-400">{{ $email }} — cette adresse ne peut pas être invitée. Contactez le support.</p>
                     @endforeach
                 </div>
             @endif

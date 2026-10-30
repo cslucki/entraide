@@ -44,7 +44,12 @@ return [
     'flash_expired' => 'Ce lien d\'invitation a expiré.',
     'flash_revoked' => 'Ce lien d\'invitation a été révoqué.',
     'flash_sandbox_forbidden' => 'Cette organisation n\'accepte pas d\'invitation directe.',
-    'flash_email_used_elsewhere' => 'Cette adresse est déjà associée à un autre compte BouclePro.',
+    // TASK-1732 (A6) — remplace `flash_email_used_elsewhere`, qui disait
+    // « cette adresse est déjà associée à un autre compte BouclePro » : une
+    // information sur les autres Organizations, livrée à un visiteur non
+    // authentifié. Le refus restant ne concerne plus qu'un compte sans
+    // Organization, et il reste muet sur sa cause (arbitrage MASTER B).
+    'flash_not_invitable' => 'Cette invitation ne peut pas être acceptée. Contactez le support.',
     'flash_invalid' => 'Ce lien d\'invitation n\'est pas valide.',
 
     // « Host de test » (local/testing uniquement)
