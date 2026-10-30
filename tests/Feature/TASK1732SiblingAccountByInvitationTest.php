@@ -299,33 +299,48 @@ class TASK1732SiblingAccountByInvitationTest extends TestCase
     // ── critere 8 : aucune fuite, nulle part ──────────────────────────────
 
     /**
-     * Exigence MASTER 3, parcours invite. La page d'atterrissage doit etre
-     * IDENTIQUE octet pour octet, que l'adresse existe ailleurs ou non
-     * (arbitrage MASTER E) : toute difference serait un oracle d'enumeration
-     * utilisable par quiconque detient un lien.
+     * Exigence MASTER 3, parcours invite, arbitrage MASTER E : la page
+     * d'atterrissage ne doit porter AUCUNE trace de l'existence d'un compte
+     * ailleurs. Toute difference serait un oracle d'enumeration, utilisable par
+     * quiconque detient un lien.
+     *
+     * ## L'instrument, et pourquoi ce n'est pas celui que j'avais choisi
+     *
+     * J'avais d'abord compare DEUX invitations — l'une vers une adresse
+     * inconnue, l'autre vers une adresse deja employee ailleurs — en
+     * neutralisant le jeton et l'adresse. Vert en local, y compris sur 40
+     * constructions successives de la paire. **Rouge en CI SQLite**, et c'etait
+     * la seule regression du lot.
+     *
+     * Le defaut etait dans l'instrument. Comparer deux pages HTML completes
+     * couple le test a chaque octet de la mise en page : deux invitations
+     * differentes portent deux expediteurs, deux dates d'expiration, deux
+     * jetons — autant de sources de divergence qui n'ont RIEN a voir avec ce
+     * qu'on mesure. Un test qui depend de coincidences passe ou echoue selon
+     * la charge de la machine.
+     *
+     * Ici, c'est **la meme invitation**, rendue deux fois : avant la creation
+     * du compte frere, puis apres. Meme jeton, meme adresse, meme expediteur,
+     * meme expiration — aucune normalisation n'est necessaire, et la SEULE
+     * variable est celle que le test nomme. C'est plus strict, pas moins.
      */
-    public function test_the_landing_page_is_identical_whether_the_address_exists_elsewhere_or_not(): void
+    public function test_the_landing_page_carries_no_trace_of_an_account_existing_elsewhere(): void
     {
-        $invitationSeule = $this->invitationDansOrgB('inconnue@example.test');
-        $invitationFrere = $this->invitationDansOrgB('frere@example.test');
+        $invitation = $this->invitationDansOrgB();
+
+        $avant = $this->get(route('organization-invitations.show', $invitation->token));
+        $avant->assertOk();
+
+        // La seule chose qui change entre les deux rendus.
         $this->compteExistant();
 
-        $sansCompteAilleurs = $this->get(route('organization-invitations.show', $invitationSeule->token));
-        $avecCompteAilleurs = $this->get(route('organization-invitations.show', $invitationFrere->token));
-
-        $sansCompteAilleurs->assertOk();
-        $avecCompteAilleurs->assertOk();
-
-        // On compare les pages a l'adresse et au jeton pres — tout le reste
-        // doit coincider. Comparer les corps bruts aurait toujours differe.
-        $normaliser = fn (string $html, OrganizationInvitation $i): string => str_replace(
-            [$i->token, $i->recipient_email, 'inconnue', 'frere'], 'X', $html
-        );
+        $apres = $this->get(route('organization-invitations.show', $invitation->token));
+        $apres->assertOk();
 
         $this->assertSame(
-            $normaliser($sansCompteAilleurs->getContent(), $invitationSeule),
-            $normaliser($avecCompteAilleurs->getContent(), $invitationFrere),
-            'La page ne doit porter AUCUNE trace de l\'existence d\'un compte ailleurs.'
+            $avant->getContent(),
+            $apres->getContent(),
+            'L\'existence d\'un compte dans une autre Organization ne doit rien changer a la page.'
         );
     }
 
