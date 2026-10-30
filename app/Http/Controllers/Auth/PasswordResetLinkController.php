@@ -72,12 +72,16 @@ class PasswordResetLinkController extends Controller
             return back()->with('status', trans(Password::RESET_LINK_SENT));
         }
 
-        // Boucle, et non `first()`. Aujourd'hui l'unique global sur
-        // `users.email` borne la collection a un element : le comportement est
-        // donc identique a l'existant. Mais c'est la forme qui sera JUSTE le
-        // jour ou deux comptes partageront une adresse — chacun recevra son
-        // propre lien, portant son propre token, ce que la table sait
-        // desormais stocker. Point 7 : prevu, pas active.
+        // Boucle, et non `first()`.
+        //
+        // A l'ecriture de T1727, l'unique global sur `users.email` bornait la
+        // collection a un element : la boucle etait une forme en attente.
+        // **TASK-1729 (A4) a retire cet unique** — deux comptes freres
+        // partagent desormais une adresse, et chacun recoit son propre lien
+        // portant son propre token. La forme est donc ACTIVE, et c'est le
+        // resolveur qui la nourrit.
+        //
+        // TASK-1733 (A7) : et elle ne depend plus de la casse saisie.
         $envoye = false;
         $dernierStatut = Password::INVALID_USER;
 
