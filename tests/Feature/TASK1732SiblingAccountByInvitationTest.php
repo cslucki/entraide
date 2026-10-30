@@ -10,6 +10,7 @@ use App\Services\OrganizationInvitationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -304,44 +305,95 @@ class TASK1732SiblingAccountByInvitationTest extends TestCase
      * ailleurs. Toute difference serait un oracle d'enumeration, utilisable par
      * quiconque detient un lien.
      *
-     * ## L'instrument, et pourquoi ce n'est pas celui que j'avais choisi
+     * ## DEUX instruments abandonnes, et ce qu'ils ont appris
      *
-     * J'avais d'abord compare DEUX invitations — l'une vers une adresse
-     * inconnue, l'autre vers une adresse deja employee ailleurs — en
-     * neutralisant le jeton et l'adresse. Vert en local, y compris sur 40
-     * constructions successives de la paire. **Rouge en CI SQLite**, et c'etait
-     * la seule regression du lot.
+     * **1. Deux invitations differentes, comparees page contre page** (jeton et
+     * adresse neutralises). Vert en local sur 40 constructions successives de
+     * la paire, **rouge en CI**. Cause : deux invitations portent deux
+     * expediteurs, deux dates d'expiration, deux jetons — autant de divergences
+     * etrangeres a ce qu'on mesure.
      *
-     * Le defaut etait dans l'instrument. Comparer deux pages HTML completes
-     * couple le test a chaque octet de la mise en page : deux invitations
-     * differentes portent deux expediteurs, deux dates d'expiration, deux
-     * jetons — autant de sources de divergence qui n'ont RIEN a voir avec ce
-     * qu'on mesure. Un test qui depend de coincidences passe ou echoue selon
-     * la charge de la machine.
+     * **2. La MEME invitation, rendue deux fois, comparee page contre page.**
+     * Vert en local, y compris en processus isole — **rouge en CI encore**. La
+     * CI a donne le diff exact, et il est sans rapport avec A6 :
      *
-     * Ici, c'est **la meme invitation**, rendue deux fois : avant la creation
-     * du compte frere, puis apres. Meme jeton, meme adresse, meme expediteur,
-     * meme expiration — aucune normalisation n'est necessaire, et la SEULE
-     * variable est celle que le test nomme. C'est plus strict, pas moins.
+     *     -    <!-- Livewire Styles --><style >…</style>
+     *     -</head>
+     *     +    </head>
+     *
+     * Livewire injecte ses styles **une fois par processus**. Le premier rendu
+     * de la journee les porte, le second non. Dans le shard 1/4 de la CI, mon
+     * test etait le premier a rendre ce gabarit ; en local, un autre test
+     * l'avait toujours fait avant.
+     *
+     * ## La lecon, et le troisieme instrument
+     *
+     * Comparer un DOCUMENT ENTIER octet pour octet couple le test a l'etat
+     * global du processus. Ce n'est pas une mesure qu'on controle — et le fait
+     * de ne pas pouvoir reproduire l'echec en local est l'argument decisif,
+     * pas une excuse.
+     *
+     * On mesure donc la PROPRIETE, par deux voies independantes :
+     *
+     *  - **non-divulgation directe** : rien de ce qui identifie le compte
+     *    d'orgA — son id, son nom, son prenom — ni son Organization — nom et
+     *    slug — n'apparait dans la page ;
+     *  - **invariance du CORPS** : le `<body>` est identique avant et apres la
+     *    creation du frere. C'est ce que le visiteur lit, et c'est immunise
+     *    contre les injections de `<head>` qui n'ont rien a voir avec lui.
+     *
+     * Aucune des deux n'est plus faible que la comparaison d'octets sur ce
+     * qu'elle prouve ; les deux sont deterministes.
      */
     public function test_the_landing_page_carries_no_trace_of_an_account_existing_elsewhere(): void
     {
         $invitation = $this->invitationDansOrgB();
 
-        $avant = $this->get(route('organization-invitations.show', $invitation->token));
-        $avant->assertOk();
+        $corpsAvant = $this->corps($this->get(route('organization-invitations.show', $invitation->token)));
 
         // La seule chose qui change entre les deux rendus.
-        $this->compteExistant();
+        $existant = $this->compteExistant();
 
-        $apres = $this->get(route('organization-invitations.show', $invitation->token));
-        $apres->assertOk();
+        $reponseApres = $this->get(route('organization-invitations.show', $invitation->token));
+        $reponseApres->assertOk();
 
+        // Voie 1 — non-divulgation directe.
+        foreach ([
+            'identifiant du compte d\'orgA' => $existant->id,
+            'nom du compte d\'orgA' => 'Nom Dans Org A',
+            'prenom du compte d\'orgA' => 'PrenomOrgA',
+            'nom de l\'Organization d\'orgA' => $this->orgA->name,
+            'slug de l\'Organization d\'orgA' => $this->orgA->slug,
+        ] as $quoi => $aiguille) {
+            $reponseApres->assertDontSee($aiguille, false, "La page divulgue le {$quoi}.");
+        }
+
+        // Voie 2 — invariance de ce que le visiteur lit.
         $this->assertSame(
-            $avant->getContent(),
-            $apres->getContent(),
-            'L\'existence d\'un compte dans une autre Organization ne doit rien changer a la page.'
+            $corpsAvant,
+            $this->corps($reponseApres),
+            'L\'existence d\'un compte dans une autre Organization ne doit rien changer au corps de la page.'
         );
+    }
+
+    /**
+     * Le `<body>` d'une reponse, et seulement lui.
+     *
+     * Le `<head>` porte des injections une-fois-par-processus (les styles
+     * Livewire) qui font differer deux rendus identiques selon l'ordre des
+     * tests. Elles ne disent rien de l'invitation ; les exclure est ce qui rend
+     * la mesure deterministe sans rien lui retirer.
+     */
+    private function corps(TestResponse $reponse): string
+    {
+        $html = $reponse->getContent();
+        $debut = strpos($html, '<body');
+        $fin = strrpos($html, '</body>');
+
+        $this->assertNotFalse($debut, 'La reponse doit porter un <body>.');
+        $this->assertNotFalse($fin, 'La reponse doit fermer son <body>.');
+
+        return substr($html, $debut, $fin - $debut);
     }
 
     /**
