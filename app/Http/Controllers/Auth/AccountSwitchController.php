@@ -5,11 +5,11 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Users\AccountSwitch;
 use App\Services\Users\AccountSwitchPreflight;
 use App\Services\Users\LoginAccountResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
@@ -133,36 +133,15 @@ class AccountSwitchController extends Controller
     /**
      * La bascule elle-meme. Rien avant cette ligne n'a touche a la session.
      *
-     * ## Pourquoi `invalidate()` et pas seulement `regenerate()`
-     *
-     * `regenerate()` change l'identifiant de session mais CONSERVE son
-     * contenu. Or la session porte des cles qui appartiennent au compte qu'on
-     * quitte, et deux d'entre elles sont dangereuses :
-     * `auth.password_confirmed_at` ferait heriter le nouveau compte d'une
-     * confirmation de mot de passe obtenue sur l'ancien, et `url.intended`
-     * renverrait vers une page du tenant PRECEDENT. Regenerer seul aurait donc
-     * produit exactement la fuite inter-tenant qu'on cherche a empecher.
-     *
-     * L'enchainement est celui de `ScenarioPersonaSwitch::sortir()`, deja
-     * eprouve : on vide, puis on reconstruit.
+     * TASK-1731 — le geste est EXTRAIT dans `AccountSwitch`, parce que la
+     * bascule par lien (A5b) doit faire exactement la meme chose a partir de
+     * conditions d'entree differentes. Les quatre subtilites de
+     * l'enchainement — invalidate avant regenerate, login avant regenerate,
+     * jeton CSRF, `canonicalHome()` — sont documentees la-bas, une seule fois.
      */
     private function basculer(User $cible): string
     {
-        Auth::logout();
-        session()->invalidate();
-        session()->regenerateToken();
-
-        // `login()` migre la session, et `regenerate()` vient APRES : l'ordre
-        // inverse perdrait cette migration. La raison est ecrite dans
-        // `ScenarioPersonaSwitch`, et elle vaut ici a l'identique.
-        Auth::login($cible);
-        session()->regenerate();
-
-        // L'URL du tenant d'arrivee par son AUTORITE unique. `canonicalHome()`
-        // porte trois branches — organisation par defaut servie a la racine
-        // sans prefixe, Boucles activees ou non — et les recopier ici les
-        // ferait diverger le jour ou l'une change.
-        return canonicalHome($cible->organization);
+        return app(AccountSwitch::class)->versLeCompte($cible);
     }
 
     /**

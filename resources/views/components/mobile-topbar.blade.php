@@ -460,6 +460,7 @@
                          qu'aux deux autres surfaces du menu avatar. --}}
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     <x-dropdown-link :href="route('account.switch')" data-nav-account-switch>{{ __('navigation.switch_account') }}</x-dropdown-link>
+                    <x-dropdown-link :href="route('account.links')" data-nav-account-links>{{ __('navigation.linked_accounts') }}</x-dropdown-link>
                     <form method="POST" action="{{ $currentOrganization ? route('organization.logout', $currentOrganization) : route('logout') }}">
                         @csrf
                         <x-dropdown-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();">{{ __('navigation.logout') }}</x-dropdown-link>

@@ -25,6 +25,8 @@ return [
     'settings' => 'Profil et paramètres',
     'administration' => 'Administration',
     // TASK-1730 (A5a) — passer a son autre compte, dans une autre Organization.
+    // TASK-1731 (A5b) — gerer les liens entre ses comptes.
+    'linked_accounts' => 'Comptes lies',
     'switch_account' => 'Changer de compte',
     'logout' => 'Déconnexion',
     'login' => 'Connexion',

@@ -60,7 +60,7 @@ use Illuminate\Support\Facades\Schema;
  * jamais on suppose que ce n'est pas concerne. » Ici, c'est l'escalade : le
  * fait est ecrit, teste, et remonte.
  *
- * ET L'ESCALADE DOIT DIRE VRAI. Trois de ces quatorze portent du TEXTE redige
+ * ET L'ESCALADE DOIT DIRE VRAI. Trois de ces quinze portent du TEXTE redige
  * par une personne — voir la liste. Les decrire comme des tables techniques
  * aurait vide l'escalade de son sens : elle aurait remonte un fait faux.
  */
@@ -79,15 +79,18 @@ class ScenarioSandboxPreflight
      * ne cree plus. En declarer une ici la ferait passer pour un fait du
      * schema, et le test ci-contre echouerait partout ailleurs.
      *
-     * Ce que ces QUATORZE sont, exactement — et le nombre est tenu a jour
+     * Ce que ces QUINZE sont, exactement — et le nombre est tenu a jour
      * parce que le docbloc ci-dessus exige que l'escalade dise vrai : il
      * annoncait encore « douze » alors que T1711 en avait ajoute une
-     * treizieme, et T1727 fait la quatorzieme.
+     * treizieme, T1727 la quatorzieme, et T1731 la quinzieme.
      *
      *
      * - plateforme : `organizations`, `platform_ai_constitutions` ;
      * - administration du Manager lui-meme : `scenario_manifest_versions` ;
      * - demandes inter-tenants : `organization_requests` ;
+     * - liens INTER-TENANTS entre comptes : `account_links` (T1731) — il
+     *   relie deux comptes d'Organizations differentes, donc il n'appartient
+     *   a aucune des deux et ne peut porter aucun `organization_id` ;
      * - preferences par personne : `member_notification_preferences` ;
      * - pivots rattaches par leur parent : `blog_post_user`,
      *   `loop_roadmap_item_user`, `loop_plugin_ai_models`, `usage_references` ;
@@ -110,6 +113,14 @@ class ScenarioSandboxPreflight
      * @var list<string>
      */
     public const TABLES_HORS_PORTEE = [
+        // TASK-1731 — un lien entre deux comptes d'Organizations DIFFERENTES.
+        //
+        // Hors portee par NATURE, et la raison est la meme que pour un token
+        // de reinitialisation : ce controle cherche ce qu'une sandbox
+        // CONTIENT, et un lien n'appartient a aucune des deux Organizations
+        // qu'il traverse. Lui donner un `organization_id` serait d'ailleurs
+        // faux : il en relie deux.
+        'account_links',
         'blog_annotation_replies',
         'blog_post_user',
         'blog_snapshots',

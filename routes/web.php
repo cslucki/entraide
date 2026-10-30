@@ -63,7 +63,9 @@ use App\Http\Controllers\Admin\OrgWorkshopRegistrantsController;
 use App\Http\Controllers\Admin\OrgWorkshopSessionController;
 use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
+use App\Http\Controllers\Auth\AccountLinkController;
 use App\Http\Controllers\Auth\AccountSwitchController;
+use App\Http\Controllers\Auth\LinkedAccountSwitchController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -450,6 +452,16 @@ Route::middleware('auth')->group(function () {
     // etant explicitement autorise par les deux gardes.
     Route::get('/switch-account', [AccountSwitchController::class, 'create'])->name('account.switch');
     Route::post('/switch-account', [AccountSwitchController::class, 'store'])->name('account.switch.store');
+
+    // TASK-1731 (A5b) — liens explicites entre comptes, et bascule par lien.
+    //
+    // Memes routes GLOBALES que la bascule de A5a, et pour la meme raison : le
+    // geste traverse les tenants, il ne peut pas vivre sous le prefixe de l'un
+    // d'eux.
+    Route::get('/linked-accounts', [AccountLinkController::class, 'index'])->name('account.links');
+    Route::post('/linked-accounts', [AccountLinkController::class, 'store'])->name('account.links.store');
+    Route::delete('/linked-accounts/{accountLink}', [AccountLinkController::class, 'destroy'])->name('account.links.destroy');
+    Route::post('/linked-accounts/{accountLink}/switch', [LinkedAccountSwitchController::class, 'store'])->name('account.links.switch');
 
     // Profile
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');

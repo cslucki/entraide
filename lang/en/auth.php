@@ -99,4 +99,27 @@ return [
     'switch_organization_placeholder' => 'Choose an organization',
     'switch_password_label' => 'Password of the target account',
     'switch_submit' => 'Switch to that account',
+
+    // TASK-1731 (A5b) — la liaison explicite et revocable entre comptes.
+    //
+    // `link_failed` couvre plusieurs causes d'un seul message : organisation
+    // inconnue, adresse absente, ambiguite, l'un ou l'autre mot de passe faux.
+    // Les distinguer permettrait d'eprouver le mot de passe d'un compte qu'on
+    // ne controle pas. `link_already_exists` est la seule exception : il ne dit
+    // rien que la personne ne lise deja sur sa propre liste.
+    'link_failed' => 'Cannot link those accounts. Check the organization, the address and both passwords.',
+    'link_already_exists' => 'These two accounts are already linked.',
+    'link_created' => 'The two accounts are now linked. You can move between them without re-entering the other account\'s password.',
+    'link_revoked' => 'The link is revoked. Switching will require that account\'s password again.',
+    'links_title' => 'Linked accounts',
+    'links_intro' => 'Linking two of your accounts lets you move between them without re-entering the other account\'s password. Both organizations\' data stay separate, and you can revoke the link at any time, from either side.',
+    'links_empty' => 'No linked account yet.',
+    'links_add_title' => 'Link another of your accounts',
+    'links_target_email' => 'Address of the account to link',
+    'links_target_password' => 'That account\'s password',
+    'links_own_password' => 'Your current password',
+    'links_submit' => 'Link this account',
+    'links_revoke' => 'Revoke',
+    'links_switch' => 'Switch to this account',
+    'links_confirm_password' => 'Your password (confirmation)',
 ];
