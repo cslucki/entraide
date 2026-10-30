@@ -313,41 +313,56 @@ class TASK1732SiblingAccountByInvitationTest extends TestCase
      * expediteurs, deux dates d'expiration, deux jetons — autant de divergences
      * etrangeres a ce qu'on mesure.
      *
-     * **2. La MEME invitation, rendue deux fois, comparee page contre page.**
-     * Vert en local, y compris en processus isole — **rouge en CI encore**. La
-     * CI a donne le diff exact, et il est sans rapport avec A6 :
+     * **2. La MEME invitation, rendue deux fois**, document entier. Vert en
+     * local, y compris en processus isole — rouge en CI. Le journal de la CI a
+     * donne le diff, et il est sans rapport avec A6 :
      *
      *     -    <!-- Livewire Styles --><style >…</style>
      *     -</head>
-     *     +    </head>
      *
-     * Livewire injecte ses styles **une fois par processus**. Le premier rendu
-     * de la journee les porte, le second non. Dans le shard 1/4 de la CI, mon
-     * test etait le premier a rendre ce gabarit ; en local, un autre test
-     * l'avait toujours fait avant.
+     * **3. La meme invitation, comparee sur le `<body>` seul** — en croyant les
+     * injections confinees au `<head>`. Rouge en CI encore, meme mecanisme a
+     * l'autre bout du document :
      *
-     * ## La lecon, et le troisieme instrument
+     *     -    <script src="…/livewire.min.js?id=…" data-csrf="…"></script>
      *
-     * Comparer un DOCUMENT ENTIER octet pour octet couple le test a l'etat
-     * global du processus. Ce n'est pas une mesure qu'on controle — et le fait
-     * de ne pas pouvoir reproduire l'echec en local est l'argument decisif,
-     * pas une excuse.
+     * ## La cause, et la seule parade qui tienne
      *
-     * On mesure donc la PROPRIETE, par deux voies independantes :
+     * **Livewire injecte ses styles ET son script une fois par PROCESSUS.** Le
+     * premier rendu du gabarit les porte, le second non. Dans le shard 1/4 de
+     * la CI, ce test etait le premier a rendre ce gabarit ; en local un autre
+     * test l'avait toujours fait avant — y compris en lancant cette seule
+     * methode, et c'est exactement pourquoi l'echec n'a jamais ete reproduit.
+     *
+     * Chercher une REGION du document qui echappe a l'injection est un jeu
+     * perdu : elle a deux extremites, et rien ne dit qu'il n'y en a pas une
+     * troisieme. **On neutralise donc l'injection au lieu de l'eviter** : un
+     * rendu de CHAUFFE, jete, consomme ce qui ne s'injecte qu'une fois. Les
+     * deux rendus compares sont alors dans le MEME etat, que le drapeau de
+     * Livewire soit par processus ou par requete — c'est cette indifference
+     * qui rend la mesure deterministe.
+     *
+     * ## Et deux voies, pas une
      *
      *  - **non-divulgation directe** : rien de ce qui identifie le compte
-     *    d'orgA — son id, son nom, son prenom — ni son Organization — nom et
-     *    slug — n'apparait dans la page ;
-     *  - **invariance du CORPS** : le `<body>` est identique avant et apres la
-     *    creation du frere. C'est ce que le visiteur lit, et c'est immunise
-     *    contre les injections de `<head>` qui n'ont rien a voir avec lui.
+     *    d'orgA — id, nom, prenom — ni son Organization — nom, slug —
+     *    n'apparait dans la page. Deterministe par construction, et c'est elle
+     *    qui prouve la propriete que le test nomme ;
+     *  - **invariance du corps** : apres chauffe, le `<body>` est identique
+     *    avant et apres la creation du frere. Filet pour ce que la premiere
+     *    voie ne nomme pas.
      *
-     * Aucune des deux n'est plus faible que la comparaison d'octets sur ce
-     * qu'elle prouve ; les deux sont deterministes.
+     * Ne pas pouvoir reproduire un echec en local est un argument DECISIF
+     * contre l'instrument — jamais une raison de relancer la CI.
      */
     public function test_the_landing_page_carries_no_trace_of_an_account_existing_elsewhere(): void
     {
         $invitation = $this->invitationDansOrgB();
+
+        // RENDU DE CHAUFFE, jete : il consomme les injections une-fois-par-
+        // processus de Livewire (styles en tete, script en pied). Sans lui, le
+        // premier rendu compare les porte et le second non.
+        $this->get(route('organization-invitations.show', $invitation->token))->assertOk();
 
         $corpsAvant = $this->corps($this->get(route('organization-invitations.show', $invitation->token)));
 
@@ -379,10 +394,11 @@ class TASK1732SiblingAccountByInvitationTest extends TestCase
     /**
      * Le `<body>` d'une reponse, et seulement lui.
      *
-     * Le `<head>` porte des injections une-fois-par-processus (les styles
-     * Livewire) qui font differer deux rendus identiques selon l'ordre des
-     * tests. Elles ne disent rien de l'invitation ; les exclure est ce qui rend
-     * la mesure deterministe sans rien lui retirer.
+     * Le document porte, aux DEUX extremites, des injections
+     * une-fois-par-processus (styles Livewire en tete, script en pied). Le
+     * rendu de chauffe de l'appelant les neutralise ; se borner au `<body>`
+     * retire en plus tout le `<head>`, qui ne dit rien de l'invitation. Les
+     * deux precautions se cumulent, et c'est volontaire.
      */
     private function corps(TestResponse $reponse): string
     {
