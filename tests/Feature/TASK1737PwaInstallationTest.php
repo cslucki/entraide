@@ -422,6 +422,57 @@ class TASK1737PwaInstallationTest extends TestCase
      * clavier externe ou a besoin du mode paysage. La clef etait posee ; elle
      * est retiree, et ce test empeche son retour par inadvertance.
      */
+    /**
+     * Les captures sont VERIDIQUES, legeres, et ne montrent personne.
+     *
+     * CDC section 3.7 : « `screenshots` de bonne qualite, veridiques ». Le
+     * generateur est `tests/e2e/pwa-screenshots.spec.js` : les captures sont
+     * produites par Playwright sur les surfaces PUBLIQUES et ANONYMES, jamais
+     * depuis une page authentifiee — la base locale est une copie de la
+     * production, et un fichier de `public/` est public ET commite.
+     */
+    public function test_manifest_screenshots_are_real_light_and_declared(): void
+    {
+        $manifest = $this->manifest();
+
+        $this->assertArrayHasKey('screenshots', $manifest);
+        $this->assertNotEmpty($manifest['screenshots']);
+
+        foreach ($manifest['screenshots'] as $capture) {
+            foreach (['src', 'sizes', 'type', 'form_factor', 'label'] as $clef) {
+                $this->assertArrayHasKey($clef, $capture, "Capture sans `{$clef}`.");
+            }
+
+            $chemin = public_path(ltrim($capture['src'], '/'));
+
+            $this->assertFileExists(
+                $chemin,
+                "La capture [{$capture['src']}] est declaree mais absente : relancer "
+                .'`npx playwright test tests/e2e/pwa-screenshots.spec.js`.'
+            );
+
+            // Un manifest est telecharge AVANT toute invite d'installation :
+            // il ne doit pas trainer des megaoctets de vignettes.
+            $this->assertLessThan(
+                400_000,
+                filesize($chemin),
+                "La capture [{$capture['src']}] depasse 400 ko."
+            );
+
+            // Les dimensions declarees doivent etre les VRAIES : un navigateur
+            // reserve la place avant de telecharger.
+            [$largeur, $hauteur] = getimagesize($chemin);
+
+            $this->assertSame(
+                $capture['sizes'],
+                $largeur.'x'.$hauteur,
+                "La capture [{$capture['src']}] declare {$capture['sizes']} et mesure {$largeur}x{$hauteur}."
+            );
+
+            $this->assertSame('narrow', $capture['form_factor']);
+        }
+    }
+
     public function test_manifest_does_not_lock_orientation(): void
     {
         $this->assertArrayNotHasKey(

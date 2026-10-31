@@ -37,6 +37,22 @@
       "purpose": "maskable"
     }
   ],
+  "screenshots": [
+    {
+      "src": "/brand/screenshots/phone-accueil.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "La page d'accueil de BouclePro"
+    },
+    {
+      "src": "/brand/screenshots/phone-a-propos.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "A propos de BouclePro"
+    }
+  ],
   "shortcuts": [
     {
       "name": "Mes Boucles",

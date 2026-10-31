@@ -295,7 +295,22 @@
                 cursor: pointer;
             }
 
-            .bp-pwa :focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 6px; }
+            /* L'anneau de focus appartient aux elements INTERACTIFS.
+               Mesure a la capture du 31/10/2026 : le titre s'affichait
+               encadre. Cause — le script lui donne le focus a l'ouverture
+               (`tabindex="-1"`, pour que le lecteur d'ecran annonce le
+               dialogue), et Chromium dessine alors l'anneau sur un element que
+               personne ne peut atteindre au clavier. Le retirer LA ne coute
+               aucune accessibilite : on n'y arrive jamais par tabulation. */
+            .bp-pwa button:focus-visible,
+            .bp-pwa a:focus-visible {
+                outline: 2px solid #fff;
+                outline-offset: 2px;
+                border-radius: 6px;
+            }
+
+            .bp-pwa__title:focus,
+            .bp-pwa__title:focus-visible { outline: none; }
 
             @media (prefers-reduced-motion: reduce) {
                 .bp-pwa, .bp-pwa * { transition: none !important; animation: none !important; }
