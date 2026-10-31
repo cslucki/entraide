@@ -229,7 +229,13 @@ class TASK1714AccountApprovalTest extends TestCase
         // Le contexte d'Organization pose `organization_id` a la creation : on
         // force le vide, puis on ASSERTE la precondition. Un test qui suppose
         // son propre point de depart peut passer pour la mauvaise raison.
-        $orphelin->forceFill(['organization_id' => null])->save();
+        // TASK-1726 — fixture : l'etat « ce compte est ailleurs / sans tenant »
+        // reste atteignable (suppression d'Organization, puis reparation des
+        // orphelins), mais plus par le MODELE, qui refuse desormais tout
+        // deplacement. On le pose donc par le constructeur de requetes — le
+        // chemin exact de ces deux reparations.
+        User::query()->whereKey($orphelin->getKey())->update(['organization_id' => null]);
+        $orphelin->refresh();
         $orphelin = $orphelin->fresh();
 
         $this->assertNull($orphelin->organization_id, 'Le banc n\'a pas produit un compte sans Organization.');

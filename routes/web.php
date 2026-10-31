@@ -63,6 +63,10 @@ use App\Http\Controllers\Admin\OrgWorkshopRegistrantsController;
 use App\Http\Controllers\Admin\OrgWorkshopSessionController;
 use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
+use App\Http\Controllers\Auth\AccountLinkController;
+use App\Http\Controllers\Auth\AccountSwitchController;
+use App\Http\Controllers\Auth\LinkedAccountSwitchController;
+use App\Http\Controllers\Auth\MyOrganizationsController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -435,6 +439,51 @@ Route::middleware('auth')->group(function () {
     Route::post('/reports/user/{user}', [ReportController::class, 'storeUser'])->middleware('throttle:5,1')->name('reports.user');
     Route::post('/bugs', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
 
+    // TASK-1730 (A5a) — passer a SON autre compte, dans une autre Organization.
+    //
+    // Routes GLOBALES et non prefixees par `/org/{organization}`, delibere :
+    // le geste consiste precisement a QUITTER le tenant courant. Les declarer
+    // sous un prefixe de tenant aurait fait dependre la sortie de l'endroit
+    // d'ou l'on part.
+    //
+    // Elles vivent dans le groupe `auth`, donc sous les gardes habituelles du
+    // groupe `web` : un compte non verifie ou en attente d'approbation ne les
+    // atteint pas. C'est une limite ASSUMEE et documentee dans la fiche —
+    // se deconnecter puis se reconnecter reste ouvert a ces comptes, `logout`
+    // etant explicitement autorise par les deux gardes.
+    Route::get('/switch-account', [AccountSwitchController::class, 'create'])->name('account.switch');
+    Route::post('/switch-account', [AccountSwitchController::class, 'store'])->name('account.switch.store');
+
+    // TASK-1731 (A5b) — liens explicites entre comptes, et bascule par lien.
+    //
+    // Memes routes GLOBALES que la bascule de A5a, et pour la meme raison : le
+    // geste traverse les tenants, il ne peut pas vivre sous le prefixe de l'un
+    // d'eux.
+    Route::get('/linked-accounts', [AccountLinkController::class, 'index'])->name('account.links');
+    Route::post('/linked-accounts', [AccountLinkController::class, 'store'])->name('account.links.store');
+    Route::delete('/linked-accounts/{accountLink}', [AccountLinkController::class, 'destroy'])->name('account.links.destroy');
+    Route::post('/linked-accounts/{accountLink}/switch', [LinkedAccountSwitchController::class, 'store'])->name('account.links.switch');
+
+    // TASK-1734 — « Mes organisations » : bascule en un clic par lien, et
+    // premiere association par la preuve de la boite.
+    //
+    // Routes GLOBALES comme celles de A5a/A5b, memes raisons. Le parametre
+    // s'appelle `org` et PAS `organization`, et ce n'est pas un gout : le
+    // middleware global `ResolveOrganization` resout tout parametre de route
+    // nomme `organization` comme LE tenant courant — 404 si le slug est
+    // inconnu, et contexte de tenant pointe sur la CIBLE sinon. Ici le slug
+    // est une simple donnee d'entree : la resolution passe par le panneau de
+    // la personne (`SiblingAccountsPanel`), jamais par une recherche
+    // generale — un slug etranger rend le meme refus qu'un slug inexistant.
+    // Le GET de confirmation ne consomme pas le jeton (scanners de boite) ;
+    // seul le POST du bouton consomme.
+    Route::post('/my-organizations/{org}/switch', [MyOrganizationsController::class, 'store'])->name('my-organizations.switch');
+    Route::get('/my-organizations/sent', [MyOrganizationsController::class, 'sent'])->name('my-organizations.sent');
+    Route::get('/my-organizations/confirm/{token}', [MyOrganizationsController::class, 'confirm'])
+        ->where('token', '[0-9a-f]{64}')->name('my-organizations.confirm');
+    Route::post('/my-organizations/confirm/{token}', [MyOrganizationsController::class, 'finalize'])
+        ->where('token', '[0-9a-f]{64}')->name('my-organizations.confirm.store');
+
     // Profile
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
     // TASK-1223 : « Mes usages IA » — transparence du ledger canonique,
@@ -650,7 +699,6 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users/{user}/send-email', [AdminController::class, 'sendEmailToUser'])->name('users.send-email');
     Route::post('/users/{user}/password', [AdminController::class, 'changePassword'])->name('users.password');
     Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordResetLink'])->name('users.send-password-reset');
-    Route::patch('/users/{user}/assign-organization', [AdminController::class, 'assignOrganization'])->name('users.assign-organization');
     Route::post('/users/{user}/login-as', [AdminController::class, 'loginAsUser'])->name('users.login-as');
     Route::get('/users/{user}/delete-preview', [AdminController::class, 'deletePreview'])->name('users.delete-preview');
     Route::post('/users/{user}/delete', [AdminController::class, 'deleteUser'])->name('users.delete');
@@ -1848,6 +1896,16 @@ Route::prefix('/org/{organization}')
 
                 // Community
                 Route::get('/loops', [OrgAdminController::class, 'loops'])->name('loops');
+                // TASK-1725 (demande Cyril, 29/10) — l'admin d'Organization cree ses
+                // propres Boucles. Ces deux routes n'existaient tout simplement
+                // PAS : la surface portait `loops`, `loops.edit` et
+                // `loops.update`, mais aucun chemin de creation.
+                //
+                // Posees AVANT `/loops/{loop}/...` : `create` est un segment
+                // litteral, et une route parametree declaree d'abord le
+                // capturerait comme identifiant de Boucle.
+                Route::get('/loops/create', [OrgAdminController::class, 'createLoop'])->name('loops.create');
+                Route::post('/loops', [OrgAdminController::class, 'storeLoop'])->name('loops.store');
                 Route::get('/loops/{loop}/edit', [OrgAdminController::class, 'editLoop'])->name('loops.edit');
                 Route::put('/loops/{loop}', [OrgAdminController::class, 'updateLoop'])->name('loops.update');
                 Route::put('/loops/{loop}/cards', [OrgAdminController::class, 'updateLoopCards'])->name('loops.cards.update');

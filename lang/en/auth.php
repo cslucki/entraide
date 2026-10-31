@@ -77,4 +77,74 @@ return [
     'new_password_label' => 'New password',
     'reset_password_button' => 'Reset password',
 
+
+    // TASK-1728 (A3) — le selecteur d'Organization du formulaire global,
+    // et la sortie de secours du parcours d'Organization.
+    'login_organization_label' => "Organization (optional)",
+    'login_organization_any' => "— All organizations —",
+    'login_organization_hint' => "Only needed if your address belongs to several organizations. Leave empty otherwise.",
+    'login_try_global' => "Is your account in another organization? Sign in here.",
+
+    // TASK-1730 (A5a) — la bascule entre comptes d'Organizations differentes.
+    //
+    // `switch_failed` couvre CINQ causes d'un seul message : organisation
+    // inconnue, adresse absente, ambiguite, mot de passe faux, compte
+    // inutilisable. Les distinguer ferait de cet ecran un oracle
+    // d'appartenance ; le motif precis part au journal.
+    'switch_failed' => 'Cannot switch to that account. Check the organization you picked and that account\'s password.',
+    'switch_already_here' => 'You are already signed in to this organization\'s account.',
+    'switch_title' => 'Switch account',
+    'switch_intro' => 'If your address has an account in another organization, pick it and enter THAT account\'s password. You will be signed out of the current one.',
+    'switch_organization_label' => 'Organization of the target account',
+    'switch_organization_placeholder' => 'Choose an organization',
+    'switch_password_label' => 'Password of the target account',
+    'switch_submit' => 'Switch to that account',
+
+    // TASK-1731 (A5b) — la liaison explicite et revocable entre comptes.
+    //
+    // `link_failed` couvre plusieurs causes d'un seul message : organisation
+    // inconnue, adresse absente, ambiguite, l'un ou l'autre mot de passe faux.
+    // Les distinguer permettrait d'eprouver le mot de passe d'un compte qu'on
+    // ne controle pas. `link_already_exists` est la seule exception : il ne dit
+    // rien que la personne ne lise deja sur sa propre liste.
+    'link_failed' => 'Cannot link those accounts. Check the organization, the address and both passwords.',
+    'link_already_exists' => 'These two accounts are already linked.',
+    'link_created' => 'The two accounts are now linked. You can move between them without re-entering the other account\'s password.',
+    'link_revoked' => 'The link is revoked. Switching will require that account\'s password again.',
+    'links_title' => 'Linked accounts',
+    'links_intro' => 'Linking two of your accounts lets you move between them without re-entering the other account\'s password. Both organizations\' data stay separate, and you can revoke the link at any time, from either side.',
+    'links_empty' => 'No linked account yet.',
+    'links_add_title' => 'Link another of your accounts',
+    'links_target_email' => 'Address of the account to link',
+    'links_target_password' => 'That account\'s password',
+    'links_own_password' => 'Your current password',
+    'links_submit' => 'Link this account',
+    'links_revoke' => 'Revoke',
+    'links_switch' => 'Switch to this account',
+    'links_confirm_password' => 'Your password (confirmation)',
+
+    // TASK-1734 — "My organizations". One generic refusal for every motive,
+    // same discipline as `switch_failed`.
+    'myorg_refused' => 'This organization cannot be reached right now.',
+    'myorg_refused_title' => 'Access unavailable',
+    'myorg_back' => 'Back',
+    'myorg_sent_title' => 'An email is on its way',
+    'myorg_sent_body' => 'To confirm both accounts are yours, click the link sent to :email. You will then switch to :organization in one click.',
+    'myorg_sent_once' => 'The link is valid for 15 minutes. You will only do this once for this organization.',
+    'myorg_confirm_title' => 'Confirm, and continue',
+    'myorg_confirm_body' => 'By confirming, you will be able to switch from your current organization to :organization in one click, without a password. Your data stays separate, and you can remove this access at any time.',
+    'myorg_confirm_submit' => 'Confirm and continue',
+    'myorg_confirm_not_you' => 'Wasn\'t you? Just close this page: nothing will change.',
+    'myorg_invalid_title' => 'This link is no longer valid',
+    'myorg_invalid_body' => 'The link expired or was already used. Go back to your avatar menu and pick the organization again: a new email will be sent.',
+    'myorg_wrong_account_title' => 'Open this link from the right account',
+    'myorg_wrong_account_body' => 'This link must be opened from the account that made the request. Sign back in with that account, then click the email link again.',
+    'myorg_linked_flash' => 'Your accounts are linked. You can now switch between organizations in one click, and remove this access at any time from your settings.',
+    'myorg_mail_confirm_subject' => 'Confirm linking your two accounts',
+    'myorg_mail_confirm_line' => 'You asked to switch from :source to :target. If this was you, confirm it: you will then switch between them in one click.',
+    'myorg_mail_confirm_action' => 'Confirm and continue',
+    'myorg_mail_confirm_ignore' => 'Wasn\'t you? Ignore this message: nothing will be linked.',
+    'myorg_mail_linked_subject' => 'Your accounts are now linked',
+    'myorg_mail_linked_line' => 'Your account and your :other account are now linked. You can revoke this link at any time, from either account.',
+    'myorg_mail_linked_action' => 'Manage my linked accounts',
 ];

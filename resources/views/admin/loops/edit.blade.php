@@ -38,7 +38,12 @@
 
         <div class="space-y-6">
             {{-- Informations --}}
-            <form method="POST" action="{{ route('admin.loops.update', $boucle) }}" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-5">
+            {{-- TASK-1725 (demande Cyril, 29/10) — `enctype` AJOUTE, sans quoi le
+                 fichier n'atteint jamais le serveur : `hasFile()` repond faux, la
+                 validation passe, et l'ecran annonce un enregistrement reussi
+                 pendant que l'image n'a pas bouge. Echec entierement silencieux,
+                 deja rencontre sur l'ecran d'Organization de cette meme TASK. --}}
+            <form method="POST" action="{{ route('admin.loops.update', $boucle) }}" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-5" enctype="multipart/form-data">
                 @csrf @method('PUT')
 
                 <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Informations</h2>
@@ -94,6 +99,40 @@
                         <option value="public" @selected(old('visibility', $boucle->visibility) === 'public')>Publique — tous les membres de l'organisation peuvent rejoindre</option>
                     </select>
                     @error('visibility')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                {{-- TASK-1725 — inserer, remplacer ou supprimer la couverture.
+
+                     L'apercu passe par `cover_image_url`, l'accesseur du modele :
+                     cette vue ne reconstruit aucun chemin de stockage.
+
+                     La case de retrait n'apparait QUE s'il y a une image a
+                     retirer. La proposer quand il n'y en a pas est un geste sans
+                     effet, donc un piege. --}}
+                <div>
+                    <span class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.org_admin_loop_cover') }}</span>
+                    <p class="text-xs text-gray-400 mb-2">{{ __('admin.org_admin_loop_cover_hint') }}</p>
+
+                    @if($boucle->cover_image_path)
+                        <img src="{{ $boucle->cover_image_url }}" alt=""
+                             data-marqueur="apercu-couverture"
+                             class="mb-2 h-28 w-full rounded-lg object-cover sm:w-64">
+                    @endif
+
+                    <input type="file" name="cover_image" accept="image/png,image/jpeg,image/webp"
+                           data-marqueur="champ-couverture"
+                           class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-300">
+                    @error('cover_image')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+
+                    @if($boucle->cover_image_path)
+                        <label class="mt-2 flex cursor-pointer items-center gap-2">
+                            <input type="hidden" name="remove_cover_image" value="0">
+                            <input type="checkbox" name="remove_cover_image" value="1"
+                                   data-marqueur="retrait-couverture"
+                                   class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                            <span class="text-xs text-gray-600 dark:text-gray-300">{{ __('admin.org_admin_loop_cover_remove') }}</span>
+                        </label>
+                    @endif
                 </div>
 
                 <div class="flex items-center gap-3">

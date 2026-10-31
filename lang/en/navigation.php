@@ -26,6 +26,10 @@ return [
     'my_dossiers' => 'Folders',
     'settings' => 'Profile and settings',
     'administration' => 'Administration',
+    // TASK-1730 (A5a) — passer a son autre compte, dans une autre Organization.
+    // TASK-1731 (A5b) — gerer les liens entre ses comptes.
+    'linked_accounts' => 'Linked accounts',
+    'switch_account' => 'Switch account',
     'logout' => 'Log out',
     'login' => 'Log in',
     'register' => 'Sign up',
@@ -335,4 +339,10 @@ return [
     'mobile_fab_create_request' => 'Create a help request',
     'mobile_fab_offer_service' => 'Publish a proposal',
     'mobile_fab_write_article' => 'Write an article',
+
+    // TASK-1734 — the "My organizations" avatar-menu section.
+    'my_organizations' => 'My organizations',
+    'my_org_switch' => 'switch',
+    'my_org_confirm_by_email' => 'confirm by email',
+    'my_org_unavailable' => 'unavailable',
 ];

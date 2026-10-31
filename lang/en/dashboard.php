@@ -84,6 +84,10 @@ return [
     'sure' => 'Sure?',
     'yes' => 'Yes',
     'no' => 'No',
+    // TASK-1725 — the dashboard of someone who finished onboarding and has
+    // nothing active left. Without these two lines the page would be blank.
+    'nothing_yet_title' => 'Nothing in progress yet',
+    'nothing_yet_body' => 'Offer help or post a request: your dashboard will fill up as you start exchanging.',
     'no_active_service' => 'No active service.',
     'create_service' => 'Create a service',
     'my_requests' => 'My help requests',

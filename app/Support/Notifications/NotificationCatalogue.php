@@ -227,11 +227,15 @@ final class NotificationCatalogue
         // deja sa demarche, elle pourrait choisir d'aller voir plutot que d'etre
         // prevenue. La mesure a montre ce que cela coute reellement.
         //
-        // Aucun canal EMAIL n'existe sur ces cles (voir plus bas). Le Centre est
-        // donc l'UNIQUE endroit ou la reponse peut arriver, et couper le canal
-        // n'empeche pas la notification d'etre lue : il l'empeche d'EXISTER.
-        // Le membre ne perdrait pas un rappel, il perdrait la reponse a une
-        // question qu'il a posee lui-meme, sans aucun moyen de la retrouver.
+        // A l'origine, aucun canal EMAIL n'existait sur ces cles : le Centre
+        // etait l'UNIQUE endroit ou la reponse pouvait arriver, et couper le
+        // canal n'empechait pas la notification d'etre lue, il l'empechait
+        // d'EXISTER. Le membre n'aurait pas perdu un rappel, il aurait perdu la
+        // reponse a une question posee par lui-meme, sans moyen de la retrouver.
+        //
+        // TASK-1725 ajoute EMAIL sur « accepte » (voir plus bas). L'argument
+        // ci-dessus n'en est pas affaibli : il porte sur IN_APP, qui reste le
+        // support DURABLE du fait. L'email previent, le Centre conserve.
         //
         // C'est la difference avec EMAIL sur l'invitation, ou se desabonner ne
         // fait rien perdre parce que le fait reste visible dans le Centre.
@@ -244,19 +248,40 @@ final class NotificationCatalogue
         // reecrire des tests existants pour accommoder un choix qui n'etait de
         // toute facon pas le bon.
         //
-        // ## Aucun canal EMAIL dans cette tranche
+        // ## EMAIL sur « accepte », rien sur « refuse » (TASK-1725)
         //
-        // L'autorite du contenu des emails est `SystemEmailTemplate`, filtre par
-        // Organization et locale. Aucun modele n'existe pour ces deux faits, et
-        // en fabriquer un en fichier de langue installerait une seconde autorite
-        // metier — exactement ce qui est interdit. EMAIL reste donc hors
-        // catalogue ici : l'absence de la ligne suffit a ce que rien ne parte,
-        // et l'ajouter plus tard n'exigera aucune autre modification.
+        // La tranche TASK-1381 laissait les deux cles sans canal EMAIL, pour une
+        // raison qui etait juste a ce moment-la : l'autorite du contenu des
+        // emails est `SystemEmailTemplate`, filtre par Organization et locale, et
+        // aucun gabarit n'existait pour ces faits. En fabriquer un en fichier de
+        // langue aurait installe une seconde autorite metier.
+        //
+        // TASK-1725 (demande Cyril, 29/10) leve exactement cet obstacle, et de la
+        // facon prevue : un gabarit `loop_join_request_accepted` est POSE en base
+        // — migration pour les installations existantes, catalogue du seeder pour
+        // les bases fraiches. L'autorite reste donc unique et administrable.
+        // Comme annonce ici en TASK-1381, l'ajout n'a demande aucune autre
+        // modification du catalogue que la ligne ci-dessous.
+        //
+        // Actif par defaut : la personne a fait une demande et attend une reponse
+        // qu'elle ne peut pas deviner — rien ne garantit qu'elle reviendra
+        // regarder le Centre. Configurable : le fait reste dans le Centre, donc
+        // couper l'email ne fait rien perdre.
+        //
+        // ## « Refuse » n'en recoit PAS, et ce n'est pas un oubli
+        //
+        // Perimetre demande : « Quand le proprietaire accepte que l'utilisateur
+        // rejoigne : il faut envoyer un email ». Un refus n'ouvre aucune porte et
+        // n'appelle aucun geste ; le pousser dans la boite de quelqu'un ajoute une
+        // peine sans rien lui permettre. Le fait reste visible dans le Centre pour
+        // qui va voir. A rouvrir si MASTER le demande : une ligne ici, un gabarit,
+        // rien de plus.
         self::LOOP_JOIN_REQUEST_ACCEPTED => [
             'category' => 'loop',
             'object_type' => self::OBJECT_LOOP_JOIN_REQUEST,
             'channels' => [
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
             ],
         ],
 

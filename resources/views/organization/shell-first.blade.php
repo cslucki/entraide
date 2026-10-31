@@ -60,6 +60,16 @@
         // cotes de la porte.
         window.bpThemes = @json(collect($bp['themes'])->map(fn ($theme) => ['label' => $theme['label']])->all());
         window.bpDefaultTheme = @json($bp['default']);
+        {{-- TASK-1734 — meme purge par compte que `layouts/app`. Un visiteur
+             ANONYME n'est pas touche : sans identite, rien a comparer, et son
+             choix de theme survit a l'inscription comme avant. Commentaire
+             BLADE, pas JavaScript : voir `layouts/app`. --}}
+        var bpThemeAccount = @json(auth()->id() !== null ? (string) auth()->id() : null);
+        if (bpThemeAccount && localStorage.bpThemeAccount !== bpThemeAccount) {
+            localStorage.removeItem('theme');
+            localStorage.removeItem('bpTheme');
+            localStorage.bpThemeAccount = bpThemeAccount;
+        }
         var orgThemeKey = @json(bp_organization_theme_key($organization)) || window.bpDefaultTheme;
         document.documentElement.dataset.bpTheme = localStorage.bpTheme || orgThemeKey;
 
@@ -170,6 +180,16 @@
             @if($organization->name !== 'BouclePro')<span class="bpsf-org">· {{ $organization->name }}</span>@endif
         </a>
         <div class="bpsf-right">
+            {{-- TASK-1725 (demande Cyril, 29/10) — le selecteur FR/EN suit le drapeau
+                 « site multilingue » de l'Organization.
+
+                 `shell-first` est une HOMEPAGE : `OrganizationLandingController`
+                 la rend comme page d'accueil des Organizations en mode
+                 shell-first. Je l'avais d'abord ecartee en ne retenant que les
+                 trois gabarits « hero », et c'etait une erreur de perimetre — une
+                 Organization en shell-first aurait garde son selecteur alors que
+                 la case est decochee. --}}
+            @if($organization->multilingual_enabled)
             <div class="bpsf-lang" aria-label="Langue / Language">
                 @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
                     <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" style="display:inline">
@@ -178,6 +198,7 @@
                     </form>
                 @endforeach
             </div>
+            @endif
 
             {{-- La bascule clair/sombre, meme magasin que partout ailleurs
                  (`$store.darkMode` : classe `dark` sur <html> + cle `theme`).

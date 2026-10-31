@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Country;
 use App\Models\Organization;
+use App\Rules\UniqueEmailInOrganization;
+use App\Support\Tenancy\UserWriteLock;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\AiRerankSettings;
@@ -161,6 +163,8 @@ class AdminOrganizationController extends Controller
             'rerank_enabled' => 'nullable|boolean',
             'is_public' => 'nullable|boolean',
             'is_default' => 'nullable|boolean',
+            // TASK-1725 — « site multilingue » : le selecteur FR/EN s'affiche-t-il ?
+            'multilingual_enabled' => 'nullable|boolean',
             'loops_enabled' => 'nullable|boolean',
             'members_can_create_loops' => 'nullable|boolean',
             'subscriptions_enabled' => 'nullable|boolean',
@@ -210,6 +214,7 @@ class AdminOrganizationController extends Controller
         }
 
         $data['is_public'] = isset($data['is_public']);
+        $data['multilingual_enabled'] = ($data['multilingual_enabled'] ?? '0') === '1';
         $data['loops_enabled'] = ($data['loops_enabled'] ?? '0') === '1';
         $data['members_can_create_loops'] = ($data['members_can_create_loops'] ?? '0') === '1';
         $data['subscriptions_enabled'] = ($data['subscriptions_enabled'] ?? '0') === '1';
@@ -413,14 +418,78 @@ class AdminOrganizationController extends Controller
             ));
         }
 
-        DB::transaction(function () use ($organization) {
+        // TASK-1729 (A4), arbitrage MASTER D1 — refus AVANT detachement.
+        //
+        // ## Ce que la suppression fait, et ce qu'elle casserait
+        //
+        // Supprimer une Organization DETACHE ses membres (`organization_id` a
+        // NULL) — ici explicitement, et la cle etrangere le ferait de toute
+        // facon en `ON DELETE SET NULL`. Depuis T1729, un compte orphelin ne
+        // peut plus partager son adresse avec un autre orphelin : l'index
+        // partiel `users_email_orphan_unique` le refuse, et la ligne ci-dessous
+        // leverait une violation d'unicite — donc une erreur 500, apres avoir
+        // ouvert une transaction.
+        //
+        // ## Pourquoi la garde est plus LARGE que l'index
+        //
+        // Elle refuse aussi quand l'homonyme est encore RATTACHE a une autre
+        // Organization, cas que l'index laisse pourtant passer. Ce n'est pas du
+        // zele : le tort n'est pas la contrainte, c'est qu'un orphelin n'a plus
+        // qu'une porte — le login GLOBAL et la reinitialisation GLOBALE — et
+        // que ces deux-la refusent une adresse ambigue, par conception (T1727,
+        // T1728). Detacher un compte dont l'adresse existe ailleurs en ferait
+        // donc un compte MUET : il ne pourrait plus ni se connecter, ni
+        // demander un lien. Mieux vaut refuser la suppression, visiblement,
+        // que produire un compte que personne ne peut plus ouvrir.
+        //
+        // Le refus est rendu AVANT toute ecriture, et nomme les adresses en
+        // cause : l'operateur peut agir (supprimer ou transferer le compte en
+        // conflit) au lieu de lire un 500.
+        // REVUE F2 — le controle et le detachement sont SOLIDAIRES.
+        //
+        // Ce controle vivait AVANT la transaction. Entre lui et le detachement,
+        // une inscription concurrente — `/register` est PUBLIQUE — pouvait
+        // creer le compte qui le rend faux : on detachait alors un compte en le
+        // rendant muet, ou l'on levait une violation d'unicite, donc un 500,
+        // apres avoir annonce que tout allait bien.
+        //
+        // La transaction seule n'y suffisait pas : en READ COMMITTED chaque
+        // instruction prend un instantane neuf. `UserWriteLock` prend donc un
+        // verrou qui tient jusqu'au commit — `SHARE ROW EXCLUSIVE` sous
+        // PostgreSQL, escalade de fichier sous SQLite.
+        //
+        // Le refus est RENDU par la transaction, pas leve : une collision
+        // metier n'est pas une panne, et ne doit pas sortir en 500.
+        $resultat = DB::transaction(function () use ($organization) {
+            UserWriteLock::acquire();
+
+            $conflits = UniqueEmailInOrganization::adressesEnConflitHorsOrganization(
+                $organization->users()->pluck('email')->all(),
+                (string) $organization->getKey(),
+            );
+
+            if ($conflits->isNotEmpty()) {
+                return back()->with('error', sprintf(
+                    "Suppression refusee : %d adresse(s) de cette organisation sont aussi portees par un compte exterieur (%s). "
+                    .'Detacher ces comptes les rendrait inconnectables. Supprimez ou transferez le compte en conflit, puis recommencez.',
+                    $conflits->count(),
+                    $conflits->take(3)->implode(', ')
+                ));
+            }
+
             $organization->users()->update(['organization_id' => null]);
             $organization->services()->update(['organization_id' => null]);
             $organization->serviceRequests()->update(['organization_id' => null]);
             $organization->transactions()->update(['organization_id' => null]);
 
             $organization->forceDelete();
+
+            return null;
         });
+
+        if ($resultat !== null) {
+            return $resultat;
+        }
 
         return back()->with('success', "Organisation « {$organization->name} » supprimée définitivement.");
     }

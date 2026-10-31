@@ -580,7 +580,13 @@ class TASK1654PersonaAccessTest extends TestCase
     {
         [, $persona] = $this->enMode();
 
-        $persona->forceFill(['organization_id' => Organization::factory()->create()->id])->save();
+        // TASK-1726 — fixture : l'etat « ce compte est ailleurs / sans tenant »
+        // reste atteignable (suppression d'Organization, puis reparation des
+        // orphelins), mais plus par le MODELE, qui refuse desormais tout
+        // deplacement. On le pose donc par le constructeur de requetes — le
+        // chemin exact de ces deux reparations.
+        User::query()->whereKey($persona->getKey())->update(['organization_id' => Organization::factory()->create()->id]);
+        $persona->refresh();
 
         $this->get('/')->assertRedirect(route('admin.outils.scenarios'));
         $this->assertSame($this->superAdmin->id, Auth::id());

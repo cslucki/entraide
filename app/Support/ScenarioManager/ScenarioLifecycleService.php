@@ -23,6 +23,8 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use App\Support\Tenancy\OrganizationDetachGuard;
+use App\Support\Tenancy\OrganizationDetachRefused;
 
 /**
  * TASK-1650 — approuver, charger, reinitialiser, retirer.
@@ -214,7 +216,41 @@ class ScenarioLifecycleService
                 $this->remover->remove($resultat->packLoad->load->pack_id, $resultat->organization);
 
                 if ($resultat->organization->scenario_sandbox_created_at !== null) {
-                    $resultat->organization->forceDelete();
+                    // TASK-1729 phase 2 — la garde D1, et une transaction pour
+                    // la tenir.
+                    //
+                    // `remove()` ne purge que les entites dont le registre
+                    // prouve l'ownership `created`. Tout compte que CE
+                    // chargement n'a pas inscrit — une personne reelle qui a
+                    // rejoint, un compte `reused` — survit donc, et la FK
+                    // `ON DELETE SET NULL` le DETACHE ici, en silence. Si son
+                    // adresse est deja portee ailleurs, il devient un orphelin
+                    // muet : ni login, ni reinitialisation.
+                    //
+                    // La garde est posee APRES `remove()` et pas avant : avant,
+                    // elle compterait les comptes que `remove()` va supprimer
+                    // de toute facon, et refuserait un nettoyage parfaitement
+                    // sain. Elle mesure ce qui sera ENCORE rattache au moment
+                    // du `forceDelete()`.
+                    //
+                    // Ce bloc est volontairement sa propre transaction : le
+                    // rattrapage est hors de celle du dessus, et le verrou doit
+                    // tenir du controle jusqu'au commit.
+                    try {
+                        DB::transaction(function () use ($resultat): void {
+                            OrganizationDetachGuard::verrouillerEtRefuserSiAmbigu($resultat->organization);
+
+                            $resultat->organization->forceDelete();
+                        });
+                    } catch (OrganizationDetachRefused $refus) {
+                        // La sandbox SURVIT, et on le dit. Le refus porte plus
+                        // d'information que `versionDisparue()` : il nomme les
+                        // adresses, et il affirme qu'aucun compte n'a bouge.
+                        // Le laisser remonter nu donnerait un 500 pour un refus
+                        // metier — ce controleur n'attrape que
+                        // `ScenarioVersionRefused`.
+                        throw ScenarioVersionRefused::engineRefused($refus->getMessage());
+                    }
                 }
             }
 
@@ -349,6 +385,17 @@ class ScenarioLifecycleService
                     // meme lecon que le preflight a coutee.
                     $this->supprimerCeQuiDeviendraitPlateforme($organization);
 
+                    // TASK-1729 phase 2 — la garde D1, sous le verrou.
+                    //
+                    // `refuserSiContenuEtranger()` a deja refuse plus haut si
+                    // un compte rattache n'est pas revendique par ce
+                    // chargement, mais il est appele HORS de cette transaction
+                    // et il laisse passer les entites `reused` — revendiquees,
+                    // donc acceptees, et pourtant non purgees par `remove()`.
+                    // Celle-ci est posee a l'interieur, juste avant la FK, et
+                    // mesure ce qui est reellement encore rattache.
+                    OrganizationDetachGuard::verrouillerEtRefuserSiAmbigu($organization);
+
                     // `Organization` est en SoftDeletes : une suppression douce
                     // laisserait une ligne que le slug garde occupe et qu'aucun
                     // ecran ne montre plus. Une sandbox dont la provenance est
@@ -388,6 +435,14 @@ class ScenarioLifecycleService
             // Le moteur refuse AVANT toute suppression quand il ne sait pas a
             // qui appartient une entite. C'est un fail-closed exemplaire, et
             // il doit se lire comme tel.
+            throw ScenarioVersionRefused::engineRefused($refus->getMessage());
+        } catch (OrganizationDetachRefused $refus) {
+            // TASK-1729 phase 2 — un refus de detachement est un refus METIER.
+            //
+            // Sans ce bras, la garde D1 posee dans le geste sortirait en 500
+            // alors qu'elle vient de proteger exactement ce qu'on lui demande
+            // de proteger. Meme traitement que les trois refus du moteur
+            // au-dessus, pour la meme raison.
             throw ScenarioVersionRefused::engineRefused($refus->getMessage());
         } catch (ManifestNotLoadableException $refus) {
             throw ScenarioVersionRefused::revalidationFailed($refus->getMessage());

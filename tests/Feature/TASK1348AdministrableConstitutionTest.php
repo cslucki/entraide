@@ -55,16 +55,13 @@ class TASK1348AdministrableConstitutionTest extends TestCase
     {
         parent::setUp();
 
-        $this->superAdmin = User::factory()->create(['is_admin' => true]);
-        $this->adminA = User::factory()->create();
-        $this->adminB = User::factory()->create();
-
-        $this->organizationA = Organization::factory()->create(['is_active' => true, 'slug' => 'org-const-a', 'admin_id' => $this->adminA->id]);
-        $this->organizationB = Organization::factory()->create(['is_active' => true, 'slug' => 'org-const-b', 'admin_id' => $this->adminB->id]);
-
-        $this->adminA->update(['organization_id' => $this->organizationA->id]);
-        $this->adminB->update(['organization_id' => $this->organizationB->id]);
-        $this->superAdmin->update(['organization_id' => $this->organizationA->id]);
+        $this->organizationA = Organization::factory()->create(['is_active' => true, 'slug' => 'org-const-a']);
+        $this->adminA = User::factory()->create(['organization_id' => $this->organizationA->id]);
+        $this->superAdmin = User::factory()->create(['is_admin' => true, 'organization_id' => $this->organizationA->id]);
+        $this->organizationA->update(['admin_id' => $this->adminA->id]);
+        $this->organizationB = Organization::factory()->create(['is_active' => true, 'slug' => 'org-const-b']);
+        $this->adminB = User::factory()->create(['organization_id' => $this->organizationB->id]);
+        $this->organizationB->update(['admin_id' => $this->adminB->id]);
 
         $this->memberA = User::factory()->create(['organization_id' => $this->organizationA->id]);
 

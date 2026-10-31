@@ -501,6 +501,35 @@ class LoopChat extends Component
     }
 
     /**
+     * TASK-1725 (demande Cyril, 29/10) — le formulaire de demande d'aide,
+     * atteint DIRECTEMENT quand l'IA de l'Organization est eteinte.
+     *
+     * « Qui peut m'aider ? » ouvrait un modal de clarification qui, sans IA,
+     * se contentait d'expliquer puis de proposer le chemin manuel : deux gestes
+     * et une explication pour arriver ou l'on allait de toute facon. Le bouton
+     * mene donc droit au formulaire.
+     *
+     * MEME precaution que `aiRoute()`, et pour la meme raison exactement :
+     * l'Organization vient de la BOUCLE des que `request()` ne la porte pas.
+     * Sur une mise a jour Livewire la requete est le `POST /livewire/update`,
+     * sans parametre `organization` — `organizationScopedUrl()`, qui interroge
+     * `request()->segment(1)`, y verrait `livewire-...` et retomberait sur la
+     * route SANS prefixe. Le lien aurait alors change entre le chargement de la
+     * page et le premier re-render, et `ResolveUrlOrganization` aurait lie
+     * l'Organization PAR DEFAUT de la plateforme.
+     */
+    public function helpRequestRoute(): string
+    {
+        $organization = request()->route('organization') ?? $this->loop->organization?->slug;
+
+        if ($organization && Route::has('organization.requests.create')) {
+            return route('organization.requests.create', ['organization' => $organization]);
+        }
+
+        return route('requests.create');
+    }
+
+    /**
      * TASK-1684 — « Ajouter un fichier dans la Boucle » (feuille mobile).
      *
      * Le fichier va DANS LA BOUCLE, pas dans le message : l'upload du composeur

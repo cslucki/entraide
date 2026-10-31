@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
+use App\Support\Tenancy\UserWriteLock;
 use App\Support\AssignData\Dataset;
 use App\Support\AssignData\DatasetClassification;
 use App\Support\AssignData\DatasetRegistry;
@@ -202,15 +203,61 @@ class AdminAssignDataController extends Controller
             return back()->with('error', SandboxGuard::messageDestination($organization));
         }
 
-        $updated = DB::transaction(
+        // TASK-1729 (A4) — refus AVANT ecriture quand le rattachement creerait
+        // un doublon d'adresse dans l'Organization cible.
+        //
+        // ## Le cas SYMETRIQUE de celui que D1 ferme sur la suppression
+        //
+        // Cet ecran rattache d'un coup TOUS les comptes orphelins a
+        // l'Organization choisie. Depuis T1729, une adresse est unique par
+        // Organization : si un orphelin porte la meme adresse qu'un membre
+        // DEJA present dans la cible, l'UPDATE de masse viole
+        // `users_organization_email_unique`.
+        //
+        // Mesure avant correctif : **statut 500**, et aucun message. Or
+        // l'arbitrage D1 exige « aucune erreur 500 » — il le disait de la
+        // suppression d'Organization, mais c'est le meme defaut, cree par la
+        // meme migration, sur un ecran d'administration voisin. Le refermer
+        // d'un cote et le laisser de l'autre n'aurait eu aucun sens.
+        //
+        // Deux collisions possibles, et les deux sont couvertes : un orphelin
+        // contre un MEMBRE de la cible, et deux orphelins entre eux — qui
+        // atterriraient tous deux dans la meme Organization.
+        // REVUE F2 — meme correction qu'a la suppression d'Organization : le
+        // controle vivait AVANT la transaction, et une inscription concurrente
+        // pouvait le rendre faux entre les deux. Controle et ecriture sont
+        // desormais solidaires, sous verrou.
+        $resultat = DB::transaction(function () use ($definition, $organization) {
+            if ($definition->table === 'users') {
+                UserWriteLock::acquire();
+
+                $conflits = $this->adressesEnConflitAvecLaCible($organization);
+
+                if ($conflits->isNotEmpty()) {
+                    return ['refus' => back()->with('error', sprintf(
+                        'Rattachement refuse : %d adresse(s) existeraient en double dans « %s » (%s). '
+                        .'Une adresse est unique par organisation. Traitez ces comptes, puis recommencez.',
+                        $conflits->count(),
+                        $organization->name,
+                        $conflits->take(3)->implode(', ')
+                    ))];
+                }
+            }
+
             // `whereNull` : on ne touche QUE les lignes sans Organization.
             // L'ancien UPDATE n'avait pas cette condition et reecrivait tout
             // le dataset, y compris les lignes deja rattachees ailleurs.
             // Seule `organization_id` est ecrite — aucune autre colonne.
-            fn () => $definition->query()
+            return ['mises_a_jour' => $definition->query()
                 ->whereNull('organization_id')
-                ->update(['organization_id' => $organization->getKey()])
-        );
+                ->update(['organization_id' => $organization->getKey()])];
+        });
+
+        if (isset($resultat['refus'])) {
+            return $resultat['refus'];
+        }
+
+        $updated = $resultat['mises_a_jour'];
 
         Log::info('assign-data executed', [
             'admin_id' => $request->user()?->id,
@@ -269,5 +316,42 @@ class AdminAssignDataController extends Controller
         }
 
         return Organization::query()->whereIn('id', $ids)->pluck('name', 'id')->all();
+    }
+
+    /**
+     * Les adresses qui seraient en double si l'on rattachait tous les
+     * orphelins a cette Organization.
+     *
+     * Deux sources de collision, comptees ensemble parce qu'elles produisent la
+     * meme violation : un orphelin dont l'adresse est deja portee par un membre
+     * de la cible, et deux orphelins qui partagent la leur. La comparaison est
+     * en `LOWER()`, comme les index de TASK-1729 — la garde et la base doivent
+     * repondre a la meme question.
+     *
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    private function adressesEnConflitAvecLaCible(Organization $organization)
+    {
+        $orphelines = DB::table('users')
+            ->selectRaw('LOWER(email) as adresse')
+            ->whereNull('organization_id')
+            ->pluck('adresse');
+
+        if ($orphelines->isEmpty()) {
+            return collect();
+        }
+
+        $dejaPresentes = DB::table('users')
+            ->selectRaw('LOWER(email) as adresse')
+            ->where('organization_id', $organization->getKey())
+            ->pluck('adresse');
+
+        $entreOrphelins = $orphelines->duplicates()->values();
+
+        return $orphelines
+            ->intersect($dejaPresentes)
+            ->merge($entreOrphelins)
+            ->unique()
+            ->values();
     }
 }

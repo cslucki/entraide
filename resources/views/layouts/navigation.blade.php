@@ -7,6 +7,21 @@
                 <div class="shrink-0 flex items-center">
                     @php
                         $tenant = $currentOrganization ?? (Auth::check() ? Auth::user()->organization : null);
+                        // TASK-1725 — l'Organization qui decide de la garde IA, et elle
+                        // SEULE. `$tenant` n'est pas reutilise ici : il nomme aussi la
+                        // marque du bandeau, et changer sa precedence aurait modifie
+                        // l'en-tete de toute page non prefixee — hors de la demande.
+                        //
+                        // L'URL d'abord, l'Organization du MEMBRE ensuite, soit la
+                        // precedence des liens de mobilier. Jamais `currentOrganization()`
+                        // en premier : sur une route non prefixee elle rend l'Organization
+                        // PAR DEFAUT de la plateforme, la garde jugerait « main » pour un
+                        // membre d'un autre tenant, et l'entree disparaitrait alors que son
+                        // IA est allumee. Mesure faite sur le rail — c'est precisement ce
+                        // qui s'y est produit au premier jet.
+                        $aiMenuOrganization = (request()->route('organization') ? $currentOrganization : null)
+                            ?? (Auth::check() ? Auth::user()->organization : null)
+                            ?? $currentOrganization;
                         $desktopBrandName = $tenant?->name ?? ($brandOrganizationName ?? config('app.name'));
                         // TASK-1605 — le declencheur est l'URL, pas le LIAGE : sur une
                         // route globale courte, `ResolveUrlOrganization` lie tout de meme
@@ -147,7 +162,13 @@
                     <x-slot name="content">
                         <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')"><span class="font-medium">{{ __('navigation.dashboard') }}</span></x-dropdown-link>
                         <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()->profileRouteKey()]) : route('profile.show', Auth::user()->profileRouteKey())">{{ __('navigation.profile') }}</x-dropdown-link>
-                        @if(!$tenant || $tenant->ai_profiles_enabled)
+                        {{-- TASK-1725 — l'autorite unique. `ai_profiles_enabled` seul
+                             ignorait l'interrupteur maitre « fonctions IA », donc les deux
+                             entrees restaient au menu avatar d'une Organization dont l'IA
+                             est eteinte. Meme defaut qu'en TASK-1693 bug AF.
+                             `$tenant` est deja la bonne Organization (ligne 9 : l'URL
+                             d'abord, puis celle du membre). --}}
+                        @if($_aiGate->memberAgentAvailableFor($aiMenuOrganization))
                         <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('agent-ia.interactions')">{{ __('navigation.ai_interactions') }}</x-dropdown-link>
                         @endif
@@ -176,6 +197,13 @@
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('organization.admin.dashboard', ['organization' => Auth::user()->organization->slug])"><span class="text-purple-600 dark:text-purple-400 font-medium">{{ __('navigation.org_admin') }}</span></x-dropdown-link>
                         @endif
+                        {{-- TASK-1734 — « Mes organisations » remplace les deux
+                             entrees techniques de T1730/T1731 (« Changer de
+                             compte », « Comptes lies »), reparties desormais dans
+                             Profil -> Securite. Presente aux TROIS surfaces du menu
+                             avatar, sans quoi la section disparaitrait selon le
+                             gabarit ou la largeur d'ecran — le defaut de T1725. --}}
+                        <x-my-organizations-menu variant="dropdown" />
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <form method="POST" action="{{ $currentOrganization ? route('organization.logout', $currentOrganization) : route('logout') }}">
                             @csrf
@@ -264,7 +292,9 @@
             <div class="mt-1 space-y-1">
                 <x-responsive-nav-link :href="route('dashboard')">{{ __('navigation.dashboard') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()->profileRouteKey()]) : route('profile.show', Auth::user()->profileRouteKey())">{{ __('navigation.profile') }}</x-responsive-nav-link>
-                @if(!$tenant || $tenant->ai_profiles_enabled)
+                {{-- TASK-1725 — meme garde que dans le menu bureau ci-dessus. Deux
+                     conditions differentes auraient fini par dire deux choses. --}}
+                @if($_aiGate->memberAgentAvailableFor($aiMenuOrganization))
                 <x-responsive-nav-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('agent-ia.interactions')">{{ __('navigation.ai_interactions') }}</x-responsive-nav-link>
                 @endif
@@ -285,6 +315,8 @@
                 @if(Auth::user()->is_admin)
                 <x-responsive-nav-link :href="route('admin.dashboard')">{{ __('navigation.administration') }}</x-responsive-nav-link>
                 @endif
+                {{-- TASK-1734 — meme section que le menu avatar ci-dessus. --}}
+                <x-my-organizations-menu variant="responsive" />
                 <form method="POST" action="{{ $currentOrganization ? route('organization.logout', $currentOrganization) : route('logout') }}">
                     @csrf
                     <x-responsive-nav-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();">{{ __('navigation.logout') }}</x-responsive-nav-link>

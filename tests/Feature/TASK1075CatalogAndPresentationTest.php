@@ -242,6 +242,102 @@ class TASK1075CatalogAndPresentationTest extends TestCase
         Storage::disk('public')->assertMissing('loop-covers/x/old.jpg');
     }
 
+    /**
+     * TASK-1725 — enregistrer SANS toucher a la couverture la CONSERVE.
+     *
+     * ## Pourquoi cette garde, alors que la regle du projet est d'en ecrire peu
+     *
+     * Le defaut qu'elle surveille echappe a l'oeil ET il est IRREVERSIBLE : si
+     * un enregistrement sans fichier effacait la couverture, le fichier serait
+     * supprime du disque, pas seulement la colonne. Personne ne le verrait au
+     * moment du geste — on le decouvre plus tard, devant une carte vide, sans
+     * moyen de revenir en arriere.
+     *
+     * ## Ce que le code achete exactement
+     *
+     * `CouvertureDeBoucle::couvertureDemandee()` rend TROIS valeurs : un chemin
+     * (remplacer), `null` (effacer), et `false` (ne rien faire). C'est la
+     * distinction entre les deux dernieres que ce test mesure. Les confondre
+     * viderait la couverture a chaque enregistrement ou le champ reste vide,
+     * c'est-a-dire presque tous.
+     *
+     * Le cas se produit des que quelqu'un corrige un nom ou une description :
+     * le champ fichier d'un formulaire ne se re-remplit jamais tout seul.
+     */
+    public function test_saving_without_touching_the_cover_keeps_it(): void
+    {
+        Storage::fake('public');
+        $org = $this->org();
+        $loop = Loop::factory()->create([
+            'organization_id' => $org->id,
+            'cover_image_path' => 'loop-covers/x/garde.jpg',
+        ]);
+        Storage::disk('public')->put('loop-covers/x/garde.jpg', 'fake');
+        $owner = User::factory()->create(['organization_id' => $org->id]);
+        LoopMember::factory()->owner()->create(['loop_id' => $loop->id, 'user_id' => $owner->id]);
+        $this->withCurrentOrganization($org);
+
+        // Ni fichier, ni case de retrait : exactement ce qu'envoie un formulaire
+        // dont on a seulement corrige le nom.
+        $this->actingAs($owner)->put(route('loops.update', $loop), [
+            'name' => 'Nom corrige',
+        ])->assertRedirect();
+
+        $this->assertSame('loop-covers/x/garde.jpg', $loop->fresh()->cover_image_path);
+        Storage::disk('public')->assertExists('loop-covers/x/garde.jpg');
+
+        // Et la correction a bien eu lieu : sans cette assertion, une requete
+        // refusee rendrait la couverture intacte pour la mauvaise raison.
+        $this->assertSame('Nom corrige', $loop->fresh()->name);
+    }
+
+    /**
+     * TASK-1725 — meme garde, mais sur le chemin du SUPERADMIN.
+     *
+     * Trois ecrans cablent desormais le meme trait : la Boucle d'un membre,
+     * l'administration d'Organization, et celle de la plateforme. La logique
+     * `false` / `null` est gardee UNE fois par le test voisin ; ce qui reste
+     * propre a chaque ecran, c'est son CABLAGE.
+     *
+     * Celui-ci merite sa garde parce que ses donnees traversent
+     * `LoopService::updateLoop()` au lieu d'un tableau construit a la main : il
+     * y a donc plus de chemin entre la decision et l'ecriture, et l'oubli du
+     * `unset()` des champs non-colonnes comme une mauvaise lecture du `false` s'y
+     * payeraient par la suppression du FICHIER.
+     *
+     * L'ecran d'Organization, lui, construit son tableau explicitement — moins
+     * de cablage, et Cyril l'a recette.
+     */
+    public function test_the_platform_admin_keeps_the_cover_when_not_touching_it(): void
+    {
+        Storage::fake('public');
+        $org = $this->org();
+        $loop = Loop::factory()->create([
+            'organization_id' => $org->id,
+            'name' => 'Avant',
+            'cover_image_path' => 'loop-covers/y/garde.jpg',
+        ]);
+        Storage::disk('public')->put('loop-covers/y/garde.jpg', 'fake');
+
+        $admin = User::factory()->create([
+            'organization_id' => $org->id,
+            'is_admin' => true,
+            'email_verified_at' => now(),
+        ]);
+        $this->withCurrentOrganization($org);
+
+        $this->actingAs($admin)
+            ->put(route('admin.loops.update', $loop), [
+                'name' => 'Nom corrige',
+                'visibility' => 'private',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('loop-covers/y/garde.jpg', $loop->fresh()->cover_image_path);
+        Storage::disk('public')->assertExists('loop-covers/y/garde.jpg');
+        $this->assertSame('Nom corrige', $loop->fresh()->name);
+    }
+
     // ── Join requests: store ─────────────────────────────────────────────────
 
     public function test_member_can_send_a_join_request_with_message(): void

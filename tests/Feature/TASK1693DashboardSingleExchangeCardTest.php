@@ -146,17 +146,37 @@ class TASK1693DashboardSingleExchangeCardTest extends TestCase
     }
 
     /**
-     * La forme du tableau de bord ne depend plus de la personne.
+     * La forme du tableau de bord ne depend plus du ROLE — et c'est bien cela,
+     * et cela seul, que le bug T avait corrige.
      *
-     * C'est ce que Cyril a vu : deux cards chez l'acheteur, une seule chez le
-     * vendeur. La card est desormais la, pleine ou vide.
+     * TASK-1725 (demande Cyril, 29/10) REMPLACE l'assertion precedente, qui
+     * exigeait la card « pleine ou vide ». Une card vide ne parait plus : un
+     * nouvel arrivant ne voit que son On-boarding au lieu de quatre cards qui
+     * lui annoncent surtout qu'il n'a rien fait.
+     *
+     * Ce n'est pas un retour en arriere, et ce test est ce qui le PROUVE. Le
+     * defaut d'alors etait une asymetrie : pour une MEME donnee, deux cards
+     * chez l'acheteur et une seule chez le vendeur. On mesure donc desormais
+     * que la card parait pour l'un comme pour l'autre — et une seule fois —
+     * puis qu'elle s'efface quand il n'y a rien, pour l'un comme pour l'autre.
+     * La forme suit la DONNEE, jamais le role.
      */
-    public function test_the_card_is_present_even_with_nothing_to_show(): void
+    public function test_the_card_shape_follows_the_data_not_the_role(): void
     {
-        $html = $this->tableauDeBord();
+        // Rien : la card s'efface. Hier elle restait, vide.
+        $this->assertStringNotContainsString('data-dashboard-exchanges', $this->tableauDeBord());
 
-        $this->assertStringContainsString('data-dashboard-exchanges', $html);
-        $this->assertStringContainsString(e(__('dashboard.no_exchange')), $html);
+        // Acheteur : elle parait, une seule fois.
+        $this->echange('accepted', jeSuisAcheteur: true);
+        $enTantQuAcheteur = $this->tableauDeBord();
+        $this->assertSame(1, substr_count($enTantQuAcheteur, 'data-dashboard-exchanges'));
+
+        // Vendeur du MEME etat : elle parait aussi, et toujours une seule fois.
+        // C'est l'asymetrie du bug T qui est mesuree ici.
+        Transaction::query()->delete();
+        $this->echange('accepted', jeSuisAcheteur: false);
+        $enTantQueVendeur = $this->tableauDeBord();
+        $this->assertSame(1, substr_count($enTantQueVendeur, 'data-dashboard-exchanges'));
     }
 
     /**
@@ -211,10 +231,21 @@ class TASK1693DashboardSingleExchangeCardTest extends TestCase
      * Ils n'y etaient pas non plus avant. Cette card parle de ce sur quoi on a
      * encore quelque chose a faire — l'elargir en passant serait un autre
      * produit, non demande.
+     *
+     * TASK-1725 — un echange VIVANT est pose d'abord, et ce n'est pas un detail
+     * de mise en place. Depuis que la card s'efface quand elle est vide,
+     * mesurer l'absence des trois etats morts SANS lui donner de quoi paraitre
+     * rendrait l'assertion VACANTE : elle constaterait l'absence d'une card qui
+     * n'est pas rendue, et resterait verte meme si le filtre de statut sautait.
+     * La card doit EXISTER pour qu'on puisse prouver ce qui n'y entre pas.
      */
     public function test_finished_refused_and_cancelled_exchanges_stay_out(): void
     {
+        $vivant = $this->echange('accepted', jeSuisAcheteur: true, convenus: 20);
+
         $html = $this->tableauDeBord();
+        $this->assertStringContainsString('data-dashboard-exchanges', $html);
+        $this->assertStringContainsString('data-dashboard-exchange="'.$vivant->id.'"', $html);
 
         foreach (['completed', 'refused', 'cancelled'] as $status) {
             $tx = $this->echange($status, jeSuisAcheteur: true, convenus: 20);
@@ -224,14 +255,19 @@ class TASK1693DashboardSingleExchangeCardTest extends TestCase
                 "[{$status}] ne doit pas entrer dans la card",
             );
         }
-
-        $this->assertStringContainsString('data-dashboard-exchanges', $html);
     }
 
-    /** Un echange entre deux AUTRES personnes ne me concerne pas. */
+    /**
+     * Un echange entre deux AUTRES personnes ne me concerne pas.
+     *
+     * TASK-1725 — meme raison qu'au-dessus : le MIEN est pose d'abord, sans quoi
+     * la card manquerait et l'absence de celui des autres serait vraie pour la
+     * mauvaise raison.
+     */
     public function test_an_exchange_between_other_people_is_not_listed(): void
     {
         $tiers = $this->membre();
+        $leMien = $this->echange('accepted', jeSuisAcheteur: true, convenus: 20);
 
         $tx = Transaction::factory()->create([
             'organization_id' => $this->organization->id,
@@ -242,9 +278,9 @@ class TASK1693DashboardSingleExchangeCardTest extends TestCase
             'points_agreed' => 20,
         ]);
 
-        $this->assertStringNotContainsString(
-            'data-dashboard-exchange="'.$tx->id.'"',
-            $this->tableauDeBord(),
-        );
+        $html = $this->tableauDeBord();
+
+        $this->assertStringContainsString('data-dashboard-exchange="'.$leMien->id.'"', $html);
+        $this->assertStringNotContainsString('data-dashboard-exchange="'.$tx->id.'"', $html);
     }
 }

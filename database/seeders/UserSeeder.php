@@ -85,6 +85,23 @@ class UserSeeder extends Seeder
                     'is_available' => true,
                     'is_admin' => $data['is_admin'],
                     'email_verified_at' => now(),
+                    // TASK-1723 — un compte QA est APPROUVE d'office.
+                    //
+                    // TASK-1714 a pose `approved_at` et la garde
+                    // `RequireApprovedAccount`. Les trois Organizations de ce
+                    // depot ont `requires_account_approval = true` : depuis,
+                    // un compte seede s'authentifiait mais toute page protegee
+                    // le renvoyait sur `/approbation-en-attente`.
+                    //
+                    // Mesure, pas deduction : `POST /login` rendait bien 302
+                    // vers `/admin/dashboard`, puis `/dashboard` arrivait sur
+                    // `/approbation-en-attente`. Le README avertissait deja
+                    // qu'« un seeder qui sort en succes ne garantit pas un
+                    // compte connectable » — c'etait precisement ce cas.
+                    //
+                    // Un compte de demonstration n'a personne pour l'approuver :
+                    // le poser approuve est la seule forme qui tienne.
+                    'approved_at' => now(),
                     'organization_id' => $org->id,
                     'bio' => $data['bio'],
                     'location' => $data['location'],

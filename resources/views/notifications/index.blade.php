@@ -46,6 +46,43 @@
             ? __($traduction)
             : __('notifications.key_fallback');
     };
+
+    // TASK-1725 (demande Cyril, 29/10) — nommer la Boucle quand on la connait.
+    //
+    // Deux formes coexistent : `keys_named` nomme, `keys` ne nomme pas. Le choix
+    // se fait sur ce que le controleur a REELLEMENT pu resoudre — une Boucle
+    // supprimee, ou d'un autre tenant, ne donne aucun nom, et la ligne retombe
+    // alors sur la forme sans objet, qui reste juste.
+    //
+    // La forme nommee n'existe que pour les cles qui portent une Boucle :
+    // `Lang::has()` garde donc le pas, sans repli de locale pour la meme raison
+    // que ci-dessus — une cle presente dans une seule langue ne doit pas
+    // s'afficher dans l'autre.
+    $libelleNomme = function (string $cle, ?string $nomDeBoucle) use ($libelle) {
+        if ($nomDeBoucle === null || $nomDeBoucle === '') {
+            return $libelle($cle);
+        }
+
+        $traduction = 'notifications.keys_named.'.str_replace('.', '_', $cle);
+
+        return \Illuminate\Support\Facades\Lang::has($traduction, null, false)
+            ? __($traduction, ['loop' => $nomDeBoucle])
+            : $libelle($cle);
+    };
+
+    // TASK-1725 — « Ouvrir » ne disait pas quoi ouvrir. Le libelle suit l'OBJET,
+    // et non la presence d'un nom : une notification de Boucle mene a une
+    // Boucle meme quand la Boucle n'a pas pu etre nommee. Les autres objets —
+    // un commentaire, un article — gardent « Ouvrir », qui reste exact pour eux.
+    $objetsDeBoucle = [
+        \App\Support\Notifications\NotificationCatalogue::OBJECT_LOOP,
+        \App\Support\Notifications\NotificationCatalogue::OBJECT_LOOP_INVITATION,
+        \App\Support\Notifications\NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST,
+    ];
+
+    $libelleOuvrir = fn (?string $typeDObjet) => in_array($typeDObjet, $objetsDeBoucle, true)
+        ? __('notifications.open_loop')
+        : __('notifications.open');
 @endphp
 
 <x-app-layout>
@@ -117,7 +154,7 @@
                         class="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 shadow-sm">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-semibold text-[var(--bp-text)]">
-                                {{ $libelle($notification->notification_key) }}
+                                {{ $libelleNomme($notification->notification_key, $sujets[$notification->id] ?? null) }}
                             </p>
                             <p class="mt-0.5 text-xs text-[var(--bp-muted)]">
                                 <time datetime="{{ $notification->created_at?->toIso8601String() }}">
@@ -135,7 +172,7 @@
                                 <button type="submit"
                                         data-notification-open="{{ $notification->id }}"
                                         class="min-h-11 text-sm font-semibold text-[var(--bp-primary)] transition hover:underline">
-                                    {{ __('notifications.open') }}
+                                    {{ $libelleOuvrir($notification->object_type) }}
                                 </button>
                             </form>
 

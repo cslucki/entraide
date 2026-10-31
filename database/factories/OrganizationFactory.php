@@ -30,6 +30,11 @@ class OrganizationFactory extends Factory
             'loops_enabled' => true,
             'members_can_create_loops' => true,
             'loop_mode' => 'multi',
+            // TASK-1725 — le drapeau est pose EXPLICITEMENT, a la valeur de la
+            // colonne. Une fabrique qui le tait laisse la base decider, et un
+            // test qui mesure le selecteur FR/EN deviendrait alors dependant du
+            // defaut de migration — lecon de TASK-1714 sur `approved_at`.
+            'multilingual_enabled' => false,
         ];
     }
 

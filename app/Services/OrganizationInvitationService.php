@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\OrganizationInvitation;
 use App\Models\PointLedger;
 use App\Models\User;
+use App\Support\Tenancy\UserWriteLock;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -31,7 +32,24 @@ class OrganizationInvitationService
 
     public const CASE_ALREADY_MEMBER = 'already_member';
 
-    public const CASE_EMAIL_USED_ELSEWHERE = 'email_used_elsewhere';
+    /**
+     * TASK-1732 (A6) — REMPLACE `CASE_EMAIL_USED_ELSEWHERE`.
+     *
+     * L'ancien nom disait « cette adresse est employee ailleurs », et c'etait
+     * exact tant qu'un homonyme dans une AUTRE Organization etait un refus.
+     * Depuis A6 cet homonyme est le cas NOMINAL : l'invitation part, et le clic
+     * cree un compte FRERE. Le refus qui reste ne couvre plus qu'une seule
+     * paire — celle qu'aucun index unique ne peut exprimer : un compte SANS
+     * Organization portant la meme adresse (asymetrie documentee dans
+     * `UniqueEmailInOrganization`). Creer le frere rendrait cet orphelin MUET.
+     *
+     * Le renommage est deliberement cassant : il force chaque site d'appel a
+     * etre relu. Garder un nom qui affirme « employee ailleurs » pour designer
+     * « collision avec un orphelin » aurait fait raisonner juste sur une
+     * premisse fausse — exactement le defaut que le commentaire du Cas C
+     * denoncait.
+     */
+    public const CASE_EMAIL_NOT_INVITABLE = 'email_not_invitable';
 
     public const CASE_SANDBOX_FORBIDDEN = 'sandbox_forbidden';
 
@@ -46,7 +64,8 @@ class OrganizationInvitationService
 
     public const RESULT_SANDBOX_FORBIDDEN = 'sandbox_forbidden';
 
-    public const RESULT_EMAIL_USED_ELSEWHERE = 'email_used_elsewhere';
+    /** TASK-1732 (A6) — meme renommage, meme raison : voir `CASE_EMAIL_NOT_INVITABLE`. */
+    public const RESULT_EMAIL_NOT_INVITABLE = 'email_not_invitable';
 
     public const RESULT_NOT_FOUND = 'not_found';
 
@@ -97,26 +116,77 @@ class OrganizationInvitationService
                 return ['case' => self::CASE_SANDBOX_FORBIDDEN, 'invitation' => null, 'user' => null];
             }
 
-            // Recherche INSENSIBLE A LA CASSE. `users.email` est unique
-            // globalement mais sensible a la casse sur PostgreSQL, et
-            // `/admin/users` enregistre une adresse SANS regle `lowercase` :
-            // une comparaison exacte laissait donc passer `Alice@x.com` quand
-            // on invitait `alice@x.com`, et le Cas C etait contourne — deux
-            // comptes pour une seule boite. Meme clause que
+            // Recherche INSENSIBLE A LA CASSE, et BORNEE A CETTE Organization.
+            //
+            // La casse : `email` est sensible a la casse sur PostgreSQL, et
+            // `/admin/users` enregistre une adresse SANS regle `lowercase` —
+            // une comparaison exacte laissait passer `Alice@x.com` quand on
+            // invitait `alice@x.com`, soit deux comptes pour une seule boite
+            // DANS LA MEME Organization. `LOWER()` des deux cotes, exactement
+            // la forme que portent les index uniques de T1729. Meme clause que
             // LoopInvitationService, dont ce service reprend le patron.
-            $existingUser = User::whereRaw('LOWER(email) = ?', [$email])->lockForUpdate()->first();
+            //
+            // La portee : une seule recherche GLOBALE suivie d'un `->first()`
+            // suffisait tant que l'adresse etait unique sur la plateforme.
+            // Depuis A4 elle vit dans plusieurs Organizations, et `->first()`
+            // pouvait rendre le compte d'un AUTRE tenant — donc repondre
+            // « deja membre » ou « employee ailleurs » a propos de la mauvaise
+            // personne. On ne demande donc qu'a CETTE Organization : c'est la
+            // seule dont la reponse nous concerne.
+            $membreIci = User::query()
+                ->where('organization_id', $organization->id)
+                ->whereRaw('LOWER(email) = ?', [$email])
+                ->lockForUpdate()
+                ->first();
 
-            if ($existingUser) {
-                if ($existingUser->organization_id === $organization->id) {
-                    return ['case' => self::CASE_ALREADY_MEMBER, 'invitation' => null, 'user' => $existingUser];
-                }
+            if ($membreIci) {
+                return ['case' => self::CASE_ALREADY_MEMBER, 'invitation' => null, 'user' => $membreIci];
+            }
 
-                // Cas C — the schema makes a second User for this e-mail
-                // impossible (users.email is a GLOBAL unique index), and
-                // moving the existing account would silently relocate its
-                // content without it (the exact defect measured ahead of
-                // TASK-1639). So: no invitation, no e-mail, no mutation.
-                return ['case' => self::CASE_EMAIL_USED_ELSEWHERE, 'invitation' => null, 'user' => $existingUser];
+            // TASK-1732 (A6) — LE CAS C EST LEVE.
+            //
+            // Ici se trouvait une recherche GLOBALE : tout homonyme, dans
+            // n'importe quelle Organization, refusait l'invitation. Le
+            // commentaire qui l'accompagnait le disait deja : « le refus [...]
+            // repose sur une decision : creer ce compte frere est l'etape A6 ».
+            // Nous y sommes (arbitrage MASTER du 30/10, points A a F).
+            //
+            // Un homonyme membre d'une AUTRE Organization n'est donc plus
+            // consulte du tout : l'invitation part, et le clic creera un compte
+            // FRERE. Deux consequences voulues :
+            //
+            //   - le compte existant n'est jamais lu, jamais touche, jamais
+            //     deplace (T1726) — on ne le cherche meme plus ;
+            //   - l'administrateur de CETTE Organization n'apprend rien sur les
+            //     comptes des autres. L'ancien refus etait une fuite
+            //     d'information inter-Organizations (exigence MASTER 3,
+            //     non-enumeration) : il disait « cette adresse possede deja un
+            //     compte associe a une autre organisation ».
+            //
+            // Reste UN refus, et un seul : un compte SANS Organization portant
+            // cette adresse. Ce n'est pas une symetrie oubliee, c'est
+            // l'asymetrie que `UniqueEmailInOrganization` documente — un
+            // orphelin n'a qu'une porte, le login GLOBAL, et T1728 lui refuse
+            // une adresse ambigue. Creer le frere le rendrait MUET. Aucun index
+            // unique ne peut exprimer cette paire (une ligne a
+            // `organization_id` nul, l'autre non) : c'est a l'application de la
+            // tenir, et l'invitation devient le SIXIEME site a le faire.
+            //
+            // Ce controle-ci est celui de l'ERGONOMIE : il evite d'envoyer un
+            // courriel qui echouerait au clic. Le controle d'INTEGRITE est dans
+            // `accept()`, sous `UserWriteLock` (doctrine T1729).
+            $orphelinHomonyme = User::query()
+                ->whereNull('organization_id')
+                ->whereRaw('LOWER(email) = ?', [$email])
+                ->lockForUpdate()
+                ->first();
+
+            if ($orphelinHomonyme) {
+                // `user` reste NUL, deliberement : l'appelant est une surface
+                // d'administration d'une autre Organization que celle de ce
+                // compte — lui rendre l'objet serait lui livrer l'information
+                // qu'on vient de refuser de divulguer.
+                return ['case' => self::CASE_EMAIL_NOT_INVITABLE, 'invitation' => null, 'user' => null];
             }
 
             $existing = OrganizationInvitation::where('organization_id', $organization->id)
@@ -185,6 +255,11 @@ class OrganizationInvitationService
      * l'identite pour un probleme d'appartenance. L'echec est journalise —
      * jamais avale en silence — et la personne atterrit simplement sur son
      * Organization au lieu de la Boucle.
+     *
+     * TASK-1732 (A6) : appelee APRES le commit de `accept()`, et plus dedans.
+     * Deux raisons, detaillees en tete de `accept()` — ne pas tenir le verrou
+     * de table pendant une notification, et rendre la promesse ci-dessus
+     * structurelle au lieu de dependre de la liste des exceptions attrapees.
      */
     private function joinTargetLoop(OrganizationInvitation $invitation, User $user): void
     {
@@ -257,11 +332,29 @@ class OrganizationInvitationService
      * proof of possession. Never throws for an expected refusal: callers
      * render a message, they do not catch exceptions.
      *
+     * TASK-1732 (A6) — L'ADHESION A LA BOUCLE EST SORTIE DE LA TRANSACTION.
+     *
+     * La creation du compte prend desormais `UserWriteLock` (voir plus bas), et
+     * un verrou de table se tient jusqu'au COMMIT : tout ce qui reste dans la
+     * transaction est tenu avec lui. Or `joinTargetLoop()` appelle
+     * `LoopService::addMemberByUserId()`, qui notifie — donc, en
+     * `QUEUE_CONNECTION=sync` (c'est la configuration de PROD), envoie un
+     * courriel. Tenir `SHARE ROW EXCLUSIVE` sur `users` pendant un aller-retour
+     * SMTP aurait bloque toutes les creations de comptes de l'application le
+     * temps d'une latence exterieure — precisement ce que T1729 interdit : « le
+     * verrou doit entourer le controle et l'ecriture, et RIEN d'autre ».
+     *
+     * Ce deplacement ne change pas le contrat, il le rend structurel : la
+     * methode promettait deja « un echec n'annule PAS l'acceptation », et elle
+     * le tenait en attrapant deux exceptions nommees. Une troisieme, inattendue,
+     * annulait silencieusement la creation du compte. Hors transaction, la
+     * promesse ne depend plus de la liste des exceptions prevues.
+     *
      * @return array{result: string, invitation: ?OrganizationInvitation, user: ?User}
      */
     public function accept(string $token): array
     {
-        return DB::transaction(function () use ($token) {
+        $resultat = DB::transaction(function () use ($token) {
             $invitation = OrganizationInvitation::where('token', $token)->lockForUpdate()->first();
 
             if (! $invitation) {
@@ -310,17 +403,46 @@ class OrganizationInvitationService
                 return ['result' => self::RESULT_SANDBOX_FORBIDDEN, 'invitation' => $invitation, 'user' => null];
             }
 
-            $existingUser = User::whereRaw('LOWER(email) = ?', [OrganizationInvitation::normalizeEmail($invitation->recipient_email)])
+            $adresse = OrganizationInvitation::normalizeEmail($invitation->recipient_email);
+
+            // TASK-1732 (A6) — le repli GLOBAL est retire, et c'est tout le
+            // changement de ce chemin.
+            //
+            // Il y avait ici deux recherches : CETTE Organization, puis, a
+            // defaut, la plateforme entiere. La seconde ne servait qu'a produire
+            // le refus « adresse employee ailleurs ». Ce refus n'existe plus :
+            // un homonyme dans une autre Organization est desormais le cas
+            // nominal, et le compte FRERE se cree plus bas par le chemin deja
+            // ecrit — sans jamais lire, toucher ni deplacer le compte de l'autre
+            // tenant (T1726).
+            //
+            // La question posee ici redevient donc la seule qui compte : « cette
+            // adresse a-t-elle deja un compte DANS CETTE Organization ? ».
+            //
+            // `UserWriteLock` AVANT la question, et non apres : la paire
+            // « orphelin + membre » n'est exprimable par aucun index unique, et
+            // c'est la seule collision que la base ne rattrapera pas. Sans ce
+            // verrou, une suppression d'Organization concurrente — qui DETACHE
+            // ses membres, donc fabrique des orphelins — pouvait commiter entre
+            // notre controle et notre ecriture ; sa propre garde
+            // (`OrganizationDetachGuard`) ne voyait pas notre ligne encore non
+            // commitee, et les deux cotes se croyaient saufs. Le verrou rend les
+            // deux gestes mutuellement exclusifs : l'un des deux voit l'autre et
+            // refuse. Huitieme site a prendre ce verrou, meme doctrine que les
+            // sept autres (T1729 revue F2).
+            //
+            // Le verrou est pris ICI et pas au debut de `accept()` : les
+            // controles qui precedent (jeton, expiration, revocation, sandbox)
+            // ne portent pas sur `users`.
+            UserWriteLock::acquire();
+
+            $existingUser = User::query()
+                ->where('organization_id', $organization->id)
+                ->whereRaw('LOWER(email) = ?', [$adresse])
                 ->lockForUpdate()
                 ->first();
 
             if ($existingUser) {
-                if ($existingUser->organization_id !== $organization->id) {
-                    // The address was claimed elsewhere between send and
-                    // click (e.g. a manual admin action). Never move it.
-                    return ['result' => self::RESULT_EMAIL_USED_ELSEWHERE, 'invitation' => $invitation, 'user' => null];
-                }
-
                 // DEFAUT DE SECURITE corrige (revue 1, 01/10) : ce chemin
                 // rendait l'utilisateur, et l'appelant ouvrait une session.
                 // Un jeton envoye par courriel devenait donc un moyen de se
@@ -345,6 +467,42 @@ class OrganizationInvitationService
                 ]);
 
                 return ['result' => self::RESULT_ACCOUNT_ALREADY_EXISTS, 'invitation' => $invitation->fresh(), 'user' => null];
+            }
+
+            // TASK-1732 (A6) — LE CONTROLE D'INTEGRITE, sous le verrou pris
+            // ci-dessus (exigence MASTER 2).
+            //
+            // `invite()` pose la meme question, mais c'est un controle
+            // d'ERGONOMIE : il tourne 48 h plus tot et sans verrou, et il evite
+            // seulement d'envoyer un courriel qui echouerait au clic. Celui-ci
+            // est le controle qui COMPTE : c'est le dernier instant avant
+            // l'ecriture, et il est solidaire d'elle.
+            //
+            // Les deux posent la MEME question — « un compte sans Organization
+            // porte-t-il cette adresse ? » — et les deux refusent pour la meme
+            // raison : creer le frere rendrait cet orphelin MUET (il n'a que le
+            // login GLOBAL, que T1728 ferme sur une adresse ambigue).
+            //
+            // LE JETON N'EST PAS CONSOMME (exigence MASTER 2). On sort avant
+            // toute mutation : ni compte, ni ledger, ni changement de statut.
+            // L'invitation reste « pending » et redeviendra cliquable le jour ou
+            // l'orphelin sera rattache ou supprime — ce qui est exactement le
+            // bon comportement : la personne n'a rien fait de mal, et son lien
+            // ne doit pas etre brule par un etat de la plateforme qui ne la
+            // concerne pas.
+            $orphelinHomonyme = User::query()
+                ->whereNull('organization_id')
+                ->whereRaw('LOWER(email) = ?', [$adresse])
+                ->lockForUpdate()
+                ->first();
+
+            if ($orphelinHomonyme) {
+                Log::warning('organization_invitation: creation refusee, un compte sans Organization porte cette adresse', [
+                    'invitation_id' => $invitation->id,
+                    'organization_id' => $organization->id,
+                ]);
+
+                return ['result' => self::RESULT_EMAIL_NOT_INVITABLE, 'invitation' => $invitation, 'user' => null];
             }
 
             $user = User::create([
@@ -395,9 +553,17 @@ class OrganizationInvitationService
                 'accepted_by_user_id' => $user->id,
             ]);
 
-            $this->joinTargetLoop($invitation, $user);
-
             return ['result' => self::RESULT_ACCEPTED, 'invitation' => $invitation->fresh(), 'user' => $user];
         });
+
+        // HORS transaction, donc hors verrou : voir l'explication en tete de
+        // methode. L'ordre reste le meme — le compte existe et l'invitation est
+        // consommee avant qu'on tente l'adhesion —, et l'echec reste sans effet
+        // sur l'acceptation.
+        if ($resultat['result'] === self::RESULT_ACCEPTED) {
+            $this->joinTargetLoop($resultat['invitation'], $resultat['user']);
+        }
+
+        return $resultat;
     }
 }

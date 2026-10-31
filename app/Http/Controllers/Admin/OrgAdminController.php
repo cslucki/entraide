@@ -77,6 +77,12 @@ use Illuminate\View\View;
 
 class OrgAdminController extends Controller
 {
+    // TASK-1725 — l'image de couverture, partagee avec `LoopController`. Les
+    // deux methodes vivaient en `private` la-bas ; elles sont desormais dans
+    // `App\Support\Loops\CouvertureDeBoucle`, en UN exemplaire. Cyril,
+    // 29/10 : « surtout ne pas les dupliquer ».
+    use \App\Support\Loops\CouvertureDeBoucle;
+
     public function dashboard(Organization $organization, \App\Services\Admin\OrganizationDashboardMetrics $metrics): View
     {
         // TASK-1504 : tout ce que la page affiche vient d'UNE autorite ; la vue
@@ -394,17 +400,107 @@ class OrgAdminController extends Controller
         return back()->with('success', __($data['enabled'] ? 'loops.cards_enabled' : 'loops.cards_disabled'));
     }
 
+    /**
+     * TASK-1725 (demande Cyril, 29/10) — l'admin d'Organization cree ses Boucles.
+     *
+     * Le formulaire n'offre PAS de selecteur d'Organization, a la difference de
+     * celui du SuperAdmin : celle de l'URL est la seule possible, et la proposer
+     * au choix inviterait a fabriquer une Boucle chez le voisin.
+     *
+     * Les candidats au role de responsable sont les membres de CETTE
+     * Organization, assignables — la meme portee que la regle de validation de
+     * `storeLoop()`. Les deux doivent rester d'accord : une liste plus large que
+     * la regle offrirait des choix refuses a l'envoi.
+     */
+    public function createLoop(Organization $organization): View
+    {
+        return view('admin.org.loop-create', [
+            'organization' => $organization,
+            'types' => app(LoopTypeRegistry::class)->selectableFor(null, $organization),
+            'responsables' => User::assignable()
+                ->where('organization_id', $organization->id)
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']),
+        ]);
+    }
+
+    /**
+     * TASK-1725 — la creation elle-meme.
+     *
+     * Elle passe par `LoopService::createLoopForOrg()`, l'autorite deja employee
+     * par le SuperAdmin. Rien n'est recopie ici : le slug unique, le type, le
+     * preset de cartes et l'adhesion du responsable sont son affaire, et une
+     * seconde implementation aurait diverge au premier champ ajoute.
+     *
+     * ## Le responsable est OBLIGATOIRE, et c'est un choix (arbitrage Cyril)
+     *
+     * Le SuperAdmin peut provisionner une Boucle SANS responsable — commentaire
+     * de TASK-1679 : « une Boucle se provisionne avant que son responsable
+     * metier n'existe comme compte ». L'admin d'Organization, lui, connait ses
+     * membres, et une Boucle sans proprietaire est precisement la dette que
+     * TASK-1679 a du nettoyer.
+     *
+     * ## L'Organization vient de l'URL, jamais de la requete
+     *
+     * `$organization` est lie par la route, derriere `OrgAdminMiddleware`. Aucun
+     * `organization_id` n'est lu dans le formulaire : un champ cache suffirait
+     * sinon a creer chez un autre locataire. La garde d'appartenance du
+     * responsable est reverifiee APRES la validation, parce qu'une garde qui ne
+     * s'applique qu'une fois n'est pas une garde.
+     */
+    public function storeLoop(Request $request, Organization $organization): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:5000'],
+            'visibility' => ['required', 'in:public,private'],
+            'owner_id' => [
+                'required',
+                Rule::exists('users', 'id')
+                    ->where('organization_id', $organization->id)
+                    ->whereNull('banned_at'),
+            ],
+            'type' => ['nullable', Rule::in(app(LoopTypeRegistry::class)->availableKeys())],
+        ]);
+
+        $owner = User::assignable()->findOrFail($data['owner_id']);
+
+        if ($owner->organization_id !== $organization->id) {
+            abort(403, __('admin.owner_must_belong_to_org'));
+        }
+
+        $loop = app(LoopService::class)->createLoopForOrg(
+            $owner,
+            $organization->id,
+            $data['name'],
+            $data['description'] ?? null,
+            $data['visibility'],
+            null,
+            Loop::ACCESS_REQUEST,
+            $data['type'] ?? null,
+            creator: $request->user(),
+        );
+
+        return redirect()
+            ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])
+            ->with('success', __('admin.org_admin_loop_created'));
+    }
+
     public function updateLoop(Request $request, Organization $organization, Loop $loop): RedirectResponse
     {
         abort_if($loop->organization_id !== $organization->id, 404);
 
         $registry = app(LoopTypeRegistry::class);
 
+        // TASK-1725 (demande Cyril, 29/10) — la couverture entre dans les champs
+        // modifiables. Les regles viennent du trait partage, elles ne sont pas
+        // reecrites ici : c'est le second endroit ou une divergence se serait
+        // installee entre cet ecran et celui des membres.
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
             'type' => ['required', 'string'],
-        ]);
+        ] + $this->reglesDeCouverture());
 
         if (! $registry->exists($data['type'])) {
             return back()->with('error', __('loops.type_invalid'));
@@ -416,11 +512,23 @@ class OrgAdminController extends Controller
             return back()->with('error', __('loops.type_unavailable'));
         }
 
-        $loop->update([
+        $aEcrire = [
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'type' => $data['type'],
-        ]);
+        ];
+
+        // TASK-1725 — `false` veut dire « n'y touche pas », et il faut le
+        // distinguer de `null` qui veut dire « efface ». Les confondre viderait
+        // la couverture a chaque enregistrement ou le champ reste vide,
+        // c'est-a-dire presque tous.
+        $couverture = $this->couvertureDemandee($request, $loop);
+
+        if ($couverture !== false) {
+            $aEcrire['cover_image_path'] = $couverture;
+        }
+
+        $loop->update($aEcrire);
 
         $added = $registry->applyPreset($loop->fresh());
 

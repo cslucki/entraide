@@ -18,7 +18,7 @@
 
 return [
     'meta_title' => 'La solidarité nous rassemble',
-    'meta_description' => 'Formateurs et organismes de formation : partageons nos expériences, soutenons-nous face aux difficultés et faisons avancer nos projets ensemble.',
+    'meta_description' => 'Professionnels de la filière : partageons nos expériences, soutenons-nous face aux difficultés et faisons avancer nos projets ensemble.',
 
     'nav_about' => 'À propos',
     'nav_login' => 'Se connecter',
@@ -31,7 +31,7 @@ return [
     'title_3' => 'L’entraide',
     'title_4' => 'nous fait avancer.',
 
-    'intro' => 'Formateurs et organismes de formation : partageons nos expériences, soutenons-nous face aux difficultés et faisons avancer nos projets ensemble.',
+    'intro' => 'Professionnels de la filière : partageons nos expériences, soutenons-nous face aux difficultés et faisons avancer nos projets ensemble.',
 
     'mantra_1' => 'Écoutons.',
     'mantra_2' => 'Partageons.',

@@ -802,6 +802,28 @@
                  campagne humaine). Le badge unique est desormais dans le
                  panneau d'etat, rendu sur tous les formats. --}}
 
+            {{-- TASK-1725 (demande Cyril, 29/10) — sans IA, le bouton MENE au
+                 formulaire au lieu d'ouvrir la clarification.
+
+                 TASK-1322 Core-2 avait choisi de garder le modal pour tout le monde
+                 et de le faire « degrader proprement » quand l'IA n'est pas
+                 disponible : message explicite, puis lien vers le chemin manuel. Ca
+                 tenait, mais ca coute deux gestes et une explication pour arriver
+                 ou l'on allait de toute facon. Cyril : « faisons simple : pointer
+                 directement vers le formulaire de demande d'aide ».
+
+                 Un LIEN, pas un bouton qui ouvre un modal vide : la destination est
+                 la meme pour tout le monde, seul le chemin raccourcit. Meme
+                 apparence, pour que le geste ne change pas de place sous la main.
+
+                 Le predicat vient du COMPOSANT, qui delegue a l'autorite unique —
+                 ce gabarit n'en ecrit aucun, comme pour `$aiEnginesAvailable`
+                 ci-dessus. L'URL aussi : `helpRequestRoute()` prend
+                 l'Organization sur la BOUCLE des que `request()` ne la porte pas,
+                 parce qu'une mise a jour Livewire est un POST sur
+                 `/livewire/update` ou le helper global retomberait sur la route
+                 sans prefixe. Meme precaution que `aiRoute()`. --}}
+            @if($this->organizationAiAvailable())
             <button
                 type="button"
                 x-on:click="window.dispatchEvent(new CustomEvent('bp-open-help-request'))"
@@ -810,6 +832,16 @@
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                 {{ __('loops.who_can_help') }}
             </button>
+            @else
+            <a
+                href="{{ $this->helpRequestRoute() }}"
+                data-loop-help-request-direct
+                class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200 dark:hover:bg-amber-900/40"
+            >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                {{ __('loops.who_can_help') }}
+            </a>
+            @endif
 
             <template x-teleport="body">
                 <div x-show="askOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center px-3"

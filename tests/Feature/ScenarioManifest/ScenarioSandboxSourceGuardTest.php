@@ -6,6 +6,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -22,6 +23,20 @@ use Tests\TestCase;
  * Verdict MASTER du 27/09 : « tant qu'une surface PROD existante permet
  * d'injecter un vrai utilisateur dans leur cible, leur securite n'est pas
  * fermee. »
+ *
+ * ## TASK-1726 — la surface a disparu, pas seulement sa garde
+ *
+ * La garde T1650 vivait dans `AdminController` et refusait une sandbox comme
+ * source OU comme destination. T1726 supprime la REASSIGNATION : plus
+ * d'endpoint `assign-organization`, et `updateUser()` ne lit plus
+ * `organization_id`. Il n'y a donc plus de destination a refuser, et la garde
+ * a ete retiree avec le chemin qu'elle policait.
+ *
+ * Ce fichier reste le bon endroit pour le mesurer : c'est ici qu'on saura
+ * pourquoi, le jour ou quelqu'un voudra rouvrir un chemin d'affectation. Les
+ * tests de SUPPRESSION d'Organization, eux, sont inchanges — et ils comptent
+ * double desormais : la suppression detache ses membres par un UPDATE de
+ * masse, le seul chemin que l'immuabilite T1726 laisse ouvert.
  *
  * ## Les deux sens
  *
@@ -50,54 +65,50 @@ class ScenarioSandboxSourceGuardTest extends TestCase
         ]);
     }
 
-    public function test_affecter_un_compte_reel_a_une_sandbox_est_refuse(): void
+    /**
+     * TASK-1726 — les DEUX sens sont fermes par la disparition du chemin.
+     *
+     * Ce fichier contenait trois tests sur
+     * `PATCH /admin/users/{user}/assign-organization` : entree refusee vers
+     * une sandbox, sortie refusee depuis une sandbox, et — l'autre sens de la
+     * garde — affectation toujours permise entre deux Organizations
+     * ORDINAIRES.
+     *
+     * Ce troisieme est celui qui change de verdict : l'affectation entre deux
+     * Organizations ordinaires n'est plus permise NON PLUS. La garde T1650
+     * tracait une frontiere autour des sandboxes ; T1726 supprime le
+     * deplacement lui-meme, pour tous les tenants. Une garde devenue vacante
+     * a ete retiree avec son endpoint — c'est strictement plus fort que ce
+     * qu'elle protegeait, et il n'y a plus de « sens du oui » a prouver ici.
+     */
+    public function test_la_route_qui_injectait_dans_une_sandbox_n_existe_plus(): void
     {
         $sandbox = $this->sandbox();
         $client = Organization::factory()->create();
         $personne = User::factory()->create(['organization_id' => $client->id]);
 
+        $this->assertFalse(Route::has('admin.users.assign-organization'));
+
         $this->actingAs($this->superAdmin)
-            ->patch(route('admin.users.assign-organization', $personne), [
+            ->patch('/admin/users/'.$personne->id.'/assign-organization', [
                 'organization_id' => $sandbox->id,
             ])
-            ->assertSessionHas('error');
+            ->assertNotFound();
 
-        $this->assertSame(
-            $client->id,
-            $personne->fresh()->organization_id,
-            'Le compte NE DOIT PAS avoir bouge.'
-        );
+        $this->assertSame($client->id, $personne->fresh()->organization_id);
     }
 
-    public function test_sortir_un_compte_d_une_sandbox_est_refuse(): void
+    public function test_la_fiche_complete_ignore_un_organization_id_poste_a_la_main(): void
     {
-        // Le sens que j'avais d'abord oublie. C'est pourtant LUI qui rend le
-        // contenu orphelin : la personne repart, ses messages restent dans la
-        // sandbox, et le Reset ou le Remove les emporte.
-        $sandbox = $this->sandbox();
-        $client = Organization::factory()->create();
-        $personne = User::factory()->create(['organization_id' => $sandbox->id]);
-
-        $this->actingAs($this->superAdmin)
-            ->patch(route('admin.users.assign-organization', $personne), [
-                'organization_id' => $client->id,
-            ])
-            ->assertSessionHas('error');
-
-        $this->assertSame(
-            $sandbox->id,
-            $personne->fresh()->organization_id,
-            'Le compte NE DOIT PAS avoir bouge.'
-        );
-    }
-
-    public function test_la_fiche_complete_refuse_aussi_les_deux_sens(): void
-    {
-        // `updateUser()` est un SECOND chemin vers la meme ecriture. T1639 a
-        // deja coute une divergence de ce genre : le comptage et le transfert
-        // ne portaient pas le meme filtre. Les deux chemins partagent donc ici
-        // le meme predicat, et ce test le prouve sur le chemin le moins
-        // evident.
+        // `updateUser()` etait le SECOND chemin vers la meme ecriture, et T1639
+        // avait deja coute une divergence de ce genre. T1726 ne le garde plus
+        // par un predicat partage : il ne lit plus le champ du tout.
+        //
+        // Le verdict change donc de NATURE — et c'est la raison d'etre de ce
+        // test. L'ancien attendait `error` : un refus. Celui-ci attend un
+        // SUCCES, et la valeur inchangee. Un `organization_id` poste a la main
+        // (curl, rejeu de formulaire, client d'API) n'est plus une tentative
+        // qu'on repousse, c'est un champ qui n'existe pas.
         $sandbox = $this->sandbox();
         $client = Organization::factory()->create();
         $personne = User::factory()->create(['organization_id' => $client->id]);
@@ -108,7 +119,7 @@ class ScenarioSandboxSourceGuardTest extends TestCase
                 'email' => $personne->email,
                 'organization_id' => $sandbox->id,
             ])
-            ->assertSessionHas('error');
+            ->assertSessionHasNoErrors();
 
         $this->assertSame($client->id, $personne->fresh()->organization_id);
 
@@ -120,27 +131,9 @@ class ScenarioSandboxSourceGuardTest extends TestCase
                 'email' => $persona->email,
                 'organization_id' => $client->id,
             ])
-            ->assertSessionHas('error');
+            ->assertSessionHasNoErrors();
 
         $this->assertSame($sandbox->id, $persona->fresh()->organization_id);
-    }
-
-    public function test_entre_deux_organizations_ordinaires_l_affectation_marche_toujours(): void
-    {
-        // L'autre sens de la garde. Sans ce test, la reduire a
-        // `return back()->with('error', ...)` inconditionnel resterait VERT
-        // sur les trois tests precedents.
-        $depuis = Organization::factory()->create();
-        $vers = Organization::factory()->create();
-        $personne = User::factory()->create(['organization_id' => $depuis->id]);
-
-        $this->actingAs($this->superAdmin)
-            ->patch(route('admin.users.assign-organization', $personne), [
-                'organization_id' => $vers->id,
-            ])
-            ->assertSessionHas('success');
-
-        $this->assertSame($vers->id, $personne->fresh()->organization_id);
     }
 
     public function test_un_persona_reste_modifiable_DANS_sa_propre_sandbox(): void
@@ -155,7 +148,6 @@ class ScenarioSandboxSourceGuardTest extends TestCase
             ->put(route('admin.users.update', $persona), [
                 'name' => 'Persona corrige',
                 'email' => $persona->email,
-                'organization_id' => $sandbox->id,
             ])
             ->assertSessionHasNoErrors();
 

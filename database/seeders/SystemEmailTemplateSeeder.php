@@ -174,6 +174,41 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        /**
+         * TASK-1725 (demande Cyril, 29/10) — la demande d'adhesion ACCEPTEE.
+         *
+         * Son propre gabarit, pour la raison qui avait deja separe
+         * `loop_member_added` de `loop_invitation` : « on vous a ajoute » n'est
+         * pas « on a dit oui a votre demande ». Ici la personne a fait la
+         * demarche et attend une reponse ; le texte repond, il n'annonce pas.
+         *
+         * Le defaut ne nomme PAS le decideur : une acceptation peut n'avoir
+         * aucun acteur identifie (demande soldee par un ajout direct), et le
+         * gabarit afficherait alors un nom vide en tete de phrase.
+         * `sender_name` reste declaree pour qui veut l'ecrire.
+         *
+         * `loop_tagline` et `expires_at` sont declarees pour l'homogeneite de la
+         * famille et non employees : une acceptation n'expire pas, et une
+         * accroche n'apprend rien a qui vient d'entrer (recette TASK-1720).
+         *
+         * La migration `2026_10_29_140000` pose les deux memes lignes sur les
+         * bases DEJA installees, qu'un seeder ne revisite pas. Les deux textes
+         * doivent donc rester identiques.
+         */
+        'loop_join_request_accepted' => [
+            'name_fr' => 'Demande d\'adhésion acceptée',
+            'name_en' => 'Join request accepted',
+            'subject_fr' => 'Votre demande pour rejoindre la Boucle {{ loop_name }} a été acceptée',
+            'subject_en' => 'Your request to join the {{ loop_name }} Loop has been accepted',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Votre demande pour rejoindre la Boucle <strong>{{ loop_name }}</strong> au sein de {{ organization_name }} a été acceptée. Vous en êtes désormais membre.</p><p><a href="{{ invitation_url }}">Ouvrir la Boucle</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ invitation_url }}</p><p>À bientôt,<br>{{ app_name }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>Your request to join the <strong>{{ loop_name }}</strong> Loop in {{ organization_name }} has been accepted. You are now a member.</p><p><a href="{{ invitation_url }}">Open the Loop</a></p><p>If the link does not work, copy this address into your browser:<br>{{ invitation_url }}</p><p>See you soon,<br>{{ app_name }}</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
+                'loop_name', 'loop_tagline', 'personal_message', 'invitation_url',
+                'expires_at', 'app_name',
+            ],
+        ],
+
         'loop_invitation' => [
             'name_fr' => 'Invitation à rejoindre une Boucle',
             'name_en' => 'Invitation to join a Loop',
@@ -234,6 +269,50 @@ class SystemEmailTemplateSeeder extends Seeder
                 'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
                 'invitation_url', 'expires_at', 'app_name',
             ],
+        ],
+        // TASK-1734 — les deux emails de « Mes organisations ». GLOBAUX comme
+        // l'email de verification : ils traversent les tenants, aucune
+        // Organization n'a a les surcharger. L'URL figure EN CLAIR sous le
+        // bouton (lecon T1707 L1/F5 : la version texte brut perd les href).
+        'liaison-comptes-confirmation' => [
+            'name_fr' => 'Liaison de comptes — confirmation',
+            'name_en' => 'Account link — confirmation',
+            'subject_fr' => 'Confirmez la liaison de vos deux comptes',
+            'subject_en' => 'Confirm linking your two accounts',
+            'content_html_fr' => '<h1>Bonjour {{ name }},</h1>
+<p>Vous avez demandé à passer de <strong>{{ source_organization }}</strong> à <strong>{{ target_organization }}</strong>.</p>
+<p>Si c\'est bien vous, confirmez : vous pourrez ensuite passer de l\'une à l\'autre en un clic, sans mot de passe.</p>
+<p><a href="{{ url }}">Confirmer et continuer</a></p>
+<p>Si le lien ci-dessus ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ url }}</p>
+<p>Ce lien est valable <strong>15 minutes</strong> et ne peut servir qu\'une fois.</p>
+<p>Ce n\'était pas vous ? Ignorez ce message : rien ne sera lié.</p>',
+            'content_html_en' => '<h1>Hello {{ name }},</h1>
+<p>You asked to switch from <strong>{{ source_organization }}</strong> to <strong>{{ target_organization }}</strong>.</p>
+<p>If this was you, confirm it: you will then be able to switch between them in one click, without a password.</p>
+<p><a href="{{ url }}">Confirm and continue</a></p>
+<p>If the link above does not work, copy this address into your browser:<br>{{ url }}</p>
+<p>This link is valid for <strong>15 minutes</strong> and can only be used once.</p>
+<p>Wasn\'t you? Ignore this message: nothing will be linked.</p>',
+            'variables' => ['name', 'url', 'source_organization', 'target_organization'],
+        ],
+        'liaison-comptes-creee' => [
+            'name_fr' => 'Liaison de comptes — avis de création',
+            'name_en' => 'Account link — created notice',
+            'subject_fr' => 'Vos comptes sont maintenant liés',
+            'subject_en' => 'Your accounts are now linked',
+            'content_html_fr' => '<h1>Bonjour {{ name }},</h1>
+<p>Votre compte et votre compte de <strong>{{ other_organization }}</strong> sont maintenant liés : vous pouvez passer de l\'un à l\'autre en un clic, depuis le menu de votre avatar.</p>
+<p>Les données des deux organisations restent séparées.</p>
+<p>Vous pouvez révoquer ce lien à tout moment, depuis l\'un ou l\'autre compte :</p>
+<p><a href="{{ url }}">Gérer mes comptes liés</a></p>
+<p>Si vous n\'êtes pas à l\'origine de cette liaison, révoquez-la et changez votre mot de passe.</p>',
+            'content_html_en' => '<h1>Hello {{ name }},</h1>
+<p>Your account and your <strong>{{ other_organization }}</strong> account are now linked: you can switch between them in one click from your avatar menu.</p>
+<p>Data from both organizations remains separate.</p>
+<p>You can revoke this link at any time, from either account:</p>
+<p><a href="{{ url }}">Manage my linked accounts</a></p>
+<p>If you did not create this link, revoke it and change your password.</p>',
+            'variables' => ['name', 'url', 'other_organization'],
         ],
     ];
 

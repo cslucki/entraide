@@ -47,9 +47,9 @@ class TASK1093ChatRefreshTest extends TestCase
     {
         parent::setUp();
 
-        $admin = User::factory()->create();
-        $this->org = Organization::factory()->create(['is_active' => true, 'admin_id' => $admin->id]);
-        $admin->update(['organization_id' => $this->org->id]);
+        $this->org = Organization::factory()->create(['is_active' => true]);
+        $admin = User::factory()->create(['organization_id' => $this->org->id]);
+        $this->org->update(['admin_id' => $admin->id]);
 
         $this->owner = User::factory()->create(['organization_id' => $this->org->id]);
         $this->member = User::factory()->create(['organization_id' => $this->org->id]);

@@ -38,8 +38,20 @@
              etape « verrouillee mais vendable » (profil IA avec abonnements)
              n'est pas faite, donc le panneau reste — il y a encore un geste
              possible. --}}
+        {{-- TASK-1725 (demande Cyril, 29/10) — l'accueil arrive DEPLOYE.
+
+             La card etait pliee : la premiere chose qu'un nouvel arrivant voyait
+             de son parcours etait un titre et un chevron, et il fallait deviner
+             qu'il y avait quelque chose dessous. Les etapes sont la raison d'etre
+             de cette card — les cacher derriere un clic en annulait l'effet.
+
+             Aucune condition a ajouter : cette card n'existe DEJA que tant que
+             l'accueil n'est pas termine (le `@if` juste au-dessus). « Deploye si
+             l'onboarding n'est pas fini » et « deploye » sont donc la meme chose
+             ici, et la seconde forme ne peut pas se desynchroniser de la
+             premiere. Le repli reste possible a la main. --}}
         @if($stepsDoneCount < count($onboardingSteps))
-        <div x-data="{ open: false }" class="mb-8 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div x-data="{ open: true }" class="mb-8 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <button type="button" @click="open = !open"
                 class="w-full flex items-center justify-between gap-4 px-5 sm:px-6 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                 <div class="flex items-center gap-3 min-w-0">
@@ -55,10 +67,15 @@
                         <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.onboarding_title') }}</h2>
                     </div>
                 </div>
-                <svg x-show="!open" class="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
-                <svg x-show="open" class="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" x-cloak><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+                <svg x-show="!open" class="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" x-cloak><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                <svg x-show="open" class="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
             </button>
-            <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
+            {{-- `x-cloak` RETIRE : il masque l'element jusqu'au demarrage d'Alpine, ce
+                 qui etait juste quand l'etat initial etait « plie ». Maintenant que
+                 l'etat initial est « deploye », le garder ferait disparaitre les
+                 etapes le temps du chargement, puis les ferait surgir. Le meme
+                 echange a ete fait sur les deux chevrons juste au-dessus. --}}
+            <div x-show="open" class="divide-y divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
                 @foreach($onboardingSteps as $step)
                 <div class="px-5 sm:px-6 py-4 flex items-start gap-3 @if($step['status'] === 'done') bg-green-50/30 dark:bg-green-950/10 @endif">
                     <div class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full
@@ -155,6 +172,30 @@
         @endif
 
         <div class="grid md:grid-cols-2 gap-6">
+            {{-- TASK-1725 (demande Cyril, 29/10) — une card VIDE ne s'affiche pas.
+
+                 ## Ce que cela renverse, et pourquoi ce n'est pas un retour en arriere
+
+                 TASK-1693 bug T avait pose l'inverse — « la card est desormais la,
+                 pleine ou vide » — et son test le dit encore. Le defaut d'alors
+                 etait que la forme du tableau dependait du ROLE pour une MEME
+                 donnee : deux cards chez l'acheteur, une seule chez le vendeur.
+                 La regle posee ici est d'une autre nature — la forme suit « ai-je
+                 quelque chose a voir » — et elle s'applique aux QUATRE cards de la
+                 meme facon. L'asymetrie corrigee en T1693 ne revient donc pas.
+
+                 ## Ce que cela achete
+
+                 Un nouvel arrivant ne voit plus que son On-boarding : quatre cards
+                 vides lui annoncaient surtout qu'il n'avait rien fait. Cyril,
+                 29/10 : « le nouvel utilisateur n'aura qu'On-boarding dans le
+                 tableau de bord, c'est mieux ».
+
+                 Le test de condition est le MEME que celui du `@forelse` a
+                 l'interieur : la card parait si et seulement si sa liste a de quoi
+                 remplir une ligne. Deux conditions differentes auraient produit une
+                 card visible et vide, ou une liste masquee dans une card ouverte. --}}
+            @if(count($myServices) > 0)
             <!-- Services -->
             <div x-data="{ open: true }" data-dashboard-card="services" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
@@ -208,8 +249,10 @@
                     @endforelse
                 </div>
             </div>
+            @endif
 
             <!-- Requests -->
+            @if(count($myRequests) > 0)
             <div x-data="{ open: true }" data-dashboard-card="requests" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">
@@ -275,7 +318,9 @@
                     @endforelse
                 </div>
             </div>
+            @endif
 
+            @if(count($exchanges) > 0)
             {{-- TASK-1693 bug T — UNE seule card « Échanges ».
 
                  Deux cards se chevauchaient : un echange dont j'etais
@@ -347,8 +392,10 @@
                     @endforelse
                 </div>
             </div>
+            @endif
 
             <!-- Messagerie -->
+            @if(count($recentMessages) > 0)
             <div x-data="{ open: true }" data-dashboard-card="messages" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">
@@ -386,7 +433,43 @@
                     @endforelse
                 </div>
             </div>
+            @endif
         </div>
+        {{-- TASK-1725 — le cas que la regle ci-dessus ouvre, et qu'il fallait
+             fermer.
+
+             Les etapes d'On-boarding se calculent sur l'EXISTENCE d'une demande
+             ou d'un service (`MemberOnboardingSteps::doneFor()`), quel que soit
+             leur statut ; les cards, elles, filtrent sur `active` et sur
+             `open`+`in_progress`. Une personne avec une biographie, une demande
+             FERMEE, un service INACTIF et un agent publie est donc a 4/4 — plus
+             de card d'accueil — et ses quatre cards sont vides. Sans ce bloc,
+             son tableau de bord serait entierement BLANC.
+
+             Il ne parait que dans ce cas precis : des qu'une seule ligne existe
+             quelque part, les cards reviennent et celui-ci s'efface. Un nouvel
+             arrivant ne le voit JAMAIS — il a encore son On-boarding.
+
+             Il reprend les deux appels a l'action qui vivaient dans les etats
+             vides des cards : c'est ce que la regle allait faire disparaitre, et
+             c'est la seule chose qu'elle ne devait pas emporter. Arbitrage
+             Cyril, 29/10. --}}
+        @if($aucuneDonnee && $onboardingTermine)
+        <div data-dashboard-nothing-yet class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 px-5 py-10 text-center">
+            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.nothing_yet_title') }}</p>
+            <p class="mx-auto mt-1 max-w-md text-sm text-gray-500 dark:text-gray-400">{{ __('dashboard.nothing_yet_body') }}</p>
+            <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
+                <a href="{{ $_dashServicesCreateHref }}"
+                   class="inline-flex min-h-11 items-center rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95">
+                    {{ __('dashboard.create_service') }}
+                </a>
+                <a href="{{ $requestCreateUrl }}"
+                   class="inline-flex min-h-11 items-center rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                    {{ __('dashboard.ask_help') }}
+                </a>
+            </div>
+        </div>
+        @endif
 
         <!-- Admin shortcuts -->
         @if($user->is_admin || ($user->organization && $user->organization->admin_id === $user->id))

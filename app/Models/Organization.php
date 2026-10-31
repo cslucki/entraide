@@ -66,6 +66,10 @@ class Organization extends Model
         'feed_post_publish_mode',
         'theme_id',
         'locale',
+        // TASK-1725 — le selecteur FR/EN s'affiche-t-il ? Pose juste apres
+        // `locale` : les deux se lisent ensemble, une langue d'interface et la
+        // possibilite d'en changer.
+        'multilingual_enabled',
         'default_country_code',
         'show_country',
         'membership_enabled',
@@ -107,6 +111,7 @@ class Organization extends Model
             'maintenance_mode' => 'boolean',
             'header_javascript_enabled' => 'boolean',
             'locale' => 'string',
+            'multilingual_enabled' => 'boolean',
             'show_country' => 'boolean',
             'membership_enabled' => 'boolean',
             'requires_account_approval' => 'boolean',

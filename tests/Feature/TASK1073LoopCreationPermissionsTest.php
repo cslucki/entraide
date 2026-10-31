@@ -78,9 +78,9 @@ class TASK1073LoopCreationPermissionsTest extends TestCase
 
     public function test_organization_admin_can_create_even_when_members_can_create_loops_is_off(): void
     {
-        $orgAdmin = User::factory()->create();
-        $organization = $this->org(['members_can_create_loops' => false, 'admin_id' => $orgAdmin->id]);
-        $orgAdmin->update(['organization_id' => $organization->id]);
+        $organization = $this->org(['members_can_create_loops' => false]);
+        $orgAdmin = User::factory()->create(['organization_id' => $organization->id]);
+        $organization->update(['admin_id' => $orgAdmin->id]);
         $this->withCurrentOrganization($organization);
 
         $this->actingAs($orgAdmin->fresh())

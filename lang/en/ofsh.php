@@ -9,7 +9,7 @@
 
 return [
     'meta_title' => 'Solidarity brings us together',
-    'meta_description' => 'Trainers and training organizations: share experiences, support each other through challenges and move forward together.',
+    'meta_description' => 'Training professionals: share experiences, support each other through challenges and move forward together.',
 
     'nav_about' => 'About',
     'nav_login' => 'Sign in',
@@ -22,7 +22,7 @@ return [
     'title_3' => 'Mutual support',
     'title_4' => 'moves us forward.',
 
-    'intro' => 'Trainers and training organizations: share experiences, support each other through challenges and move forward together.',
+    'intro' => 'Training professionals: share experiences, support each other through challenges and move forward together.',
 
     'mantra_1' => 'Listen.',
     'mantra_2' => 'Share.',

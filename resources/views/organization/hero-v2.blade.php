@@ -78,6 +78,11 @@ $secondaryCtaUrl = $showInternalHomepageContent
         @if($organization->subscriptions_enabled)
           <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
         @endif
+    {{-- TASK-1725 (demande Cyril, 29/10) — le selecteur FR/EN suit le drapeau
+        « site multilingue » de l'Organization. Decoche, l'interface reste dans la
+        langue d'affichage choisie, et le selecteur ne promet plus un choix que
+        le site ne propose pas. --}}
+    @if($organization->multilingual_enabled)
         <div class="lang" aria-label="Langue / Language">
           @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
             <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" class="inline">
@@ -86,6 +91,7 @@ $secondaryCtaUrl = $showInternalHomepageContent
             </form>
           @endforeach
         </div>
+    @endif
         @guest
           <a href="{{ route('organization.login', $organization) }}" class="btn-join">{{ org_trans('hero.nav_login') }}</a>
         @else
@@ -119,6 +125,11 @@ $secondaryCtaUrl = $showInternalHomepageContent
     @else
       @include('organization.partials.account-menu', ['organization' => $organization])
     @endguest
+    {{-- TASK-1725 (demande Cyril, 29/10) — le selecteur FR/EN suit le drapeau
+        « site multilingue » de l'Organization. Decoche, l'interface reste dans la
+        langue d'affichage choisie, et le selecteur ne promet plus un choix que
+        le site ne propose pas. --}}
+    @if($organization->multilingual_enabled)
     <div class="m-lang" aria-label="Langue / Language">
       @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
         <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" style="display:inline">
@@ -127,6 +138,7 @@ $secondaryCtaUrl = $showInternalHomepageContent
         </form>
       @endforeach
     </div>
+    @endif
   </div>
 
   {{-- HERO --}}
@@ -304,6 +316,21 @@ $secondaryCtaUrl = $showInternalHomepageContent
         </div>
       </div>
 
+      {{-- TASK-1725 (demande Cyril, 29/10) — sans IA, la mention disparait.
+
+           Cette phrase est une PROMESSE sur le fonctionnement du produit. Sur une
+           Organization dont l'IA est eteinte, elle decrit quelque chose qui
+           n'arrive pas : la page annoncait un role que rien ne joue.
+
+           Le bloc ENTIER part, pas seulement le texte — la fleche decorative
+           pointerait sinon vers un vide.
+
+           `availableFor()` et non `memberAgentAvailableFor()` : la phrase parle du
+           role de l'IA dans les echanges, pas des agents de profil. Couper le
+           reglage « profils IA » ne doit pas effacer un propos qui reste vrai.
+           C'est l'autorite que `/org/{org}/admin/ai` gouverne, celle que Cyril a
+           designee. --}}
+      @if(app(\App\Support\Ai\AiSurfaceGate::class)->availableFor((string) $organization->id))
       <div class="ai-note" data-anim>
         <svg width="34" height="40" viewBox="0 0 34 40" fill="none">
           <path d="M7 36 C 6 18, 14 8, 30 6" stroke="#B7BAC8" stroke-width="2" stroke-linecap="round"/>
@@ -311,6 +338,7 @@ $secondaryCtaUrl = $showInternalHomepageContent
         </svg>
         <p>{{ $settings['ai_note'] ?? org_trans('hero.ai_note') }}</p>
       </div>
+      @endif
     </section>
     @endif
 
@@ -342,25 +370,48 @@ $secondaryCtaUrl = $showInternalHomepageContent
       <span class="foot-sep" aria-hidden="true">·</span>
       <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
     </div>
-    <nav class="foot-links">
-      <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
-      {{-- TASK-1613 — deux cibles DIFFERENTES, et c'est delibere : le libelle
-           « OpenSource » mene a la page BouclePro qui donne a voir la racine du
-           depot ; l'icone GitHub mene au DEPOT, via une redirection serveur qui
-           n'en pose jamais l'URL dans le HTML. --}}
-      <a href="{{ route('organization.open-source', ['organization' => $organization->slug]) }}" data-footer-opensource>{{ __('footer.opensource') }}</a>
-      <a href="{{ route('organization.bug-reports.index', $organization) }}" data-footer-bug>{{ __('footer.bug') }}</a>
+    {{-- TASK-1725 (demande Cyril, 29/10) — sur telephone, le pied se lit en
+         TROIS lignes au lieu d'un paquet qui retombe n'importe ou :
 
-      {{-- TASK-1698 — l'icone GitHub n'exige RIEN (`open-source.github` n'a ni
-           `auth` ni `EnsureOrganizationMember`). Elle etait pourtant enfermee
-           dans la garde interne : masquee pour un visiteur anonyme sans que
-           cela protege quoi que ce soit. --}}
-      <a href="{{ route('open-source.github') }}" target="_blank" rel="noopener"
-         data-footer-github
-         aria-label="{{ __('open_source.github_aria') }}">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 .1.8 1.7 2.5 1.4.1-.7.4-1.2.7-1.5-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.5 18.3 4.8 18.3 4.8c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
-      </a>
-      <span>{{ config('app.version') }}</span>
+             Mycelium · Logigramme
+             OpenSource · Mentions legales
+             Un bug ? · (github)  1.725
+
+         Les liens sont GROUPES par paire, et c'est le groupe qui porte le
+         retour a la ligne — pas un `flex-wrap` laisse libre, qui coupait la
+         liste la ou la largeur tombait et produisait les lignes bancales de la
+         capture. Le separateur « · » appartient donc au groupe : il ne peut
+         plus se retrouver en tete de ligne.
+
+         Sur BUREAU rien ne change : les groupes restent en ligne, le `gap` de
+         `.foot-links` les separe comme il separait les liens.
+
+         L'ordre « OpenSource · Mentions legales » est celui de la demande, et il
+         inverse l'ordre precedent. --}}
+    <nav class="foot-links">
+      <span class="foot-pair">
+        {{-- TASK-1613 — deux cibles DIFFERENTES, et c'est delibere : le libelle
+             « OpenSource » mene a la page BouclePro qui donne a voir la racine du
+             depot ; l'icone GitHub mene au DEPOT, via une redirection serveur qui
+             n'en pose jamais l'URL dans le HTML. --}}
+        <a href="{{ route('organization.open-source', ['organization' => $organization->slug]) }}" data-footer-opensource>{{ __('footer.opensource') }}</a>
+        <span class="foot-sep" aria-hidden="true">·</span>
+        <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
+      </span>
+      <span class="foot-pair">
+        <a href="{{ route('organization.bug-reports.index', $organization) }}" data-footer-bug>{{ __('footer.bug') }}</a>
+        <span class="foot-sep" aria-hidden="true">·</span>
+        {{-- TASK-1698 — l'icone GitHub n'exige RIEN (`open-source.github` n'a ni
+             `auth` ni `EnsureOrganizationMember`). Elle etait pourtant enfermee
+             dans la garde interne : masquee pour un visiteur anonyme sans que
+             cela protege quoi que ce soit. --}}
+        <a href="{{ route('open-source.github') }}" target="_blank" rel="noopener"
+           data-footer-github
+           aria-label="{{ __('open_source.github_aria') }}">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.8 10.9.6.1.8-.2.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11 11 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.7.2 2.9.1 3.2.8.9 1.2 1.9 1.2 3.2 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .4.2.7.8.6 4.5-1.5 7.8-5.8 7.8-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
+        </a>
+        <span class="foot-version">{{ config('app.version') }}</span>
+      </span>
     </nav>
   </footer>
 </div>

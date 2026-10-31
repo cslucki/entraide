@@ -364,20 +364,16 @@
                                     <span class="lg:hidden">&middot; {{ $u->points_balance }} pts</span>
                                 </p>
 
-                                {{-- TASK-1693 bug D — sur mobile la colonne
-                                     Organisation est masquee : le controle
-                                     remonte ici, exactement comme TASK-1640
-                                     avait fait remonter l'information. Deplacer
-                                     le controle dans une colonne `hidden` sans
-                                     ce second rendu aurait RETIRE du telephone
-                                     une capacite qui y fonctionnait — le popover
-                                     n'etait casse que sur desktop. MEME partiel
-                                     dans les deux cas : rien n'est duplique. --}}
-                                @if($u->id !== auth()->id())
-                                <div class="md:hidden mt-1 w-full max-w-full min-w-0">
-                                    @include('admin.partials.user-organization-assign', ['u' => $u, 'organizations' => $organizations, 'context' => 'mobile'])
-                                </div>
-                                @endif
+                                {{-- TASK-1726 — le selecteur d'affectation a ete
+                                     RETIRE des deux rendus, mobile comme desktop
+                                     (il venait de TASK-1693 bug D). L'Organization
+                                     d'un compte est definitive : il n'y a plus de
+                                     controle a offrir. L'INFORMATION, elle, reste
+                                     exactement ou TASK-1640 l'avait fait remonter
+                                     — la ligne juste au-dessus. Retirer l'outil
+                                     n'est pas retirer la donnee : c'est encore ici
+                                     qu'on lit, sur telephone, dans quel tenant se
+                                     trouve la personne. --}}
                             </div>
                         </div>
                     </td>
@@ -399,13 +395,12 @@
                         <span class="text-xs text-gray-400">Globale</span>
                         @endif
 
-                        {{-- TASK-1693 bug D — le changement d'Organization vit
-                             desormais dans la colonne qu'il modifie, et non plus
-                             en popover dans « Actions » ou le defilement
-                             horizontal du tableau le rognait. --}}
-                        @if($u->id !== auth()->id())
-                            @include('admin.partials.user-organization-assign', ['u' => $u, 'organizations' => $organizations, 'context' => 'desktop'])
-                        @endif
+                        {{-- TASK-1726 — le changement d'Organization n'existe plus.
+                             Cette colonne redevient ce qu'elle etait avant
+                             TASK-1693 bug D : un affichage. Le filtre par
+                             Organization, lui, est conserve en tete de page — on
+                             continue de chercher les gens par tenant, on ne les
+                             deplace plus. --}}
                     </td>
                     @if($vueDetaillee)
                     <td class="hidden lg:table-cell px-4 py-3">
@@ -626,12 +621,6 @@
                             @endif
                             @endif
 
-                            {{-- TASK-1693 bug D — l'affectation d'Organization a
-                                 QUITTE cette colonne pour celle qu'elle modifie.
-                                 Son popover `absolute` etait rogne par le
-                                 `overflow-x-auto` du tableau (TASK-1640), donc
-                                 inatteignable sur desktop. Voir
-                                 `admin/partials/user-organization-assign.blade.php`. --}}
 
                             {{-- TASK-1694 bug L puis V — « Envoyer un email » ouvre un
                                  MODAL centre, pose hors du tableau.
@@ -669,32 +658,6 @@
                                     {{ __('admin.users_password_reset_link') }}
                                 </button>
                             </form>
-
-                            <!-- Changer le mot de passe -->
-                            <div x-data="{ pwOpen: false }" class="relative">
-                                <button @click="pwOpen = !pwOpen"
-                                        class="text-xs text-gray-400 hover:text-orange-500">Mdp</button>
-                                <div x-show="pwOpen" x-cloak @click.outside="pwOpen = false"
-                                     class="absolute right-0 mt-1 w-60 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-10 p-3">
-                                    <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                        Changer le mot de passe
-                                    </p>
-                                    <form method="POST" action="{{ route('admin.users.password', $u) }}"
-                                          class="space-y-2">
-                                        @csrf
-                                        <input type="password" name="password" placeholder="Nouveau mdp"
-                                               required minlength="8"
-                                               class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-                                        <input type="password" name="password_confirmation" placeholder="Confirmer"
-                                               required minlength="8"
-                                               class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-                                        <button type="submit"
-                                                class="w-full px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs rounded transition">
-                                            Changer
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
                         </div>
                     </td>
                 </tr>

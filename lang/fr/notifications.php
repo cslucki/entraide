@@ -47,13 +47,41 @@ return [
         // TASK-1697
         'blog_comment_created' => 'Un nouveau commentaire sur votre article',
         'loop_invitation' => 'Invitation à rejoindre une Boucle',
-        'loop_member_added' => 'Ajout a une Boucle',
+        'loop_member_added' => 'Ajout à une Boucle',
 
         // TASK-1381 — deux libellés, parce que ce sont deux faits. Le membre
         // doit savoir ce qui lui est arrivé sans avoir à ouvrir quoi que ce soit.
         'loop_join_request_accepted' => 'Votre demande d’adhésion a été acceptée',
         'loop_join_request_rejected' => 'Votre demande d’adhésion n’a pas été retenue',
     ],
+
+    /*
+     * TASK-1725 (demande Cyril, 29/10) — les MEMES faits, en nommant la Boucle.
+     *
+     * « Ajout a une Boucle » ne disait pas LAQUELLE : un membre de plusieurs
+     * Boucles devait ouvrir pour savoir de quoi on lui parlait, ce que le
+     * libelle existe precisement pour lui epargner.
+     *
+     * Un groupe SEPARE, et non un `:loop` ajoute au groupe `keys` : le nom
+     * n'est pas toujours connu au rendu — Boucle supprimee, ou d'un autre
+     * tenant — et une phrase a trou qui recevrait une chaine vide donnerait
+     * « Ajout a la Boucle «  » ». Les deux formes coexistent donc, et la vue
+     * choisit selon ce qu'elle a. `keys` reste la forme sans objet.
+     *
+     * Les cles ici sont un SOUS-ENSEMBLE de `keys` : seules les notifications
+     * qui portent une Boucle en ont une.
+     */
+    'keys_named' => [
+        'loop_invitation' => 'Invitation à rejoindre la Boucle « :loop »',
+        'loop_member_added' => 'Ajout à la Boucle « :loop »',
+        'loop_join_request_accepted' => 'Votre demande d’adhésion à « :loop » a été acceptée',
+        'loop_join_request_rejected' => 'Votre demande d’adhésion à « :loop » n’a pas été retenue',
+    ],
+
+    // TASK-1725 — « Ouvrir » ne disait pas quoi. Le libelle depend donc de
+    // l'objet : une notification de Boucle mene a une Boucle, et le dire evite
+    // au membre de deviner ou le bouton l'emmene.
+    'open_loop' => 'Ouvrir la Boucle',
 
     // Repli quand une cle du catalogue n'a pas encore de libelle. Il ne doit
     // jamais afficher la cle technique : elle ne veut rien dire pour un membre.
@@ -84,12 +112,30 @@ return [
                 .'<p>À bientôt,<br>L\'équipe BouclePro</p>',
         ],
         'loop_member_added' => [
-            'subject' => 'Vous avez ete ajoute a une Boucle',
+            'subject' => 'Vous avez été ajouté à une Boucle',
             'body' => '<p>Bonjour,</p>'
-                .'<p>Vous avez ete ajoute a une Boucle sur BouclePro. Vous en etes desormais membre.</p>'
+                .'<p>Vous avez été ajouté à une Boucle sur BouclePro. Vous en êtes désormais membre.</p>'
                 .'<p><a href=":url">Ouvrir la Boucle</a></p>'
                 .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
-                .'<p>A bientot,<br>L\'equipe BouclePro</p>',
+                .'<p>À bientôt,<br>L\'équipe BouclePro</p>',
+        ],
+        // TASK-1725 — dernier recours pour la demande d'adhesion ACCEPTEE.
+        //
+        // Trois couches, de la plus specifique a la plus generale :
+        // `SystemEmailTemplate` (autorite administrable, par Organization et
+        // locale), puis la vue `emails.loop-join-request-accepted` quand le
+        // gabarit manque ou echoue, puis CES clefs quand le livreur ne sait
+        // meme plus de quel objet il parle. Volontairement neutre : elle ne
+        // nomme ni la Boucle ni le decideur, parce qu'a ce niveau on ne les a
+        // plus. Le contrat de coherence TASK-1379 l'exige pour toute cle
+        // portant le canal EMAIL.
+        'loop_join_request_accepted' => [
+            'subject' => 'Votre demande pour rejoindre une Boucle a été acceptée',
+            'body' => '<p>Bonjour,</p>'
+                .'<p>Votre demande pour rejoindre une Boucle sur BouclePro a été acceptée. Vous en êtes désormais membre.</p>'
+                .'<p><a href=":url">Ouvrir la Boucle</a></p>'
+                .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
+                .'<p>À bientôt,<br>L\'équipe BouclePro</p>',
         ],
     ],
 ];

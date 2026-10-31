@@ -356,6 +356,39 @@
                     </label>
                 </div>
 
+                {{-- TASK-1725 (demande Cyril, 29/10) — « site multilingue ».
+
+                     Emplacement choisi par Cyril : la carte « Configuration », avec
+                     les autres bascules de l'Organization, et non la carte
+                     « Langue ». J'avais propose celle-la — elle porte « Langue
+                     d'affichage » et c'est le meme sujet — mais le reglage est de la
+                     meme NATURE que ses voisins ici : une fonction qu'on ouvre ou
+                     qu'on ferme pour ce locataire.
+
+                     Decoche, le selecteur FR/EN disparait des HUIT emplacements qui
+                     le portaient : les trois gabarits de homepage en version bureau
+                     ET menu mobile, le rail de gauche, et la barre mobile. Cyril a
+                     demande explicitement les deux versions : un reglage nomme
+                     « site multilingue » qui ne vaudrait que sur certaines tailles
+                     d'ecran serait un piege a recette.
+
+                     L'interface d'ADMINISTRATION garde son selecteur : un
+                     administrateur doit pouvoir relire ses textes dans les deux
+                     langues, meme sur un site qui n'en publie qu'une. --}}
+                <div>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="hidden" name="multilingual_enabled" value="0">
+                        <input type="checkbox" name="multilingual_enabled" value="1"
+                            data-marqueur="reglage-multilingue"
+                            {{ old('multilingual_enabled', $organization->multilingual_enabled) ? 'checked' : '' }}
+                            class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.org_multilingual_label') }}</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.org_multilingual_hint') }}</p>
+                        </div>
+                    </label>
+                </div>
+
                 <div>
                     <label class="flex items-center gap-3 cursor-pointer">
                         <input type="hidden" name="loops_enabled" value="0">
