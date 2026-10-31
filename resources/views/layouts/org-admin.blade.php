@@ -17,13 +17,14 @@
         @endphp
 
         <script>
-            // TASK-1734 — meme purge par proprietaire que `layouts/app` : un
-            // override laisse par un AUTRE compte ne survit pas ici non plus.
-            var bpThemeOwner = @json(auth()->id() !== null ? (string) auth()->id() : null);
-            if (bpThemeOwner && localStorage.bpThemeOwner !== bpThemeOwner) {
+            {{-- TASK-1734 — meme purge par compte que `layouts/app` : un
+                 override laisse par un AUTRE compte ne survit pas ici non
+                 plus. Commentaire BLADE, pas JavaScript : voir `layouts/app`. --}}
+            var bpThemeAccount = @json(auth()->id() !== null ? (string) auth()->id() : null);
+            if (bpThemeAccount && localStorage.bpThemeAccount !== bpThemeAccount) {
                 localStorage.removeItem('theme');
                 localStorage.removeItem('bpTheme');
-                localStorage.bpThemeOwner = bpThemeOwner;
+                localStorage.bpThemeAccount = bpThemeAccount;
             }
             var orgThemeKey = @json($organization->theme?->key) || @json($bpDefaultTheme);
             document.documentElement.dataset.bpTheme = localStorage.bpTheme || orgThemeKey;

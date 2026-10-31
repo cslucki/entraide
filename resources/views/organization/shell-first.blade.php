@@ -60,14 +60,15 @@
         // cotes de la porte.
         window.bpThemes = @json(collect($bp['themes'])->map(fn ($theme) => ['label' => $theme['label']])->all());
         window.bpDefaultTheme = @json($bp['default']);
-        // TASK-1734 — meme purge par proprietaire que `layouts/app`. Un
-        // visiteur ANONYME n'est pas touche : sans identite, rien a comparer,
-        // et son choix de theme survit a l'inscription comme avant.
-        var bpThemeOwner = @json(auth()->id() !== null ? (string) auth()->id() : null);
-        if (bpThemeOwner && localStorage.bpThemeOwner !== bpThemeOwner) {
+        {{-- TASK-1734 — meme purge par compte que `layouts/app`. Un visiteur
+             ANONYME n'est pas touche : sans identite, rien a comparer, et son
+             choix de theme survit a l'inscription comme avant. Commentaire
+             BLADE, pas JavaScript : voir `layouts/app`. --}}
+        var bpThemeAccount = @json(auth()->id() !== null ? (string) auth()->id() : null);
+        if (bpThemeAccount && localStorage.bpThemeAccount !== bpThemeAccount) {
             localStorage.removeItem('theme');
             localStorage.removeItem('bpTheme');
-            localStorage.bpThemeOwner = bpThemeOwner;
+            localStorage.bpThemeAccount = bpThemeAccount;
         }
         var orgThemeKey = @json(bp_organization_theme_key($organization)) || window.bpDefaultTheme;
         document.documentElement.dataset.bpTheme = localStorage.bpTheme || orgThemeKey;

@@ -549,7 +549,7 @@ class TASK1734MyOrganizationsTest extends TestCase
         // purge au chargement, et l'apparence de l'Organization d'arrivee
         // reprend la main. C'est le defaut vu en recette : sans proprietaire,
         // un choix de theme fait sur un compte survivait a la bascule.
-        $arrivee->assertSee('var bpThemeOwner = "'.$cible->getKey().'"', false);
+        $arrivee->assertSee('var bpThemeAccount = "'.$cible->getKey().'"', false);
         $arrivee->assertSee("localStorage.removeItem('bpTheme')", false);
     }
 
@@ -596,7 +596,7 @@ class TASK1734MyOrganizationsTest extends TestCase
         // Et le proprietaire des overrides redevient le compte de depart :
         // rien de ce que le compte de l'orgB aurait pose dans le navigateur
         // ne survit au retour.
-        $retour->assertSee('var bpThemeOwner = "'.$moi->getKey().'"', false);
+        $retour->assertSee('var bpThemeAccount = "'.$moi->getKey().'"', false);
     }
 
     // ── Limitations : des clefs PROPRES ────────────────────────────────────
