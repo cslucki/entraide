@@ -87,6 +87,63 @@ class AccountLinkService
     }
 
     /**
+     * TASK-1734 — cree le lien par la preuve de la BOITE, sans mot de passe.
+     *
+     * ## Pourquoi une seconde methode, et pas un parametre de `creer()`
+     *
+     * `creer()` exige les deux mots de passe PAR SIGNATURE, et c'est son
+     * contrat de securite : aucun appelant ne peut l'invoquer sans les deux
+     * preuves. Affaiblir cette signature d'un parametre optionnel aurait
+     * dissous le contrat. La preuve alternative a donc sa propre porte, dans
+     * la MEME autorite — jamais un `AccountLink::create()` direct ailleurs.
+     *
+     * ## Ce que cette preuve-ci exige
+     *
+     * L'appelant (le controleur de confirmation) garantit : session
+     * authentifiee du compte SOURCE + jeton a usage unique livre a la boite
+     * ({@see AccountLinkEmailProof}). Cette methode re-exige ce que le jeton
+     * ne transporte pas :
+     *
+     *  - la MEME adresse des deux cotes, comparee en `LOWER()` comme partout
+     *    depuis A7, et comparee MAINTENANT — une adresse peut avoir change
+     *    entre l'emission du jeton et sa consommation, et la preuve de la
+     *    boite ne vaut que si les deux comptes la partagent encore ;
+     *  - l'adresse VERIFIEE des deux cotes : un compte dont la boite n'a
+     *    jamais confirme l'adresse n'a pas prouve qu'elle est la sienne.
+     *
+     * Les comptes d'adresses DIFFERENTES gardent leur porte : `creer()`,
+     * avec les deux mots de passe.
+     *
+     * @throws AccountLinkRefused
+     */
+    public function creerParPreuveDeBoite(User $source, User $cible): AccountLink
+    {
+        if ((string) $source->getKey() === (string) $cible->getKey()) {
+            throw AccountLinkRefused::autoLiaison();
+        }
+
+        if (mb_strtolower($source->email) !== mb_strtolower($cible->email)) {
+            throw AccountLinkRefused::emailsDifferents();
+        }
+
+        if (! $source->hasVerifiedEmail() || ! $cible->hasVerifiedEmail()) {
+            throw AccountLinkRefused::emailNonVerifie();
+        }
+
+        if ($this->lienEntre($source, $cible) !== null) {
+            throw AccountLinkRefused::dejaLie();
+        }
+
+        [$a, $b] = self::paireNormalisee($source, $cible);
+
+        return AccountLink::query()->create([
+            'user_a_id' => $a,
+            'user_b_id' => $b,
+            'created_by_user_id' => $source->getKey(),
+        ]);
+    }
+
+    /**
      * Le lien DIRECT entre ces deux comptes, ou `null`. Sans verrou.
      *
      * Pour une LECTURE seulement — affichage, controle preliminaire. La

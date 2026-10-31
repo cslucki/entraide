@@ -66,6 +66,7 @@ use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AccountLinkController;
 use App\Http\Controllers\Auth\AccountSwitchController;
 use App\Http\Controllers\Auth\LinkedAccountSwitchController;
+use App\Http\Controllers\Auth\MyOrganizationsController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -462,6 +463,22 @@ Route::middleware('auth')->group(function () {
     Route::post('/linked-accounts', [AccountLinkController::class, 'store'])->name('account.links.store');
     Route::delete('/linked-accounts/{accountLink}', [AccountLinkController::class, 'destroy'])->name('account.links.destroy');
     Route::post('/linked-accounts/{accountLink}/switch', [LinkedAccountSwitchController::class, 'store'])->name('account.links.switch');
+
+    // TASK-1734 — « Mes organisations » : bascule en un clic par lien, et
+    // premiere association par la preuve de la boite.
+    //
+    // Routes GLOBALES comme celles de A5a/A5b, memes raisons. `organization`
+    // est une CHAINE, pas un binding de modele : la resolution passe par le
+    // panneau de la personne (`SiblingAccountsPanel`), jamais par une
+    // recherche generale — un slug etranger rend le meme refus qu'un slug
+    // inexistant. Le GET de confirmation ne consomme pas le jeton (scanners
+    // de boite) ; seul le POST du bouton consomme.
+    Route::post('/my-organizations/{organization}/switch', [MyOrganizationsController::class, 'store'])->name('my-organizations.switch');
+    Route::get('/my-organizations/sent', [MyOrganizationsController::class, 'sent'])->name('my-organizations.sent');
+    Route::get('/my-organizations/confirm/{token}', [MyOrganizationsController::class, 'confirm'])
+        ->where('token', '[0-9a-f]{64}')->name('my-organizations.confirm');
+    Route::post('/my-organizations/confirm/{token}', [MyOrganizationsController::class, 'finalize'])
+        ->where('token', '[0-9a-f]{64}')->name('my-organizations.confirm.store');
 
     // Profile
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');

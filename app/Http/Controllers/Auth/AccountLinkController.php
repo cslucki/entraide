@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\AccountLink;
 use App\Models\User;
+use App\Notifications\AccountLinkEstablished;
 use App\Services\Users\AccountLinkService;
 use App\Services\Users\Exceptions\AccountLinkRefused;
 use App\Services\Users\LoginAccountResolver;
@@ -103,6 +104,16 @@ class AccountLinkController extends Controller
         }
 
         RateLimiter::clear($this->cleDeLimitation($request));
+
+        // TASK-1734 — avis de creation aux DEUX comptes : leurs adresses
+        // peuvent differer sur cette porte-ci, chacun recoit le sien. Si
+        // quelqu'un d'autre a obtenu cette liaison, c'est cet email qui le
+        // dit — et il dit ou la revoquer. HORS transaction (QUEUE=sync).
+        $moi->notify(new AccountLinkEstablished($cible));
+
+        if (mb_strtolower($cible->email) !== mb_strtolower($moi->email)) {
+            $cible->notify(new AccountLinkEstablished($moi));
+        }
 
         return back()->with('success', trans('auth.link_created'));
     }

@@ -197,14 +197,13 @@
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('organization.admin.dashboard', ['organization' => Auth::user()->organization->slug])"><span class="text-purple-600 dark:text-purple-400 font-medium">{{ __('navigation.org_admin') }}</span></x-dropdown-link>
                         @endif
-                        {{-- TASK-1730 (A5a) — passer a SON autre compte, dans une
-                             autre Organization. Pose JUSTE AVANT la deconnexion :
-                             c'est le voisin logique, les deux quittent le compte
-                             courant. Presente aux TROIS surfaces du menu avatar, sans
-                             quoi l'entree disparaitrait selon le gabarit ou la largeur
-                             d'ecran — exactement le defaut de T1725. --}}
-                        <x-dropdown-link :href="route('account.switch')" data-nav-account-switch>{{ __('navigation.switch_account') }}</x-dropdown-link>
-                        <x-dropdown-link :href="route('account.links')" data-nav-account-links>{{ __('navigation.linked_accounts') }}</x-dropdown-link>
+                        {{-- TASK-1734 — « Mes organisations » remplace les deux
+                             entrees techniques de T1730/T1731 (« Changer de
+                             compte », « Comptes lies »), reparties desormais dans
+                             Profil -> Securite. Presente aux TROIS surfaces du menu
+                             avatar, sans quoi la section disparaitrait selon le
+                             gabarit ou la largeur d'ecran — le defaut de T1725. --}}
+                        <x-my-organizations-menu variant="dropdown" />
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <form method="POST" action="{{ $currentOrganization ? route('organization.logout', $currentOrganization) : route('logout') }}">
                             @csrf
@@ -316,9 +315,8 @@
                 @if(Auth::user()->is_admin)
                 <x-responsive-nav-link :href="route('admin.dashboard')">{{ __('navigation.administration') }}</x-responsive-nav-link>
                 @endif
-                {{-- TASK-1730 (A5a) — meme entree que le menu avatar ci-dessus. --}}
-                <x-responsive-nav-link :href="route('account.switch')" data-nav-account-switch>{{ __('navigation.switch_account') }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('account.links')" data-nav-account-links>{{ __('navigation.linked_accounts') }}</x-responsive-nav-link>
+                {{-- TASK-1734 — meme section que le menu avatar ci-dessus. --}}
+                <x-my-organizations-menu variant="responsive" />
                 <form method="POST" action="{{ $currentOrganization ? route('organization.logout', $currentOrganization) : route('logout') }}">
                     @csrf
                     <x-responsive-nav-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();">{{ __('navigation.logout') }}</x-responsive-nav-link>

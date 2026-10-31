@@ -118,4 +118,8 @@ return [
     'comments_section' => 'Latest comments',
     'comments_count' => ':count comment|:count comments',
     'comments_read_article' => 'Read the article',
+
+    // TASK-1734 — the profile "Account security" card.
+    'account_access_title' => 'Account security',
+    'account_access_intro' => 'To move between organizations, use "My organizations" in your avatar menu. Advanced paths — linking two accounts with different addresses, switching to an unlisted account, removing an access — live here.',
 ];

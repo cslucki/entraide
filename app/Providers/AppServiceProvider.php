@@ -122,6 +122,10 @@ class AppServiceProvider extends ServiceProvider
         // TASK-1231 : contexte du FAB « BouclePro IA » — memo par requete HTTP
         // (une lecture du credit par requete), jamais partage entre requetes.
         $this->app->scoped(AiFabContext::class);
+        // TASK-1734 : panneau « Mes organisations » — memo par requete (le
+        // menu avatar vit sur plusieurs surfaces rendues dans la meme
+        // requete), jamais partage entre requetes ni entre utilisateurs.
+        $this->app->scoped(\App\Services\Users\SiblingAccountsPanel::class);
         $this->app->bind(AiProvider::class, function ($app) {
             return new ClarifyUserHelpRequestService(
                 $app->make(FakeAIProvider::class),
