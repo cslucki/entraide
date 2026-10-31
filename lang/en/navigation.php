@@ -339,4 +339,10 @@ return [
     'mobile_fab_create_request' => 'Create a help request',
     'mobile_fab_offer_service' => 'Publish a proposal',
     'mobile_fab_write_article' => 'Write an article',
+
+    // TASK-1734 — the "My organizations" avatar-menu section.
+    'my_organizations' => 'My organizations',
+    'my_org_switch' => 'switch',
+    'my_org_confirm_by_email' => 'confirm by email',
+    'my_org_unavailable' => 'unavailable',
 ];

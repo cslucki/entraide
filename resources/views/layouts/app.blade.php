@@ -155,6 +155,26 @@
         <script>
             window.bpThemes = @json(collect($bpThemes)->map(fn ($theme) => ['label' => $theme['label']])->all());
             window.bpDefaultTheme = @json($bpDefaultTheme);
+            {{-- TASK-1734 — les overrides du navigateur (`localStorage.theme`,
+                 `localStorage.bpTheme`) appartiennent au COMPTE qui les a
+                 poses. Sans cette purge, un choix fait sur un compte survivait
+                 a la bascule : l'apparence d'un tenant restait appliquee dans
+                 le suivant, pour toujours. Identite differente -> purge, et
+                 les reglages du tenant d'arrivee reprennent la main. Meme bloc
+                 dans `org-admin` et `organization/shell-first` ; `guest` reste
+                 intouche (pas d'identite a comparer).
+
+                 Commentaire BLADE et nom `bpThemeAccount`, deliberement : un
+                 commentaire JavaScript serait RENDU dans chaque page, et des
+                 tests de surface interdisent certains mots au HTML — le nom
+                 `...Owner` contenait « Owner » (loops.role_owner) et a rougi
+                 la CI. Rien de ce bloc ne doit emettre de texte visible. --}}
+            var bpThemeAccount = @json(auth()->id() !== null ? (string) auth()->id() : null);
+            if (bpThemeAccount && localStorage.bpThemeAccount !== bpThemeAccount) {
+                localStorage.removeItem('theme');
+                localStorage.removeItem('bpTheme');
+                localStorage.bpThemeAccount = bpThemeAccount;
+            }
             var orgThemeKey = @json(optional($currentOrganization ?? null)?->theme?->key) || window.bpDefaultTheme;
             document.documentElement.dataset.bpTheme = localStorage.bpTheme || orgThemeKey;
 

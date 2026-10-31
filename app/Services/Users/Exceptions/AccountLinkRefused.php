@@ -36,6 +36,16 @@ class AccountLinkRefused extends RuntimeException
         return self::avec('etranger', 'Ce lien ne concerne pas ce compte.');
     }
 
+    public static function emailsDifferents(): self
+    {
+        return self::avec('emails_differents', 'La preuve par la boite exige que les deux comptes partagent la meme adresse.');
+    }
+
+    public static function emailNonVerifie(): self
+    {
+        return self::avec('email_non_verifie', 'La preuve par la boite exige que les deux adresses soient verifiees.');
+    }
+
     private static function avec(string $motif, string $message): self
     {
         $exception = new self($message);

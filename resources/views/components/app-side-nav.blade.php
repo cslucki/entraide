@@ -583,17 +583,11 @@
                         @endif
                         </div>
 
-                        {{-- TASK-1730 (A5a) — passer a SON autre compte. Meme entree
-                             qu'aux deux autres surfaces du menu avatar. --}}
+                        {{-- TASK-1734 — « Mes organisations » remplace les deux
+                             entrees de T1730/T1731, desormais dans Profil ->
+                             Securite. Meme section qu'aux deux autres surfaces. --}}
+                        <x-my-organizations-menu variant="side" />
                         <div class="border-t border-gray-100 pt-2 dark:border-gray-700">
-                            <a href="{{ route('account.switch') }}" data-nav-account-switch @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
-                                <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/></svg>
-                                <span>{{ __('navigation.switch_account') }}</span>
-                            </a>
-                            <a href="{{ route('account.links') }}" data-nav-account-links @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
-                                <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7L12 19"/></svg>
-                                <span>{{ __('navigation.linked_accounts') }}</span>
-                            </a>
                             <form method="POST" action="{{ $currentOrganization ? route('organization.logout', $currentOrganization) : route('logout') }}">
                                 @csrf
                                 <button type="submit" @click="open = false" class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">

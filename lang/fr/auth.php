@@ -112,4 +112,32 @@ return [
     'links_revoke' => 'Revoquer',
     'links_switch' => 'Passer sur ce compte',
     'links_confirm_password' => 'Votre mot de passe (confirmation)',
+
+    // TASK-1734 — « Mes organisations ». Le vocabulaire parle
+    // d'ORGANISATIONS, jamais de « comptes », « liaisons » ou « bascule » :
+    // c'est un critere d'acceptation. `myorg_refused` couvre TOUS les motifs
+    // d'un seul message (meme discipline que `switch_failed`).
+    'myorg_refused' => 'Impossible d\'accéder à cette organisation pour le moment.',
+    'myorg_refused_title' => 'Accès impossible',
+    'myorg_back' => 'Retour',
+    'myorg_sent_title' => 'Un email vient de vous être envoyé',
+    'myorg_sent_body' => 'Pour confirmer que vos deux comptes sont bien à vous, cliquez sur le lien envoyé à :email. Vous pourrez ensuite passer sur :organization en un clic.',
+    'myorg_sent_once' => 'Le lien est valable 15 minutes. Vous ne ferez cette confirmation qu\'une seule fois pour cette organisation.',
+    'myorg_confirm_title' => 'Confirmer, et continuer',
+    'myorg_confirm_body' => 'En confirmant, vous pourrez passer de votre organisation actuelle à :organization en un clic, sans mot de passe. Vos données restent séparées, et vous pourrez retirer cet accès à tout moment.',
+    'myorg_confirm_submit' => 'Confirmer et continuer',
+    'myorg_confirm_not_you' => 'Ce n\'était pas vous ? Fermez simplement cette page : rien ne sera modifié.',
+    'myorg_invalid_title' => 'Ce lien n\'est plus valable',
+    'myorg_invalid_body' => 'Le lien a expiré ou a déjà servi. Retournez dans le menu de votre avatar et choisissez de nouveau l\'organisation : un nouvel email vous sera envoyé.',
+    'myorg_wrong_account_title' => 'Ouvrez ce lien depuis le bon compte',
+    'myorg_wrong_account_body' => 'Ce lien doit être ouvert depuis le compte avec lequel la demande a été faite. Reconnectez-vous avec ce compte, puis cliquez de nouveau sur le lien de l\'email.',
+    'myorg_linked_flash' => 'Vos comptes sont liés. Vous pouvez maintenant passer d\'une organisation à l\'autre en un clic, et retirer cet accès à tout moment depuis vos réglages.',
+    // Replis si le gabarit d'email venait a manquer (jamais un email vide).
+    'myorg_mail_confirm_subject' => 'Confirmez la liaison de vos deux comptes',
+    'myorg_mail_confirm_line' => 'Vous avez demandé à passer de :source à :target. Si c\'est bien vous, confirmez : vous pourrez ensuite passer de l\'une à l\'autre en un clic.',
+    'myorg_mail_confirm_action' => 'Confirmer et continuer',
+    'myorg_mail_confirm_ignore' => 'Ce n\'était pas vous ? Ignorez ce message : rien ne sera lié.',
+    'myorg_mail_linked_subject' => 'Vos comptes sont maintenant liés',
+    'myorg_mail_linked_line' => 'Votre compte et votre compte de :other sont maintenant liés. Vous pouvez révoquer ce lien à tout moment, depuis l\'un ou l\'autre compte.',
+    'myorg_mail_linked_action' => 'Gérer mes comptes liés',
 ];

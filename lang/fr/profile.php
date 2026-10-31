@@ -122,4 +122,8 @@ return [
     'comments_section' => 'Derniers commentaires',
     'comments_count' => ':count commentaire|:count commentaires',
     'comments_read_article' => 'Lire l’article',
+
+    // TASK-1734 — la carte « Securite des comptes » du profil.
+    'account_access_title' => 'Sécurité des comptes',
+    'account_access_intro' => 'Pour passer d\'une organisation à l\'autre, utilisez « Mes organisations » dans le menu de votre avatar. Les parcours avancés — lier deux comptes d\'adresses différentes, passer sur un compte non proposé, retirer un accès — vivent ici.',
 ];

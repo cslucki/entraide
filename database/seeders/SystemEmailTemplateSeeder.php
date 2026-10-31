@@ -270,6 +270,50 @@ class SystemEmailTemplateSeeder extends Seeder
                 'invitation_url', 'expires_at', 'app_name',
             ],
         ],
+        // TASK-1734 — les deux emails de « Mes organisations ». GLOBAUX comme
+        // l'email de verification : ils traversent les tenants, aucune
+        // Organization n'a a les surcharger. L'URL figure EN CLAIR sous le
+        // bouton (lecon T1707 L1/F5 : la version texte brut perd les href).
+        'liaison-comptes-confirmation' => [
+            'name_fr' => 'Liaison de comptes — confirmation',
+            'name_en' => 'Account link — confirmation',
+            'subject_fr' => 'Confirmez la liaison de vos deux comptes',
+            'subject_en' => 'Confirm linking your two accounts',
+            'content_html_fr' => '<h1>Bonjour {{ name }},</h1>
+<p>Vous avez demandé à passer de <strong>{{ source_organization }}</strong> à <strong>{{ target_organization }}</strong>.</p>
+<p>Si c\'est bien vous, confirmez : vous pourrez ensuite passer de l\'une à l\'autre en un clic, sans mot de passe.</p>
+<p><a href="{{ url }}">Confirmer et continuer</a></p>
+<p>Si le lien ci-dessus ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ url }}</p>
+<p>Ce lien est valable <strong>15 minutes</strong> et ne peut servir qu\'une fois.</p>
+<p>Ce n\'était pas vous ? Ignorez ce message : rien ne sera lié.</p>',
+            'content_html_en' => '<h1>Hello {{ name }},</h1>
+<p>You asked to switch from <strong>{{ source_organization }}</strong> to <strong>{{ target_organization }}</strong>.</p>
+<p>If this was you, confirm it: you will then be able to switch between them in one click, without a password.</p>
+<p><a href="{{ url }}">Confirm and continue</a></p>
+<p>If the link above does not work, copy this address into your browser:<br>{{ url }}</p>
+<p>This link is valid for <strong>15 minutes</strong> and can only be used once.</p>
+<p>Wasn\'t you? Ignore this message: nothing will be linked.</p>',
+            'variables' => ['name', 'url', 'source_organization', 'target_organization'],
+        ],
+        'liaison-comptes-creee' => [
+            'name_fr' => 'Liaison de comptes — avis de création',
+            'name_en' => 'Account link — created notice',
+            'subject_fr' => 'Vos comptes sont maintenant liés',
+            'subject_en' => 'Your accounts are now linked',
+            'content_html_fr' => '<h1>Bonjour {{ name }},</h1>
+<p>Votre compte et votre compte de <strong>{{ other_organization }}</strong> sont maintenant liés : vous pouvez passer de l\'un à l\'autre en un clic, depuis le menu de votre avatar.</p>
+<p>Les données des deux organisations restent séparées.</p>
+<p>Vous pouvez révoquer ce lien à tout moment, depuis l\'un ou l\'autre compte :</p>
+<p><a href="{{ url }}">Gérer mes comptes liés</a></p>
+<p>Si vous n\'êtes pas à l\'origine de cette liaison, révoquez-la et changez votre mot de passe.</p>',
+            'content_html_en' => '<h1>Hello {{ name }},</h1>
+<p>Your account and your <strong>{{ other_organization }}</strong> account are now linked: you can switch between them in one click from your avatar menu.</p>
+<p>Data from both organizations remains separate.</p>
+<p>You can revoke this link at any time, from either account:</p>
+<p><a href="{{ url }}">Manage my linked accounts</a></p>
+<p>If you did not create this link, revoke it and change your password.</p>',
+            'variables' => ['name', 'url', 'other_organization'],
+        ],
     ];
 
     /**
