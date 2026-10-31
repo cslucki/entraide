@@ -66,6 +66,16 @@ return [
     'installing_title' => 'Presque terminé',
     'installing_body' => 'Ouvrez BouclePro depuis votre écran d\'accueil.',
 
+    // ── Quand `/installer` n'a rien a proposer ───────────────────────────────
+    //
+    // Le kill-switch `PWA_INSTALL_POLICY=off` n'emet aucun ecran. Mais
+    // `/installer` reste une URL : un signet, un lien dans un courriel, une
+    // adresse tapee. Sans ces deux chaines la page rendait un ecran VIDE —
+    // le meme defaut que la recette du 31/10/2026 a remonte par une autre
+    // porte. Une page atteignable doit toujours dire quelque chose.
+    'unavailable_title' => 'Installation indisponible',
+    'unavailable_body' => 'L\'installation de BouclePro sur votre appareil n\'est pas proposée pour le moment. Le site reste accessible depuis votre navigateur.',
+
     // ── Instructions par plateforme ─────────────────────────────────────────
     'manual_title' => 'Pour installer BouclePro',
 

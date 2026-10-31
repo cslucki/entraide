@@ -120,11 +120,46 @@ test.describe('TASK-1737 ecran d\'installation', () => {
         expect(renoncement).toBeTruthy();
         expect(renoncement.value).toBe('1');
 
-        // Le vrai test du renoncement : trois navigations plus tard, rien.
-        for (const chemin of ['/about', '/org/main', '/installer']) {
+        // Le vrai test du renoncement : deux navigations plus tard, rien.
+        //
+        // `/installer` ne figure PLUS dans cette liste, et son retrait est le
+        // correctif du 31/10/2026. Il y etait, et ce test gravait donc le
+        // defaut : il exigeait qu'une page atteinte EXPRES reste vide pendant
+        // trente jours. Un renoncement porte sur une invitation, pas sur une
+        // destination — c'est le test suivant qui mesure cela.
+        for (const chemin of ['/about', '/org/main']) {
             await page.goto(chemin);
             await expect(page.locator('[data-bp-pwa-install]')).toHaveCount(0);
         }
+    });
+
+    test('un renoncement ne vide jamais /installer', async ({ page, context }) => {
+        // Le defaut de recette du 31/10/2026, SECONDE porte. Le cookie etait lu
+        // avant la route dediee : un « plus tard » touche une fois rendait
+        // `/installer` vide pendant trente jours, et plus aucun chemin ne menait
+        // a l'installation pour qui avait change d'avis.
+        //
+        // Mesure dans un vrai navigateur, et c'est necessaire : la page vide
+        // etait une affaire de CSS. Le texte du repli etait bien dans le HTML —
+        // un `assertSee()` PHP le trouvait — mais `display: none` le rendait
+        // invisible. Seul `innerText` voit ce qu'une personne voit.
+        await context.addCookies([{
+            name: 'bp_pwa_dismissed',
+            value: '1',
+            domain: 'test.laravel',
+            path: '/',
+        }]);
+
+        await page.goto('/installer');
+        await expect(page.locator('[data-bp-pwa-install="full"]')).toBeVisible();
+
+        const texteVisible = await page.evaluate(() => document.body.innerText.trim());
+        expect(texteVisible.length).toBeGreaterThan(40);
+
+        // Et le renoncement garde tout son effet LA OU IL PORTE : corriger le
+        // defaut en ignorant le cookie partout serait l'autre erreur.
+        await page.goto('/about');
+        await expect(page.locator('[data-bp-pwa-install]')).toHaveCount(0);
     });
 
     // ── Le defaut trouve en recette par Cyril, 31/10/2026 ───────────────────

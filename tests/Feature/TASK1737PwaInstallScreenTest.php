@@ -309,6 +309,116 @@ class TASK1737PwaInstallScreenTest extends TestCase
     }
 
     /**
+     * Le defaut de la recette du 31/10/2026, seconde porte.
+     *
+     * Cyril : « en navigation publique le site n'affiche pas l'ecran, en
+     * navigation privee oui ». Cause immediate : le cookie de renoncement pose
+     * la veille, toujours vivant dans le profil normal. Attendu — c'est ce que
+     * le renoncement doit faire.
+     *
+     * Mais en le verifiant on trouve pire : le cookie etait lu AVANT la route
+     * dediee, donc `/installer` lui-meme ne rendait plus rien pendant trente
+     * jours. Sur cette page la superposition EST le contenu : ecran vide, et
+     * plus aucun chemin vers l'installation pour qui avait change d'avis.
+     *
+     * Un renoncement porte sur une INVITATION, pas sur une DESTINATION.
+     */
+    public function test_a_dismissal_never_empties_the_page_that_was_asked_for(): void
+    {
+        $this->avecPolitique(PwaInstallPolicy::INSTALL_FIRST);
+
+        $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->withUnencryptedCookie(PwaInstallContext::COOKIE_RENONCEMENT, '1')
+            ->get(route(PwaInstallContext::ROUTE_DEDIEE))
+            ->assertOk()
+            ->assertSee('data-bp-pwa-install="full"', false);
+    }
+
+    /**
+     * Et le renoncement garde tout son effet LA OU IL PORTE : le bandeau reste
+     * eteint sur les autres pages. Sans ce test, « corriger » le defaut
+     * ci-dessus en ignorant le cookie partout passerait inapercu.
+     */
+    public function test_the_dismissal_still_silences_every_page_it_covers(): void
+    {
+        foreach ([PwaInstallPolicy::BANNER, PwaInstallPolicy::INSTALL_FIRST] as $mode) {
+            $this->avecPolitique($mode);
+
+            foreach (['/about', '/'] as $chemin) {
+                $this->withHeader('User-Agent', self::UA_TELEPHONE)
+                    ->withUnencryptedCookie(PwaInstallContext::COOKIE_RENONCEMENT, '1')
+                    ->get($chemin)
+                    ->assertDontSee('data-bp-pwa-install', false);
+            }
+        }
+    }
+
+    /**
+     * La CLASSE du defaut, fermee plutot que ses instances.
+     *
+     * Sur `/installer` la superposition est le contenu : toute situation ou
+     * l'ecran n'est pas emis rend une page vide. Il n'en reste qu'une apres la
+     * correction de l'ordre — le kill-switch — et elle doit dire ce qui est
+     * vrai, puis offrir de partir.
+     */
+    public function test_the_kill_switch_leaves_the_dedicated_page_something_to_say(): void
+    {
+        $this->avecPolitique(PwaInstallPolicy::OFF);
+
+        $reponse = $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->get(route(PwaInstallContext::ROUTE_DEDIEE))
+            ->assertOk()
+            ->assertDontSee('data-bp-pwa-install', false);
+
+        // Le repli de la cause B, celui qui n'est soumis a aucun masquage.
+        $reponse->assertSee('bp-installer-fallback--seul', false)
+            ->assertSee(__('pwa.unavailable_title'), false)
+            ->assertSee(__('pwa.unavailable_body'), false)
+            ->assertSee(__('pwa.back_to_site'), false);
+
+        // Et il ne promet pas une installation qu'il ne peut pas lancer.
+        $reponse->assertDontSee(__('pwa.installing_title'), false);
+    }
+
+    /**
+     * Garde STRUCTURELLE, et elle existe parce qu'aucun test PHP ne voit la CSS.
+     *
+     * `assertSee()` trouve un texte que `display: none` rend invisible : la
+     * page vide du 31/10/2026 contenait son repli, masque par
+     * `@media (display-mode: browser)`. Mesurer la visibilite demande un vrai
+     * navigateur (`tests/e2e/pwa-install.spec.js`).
+     *
+     * Ce test verifie donc les deux conditions qui, ensemble, rendent la page
+     * vide IMPOSSIBLE — et il rougit si l'une des deux saute.
+     */
+    public function test_the_dedicated_page_can_never_render_blank(): void
+    {
+        $document = file_get_contents(resource_path('views/pwa/install.blade.php'));
+
+        // 1 — la regle de masquage EXCLUT le repli de la cause B. Sans
+        //     l'exclusion, c'est exactement la page vide qui revient.
+        $this->assertMatchesRegularExpression(
+            '/@media\s+all\s+and\s+\(display-mode:\s*browser\)\s*\{\s*'
+            .'\.bp-installer-fallback:not\(\.bp-installer-fallback--seul\)\s*\{\s*display:\s*none/',
+            $document,
+            'La regle de masquage en mode navigateur ne doit JAMAIS porter sur '
+            .'`.bp-installer-fallback--seul` : ce repli est emis precisement '
+            .'parce qu\'aucun ecran ne vient, et le masquer rend la page vide.'
+        );
+
+        // 2 — le repli de la cause B est emis dans la branche `@else`, c'est-a-dire
+        //     exactement quand `<x-pwa-install />` ne l'est pas.
+        $this->assertMatchesRegularExpression(
+            '/@if\s*\(\$pwaInstall->emetQuelqueChose\(\)\).*<x-pwa-install\s*\/>.*'
+            .'@else.*bp-installer-fallback--seul.*@endif/s',
+            $document,
+            'Le repli `--seul` doit vivre dans la branche `@else` de '
+            .'`emetQuelqueChose()` : une seule des deux branches rend, et aucune '
+            .'ne doit etre vide.'
+        );
+    }
+
+    /**
      * Et la cause racine, nommee.
      *
      * Sans cette exemption, `EncryptCookies` met le cookie a `null` et le test

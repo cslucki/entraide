@@ -181,17 +181,33 @@ final class PwaInstallContext
             return new self(self::NONE);
         }
 
-        // 3 — la personne a dit « plus tard ». Lu AVANT tout travail.
-        if ($request->cookie(self::COOKIE_RENONCEMENT) !== null) {
-            return new self(self::NONE);
-        }
-
-        // 4 — la route dediee est plein format, quelle que soit la politique
+        // 3 — la route dediee est plein format, quelle que soit la politique
         //     (hors `off`, deja traite) et quel que soit l'appareil : on y
         //     arrive en l'ayant demande, y compris depuis un ordinateur pour
         //     lire les instructions.
+        //
+        //     ELLE PASSE AVANT LE RENONCEMENT, et l'ordre inverse etait un
+        //     defaut (recette Cyril, 31/10/2026, seconde porte du meme defaut
+        //     que la veille). Un « plus tard » touche une fois supprimait
+        //     `/installer` pendant trente jours : la page dont la superposition
+        //     EST le contenu rendait alors un ecran vide, et la personne qui
+        //     avait change d'avis n'avait plus aucun chemin vers l'installation
+        //     — sauf effacer les donnees du site, ce que personne ne devine.
+        //
+        //     Un renoncement porte sur une INVITATION, pas sur une DESTINATION.
+        //     Taper l'adresse, suivre un signet ou revenir par un lien est une
+        //     demande explicite, et elle est plus recente que le refus : elle
+        //     gouverne. Le cookie reste pose — on ne le consomme pas sur un
+        //     GET — donc le bandeau reste eteint ailleurs, ce qui est bien ce
+        //     que la personne avait demande.
         if ($request->route()?->getName() === self::ROUTE_DEDIEE) {
             return new self(self::FULL);
+        }
+
+        // 4 — la personne a dit « plus tard ». Lu avant le reste du travail,
+        //     mais apres la route dediee pour la raison ci-dessus.
+        if ($request->cookie(self::COOKIE_RENONCEMENT) !== null) {
+            return new self(self::NONE);
         }
 
         // 5 — les parcours qu'on n'interrompt pas.

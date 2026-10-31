@@ -43,6 +43,16 @@ return [
     'installing_title' => 'Almost there',
     'installing_body' => 'Open BouclePro from your home screen.',
 
+    // ── When `/installer` has nothing to offer ───────────────────────────────
+    //
+    // The `PWA_INSTALL_POLICY=off` kill-switch emits no screen at all. But
+    // `/installer` is still a URL: a bookmark, a link in an email, a typed
+    // address. Without these two strings the page rendered BLANK — the same
+    // defect the 31/10/2026 recette surfaced through another door. A reachable
+    // page must always say something.
+    'unavailable_title' => 'Installation unavailable',
+    'unavailable_body' => 'Installing BouclePro on your device is not offered right now. The site stays available in your browser.',
+
     'manual_title' => 'To install BouclePro',
 
     'ios' => [
