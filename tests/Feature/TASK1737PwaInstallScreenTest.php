@@ -399,9 +399,85 @@ class TASK1737PwaInstallScreenTest extends TestCase
         $this->assertStringContainsString("evenement.key === 'Escape'", $html);
         $this->assertStringContainsString("evenement.key !== 'Tab'", $html);
 
-        // Le repli reste atteignable : « Continuer dans le navigateur » n'est
-        // jamais dissimule (CDC 3.2).
+        // Le repli reste atteignable, et n'est jamais dissimule (CDC 3.2).
+        // Sur la page dediee son libelle est « Retour au site » — voir le test
+        // suivant pour la raison.
+        $this->assertStringContainsString(__('pwa.back_to_site'), $html);
+    }
+
+    /**
+     * Sur `/installer`, l'action secondaire est un RETOUR, pas un renoncement.
+     *
+     * Defaut trouve en recette par Cyril le 31/10/2026, et il avait DEUX
+     * symptomes pour une seule cause :
+     *
+     * 1. **Ecran noir.** Sur la page dediee, la superposition EST la page : il
+     *    n'y a rien dessous. La retirer laissait un corps vide sur fond
+     *    `#0b0b10`.
+     * 2. **Le bandeau disparaissait de tout le site.** Le geste posait un
+     *    cookie de 30 jours — alors que la personne avait touche « Installer »
+     *    dans le bandeau, regarde la page, et voulait simplement revenir. Une
+     *    curiosite etait lue comme un refus.
+     *
+     * Le refus garde sa porte : la croix du bandeau, elle, renonce bien.
+     */
+    public function test_the_dedicated_page_offers_a_return_not_a_dismissal(): void
+    {
+        $html = $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->get('/installer')
+            ->assertOk()
+            ->getContent();
+
+        // Un vrai LIEN vers l'accueil : il fonctionne sans JavaScript.
+        $this->assertMatchesRegularExpression(
+            '/<a class="bp-pwa__dismiss" href="'.preg_quote(url('/'), '/').'\/?">\s*'
+            .preg_quote(__('pwa.back_to_site'), '/').'/s',
+            $html,
+            'La page dediee doit offrir un lien de RETOUR vers l\'accueil.'
+        );
+
+        // Et surtout : AUCUN geste de renoncement sur cette page.
+        $this->assertStringNotContainsString(
+            'data-bp-pwa-action="dismiss"',
+            $html,
+            'La page dediee ne doit poser aucun renoncement : en repartir ne refuse rien.'
+        );
+
+        // Le script le sait aussi, sinon `Echap` reproduirait l'ecran noir.
+        $this->assertStringContainsString('data-bp-pwa-dedicated="1"', $html);
+        $this->assertStringContainsString('if (pageDediee) {', $html);
+    }
+
+    /**
+     * A l'inverse, superpose a une VRAIE page, le geste reste un renoncement.
+     *
+     * Il y a quelque chose a lire dessous, et la personne demande a y acceder :
+     * la retirer en place est le bon comportement, et le cookie aussi.
+     */
+    public function test_an_overlay_over_real_content_still_dismisses(): void
+    {
+        $this->avecPolitique(PwaInstallPolicy::INSTALL_FIRST);
+
+        $html = $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->get('/about')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-bp-pwa-action="dismiss"', $html);
         $this->assertStringContainsString(__('pwa.continue_in_browser'), $html);
+
+        // La mesure porte sur la BALISE racine, pas sur la page : le script
+        // mentionne `data-bp-pwa-dedicated` de toute facon, puisqu'il le lit.
+        // Chercher la chaine dans tout le HTML rougirait sur du code juste —
+        // c'est la deuxieme fois sur cette TASK que la nuance compte.
+        preg_match('/<div class="bp-pwa bp-pwa--full"[^>]*>/', $html, $balise);
+
+        $this->assertNotEmpty($balise);
+        $this->assertStringNotContainsString(
+            'data-bp-pwa-dedicated',
+            $balise[0],
+            'Une superposition posee sur une vraie page ne doit pas se croire sur la page dediee.'
+        );
     }
 
     /** Les instructions iOS existent, et aucune n'est servie a l'aveugle. */

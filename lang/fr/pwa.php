@@ -53,6 +53,11 @@ return [
     'install' => 'Installer BouclePro',
     'continue_in_browser' => 'Continuer dans le navigateur',
 
+    // Sur `/installer`, l'action secondaire n'est PAS un renoncement : la
+    // personne a demande a voir cette page, en repartir ne refuse rien.
+    // Le libelle doit donc dire RETOUR, pas « continuer sans ».
+    'back_to_site' => 'Retour au site',
+
     // ── Etat apres acceptation ──────────────────────────────────────────────
     //
     // On ne dit JAMAIS « c'est installe » : l'installation se termine hors de

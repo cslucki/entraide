@@ -263,4 +263,31 @@ final class PwaInstallContext
     {
         return $this->mode === self::BANNER;
     }
+
+    /**
+     * Sommes-nous SUR `/installer`, ou superposes a une vraie page ?
+     *
+     * La distinction gouverne le sens de l'action secondaire, et elle a ete
+     * payee par un defaut en recette (Cyril, 31/10/2026).
+     *
+     * Superpose a une page, « Continuer dans le navigateur » veut dire :
+     * *retire cet ecran, je veux lire ce qu'il y a dessous* — et c'est un
+     * renoncement, qui pose le cookie.
+     *
+     * Sur `/installer`, la superposition **EST** la page : il n'y a rien
+     * dessous. La retirer laissait un ecran NOIR — le corps de la page n'a pas
+     * d'autre contenu visible en mode navigateur. Et le renoncement de 30 jours
+     * etait faux : quelqu'un qui a touche « Installer » dans le bandeau, puis
+     * revient, n'a rien refuse du tout. Le bandeau disparaissait pourtant de
+     * tout le site.
+     *
+     * Sur la page dediee, l'action secondaire est donc un RETOUR, pas un
+     * renoncement : un lien vers l'accueil, qui ne pose aucun cookie. Le refus
+     * garde sa porte — la croix du bandeau.
+     */
+    public function estPageDediee(): bool
+    {
+        return $this->estPleinEcran()
+            && request()->route()?->getName() === self::ROUTE_DEDIEE;
+    }
 }

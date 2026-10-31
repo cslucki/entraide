@@ -37,6 +37,9 @@ return [
     'install' => 'Install BouclePro',
     'continue_in_browser' => 'Continue in the browser',
 
+    // On `/installer` the secondary action is a RETURN, not a dismissal.
+    'back_to_site' => 'Back to the site',
+
     'installing_title' => 'Almost there',
     'installing_body' => 'Open BouclePro from your home screen.',
 

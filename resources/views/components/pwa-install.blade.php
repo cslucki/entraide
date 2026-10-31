@@ -321,6 +321,7 @@
     @if ($pwa->estPleinEcran())
         <div class="bp-pwa bp-pwa--full"
              data-bp-pwa-install="full"
+             @if ($pwa->estPageDediee()) data-bp-pwa-dedicated="1" @endif
              role="dialog"
              aria-modal="true"
              aria-labelledby="bp-pwa-title">
@@ -413,9 +414,26 @@
                     </div>
                 </div>
 
-                <button type="button" class="bp-pwa__dismiss" data-bp-pwa-action="dismiss">
-                    {{ __('pwa.continue_in_browser') }}
-                </button>
+                {{-- L'action secondaire change de SENS selon le support.
+
+                     Sur `/installer`, cette superposition EST la page : rien
+                     dessous. La retirer laissait un ecran noir (recette Cyril,
+                     31/10/2026), et poser un renoncement de 30 jours
+                     interpretait une curiosite comme un refus — le bandeau
+                     disparaissait ensuite de tout le site.
+
+                     Ici c'est donc un RETOUR : un vrai lien, qui fonctionne
+                     sans JavaScript, et qui ne pose aucun cookie. Le refus
+                     garde sa porte, la croix du bandeau. --}}
+                @if ($pwa->estPageDediee())
+                    <a class="bp-pwa__dismiss" href="{{ url('/') }}">
+                        {{ __('pwa.back_to_site') }}
+                    </a>
+                @else
+                    <button type="button" class="bp-pwa__dismiss" data-bp-pwa-action="dismiss">
+                        {{ __('pwa.continue_in_browser') }}
+                    </button>
+                @endif
             </div>
         </div>
     @else
@@ -501,7 +519,22 @@
                     } catch (e) {}
                 }
 
+                // Sur la page dediee, il n'y a RIEN sous la superposition : la
+                // retirer laisse un ecran noir. Fermer veut donc dire PARTIR,
+                // et partir n'est pas refuser — aucun cookie n'est pose.
+                //
+                // Ce chemin couvre aussi la touche Echap, qui appelle la meme
+                // fonction : sans lui, le defaut reapparaitrait par le clavier
+                // apres avoir ete corrige au clic.
+                var pageDediee = racine.getAttribute('data-bp-pwa-dedicated') === '1';
+
                 function fermer() {
+                    if (pageDediee) {
+                        window.location.href = @json(url('/'));
+
+                        return;
+                    }
+
                     poserLeRenoncement();
                     if (racine.parentNode) { racine.parentNode.removeChild(racine); }
                 }

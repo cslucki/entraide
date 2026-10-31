@@ -16,15 +16,44 @@ import { test, expect } from '@playwright/test';
 const UA_TELEPHONE =
     'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36';
 
+const MOBILE = {
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    // `DeviceKind` lit l'user-agent cote serveur : `isMobile` seul ne le
+    // change pas, et le balisage ne serait pas emis.
+    userAgent: UA_TELEPHONE,
+};
+
 test.describe('TASK-1737 ecran d\'installation', () => {
-    test.use({
-        viewport: { width: 390, height: 844 },
-        deviceScaleFactor: 2,
-        isMobile: true,
-        hasTouch: true,
-        // `DeviceKind` lit l'user-agent cote serveur : `isMobile` seul ne le
-        // change pas, et le balisage ne serait pas emis.
-        userAgent: UA_TELEPHONE,
+    test.use(MOBILE);
+
+    // ── UN PIEGE MESURE, ET POURQUOI LE SERVICE WORKER EST NEUTRALISE ICI ──
+    //
+    // Mesure du 31/10/2026, en interceptant le reseau :
+    //
+    //   1re navigation (directe)  UA = ...Pixel 8... Mobile Safari
+    //   2e  navigation (via SW)   UA = ...X11; Linux... HeadlessChrome/147...
+    //
+    // Le `fetch()` d'un Service Worker **n'herite pas** de l'user-agent
+    // simule par Playwright : un worker est un contexte separe, et l'override
+    // CDP ne porte que sur la page. Des la 2e navigation, le serveur voyait
+    // donc `HeadlessChrome` — que `DeviceKind` range dans les OUTILS, examines
+    // en premier — et n'emettait plus rien.
+    //
+    // C'est un artefact du banc, PAS un defaut produit : sur un vrai
+    // telephone, la page et son Service Worker envoient le meme user-agent.
+    // Le verifier a coute une heure ; le consigner evite de la repayer.
+    //
+    // Danger reel si on ne le traite pas : les tests qui attendent une ABSENCE
+    // passeraient pour la mauvaise raison. On neutralise donc l'enregistrement
+    // dans ce bloc, et le comportement du Service Worker garde son propre test
+    // plus bas, ou il est bien actif.
+    test.beforeEach(async ({ page }) => {
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, 'serviceWorker', { get: () => undefined });
+        });
     });
 
     test('l\'ecran plein format s\'affiche sur /installer', async ({ page }) => {
@@ -69,11 +98,13 @@ test.describe('TASK-1737 ecran d\'installation', () => {
         await expect(page.locator('.bp-pwa__manual')).toBeHidden();
     });
 
-    test('« Continuer dans le navigateur » ferme, et ne revient pas', async ({ page, context }) => {
-        await page.goto('/installer');
-        await expect(page.locator('[data-bp-pwa-install="full"]')).toBeVisible();
+    test('la croix du bandeau renonce, et le renoncement tient', async ({ page, context }) => {
+        await page.goto('/about');
 
-        await page.locator('[data-bp-pwa-action="dismiss"]').click();
+        const bandeau = page.locator('[data-bp-pwa-install="banner"]');
+        await expect(bandeau).toBeVisible();
+
+        await bandeau.locator('[data-bp-pwa-action="dismiss"]').click();
         await expect(page.locator('[data-bp-pwa-install]')).toHaveCount(0);
 
         // Le cookie est pose EN CLAIR : c'est le serveur qui doit pouvoir le
@@ -88,6 +119,61 @@ test.describe('TASK-1737 ecran d\'installation', () => {
             await page.goto(chemin);
             await expect(page.locator('[data-bp-pwa-install]')).toHaveCount(0);
         }
+    });
+
+    // ── Le defaut trouve en recette par Cyril, 31/10/2026 ───────────────────
+    //
+    // Deux symptomes, une seule cause : sur `/installer` la superposition EST
+    // la page. La retirer laissait un ecran NOIR, et le cookie de 30 jours
+    // faisait disparaitre le bandeau de tout le site — alors que la personne
+    // avait simplement touche « Installer » puis voulu revenir.
+
+    test('quitter /installer ramene au site, sans ecran noir', async ({ page }) => {
+        await page.goto('/installer');
+        await expect(page.locator('[data-bp-pwa-install="full"]')).toBeVisible();
+
+        await page.locator('a.bp-pwa__dismiss').click();
+
+        // `/` redirige vers la landing du tenant : DEUX navigations.
+        // `domcontentloaded` se resout sur la PREMIERE et laissait lire un
+        // document en cours de remplacement, dont `document.body` vaut
+        // `null`. `networkidle` attend que la chaine entiere se pose.
+        await page.waitForLoadState('networkidle');
+        await expect(page).not.toHaveURL(/\/installer$/);
+
+        // Et il y a QUELQUE CHOSE a l'ecran. C'est le test de l'ecran noir :
+        // un corps dont le texte visible est vide serait la regression.
+        const texteVisible = await page.evaluate(() => document.body.innerText.trim());
+        expect(texteVisible.length).toBeGreaterThan(40);
+    });
+
+    test('quitter /installer ne renonce a rien : le bandeau reste', async ({ page, context }) => {
+        await page.goto('/installer');
+        await page.locator('a.bp-pwa__dismiss').click();
+        await page.waitForLoadState('networkidle');
+        await expect(page).not.toHaveURL(/\/installer$/);
+
+        // Aucun cookie de renoncement : partir n'est pas refuser.
+        const cookies = await context.cookies();
+        expect(cookies.find((c) => c.name === 'bp_pwa_dismissed')).toBeFalsy();
+
+        // Et le bandeau est toujours la, sur l'accueil comme ailleurs.
+        await page.goto('/about');
+        await expect(page.locator('[data-bp-pwa-install="banner"]')).toBeVisible();
+    });
+
+    test('Echap sur /installer ramene au site, il ne vide pas la page', async ({ page }) => {
+        // Meme cause, autre porte : `Echap` appelle la meme fermeture. Sans
+        // traitement, le defaut serait revenu par le clavier.
+        await page.goto('/installer');
+        await expect(page.locator('[data-bp-pwa-install="full"]')).toBeVisible();
+
+        await page.keyboard.press('Escape');
+
+        await page.waitForLoadState('networkidle');
+        await expect(page).not.toHaveURL(/\/installer$/);
+        const texteVisible = await page.evaluate(() => document.body.innerText.trim());
+        expect(texteVisible.length).toBeGreaterThan(40);
     });
 
     test('le bandeau s\'affiche sur une vitrine, et mene a l\'ecran dedie', async ({ page }) => {
@@ -119,14 +205,6 @@ test.describe('TASK-1737 ecran d\'installation', () => {
         await expect(page.locator('[data-bp-pwa-install="full"]')).toBeHidden();
     });
 
-    test('Echap ferme l\'ecran plein format', async ({ page }) => {
-        await page.goto('/installer');
-        await expect(page.locator('[data-bp-pwa-install="full"]')).toBeVisible();
-
-        await page.keyboard.press('Escape');
-        await expect(page.locator('[data-bp-pwa-install]')).toHaveCount(0);
-    });
-
     test('le focus part sur le titre et ne sort pas de l\'ecran', async ({ page }) => {
         await page.goto('/installer');
 
@@ -140,6 +218,12 @@ test.describe('TASK-1737 ecran d\'installation', () => {
         );
         expect(dansLEcran).toBe(true);
     });
+
+});
+
+// Le Service Worker est ACTIF dans ce bloc : c'est lui qu'on mesure.
+test.describe('TASK-1737 non-regression du cache (TASK-1692)', () => {
+    test.use(MOBILE);
 
     test('aucune entree HTML privee n\'entre dans le Cache Storage', async ({ page }) => {
         // Garde de non-regression TASK-1692, exercee dans un vrai navigateur :
