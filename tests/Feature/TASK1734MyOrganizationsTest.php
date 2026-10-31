@@ -485,6 +485,106 @@ class TASK1734MyOrganizationsTest extends TestCase
         $reponse->assertDontSee('data-nav-my-organizations');
     }
 
+    // ── Themes : le tenant d'arrivee impose son apparence ─────────────────
+
+    /**
+     * Complement MASTER 31/10 : la bascule doit respecter les parametres
+     * d'apparence de l'Organization de DESTINATION.
+     *
+     * ## Pourquoi AUCUN code de bascule n'a eu a changer, et ce que ca mesure
+     *
+     * Le moteur de themes resout TOUT par requete : le composer de vues lit
+     * `current_organization` — pose par `ResolveOrganization` depuis le slug
+     * de l'URL servie — et en derive `$globalColorMode` (classe `dark` posee
+     * cote serveur sur `<html>`) et `orgThemeKey` (via `theme_id`). Rien de
+     * tout cela ne vit en session : la bascule etant une redirection complete
+     * vers `canonicalHome(destination)`, la page d'arrivee porte le theme de
+     * la destination PAR CONSTRUCTION. Ces tests le demontrent, et surtout le
+     * FIGENT : si un jour une partie du theme migrait en session, la bascule
+     * — qui invalide la session — casserait ces mesures.
+     *
+     * La hierarchie EXISTANTE n'est pas reecrite : le choix explicite laisse
+     * par la personne dans SON navigateur (`localStorage.theme`,
+     * `localStorage.bpTheme`) continue de gagner cote client — c'est le
+     * contrat du moteur (T1471), il n'appartient pas a la bascule d'y
+     * toucher. Ce que la bascule doit garantir, et que l'on mesure ici, ce
+     * sont les ENTREES cote serveur de cette hierarchie.
+     */
+    public function test_la_bascule_applique_le_mode_couleur_et_le_theme_du_tenant_d_arrivee(): void
+    {
+        // `firstOrCreate` : la cle est UNIQUE et 'sea' peut deja exister
+        // (catalogue de themes seme par ailleurs).
+        $theme = \App\Models\Theme::query()->firstOrCreate(['key' => 'sea'], [
+            'label' => 'Sea',
+            'tokens' => ['page' => '#F3FAF4'],
+            'dark_tokens' => ['page' => '#0B1120'],
+        ]);
+
+        // Depart CLAIR sans theme propre ; arrivee SOMBRE avec theme 'sea' —
+        // le cas reel de la fiche (Launchpals : Dark + LP).
+        $this->orgA->update(['global_color_mode' => 'light', 'theme_id' => null]);
+        $this->orgB->update(['global_color_mode' => 'dark', 'theme_id' => $theme->getKey()]);
+
+        $moi = $this->compte($this->orgA, 'marie@exemple.test');
+        $cible = $this->compte($this->orgB, 'marie@exemple.test');
+        $this->lienDirect($moi, $cible);
+
+        $this->actingAs($moi)
+            ->post(route('my-organizations.switch', ['org' => $this->orgB->slug]))
+            ->assertRedirect(canonicalHome($this->orgB));
+
+        $arrivee = $this->get(canonicalHome($this->orgB))->assertOk();
+
+        // La classe `dark` est posee COTE SERVEUR sur <html> : elle vient de
+        // `$globalColorMode`, donc du tenant servi — on mesure LA balise,
+        // jamais le document entier (lecon T1732).
+        $this->assertMatchesRegularExpression('/<html[^>]*class="dark"/', $arrivee->getContent());
+
+        // Et la cle de theme offerte au client est celle de l'arrivee.
+        $arrivee->assertSee('var orgThemeKey = "sea"', false);
+    }
+
+    public function test_le_retour_au_tenant_initial_retablit_son_apparence_et_son_theme_par_defaut(): void
+    {
+        // `firstOrCreate` : la cle est UNIQUE et 'sea' peut deja exister
+        // (catalogue de themes seme par ailleurs).
+        $theme = \App\Models\Theme::query()->firstOrCreate(['key' => 'sea'], [
+            'label' => 'Sea',
+            'tokens' => ['page' => '#F3FAF4'],
+            'dark_tokens' => ['page' => '#0B1120'],
+        ]);
+
+        $this->orgA->update(['global_color_mode' => 'light', 'theme_id' => null]);
+        $this->orgB->update(['global_color_mode' => 'dark', 'theme_id' => $theme->getKey()]);
+
+        $moi = $this->compte($this->orgA, 'marie@exemple.test');
+        $cible = $this->compte($this->orgB, 'marie@exemple.test');
+        $this->lienDirect($moi, $cible);
+
+        // Aller... (le lien sert dans les DEUX sens, c'est sa definition)
+        $this->actingAs($moi)
+            ->post(route('my-organizations.switch', ['org' => $this->orgB->slug]))
+            ->assertRedirect(canonicalHome($this->orgB));
+
+        // ...et retour.
+        $this->post(route('my-organizations.switch', ['org' => $this->orgA->slug]))
+            ->assertRedirect(canonicalHome($this->orgA));
+
+        $this->assertAuthenticatedAs($moi);
+
+        $retour = $this->get(canonicalHome($this->orgA))->assertOk();
+
+        // Mode CLAIR : la classe serveur est vide — rien du sombre de l'orgB
+        // ne survit a la traversee.
+        $this->assertMatchesRegularExpression('/<html[^>]*class=""/', $retour->getContent());
+        $this->assertDoesNotMatchRegularExpression('/<html[^>]*class="dark"/', $retour->getContent());
+
+        // Sans `theme_id`, la cle offerte est nulle : c'est le theme « Par
+        // defaut » — le client retombe sur `window.bpDefaultTheme`.
+        $retour->assertSee('var orgThemeKey = null', false);
+        $this->assertStringNotContainsString('var orgThemeKey = "sea"', $retour->getContent());
+    }
+
     // ── Limitations : des clefs PROPRES ────────────────────────────────────
 
     public function test_l_envoi_d_email_est_borne_par_paire(): void
