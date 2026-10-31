@@ -228,6 +228,15 @@ class MyOrganizationsController extends Controller
             return $this->refuser($request, $moi, null, 'cible_disparue');
         }
 
+        // Ce chemin ne passe PAS par le panneau : il doit porter sa propre
+        // garde « sans Organization » — `canonicalHome()` n'a nulle part ou
+        // atterrir, et le preflight ne pose pas cette question-la. Le cas est
+        // theorique depuis A1 (l'Organization d'un compte est immuable), on
+        // le ferme plutot que de le decouvrir en 500.
+        if ($cible->organization === null) {
+            return $this->refuser($request, $moi, $cible, 'cible_sans_organization');
+        }
+
         $motif = DB::transaction(function () use ($liens, $preflight, $moi, $cible): ?string {
             try {
                 // Toutes les gardes de la preuve par la boite sont DANS la

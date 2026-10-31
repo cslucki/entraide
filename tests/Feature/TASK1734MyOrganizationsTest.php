@@ -340,6 +340,26 @@ class TASK1734MyOrganizationsTest extends TestCase
         $this->assertAuthenticatedAs($moi);
     }
 
+    public function test_une_cible_devenue_orpheline_ne_fait_pas_atterrir_nulle_part(): void
+    {
+        // Theorique depuis A1 (Organization immuable), mais ce chemin ne
+        // passe pas par le panneau : sans sa propre garde, `canonicalHome()`
+        // exploserait sur une Organization nulle. Ecriture BRUTE : la garde
+        // de modele de T1726 protege les ecrans, pas la base.
+        $moi = $this->compte($this->orgA, 'marie@exemple.test');
+        $cible = $this->compte($this->orgB, 'marie@exemple.test');
+
+        $jeton = app(AccountLinkEmailProof::class)->emettre($moi, $cible);
+
+        DB::table('users')->where('id', $cible->getKey())->update(['organization_id' => null]);
+
+        $this->actingAs($moi)
+            ->post(route('my-organizations.confirm.store', ['token' => $jeton]))
+            ->assertStatus(422);
+
+        $this->assertAuthenticatedAs($moi);
+    }
+
     // ── Eligibilite : verifie, preflight, panneau ──────────────────────────
 
     public function test_un_frere_non_verifie_n_est_ni_liste_ni_atteignable(): void
