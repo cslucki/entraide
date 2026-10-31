@@ -65,7 +65,7 @@ class MyOrganizationsController extends Controller
 
     public function store(
         Request $request,
-        string $organization,
+        string $org,
         SiblingAccountsPanel $panneau,
         AccountLinkService $liens,
         AccountSwitchPreflight $preflight,
@@ -78,7 +78,7 @@ class MyOrganizationsController extends Controller
 
         $moi = $request->user();
 
-        $entree = $panneau->entreePourSlug($moi, $organization);
+        $entree = $panneau->entreePourSlug($moi, $org);
 
         if ($entree === null || $entree->etat === SiblingAccountsPanel::ETAT_INDISPONIBLE) {
             return $this->refuser($request, $moi, null, 'cible_absente_ou_indisponible');

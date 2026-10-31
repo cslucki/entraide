@@ -467,13 +467,17 @@ Route::middleware('auth')->group(function () {
     // TASK-1734 — « Mes organisations » : bascule en un clic par lien, et
     // premiere association par la preuve de la boite.
     //
-    // Routes GLOBALES comme celles de A5a/A5b, memes raisons. `organization`
-    // est une CHAINE, pas un binding de modele : la resolution passe par le
-    // panneau de la personne (`SiblingAccountsPanel`), jamais par une
-    // recherche generale — un slug etranger rend le meme refus qu'un slug
-    // inexistant. Le GET de confirmation ne consomme pas le jeton (scanners
-    // de boite) ; seul le POST du bouton consomme.
-    Route::post('/my-organizations/{organization}/switch', [MyOrganizationsController::class, 'store'])->name('my-organizations.switch');
+    // Routes GLOBALES comme celles de A5a/A5b, memes raisons. Le parametre
+    // s'appelle `org` et PAS `organization`, et ce n'est pas un gout : le
+    // middleware global `ResolveOrganization` resout tout parametre de route
+    // nomme `organization` comme LE tenant courant — 404 si le slug est
+    // inconnu, et contexte de tenant pointe sur la CIBLE sinon. Ici le slug
+    // est une simple donnee d'entree : la resolution passe par le panneau de
+    // la personne (`SiblingAccountsPanel`), jamais par une recherche
+    // generale — un slug etranger rend le meme refus qu'un slug inexistant.
+    // Le GET de confirmation ne consomme pas le jeton (scanners de boite) ;
+    // seul le POST du bouton consomme.
+    Route::post('/my-organizations/{org}/switch', [MyOrganizationsController::class, 'store'])->name('my-organizations.switch');
     Route::get('/my-organizations/sent', [MyOrganizationsController::class, 'sent'])->name('my-organizations.sent');
     Route::get('/my-organizations/confirm/{token}', [MyOrganizationsController::class, 'confirm'])
         ->where('token', '[0-9a-f]{64}')->name('my-organizations.confirm');

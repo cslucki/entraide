@@ -49,7 +49,7 @@
                     <span class="ml-2 shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-400 dark:bg-gray-700 dark:text-gray-500">{{ __('navigation.my_org_unavailable') }}</span>
                 </div>
             @else
-                <form method="POST" action="{{ route('my-organizations.switch', ['organization' => $entree->organization->slug]) }}">
+                <form method="POST" action="{{ route('my-organizations.switch', ['org' => $entree->organization->slug]) }}">
                     @csrf
                     <button type="submit"
                             data-my-org-switch="{{ $entree->organization->slug }}"
@@ -80,7 +80,7 @@
                     {{ $entree->organization?->name ?? '—' }} · {{ __('navigation.my_org_unavailable') }}
                 </div>
             @else
-                <form method="POST" action="{{ route('my-organizations.switch', ['organization' => $entree->organization->slug]) }}">
+                <form method="POST" action="{{ route('my-organizations.switch', ['org' => $entree->organization->slug]) }}">
                     @csrf
                     <button type="submit"
                             data-my-org-switch="{{ $entree->organization->slug }}"
@@ -113,7 +113,7 @@
                         <span class="ml-2 shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-400 dark:bg-gray-700 dark:text-gray-500">{{ __('navigation.my_org_unavailable') }}</span>
                     </div>
                 @else
-                    <form method="POST" action="{{ route('my-organizations.switch', ['organization' => $entree->organization->slug]) }}">
+                    <form method="POST" action="{{ route('my-organizations.switch', ['org' => $entree->organization->slug]) }}">
                         @csrf
                         <button type="submit"
                                 data-my-org-switch="{{ $entree->organization->slug }}"
