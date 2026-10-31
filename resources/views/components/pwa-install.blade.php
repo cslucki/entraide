@@ -426,7 +426,7 @@
                      sans JavaScript, et qui ne pose aucun cookie. Le refus
                      garde sa porte, la croix du bandeau. --}}
                 @if ($pwa->estPageDediee())
-                    <a class="bp-pwa__dismiss" href="{{ url('/') }}">
+                    <a class="bp-pwa__dismiss" href="{{ $pwa->urlRetour() }}">
                         {{ __('pwa.back_to_site') }}
                     </a>
                 @else
@@ -447,7 +447,7 @@
                 </div>
                 {{-- Un LIEN, pas un bouton : le bandeau mene a l'ecran dedie, ou
                      tout est explique. Il fonctionne donc sans JavaScript. --}}
-                <a class="bp-pwa__bar-action" href="{{ route('pwa.install') }}">
+                <a class="bp-pwa__bar-action" href="{{ $pwa->urlEcranDedie() }}">
                     {{ __('pwa.banner.action') }}
                 </a>
                 <button type="button" class="bp-pwa__bar-close"
@@ -530,7 +530,7 @@
 
                 function fermer() {
                     if (pageDediee) {
-                        window.location.href = @json(url('/'));
+                        window.location.href = @json($pwa->urlRetour());
 
                         return;
                     }

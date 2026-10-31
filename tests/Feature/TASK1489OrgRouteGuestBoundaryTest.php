@@ -215,6 +215,28 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         // d'existence. Mesure : `TASK1692StrictHttpIsolationTest::test_g_bis`.
         'organization.about' => 'Page de presentation du collectif. Editoriale : aucune lecture de tenant au-dela du nom et des routes. Frontiere portee par le controleur — Organization inactive -> 404, non publique + anonyme -> login borne.',
 
+        // TASK-1737 — l'ecran d'installation PWA, vu depuis une Organization.
+        //
+        // Il existe parce que la garde de lien de `TASK1699`/`TASK1700` a
+        // refuse que le bandeau d'une surface tenant mene a la route GLOBALE
+        // `/installer` : depuis la landing OFSH, le retour renvoyait vers
+        // `/org/main`, donc on changeait de tenant en voulant revenir.
+        //
+        // Il est public parce qu'installer l'application ne demande pas d'etre
+        // membre — meme raison que `home` et `about`, et il s'extrait du
+        // groupe comme elles.
+        //
+        // La frontiere est portee par le CONTROLEUR, et pas par hasard : une
+        // `Route::view()` n'en a aucune, et la mesure du 31/10/2026 l'a montre
+        // — 200 pour une Organization non publique la ou `/about` rend 302.
+        // C'est exactement l'« oracle d'existence » nomme plus haut a propos
+        // d'`about()`. Les deux gardes d'`about()` sont donc recopiees dans
+        // `OrganizationLandingController::installer()`, et
+        // `TASK1737PwaInstallScreenTest::test_the_scoped_screen_is_no_more_open_than_the_about_page`
+        // exige que les deux routes rendent le MEME statut, pour qu'elles ne
+        // puissent pas diverger en silence.
+        'organization.pwa.install' => 'Ecran d\'installation de l\'application. Gabarit STRICTEMENT identique a la route globale `/installer` : aucune lecture de tenant, pas meme son nom. Frontiere portee par le controleur — Organization inactive -> 404, non publique + anonyme -> login borne, comme `organization.about`.',
+
         'organization.open-source' => 'Instantane du depot public. Contrat TASK-1613 rendu : MEME vue et MEME contenu que la route globale `/open-source`, elle-meme publique. Aucune lecture de tenant.',
     ];
 
@@ -352,6 +374,8 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
             'organization.mycelium',
             'organization.open-source',
             'organization.about',
+            // TASK-1737 — sixieme exception `withoutMiddleware()` du groupe.
+            'organization.pwa.install',
         ] as $name) {
             $route = collect($this->organizationRoutes())
                 ->first(fn (RoutingRoute $r) => $r->getName() === $name);

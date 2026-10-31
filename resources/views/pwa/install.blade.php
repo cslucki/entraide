@@ -123,7 +123,7 @@
                 <strong>{{ __('pwa.unavailable_title') }}</strong>
                 {{ __('pwa.unavailable_body') }}
             </p>
-            <p><a href="{{ url('/') }}">{{ __('pwa.back_to_site') }}</a></p>
+            <p><a href="{{ $pwaInstall->urlRetour() }}">{{ __('pwa.back_to_site') }}</a></p>
         </div>
     @endif
 </body>

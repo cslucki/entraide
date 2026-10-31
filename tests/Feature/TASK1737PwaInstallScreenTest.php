@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Organization;
 use App\Support\Pwa\PwaInstallContext;
 use App\Support\Pwa\PwaInstallPolicy;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -351,6 +352,141 @@ class TASK1737PwaInstallScreenTest extends TestCase
                     ->assertDontSee('data-bp-pwa-install', false);
             }
         }
+    }
+
+    /**
+     * Le defaut que la CI a trouve, et que la recette ne pouvait pas voir.
+     *
+     * `TASK1699OfshHomepageThemeTest` et `TASK1700AboutOfshTest` gardent
+     * qu'aucun lien d'une surface Organization-scoped ne mene a une route
+     * globale. Le bandeau d'installation en servait une — et ce n'etait pas
+     * qu'une affaire de doctrine : depuis la landing OFSH, « Installer »
+     * menait au `/installer` global, dont le retour pointait sur `url('/')`,
+     * qui redirige vers `/org/main`. On changeait de TENANT en voulant
+     * revenir. Meme classe que les neuf liens de TASK-1697.
+     *
+     * La recette telephone ne pouvait pas le voir : elle s'est faite sur
+     * `main`, ou le tenant de depart et celui d'arrivee coincident.
+     */
+    public function test_the_install_link_never_leaves_the_organization_prefix(): void
+    {
+        $this->avecPolitique(PwaInstallPolicy::BANNER);
+
+        $organization = Organization::factory()->create([
+            'slug' => 'tenant-1737',
+            'is_active' => true,
+            'is_public' => true,
+        ]);
+
+        $html = $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->get('/org/'.$organization->slug)
+            ->assertOk()
+            ->getContent();
+
+        // L'aller : le bandeau mene a l'ecran dedie DE CE TENANT.
+        $this->assertStringContainsString(
+            '/org/'.$organization->slug.'/installer',
+            $html,
+            'Le bandeau doit mener a `organization.pwa.install`, pas a la route globale.'
+        );
+
+        // Et il ne sert pas la route globale depuis une surface tenant.
+        $this->assertDoesNotMatchRegularExpression(
+            '/href="[^"]*\/\/[^\/"]+\/installer"/',
+            $html,
+            'Une surface Organization-scoped ne doit pas servir le `/installer` global.'
+        );
+    }
+
+    /**
+     * Et le RETOUR, qui est la moitie qui changeait vraiment de tenant.
+     */
+    public function test_the_return_from_the_dedicated_page_stays_in_the_organization(): void
+    {
+        $organization = Organization::factory()->create([
+            'slug' => 'retour-1737',
+            'is_active' => true,
+            'is_public' => true,
+        ]);
+
+        $html = $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->get('/org/'.$organization->slug.'/installer')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-bp-pwa-install="full"', $html);
+
+        // « Retour au site » revient a l'accueil DE CETTE Organization.
+        $this->assertStringContainsString(
+            'href="'.route('organization.home', ['organization' => $organization->slug]).'"',
+            $html,
+            'Le retour doit mener a l\'accueil du tenant ; `url(\'/\')` renverrait vers /org/main.'
+        );
+
+        // Et la sortie JavaScript (touche Echap) emprunte le meme chemin.
+        $this->assertStringContainsString(
+            json_encode(route('organization.home', ['organization' => $organization->slug])),
+            $html,
+            'La fermeture clavier doit viser la meme destination que le lien.'
+        );
+    }
+
+    /**
+     * La route tenant ne doit pas etre PLUS ouverte que ses voisines.
+     *
+     * Le groupe `/org/{organization}` est ferme par defaut (`auth` +
+     * `organization.member`) et `organization.pwa.install` s'en extrait,
+     * comme `home` et `about` : installer l'application ne demande pas d'etre
+     * membre. Mais s'extraire d'un middleware de trop ouvrirait une surface
+     * d'une Organization NON PUBLIQUE a n'importe qui.
+     *
+     * Le test ne reecrit pas la regle d'acces — il exige seulement que
+     * l'installer rende EXACTEMENT le meme statut que `organization.about`,
+     * dont la politique est deja gardee ailleurs. Si celle-ci change, les deux
+     * changent ensemble.
+     */
+    public function test_the_scoped_screen_is_no_more_open_than_the_about_page(): void
+    {
+        foreach ([true, false] as $publique) {
+            $organization = Organization::factory()->create([
+                'slug' => 'acces-1737-'.($publique ? 'pub' : 'priv'),
+                'is_active' => true,
+                'is_public' => $publique,
+            ]);
+
+            $about = $this->get('/org/'.$organization->slug.'/about')->getStatusCode();
+            $installer = $this->get('/org/'.$organization->slug.'/installer')->getStatusCode();
+
+            $this->assertSame(
+                $about,
+                $installer,
+                "Pour une Organization ".($publique ? 'PUBLIQUE' : 'NON PUBLIQUE')
+                .", `/installer` rend {$installer} la ou `/about` rend {$about} : la route "
+                .'d\'installation s\'est extraite d\'un middleware de trop.'
+            );
+        }
+    }
+
+    /**
+     * L'erreur SYMETRIQUE : fabriquer un lien tenant depuis une page globale.
+     */
+    public function test_a_global_surface_still_links_to_the_global_screen(): void
+    {
+        $this->avecPolitique(PwaInstallPolicy::BANNER);
+
+        $html = $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->get('/about')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(route(PwaInstallContext::ROUTE_DEDIEE), $html);
+        $this->assertStringNotContainsString('/org/', $this->baliseDuBandeau($html) ?? '');
+    }
+
+    /** Le `<a>` d'action du bandeau, isole de la page. */
+    private function baliseDuBandeau(string $html): ?string
+    {
+        return preg_match('/<a[^>]*class="bp-pwa__bar-action"[^>]*>/', $html, $m) === 1 ? $m[0] : null;
     }
 
     /**

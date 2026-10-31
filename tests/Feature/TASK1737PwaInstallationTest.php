@@ -60,6 +60,25 @@ class TASK1737PwaInstallationTest extends TestCase
         // 31/10/2026, aucun `view('welcome')` dans `routes/` ni dans les
         // controleurs. Le declarer installable serait decorer un mort.
         'welcome.blade.php' => 'non route',
+
+        // Administration PLATEFORME. `PwaInstallContext::PREFIXES_EXCLUS`
+        // exclut `admin.*` : aucun ecran d'installation n'y est jamais emis.
+        // Y poser le manifest et l'enregistrement du Service Worker n'achetait
+        // donc rien — le Service Worker est de toute facon enregistre a
+        // l'ECHELLE DE L'ORIGINE par les autres surfaces, pas par page.
+        //
+        // Et cela coutait : `<x-pwa-boot />` ajoute un `<script>`, ce qui a
+        // rougi `TASK1079LoopAdminTest::test_the_overview_sanitises_the_manifesto`,
+        // dont la garde XSS cherche `<script>` sur la PAGE ENTIERE. La garde
+        // est trop large, mais la corriger pour faire passer du code qui
+        // n'avait pas lieu d'etre la aurait ete l'arrangement de trop :
+        // on retire le code.
+        //
+        // `layouts/org-admin.blade.php` GARDE la plomberie : les routes
+        // d'administration d'une Organization sont nommees
+        // `organization.admin.*`, qui ne commence pas par `admin.` — elles ne
+        // sont donc pas exclues, et peuvent porter le bandeau.
+        'layouts/admin.blade.php' => 'surface admin.* exclue par la politique',
     ];
 
     private function cheminDesVues(): string

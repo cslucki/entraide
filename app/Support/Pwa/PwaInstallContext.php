@@ -71,8 +71,24 @@ final class PwaInstallContext
     /** Ecran plein format. */
     public const FULL = 'full';
 
-    /** La route de l'ecran dedie : plein format par nature. */
+    /** La route de l'ecran dedie, hors Organization : plein format par nature. */
     public const ROUTE_DEDIEE = 'pwa.install';
+
+    /**
+     * La MEME page, atteinte sans quitter le prefixe d'une Organization.
+     *
+     * Elle existe parce que la CI de TASK-1737 a rougi :
+     * `TASK1699OfshHomepageThemeTest` et `TASK1700AboutOfshTest` gardent
+     * qu'aucun lien d'une surface Organization-scoped ne mene a une route
+     * globale — et le bandeau en servait une.
+     *
+     * La garde avait raison au-dela de la doctrine. Depuis la landing OFSH,
+     * « Installer » menait au `/installer` global, dont le retour pointait sur
+     * `url('/')`, qui redirige vers `/org/main` : la personne changeait de
+     * TENANT en voulant simplement revenir. Meme classe que les neuf liens de
+     * TASK-1697.
+     */
+    public const ROUTE_DEDIEE_ORG = 'organization.pwa.install';
 
     /**
      * Le cookie de renoncement. Une CONSTANTE, pas un reglage — et la raison
@@ -200,7 +216,7 @@ final class PwaInstallContext
         //     gouverne. Le cookie reste pose — on ne le consomme pas sur un
         //     GET — donc le bandeau reste eteint ailleurs, ce qui est bien ce
         //     que la personne avait demande.
-        if ($request->route()?->getName() === self::ROUTE_DEDIEE) {
+        if (self::estRouteDediee($request->route()?->getName())) {
             return new self(self::FULL);
         }
 
@@ -304,6 +320,58 @@ final class PwaInstallContext
     public function estPageDediee(): bool
     {
         return $this->estPleinEcran()
-            && request()->route()?->getName() === self::ROUTE_DEDIEE;
+            && self::estRouteDediee(request()->route()?->getName());
+    }
+
+    /** L'une ou l'autre forme de l'ecran dedie. */
+    public static function estRouteDediee(?string $nom): bool
+    {
+        return $nom === self::ROUTE_DEDIEE || $nom === self::ROUTE_DEDIEE_ORG;
+    }
+
+    /**
+     * Ou mene « Installer » depuis le bandeau.
+     *
+     * Le critere est que la route COURANTE porte elle-meme un parametre
+     * `organization` — pas qu'une Organization soit resolue quelque part. La
+     * nuance compte : `currentOrganization()` peut etre renseigne sur des
+     * surfaces qui ne sont pas prefixees, et on fabriquerait alors un lien
+     * tenant depuis une page globale, c'est-a-dire l'erreur symetrique.
+     */
+    public function urlEcranDedie(): string
+    {
+        $organization = self::organizationDeLaRoute();
+
+        return $organization === null
+            ? route(self::ROUTE_DEDIEE)
+            : route(self::ROUTE_DEDIEE_ORG, ['organization' => $organization]);
+    }
+
+    /**
+     * Ou mene « Retour au site » depuis l'ecran dedie.
+     *
+     * Depuis la forme Organization, on revient a l'accueil DE CETTE
+     * Organization. `url('/')` renverrait vers `/org/main` : on aurait repare
+     * l'aller en laissant le retour changer de tenant.
+     */
+    public function urlRetour(): string
+    {
+        $organization = self::organizationDeLaRoute();
+
+        return $organization === null
+            ? url('/')
+            : route('organization.home', ['organization' => $organization]);
+    }
+
+    /** Le slug d'Organization porte par la route courante, s'il y en a un. */
+    private static function organizationDeLaRoute(): ?string
+    {
+        $parametre = request()->route()?->parameter('organization');
+
+        if ($parametre === null) {
+            return null;
+        }
+
+        return is_object($parametre) ? ($parametre->slug ?? null) : (string) $parametre;
     }
 }
