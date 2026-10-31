@@ -10,9 +10,10 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-        <meta name="theme-color" content="#1B1FCC">
-        <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        {{-- TASK-1737 : le contrat PWA (manifest, couleur de chrome, metas
+             Apple) est declare plus bas, avec les favicons. Il etait ecrit ICI
+             en partie et LA en partie, dans les deux layouts, et les deux
+             copies avaient deja diverge. --}}
         <meta name="csrf-token" content="{{ csrf_token() }}">
         @auth
         <meta name="user-id" content="{{ auth()->id() }}">
@@ -135,9 +136,11 @@
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="shortcut icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-        <meta name="apple-mobile-web-app-title" content="BouclePro" />
-        <link rel="manifest" href="/site.webmanifest" />
+
+        {{-- TASK-1737 — le contrat d'installabilite, declare une seule fois
+             pour tout le depot. Voir les docblocs des deux composants. --}}
+        <x-pwa-head />
+        <x-pwa-boot />
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">

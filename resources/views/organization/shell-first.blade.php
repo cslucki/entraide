@@ -87,6 +87,9 @@
          ne changeait a l'ecran. Meme producteur que `layouts/app`, `org-admin`
          et les deux landings publiques. --}}
     <x-theme-tokens />
+    {{-- TASK-1737 — le contrat d'installabilite PWA, declare une seule fois. --}}
+    <x-pwa-head />
+    <x-pwa-boot />
     <style>
         /* Autonome comme le partial lui-meme : le Shell First ne doit dependre
            d'aucun composant marketing pour s'afficher. */

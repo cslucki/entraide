@@ -18,6 +18,9 @@
        avec ces jetons : sans eux, `var()` ne resout rien et la barre
        s'affiche transparente, texte invisible. Verifie dans le style calcule. --}}
   <x-theme-tokens />
+  {{-- TASK-1737 — le contrat d'installabilite PWA, declare une seule fois. --}}
+  <x-pwa-head />
+  <x-pwa-boot />
 
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}

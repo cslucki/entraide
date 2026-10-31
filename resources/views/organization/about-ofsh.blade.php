@@ -121,6 +121,9 @@ $rubriques = array_filter([
      système qu'à l'accueil : les deux pages d'OFSH se ressemblent dans les
      deux modes. --}}
 <x-theme-tokens system-dark />
+{{-- TASK-1737 — le contrat d'installabilite PWA, declare une seule fois. --}}
+<x-pwa-head />
+<x-pwa-boot />
 </head>
 <body>
 

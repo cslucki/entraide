@@ -135,6 +135,9 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
      Pas `.dark`, qui vient d'un `localStorage` partage entre Organizations —
      voir le docblock de ce composant. --}}
 <x-theme-tokens system-dark />
+{{-- TASK-1737 — le contrat d'installabilite PWA, declare une seule fois. --}}
+<x-pwa-head />
+<x-pwa-boot />
 </head>
 <body class="ofsh-hero">
 <div class="page">

@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {{-- TASK-1737 — le contrat d'installabilite PWA, declare une seule fois. --}}
+  <x-pwa-head />
+  <x-pwa-boot />
   <title>{{ __('about.meta_title') }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
