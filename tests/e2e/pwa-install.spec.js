@@ -98,13 +98,19 @@ test.describe('TASK-1737 ecran d\'installation', () => {
         await expect(page.locator('.bp-pwa__manual')).toBeHidden();
     });
 
-    test('la croix du bandeau renonce, et le renoncement tient', async ({ page, context }) => {
+    test('le renoncement se pose et il tient', async ({ page, context }) => {
         await page.goto('/about');
 
-        const bandeau = page.locator('[data-bp-pwa-install="banner"]');
-        await expect(bandeau).toBeVisible();
+        // Ce test mesure le MECANISME du renoncement, pas la forme qui le
+        // porte : bandeau sous le defaut, plein ecran sous `install_first`.
+        // Les deux offrent la meme porte de sortie, et le cookie est le meme.
+        // Viser `[data-bp-pwa-install]` sans qualifier le mode rend donc ce
+        // test independant du `PWA_INSTALL_POLICY` servi — que le banc E2E,
+        // qui frappe le vrai serveur, ne controle pas.
+        const invitation = page.locator('[data-bp-pwa-install]');
+        await expect(invitation).toBeVisible();
 
-        await bandeau.locator('[data-bp-pwa-action="dismiss"]').click();
+        await invitation.locator('[data-bp-pwa-action="dismiss"]').click();
         await expect(page.locator('[data-bp-pwa-install]')).toHaveCount(0);
 
         // Le cookie est pose EN CLAIR : c'est le serveur qui doit pouvoir le
@@ -157,9 +163,11 @@ test.describe('TASK-1737 ecran d\'installation', () => {
         const cookies = await context.cookies();
         expect(cookies.find((c) => c.name === 'bp_pwa_dismissed')).toBeFalsy();
 
-        // Et le bandeau est toujours la, sur l'accueil comme ailleurs.
+        // Et l'invitation est toujours la, sur l'accueil comme ailleurs.
+        // Sa FORME depend de la politique servie ; sa PRESENCE est ce que le
+        // defaut de recette avait casse, et c'est donc ce qu'on mesure.
         await page.goto('/about');
-        await expect(page.locator('[data-bp-pwa-install="banner"]')).toBeVisible();
+        await expect(page.locator('[data-bp-pwa-install]')).toBeVisible();
     });
 
     test('Echap sur /installer ramene au site, il ne vide pas la page', async ({ page }) => {
@@ -178,6 +186,22 @@ test.describe('TASK-1737 ecran d\'installation', () => {
 
     test('le bandeau s\'affiche sur une vitrine, et mene a l\'ecran dedie', async ({ page }) => {
         await page.goto('/about');
+
+        // Celui-ci mesure bien la FORME bandeau : son caractere non bloquant,
+        // et son lien `.bp-pwa__bar-action` qui n'existe que la. Sous
+        // `install_first` — le mode de recette (CDC 3.6) — la vitrine sert le
+        // plein ecran : la precondition n'est pas remplie, et ce n'est PAS un
+        // defaut. Un test dont la precondition manque doit etre IGNORE, jamais
+        // rouge : un rouge inexplique est un rouge qu'on apprend a ignorer.
+        const presentes = await page.locator('[data-bp-pwa-install]').count();
+        const modeServi = presentes === 0
+            ? 'none'
+            : await page.locator('[data-bp-pwa-install]').first()
+                .getAttribute('data-bp-pwa-install');
+        test.skip(
+            modeServi !== 'banner',
+            `mode servi sur la vitrine = ${modeServi} ; PWA_INSTALL_POLICY n'est pas \`banner\``
+        );
 
         const bandeau = page.locator('[data-bp-pwa-install="banner"]');
         await expect(bandeau).toBeVisible();

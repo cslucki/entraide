@@ -63,6 +63,64 @@ class TASK1737PwaInstallScreenTest extends TestCase
         $this->assertFalse(PwaInstallPolicy::showsFullScreenOnEntry(null));
     }
 
+    public function test_every_bench_declares_its_own_state_instead_of_reflecting_the_env(): void
+    {
+        // Garde de configuration des bancs, et elle a deux histoires.
+        //
+        // 1. TASK-1713 : un `.env` local portant `TURNSTILE_ENABLED=true` avait
+        //    rougi 111 tests d'inscription sans rapport, pendant que la CI
+        //    restait verte. Le meme piege est arme ici — la recette du
+        //    31/10/2026 demande `PWA_INSTALL_POLICY=install_first` dans le
+        //    `.env` de travail.
+        //
+        // 2. Et celle-ci, payee le 31/10/2026 : la declaration avait d'abord
+        //    ete posee dans le SEUL `phpunit.xml`, qui est gitignore. Le banc
+        //    local etait donc vert et la CI aurait ete rouge — la pire forme,
+        //    puisqu'on ne l'apprend qu'apres avoir pousse. D'ou la verification
+        //    STATIQUE ci-dessous : elle lit les fichiers, pas l'execution en
+        //    cours, et c'est le seul moyen de voir un banc OU L'ON N'EST PAS.
+        $attendus = [
+            '<env name="PWA_INSTALL_POLICY" value="banner" force="true"/>',
+            '<env name="APP_DEBUG" value="false" force="true"/>',
+        ];
+
+        // Les trois bancs de CI sont VERSIONNES : ils doivent exister.
+        foreach (['phpunit.ci-feature.xml', 'phpunit.ci-minimal.xml', 'phpunit.ci-sqlite.xml'] as $banc) {
+            $chemin = base_path($banc);
+            $this->assertFileExists($chemin, "Le banc de CI [{$banc}] a disparu.");
+            $contenu = file_get_contents($chemin);
+
+            foreach ($attendus as $declaration) {
+                $this->assertStringContainsString(
+                    $declaration,
+                    $contenu,
+                    "[{$banc}] ne declare pas `{$declaration}`. Un banc qui ne declare pas "
+                    .'son etat le laisse decider par son environnement, et les bancs divergent.'
+                );
+            }
+        }
+
+        // `phpunit.xml` est gitignore : absent en CI, present en local. On ne
+        // l'exige pas, mais s'il est la il doit dire la meme chose — sinon le
+        // local et la CI ne mesurent pas le meme produit.
+        if (file_exists(base_path('phpunit.xml'))) {
+            $contenu = file_get_contents(base_path('phpunit.xml'));
+
+            foreach ($attendus as $declaration) {
+                $this->assertStringContainsString(
+                    $declaration,
+                    $contenu,
+                    "Le `phpunit.xml` local ne declare pas `{$declaration}` alors que les bancs "
+                    .'de CI le font : local vert et CI rouge est le scenario a eviter.'
+                );
+            }
+        }
+
+        // Et ce que le banc COURANT exerce doit suivre sa declaration.
+        $this->assertSame(PwaInstallPolicy::BANNER, PwaInstallPolicy::current());
+        $this->assertFalse(config('app.debug'), 'Le banc doit tourner debogage eteint, comme la CI.');
+    }
+
     public function test_the_strict_mode_of_the_cdc_does_not_exist(): void
     {
         // DEC-03 : un drapeau qu'on ne doit jamais activer est du code mort qui
