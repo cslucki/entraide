@@ -449,5 +449,7 @@ $secondaryCtaUrl = $showInternalHomepageContent
 
 </script>
 @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'bottom'])
+    {{-- TASK-1737 — l'invitation a installer ; `PwaInstallContext` decide de sa forme, ou de son absence. --}}
+    <x-pwa-install />
 </body>
 </html>

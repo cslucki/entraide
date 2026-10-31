@@ -86,12 +86,5 @@ return [
         */
         'dismiss_days' => (int) env('PWA_INSTALL_DISMISS_DAYS', 30),
 
-        /*
-        | Le cookie de renoncement. Pose en JavaScript, LU PAR LE SERVEUR, qui
-        | cesse alors d'emettre le balisage : ni flash, ni decalage de mise en
-        | page. `localStorage` ne conviendrait pas — il leve une exception en
-        | navigation privee et le serveur ne peut pas le lire.
-        */
-        'dismiss_cookie' => 'bp_pwa_dismissed',
     ],
 ];

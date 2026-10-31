@@ -249,5 +249,7 @@
          `app.js` etait bien charge — les bascules du rail cliquaient dans le
          vide. `layouts/app` fait exactement ceci en fin de body. --}}
     @livewireScripts
+    {{-- TASK-1737 — l'invitation a installer ; `PwaInstallContext` decide de sa forme, ou de son absence. --}}
+    <x-pwa-install />
 </body>
 </html>

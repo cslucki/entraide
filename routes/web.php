@@ -177,6 +177,22 @@ Route::post('/locale/{locale}', [LocaleController::class, 'switch'])->name('loca
 // necessaires, et un sabotage le prouve.
 Route::get('/explorer', [ExplorerController::class, 'index'])->middleware(['auth', 'organization.member'])->name('explorer');
 Route::view('/about', 'about')->name('about');
+
+// TASK-1737 — l'ecran d'installation, atteignable DIRECTEMENT.
+//
+// C'est la destination du bandeau non bloquant, le repli des plateformes qui
+// n'ont pas d'invite native (iOS, Firefox), et l'URL que la recette ouvre sur
+// un telephone reel.
+//
+// UN SEUL SEGMENT, et ce n'est pas un detail. `ResolveUrlOrganization`
+// interprete `/{slug}/{feature}` comme une route de partenaire et rend 404
+// quand le slug n'en designe aucun : `/installer/android` serait un piege. Un
+// segment unique traverse la pile sans liage d'Organization — verifie le
+// 31/10/2026 — et un invite y arrive sans authentification.
+//
+// Publique a dessein : on n'oblige personne a se connecter pour apprendre
+// comment installer une application.
+Route::view('/installer', 'pwa.install')->name('pwa.install');
 Route::get('/membres', [HomeController::class, 'members'])->middleware(['auth', 'organization.member'])->name('members.index');
 Route::get('/echanges', [HomeController::class, 'exchanges'])->middleware(['auth', 'organization.member'])->name('exchanges.index');
 Route::redirect('/partners', '/partenaires');

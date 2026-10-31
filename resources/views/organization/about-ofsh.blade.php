@@ -381,5 +381,7 @@ $rubriques = array_filter([
 {{-- TASK-1609 — la barre basse de découverte, partagée avec « Mycélium » et
      « Logigramme ». Téléphone uniquement, connecté ou non. --}}
 <x-discovery-bottom-nav :organization="$organization" />
+    {{-- TASK-1737 — l'invitation a installer ; `PwaInstallContext` decide de sa forme, ou de son absence. --}}
+    <x-pwa-install />
 </body>
 </html>
