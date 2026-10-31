@@ -17,6 +17,14 @@
         @endphp
 
         <script>
+            // TASK-1734 — meme purge par proprietaire que `layouts/app` : un
+            // override laisse par un AUTRE compte ne survit pas ici non plus.
+            var bpThemeOwner = @json(auth()->id() !== null ? (string) auth()->id() : null);
+            if (bpThemeOwner && localStorage.bpThemeOwner !== bpThemeOwner) {
+                localStorage.removeItem('theme');
+                localStorage.removeItem('bpTheme');
+                localStorage.bpThemeOwner = bpThemeOwner;
+            }
             var orgThemeKey = @json($organization->theme?->key) || @json($bpDefaultTheme);
             document.documentElement.dataset.bpTheme = localStorage.bpTheme || orgThemeKey;
 

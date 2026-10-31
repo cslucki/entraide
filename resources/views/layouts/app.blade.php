@@ -155,6 +155,20 @@
         <script>
             window.bpThemes = @json(collect($bpThemes)->map(fn ($theme) => ['label' => $theme['label']])->all());
             window.bpDefaultTheme = @json($bpDefaultTheme);
+            // TASK-1734 — les overrides du navigateur (`localStorage.theme`,
+            // `localStorage.bpTheme`) appartiennent au COMPTE qui les a poses.
+            // Sans proprietaire, un choix fait sur un compte survivait a la
+            // bascule : l'apparence d'une Organization restait appliquee dans
+            // la suivante, pour toujours. Identite differente -> on purge, et
+            // les reglages de l'Organization d'arrivee reprennent la main.
+            // Meme bloc dans `org-admin` et `organization/shell-first` ;
+            // `guest` reste intouche (pas d'identite a comparer).
+            var bpThemeOwner = @json(auth()->id() !== null ? (string) auth()->id() : null);
+            if (bpThemeOwner && localStorage.bpThemeOwner !== bpThemeOwner) {
+                localStorage.removeItem('theme');
+                localStorage.removeItem('bpTheme');
+                localStorage.bpThemeOwner = bpThemeOwner;
+            }
             var orgThemeKey = @json(optional($currentOrganization ?? null)?->theme?->key) || window.bpDefaultTheme;
             document.documentElement.dataset.bpTheme = localStorage.bpTheme || orgThemeKey;
 

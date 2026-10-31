@@ -542,6 +542,15 @@ class TASK1734MyOrganizationsTest extends TestCase
 
         // Et la cle de theme offerte au client est celle de l'arrivee.
         $arrivee->assertSee('var orgThemeKey = "sea"', false);
+
+        // Les overrides du navigateur (`localStorage.theme` / `bpTheme`)
+        // appartiennent au COMPTE : la page d'arrivee declare le compte CIBLE
+        // comme proprietaire — un override pose par le compte de depart sera
+        // purge au chargement, et l'apparence de l'Organization d'arrivee
+        // reprend la main. C'est le defaut vu en recette : sans proprietaire,
+        // un choix de theme fait sur un compte survivait a la bascule.
+        $arrivee->assertSee('var bpThemeOwner = "'.$cible->getKey().'"', false);
+        $arrivee->assertSee("localStorage.removeItem('bpTheme')", false);
     }
 
     public function test_le_retour_au_tenant_initial_retablit_son_apparence_et_son_theme_par_defaut(): void
@@ -583,6 +592,11 @@ class TASK1734MyOrganizationsTest extends TestCase
         // defaut » — le client retombe sur `window.bpDefaultTheme`.
         $retour->assertSee('var orgThemeKey = null', false);
         $this->assertStringNotContainsString('var orgThemeKey = "sea"', $retour->getContent());
+
+        // Et le proprietaire des overrides redevient le compte de depart :
+        // rien de ce que le compte de l'orgB aurait pose dans le navigateur
+        // ne survit au retour.
+        $retour->assertSee('var bpThemeOwner = "'.$moi->getKey().'"', false);
     }
 
     // ── Limitations : des clefs PROPRES ────────────────────────────────────
