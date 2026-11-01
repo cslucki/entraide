@@ -12,7 +12,26 @@
 // autorisait encore par EXTENSION, donc il a pu ranger des avatars de membres
 // (`/storage/avatars/*.jpg`) et des apercus d'televersement Livewire. Le bump
 // les retire aux navigateurs deja installes.
-const CACHE_NAME = 'bouclepro-v6';
+// TASK-1737 — v6 -> v7 : la coquille prechargee ne designait pas les icones du
+// manifest.
+//
+// `SHELL_ASSETS` prechargeait `/web-app-manifest-192x192.png` et
+// `/web-app-manifest-512x512.png` — 340 ko a eux deux. Mesure du 31/10/2026 :
+// ces deux fichiers ne sont references NULLE PART ailleurs que dans ce
+// tableau. Ni le manifest, ni une vue, ni un controleur. C'etaient des
+// orphelins, prechargres pour personne.
+//
+// Pendant ce temps, les icones que le manifest declare reellement — et dont le
+// navigateur a besoin pour l'invite d'installation et pour poser l'icone sur
+// l'ecran d'accueil — n'etaient PAS prechargees.
+//
+// Le bump est, comme toujours ici, la seule facon de retirer les deux
+// orphelins aux navigateurs qui les ont deja stockes.
+//
+// RIEN D'AUTRE NE CHANGE dans ce fichier. Les strategies de TASK-1692 restent
+// intactes : documents en reseau seul, liste blanche de chemins pour les
+// assets, reseau seul pour tout le reste.
+const CACHE_NAME = 'bouclepro-v7';
 
 // TASK-1740 — la version du Service Worker, pour la RENDRE OBSERVABLE.
 //
@@ -27,10 +46,17 @@ const CACHE_NAME = 'bouclepro-v6';
 // jour.
 const SW_VERSION = 'T1740-diag-3';
 
+// `install` fait `cache.addAll(SHELL_ASSETS)`, et `addAll` est ATOMIQUE : une
+// seule URL en 404 fait echouer l'installation ENTIERE du Service Worker, donc
+// l'installabilite de l'application. Chaque entree de ce tableau est verifiee
+// sur le disque par `TASK1737PwaInstallationTest`.
 const SHELL_ASSETS = [
   '/site.webmanifest',
-  '/web-app-manifest-192x192.png',
-  '/web-app-manifest-512x512.png',
+  // Les quatre icones du manifest, `any` et `maskable`.
+  '/brand/icon-192.png',
+  '/brand/icon-512.png',
+  '/brand/maskable-192.png',
+  '/brand/maskable-512.png',
   '/favicon.svg',
   '/favicon.ico',
   '/apple-touch-icon.png',
