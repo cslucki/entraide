@@ -304,23 +304,15 @@ final class ExternalEgressGuard
      *
      * @var array<string, array{drapeau: string, option: string, hotes: list<string>}>
      */
-    private const SORTIES_DE_RECETTE = [
-        // TASK-1740 — le transport Web Push.
-        //
-        // Les hotes sont donnes par suffixe de domaine, jamais par motif
-        // libre : un `str_contains($hote, 'push')` aurait laisse passer
-        // `fcm.googleapis.com.exemple.net`, que n'importe qui enregistre.
-        'web_push' => [
-            'drapeau' => 'webpush.egress_allowed',
-            'option' => self::OPTION_TRANSPORT_PUSH,
-            'hotes' => [
-                'fcm.googleapis.com',                 // Chrome, Android
-                'updates.push.services.mozilla.com',  // Firefox
-                '.push.apple.com',                    // Safari, iOS/macOS
-                '.notify.windows.com',                // Edge, Windows
-            ],
-        ],
-    ];
+    // TASK-1741 — le registre des sorties de recette a demenage dans
+    // `SortieDeRecette`, qui porte desormais les DEUX transports (Web Push et
+    // apercus de lien) dans une politique unique. Le garder ici en double
+    // aurait cree deux sources de verite, et c'est exactement ce que MASTER a
+    // demande d'eviter : « pas une accumulation d'exceptions dispersees ».
+    //
+    // `OPTION_TRANSPORT_PUSH` reste ici parce que c'est la constante que le
+    // livreur Push et l'outil d'administration referencent deja.
+
 
     /**
      * Cette requete est-elle une sortie de recette ADMISE ?
@@ -346,56 +338,11 @@ final class ExternalEgressGuard
      */
     public static function sortieDeRecetteAutorisee(string $schema, string $hote, array $options): bool
     {
-        // 2 — jamais en PROD, jamais sur Laravel Cloud. Verifie une seule
-        // fois, avant de parcourir les usages : aucune entree ne peut s'en
-        // affranchir.
-        if (app()->environment('production') || (function_exists('laravel_cloud') && laravel_cloud())) {
-            return false;
-        }
-
-        // 4a — HTTPS, pour tous les usages sans exception.
-        if (strtolower($schema) !== 'https') {
-            return false;
-        }
-
-        $hote = strtolower(trim($hote, " \t[]"));
-
-        foreach (self::SORTIES_DE_RECETTE as $usage) {
-            // 1 — le drapeau de CET usage.
-            if (! (bool) config($usage['drapeau'], false)) {
-                continue;
-            }
-
-            // 3 — le marqueur, pose par le seul transport concerne.
-            if (($options[$usage['option']] ?? false) !== true) {
-                continue;
-            }
-
-            // 4b — un hote de la liste fermee.
-            //
-            // Deux formes, et la distinction n'est pas cosmetique :
-            //
-            // - sans point initial (`fcm.googleapis.com`) = correspondance
-            //   EXACTE. Un `str_ends_with` seul admettait `xfcm.googleapis.com`
-            //   et `evil-fcm.googleapis.com` — mesure faite, les deux
-            //   passaient. Le trou etait dans ce fichier, trouve en
-            //   l'eprouvant plutot qu'en le relisant ;
-            // - avec point initial (`.push.apple.com`) = SOUS-DOMAINE, et le
-            //   point force la frontiere d'etiquette : `evil.push.apple.com`
-            //   est bien un sous-domaine d'Apple, `evilpush.apple.com` ne
-            //   l'est pas.
-            foreach ($usage['hotes'] as $admis) {
-                $correspond = str_starts_with($admis, '.')
-                    ? str_ends_with($hote, $admis)
-                    : $hote === $admis;
-
-                if ($correspond) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        // TASK-1741 — la regle a demenage dans `SortieDeRecette`, qui porte
+        // desormais les DEUX transports dans une politique unique. Cette
+        // methode reste le point d'entree historique de T1740 : elle delegue,
+        // pour que la regle ne vive qu'a UN seul endroit.
+        return SortieDeRecette::autorisee($schema, $hote, $options);
     }
 
     private static function garderHttp(string $base): void
@@ -404,18 +351,19 @@ final class ExternalEgressGuard
             return static function ($requete, array $options) use ($handler, $base) {
                 $hote = $requete->getUri()->getHost();
 
-                // TASK-1740 — l'exception CIBLEE du transport Web Push.
+                // TASK-1740 + TASK-1741 — la seule porte de sortie, et elle
+                // est fermee par defaut.
                 //
-                // Placee ici, avant le refus, et seulement ici : elle ne
-                // touche ni au controle des redirections ci-dessous, ni a la
-                // garde du courriel, ni a quoi que ce soit d'autre. Une
-                // requete qui la franchit reste soumise au reste du
-                // middleware.
-                if (self::sortieDeRecetteAutorisee($requete->getUri()->getScheme(), $hote, $options)) {
-                    return $handler($requete, $options);
-                }
-
-                if (! self::hoteEstLocal($hote)) {
+                // `SortieDeRecette` porte DEUX transports — le Web Push et les
+                // apercus de lien — dans une politique unique. Chacun declare
+                // ses propres bornes (environnement, schema, hotes admis), et
+                // aucun ne peut s'affranchir du socle : jamais en production,
+                // jamais sur Laravel Cloud.
+                //
+                // Une requete HTTP ordinaire vers le meme hote reste refusee :
+                // ce n'est pas le DOMAINE qui est admis, c'est le TRANSPORT.
+                if (! self::hoteEstLocal($hote)
+                    && ! SortieDeRecette::autorisee($requete->getUri()->getScheme(), $hote, $options)) {
                     throw new RuntimeException(self::messageHttp($hote, $base));
                 }
 
@@ -427,9 +375,18 @@ final class ExternalEgressGuard
                     $options['allow_redirects'] = array_merge($existantes, [
                         'max' => min(5, (int) ($existantes['max'] ?? 5)),
                         'protocols' => ['http', 'https'],
-                        'on_redirect' => static function ($req, $rep, $uri) use ($base): void {
-                            if (! self::hoteEstLocal($uri->getHost())) {
-                                throw new RuntimeException(self::messageHttp($uri->getHost(), $base, true));
+                        // TASK-1741 — le crochet relit la MEME regle, et
+                        // c'est indispensable : un apercu suit jusqu'a trois
+                        // redirections, et le service appelant ne les controle
+                        // qu'APRES COUP, en relisant l'historique Guzzle. A ce
+                        // moment la requete vers l'hote interne a deja ete
+                        // faite. Ici, elle ne part pas.
+                        'on_redirect' => static function ($req, $rep, $uri) use ($base, $options): void {
+                            $hoteSuivant = $uri->getHost();
+
+                            if (! self::hoteEstLocal($hoteSuivant)
+                                && ! SortieDeRecette::autorisee($uri->getScheme(), $hoteSuivant, $options)) {
+                                throw new RuntimeException(self::messageHttp($hoteSuivant, $base, true));
                             }
                         },
                     ]);
