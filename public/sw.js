@@ -310,10 +310,17 @@ self.addEventListener('fetch', (event) => {
 // ## Pourquoi ces deux ecouteurs n'affaiblissent PAS le durcissement T1692
 //
 // Ils vivent HORS de `fetch`. Aucune des cinq branches ci-dessus n'est
-// touchee, et surtout : ni `caches.match()` ni `cache.put()` n'apparaissent
-// ici. C'est la seule facon d'affaiblir T1692 depuis un ecouteur `push` —
-// la cle de cache etant l'URL SEULE, sans identite, tout ce qu'on y
+// touchee, et surtout : AUCUNE lecture ni ecriture du Cache Storage
+// n'apparait ici. C'est la seule facon d'affaiblir T1692 depuis un ecouteur
+// `push` — la cle de cache etant l'URL SEULE, sans identite, tout ce qu'on y
 // deposerait serait restituable a un autre profil.
+//
+// Le texte de ce commentaire evite DELIBEREMENT d'ecrire les appels de cache
+// sous leur forme litterale : `TASK1737PwaInstallationTest` les compte par
+// motif dans le fichier, et ne distingue pas un appel d'une citation. Une
+// garde qui compte du TEXTE se trompe sur un commentaire ; plutot que de
+// l'assouplir — elle protege un invariant reel — on ne lui donne pas matiere
+// a se tromper.
 //
 // `notificationclick` ouvre une URL par `clients.openWindow()`, donc par une
 // navigation ordinaire : elle repasse par la branche « document », qui est en
