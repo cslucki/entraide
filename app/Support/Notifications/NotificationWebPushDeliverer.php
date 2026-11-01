@@ -204,6 +204,64 @@ class NotificationWebPushDeliverer
     }
 
     /**
+     * Envoyer une notification de TEST a une liste d'appareils donnee.
+     *
+     * Employee par `/admin/outils/test-notification`, et par lui seul. Elle ne
+     * CHOISIT pas les destinataires : l'appelant les fournit, et c'est le
+     * controleur d'administration qui impose de n'envoyer qu'a soi-meme.
+     * Mettre ce choix ici aurait dilue la garde dans deux endroits.
+     *
+     * Elle ne cree aucune livraison et ne touche a aucune notification metier :
+     * un test n'est pas un evenement du produit, et il ne doit laisser aucune
+     * trace qui ressemblerait a l'un.
+     *
+     * Rend le detail par appareil, parce que « ca n'a pas marche » n'aide
+     * personne : on veut savoir si c'est refuse, revoque, ou en panne.
+     *
+     * @param  \Illuminate\Support\Collection<int, PushSubscription>  $appareils
+     * @param  array<string, mixed>  $charge
+     * @return array{ok: int, revoque: int, echec: int, motifs: list<string>}
+     */
+    public function envoyerUnTest($appareils, array $charge): array
+    {
+        $compte = ['ok' => 0, 'revoque' => 0, 'echec' => 0];
+        $motifs = [];
+
+        foreach ($appareils as $appareil) {
+            $resultat = $this->deposer($appareil, (string) json_encode($charge, JSON_UNESCAPED_UNICODE));
+            $compte[$resultat]++;
+
+            if ($resultat === 'revoque') {
+                $appareil->delete();
+            }
+
+            if ($resultat !== 'ok') {
+                $motifs[] = ($appareil->device_label ?? 'appareil').' : '.$this->dernierMotif;
+            }
+        }
+
+        return $compte + ['motifs' => $motifs];
+    }
+
+    /** Le motif du dernier depot en echec, pour que le diagnostic puisse le dire. */
+    private string $dernierMotif = '';
+
+    /**
+     * Base64URL vers binaire brut.
+     *
+     * Le bourrage `=` est REAJOUTE avant de decoder : `base64_decode()` tolere
+     * une chaine non bourree en mode permissif, mais rend une valeur tronquee
+     * sur certaines longueurs — et une clef tronquee d'un octet produit une
+     * signature invalide que le fournisseur refusera sans dire pourquoi.
+     */
+    private static function depuisBase64Url(string $valeur): string
+    {
+        $bourrage = (4 - strlen($valeur) % 4) % 4;
+
+        return (string) base64_decode(strtr($valeur, '-_', '+/').str_repeat('=', $bourrage), true);
+    }
+
+    /**
      * Deposer le message chiffre chez le fournisseur de CET appareil.
      *
      * Rend `ok`, `revoque` (le fournisseur ne connait plus cet endpoint) ou
@@ -223,11 +281,18 @@ class NotificationWebPushDeliverer
 
             $origine = parse_url($appareil->endpoint, PHP_URL_SCHEME).'://'.parse_url($appareil->endpoint, PHP_URL_HOST);
 
+            // Les clefs sont stockees en BASE64URL — c'est le format qu'exige
+            // `applicationServerKey` cote navigateur, donc celui du `.env`.
+            // Mais `VAPID::getVapidHeaders()` attend du BINAIRE BRUT : il fait
+            // `bin2hex()` et verifie que le premier octet vaut `04`. Lui
+            // passer la chaine base64url leve « only uncompressed keys are
+            // supported », un message qui accuse la forme de la clef alors que
+            // c'est l'encodage qui ne va pas. D'ou ce decodage explicite.
             $entetes = VAPID::getVapidHeaders(
                 $origine,
                 (string) config('webpush.vapid.subject'),
-                (string) config('webpush.vapid.public_key'),
-                (string) config('webpush.vapid.private_key'),
+                self::depuisBase64Url((string) config('webpush.vapid.public_key')),
+                self::depuisBase64Url((string) config('webpush.vapid.private_key')),
                 ContentEncoding::aes128gcm,
             );
 
@@ -244,17 +309,29 @@ class NotificationWebPushDeliverer
                 ->post($appareil->endpoint);
 
             if (in_array($reponse->status(), [404, 410], true)) {
+                $this->dernierMotif = 'endpoint revoque par le fournisseur (HTTP '.$reponse->status().')';
+
                 return 'revoque';
             }
 
-            return $reponse->successful() ? 'ok' : 'echec';
+            if ($reponse->successful()) {
+                $this->dernierMotif = '';
+
+                return 'ok';
+            }
+
+            $this->dernierMotif = 'refus du fournisseur (HTTP '.$reponse->status().')';
+
+            return 'echec';
         } catch (\Throwable $e) {
             // Le garde d'egress leve ici quand la base visee est un jumeau de
             // PRODUCTION. C'est un refus VOULU, pas une panne : on le
             // journalise sans le maquiller en succes.
+            $this->dernierMotif = mb_substr($e->getMessage(), 0, 160);
+
             Log::warning('TASK-1740 depot Push refuse ou en echec.', [
                 'subscription_id' => (string) $appareil->id,
-                'raison' => mb_substr($e->getMessage(), 0, 200),
+                'raison' => $this->dernierMotif,
             ]);
 
             return 'echec';

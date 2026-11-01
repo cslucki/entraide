@@ -1964,4 +1964,18 @@ return [
     'roadmap_deleted' => 'Tâche supprimée.',
     'roadmap_empty' => 'Aucune tâche pour ce filtre.',
     'roadmap_count' => '{0} Aucune tâche|{1} 1 tâche|[2,*] :count tâches',
+
+    // TASK-1740 — outil de diagnostic et d'envoi de test Web Push.
+    'push_test_title_page' => 'Tester une notification Push',
+    'push_test_intro' => 'Diagnostic du Web Push, et envoi d\'une notification de test sur VOS propres appareils.',
+    'push_test_only_self' => 'Cet outil n\'envoie qu\'a vos appareils. Il ne peut pas reveiller le telephone de quelqu\'un d\'autre.',
+    'push_test_send' => 'M\'envoyer une notification de test',
+    'push_test_title' => 'Test BouclePro',
+    'push_test_body' => 'Si vous lisez ceci, les notifications fonctionnent.',
+    'push_test_no_device' => 'Aucun appareil abonne pour votre compte. Activez les notifications depuis Mes notifications, puis Reglages.',
+    'push_test_done' => 'Envoi termine : :ok reussite(s), :revoques abonnement(s) revoque(s), :echecs echec(s).',
+    'push_test_state_on' => 'actif',
+    'push_test_state_off' => 'inactif',
+    'push_test_egress_blocked' => 'Les sorties HTTP sont BLOQUEES sur cette base (jumeau de production). Aucun envoi ne partira : c\'est ExternalEgressGuard, et c\'est voulu.',
+    'push_test_egress_ok' => 'Les sorties HTTP sont autorisees sur cette base.',
 ];

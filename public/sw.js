@@ -264,3 +264,96 @@ self.addEventListener('fetch', (event) => {
   // lieu d'etre : ils decrivaient une exception a une regle qui n'existe plus.
   event.respondWith(fetch(request));
 });
+
+// ---------------------------------------------------------------------------
+// TASK-1740 — reception d'une notification Push, et clic dessus.
+//
+// ## Pourquoi ces deux ecouteurs n'affaiblissent PAS le durcissement T1692
+//
+// Ils vivent HORS de `fetch`. Aucune des cinq branches ci-dessus n'est
+// touchee, et surtout : ni `caches.match()` ni `cache.put()` n'apparaissent
+// ici. C'est la seule facon d'affaiblir T1692 depuis un ecouteur `push` —
+// la cle de cache etant l'URL SEULE, sans identite, tout ce qu'on y
+// deposerait serait restituable a un autre profil.
+//
+// `notificationclick` ouvre une URL par `clients.openWindow()`, donc par une
+// navigation ordinaire : elle repasse par la branche « document », qui est en
+// RESEAU SEUL. Le serveur re-autorise la page, et un droit revoque entre-temps
+// rend un refus — rien n'est servi depuis un cache.
+//
+// ## La charge utile n'est jamais crue sur parole
+//
+// Elle vient du reseau. On la lit defensivement, on borne ce qu'on affiche, et
+// surtout on REFUSE d'ouvrir une URL qui ne serait pas de notre origine : un
+// `notificationclick` est un geste utilisateur, et l'envoyer vers un tiers
+// serait une redirection ouverte declenchee par une donnee distante.
+// ---------------------------------------------------------------------------
+
+self.addEventListener('push', (event) => {
+  // `userVisibleOnly: true` a ete impose a l'abonnement (T1739) : le
+  // navigateur EXIGE donc qu'un push produise une notification visible. Ne
+  // rien afficher ferait perdre l'abonnement, pas gagner de la discretion.
+  let charge = {};
+
+  try {
+    charge = event.data ? event.data.json() : {};
+  } catch (e) {
+    charge = {};
+  }
+
+  const titre = typeof charge.title === 'string' && charge.title !== '' ? charge.title : 'BouclePro';
+  const corps = typeof charge.body === 'string' ? charge.body : '';
+
+  // L'URL n'est retenue que si elle est de NOTRE origine.
+  let cible = '/';
+
+  if (typeof charge.url === 'string' && charge.url !== '') {
+    try {
+      const resolue = new URL(charge.url, self.location.origin);
+      if (resolue.origin === self.location.origin) {
+        cible = resolue.href;
+      }
+    } catch (e) {
+      cible = '/';
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(titre, {
+      body: corps,
+      icon: '/brand/icon-192.png',
+      badge: '/brand/icon-192.png',
+      // `tag` : un second message de la meme famille REMPLACE le precedent
+      // au lieu de s'empiler (anti-bruit, CDC 9.3). `renotify` previent a
+      // nouveau, sinon le remplacement serait silencieux.
+      tag: typeof charge.tag === 'string' && charge.tag !== '' ? charge.tag : 'bouclepro',
+      renotify: true,
+      data: { url: cible },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const cible = (event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((fenetres) => {
+      // Reutiliser une fenetre DEJA ouverte plutot que d'en empiler une
+      // nouvelle a chaque clic : sur un telephone, trois notifications
+      // ouvriraient trois instances de l'application.
+      for (const fenetre of fenetres) {
+        if (fenetre.url === cible && 'focus' in fenetre) {
+          return fenetre.focus();
+        }
+      }
+
+      if (fenetres.length > 0 && 'navigate' in fenetres[0] && 'focus' in fenetres[0]) {
+        return fenetres[0].navigate(cible).then((f) => (f ? f.focus() : undefined));
+      }
+
+      return self.clients.openWindow(cible);
+    })
+  );
+});

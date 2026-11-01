@@ -1936,4 +1936,18 @@ return [
     'roadmap_deleted' => 'Task deleted.',
     'roadmap_empty' => 'No task for this filter.',
     'roadmap_count' => '{0} No task|{1} 1 task|[2,*] :count tasks',
+
+    // TASK-1740 — outil de diagnostic et d'envoi de test Web Push.
+    'push_test_title_page' => 'Test a Push notification',
+    'push_test_intro' => 'Web Push diagnostics, and a test notification sent to YOUR own devices.',
+    'push_test_only_self' => 'This tool only sends to your devices. It cannot wake up someone else\'s phone.',
+    'push_test_send' => 'Send me a test notification',
+    'push_test_title' => 'BouclePro test',
+    'push_test_body' => 'If you can read this, notifications work.',
+    'push_test_no_device' => 'No device subscribed for your account. Enable notifications from My notifications, then Settings.',
+    'push_test_done' => 'Done: :ok success(es), :revoques revoked subscription(s), :echecs failure(s).',
+    'push_test_state_on' => 'on',
+    'push_test_state_off' => 'off',
+    'push_test_egress_blocked' => 'HTTP egress is BLOCKED on this database (production twin). Nothing will be sent: that is ExternalEgressGuard, and it is intended.',
+    'push_test_egress_ok' => 'HTTP egress is allowed on this database.',
 ];
