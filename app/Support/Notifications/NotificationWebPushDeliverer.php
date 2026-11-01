@@ -5,6 +5,7 @@ namespace App\Support\Notifications;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
 use App\Models\PushSubscription;
+use App\Support\Ops\ExternalEgressGuard;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -304,7 +305,16 @@ class NotificationWebPushDeliverer
                 'Content-Encoding' => 'aes128gcm',
                 'TTL' => (string) self::TTL,
                 'Urgency' => 'normal',
-            ])->withBody($corps, 'application/octet-stream')
+            ])
+                // TASK-1740 — le MARQUEUR de transport. C'est le seul endroit
+                // du depot qui le pose, et c'est la troisieme des quatre
+                // conditions de `ExternalEgressGuard::sortieDeRecetteAutorisee()`.
+                //
+                // Sans lui, une requete HTTP ordinaire vers `fcm.googleapis.com`
+                // reste REFUSEE meme quand le drapeau de recette est actif :
+                // l'exception porte sur CE transport, pas sur ces domaines.
+                ->withOptions([ExternalEgressGuard::OPTION_TRANSPORT_PUSH => true])
+                ->withBody($corps, 'application/octet-stream')
                 ->timeout(self::TIMEOUT)
                 ->post($appareil->endpoint);
 

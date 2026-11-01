@@ -1950,4 +1950,5 @@ return [
     'push_test_state_off' => 'off',
     'push_test_egress_blocked' => 'HTTP egress is BLOCKED on this database (production twin). Nothing will be sent: that is ExternalEgressGuard, and it is intended.',
     'push_test_egress_ok' => 'HTTP egress is allowed on this database.',
+    'push_test_egress_push_only' => 'HTTP egress is blocked on this database (production twin), EXCEPT the Web Push transport: targeted TASK-1740 exception, local only and towards recognised Push providers.',
 ];

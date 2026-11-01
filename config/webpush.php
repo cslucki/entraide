@@ -79,4 +79,20 @@ return [
      */
     'enabled' => (bool) env('WEB_PUSH_ENABLED', false),
 
+    /*
+     * TASK-1740 — autoriser la SORTIE Push depuis une base gardee.
+     *
+     * `ExternalEgressGuard` refuse toute sortie HTTP quand la base visee est
+     * un jumeau de PRODUCTION. C'est voulu, et cela reste la regle : ce
+     * drapeau ouvre UNIQUEMENT le transport Web Push, vers une liste FERMEE
+     * de fournisseurs, en HTTPS, et seulement si la requete porte le marqueur
+     * que seul le livreur Push pose.
+     *
+     * Une requete HTTP ordinaire vers ces memes domaines reste REFUSEE.
+     *
+     * FAUX par defaut, et sans effet en production ni sur Laravel Cloud : le
+     * garde verifie les deux separement, avant meme de regarder ce drapeau.
+     */
+    'egress_allowed' => (bool) env('WEB_PUSH_EGRESS_ALLOWED', false),
+
 ];

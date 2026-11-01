@@ -97,6 +97,15 @@ class AdminTestNotificationController extends Controller
             'sujet' => (string) config('webpush.vapid.subject'),
             'base' => $base,
             'sortiesBloquees' => $sortiesBloquees,
+            // TASK-1740 — l'exception CIBLEE du transport Push. Le diagnostic
+            // doit distinguer « tout est bloque » de « bloque SAUF le Push » :
+            // les deux etats produisent des pages tres differentes, et les
+            // confondre ferait croire a une panne la ou tout est en ordre.
+            'pushAutorise' => ExternalEgressGuard::sortieDeRecetteAutorisee(
+                'https',
+                'fcm.googleapis.com',
+                [ExternalEgressGuard::OPTION_TRANSPORT_PUSH => true],
+            ),
             'mesAppareils' => PushSubscription::query()
                 ->where('user_id', $request->user()?->getKey())
                 ->orderByDesc('last_seen_at')

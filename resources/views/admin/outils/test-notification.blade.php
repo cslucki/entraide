@@ -42,7 +42,13 @@
                         $ligne('VAPID_PRIVATE_KEY', $clePriveePosee, $clePriveePosee ? __('admin.push_test_state_on') : __('admin.push_test_state_off')),
                         $ligne('VAPID_SUBJECT', $sujet !== '', $sujet !== '' ? $sujet : '—'),
                         $ligne('Base de données', true, $base),
-                        $ligne('Sorties HTTP', ! $sortiesBloquees, $sortiesBloquees ? __('admin.push_test_egress_blocked') : __('admin.push_test_egress_ok')),
+                        $ligne(
+                            'Sorties HTTP',
+                            ! $sortiesBloquees || $pushAutorise,
+                            ! $sortiesBloquees
+                                ? __('admin.push_test_egress_ok')
+                                : ($pushAutorise ? __('admin.push_test_egress_push_only') : __('admin.push_test_egress_blocked')),
+                        ),
                         $ligne('Mes appareils', $mesAppareils->isNotEmpty(), (string) $mesAppareils->count()),
                     ];
                 @endphp

@@ -1978,4 +1978,5 @@ return [
     'push_test_state_off' => 'inactif',
     'push_test_egress_blocked' => 'Les sorties HTTP sont BLOQUEES sur cette base (jumeau de production). Aucun envoi ne partira : c\'est ExternalEgressGuard, et c\'est voulu.',
     'push_test_egress_ok' => 'Les sorties HTTP sont autorisees sur cette base.',
+    'push_test_egress_push_only' => 'Les sorties HTTP sont bloquees sur cette base (jumeau de production), SAUF le transport Web Push : exception ciblee de TASK-1740, active uniquement en local et vers les fournisseurs Push reconnus.',
 ];

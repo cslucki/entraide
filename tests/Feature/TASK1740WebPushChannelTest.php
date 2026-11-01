@@ -11,6 +11,7 @@ use App\Models\PushSubscription;
 use App\Models\User;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationDeliveryPlanner;
+use App\Support\Ops\ExternalEgressGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
@@ -333,5 +334,87 @@ class TASK1740WebPushChannelTest extends TestCase
         // Alice a un appareil, l'admin n'en a pas : rien ne doit partir.
         Http::assertNothingSent();
         $this->assertSame(1, PushSubscription::where('id', $appareilDAlice->id)->count());
+    }
+
+    // ── L'exception CIBLEE d'ExternalEgressGuard ────────────────────────────
+
+    /** @return array<string, array{0: string, 1: string, 2: bool, 3: bool}> */
+    public static function casDEgress(): array
+    {
+        return [
+            // nom => [schema, hote, marqueur de transport, attendu]
+            'Push vers FCM' => ['https', 'fcm.googleapis.com', true, true],
+            'Push vers Apple' => ['https', 'web.push.apple.com', true, true],
+            'Push vers Firefox' => ['https', 'updates.push.services.mozilla.com', true, true],
+            'Push vers Windows' => ['https', 'x.notify.windows.com', true, true],
+
+            // L'exigence explicite de MASTER : le MEME domaine, sans le
+            // marqueur de transport, reste refuse.
+            'HTTP ordinaire vers FCM' => ['https', 'fcm.googleapis.com', false, false],
+
+            'Push en http' => ['http', 'fcm.googleapis.com', true, false],
+            'Domaine inconnu' => ['https', 'exemple-pirate.test', true, false],
+
+            // Trois rusés de nommage, tous trouves en EPROUVANT le code et
+            // non en le relisant : les deux premiers passaient avant que la
+            // correspondance exacte ne remplace `str_ends_with`.
+            'Prefixe colle' => ['https', 'evil-fcm.googleapis.com', true, false],
+            'Prefixe colle court' => ['https', 'xfcm.googleapis.com', true, false],
+            'Faux sous-domaine Apple' => ['https', 'evilpush.apple.com', true, false],
+            'Ruse de suffixe' => ['https', 'fcm.googleapis.com.evil.net', true, false],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('casDEgress')]
+    public function test_l_exception_d_egress_n_admet_que_le_transport_push(string $schema, string $hote, bool $marqueur, bool $attendu): void
+    {
+        config()->set('webpush.egress_allowed', true);
+
+        $options = $marqueur ? [ExternalEgressGuard::OPTION_TRANSPORT_PUSH => true] : [];
+
+        $this->assertSame($attendu, ExternalEgressGuard::sortieDeRecetteAutorisee($schema, $hote, $options));
+    }
+
+    public function test_sans_le_drapeau_meme_le_push_est_refuse(): void
+    {
+        // Une variable absente n'ouvre rien : c'est la premiere des quatre
+        // conditions, et elle est FAUSSE par defaut.
+        config()->set('webpush.egress_allowed', false);
+
+        $this->assertFalse(ExternalEgressGuard::sortieDeRecetteAutorisee(
+            'https', 'fcm.googleapis.com', [ExternalEgressGuard::OPTION_TRANSPORT_PUSH => true],
+        ));
+    }
+
+    public function test_en_PRODUCTION_l_exception_n_existe_pas(): void
+    {
+        // Verifie AVANT le drapeau : meme un `.env` de production qui
+        // porterait WEB_PUSH_EGRESS_ALLOWED=true n'ouvrirait rien.
+        config()->set('webpush.egress_allowed', true);
+        app()->detectEnvironment(fn () => 'production');
+
+        $this->assertFalse(ExternalEgressGuard::sortieDeRecetteAutorisee(
+            'https', 'fcm.googleapis.com', [ExternalEgressGuard::OPTION_TRANSPORT_PUSH => true],
+        ));
+    }
+
+    public function test_le_livreur_POSE_le_marqueur_de_transport(): void
+    {
+        // Si le marqueur n'etait pas pose, l'exception ne servirait a rien et
+        // l'envoi serait refuse en recette. C'est le raccord entre le livreur
+        // et le garde, et il doit etre mesure.
+        $appareil = $this->appareil();
+        $vu = null;
+
+        Http::fake(function ($request, $options) use (&$vu) {
+            $vu = $options;
+
+            return Http::response('', 201);
+        });
+
+        app(\App\Support\Notifications\NotificationWebPushDeliverer::class)
+            ->envoyerUnTest(collect([$appareil]), ['title' => 'T', 'body' => 'B', 'url' => '/', 'tag' => 't']);
+
+        $this->assertTrue($vu[ExternalEgressGuard::OPTION_TRANSPORT_PUSH] ?? false);
     }
 }
