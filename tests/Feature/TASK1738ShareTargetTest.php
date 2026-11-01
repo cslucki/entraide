@@ -436,6 +436,34 @@ class TASK1738ShareTargetTest extends TestCase
         $this->assertSame(1, LoopMessage::count());
     }
 
+    // ── La bascule de compte, que le CDC 4.5 demande de surveiller ──────────
+
+    public function test_une_bascule_de_compte_abandonne_l_intention_de_partage(): void
+    {
+        // CDC 4.5 : « attention aux changements de compte lie et
+        // d'Organization pendant la reception d'un partage ».
+        //
+        // La protection n'est PAS dans cette TASK : elle vient de
+        // `AccountSwitch::versLeCompte()`, qui appelle `invalidate()` et pas
+        // seulement `regenerate()`. Une intention ne peut donc pas franchir
+        // une frontiere de tenant dans les bagages d'une session.
+        //
+        // Ce test existe pour que cette dependance soit ATTESTEE : le jour ou
+        // quelqu'un allegerait la bascule en `regenerate()`, il rougit ici.
+        // Il est pose sur `versLeCompte()` et non sur l'une des deux routes de
+        // bascule, parce que c'est le goulot que A5a et A5b traversent toutes
+        // les deux.
+        $compteFrere = User::factory()->create(['organization_id' => $this->autreOrg->id]);
+
+        $this->actingAs($this->membre);
+        $this->recevoir(self::URL_PARTAGEE);
+        $this->assertNotNull(session(ShareIntent::CLE_SESSION));
+
+        app(\App\Services\Users\AccountSwitch::class)->versLeCompte($compteFrere);
+
+        $this->assertNull(session(ShareIntent::CLE_SESSION));
+    }
+
     // ── SSRF : l'hote prive comme TEXTE, jamais comme CIBLE ─────────────────
 
     public function test_un_hote_prive_est_publie_comme_texte_jamais_recupere(): void
