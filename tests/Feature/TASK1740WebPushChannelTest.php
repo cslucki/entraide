@@ -319,25 +319,6 @@ class TASK1740WebPushChannelTest extends TestCase
         $this->actingAs($this->alice)->post(route('admin.outils.test-notification.send'))->assertForbidden();
     }
 
-    public function test_l_outil_n_envoie_QU_A_SOI(): void
-    {
-        // La garde demandee par MASTER, et elle est STRUCTURELLE : l'outil ne
-        // choisit pas de destinataire, il prend les appareils de la personne
-        // qui clique. Le telephone d'un autre ne peut pas etre reveille.
-        Http::fake(['*' => Http::response('', 201)]);
-
-        $admin = User::factory()->create(['organization_id' => $this->org->id, 'is_admin' => true]);
-        $appareilDAlice = $this->appareil();
-
-        $this->actingAs($admin)->post(route('admin.outils.test-notification.send'))->assertRedirect();
-
-        // Alice a un appareil, l'admin n'en a pas : rien ne doit partir.
-        Http::assertNothingSent();
-        $this->assertSame(1, PushSubscription::where('id', $appareilDAlice->id)->count());
-    }
-
-    // ── L'exception CIBLEE d'ExternalEgressGuard ────────────────────────────
-
     /** @return array<string, array{0: string, 1: string, 2: bool, 3: bool}> */
     public static function casDEgress(): array
     {
@@ -355,8 +336,8 @@ class TASK1740WebPushChannelTest extends TestCase
             'Push en http' => ['http', 'fcm.googleapis.com', true, false],
             'Domaine inconnu' => ['https', 'exemple-pirate.test', true, false],
 
-            // Trois rusés de nommage, tous trouves en EPROUVANT le code et
-            // non en le relisant : les deux premiers passaient avant que la
+            // Trois ruses de nommage, toutes trouvees en EPROUVANT le code et
+            // non en le relisant : les deux premieres passaient avant que la
             // correspondance exacte ne remplace `str_ends_with`.
             'Prefixe colle' => ['https', 'evil-fcm.googleapis.com', true, false],
             'Prefixe colle court' => ['https', 'xfcm.googleapis.com', true, false],
@@ -416,5 +397,214 @@ class TASK1740WebPushChannelTest extends TestCase
             ->envoyerUnTest(collect([$appareil]), ['title' => 'T', 'body' => 'B', 'url' => '/', 'tag' => 't']);
 
         $this->assertTrue($vu[ExternalEgressGuard::OPTION_TRANSPORT_PUSH] ?? false);
+    }
+
+    // ── La politique de recette : QUI, et sur QUEL appareil ─────────────────
+
+    private function admin(): User
+    {
+        return User::factory()->create([
+            'organization_id' => $this->org->id,
+            'is_admin' => true,
+            'email' => 'admin-'.bin2hex(random_bytes(4)).'@bouclepro.test',
+        ]);
+    }
+
+    private function compteReel(): User
+    {
+        // Le jumeau en porte 21 en `gmail.com` — mesure du 01/11.
+        return User::factory()->create([
+            'organization_id' => $this->org->id,
+            'email' => 'vraie.personne-'.bin2hex(random_bytes(3)).'@gmail.com',
+        ]);
+    }
+
+    public function test_un_compte_REEL_n_est_jamais_selectionnable(): void
+    {
+        $reel = $this->compteReel();
+        $politique = app(\App\Support\Push\PushTestPolicy::class);
+
+        $this->assertFalse($politique->destinataireEstAdmis($reel));
+        $this->assertNotContains(
+            $reel->id,
+            $politique->destinatairesAdmis()->pluck('id')->all(),
+        );
+    }
+
+    public function test_un_compte_de_recette_est_selectionnable(): void
+    {
+        $recette = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'email' => 'main.member2@bouclepro.test',
+        ]);
+
+        $this->assertTrue(app(\App\Support\Push\PushTestPolicy::class)->destinataireEstAdmis($recette));
+    }
+
+    public function test_un_abonnement_IMPORTE_de_production_n_est_pas_envoyable(): void
+    {
+        // La garde que MASTER a demandee : « envoi limite aux abonnements
+        // crees localement ». L'origine voyage avec la ligne.
+        $appareil = $this->appareil();
+        $appareil->forceFill(['created_env' => 'production'])->save();
+
+        $this->assertSame(
+            0,
+            app(\App\Support\Push\PushTestPolicy::class)->abonnementsEnvoyables($this->alice)->count(),
+        );
+    }
+
+    public function test_un_abonnement_d_origine_INCONNUE_n_est_pas_envoyable(): void
+    {
+        // Un `null` ne vaut pas « locale » : il vaut « origine inconnue ».
+        $appareil = $this->appareil();
+        $appareil->forceFill(['created_env' => null])->save();
+
+        $this->assertSame(
+            0,
+            app(\App\Support\Push\PushTestPolicy::class)->abonnementsEnvoyables($this->alice)->count(),
+        );
+    }
+
+    public function test_le_reperage_ne_rend_JAMAIS_l_endpoint_ni_les_clefs(): void
+    {
+        $appareil = $this->appareil();
+        $reperage = app(\App\Support\Push\PushTestPolicy::class)->reperageDe($appareil);
+
+        $this->assertSame('fcm.googleapis.com', $reperage['fournisseur']);
+        $this->assertSame(8, strlen($reperage['empreinte']));
+
+        $concatene = implode('|', $reperage);
+        $this->assertStringNotContainsString($appareil->endpoint, $concatene);
+        $this->assertStringNotContainsString($appareil->p256dh, $concatene);
+        $this->assertStringNotContainsString($appareil->auth, $concatene);
+    }
+
+    // ── L'outil d'administration, de bout en bout ───────────────────────────
+
+    public function test_l_admin_envoie_a_l_appareil_CHOISI_d_un_autre_compte(): void
+    {
+        // LE cas de recette de Cyril : depuis son PC, en administrateur, il
+        // choisit main.member2 puis son Android, et le telephone sonne —
+        // sans avoir a se connecter dessus avec le compte admin.
+        Http::fake(['*' => Http::response('', 201)]);
+
+        $appareil = $this->appareil();   // appartient a $this->alice
+        $this->alice->forceFill(['email' => 'main.member2@bouclepro.test'])->save();
+
+        $this->actingAs($this->admin())
+            ->post(route('admin.outils.test-notification.send'), [
+                'user' => $this->alice->id,
+                'subscription' => $appareil->id,
+                'title' => 'Test',
+                'body' => 'Message',
+            ])
+            ->assertRedirect();
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_un_envoi_cible_ne_reveille_PAS_les_autres_appareils(): void
+    {
+        Http::fake(['*' => Http::response('', 201)]);
+
+        $this->alice->forceFill(['email' => 'main.member2@bouclepro.test'])->save();
+        $premier = $this->appareil();
+        $this->appareil();  // un second appareil du meme compte
+        $this->appareil();  // un troisieme
+
+        $this->actingAs($this->admin())
+            ->post(route('admin.outils.test-notification.send'), [
+                'user' => $this->alice->id,
+                'subscription' => $premier->id,
+                'title' => 'T', 'body' => 'B',
+            ])->assertRedirect();
+
+        // UN seul depot, celui de l'appareil choisi.
+        Http::assertSentCount(1);
+    }
+
+    public function test_un_destinataire_REEL_est_refuse_au_POST(): void
+    {
+        // Le formulaire ne fait pas autorite : il se fabrique a la main.
+        Http::fake();
+
+        $reel = $this->compteReel();
+        $appareil = $this->appareil();
+
+        $this->actingAs($this->admin())
+            ->post(route('admin.outils.test-notification.send'), [
+                'user' => $reel->id,
+                'subscription' => $appareil->id,
+                'title' => 'T', 'body' => 'B',
+            ])->assertRedirect();
+
+        Http::assertNothingSent();
+    }
+
+    public function test_un_appareil_d_un_AUTRE_compte_est_refuse_au_POST(): void
+    {
+        Http::fake();
+
+        $this->alice->forceFill(['email' => 'main.member2@bouclepro.test'])->save();
+        $appareilDAlice = $this->appareil();
+
+        $autre = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'email' => 'main.member1@bouclepro.test',
+        ]);
+
+        // On designe `autre` comme destinataire, mais l'appareil d'Alice.
+        $this->actingAs($this->admin())
+            ->post(route('admin.outils.test-notification.send'), [
+                'user' => $autre->id,
+                'subscription' => $appareilDAlice->id,
+                'title' => 'T', 'body' => 'B',
+            ])->assertRedirect();
+
+        Http::assertNothingSent();
+    }
+
+    public function test_une_destination_EXTERNE_est_refusee(): void
+    {
+        Http::fake();
+        $this->alice->forceFill(['email' => 'main.member2@bouclepro.test'])->save();
+        $appareil = $this->appareil();
+
+        $this->actingAs($this->admin())
+            ->post(route('admin.outils.test-notification.send'), [
+                'user' => $this->alice->id,
+                'subscription' => $appareil->id,
+                'title' => 'T', 'body' => 'B',
+                'path' => 'https://exemple-pirate.test/phishing',
+            ])->assertSessionHasErrors('path');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_l_ecran_ne_propose_QUE_des_comptes_de_recette(): void
+    {
+        $reel = $this->compteReel();
+        $this->alice->forceFill(['email' => 'main.member2@bouclepro.test'])->save();
+
+        $html = $this->actingAs($this->admin())
+            ->get(route('admin.outils.test-notification'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('main.member2@bouclepro.test', $html);
+        $this->assertStringNotContainsString($reel->email, $html);
+    }
+
+    public function test_l_ecran_n_affiche_jamais_l_endpoint_complet(): void
+    {
+        $this->alice->forceFill(['email' => 'main.member2@bouclepro.test'])->save();
+        $appareil = $this->appareil();
+
+        $html = $this->actingAs($this->admin())
+            ->get(route('admin.outils.test-notification', ['user' => $this->alice->id]))
+            ->assertOk()->getContent();
+
+        $this->assertStringNotContainsString($appareil->endpoint, $html);
+        $this->assertStringNotContainsString($appareil->p256dh, $html);
+        $this->assertStringNotContainsString($appareil->auth, $html);
     }
 }

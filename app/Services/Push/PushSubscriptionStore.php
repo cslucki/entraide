@@ -70,6 +70,11 @@ class PushSubscriptionStore
             'device_label' => $libelleAppareil,
             'last_seen_at' => $maintenant,
             'updated_at' => $maintenant,
+            // TASK-1740 — l'ORIGINE de l'abonnement, posee par le serveur et
+            // jamais recue du client. Elle voyage avec la ligne : un
+            // abonnement importe d'un dump de production portera
+            // `production`, et le filtre de recette l'ecartera.
+            'created_env' => (string) config('app.env'),
         ];
 
         // Le libelle n'est MIS A JOUR que s'il en arrive un.
@@ -85,7 +90,7 @@ class PushSubscriptionStore
         // Un `null` entrant veut dire « je n'en sais rien », pas « efface ».
         // On ne confond pas l'absence d'information avec une information
         // d'absence.
-        $colonnesAMettreAJour = ['user_id', 'endpoint', 'p256dh', 'auth', 'last_seen_at', 'updated_at'];
+        $colonnesAMettreAJour = ['user_id', 'endpoint', 'p256dh', 'auth', 'last_seen_at', 'updated_at', 'created_env'];
 
         if ($libelleAppareil !== null) {
             $colonnesAMettreAJour[] = 'device_label';

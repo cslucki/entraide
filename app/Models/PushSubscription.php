@@ -42,6 +42,7 @@ use RuntimeException;
  * @property string $p256dh
  * @property string $auth
  * @property string|null $device_label
+ * @property string|null $created_env
  * @property \Illuminate\Support\Carbon|null $last_seen_at
  */
 class PushSubscription extends Model

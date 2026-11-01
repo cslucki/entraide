@@ -221,12 +221,17 @@ class NotificationWebPushDeliverer
      *
      * @param  \Illuminate\Support\Collection<int, PushSubscription>  $appareils
      * @param  array<string, mixed>  $charge
-     * @return array{ok: int, revoque: int, echec: int, motifs: list<string>}
+     * @return array{ok: int, revoque: int, echec: int, motifs: list<string>, http: list<string>}
      */
     public function envoyerUnTest($appareils, array $charge): array
     {
         $compte = ['ok' => 0, 'revoque' => 0, 'echec' => 0];
         $motifs = [];
+        // Le code HTTP BRUT du fournisseur, par appareil. MASTER : « ne pas
+        // confondre acceptation par FCM et affichage effectif sur Android ».
+        // Un `201` dit que Google a pris le message en charge, rien de plus —
+        // le rendre tel quel laisse cette distinction visible.
+        $http = [];
 
         foreach ($appareils as $appareil) {
             $resultat = $this->deposer($appareil, (string) json_encode($charge, JSON_UNESCAPED_UNICODE));
@@ -236,16 +241,21 @@ class NotificationWebPushDeliverer
                 $appareil->delete();
             }
 
+            $http[] = ($appareil->device_label ?? 'appareil').' : HTTP '.($this->dernierCodeHttp ?? '—');
+
             if ($resultat !== 'ok') {
                 $motifs[] = ($appareil->device_label ?? 'appareil').' : '.$this->dernierMotif;
             }
         }
 
-        return $compte + ['motifs' => $motifs];
+        return $compte + ['motifs' => $motifs, 'http' => $http];
     }
 
     /** Le motif du dernier depot en echec, pour que le diagnostic puisse le dire. */
     private string $dernierMotif = '';
+
+    /** Le code HTTP rendu par le fournisseur au dernier depot, ou `null`. */
+    private ?int $dernierCodeHttp = null;
 
     /**
      * Base64URL vers binaire brut.
@@ -318,6 +328,8 @@ class NotificationWebPushDeliverer
                 ->timeout(self::TIMEOUT)
                 ->post($appareil->endpoint);
 
+            $this->dernierCodeHttp = $reponse->status();
+
             if (in_array($reponse->status(), [404, 410], true)) {
                 $this->dernierMotif = 'endpoint revoque par le fournisseur (HTTP '.$reponse->status().')';
 
@@ -337,6 +349,7 @@ class NotificationWebPushDeliverer
             // Le garde d'egress leve ici quand la base visee est un jumeau de
             // PRODUCTION. C'est un refus VOULU, pas une panne : on le
             // journalise sans le maquiller en succes.
+            $this->dernierCodeHttp = null;
             $this->dernierMotif = mb_substr($e->getMessage(), 0, 160);
 
             Log::warning('TASK-1740 depot Push refuse ou en echec.', [
