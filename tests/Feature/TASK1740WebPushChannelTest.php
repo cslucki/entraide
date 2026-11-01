@@ -287,4 +287,51 @@ class TASK1740WebPushChannelTest extends TestCase
             'Android',
         );
     }
+
+    // ── L'outil d'administration ────────────────────────────────────────────
+
+    public function test_l_ecran_d_administration_se_CHARGE(): void
+    {
+        // Defaut trouve par Cyril : 500 sur /admin/outils/test-notification.
+        // Cause — un mauvais namespace pour `ConfigurationUrlParser`, que
+        // `php -l` ne voit pas et qu'aucun test ne voyait non plus, parce
+        // qu'AUCUN ne chargeait la page. Verifier qu'une route est declaree ne
+        // dit rien de ce qui se passe quand on l'ouvre.
+        $admin = User::factory()->create(['organization_id' => $this->org->id, 'is_admin' => true]);
+
+        $this->actingAs($admin)->get(route('admin.outils.test-notification'))->assertOk();
+    }
+
+    public function test_l_ecran_n_affiche_JAMAIS_la_clef_privee(): void
+    {
+        config()->set('webpush.vapid.private_key', 'SECRET-PRIVE-A-NE-PAS-AFFICHER');
+        $admin = User::factory()->create(['organization_id' => $this->org->id, 'is_admin' => true]);
+
+        $html = $this->actingAs($admin)->get(route('admin.outils.test-notification'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('SECRET-PRIVE-A-NE-PAS-AFFICHER', $html);
+    }
+
+    public function test_l_outil_est_reserve_a_l_administration(): void
+    {
+        $this->actingAs($this->alice)->get(route('admin.outils.test-notification'))->assertForbidden();
+        $this->actingAs($this->alice)->post(route('admin.outils.test-notification.send'))->assertForbidden();
+    }
+
+    public function test_l_outil_n_envoie_QU_A_SOI(): void
+    {
+        // La garde demandee par MASTER, et elle est STRUCTURELLE : l'outil ne
+        // choisit pas de destinataire, il prend les appareils de la personne
+        // qui clique. Le telephone d'un autre ne peut pas etre reveille.
+        Http::fake(['*' => Http::response('', 201)]);
+
+        $admin = User::factory()->create(['organization_id' => $this->org->id, 'is_admin' => true]);
+        $appareilDAlice = $this->appareil();
+
+        $this->actingAs($admin)->post(route('admin.outils.test-notification.send'))->assertRedirect();
+
+        // Alice a un appareil, l'admin n'en a pas : rien ne doit partir.
+        Http::assertNothingSent();
+        $this->assertSame(1, PushSubscription::where('id', $appareilDAlice->id)->count());
+    }
 }

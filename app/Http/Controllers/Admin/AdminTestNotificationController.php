@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PushSubscription;
 use App\Support\Notifications\NotificationWebPushDeliverer;
 use App\Support\Ops\ExternalEgressGuard;
-use Illuminate\Database\Eloquent\ConfigurationUrlParser;
+use Illuminate\Database\ConfigurationUrlParser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
