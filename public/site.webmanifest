@@ -29,6 +29,15 @@
       "purpose": "maskable"
     }
   ],
+  "share_target": {
+    "action": "/partage",
+    "method": "GET",
+    "params": {
+      "url": "url",
+      "text": "text",
+      "title": "title"
+    }
+  },
   "theme_color": "#050505",
   "background_color": "#FFFFF5",
   "display": "standalone",
