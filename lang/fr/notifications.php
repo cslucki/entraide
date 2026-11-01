@@ -39,6 +39,22 @@ return [
     'preferences_back' => 'Mes notifications',
     'channel_in_app' => "Dans l'application",
     'channel_email' => 'Par email',
+    // TASK-1740 — troisieme canal. Le libelle nomme l'APPAREIL, pas la
+    // technique : « web push » ne veut rien dire pour la personne qui regle.
+    'channel_web_push' => 'Sur mes appareils',
+
+    // TASK-1740 — les textes qui partent sur un ecran VERROUILLE.
+    //
+    // CDC 6.4 : aucun nom de personne, aucun nom de Boucle, aucun extrait.
+    // Ils doivent rester vrais devant n'importe qui — le detail se lit APRES
+    // le clic, sur une page que le serveur re-autorise.
+    'push_title_fallback' => 'BouclePro',
+    'push_body_generic' => 'Touchez pour voir.',
+    'push_title' => [
+        'loop_invitation' => 'Une invitation vous attend',
+        'loop_member_added' => 'Vous avez rejoint une Boucle',
+        'loop_join_request_accepted' => 'Votre demande a été acceptée',
+    ],
 
     'keys' => [
         // TASK-1702

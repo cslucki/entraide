@@ -113,7 +113,23 @@ class MemberNotificationDelivery extends Model
      */
     private static function garantirCanal(string $channel): void
     {
-        $connus = [NotificationCatalogue::CHANNEL_IN_APP, NotificationCatalogue::CHANNEL_EMAIL];
+        // TASK-1740 — `web_push` rejoint les deux autres.
+        //
+        // Cette liste est une SECONDE enumeration, non derivee du catalogue, et
+        // c'est delibere : elle defend la table, pas le produit. Un canal que
+        // le catalogue declarerait sans qu'aucun worker ne le ramasse
+        // produirait des livraisons `pending` eternelles — le refus vient donc
+        // d'ici, a l'insertion, et non d'une decouverte plus tard.
+        //
+        // Le prix est qu'elle doit etre tenue a jour en meme temps que
+        // `NotificationCatalogue::CHANNEL_*`. Le test
+        // `TASK1740WebPushChannelTest::test_tout_canal_du_catalogue_est_accepte_en_livraison`
+        // mesure cet accord plutot que de compter sur la vigilance.
+        $connus = [
+            NotificationCatalogue::CHANNEL_IN_APP,
+            NotificationCatalogue::CHANNEL_EMAIL,
+            NotificationCatalogue::CHANNEL_WEB_PUSH,
+        ];
 
         if (! in_array($channel, $connus, true)) {
             throw new InvalidArgumentException("Unknown notification delivery channel [{$channel}].");

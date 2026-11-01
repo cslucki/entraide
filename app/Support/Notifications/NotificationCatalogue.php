@@ -69,6 +69,26 @@ final class NotificationCatalogue
      */
     public const CHANNEL_EMAIL = 'email';
 
+    /**
+     * Le canal WEB PUSH. Abonnements livres en T1739, ENVOI livre en T1740.
+     *
+     * TROISIEME canal de la MEME autorite, jamais un systeme parallele : un
+     * evenement metier reste UNE notification, et `in_app`, `email` et
+     * `web_push` en sont trois modes de livraison que le catalogue et les
+     * preferences gouvernent de la meme facon (CDC section 6.1).
+     *
+     * Il est declare ici APRES la correction du defaut de
+     * `NotificationDeliveryPlanner::plan()` — qui dispatchait le job email
+     * dans la boucle sur les canaux — parce que l'ajouter avant aurait mis en
+     * file un job EMAIL pour chaque notification eligible au Push.
+     *
+     * Un Push n'est jamais OBLIGATOIRE : il sort de l'application et atterrit
+     * sur un ecran verrouille. Toute cle qui l'autorise le declare donc
+     * `configurable => true`, et `default => false` — on n'allume pas une
+     * sollicitation systeme a la place de quelqu'un.
+     */
+    public const CHANNEL_WEB_PUSH = 'web_push';
+
     public const LOOP_INVITATION = 'loop.invitation';
 
     /**

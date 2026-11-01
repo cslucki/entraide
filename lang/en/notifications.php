@@ -39,6 +39,22 @@ return [
     'preferences_back' => 'My notifications',
     'channel_in_app' => 'In the app',
     'channel_email' => 'By email',
+    // TASK-1740 — third channel. The label names the DEVICE, not the
+    // technique: "web push" means nothing to the person setting it.
+    'channel_web_push' => 'On my devices',
+
+    // TASK-1740 — text that lands on a LOCKED screen.
+    //
+    // CDC 6.4: no person's name, no Boucle name, no excerpt. It must stay
+    // true in front of anyone — the detail is read AFTER the tap, on a page
+    // the server re-authorises.
+    'push_title_fallback' => 'BouclePro',
+    'push_body_generic' => 'Tap to see.',
+    'push_title' => [
+        'loop_invitation' => 'An invitation is waiting',
+        'loop_member_added' => 'You have joined a Boucle',
+        'loop_join_request_accepted' => 'Your request was accepted',
+    ],
 
     'keys' => [
         // TASK-1702
