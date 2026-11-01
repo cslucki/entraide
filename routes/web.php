@@ -122,6 +122,7 @@ use App\Http\Controllers\OrganizationLandingController;
 use App\Http\Controllers\OrganizationRequestController;
 use App\Http\Controllers\PointController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ReviewController;
@@ -432,6 +433,24 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
     Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
     Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
+
+    // TASK-1739 — abonnements Web Push, un par APPAREIL.
+    //
+    // Regime `auth` seul, comme Favoris, Points et les preferences de
+    // notification juste au-dessus : un abonnement est une donnee de PERSONNE,
+    // pas de tenant. La table ne porte d'ailleurs aucun `organization_id`.
+    //
+    // Elles rendent du JSON : seul le navigateur connait l'`endpoint` que le
+    // fournisseur Push lui a remis, donc c'est un geste cote client qui les
+    // appelle, jamais une navigation.
+    //
+    // `subscribe` est appele AUSSI pour reconfirmer un abonnement existant —
+    // `pushsubscriptionchange` n'etant pas pris en charge partout, le client
+    // reconcilie a la connexion et a chaque reouverture (CDC 5.4). D'ou un
+    // throttle large : c'est une operation idempotente et frequente.
+    Route::get('/notifications/push', [PushSubscriptionController::class, 'show'])->name('notifications.push.show');
+    Route::post('/notifications/push', [PushSubscriptionController::class, 'store'])->middleware('throttle:60,1')->name('notifications.push.store');
+    Route::delete('/notifications/push', [PushSubscriptionController::class, 'destroy'])->middleware('throttle:60,1')->name('notifications.push.destroy');
 
     // Reports
     Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->middleware('throttle:5,1')->name('reports.service');
@@ -1506,6 +1525,14 @@ Route::prefix('/org/{organization}')
             Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
             Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
             Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
+
+            // TASK-1739 — meme trio que la forme globale ci-dessus. Declaree
+            // ici parce que l'ecran de preferences existe sous les deux
+            // formes : sans cela, le bloc « cet appareil » appellerait une
+            // route absente depuis une page prefixee par l'Organization.
+            Route::get('/notifications/push', [PushSubscriptionController::class, 'show'])->name('notifications.push.show');
+            Route::post('/notifications/push', [PushSubscriptionController::class, 'store'])->middleware('throttle:60,1')->name('notifications.push.store');
+            Route::delete('/notifications/push', [PushSubscriptionController::class, 'destroy'])->middleware('throttle:60,1')->name('notifications.push.destroy');
 
             Route::post('/reports/service/{service}', [ReportController::class, 'orgStoreService'])->middleware('throttle:5,1')->name('reports.service');
             Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'orgStoreRequest'])->middleware('throttle:5,1')->name('reports.request');
