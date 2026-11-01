@@ -184,6 +184,94 @@ class TASK1740WebPushChannelTest extends TestCase
         $this->assertStringStartsWith('vapid t=', $vu->header('Authorization')[0] ?? '');
     }
 
+    /**
+     * La CAUSE RACINE de la panne du 01/11, verrouillee.
+     *
+     * En `aes128gcm` (RFC 8188), le texte clair doit se terminer par l'octet
+     * delimiteur de fin d'enregistrement `0x02`. `padPayload()` l'ajoute et le
+     * complete a longueur fixe. Sans cet appel, l'enregistrement est MALFORME :
+     * Chrome le dechiffre, le rejette, et jette le message EN SILENCE — pendant
+     * que le fournisseur, qui ne regarde jamais le chiffre, repond `201`.
+     *
+     * Ce test mesure la seule chose observable depuis le serveur : la TAILLE du
+     * corps. Rembourree, elle est CONSTANTE — 86 octets d'en-tete de codage,
+     * 2820 de texte clair, 16 d'etiquette GCM. Retirer `padPayload()` la fait
+     * s'effondrer a la taille du message, et ce test rougit.
+     *
+     * La constance est verifiee sur DEUX messages de longueurs tres
+     * differentes : une taille correcte sur un seul message pourrait etre une
+     * coincidence, deux tailles egales pour deux messages inegaux ne peuvent
+     * pas en etre une. C'est aussi la garantie de confidentialite — sans
+     * rembourrage, la taille du chiffre fuirait la longueur du message.
+     */
+    public function test_la_charge_est_REMBOURREE_a_longueur_fixe_avant_chiffrement(): void
+    {
+        $tailles = [];
+
+        Http::fake(function ($request) use (&$tailles) {
+            $tailles[] = strlen((string) $request->body());
+
+            return Http::response('', 201);
+        });
+
+        $livreur = app(\App\Support\Notifications\NotificationWebPushDeliverer::class);
+
+        $livreur->envoyerUnTest(collect([$this->appareil()]), [
+            'title' => 'T', 'body' => 'B', 'url' => '/', 'tag' => 't',
+        ]);
+
+        $livreur->envoyerUnTest(collect([$this->appareil()]), [
+            'title' => str_repeat('T', 70),
+            'body' => str_repeat('B', 150),
+            'url' => '/notifications',
+            'tag' => 'une-cle-de-catalogue-bien-plus-longue',
+        ]);
+
+        $this->assertCount(2, $tailles);
+
+        // 86 (en-tete de codage : sel 16 + taille 4 + longueur 1 + clef 65)
+        // + 2820 (texte clair rembourre) + 16 (etiquette GCM).
+        $this->assertSame(2922, $tailles[0], 'le corps du premier envoi n\'est pas rembourre');
+        $this->assertSame(
+            $tailles[0],
+            $tailles[1],
+            'deux messages de longueurs differentes produisent des corps de tailles differentes : la taille FUIT la longueur du message',
+        );
+    }
+
+    public function test_l_envoi_porte_une_urgence_HAUTE(): void
+    {
+        // Android DIFFERE les messages d'urgence `normal` quand l'appareil est
+        // en veille profonde : accepte, mis en file, affiche bien plus tard —
+        // indiscernable d'une panne. Une notification destinee a etre VUE est
+        // `high` par definition.
+        $vu = null;
+
+        Http::fake(function ($request) use (&$vu) {
+            $vu = $request;
+
+            return Http::response('', 201);
+        });
+
+        app(\App\Support\Notifications\NotificationWebPushDeliverer::class)
+            ->envoyerUnTest(collect([$this->appareil()]), ['title' => 'T', 'body' => 'B', 'url' => '/', 'tag' => 't']);
+
+        $this->assertSame('high', $vu->header('Urgency')[0] ?? null);
+    }
+
+    public function test_le_service_worker_ne_pose_AUCUN_badge(): void
+    {
+        // Android attend ici une silhouette MONOCHROME sur fond transparent,
+        // qu'il peint en blanc dans la barre d'etat ; le logo couleur 192 px ne
+        // s'y prete pas et produisait une barre d'etat VIDE. Recette du 01/11 :
+        // l'essai sans badge montrait la cloche par defaut de Chrome, celui
+        // avec badge ne montrait aucune icone.
+        $sw = file_get_contents(public_path('sw.js'));
+
+        $this->assertStringNotContainsString('badge:', $sw);
+        $this->assertStringContainsString("icon: '/brand/icon-192.png'", $sw);
+    }
+
     public function test_un_endpoint_revoque_est_retire(): void
     {
         // 410 : le fournisseur dit que cet endpoint n'existe plus. Il fait foi

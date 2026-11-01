@@ -259,7 +259,21 @@ class TASK1739PushSubscriptionStoreTest extends TestCase
 
         $this->assertSame([
             'id', 'user_id', 'endpoint', 'endpoint_hash', 'p256dh', 'auth',
+            // TASK-1740 — `created_env` entre ici DELIBEREMENT, et ce test a
+            // rougi pour l'exiger : c'est exactement ce qu'on lui demandait.
+            //
+            // Elle ne designe personne. Elle ne porte que la valeur d'`app.env`
+            // au moment de la revendication (`local`, `production`), et elle
+            // existe pour qu'un abonnement importe d'un dump de production ne
+            // puisse jamais recevoir d'envoi de recette. Une donnee sur
+            // l'ORIGINE de la ligne, pas sur la personne ni sur l'appareil.
             'device_label', 'last_seen_at', 'created_at', 'updated_at',
+            // En DERNIERE position, et non apres `device_label` comme
+            // l'indique le `->after()` de la migration : ni SQLite ni
+            // PostgreSQL n'honorent ce placement, ils ajoutent toujours en fin
+            // de table. `after()` reste une indication de lecture, jamais une
+            // garantie d'ordre — et c'est l'ordre REEL que ce test mesure.
+            'created_env',
         ], $colonnes);
     }
 
