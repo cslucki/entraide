@@ -249,6 +249,77 @@ test.describe('TASK-1737 ecran d\'installation', () => {
         await expect(page.locator('[data-bp-pwa-install="full"]')).toBeVisible();
     });
 
+    // -- Le defaut de recette du 01/11/2026 : le haut INATTEIGNABLE ---------
+    //
+    // Capture d'un Pixel : icone coupee en haut, « Retour au site » coupe en
+    // bas. Cause -- `.bp-pwa--full` est un flex COLONNE, donc
+    // `justify-content: center` centre sur l'axe VERTICAL ; combine a
+    // `overflow-y: auto`, le centrage pousse le haut du contenu AU-DESSUS de
+    // l'origine du defilement quand il deborde. `scrollTop` ne pouvant pas
+    // etre negatif, cette zone est definitivement perdue.
+    //
+    // Mesure avant correctif, a `scrollTop = 0` : haut de la carte a -45 px en
+    // 390x600, -85 px en 360x520.
+    //
+    // Seul un vrai navigateur voit cela : ni PHP ni `curl` n'appliquent la
+    // mise en page.
+    for (const [nom, largeur, hauteur] of [
+        ['Pixel avec barre', 412, 760],
+        ['hauteur serree', 390, 600],
+        ['Android courant', 360, 640],
+        ['iPhone SE', 375, 667],
+        ['telephone en paysage', 360, 520],
+    ]) {
+        test(`rien n'est rogne en haut -- ${nom} ${largeur}x${hauteur}`, async ({ page }) => {
+            await page.setViewportSize({ width: largeur, height: hauteur });
+            await page.goto('/installer');
+
+            const mesure = await page.evaluate(() => {
+                const racine = document.querySelector('[data-bp-pwa-install]');
+                const carte = racine.firstElementChild;
+                racine.scrollTop = 0;
+                return { haut: Math.round(carte.getBoundingClientRect().top) };
+            });
+
+            // L'invariant : a l'origine du defilement, le haut du contenu est
+            // VISIBLE. Du defilement n'est pas un defaut ; du contenu au-dessus
+            // de zero, qu'aucun geste ne ramene, en est un.
+            expect(
+                mesure.haut,
+                `Haut du contenu a ${mesure.haut}px : rogne, et aucun defilement `
+                + 'ne le ramene. Ne pas remettre `justify-content: center` sur '
+                + '`.bp-pwa--full` : son axe principal est VERTICAL.'
+            ).toBeGreaterThanOrEqual(0);
+        });
+    }
+
+    // Second volet du meme defaut : meme sans rognage, le contenu mesurait
+    // 669 px pour une hauteur VISIBLE de 600 a 670 px — la barre d'adresse
+    // mange 110 a 150 px que `100vh` ignore. Il fallait defiler pour atteindre
+    // l'action d'un ecran dont c'est l'unique raison d'etre.
+    //
+    // 375x667 est la taille qui mesure vraiment le bloc `@media
+    // (max-height: 740px)` : sans lui le contenu y faisait 689 px. 412x760 est
+    // le cas de la capture de Cyril, au-dessus du seuil.
+    for (const [nom, largeur, hauteur] of [['Pixel avec barre', 412, 760], ['iPhone SE', 375, 667]]) {
+    test(`l ecran tient sans defilement -- ${nom} ${largeur}x${hauteur}`, async ({ page }) => {
+        await page.setViewportSize({ width: largeur, height: hauteur });
+        await page.goto('/installer');
+
+        const r = await page.evaluate(() => {
+            const racine = document.querySelector('[data-bp-pwa-install]');
+            const sortie = racine.querySelector('.bp-pwa__dismiss').getBoundingClientRect();
+            return {
+                deborde: racine.scrollHeight > racine.clientHeight,
+                sortieVisible: sortie.top >= 0 && sortie.bottom <= window.innerHeight,
+            };
+        });
+
+        expect(r.deborde, 'Le contenu deborde sur un telephone courant.').toBe(false);
+        expect(r.sortieVisible, 'L action secondaire exige de defiler.').toBe(true);
+    });
+    }
+
     test('une application installee ne voit jamais l\'ecran', async ({ page }) => {
         await page.goto('/installer');
         await expect(page.locator('[data-bp-pwa-install="full"]')).toBeVisible();

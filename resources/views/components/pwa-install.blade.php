@@ -94,7 +94,25 @@
                 z-index: 2147483000;
                 flex-direction: column;
                 align-items: center;
-                justify-content: center;
+                /* PAS de `justify-content: center` — defaut mesure en recette
+                   (Cyril, 01/11/2026, capture d'un Pixel).
+
+                   L'axe PRINCIPAL est vertical ici (`flex-direction: column`),
+                   donc `justify-content` centre VERTICALEMENT. Combine a
+                   `overflow-y: auto`, c'est le piege classique : quand le
+                   contenu depasse, le centrage pousse son haut AU-DESSUS de
+                   l'origine du defilement, et cette zone devient
+                   INATTEIGNABLE — on ne peut pas faire defiler vers un
+                   scrollTop negatif.
+
+                   Mesure a `scrollTop = 0` : haut de la carte a **-45 px** en
+                   390x600, **-85 px** en 360x520. Sur la capture, l'icone
+                   etait coupee par le haut.
+
+                   `margin: auto` sur l'enfant (plus bas) fait le meme centrage
+                   quand il y a de la place, et ne rogne rien quand il n'y en a
+                   pas : les marges automatiques se resorbent au lieu de
+                   deborder. C'est la correction standard de ce piege. */
                 gap: 1.75rem;
                 overflow-y: auto;
                 background: var(--bp-pwa-bg);
@@ -104,7 +122,13 @@
                 text-align: center;
             }
 
-            .bp-pwa__inner { width: 100%; max-width: 26rem; }
+            .bp-pwa__inner {
+                width: 100%;
+                max-width: 26rem;
+                /* Le centrage vertical, en version qui ne rogne pas. */
+                margin-top: auto;
+                margin-bottom: auto;
+            }
 
             .bp-pwa__icon {
                 width: 84px;
@@ -151,6 +175,30 @@
             .bp-pwa__benefit svg { flex: 0 0 auto; width: 20px; height: 20px; margin-top: 2px; opacity: .9; }
             .bp-pwa__benefit b { display: block; font-size: .9rem; font-weight: 600; }
             .bp-pwa__benefit span { display: block; font-size: .8rem; line-height: 1.45; color: var(--bp-pwa-ink-faint); }
+
+            /* ── Ecrans COURTS ───────────────────────────────────────────
+               Second volet du meme defaut de recette : meme sans rognage, le
+               contenu mesurait 669 px pour une hauteur VISIBLE d'environ 600 a
+               670 px — la barre d'adresse du navigateur mange 110 a 150 px que
+               `100vh` ignore. Il fallait donc defiler pour atteindre l'action
+               principale d'un ecran dont c'est l'unique raison d'etre.
+
+               On compacte a partir de 740 px de haut, ce qui couvre la quasi
+               totalite des telephones en navigation. Les grands ecrans gardent
+               le dessin d'origine. Aucune information n'est retiree : seuls
+               l'echelle et les espacements changent. */
+            @media (max-height: 740px) {
+                .bp-pwa--full { gap: 1rem; }
+                .bp-pwa__icon { width: 56px; height: 56px; border-radius: 14px; margin-bottom: .75rem; }
+                .bp-pwa__title { font-size: 1.25rem; }
+                .bp-pwa__promise { margin-bottom: 1rem; font-size: .9rem; }
+                .bp-pwa__benefits { margin-bottom: 1rem; }
+                .bp-pwa__benefit { padding: .6rem .85rem; }
+                .bp-pwa__benefit span { font-size: .78rem; line-height: 1.35; }
+                .bp-pwa__manual-intro { margin-bottom: .5rem; }
+                .bp-pwa__step { padding: .4rem 0; }
+                .bp-pwa__dismiss { margin-top: .6rem; }
+            }
 
             /* ── Appel a l'action ────────────────────────────────────────── */
             .bp-pwa__cta {
