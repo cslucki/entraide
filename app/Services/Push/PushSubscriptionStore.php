@@ -75,6 +75,11 @@ class PushSubscriptionStore
             // abonnement importe d'un dump de production portera
             // `production`, et le filtre de recette l'ecartera.
             'created_env' => (string) config('app.env'),
+            // TASK-1740 — la clef VAPID en vigueur au moment de la
+            // revendication. Posee par le serveur, jamais recue du client.
+            // C'est elle qui permettra de reconnaitre, plus tard, un
+            // abonnement cree avec une clef qui n'a plus cours.
+            'vapid_key_hash' => PushSubscription::empreinteCleVapid(),
         ];
 
         // Le libelle n'est MIS A JOUR que s'il en arrive un.
@@ -90,7 +95,7 @@ class PushSubscriptionStore
         // Un `null` entrant veut dire « je n'en sais rien », pas « efface ».
         // On ne confond pas l'absence d'information avec une information
         // d'absence.
-        $colonnesAMettreAJour = ['user_id', 'endpoint', 'p256dh', 'auth', 'last_seen_at', 'updated_at', 'created_env'];
+        $colonnesAMettreAJour = ['user_id', 'endpoint', 'p256dh', 'auth', 'last_seen_at', 'updated_at', 'created_env', 'vapid_key_hash'];
 
         if ($libelleAppareil !== null) {
             $colonnesAMettreAJour[] = 'device_label';

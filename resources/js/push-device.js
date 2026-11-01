@@ -86,6 +86,36 @@ if (bloc) {
         if (texteAide !== null) elAide.textContent = texteAide;
     };
 
+    /** Un `ArrayBuffer` rendu dans la forme base64url des clefs VAPID. */
+    const enBase64Url = (tampon) =>
+        btoa(String.fromCharCode(...new Uint8Array(tampon)))
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+
+    /**
+     * Cet abonnement a-t-il été créé avec une AUTRE clé que celle du serveur ?
+     *
+     * TASK-1740 — un abonnement porte À VIE la clé publique avec laquelle le
+     * navigateur l'a créé, et c'est elle que le navigateur exigera dans notre
+     * signature. Si la clé du serveur change, l'abonnement SURVIT intact :
+     * `getSubscription()` le rend toujours, le serveur le croit valide, le
+     * fournisseur accepte l'envoi et répond `201`… et le navigateur jette le
+     * message EN SILENCE.
+     *
+     * C'est la forme exacte de la panne qui a coûté la recette du 01/11, sous
+     * une autre cause. Elle ne doit pas pouvoir se reproduire sans être vue.
+     *
+     * Un navigateur qui n'expose pas `options.applicationServerKey` ne permet
+     * pas de conclure : on rend alors `false`, parce qu'on ne traite comme
+     * divergent que ce qu'on a MESURÉ divergent.
+     */
+    const cleDiverge = (abonnement) => {
+        const cle = abonnement?.options?.applicationServerKey;
+
+        return !!cle && vapid !== '' && enBase64Url(cle) !== vapid;
+    };
+
     const abonnementCourant = async () => {
         const inscription = await navigator.serviceWorker.ready;
         return inscription.pushManager.getSubscription();
@@ -173,6 +203,21 @@ if (bloc) {
             return;
         }
 
+        // Un abonnement créé avec une clé qui n'a plus cours n'est PAS un
+        // abonnement valide. On s'abstient surtout de le reconfirmer : le
+        // reconfirmer rafraîchirait son `last_seen_at` et le ferait passer,
+        // côté serveur, pour un appareil joignable qu'il n'est plus.
+        //
+        // On ne le supprime pas non plus de son propre chef. Le renouvellement
+        // appartient à la personne : le bouton « Activer » réapparaît, et c'est
+        // son clic qui le déclenchera.
+        if (cleDiverge(abonnement)) {
+            const etat = await etatServeur(abonnement.endpoint);
+            peindre('off', etat?.device_count, textes.textKeyStale);
+
+            return;
+        }
+
         // Le navigateur détient un abonnement : on le reconfirme, ce qui
         // répond du même coup à « est-il à MOI ? ».
         try {
@@ -209,8 +254,27 @@ if (bloc) {
             }
 
             const inscription = await navigator.serviceWorker.ready;
+            let existant = await inscription.pushManager.getSubscription();
+
+            // Renouvellement sur GESTE EXPLICITE, jamais en arrière-plan.
+            //
+            // L'ordre compte, et c'est le même qu'à la désactivation : on
+            // retire d'abord côté SERVEUR. Si l'on commençait par
+            // `unsubscribe()`, un échec réseau laisserait une ligne en base
+            // pour un endpoint que le navigateur a déjà oublié — donc un
+            // appareil injoignable qu'on croirait abonné.
+            if (existant !== null && cleDiverge(existant)) {
+                await fetch(url, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': jeton(), Accept: 'application/json' },
+                    body: JSON.stringify({ endpoint: existant.endpoint }),
+                });
+                await existant.unsubscribe();
+                existant = null;
+            }
+
             const abonnement =
-                (await inscription.pushManager.getSubscription()) ??
+                existant ??
                 (await inscription.pushManager.subscribe({
                     // Obligatoire sur Chrome : un push doit toujours produire
                     // une notification visible, jamais un traitement muet.

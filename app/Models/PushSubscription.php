@@ -72,6 +72,38 @@ class PushSubscription extends Model
      * calculer avant d'ecrire, pour viser la bonne ligne en une seule
      * operation atomique.
      */
+    /**
+     * L'empreinte de la clef VAPID en vigueur, ou `null` si aucune n'est posee.
+     *
+     * TASK-1740 — un abonnement porte A VIE la clef avec laquelle le navigateur
+     * l'a cree. Si celle du serveur change, l'abonnement survit, le serveur le
+     * croit valide, le fournisseur repond `201` et le navigateur jette le
+     * message EN SILENCE.
+     */
+    public static function empreinteCleVapid(?string $cle = null): ?string
+    {
+        $cle = trim((string) ($cle ?? config('webpush.vapid.public_key')));
+
+        return $cle === '' ? null : hash('sha256', $cle);
+    }
+
+    /**
+     * Cet abonnement a-t-il ete cree avec une AUTRE clef que celle en vigueur ?
+     *
+     * Un `null` stocke ne vaut PAS « divergent » : les lignes anterieures a
+     * cette colonne ont ete creees avec une clef dont rien n'indique qu'elle
+     * differe. On ne traite comme divergent que ce qu'on a MESURE divergent —
+     * refuser l'inconnu casserait une installation qui fonctionne.
+     */
+    public function cleVapidDiverge(): bool
+    {
+        $enVigueur = self::empreinteCleVapid();
+
+        return $this->vapid_key_hash !== null
+            && $enVigueur !== null
+            && $this->vapid_key_hash !== $enVigueur;
+    }
+
     public static function empreinteDe(string $endpoint): string
     {
         return hash('sha256', trim($endpoint));

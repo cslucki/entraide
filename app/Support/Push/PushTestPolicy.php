@@ -90,6 +90,17 @@ class PushTestPolicy
         return PushSubscription::query()
             ->where('user_id', $destinataire->getKey())
             ->where('created_env', (string) config('app.env'))
+            // TASK-1740 — ecarter les abonnements crees avec une clef VAPID
+            // qui n'a plus cours. Le fournisseur les accepterait (`201`) et le
+            // navigateur jetterait le message EN SILENCE : les proposer a
+            // l'envoi, c'est promettre une livraison qui n'aura pas lieu.
+            //
+            // Un `vapid_key_hash` a `null` reste admis : il signifie « cree
+            // avant que cette colonne existe », pas « suspect ».
+            ->where(function ($q): void {
+                $q->whereNull('vapid_key_hash')
+                    ->orWhere('vapid_key_hash', PushSubscription::empreinteCleVapid());
+            })
             ->orderByDesc('last_seen_at');
     }
 

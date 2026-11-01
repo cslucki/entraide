@@ -274,6 +274,11 @@ class TASK1739PushSubscriptionStoreTest extends TestCase
             // de table. `after()` reste une indication de lecture, jamais une
             // garantie d'ordre — et c'est l'ordre REEL que ce test mesure.
             'created_env',
+            // TASK-1740 — l'empreinte de la clef VAPID en vigueur a la
+            // revendication. Ne designe personne : elle ne sert qu'a
+            // reconnaitre un abonnement cree avec une clef qui n'a plus cours,
+            // que le fournisseur accepterait et que le navigateur jetterait.
+            'vapid_key_hash',
         ], $colonnes);
     }
 

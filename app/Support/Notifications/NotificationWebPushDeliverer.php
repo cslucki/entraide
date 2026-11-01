@@ -145,6 +145,21 @@ class NotificationWebPushDeliverer
         // par une garde supplementaire.
         $appareils = PushSubscription::query()
             ->where('user_id', $destinataireId)
+            // TASK-1740 — ecarter les abonnements crees avec une clef VAPID
+            // qui n'a plus cours. Un abonnement porte A VIE la clef avec
+            // laquelle le navigateur l'a cree : si celle du serveur a change,
+            // le fournisseur accepte toujours l'envoi (`201`) et le navigateur
+            // jette le message EN SILENCE. Les servir reviendrait a compter
+            // des livraisons qui n'ont pas lieu.
+            //
+            // Un `vapid_key_hash` a `null` reste servi : il signifie « cree
+            // avant que cette colonne existe », pas « suspect ». La
+            // reconciliation, qui tourne a chaque affichage de l'ecran des
+            // reglages, le stampera d'elle-meme.
+            ->where(function ($q): void {
+                $q->whereNull('vapid_key_hash')
+                    ->orWhere('vapid_key_hash', PushSubscription::empreinteCleVapid());
+            })
             ->orderByDesc('last_seen_at')
             ->limit(self::MAX_APPAREILS + 1)
             ->get();

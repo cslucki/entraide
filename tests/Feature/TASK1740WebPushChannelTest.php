@@ -239,6 +239,95 @@ class TASK1740WebPushChannelTest extends TestCase
         );
     }
 
+    // ── Clef VAPID : un abonnement cree avec une clef perimee ───────────────
+
+    public function test_la_revendication_STAMPE_la_clef_vapid_en_vigueur(): void
+    {
+        $appareil = $this->appareil();
+
+        $this->assertSame(
+            PushSubscription::empreinteCleVapid(),
+            $appareil->fresh()->vapid_key_hash,
+            'la clef en vigueur n\'est pas enregistree a la revendication',
+        );
+    }
+
+    public function test_un_abonnement_a_la_clef_PERIMEE_n_est_pas_envoyable(): void
+    {
+        // Un abonnement porte A VIE la clef avec laquelle le navigateur l'a
+        // cree. Si celle du serveur change, le fournisseur accepte toujours
+        // l'envoi (`201`) et le navigateur jette le message EN SILENCE : le
+        // servir reviendrait a compter une livraison qui n'a pas lieu.
+        $appareil = $this->appareil();
+        $appareil->forceFill(['vapid_key_hash' => hash('sha256', 'une-ancienne-clef')])->save();
+
+        $envoye = false;
+        Http::fake(function () use (&$envoye) {
+            $envoye = true;
+
+            return Http::response('', 201);
+        });
+
+        $admis = app(\App\Support\Push\PushTestPolicy::class)
+            ->abonnementsEnvoyables($appareil->user)
+            ->get();
+
+        $this->assertCount(0, $admis, 'un abonnement a la clef perimee reste selectionnable');
+        $this->assertFalse($envoye);
+    }
+
+    public function test_un_abonnement_de_clef_INCONNUE_reste_envoyable(): void
+    {
+        // `null` veut dire « cree avant que cette colonne existe », PAS
+        // « suspect ». Le refuser casserait une installation qui fonctionne
+        // pour se proteger d'un risque qu'on n'a pas constate — l'abonnement
+        // Android valide en recette le 01/11 est precisement dans ce cas.
+        //
+        // La regle est donc dissymetrique, et deliberement : on ne traite
+        // comme divergent que ce qu'on a MESURE divergent.
+        $appareil = $this->appareil();
+        $appareil->forceFill(['vapid_key_hash' => null])->save();
+
+        $admis = app(\App\Support\Push\PushTestPolicy::class)
+            ->abonnementsEnvoyables($appareil->user)
+            ->get();
+
+        $this->assertCount(1, $admis);
+    }
+
+    /*
+     * PAS de test du livreur metier sur la clef perimee, et c'est delibere.
+     *
+     * J'en avais ecrit un. Il passait AUSSI quand on retirait la garde — le
+     * sabotage l'a montre — parce que `deliver()` s'arrete bien avant la
+     * requete d'appareils : aucune cle d'evenement n'active aujourd'hui
+     * `CHANNEL_WEB_PUSH`, donc la preference refuse le canal et la livraison
+     * est sautee. Le test mesurait cet abandon precoce, pas la garde.
+     *
+     * Un test qui ne rougit pas quand on casse ce qu'il pretend verifier est
+     * pire qu'une absence de test : il rassure a tort. Il est donc retire
+     * jusqu'a ce qu'une cle d'evenement active le canal — alors seulement le
+     * chemin metier sera observable, avec un cas TEMOIN qui prouve qu'on
+     * atteint bien la requete d'appareils.
+     *
+     * La regle elle-meme reste mesuree par
+     * `test_un_abonnement_a_la_clef_PERIMEE_n_est_pas_envoyable`, dont le
+     * sabotage a bien rougi, et le livreur applique le MEME filtre.
+     */
+
+    public function test_l_ecran_porte_le_message_de_clef_PERIMEE(): void
+    {
+        // Le navigateur ne fabrique aucun texte : si l'attribut manque, la
+        // personne verrait un bloc muet au lieu d'une consigne.
+        $vue = view('notifications.partials.push-device', [
+            'routePush' => 'notifications.push.store',
+            'routeParams' => [],
+        ])->render();
+
+        $this->assertStringContainsString('data-text-key-stale', $vue);
+        $this->assertStringContainsString(__('push.key_stale'), $vue);
+    }
+
     public function test_l_envoi_porte_une_urgence_HAUTE(): void
     {
         // Android DIFFERE les messages d'urgence `normal` quand l'appareil est
@@ -361,12 +450,23 @@ class TASK1740WebPushChannelTest extends TestCase
         $detail = openssl_pkey_get_details($paire);
         $publique = "\x04".str_pad($detail['ec']['x'], 32, "\0", STR_PAD_LEFT).str_pad($detail['ec']['y'], 32, "\0", STR_PAD_LEFT);
 
-        $serveur = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
-        $detailServeur = openssl_pkey_get_details($serveur);
         $b64 = static fn (string $b): string => rtrim(strtr(base64_encode($b), '+/', '-_'), '=');
 
-        config()->set('webpush.vapid.public_key', $b64("\x04".str_pad($detailServeur['ec']['x'], 32, "\0", STR_PAD_LEFT).str_pad($detailServeur['ec']['y'], 32, "\0", STR_PAD_LEFT)));
-        config()->set('webpush.vapid.private_key', $b64(str_pad($detailServeur['ec']['d'], 32, "\0", STR_PAD_LEFT)));
+        // La paire VAPID du SERVEUR est posee UNE SEULE FOIS par test.
+        //
+        // TASK-1740 — elle etait auparavant regeneree a CHAQUE appareil, ce
+        // qui decrivait une situation impossible : la clef du serveur ne tourne
+        // pas entre deux enregistrements d'appareils. Trois appels laissaient
+        // deux abonnements stampes avec des clefs perimees, et la garde de
+        // divergence les ecartait — a raison. C'est le fixture qui mentait,
+        // pas la garde.
+        if (((string) config('webpush.vapid.public_key')) === '') {
+            $serveur = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+            $detailServeur = openssl_pkey_get_details($serveur);
+
+            config()->set('webpush.vapid.public_key', $b64("\x04".str_pad($detailServeur['ec']['x'], 32, "\0", STR_PAD_LEFT).str_pad($detailServeur['ec']['y'], 32, "\0", STR_PAD_LEFT)));
+            config()->set('webpush.vapid.private_key', $b64(str_pad($detailServeur['ec']['d'], 32, "\0", STR_PAD_LEFT)));
+        }
 
         return app(\App\Services\Push\PushSubscriptionStore::class)->revendiquer(
             $this->alice,

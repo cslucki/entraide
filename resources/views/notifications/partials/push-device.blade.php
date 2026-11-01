@@ -148,6 +148,7 @@
           data-text-not-yet="{{ __('push.not_yet_sending') }}"
           data-text-enable-failed="{{ __('push.enable_failed') }}"
           data-text-disable-failed="{{ __('push.disable_failed') }}"
+          data-text-key-stale="{{ __('push.key_stale') }}"
           data-count-zero="{{ trans_choice('push.devices_count', 0) }}"
           data-count-one="{{ trans_choice('push.devices_count', 1) }}"
           data-count-many="{{ trans_choice('push.devices_count', 2, ['count' => '%d']) }}"></span>
