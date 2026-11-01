@@ -55,6 +55,9 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 <link rel="stylesheet" href="{{ asset('css/artscilab-hero.css') }}?v={{ filemtime(public_path('css/artscilab-hero.css')) }}">
 {{-- TASK-1471 : le MEME producteur de tokens que les layouts applicatifs. --}}
 <x-theme-tokens />
+{{-- TASK-1737 — le contrat d'installabilite PWA, declare une seule fois. --}}
+<x-pwa-head />
+<x-pwa-boot />
 </head>
 <body class="bp-artscilab">
 
@@ -254,5 +257,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
 <script src="{{ asset('js/artscilab-hero.js') }}?v={{ filemtime(public_path('js/artscilab-hero.js')) }}"></script>
 @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'bottom'])
+    {{-- TASK-1737 — l'invitation a installer ; `PwaInstallContext` decide de sa forme, ou de son absence. --}}
+    <x-pwa-install />
 </body>
 </html>

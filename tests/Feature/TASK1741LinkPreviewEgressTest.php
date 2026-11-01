@@ -37,7 +37,7 @@ class TASK1741LinkPreviewEgressTest extends TestCase
 
     public function test_un_apercu_vers_un_hote_public_est_autorise(): void
     {
-        $this->assertTrue(SortieDeRecette::autorisee('fr.wikipedia.org', [
+        $this->assertTrue(SortieDeRecette::autorisee('https', 'fr.wikipedia.org', [
             SortieDeRecette::OPTION_APERCU_LIEN => true,
         ]));
     }
@@ -47,8 +47,8 @@ class TASK1741LinkPreviewEgressTest extends TestCase
         // La condition que MASTER a posee mot pour mot. Sans le marqueur,
         // l'hote le plus anodin ne passe pas : ce n'est pas le DOMAINE qui est
         // admis, c'est le TRANSPORT.
-        $this->assertFalse(SortieDeRecette::autorisee('fr.wikipedia.org', []));
-        $this->assertFalse(SortieDeRecette::autorisee('fr.wikipedia.org', ['autre_marqueur' => true]));
+        $this->assertFalse(SortieDeRecette::autorisee('https', 'fr.wikipedia.org', []));
+        $this->assertFalse(SortieDeRecette::autorisee('https', 'fr.wikipedia.org', ['autre_marqueur' => true]));
     }
 
     public function test_sans_la_configuration_meme_un_apercu_est_refuse(): void
@@ -57,7 +57,7 @@ class TASK1741LinkPreviewEgressTest extends TestCase
         // l'avoir demandee.
         config()->set('ops.sorties_de_recette.apercus_de_lien', false);
 
-        $this->assertFalse(SortieDeRecette::autorisee('fr.wikipedia.org', [
+        $this->assertFalse(SortieDeRecette::autorisee('https', 'fr.wikipedia.org', [
             SortieDeRecette::OPTION_APERCU_LIEN => true,
         ]));
     }
@@ -69,7 +69,7 @@ class TASK1741LinkPreviewEgressTest extends TestCase
         // l'environnement seul qui doit suffire a fermer la porte.
         app()['env'] = $environnement;
 
-        $this->assertFalse(SortieDeRecette::autorisee('fr.wikipedia.org', [
+        $this->assertFalse(SortieDeRecette::autorisee('https', 'fr.wikipedia.org', [
             SortieDeRecette::OPTION_APERCU_LIEN => true,
         ]));
     }
@@ -93,7 +93,7 @@ class TASK1741LinkPreviewEgressTest extends TestCase
         // Le marqueur ouvre la sortie, il n'ouvre pas le reseau interne. Sans
         // cette quatrieme condition, poser le marqueur suffirait a joindre
         // n'importe quoi.
-        $this->assertFalse(SortieDeRecette::autorisee($hote, [
+        $this->assertFalse(SortieDeRecette::autorisee('https', $hote, [
             SortieDeRecette::OPTION_APERCU_LIEN => true,
         ]), "l'hote interne {$hote} a ete admis");
     }
@@ -143,10 +143,19 @@ class TASK1741LinkPreviewEgressTest extends TestCase
             (new \ReflectionClass(\App\Support\Ops\ExternalEgressGuard::class))->getFileName()
         );
 
-        $this->assertSame(
-            2,
-            substr_count($source, 'SortieDeRecette::autorisee('),
-            'la regle doit etre consultee a la destination initiale ET a chaque redirection',
+        // Les DEUX points d'application dans `garderHttp` : la destination
+        // initiale et chaque saut de redirection. Le troisieme appel du
+        // fichier est le delegue historique de T1740, qui ne compte pas ici.
+        $this->assertStringContainsString(
+            "SortieDeRecette::autorisee(\$requete->getUri()->getScheme(), \$hote, \$options)",
+            $source,
+            'la regle n\'est plus consultee a la destination initiale',
+        );
+
+        $this->assertStringContainsString(
+            "SortieDeRecette::autorisee(\$uri->getScheme(), \$hoteSuivant, \$options)",
+            $source,
+            'la regle n\'est plus consultee a chaque redirection',
         );
     }
 

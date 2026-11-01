@@ -32,6 +32,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    {{-- TASK-1737 — le contrat d'installabilite PWA, declare une seule fois. --}}
+    <x-pwa-head />
+    <x-pwa-boot />
     <title>403 — {{ __('errors.org_member_required_title') }} · {{ config('app.name') }}</title>
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" href="{{ asset('brand/bouclepro-symbol-64.png') }}">

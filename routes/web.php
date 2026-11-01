@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\AdminUserBulkCreationController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
+use App\Http\Controllers\Admin\AdminTestNotificationController;
 use App\Http\Controllers\Admin\AdminRoadmapController;
 use App\Http\Controllers\Admin\AdminLoopPermissionController;
 use App\Http\Controllers\Admin\AdminLoopPluginController;
@@ -122,11 +123,13 @@ use App\Http\Controllers\OrganizationLandingController;
 use App\Http\Controllers\OrganizationRequestController;
 use App\Http\Controllers\PointController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\ShareTargetController;
 use App\Http\Controllers\ShortcutController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\SubscriptionController;
@@ -177,6 +180,22 @@ Route::post('/locale/{locale}', [LocaleController::class, 'switch'])->name('loca
 // necessaires, et un sabotage le prouve.
 Route::get('/explorer', [ExplorerController::class, 'index'])->middleware(['auth', 'organization.member'])->name('explorer');
 Route::view('/about', 'about')->name('about');
+
+// TASK-1737 — l'ecran d'installation, atteignable DIRECTEMENT.
+//
+// C'est la destination du bandeau non bloquant, le repli des plateformes qui
+// n'ont pas d'invite native (iOS, Firefox), et l'URL que la recette ouvre sur
+// un telephone reel.
+//
+// UN SEUL SEGMENT, et ce n'est pas un detail. `ResolveUrlOrganization`
+// interprete `/{slug}/{feature}` comme une route de partenaire et rend 404
+// quand le slug n'en designe aucun : `/installer/android` serait un piege. Un
+// segment unique traverse la pile sans liage d'Organization — verifie le
+// 31/10/2026 — et un invite y arrive sans authentification.
+//
+// Publique a dessein : on n'oblige personne a se connecter pour apprendre
+// comment installer une application.
+Route::view('/installer', 'pwa.install')->name('pwa.install');
 Route::get('/membres', [HomeController::class, 'members'])->middleware(['auth', 'organization.member'])->name('members.index');
 Route::get('/echanges', [HomeController::class, 'exchanges'])->middleware(['auth', 'organization.member'])->name('exchanges.index');
 Route::redirect('/partners', '/partenaires');
@@ -184,6 +203,30 @@ Route::get('/partenaires', [HomeController::class, 'partners'])->name('partenair
 Route::get('/partenaires/demande', [OrganizationRequestController::class, 'create'])->name('partenaires.request.create');
 Route::post('/partenaires/demande', [OrganizationRequestController::class, 'store'])->name('partenaires.request.store');
 Route::get('/boucles', [HomeController::class, 'boucles'])->name('boucles.index');
+
+// TASK-1738 — partage d'un lien externe vers une Boucle (Web Share Target).
+//
+// Trois routes GLOBALES, jamais prefixees par `/org/{organization}` : la
+// cible `share_target` du manifest est une URL FIXE — la feuille de partage
+// d'Android ne connait aucun slug de tenant. Le tenant est celui de la
+// personne connectee, revalide au POST.
+//
+// `partage.recevoir` est PUBLIQUE, et c'est voulu : derriere `auth`, le
+// middleware redirigerait vers la connexion AVANT ce controleur, et les
+// parametres du partage seraient perdus. Elle ne fait que LIRE et RANGER en
+// session, puis repond 303 vers une URL nue — aucun GET n'ecrit de message
+// (CDC 4.6). Les deux routes suivantes exigent une session ; l'intention
+// survit a la connexion parce que `regenerate()` CONSERVE le contenu.
+//
+// PIEGE pour qui ajoutera un sous-chemin ici : `ResolveUrlOrganization`
+// lit `/{slug}/{feature}` comme une route de PARTENAIRE des que le second
+// segment appartient a `$defaultOrganizationRoutes`. `choisir` et `publier`
+// n'y sont pas, donc ces deux routes passent ; `/partage/loops` ou
+// `/partage/blog`, en revanche, seraient resolues comme le partenaire
+// « partage » et rendraient un 404 incomprehensible.
+Route::get('/partage', [ShareTargetController::class, 'receive'])->middleware('throttle:60,1')->name('partage.recevoir');
+Route::get('/partage/choisir', [ShareTargetController::class, 'show'])->middleware('auth')->name('partage.choisir');
+Route::post('/partage/publier', [ShareTargetController::class, 'publish'])->middleware(['auth', 'throttle:20,1'])->name('partage.publier');
 Route::redirect('/boucles/creer', '/partenaires/demande');
 
 // Blog — public (routes fixes avant le wildcard)
@@ -432,6 +475,24 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
     Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
     Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
+
+    // TASK-1739 — abonnements Web Push, un par APPAREIL.
+    //
+    // Regime `auth` seul, comme Favoris, Points et les preferences de
+    // notification juste au-dessus : un abonnement est une donnee de PERSONNE,
+    // pas de tenant. La table ne porte d'ailleurs aucun `organization_id`.
+    //
+    // Elles rendent du JSON : seul le navigateur connait l'`endpoint` que le
+    // fournisseur Push lui a remis, donc c'est un geste cote client qui les
+    // appelle, jamais une navigation.
+    //
+    // `subscribe` est appele AUSSI pour reconfirmer un abonnement existant —
+    // `pushsubscriptionchange` n'etant pas pris en charge partout, le client
+    // reconcilie a la connexion et a chaque reouverture (CDC 5.4). D'ou un
+    // throttle large : c'est une operation idempotente et frequente.
+    Route::get('/notifications/push', [PushSubscriptionController::class, 'show'])->name('notifications.push.show');
+    Route::post('/notifications/push', [PushSubscriptionController::class, 'store'])->middleware('throttle:60,1')->name('notifications.push.store');
+    Route::delete('/notifications/push', [PushSubscriptionController::class, 'destroy'])->middleware('throttle:60,1')->name('notifications.push.destroy');
 
     // Reports
     Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->middleware('throttle:5,1')->name('reports.service');
@@ -1117,6 +1178,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/outils/assign-data/{dataset}', [AdminAssignDataController::class, 'detail'])->name('outils.assign-data.detail');
     Route::post('/outils/assign-data/preview', [AdminAssignDataController::class, 'preview'])->name('outils.assign-data.preview');
     Route::post('/outils/assign-data/assign', [AdminAssignDataController::class, 'assign'])->name('outils.assign-data.assign');
+    // TASK-1740 — diagnostiquer le Push et s'envoyer une notification de test.
+    //
+    // Dans le groupe `admin`, donc reserve a l'administration. L'outil
+    // n'envoie qu'aux appareils de la personne qui CLIQUE : on ne peut tester
+    // que sur un telephone qu'on tient dans la main, jamais reveiller celui de
+    // quelqu'un d'autre — garde structurelle demandee par MASTER, et non une
+    // liste d'autorisation a tenir a jour.
+    Route::get('/outils/test-notification', [AdminTestNotificationController::class, 'index'])->name('outils.test-notification');
+    Route::post('/outils/test-notification', [AdminTestNotificationController::class, 'send'])->middleware('throttle:10,1')->name('outils.test-notification.send');
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
 
@@ -1314,6 +1384,30 @@ Route::prefix('/org/{organization}')
         Route::get('/about', [OrganizationLandingController::class, 'about'])
             ->withoutMiddleware(['auth', 'organization.member'])
             ->name('about');
+
+        // TASK-1737 — l'ecran d'installation, VU DEPUIS UNE ORGANIZATION.
+        //
+        // Le meme gabarit que la route globale `/installer`, mais atteint sans
+        // quitter le prefixe du tenant. La CI de TASK-1737 a rougi exactement
+        // la-dessus : `TASK1699OfshHomepageThemeTest` et `TASK1700AboutOfshTest`
+        // gardent qu'AUCUN lien d'une surface Organization-scoped ne mene a une
+        // route globale, et le bandeau d'installation en servait une.
+        //
+        // Ce n'etait pas qu'une doctrine. Depuis la landing OFSH, « Installer »
+        // menait au `/installer` global, dont le retour pointait sur `url('/')`
+        // — qui redirige vers `/org/main`. La personne changeait de TENANT en
+        // voulant simplement revenir. Meme classe que les neuf liens de T1697.
+        //
+        // Publique, donc elle s'extrait du groupe comme `home` et `about` :
+        // installer l'application ne demande pas d'etre membre.
+        // Un CONTROLEUR, pas une `Route::view()` : celle-ci n'a aucune garde,
+        // et rendait 200 pour une Organization non publique dont `/about`
+        // rend 302 — l'ecran ne divulguait rien du tenant, mais confirmait son
+        // existence. `installer()` recopie les deux gardes de `about()`, et un
+        // test exige que les deux routes rendent le meme statut.
+        Route::get('/installer', [OrganizationLandingController::class, 'installer'])
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('pwa.install');
         // TASK-1450 — Workshop domain foundation : la page PUBLIQUE d'un atelier publie de CETTE Organization (404 sinon). Pas de Shell ici.
         Route::get('/ateliers/{workshop}', [WorkshopPageController::class, 'show'])->name('workshop.show')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}');
         // TASK-1452 (B4-B) : « je choisis cette session » — geste Guest (interet != inscription), throttle anti-rafale.
@@ -1506,6 +1600,14 @@ Route::prefix('/org/{organization}')
             Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
             Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
             Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
+
+            // TASK-1739 — meme trio que la forme globale ci-dessus. Declaree
+            // ici parce que l'ecran de preferences existe sous les deux
+            // formes : sans cela, le bloc « cet appareil » appellerait une
+            // route absente depuis une page prefixee par l'Organization.
+            Route::get('/notifications/push', [PushSubscriptionController::class, 'show'])->name('notifications.push.show');
+            Route::post('/notifications/push', [PushSubscriptionController::class, 'store'])->middleware('throttle:60,1')->name('notifications.push.store');
+            Route::delete('/notifications/push', [PushSubscriptionController::class, 'destroy'])->middleware('throttle:60,1')->name('notifications.push.destroy');
 
             Route::post('/reports/service/{service}', [ReportController::class, 'orgStoreService'])->middleware('throttle:5,1')->name('reports.service');
             Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'orgStoreRequest'])->middleware('throttle:5,1')->name('reports.request');

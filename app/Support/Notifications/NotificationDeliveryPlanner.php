@@ -3,6 +3,7 @@
 namespace App\Support\Notifications;
 
 use App\Jobs\SendNotificationEmail;
+use App\Jobs\SendNotificationWebPush;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -50,7 +51,31 @@ class NotificationDeliveryPlanner
      *
      * @var list<string>
      */
-    private const CANAUX_ASYNCHRONES = [NotificationCatalogue::CHANNEL_EMAIL];
+    private const CANAUX_ASYNCHRONES = [
+        NotificationCatalogue::CHANNEL_EMAIL,
+        NotificationCatalogue::CHANNEL_WEB_PUSH,
+    ];
+
+    /**
+     * Le job qui porte chaque canal asynchrone.
+     *
+     * TASK-1740 — c'est CETTE table qui corrige le defaut de T1377.
+     * `plan()` dispatchait `SendNotificationEmail` **dans la boucle sur les
+     * canaux**, sans jamais lui passer le canal. Tant que la constante
+     * ci-dessus n'avait qu'une entree, la boucle faisait un tour et personne
+     * ne voyait rien ; a deux entrees, chaque canal — Push compris — aurait
+     * mis un job EMAIL en file. Deux jobs email pour une notification, dont un
+     * qui n'avait aucune livraison a prendre.
+     *
+     * Un canal absent de cette table ne produit aucun job : c'est un refus
+     * explicite, pas un repli silencieux sur l'email.
+     *
+     * @var array<string, class-string>
+     */
+    private const JOB_PAR_CANAL = [
+        NotificationCatalogue::CHANNEL_EMAIL => SendNotificationEmail::class,
+        NotificationCatalogue::CHANNEL_WEB_PUSH => SendNotificationWebPush::class,
+    ];
 
     /**
      * Planifie les livraisons d'une notification FRAICHEMENT creee.
@@ -74,10 +99,20 @@ class NotificationDeliveryPlanner
 
             $creees[] = $livraison;
 
-            // `afterCommit` est porte par le job : voir SendNotificationEmail.
-            // Sans cela, un worker pourrait lire la livraison avant que la
-            // transaction du producteur ait commit — et ne rien trouver.
-            SendNotificationEmail::dispatch((string) $notification->id);
+            // TASK-1740 — le job du CANAL, et non plus `SendNotificationEmail`
+            // en dur. Voir le docblock de `JOB_PAR_CANAL` pour le defaut que
+            // cela corrige.
+            //
+            // `afterCommit` est porte par chaque job. Sans cela, un worker
+            // pourrait lire la livraison avant que la transaction du
+            // producteur ait commit — et ne rien trouver.
+            $job = self::JOB_PAR_CANAL[$canal] ?? null;
+
+            if ($job === null) {
+                continue;
+            }
+
+            $job::dispatch((string) $notification->id);
         }
 
         return $creees;

@@ -268,20 +268,102 @@ final class ExternalEgressGuard
      * est plus sur que d'en suivre, et le reecrire RE-ACTIVERAIT un
      * comportement que l'appelant a explicitement coupe.
      */
+    /**
+     * TASK-1740 — l'option qui MARQUE une requete comme venant du transport
+     * Web Push de BouclePro.
+     *
+     * Ce n'est pas un laissez-passer : c'est la premiere des QUATRE conditions
+     * de {@see sortiePushAutorisee()}. Une requete HTTP ordinaire vers
+     * `fcm.googleapis.com` ne la porte pas, et reste donc refusee — c'est
+     * exactement ce que MASTER a exige le 01/11.
+     *
+     * Elle n'est posable que par du code serveur, et un seul endroit la pose :
+     * `NotificationWebPushDeliverer::deposer()`.
+     */
+    public const OPTION_TRANSPORT_PUSH = 'bouclepro_web_push';
+
+    /**
+     * Les sorties de RECETTE admises, une entree par usage.
+     *
+     * ## Pourquoi un registre et pas un `if` par cas
+     *
+     * MASTER, 01/11 : « une solution reutilisable et simple, pas une
+     * accumulation d'exceptions dispersees ». Un second besoin est deja
+     * identifie — les apercus de lien de la ChatLoop, qui seront traites dans
+     * leur propre TASK. S'il fallait alors ajouter une methode et une branche
+     * de plus dans le middleware, la troisieme exception serait ecrite au
+     * meme endroit par copie, et personne ne saurait plus les enumerer.
+     *
+     * Ici, ajouter un usage = ajouter UNE entree. Les quatre conditions
+     * restent appliquees de la meme facon a tous, par le meme code.
+     *
+     * Chaque entree declare :
+     * - `drapeau` : la clef de configuration qui l'active, FAUSSE par defaut ;
+     * - `option`  : le marqueur que seul le transport concerne pose ;
+     * - `hotes`   : la liste FERMEE des destinations admises.
+     *
+     * @var array<string, array{drapeau: string, option: string, hotes: list<string>}>
+     */
+    // TASK-1741 — le registre des sorties de recette a demenage dans
+    // `SortieDeRecette`, qui porte desormais les DEUX transports (Web Push et
+    // apercus de lien) dans une politique unique. Le garder ici en double
+    // aurait cree deux sources de verite, et c'est exactement ce que MASTER a
+    // demande d'eviter : « pas une accumulation d'exceptions dispersees ».
+    //
+    // `OPTION_TRANSPORT_PUSH` reste ici parce que c'est la constante que le
+    // livreur Push et l'outil d'administration referencent deja.
+
+
+    /**
+     * Cette requete est-elle une sortie de recette ADMISE ?
+     *
+     * QUATRE conditions, toutes necessaires. Retirer n'importe laquelle rend
+     * l'exception exploitable :
+     *
+     * 1. **Le drapeau de l'usage**, absent par defaut. Une variable absente
+     *    n'ouvre rien.
+     * 2. **Jamais en production, jamais sur Laravel Cloud.** Verifies
+     *    separement : `APP_ENV` peut mentir, `laravel_cloud()` lit
+     *    l'infrastructure.
+     * 3. **Le marqueur de transport.** Une requete HTTP ORDINAIRE vers un
+     *    domaine admis ne le porte pas, et reste donc refusee — exigence
+     *    explicite de MASTER.
+     * 4. **HTTPS vers un hote de la liste fermee.** Pas de `http://`, pas de
+     *    domaine hors liste.
+     *
+     * Tout le reste du garde est INCHANGE : courriel, controle des
+     * redirections, plages privees, refus de toute autre destination.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    public static function sortieDeRecetteAutorisee(string $schema, string $hote, array $options): bool
+    {
+        // TASK-1741 — la regle a demenage dans `SortieDeRecette`, qui porte
+        // desormais les DEUX transports dans une politique unique. Cette
+        // methode reste le point d'entree historique de T1740 : elle delegue,
+        // pour que la regle ne vive qu'a UN seul endroit.
+        return SortieDeRecette::autorisee($schema, $hote, $options);
+    }
+
     private static function garderHttp(string $base): void
     {
         Http::globalMiddleware(static function (callable $handler) use ($base) {
             return static function ($requete, array $options) use ($handler, $base) {
                 $hote = $requete->getUri()->getHost();
 
-                // TASK-1741 — la seule porte de sortie, et elle est fermee
-                // par defaut. `SortieDeRecette` exige quatre conditions
-                // CUMULATIVES : environnement `local`, derogation activee par
-                // configuration, marqueur de transport pose par ce transport
-                // seul, et destination conforme a la politique de ce
-                // transport. Une requete HTTP ordinaire vers le meme hote
-                // reste donc refusee.
-                if (! self::hoteEstLocal($hote) && ! SortieDeRecette::autorisee($hote, $options)) {
+                // TASK-1740 + TASK-1741 — la seule porte de sortie, et elle
+                // est fermee par defaut.
+                //
+                // `SortieDeRecette` porte DEUX transports — le Web Push et les
+                // apercus de lien — dans une politique unique. Chacun declare
+                // ses propres bornes (environnement, schema, hotes admis), et
+                // aucun ne peut s'affranchir du socle : jamais en production,
+                // jamais sur Laravel Cloud.
+                //
+                // Une requete HTTP ordinaire vers le meme hote reste refusee :
+                // ce n'est pas le DOMAINE qui est admis, c'est le TRANSPORT.
+                if (! self::hoteEstLocal($hote)
+                    && ! SortieDeRecette::autorisee($requete->getUri()->getScheme(), $hote, $options)) {
                     throw new RuntimeException(self::messageHttp($hote, $base));
                 }
 
@@ -302,7 +384,8 @@ final class ExternalEgressGuard
                         'on_redirect' => static function ($req, $rep, $uri) use ($base, $options): void {
                             $hoteSuivant = $uri->getHost();
 
-                            if (! self::hoteEstLocal($hoteSuivant) && ! SortieDeRecette::autorisee($hoteSuivant, $options)) {
+                            if (! self::hoteEstLocal($hoteSuivant)
+                                && ! SortieDeRecette::autorisee($uri->getScheme(), $hoteSuivant, $options)) {
                                 throw new RuntimeException(self::messageHttp($hoteSuivant, $base, true));
                             }
                         },

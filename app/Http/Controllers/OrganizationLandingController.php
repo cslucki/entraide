@@ -185,4 +185,33 @@ class OrganizationLandingController extends Controller
 
         return view('organization.about-launchpals', compact('organization'));
     }
+
+    /**
+     * TASK-1737 — l'ecran d'installation, vu depuis cette Organization.
+     *
+     * Le gabarit est le meme que la route globale `/installer` : il ne rend
+     * aucune donnee du tenant. Ce qui doit etre identique, c'est l'ACCES.
+     *
+     * Une `Route::view()` n'a pas de controleur, donc aucune garde : mesure du
+     * 31/10/2026, `/org/{slug}/installer` rendait **200** pour une Organization
+     * non publique la ou `/about` rendait 302. L'ecran ne divulguait rien du
+     * tenant, mais il confirmait son EXISTENCE — ce que ses voisines
+     * dissimulent justement.
+     *
+     * Les deux gardes sont donc recopiees telles quelles depuis `about()`, et
+     * `TASK1737PwaInstallScreenTest::test_the_scoped_screen_is_no_more_open_than_the_about_page`
+     * exige que les deux routes rendent le MEME statut : si la politique
+     * d'acces change ici ou la, le test rougit avant la divergence.
+     */
+    public function installer(string $organization): View|RedirectResponse
+    {
+        $organization = Organization::findBySlug($organization);
+        abort_if(! $organization || ! $organization->is_active, 404);
+
+        if (! $organization->is_public && ! auth()->check()) {
+            return redirect()->route('organization.login', ['organization' => $organization->slug]);
+        }
+
+        return view('pwa.install');
+    }
 }
