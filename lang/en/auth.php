@@ -147,4 +147,5 @@ return [
     'myorg_mail_linked_subject' => 'Your accounts are now linked',
     'myorg_mail_linked_line' => 'Your account and your :other account are now linked. You can revoke this link at any time, from either account.',
     'myorg_mail_linked_action' => 'Manage my linked accounts',
+    'login_switch_organization' => 'Sign in to another organisation:',
 ];
