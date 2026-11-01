@@ -57,6 +57,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    {{-- TASK-1737 — le contrat d'installabilite PWA, declare une seule fois. --}}
+    <x-pwa-head />
+    <x-pwa-boot />
     {{-- TASK-1685 : le titre d'onglet suit la page. Sur un refus inter-tenant,
          il ne commence plus par « 404 » : l'onglet aussi disait « panne ». Le
          nom reste celui de SON Organization (T1606). --}}

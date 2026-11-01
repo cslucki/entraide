@@ -290,7 +290,22 @@ class TASK1699OfshHomepageThemeTest extends TestCase
                 // `artscilab-hero`) servent ce meme lien depuis TASK-1613 ; OFSH
                 // est le dernier a le recevoir (demande Cyril du 29/10 : « Un
                 // bug ? · icone github »).
-                foreach (['/org/', '/css/', '/js/', '/img/', '/build/', '/storage/', '/dashboard', '/locale/', '/favicon', '/open-source/github'] as $tolere) {
+                // TASK-1737 — le manifest et l'icone d'ecran d'accueil sont des
+                // `<link rel="...">`, pas de la NAVIGATION : cette garde grep
+                // `href=` sans distinguer les deux. Meme nature que `/css/`,
+                // `/img/` ou `/favicon` deja tolerees ici.
+                //
+                // Et ils ne PEUVENT pas etre prefixes par Organization :
+                // l'identite d'installation est a l'echelle de l'ORIGINE
+                // (`id` et `scope` valent `/` dans `site.webmanifest`), donc
+                // une seule application installee pour tout le domaine. Un
+                // manifest par tenant serait un autre produit — question
+                // ouverte, hors perimetre de TASK-1737.
+                //
+                // Le lien « Installer » du bandeau, lui, EST de la navigation :
+                // il passe par `organization.pwa.install` et reste dans le
+                // prefixe. C'est cette garde qui l'a exige.
+                foreach (['/org/', '/css/', '/js/', '/img/', '/build/', '/storage/', '/dashboard', '/locale/', '/favicon', '/open-source/github', '/site.webmanifest', '/apple-touch-icon'] as $tolere) {
                     if (str_starts_with($url, $tolere)) {
                         return false;
                     }

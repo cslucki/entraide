@@ -1,8 +1,16 @@
 {
+  "id": "/",
   "name": "BouclePro",
   "short_name": "BouclePro",
   "description": "Plateforme d'entraide et de micro-services",
   "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#1B1FCC",
+  "background_color": "#FFFFF5",
+  "lang": "fr",
+  "dir": "ltr",
+  "categories": ["productivity", "social"],
   "icons": [
     {
       "src": "/brand/icon-192.png",
@@ -29,10 +37,32 @@
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#050505",
-  "background_color": "#FFFFF5",
-  "display": "standalone",
-  "orientation": "portrait",
-  "categories": ["productivity", "social"],
-  "lang": "fr"
+  "screenshots": [
+    {
+      "src": "/brand/screenshots/phone-accueil.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "La page d'accueil de BouclePro"
+    },
+    {
+      "src": "/brand/screenshots/phone-a-propos.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "A propos de BouclePro"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mes Boucles",
+      "short_name": "Boucles",
+      "url": "/loops"
+    },
+    {
+      "name": "Tableau de bord",
+      "short_name": "Tableau",
+      "url": "/dashboard"
+    }
+  ]
 }
