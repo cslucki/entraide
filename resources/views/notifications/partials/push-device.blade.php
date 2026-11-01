@@ -97,6 +97,7 @@
                     'abonnement' => 'Abonnement',
                     'empreinte' => 'Empreinte',
                     'base' => 'Connu du serveur',
+                    'cle' => 'Clé d’abonnement',
                 ] as $cle => $libelle)
                     <div class="flex gap-2">
                         <dt class="w-32 shrink-0 text-[var(--bp-muted)]">{{ $libelle }}</dt>

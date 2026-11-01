@@ -332,6 +332,33 @@ if (bloc) {
             // présent ne valent rien si la base pointe un autre appareil.
             const etat = await etatServeur(abonnement.endpoint);
             cases.base.textContent = etat === null ? '(serveur muet)' : etat.subscribed ? 'OUI' : 'NON';
+
+            /* Le dernier maillon jamais mesuré.
+             *
+             * Un abonnement porte la clé VAPID avec laquelle il a été CRÉÉ, et
+             * c'est elle que le navigateur exigera dans la signature. Si la
+             * clé du serveur a changé depuis, l'abonnement survit tel quel —
+             * `getSubscription()` le rend sans jamais comparer sa clé.
+             *
+             * Sur un endpoint `/fcm/send/`, FCM ne vérifie pas cette
+             * signature : il répond 201 et met en file. C'est Chrome, sur
+             * l'appareil, qui jette alors le message EN SILENCE. D'où le
+             * symptôme exact qu'on observe — accepté, jamais affiché. */
+            const cleAbonnement = abonnement.options?.applicationServerKey;
+
+            if (!cleAbonnement) {
+                cases.cle.textContent = '(non exposée par ce navigateur)';
+                return;
+            }
+
+            const enBase64Url = btoa(String.fromCharCode(...new Uint8Array(cleAbonnement)))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
+
+            cases.cle.textContent = enBase64Url === vapid
+                ? `concorde (${enBase64Url.slice(0, 8)}…)`
+                : `DIVERGE — abonnement ${enBase64Url.slice(0, 8)}… ≠ serveur ${vapid.slice(0, 8)}…`;
         };
 
         /**

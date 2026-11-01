@@ -337,7 +337,19 @@ class NotificationWebPushDeliverer
             }
 
             if ($reponse->successful()) {
-                $this->dernierMotif = '';
+                // TASK-1740 — un 2xx n'est PAS une livraison.
+                //
+                // L'endpoint historique `/fcm/send/` rend ses echecs dans le
+                // CORPS, sous un statut 2xx : un `failure` a 1, ou un
+                // `results[].error` a `NotRegistered`. Ne lire que le statut
+                // laissait donc passer un echec en le nommant « reussite » —
+                // c'est precisement la confusion que MASTER a demande de ne
+                // pas commettre, et elle a coute plusieurs essais a l'aveugle.
+                $corpsReponse = trim($reponse->body());
+
+                $this->dernierMotif = $corpsReponse === ''
+                    ? ''
+                    : 'le fournisseur a repondu : '.mb_substr($corpsReponse, 0, 300);
 
                 return 'ok';
             }
