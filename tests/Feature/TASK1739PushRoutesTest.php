@@ -220,4 +220,36 @@ class TASK1739PushRoutesTest extends TestCase
             );
         }
     }
+
+    // ── L'ACCES a l'ecran, qui manquait ────────────────────────────────────
+
+    public function test_le_centre_de_notifications_mene_aux_reglages(): void
+    {
+        // Defaut trouve par Cyril en recette le 01/11 : l'ecran de reglages
+        // existait depuis T1375 mais AUCUNE vue ne pointait dessus — ni le
+        // menu avatar, ni ce centre, ni la barre laterale. Il n'etait
+        // atteignable qu'en tapant son URL, alors que la page de reglages
+        // porte un lien de RETOUR vers le centre : le chemin n'existait que
+        // dans un sens.
+        //
+        // Sans ce lien, le bloc « Notifications sur cet appareil » est
+        // inatteignable, donc la fonctionnalite n'existe pas pour la personne.
+        $html = $this->actingAs($this->alice)->get(route('notifications.index'))
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-notifications-preferences', $html);
+        $this->assertStringContainsString(route('notifications.preferences.edit'), $html);
+    }
+
+    public function test_l_acces_aux_reglages_ne_depend_pas_des_non_lues(): void
+    {
+        // Le bouton voisin « Tout marquer comme lu » dispara\u00eet quand tout est
+        // lu. Accrocher les reglages a la meme condition les ferait
+        // dispara\u00eetre precisement quand on vient les regler.
+        $this->assertSame(0, $this->alice->unreadNotificationsCount((string) $this->org->id));
+
+        $this->actingAs($this->alice)->get(route('notifications.index'))
+            ->assertOk()
+            ->assertSee('data-notifications-preferences', false);
+    }
 }
