@@ -282,7 +282,37 @@ class NotificationWebPushDeliverer
     private function deposer(PushSubscription $appareil, string $charge): string
     {
         try {
-            $chiffre = Encryption::encrypt($charge, $appareil->p256dh, $appareil->auth, ContentEncoding::aes128gcm);
+            // TASK-1740 — REMBOURRER avant de chiffrer, et ce n'est pas une
+            // optimisation : c'est la cause de la panne du 01/11.
+            //
+            // En `aes128gcm` (RFC 8188), le texte clair doit se terminer par
+            // l'octet delimiteur de fin d'enregistrement `0x02`. C'est
+            // exactement ce que `padPayload()` ajoute — `$charge.chr(2)` —
+            // et appeler `encrypt()` sans lui produit un enregistrement
+            // MALFORME.
+            //
+            // Le symptome etait indetectable depuis le serveur : le
+            // fournisseur ne regarde jamais le chiffre, il repondait donc 201,
+            // et c'est Chrome qui, apres avoir dechiffre correctement,
+            // rejetait l'enregistrement et jetait le message EN SILENCE. Un
+            // push SANS charge utile arrivait, lui, parfaitement — c'est cette
+            // bissection qui a isole le defaut.
+            //
+            // L'aller-retour de dechiffrement que j'avais ecrit en PHP ne
+            // pouvait pas le voir : il verifiait que le JSON revenait intact,
+            // jamais que le delimiteur etait la. Une doublure ecrite avec les
+            // memes hypotheses que le code teste ne prouve rien.
+            //
+            // Le rembourrage a une seconde vertu, qui justifie de le garder a
+            // longueur FIXE : la taille du chiffre fuirait sinon la longueur
+            // du message. Toutes nos notifications font donc le meme poids.
+            $rembourree = Encryption::padPayload(
+                $charge,
+                Encryption::MAX_COMPATIBILITY_PAYLOAD_LENGTH,
+                ContentEncoding::aes128gcm,
+            );
+
+            $chiffre = Encryption::encrypt($rembourree, $appareil->p256dh, $appareil->auth, ContentEncoding::aes128gcm);
 
             $corps = Encryption::getContentCodingHeader(
                 $chiffre['salt'],
