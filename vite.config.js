@@ -13,6 +13,11 @@ export default defineConfig({
                 'resources/js/app.js',
                 'resources/js/deep-chat-init.js',
                 'resources/js/flowchart.js',
+                // TASK-1739 — point d'entree PROPRE a l'ecran des
+                // notifications, pour la meme raison que les deux ci-dessus :
+                // `pushManager` et la demande de permission n'ont rien a
+                // peser sur toutes les pages du produit.
+                'resources/js/push-device.js',
             ],
             refresh: true,
         }),
