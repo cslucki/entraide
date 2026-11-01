@@ -72,6 +72,25 @@ class PushSubscriptionStore
             'updated_at' => $maintenant,
         ];
 
+        // Le libelle n'est MIS A JOUR que s'il en arrive un.
+        //
+        // Defaut trouve par Cyril en recette sur son Android : le libelle est
+        // pose au CLIC d'activation, mais la RECONCILIATION — qui rejoue cette
+        // meme methode a chaque affichage de l'ecran et a chaque retour sur
+        // l'application — n'en envoie aucun. Comme `device_label` figurait
+        // dans les colonnes mises a jour, chaque reconciliation effacait le
+        // libelle pose a l'activation : l'appareil redevenait anonyme en
+        // quelques secondes.
+        //
+        // Un `null` entrant veut dire « je n'en sais rien », pas « efface ».
+        // On ne confond pas l'absence d'information avec une information
+        // d'absence.
+        $colonnesAMettreAJour = ['user_id', 'endpoint', 'p256dh', 'auth', 'last_seen_at', 'updated_at'];
+
+        if ($libelleAppareil !== null) {
+            $colonnesAMettreAJour[] = 'device_label';
+        }
+
         try {
             // `upsert()` sur `endpoint_hash` : une seule instruction SQL.
             // C'est la bascule de proprietaire qui compte — `user_id` figure
@@ -90,12 +109,19 @@ class PushSubscriptionStore
                     'created_at' => $maintenant,
                 ]],
                 ['endpoint_hash'],
-                ['user_id', 'endpoint', 'p256dh', 'auth', 'device_label', 'last_seen_at', 'updated_at'],
+                $colonnesAMettreAJour,
             );
         } catch (UniqueConstraintViolationException) {
             // Ceinture : si un moteur rendait l'upsert indisponible, on
             // retombe sur une mise a jour ciblee, qui vise la MEME ligne.
-            PushSubscription::query()->where('endpoint_hash', $empreinte)->update($valeurs);
+            // Meme regle sur le libelle que ci-dessus.
+            PushSubscription::query()
+                ->where('endpoint_hash', $empreinte)
+                ->update(array_filter(
+                    $valeurs,
+                    static fn (string $colonne): bool => $colonne !== 'device_label' || $libelleAppareil !== null,
+                    ARRAY_FILTER_USE_KEY,
+                ));
         }
 
         return PushSubscription::query()->where('endpoint_hash', $empreinte)->sole();

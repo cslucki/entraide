@@ -262,4 +262,31 @@ class TASK1739PushSubscriptionStoreTest extends TestCase
             'device_label', 'last_seen_at', 'created_at', 'updated_at',
         ], $colonnes);
     }
+
+    public function test_la_reconciliation_n_efface_pas_le_libelle_d_appareil(): void
+    {
+        // Defaut trouve par Cyril en recette sur son Android : le libelle est
+        // pose au CLIC d'activation, mais la reconciliation — qui rejoue cette
+        // methode a chaque affichage de l'ecran et a chaque retour sur
+        // l'application — n'en envoie aucun. L'appareil redevenait anonyme en
+        // quelques secondes.
+        //
+        // Un `null` entrant veut dire « je n'en sais rien », pas « efface ».
+        $this->magasin()->revendiquer($this->alice, self::ENDPOINT, 'p', 'a', 'Android');
+        $this->assertSame('Android', PushSubscription::sole()->device_label);
+
+        // La reconciliation, telle que le script l'envoie : sans libelle.
+        $this->magasin()->revendiquer($this->alice, self::ENDPOINT, 'p', 'a');
+
+        $this->assertSame('Android', PushSubscription::sole()->device_label);
+    }
+
+    public function test_un_libelle_fourni_remplace_bien_le_precedent(): void
+    {
+        // L'autre moitie de la regle : quand un libelle ARRIVE, il gagne.
+        $this->magasin()->revendiquer($this->alice, self::ENDPOINT, 'p', 'a', 'Android');
+        $this->magasin()->revendiquer($this->alice, self::ENDPOINT, 'p', 'a', 'Windows');
+
+        $this->assertSame('Windows', PushSubscription::sole()->device_label);
+    }
 }
