@@ -92,6 +92,14 @@ class ScenarioSandboxPreflight
      *   relie deux comptes d'Organizations differentes, donc il n'appartient
      *   a aucune des deux et ne peut porter aucun `organization_id` ;
      * - preferences par personne : `member_notification_preferences` ;
+     * - abonnements d'APPAREIL : `push_subscriptions` (T1739) — il decrit un
+     *   navigateur sur un telephone, pas une donnee de tenant. La meme
+     *   personne qui bascule entre ses comptes freres garde le meme appareil,
+     *   et le consentement systeme ne se rejoue pas : rattacher l'abonnement a
+     *   une Organization obligerait a le recreer a chaque bascule. La
+     *   frontiere de tenant est tenue au moment de l'ENVOI, en relisant
+     *   l'`organization_id` du destinataire, comme le fait deja
+     *   `NotificationEmailDeliverer::livrer()` ;
      * - pivots rattaches par leur parent : `blog_post_user`,
      *   `loop_roadmap_item_user`, `loop_plugin_ai_models`, `usage_references` ;
      * - etats techniques sans contenu : `rollback_conservation` (T1711) et
@@ -130,6 +138,7 @@ class ScenarioSandboxPreflight
         'member_notification_preferences',
         'organization_requests',
         'organizations',
+        'push_subscriptions',
         // TASK-1727 — un token de reinitialisation de mot de passe.
         //
         // Hors portee par NATURE, et la raison tient en un mot : ce n'est pas

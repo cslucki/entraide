@@ -32,6 +32,18 @@
             </a>
         </div>
 
+        {{-- TASK-1739 — « Notifications sur cet appareil ».
+
+             Placé AVANT les préférences par événement, et c'est voulu : sans
+             autorisation sur l'appareil, aucun réglage par événement ne peut
+             produire de notification Push. L'ordre de l'écran suit l'ordre
+             des conditions.
+
+             Hors du formulaire des préférences : un abonnement est un état
+             d'appareil, activer EST le geste, il n'y a rien à « enregistrer ».
+        --}}
+        @include('notifications.partials.push-device')
+
         @if(session('notification_preferences_saved'))
             <div data-preferences-saved
                  class="mb-5 rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 text-sm text-[var(--bp-muted)]">
@@ -100,4 +112,10 @@
             @endif
         </form>
     </x-page-container>
+
+    {{-- TASK-1739 — chargé sur CETTE page seulement : `pushManager` et la
+         demande de permission n'ont rien à peser ailleurs. --}}
+    @push('scripts')
+        @vite('resources/js/push-device.js')
+    @endpush
 </x-app-layout>
