@@ -109,40 +109,29 @@ $secondaryCtaUrl = $showInternalHomepageContent
           @include('organization.partials.account-menu', ['organization' => $organization])
         @endguest
       </nav>
-      <button class="burger" aria-label="{{ __('common.open_menu') }}" aria-expanded="false" aria-controls="m-menu"><i class="ti ti-menu-2"></i></button>
+      {{-- TASK-1743 — le menu BURGER est retire ; sur telephone la barre est
+           celle du bureau. C'est la solution deja retenue pour OFSH en T1725,
+           reprise telle quelle plutot que reinventee.
+
+           Il cachait l'avatar derriere deux clics alors que tout le reste de
+           l'application le montre d'emblee — et le second clic ne faisait
+           rien : le partiel etant inclus DEUX fois, son script sous `@once`
+           etait emis a la premiere inclusion et s'executait en ligne, donc
+           avant que le menu du burger existe. Son declencheur ne recevait
+           aucun ecouteur.
+
+           N'en avoir plus qu'un seul montage ne corrige pas ce defaut : il le
+           rend impossible. --}}
     </nav>
   </header>
   @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'top'])
 
-  {{-- MOBILE MENU --}}
-  <div class="m-menu" id="m-menu" hidden>
-    <a href="{{ $aboutUrl }}">{{ __('navigation.about') }}</a>
-    {{-- TASK-1692, correctif post-CI — l'offre d'abonnement est une surface
-           COMMERCIALE publique. Son seul discriminant est le reglage de
-           l'Organization ; la garde de route protege la page. --}}
-        @if($organization->subscriptions_enabled)
-      <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
-    @endif
-    @guest
-      <a href="{{ route('organization.login', $organization) }}" class="btn-join">{{ org_trans('hero.nav_login') }}</a>
-    @else
-      @include('organization.partials.account-menu', ['organization' => $organization])
-    @endguest
-    {{-- TASK-1725 (demande Cyril, 29/10) — le selecteur FR/EN suit le drapeau
-        « site multilingue » de l'Organization. Decoche, l'interface reste dans la
-        langue d'affichage choisie, et le selecteur ne promet plus un choix que
-        le site ne propose pas. --}}
-    @if($organization->multilingual_enabled)
-    <div class="m-lang" aria-label="Langue / Language">
-      @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
-        <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" style="display:inline">
-          @csrf
-          <button type="submit" @if(app()->getLocale() === $code) aria-current="true" @endif>{{ $label }}</button>
-        </form>
-      @endforeach
-    </div>
-    @endif
-  </div>
+    {{-- TASK-1743 — le panneau mobile est retire avec son burger.
+
+         Rien n'est perdu, et c'est verifiable : il ne portait que « A propos »,
+         le lien d'abonnement, le selecteur FR/EN et le menu de compte. Les
+         quatre vivent deja dans `.nav-menu`, qui cesse simplement d'etre
+         masquee sur telephone. --}}
 
   {{-- HERO --}}
   @php
@@ -435,17 +424,9 @@ $secondaryCtaUrl = $showInternalHomepageContent
   })), 2200);
 })();
 
-(function () {
-  const burger = document.querySelector('.burger');
-  const menu = document.getElementById('m-menu');
-  if (!burger || !menu) return;
-  const close = () => { menu.hidden = true; burger.setAttribute('aria-expanded', 'false'); };
-  const open = () => { menu.hidden = false; burger.setAttribute('aria-expanded', 'true'); };
-  burger.addEventListener('click', e => { e.stopPropagation(); menu.hidden ? open() : close(); });
-  document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) close(); });
-  menu.querySelectorAll('a').forEach(a => a.addEventListener('click', close));
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-})();
+  // TASK-1743 — le script du burger est supprime avec lui. Son garde
+  // `if (!burger || !menu) return;` aurait rendu la page silencieuse, mais du
+  // code mort qu'on lit comme vivant coute plus cher qu'il ne rapporte.
 
 </script>
 @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'bottom'])
