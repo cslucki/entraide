@@ -178,6 +178,22 @@ Route::post('/locale/{locale}', [LocaleController::class, 'switch'])->name('loca
 // necessaires, et un sabotage le prouve.
 Route::get('/explorer', [ExplorerController::class, 'index'])->middleware(['auth', 'organization.member'])->name('explorer');
 Route::view('/about', 'about')->name('about');
+
+// TASK-1737 — l'ecran d'installation, atteignable DIRECTEMENT.
+//
+// C'est la destination du bandeau non bloquant, le repli des plateformes qui
+// n'ont pas d'invite native (iOS, Firefox), et l'URL que la recette ouvre sur
+// un telephone reel.
+//
+// UN SEUL SEGMENT, et ce n'est pas un detail. `ResolveUrlOrganization`
+// interprete `/{slug}/{feature}` comme une route de partenaire et rend 404
+// quand le slug n'en designe aucun : `/installer/android` serait un piege. Un
+// segment unique traverse la pile sans liage d'Organization — verifie le
+// 31/10/2026 — et un invite y arrive sans authentification.
+//
+// Publique a dessein : on n'oblige personne a se connecter pour apprendre
+// comment installer une application.
+Route::view('/installer', 'pwa.install')->name('pwa.install');
 Route::get('/membres', [HomeController::class, 'members'])->middleware(['auth', 'organization.member'])->name('members.index');
 Route::get('/echanges', [HomeController::class, 'exchanges'])->middleware(['auth', 'organization.member'])->name('exchanges.index');
 Route::redirect('/partners', '/partenaires');
@@ -1339,6 +1355,30 @@ Route::prefix('/org/{organization}')
         Route::get('/about', [OrganizationLandingController::class, 'about'])
             ->withoutMiddleware(['auth', 'organization.member'])
             ->name('about');
+
+        // TASK-1737 — l'ecran d'installation, VU DEPUIS UNE ORGANIZATION.
+        //
+        // Le meme gabarit que la route globale `/installer`, mais atteint sans
+        // quitter le prefixe du tenant. La CI de TASK-1737 a rougi exactement
+        // la-dessus : `TASK1699OfshHomepageThemeTest` et `TASK1700AboutOfshTest`
+        // gardent qu'AUCUN lien d'une surface Organization-scoped ne mene a une
+        // route globale, et le bandeau d'installation en servait une.
+        //
+        // Ce n'etait pas qu'une doctrine. Depuis la landing OFSH, « Installer »
+        // menait au `/installer` global, dont le retour pointait sur `url('/')`
+        // — qui redirige vers `/org/main`. La personne changeait de TENANT en
+        // voulant simplement revenir. Meme classe que les neuf liens de T1697.
+        //
+        // Publique, donc elle s'extrait du groupe comme `home` et `about` :
+        // installer l'application ne demande pas d'etre membre.
+        // Un CONTROLEUR, pas une `Route::view()` : celle-ci n'a aucune garde,
+        // et rendait 200 pour une Organization non publique dont `/about`
+        // rend 302 — l'ecran ne divulguait rien du tenant, mais confirmait son
+        // existence. `installer()` recopie les deux gardes de `about()`, et un
+        // test exige que les deux routes rendent le meme statut.
+        Route::get('/installer', [OrganizationLandingController::class, 'installer'])
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('pwa.install');
         // TASK-1450 — Workshop domain foundation : la page PUBLIQUE d'un atelier publie de CETTE Organization (404 sinon). Pas de Shell ici.
         Route::get('/ateliers/{workshop}', [WorkshopPageController::class, 'show'])->name('workshop.show')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}');
         // TASK-1452 (B4-B) : « je choisis cette session » — geste Guest (interet != inscription), throttle anti-rafale.

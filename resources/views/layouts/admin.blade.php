@@ -3,6 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        {{-- TASK-1737 — le contrat d'installabilite PWA, declare une seule fois. --}}
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>{{ $title ?? 'Administration' }} — {{ optional(currentOrganization() ?? auth()->user()?->organization)->name ?? config('app.name', 'Entraide') }}</title>
         <link rel="preconnect" href="https://fonts.bunny.net">

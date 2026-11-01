@@ -54,6 +54,27 @@ return Application::configure(basePath: dirname(__DIR__))
         // etroite — `json` seulement, les autres champs restent rognes.
         $middleware->trimStrings(except: ['json']);
 
+        // TASK-1737 — le cookie de renoncement a l'ecran d'installation est
+        // EXEMPTE du chiffrement, et sans cette ligne il ne sert a rien.
+        //
+        // Mesure du 31/10/2026 : le cookie pose, le bandeau revenait quand
+        // meme. `EncryptCookies::decrypt()` attrape la `DecryptException` et
+        // fait `$request->cookies->set($key, null)` — un cookie pose en
+        // JavaScript n'est pas chiffre, il etait donc ELAGUE avant d'atteindre
+        // `PwaInstallContext`. Rien ne plantait : le renoncement ne prenait
+        // simplement jamais, et la personne revoyait le bandeau a chaque page.
+        //
+        // Le cookie ne porte qu'un `1`, aucun secret : il n'y a rien a
+        // chiffrer. `XSRF-TOKEN` est exempte par Laravel pour la meme raison.
+        //
+        // Le nom vient d'une CONSTANTE et non de la configuration : ce fichier
+        // s'execute AVANT le chargement de la configuration, donc `config()`
+        // y rendrait null et l'exemption porterait sur une chaine vide — en
+        // silence.
+        $middleware->encryptCookies(except: [
+            \App\Support\Pwa\PwaInstallContext::COOKIE_RENONCEMENT,
+        ]);
+
         // TASK-1602 — un parcours commence DANS une Organization y reste.
         //
         // Le repli par defaut de Laravel envoie tout invite sur `route('login')`,
