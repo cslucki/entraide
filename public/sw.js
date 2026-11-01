@@ -14,6 +14,19 @@
 // les retire aux navigateurs deja installes.
 const CACHE_NAME = 'bouclepro-v6';
 
+// TASK-1740 — la version du Service Worker, pour la RENDRE OBSERVABLE.
+//
+// Sans elle, « le telephone execute-t-il le SW qui sait recevoir un push ? »
+// est une question sans reponse depuis le telephone. Et c'est precisement la
+// question qui restait ouverte apres que la chaine serveur a ete prouvee :
+// abonnement eligible, requete sortie, FCM accepte, charge dechiffrable — et
+// pourtant rien ne s'affiche.
+//
+// La page des reglages interroge cette valeur et l'affiche. Une version
+// absente ou ancienne dit alors, sans ambiguite, que le SW doit etre mis a
+// jour.
+const SW_VERSION = 'T1740-diag-2';
+
 const SHELL_ASSETS = [
   '/site.webmanifest',
   '/web-app-manifest-192x192.png',
@@ -289,18 +302,20 @@ self.addEventListener('fetch', (event) => {
 // serait une redirection ouverte declenchee par une donnee distante.
 // ---------------------------------------------------------------------------
 
-self.addEventListener('push', (event) => {
-  // `userVisibleOnly: true` a ete impose a l'abonnement (T1739) : le
-  // navigateur EXIGE donc qu'un push produise une notification visible. Ne
-  // rien afficher ferait perdre l'abonnement, pas gagner de la discretion.
-  let charge = {};
-
-  try {
-    charge = event.data ? event.data.json() : {};
-  } catch (e) {
-    charge = {};
-  }
-
+/**
+ * Transformer une charge utile en notification visible.
+ *
+ * TASK-1740 — cette fonction est volontairement PARTAGEE entre l'ecouteur
+ * `push` (charge venue du reseau) et la simulation de diagnostic (charge
+ * venue de la page). C'est tout l'interet : si la simulation affiche, alors
+ * l'exemplaire ACTIF du Service Worker sait traiter une charge et appeler
+ * `showNotification` — et la panne est en AMONT, dans la livraison. Si elle
+ * n'affiche pas, la panne est ICI ou dans la permission.
+ *
+ * Deux chemins distincts n'auraient rien prouve : on aurait teste du code que
+ * le push n'emprunte pas.
+ */
+function afficherDepuisCharge(charge) {
   const titre = typeof charge.title === 'string' && charge.title !== '' ? charge.title : 'BouclePro';
   const corps = typeof charge.body === 'string' ? charge.body : '';
 
@@ -318,19 +333,32 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  event.waitUntil(
-    self.registration.showNotification(titre, {
-      body: corps,
-      icon: '/brand/icon-192.png',
-      badge: '/brand/icon-192.png',
-      // `tag` : un second message de la meme famille REMPLACE le precedent
-      // au lieu de s'empiler (anti-bruit, CDC 9.3). `renotify` previent a
-      // nouveau, sinon le remplacement serait silencieux.
-      tag: typeof charge.tag === 'string' && charge.tag !== '' ? charge.tag : 'bouclepro',
-      renotify: true,
-      data: { url: cible },
-    })
-  );
+  return self.registration.showNotification(titre, {
+    body: corps,
+    icon: '/brand/icon-192.png',
+    badge: '/brand/icon-192.png',
+    // `tag` : un second message de la meme famille REMPLACE le precedent au
+    // lieu de s'empiler (anti-bruit, CDC 9.3). `renotify` previent a nouveau,
+    // sinon le remplacement serait silencieux.
+    tag: typeof charge.tag === 'string' && charge.tag !== '' ? charge.tag : 'bouclepro',
+    renotify: true,
+    data: { url: cible },
+  });
+}
+
+self.addEventListener('push', (event) => {
+  // `userVisibleOnly: true` a ete impose a l'abonnement (T1739) : le
+  // navigateur EXIGE donc qu'un push produise une notification visible. Ne
+  // rien afficher ferait perdre l'abonnement, pas gagner de la discretion.
+  let charge = {};
+
+  try {
+    charge = event.data ? event.data.json() : {};
+  } catch (e) {
+    charge = {};
+  }
+
+  event.waitUntil(afficherDepuisCharge(charge));
 });
 
 self.addEventListener('notificationclick', (event) => {
@@ -356,4 +384,49 @@ self.addEventListener('notificationclick', (event) => {
       return self.clients.openWindow(cible);
     })
   );
+});
+
+// ---------------------------------------------------------------------------
+// TASK-1740 — le canal de DIAGNOSTIC.
+//
+// Additif : ne touche ni a `fetch`, ni au cache, ni a aucune des cinq branches
+// du durcissement T1692. Il ne rend que des constantes et ne declenche aucune
+// sortie reseau.
+//
+// Pourquoi par message et non par une variable lue depuis la page : seul
+// l'exemplaire REELLEMENT ACTIF du Service Worker repond. Un `/sw.js`
+// telechargeable a jour ne dit rien de l'exemplaire qui tourne — c'etait
+// precisement l'inconnue qui restait apres un FCM a 201.
+// ---------------------------------------------------------------------------
+
+self.addEventListener('message', (event) => {
+  const message = event.data;
+  const port = event.ports && event.ports[0];
+
+  if (!message || !port) {
+    return;
+  }
+
+  if (message.type === 'bouclepro:version') {
+    port.postMessage({
+      version: SW_VERSION,
+      // Les preuves qui comptent : cet exemplaire sait-il recevoir un push, et
+      // sur quel perimetre regne-t-il ?
+      push: true,
+      scope: self.registration.scope,
+      origine: self.location.origin,
+    });
+
+    return;
+  }
+
+  // Simuler l'arrivee d'une charge, SANS reseau et SANS FCM : on emprunte
+  // exactement le chemin d'affichage du push reel.
+  if (message.type === 'bouclepro:simuler-push') {
+    event.waitUntil(
+      afficherDepuisCharge(message.charge || {})
+        .then(() => port.postMessage({ ok: true }))
+        .catch((e) => port.postMessage({ ok: false, erreur: String(e && e.message ? e.message : e) }))
+    );
+  }
 });

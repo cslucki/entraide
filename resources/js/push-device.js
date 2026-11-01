@@ -92,6 +92,41 @@ if (bloc) {
     };
 
     /**
+     * Interroger l'exemplaire du Service Worker RÉELLEMENT actif.
+     *
+     * TASK-1740 — c'est la question qui restait sans réponse quand toute la
+     * chaîne serveur avait été prouvée : abonnement éligible, requête sortie,
+     * FCM qui accepte, charge déchiffrable — et pourtant rien ne s'affiche.
+     *
+     * Un `/sw.js` téléchargeable à jour ne dit RIEN de l'exemplaire qui
+     * tourne : un Service Worker enregistré avant l'ajout de l'écouteur
+     * `push` reçoit le message et n'en fait rien, silencieusement. Seul
+     * l'exemplaire actif peut répondre, et c'est pour cela qu'on le lui
+     * demande par un canal de message plutôt que de le déduire.
+     *
+     * L'absence de réponse EST une réponse : un exemplaire ancien ne connaît
+     * pas ce canal et laisse le délai expirer.
+     */
+    const interrogerServiceWorker = async (message, delai = 2000) => {
+        const inscription = await navigator.serviceWorker.ready;
+        const exemplaire = inscription.active;
+
+        if (!exemplaire) return null;
+
+        return new Promise((resoudre) => {
+            const canal = new MessageChannel();
+            const minuteur = setTimeout(() => resoudre(null), delai);
+
+            canal.port1.onmessage = (e) => {
+                clearTimeout(minuteur);
+                resoudre(e.data ?? null);
+            };
+
+            exemplaire.postMessage(message, [canal.port2]);
+        });
+    };
+
+    /**
      * Confirmer au serveur que cet appareil est bien à cette personne.
      *
      * C'est la RÉCONCILIATION du CDC 5.4, et elle tourne à chaque affichage
@@ -218,6 +253,153 @@ if (bloc) {
             btnDesactiver.disabled = false;
         }
     });
+
+    /* =====================================================================
+     * TASK-1740 — DIAGNOSTIC, temporaire et local seulement.
+     *
+     * Le panneau n'est rendu qu'en local : s'il est absent, tout ce qui suit
+     * ne s'exécute pas. La garde est donc côté serveur, et il n'y a rien à
+     * désactiver ici.
+     * ===================================================================== */
+    const panneau = bloc.querySelector('[data-push-diag-panel]');
+
+    if (panneau) {
+        const cases = {};
+        panneau.querySelectorAll('[data-push-diag-value]').forEach((el) => {
+            cases[el.dataset.pushDiagValue] = el;
+        });
+
+        const elResultat = panneau.querySelector('[data-push-diag-resultat]');
+
+        const dire = (texte, ok) => {
+            elResultat.textContent = texte;
+            elResultat.className = `mt-2 text-[11px] font-semibold ${ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`;
+            elResultat.hidden = false;
+        };
+
+        /** L'empreinte que le SERVEUR calcule : SHA-256 de l'endpoint, 8 car. */
+        const empreinteDe = async (endpoint) => {
+            const octets = new TextEncoder().encode(endpoint);
+            const condensat = await crypto.subtle.digest('SHA-256', octets);
+            return [...new Uint8Array(condensat)]
+                .map((o) => o.toString(16).padStart(2, '0'))
+                .join('')
+                .slice(0, 8);
+        };
+
+        const diagnostiquer = async () => {
+            cases.permission.textContent = 'Notification' in window ? Notification.permission : 'API absente';
+            cases.origine.textContent = location.origin;
+            // Sans contexte sûr, ni Service Worker ni Push n'existent. Un
+            // tunnel en HTTPS le fournit ; une IP en clair, non.
+            cases.securise.textContent = window.isSecureContext ? 'oui' : 'NON';
+
+            if (!('serviceWorker' in navigator)) {
+                cases.scope.textContent = cases.version.textContent = 'API absente';
+                return;
+            }
+
+            // Forcer une vérification de mise à jour : sans elle, le
+            // navigateur ne la fait qu'à ses propres moments, et un exemplaire
+            // ancien peut rester actif longtemps.
+            try {
+                const inscription = await navigator.serviceWorker.getRegistration();
+                if (inscription) await inscription.update();
+            } catch { /* sans gravité : on rend ce qu'on trouve */ }
+
+            const reponse = await interrogerServiceWorker({ type: 'bouclepro:version' });
+
+            cases.scope.textContent = reponse?.scope ?? '(pas de réponse)';
+            cases.version.textContent = reponse
+                ? `${reponse.version}${reponse.push ? ' · push pris en charge' : ''}`
+                : 'ANCIEN — ne répond pas au canal de diagnostic';
+
+            const abonnement = await abonnementCourant();
+
+            if (abonnement === null) {
+                cases.abonnement.textContent = 'aucun';
+                cases.empreinte.textContent = '—';
+                cases.base.textContent = '—';
+                return;
+            }
+
+            const hote = new URL(abonnement.endpoint).host;
+            cases.abonnement.textContent = hote;
+            cases.empreinte.textContent = await empreinteDe(abonnement.endpoint);
+
+            // La correspondance : le serveur connaît-il CET endpoint pour
+            // CETTE personne ? Une permission accordée et un abonnement
+            // présent ne valent rien si la base pointe un autre appareil.
+            const etat = await etatServeur(abonnement.endpoint);
+            cases.base.textContent = etat === null ? '(serveur muet)' : etat.subscribed ? 'OUI' : 'NON';
+        };
+
+        /**
+         * Essai 1 — l'affichage, sans réseau, sans FCM, sans chiffrement.
+         *
+         * Si celui-ci échoue, aucun envoi distant ne pouvait aboutir, et la
+         * cause est locale : permission, ou notifications coupées au niveau
+         * du système.
+         */
+        panneau.querySelector('[data-push-diag-local]').addEventListener('click', async () => {
+            try {
+                // Geste explicite : la permission peut donc se demander ici.
+                const permission = await Notification.requestPermission();
+
+                if (permission !== 'granted') {
+                    dire(`Permission refusée (${permission}) — rien ne peut s'afficher.`, false);
+                    return;
+                }
+
+                const inscription = await navigator.serviceWorker.ready;
+                await inscription.showNotification('Affichage local', {
+                    body: 'Si vous voyez ceci, l’appareil sait afficher une notification.',
+                    icon: '/brand/icon-192.png',
+                    tag: 'bouclepro-diag-local',
+                    renotify: true,
+                });
+                dire('Demandé. Visible ? → l’affichage système fonctionne.', true);
+            } catch (e) {
+                dire(`Échec de l’affichage local : ${e.message}`, false);
+            } finally {
+                diagnostiquer();
+            }
+        });
+
+        /**
+         * Essai 2 — le même chemin d'affichage que le push réel, emprunté par
+         * l'exemplaire ACTIF du Service Worker, toujours sans réseau.
+         *
+         * S'il réussit alors que l'envoi distant échoue, notre code est hors
+         * de cause et la panne est dans la LIVRAISON.
+         */
+        panneau.querySelector('[data-push-diag-simuler]').addEventListener('click', async () => {
+            if (Notification.permission !== 'granted') {
+                dire('Permission non accordée : commencez par « Tester l’affichage local ».', false);
+                return;
+            }
+
+            const reponse = await interrogerServiceWorker({
+                type: 'bouclepro:simuler-push',
+                charge: {
+                    title: 'Charge simulée',
+                    body: 'Traitée par le Service Worker actif, sans réseau.',
+                    url: '/notifications',
+                    tag: 'bouclepro-diag-sw',
+                },
+            }, 4000);
+
+            if (reponse === null) {
+                dire('Le Service Worker actif ne connaît pas ce canal : exemplaire ANCIEN.', false);
+            } else if (reponse.ok) {
+                dire('Le Service Worker actif a affiché la charge. Chemin de réception intact.', true);
+            } else {
+                dire(`Le Service Worker a refusé : ${reponse.erreur}`, false);
+            }
+        });
+
+        diagnostiquer();
+    }
 
     rafraichir();
 
