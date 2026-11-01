@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\AdminUserBulkCreationController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
+use App\Http\Controllers\Admin\AdminTestNotificationController;
 use App\Http\Controllers\Admin\AdminRoadmapController;
 use App\Http\Controllers\Admin\AdminLoopPermissionController;
 use App\Http\Controllers\Admin\AdminLoopPluginController;
@@ -1177,6 +1178,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/outils/assign-data/{dataset}', [AdminAssignDataController::class, 'detail'])->name('outils.assign-data.detail');
     Route::post('/outils/assign-data/preview', [AdminAssignDataController::class, 'preview'])->name('outils.assign-data.preview');
     Route::post('/outils/assign-data/assign', [AdminAssignDataController::class, 'assign'])->name('outils.assign-data.assign');
+    // TASK-1740 — diagnostiquer le Push et s'envoyer une notification de test.
+    //
+    // Dans le groupe `admin`, donc reserve a l'administration. L'outil
+    // n'envoie qu'aux appareils de la personne qui CLIQUE : on ne peut tester
+    // que sur un telephone qu'on tient dans la main, jamais reveiller celui de
+    // quelqu'un d'autre — garde structurelle demandee par MASTER, et non une
+    // liste d'autorisation a tenir a jour.
+    Route::get('/outils/test-notification', [AdminTestNotificationController::class, 'index'])->name('outils.test-notification');
+    Route::post('/outils/test-notification', [AdminTestNotificationController::class, 'send'])->middleware('throttle:10,1')->name('outils.test-notification.send');
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
 

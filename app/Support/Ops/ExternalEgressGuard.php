@@ -268,11 +268,152 @@ final class ExternalEgressGuard
      * est plus sur que d'en suivre, et le reecrire RE-ACTIVERAIT un
      * comportement que l'appelant a explicitement coupe.
      */
+    /**
+     * TASK-1740 — l'option qui MARQUE une requete comme venant du transport
+     * Web Push de BouclePro.
+     *
+     * Ce n'est pas un laissez-passer : c'est la premiere des QUATRE conditions
+     * de {@see sortiePushAutorisee()}. Une requete HTTP ordinaire vers
+     * `fcm.googleapis.com` ne la porte pas, et reste donc refusee — c'est
+     * exactement ce que MASTER a exige le 01/11.
+     *
+     * Elle n'est posable que par du code serveur, et un seul endroit la pose :
+     * `NotificationWebPushDeliverer::deposer()`.
+     */
+    public const OPTION_TRANSPORT_PUSH = 'bouclepro_web_push';
+
+    /**
+     * Les sorties de RECETTE admises, une entree par usage.
+     *
+     * ## Pourquoi un registre et pas un `if` par cas
+     *
+     * MASTER, 01/11 : « une solution reutilisable et simple, pas une
+     * accumulation d'exceptions dispersees ». Un second besoin est deja
+     * identifie — les apercus de lien de la ChatLoop, qui seront traites dans
+     * leur propre TASK. S'il fallait alors ajouter une methode et une branche
+     * de plus dans le middleware, la troisieme exception serait ecrite au
+     * meme endroit par copie, et personne ne saurait plus les enumerer.
+     *
+     * Ici, ajouter un usage = ajouter UNE entree. Les quatre conditions
+     * restent appliquees de la meme facon a tous, par le meme code.
+     *
+     * Chaque entree declare :
+     * - `drapeau` : la clef de configuration qui l'active, FAUSSE par defaut ;
+     * - `option`  : le marqueur que seul le transport concerne pose ;
+     * - `hotes`   : la liste FERMEE des destinations admises.
+     *
+     * @var array<string, array{drapeau: string, option: string, hotes: list<string>}>
+     */
+    private const SORTIES_DE_RECETTE = [
+        // TASK-1740 — le transport Web Push.
+        //
+        // Les hotes sont donnes par suffixe de domaine, jamais par motif
+        // libre : un `str_contains($hote, 'push')` aurait laisse passer
+        // `fcm.googleapis.com.exemple.net`, que n'importe qui enregistre.
+        'web_push' => [
+            'drapeau' => 'webpush.egress_allowed',
+            'option' => self::OPTION_TRANSPORT_PUSH,
+            'hotes' => [
+                'fcm.googleapis.com',                 // Chrome, Android
+                'updates.push.services.mozilla.com',  // Firefox
+                '.push.apple.com',                    // Safari, iOS/macOS
+                '.notify.windows.com',                // Edge, Windows
+            ],
+        ],
+    ];
+
+    /**
+     * Cette requete est-elle une sortie de recette ADMISE ?
+     *
+     * QUATRE conditions, toutes necessaires. Retirer n'importe laquelle rend
+     * l'exception exploitable :
+     *
+     * 1. **Le drapeau de l'usage**, absent par defaut. Une variable absente
+     *    n'ouvre rien.
+     * 2. **Jamais en production, jamais sur Laravel Cloud.** Verifies
+     *    separement : `APP_ENV` peut mentir, `laravel_cloud()` lit
+     *    l'infrastructure.
+     * 3. **Le marqueur de transport.** Une requete HTTP ORDINAIRE vers un
+     *    domaine admis ne le porte pas, et reste donc refusee — exigence
+     *    explicite de MASTER.
+     * 4. **HTTPS vers un hote de la liste fermee.** Pas de `http://`, pas de
+     *    domaine hors liste.
+     *
+     * Tout le reste du garde est INCHANGE : courriel, controle des
+     * redirections, plages privees, refus de toute autre destination.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    public static function sortieDeRecetteAutorisee(string $schema, string $hote, array $options): bool
+    {
+        // 2 — jamais en PROD, jamais sur Laravel Cloud. Verifie une seule
+        // fois, avant de parcourir les usages : aucune entree ne peut s'en
+        // affranchir.
+        if (app()->environment('production') || (function_exists('laravel_cloud') && laravel_cloud())) {
+            return false;
+        }
+
+        // 4a — HTTPS, pour tous les usages sans exception.
+        if (strtolower($schema) !== 'https') {
+            return false;
+        }
+
+        $hote = strtolower(trim($hote, " \t[]"));
+
+        foreach (self::SORTIES_DE_RECETTE as $usage) {
+            // 1 — le drapeau de CET usage.
+            if (! (bool) config($usage['drapeau'], false)) {
+                continue;
+            }
+
+            // 3 — le marqueur, pose par le seul transport concerne.
+            if (($options[$usage['option']] ?? false) !== true) {
+                continue;
+            }
+
+            // 4b — un hote de la liste fermee.
+            //
+            // Deux formes, et la distinction n'est pas cosmetique :
+            //
+            // - sans point initial (`fcm.googleapis.com`) = correspondance
+            //   EXACTE. Un `str_ends_with` seul admettait `xfcm.googleapis.com`
+            //   et `evil-fcm.googleapis.com` — mesure faite, les deux
+            //   passaient. Le trou etait dans ce fichier, trouve en
+            //   l'eprouvant plutot qu'en le relisant ;
+            // - avec point initial (`.push.apple.com`) = SOUS-DOMAINE, et le
+            //   point force la frontiere d'etiquette : `evil.push.apple.com`
+            //   est bien un sous-domaine d'Apple, `evilpush.apple.com` ne
+            //   l'est pas.
+            foreach ($usage['hotes'] as $admis) {
+                $correspond = str_starts_with($admis, '.')
+                    ? str_ends_with($hote, $admis)
+                    : $hote === $admis;
+
+                if ($correspond) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private static function garderHttp(string $base): void
     {
         Http::globalMiddleware(static function (callable $handler) use ($base) {
             return static function ($requete, array $options) use ($handler, $base) {
                 $hote = $requete->getUri()->getHost();
+
+                // TASK-1740 — l'exception CIBLEE du transport Web Push.
+                //
+                // Placee ici, avant le refus, et seulement ici : elle ne
+                // touche ni au controle des redirections ci-dessous, ni a la
+                // garde du courriel, ni a quoi que ce soit d'autre. Une
+                // requete qui la franchit reste soumise au reste du
+                // middleware.
+                if (self::sortieDeRecetteAutorisee($requete->getUri()->getScheme(), $hote, $options)) {
+                    return $handler($requete, $options);
+                }
 
                 if (! self::hoteEstLocal($hote)) {
                     throw new RuntimeException(self::messageHttp($hote, $base));

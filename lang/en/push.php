@@ -28,4 +28,5 @@ return [
     'enable_failed' => 'Enabling did not go through. Try again in a moment.',
     'disable_failed' => 'Disabling did not go through. Try again in a moment.',
     'disabled' => 'Push notifications are not available at the moment.',
+    'key_stale' => 'This device was subscribed with a security key that is no longer in use: it can no longer receive notifications. Click “Enable” to subscribe it again.',
 ];

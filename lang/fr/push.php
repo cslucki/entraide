@@ -28,4 +28,5 @@ return [
     'enable_failed' => 'L’activation n’a pas abouti. Réessayez dans un instant.',
     'disable_failed' => 'La désactivation n’a pas abouti. Réessayez dans un instant.',
     'disabled' => 'Les notifications Push ne sont pas disponibles pour le moment.',
+    'key_stale' => 'Cet appareil a été abonné avec une clé de sécurité qui n’a plus cours : il ne peut plus recevoir de notification. Cliquez sur « Activer » pour le réabonner.',
 ];

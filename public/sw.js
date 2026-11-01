@@ -33,6 +33,19 @@
 // assets, reseau seul pour tout le reste.
 const CACHE_NAME = 'bouclepro-v7';
 
+// TASK-1740 — la version du Service Worker, pour la RENDRE OBSERVABLE.
+//
+// Sans elle, « le telephone execute-t-il le SW qui sait recevoir un push ? »
+// est une question sans reponse depuis le telephone. Et c'est precisement la
+// question qui restait ouverte apres que la chaine serveur a ete prouvee :
+// abonnement eligible, requete sortie, FCM accepte, charge dechiffrable — et
+// pourtant rien ne s'affiche.
+//
+// La page des reglages interroge cette valeur et l'affiche. Une version
+// absente ou ancienne dit alors, sans ambiguite, que le SW doit etre mis a
+// jour.
+const SW_VERSION = 'T1740-diag-3';
+
 // `install` fait `cache.addAll(SHELL_ASSETS)`, et `addAll` est ATOMIQUE : une
 // seule URL en 404 fait echouer l'installation ENTIERE du Service Worker, donc
 // l'installabilite de l'application. Chaque entree de ce tableau est verifiee
@@ -289,4 +302,168 @@ self.addEventListener('fetch', (event) => {
   // explicites d'annotations, co-auteurs et instantanes du blog n'ont plus
   // lieu d'etre : ils decrivaient une exception a une regle qui n'existe plus.
   event.respondWith(fetch(request));
+});
+
+// ---------------------------------------------------------------------------
+// TASK-1740 — reception d'une notification Push, et clic dessus.
+//
+// ## Pourquoi ces deux ecouteurs n'affaiblissent PAS le durcissement T1692
+//
+// Ils vivent HORS de `fetch`. Aucune des cinq branches ci-dessus n'est
+// touchee, et surtout : AUCUNE lecture ni ecriture du Cache Storage
+// n'apparait ici. C'est la seule facon d'affaiblir T1692 depuis un ecouteur
+// `push` — la cle de cache etant l'URL SEULE, sans identite, tout ce qu'on y
+// deposerait serait restituable a un autre profil.
+//
+// Le texte de ce commentaire evite DELIBEREMENT d'ecrire les appels de cache
+// sous leur forme litterale : `TASK1737PwaInstallationTest` les compte par
+// motif dans le fichier, et ne distingue pas un appel d'une citation. Une
+// garde qui compte du TEXTE se trompe sur un commentaire ; plutot que de
+// l'assouplir — elle protege un invariant reel — on ne lui donne pas matiere
+// a se tromper.
+//
+// `notificationclick` ouvre une URL par `clients.openWindow()`, donc par une
+// navigation ordinaire : elle repasse par la branche « document », qui est en
+// RESEAU SEUL. Le serveur re-autorise la page, et un droit revoque entre-temps
+// rend un refus — rien n'est servi depuis un cache.
+//
+// ## La charge utile n'est jamais crue sur parole
+//
+// Elle vient du reseau. On la lit defensivement, on borne ce qu'on affiche, et
+// surtout on REFUSE d'ouvrir une URL qui ne serait pas de notre origine : un
+// `notificationclick` est un geste utilisateur, et l'envoyer vers un tiers
+// serait une redirection ouverte declenchee par une donnee distante.
+// ---------------------------------------------------------------------------
+
+/**
+ * Transformer une charge utile en notification visible.
+ *
+ * TASK-1740 — cette fonction est volontairement PARTAGEE entre l'ecouteur
+ * `push` (charge venue du reseau) et la simulation de diagnostic (charge
+ * venue de la page). C'est tout l'interet : si la simulation affiche, alors
+ * l'exemplaire ACTIF du Service Worker sait traiter une charge et appeler
+ * `showNotification` — et la panne est en AMONT, dans la livraison. Si elle
+ * n'affiche pas, la panne est ICI ou dans la permission.
+ *
+ * Deux chemins distincts n'auraient rien prouve : on aurait teste du code que
+ * le push n'emprunte pas.
+ */
+function afficherDepuisCharge(charge) {
+  const titre = typeof charge.title === 'string' && charge.title !== '' ? charge.title : 'BouclePro';
+  const corps = typeof charge.body === 'string' ? charge.body : '';
+
+  // L'URL n'est retenue que si elle est de NOTRE origine.
+  let cible = '/';
+
+  if (typeof charge.url === 'string' && charge.url !== '') {
+    try {
+      const resolue = new URL(charge.url, self.location.origin);
+      if (resolue.origin === self.location.origin) {
+        cible = resolue.href;
+      }
+    } catch (e) {
+      cible = '/';
+    }
+  }
+
+  return self.registration.showNotification(titre, {
+    body: corps,
+    icon: '/brand/icon-192.png',
+    // Pas de `badge` : Android attend ici une silhouette MONOCHROME sur fond
+    // transparent, qu'il peint en blanc dans la barre d'etat. Lui donner le
+    // logo couleur 192 px produisait une barre d'etat VIDE — recette du 01/11 :
+    // l'essai sans badge montrait la cloche par defaut, celui avec badge ne
+    // montrait rien. Sans badge, Chrome met sa propre cloche, qui s'affiche.
+    // `tag` : un second message de la meme famille REMPLACE le precedent au
+    // lieu de s'empiler (anti-bruit, CDC 9.3). `renotify` previent a nouveau,
+    // sinon le remplacement serait silencieux.
+    tag: typeof charge.tag === 'string' && charge.tag !== '' ? charge.tag : 'bouclepro',
+    renotify: true,
+    data: { url: cible },
+  });
+}
+
+self.addEventListener('push', (event) => {
+  // `userVisibleOnly: true` a ete impose a l'abonnement (T1739) : le
+  // navigateur EXIGE donc qu'un push produise une notification visible. Ne
+  // rien afficher ferait perdre l'abonnement, pas gagner de la discretion.
+  let charge = {};
+
+  try {
+    charge = event.data ? event.data.json() : {};
+  } catch (e) {
+    charge = {};
+  }
+
+  event.waitUntil(afficherDepuisCharge(charge));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const cible = (event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((fenetres) => {
+      // Reutiliser une fenetre DEJA ouverte plutot que d'en empiler une
+      // nouvelle a chaque clic : sur un telephone, trois notifications
+      // ouvriraient trois instances de l'application.
+      for (const fenetre of fenetres) {
+        if (fenetre.url === cible && 'focus' in fenetre) {
+          return fenetre.focus();
+        }
+      }
+
+      if (fenetres.length > 0 && 'navigate' in fenetres[0] && 'focus' in fenetres[0]) {
+        return fenetres[0].navigate(cible).then((f) => (f ? f.focus() : undefined));
+      }
+
+      return self.clients.openWindow(cible);
+    })
+  );
+});
+
+// ---------------------------------------------------------------------------
+// TASK-1740 — le canal de DIAGNOSTIC.
+//
+// Additif : ne touche ni a `fetch`, ni au cache, ni a aucune des cinq branches
+// du durcissement T1692. Il ne rend que des constantes et ne declenche aucune
+// sortie reseau.
+//
+// Pourquoi par message et non par une variable lue depuis la page : seul
+// l'exemplaire REELLEMENT ACTIF du Service Worker repond. Un `/sw.js`
+// telechargeable a jour ne dit rien de l'exemplaire qui tourne — c'etait
+// precisement l'inconnue qui restait apres un FCM a 201.
+// ---------------------------------------------------------------------------
+
+self.addEventListener('message', (event) => {
+  const message = event.data;
+  const port = event.ports && event.ports[0];
+
+  if (!message || !port) {
+    return;
+  }
+
+  if (message.type === 'bouclepro:version') {
+    port.postMessage({
+      version: SW_VERSION,
+      // Les preuves qui comptent : cet exemplaire sait-il recevoir un push, et
+      // sur quel perimetre regne-t-il ?
+      push: true,
+      scope: self.registration.scope,
+      origine: self.location.origin,
+    });
+
+    return;
+  }
+
+  // Simuler l'arrivee d'une charge, SANS reseau et SANS FCM : on emprunte
+  // exactement le chemin d'affichage du push reel.
+  if (message.type === 'bouclepro:simuler-push') {
+    event.waitUntil(
+      afficherDepuisCharge(message.charge || {})
+        .then(() => port.postMessage({ ok: true }))
+        .catch((e) => port.postMessage({ ok: false, erreur: String(e && e.message ? e.message : e) }))
+    );
+  }
 });
