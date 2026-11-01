@@ -314,7 +314,21 @@ class NotificationWebPushDeliverer
                 'Content-Type' => 'application/octet-stream',
                 'Content-Encoding' => 'aes128gcm',
                 'TTL' => (string) self::TTL,
-                'Urgency' => 'normal',
+                // TASK-1740 — `high` et non `normal`, et ce n'est pas un
+                // confort.
+                //
+                // Android DIFFERE les messages d'urgence `normal` quand
+                // l'appareil est en veille profonde (Doze) : ils attendent la
+                // prochaine fenetre de maintenance, parfois des dizaines de
+                // minutes. Le fournisseur a bien repondu 201 — il a accepte et
+                // mis en file — et l'appareil n'affiche rien. C'est exactement
+                // le symptome que nous avons observe, et il ne se distingue
+                // pas d'une panne tant qu'on attend.
+                //
+                // Une notification destinee a etre VUE par une personne est
+                // `high` par definition : `userVisibleOnly` a ete impose a
+                // l'abonnement, le navigateur exige donc un affichage.
+                'Urgency' => 'high',
             ])
                 // TASK-1740 — le MARQUEUR de transport. C'est le seul endroit
                 // du depot qui le pose, et c'est la troisieme des quatre

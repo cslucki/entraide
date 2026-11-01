@@ -25,7 +25,7 @@ const CACHE_NAME = 'bouclepro-v6';
 // La page des reglages interroge cette valeur et l'affiche. Une version
 // absente ou ancienne dit alors, sans ambiguite, que le SW doit etre mis a
 // jour.
-const SW_VERSION = 'T1740-diag-2';
+const SW_VERSION = 'T1740-diag-3';
 
 const SHELL_ASSETS = [
   '/site.webmanifest',
@@ -336,7 +336,11 @@ function afficherDepuisCharge(charge) {
   return self.registration.showNotification(titre, {
     body: corps,
     icon: '/brand/icon-192.png',
-    badge: '/brand/icon-192.png',
+    // Pas de `badge` : Android attend ici une silhouette MONOCHROME sur fond
+    // transparent, qu'il peint en blanc dans la barre d'etat. Lui donner le
+    // logo couleur 192 px produisait une barre d'etat VIDE — recette du 01/11 :
+    // l'essai sans badge montrait la cloche par defaut, celui avec badge ne
+    // montrait rien. Sans badge, Chrome met sa propre cloche, qui s'affiche.
     // `tag` : un second message de la meme famille REMPLACE le precedent au
     // lieu de s'empiler (anti-bruit, CDC 9.3). `renotify` previent a nouveau,
     // sinon le remplacement serait silencieux.
