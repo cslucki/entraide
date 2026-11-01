@@ -127,6 +127,7 @@ use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\ShareTargetController;
 use App\Http\Controllers\ShortcutController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\SubscriptionController;
@@ -200,6 +201,30 @@ Route::get('/partenaires', [HomeController::class, 'partners'])->name('partenair
 Route::get('/partenaires/demande', [OrganizationRequestController::class, 'create'])->name('partenaires.request.create');
 Route::post('/partenaires/demande', [OrganizationRequestController::class, 'store'])->name('partenaires.request.store');
 Route::get('/boucles', [HomeController::class, 'boucles'])->name('boucles.index');
+
+// TASK-1738 — partage d'un lien externe vers une Boucle (Web Share Target).
+//
+// Trois routes GLOBALES, jamais prefixees par `/org/{organization}` : la
+// cible `share_target` du manifest est une URL FIXE — la feuille de partage
+// d'Android ne connait aucun slug de tenant. Le tenant est celui de la
+// personne connectee, revalide au POST.
+//
+// `partage.recevoir` est PUBLIQUE, et c'est voulu : derriere `auth`, le
+// middleware redirigerait vers la connexion AVANT ce controleur, et les
+// parametres du partage seraient perdus. Elle ne fait que LIRE et RANGER en
+// session, puis repond 303 vers une URL nue — aucun GET n'ecrit de message
+// (CDC 4.6). Les deux routes suivantes exigent une session ; l'intention
+// survit a la connexion parce que `regenerate()` CONSERVE le contenu.
+//
+// PIEGE pour qui ajoutera un sous-chemin ici : `ResolveUrlOrganization`
+// lit `/{slug}/{feature}` comme une route de PARTENAIRE des que le second
+// segment appartient a `$defaultOrganizationRoutes`. `choisir` et `publier`
+// n'y sont pas, donc ces deux routes passent ; `/partage/loops` ou
+// `/partage/blog`, en revanche, seraient resolues comme le partenaire
+// « partage » et rendraient un 404 incomprehensible.
+Route::get('/partage', [ShareTargetController::class, 'receive'])->middleware('throttle:60,1')->name('partage.recevoir');
+Route::get('/partage/choisir', [ShareTargetController::class, 'show'])->middleware('auth')->name('partage.choisir');
+Route::post('/partage/publier', [ShareTargetController::class, 'publish'])->middleware(['auth', 'throttle:20,1'])->name('partage.publier');
 Route::redirect('/boucles/creer', '/partenaires/demande');
 
 // Blog — public (routes fixes avant le wildcard)

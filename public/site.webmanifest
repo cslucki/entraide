@@ -10,7 +10,10 @@
   "background_color": "#FFFFF5",
   "lang": "fr",
   "dir": "ltr",
-  "categories": ["productivity", "social"],
+  "categories": [
+    "productivity",
+    "social"
+  ],
   "icons": [
     {
       "src": "/brand/icon-192.png",
@@ -64,5 +67,14 @@
       "short_name": "Tableau",
       "url": "/dashboard"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "/partage",
+    "method": "GET",
+    "params": {
+      "url": "url",
+      "text": "text",
+      "title": "title"
+    }
+  }
 }
