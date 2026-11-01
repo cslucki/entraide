@@ -274,7 +274,14 @@ final class ExternalEgressGuard
             return static function ($requete, array $options) use ($handler, $base) {
                 $hote = $requete->getUri()->getHost();
 
-                if (! self::hoteEstLocal($hote)) {
+                // TASK-1741 — la seule porte de sortie, et elle est fermee
+                // par defaut. `SortieDeRecette` exige quatre conditions
+                // CUMULATIVES : environnement `local`, derogation activee par
+                // configuration, marqueur de transport pose par ce transport
+                // seul, et destination conforme a la politique de ce
+                // transport. Une requete HTTP ordinaire vers le meme hote
+                // reste donc refusee.
+                if (! self::hoteEstLocal($hote) && ! SortieDeRecette::autorisee($hote, $options)) {
                     throw new RuntimeException(self::messageHttp($hote, $base));
                 }
 
@@ -286,9 +293,17 @@ final class ExternalEgressGuard
                     $options['allow_redirects'] = array_merge($existantes, [
                         'max' => min(5, (int) ($existantes['max'] ?? 5)),
                         'protocols' => ['http', 'https'],
-                        'on_redirect' => static function ($req, $rep, $uri) use ($base): void {
-                            if (! self::hoteEstLocal($uri->getHost())) {
-                                throw new RuntimeException(self::messageHttp($uri->getHost(), $base, true));
+                        // TASK-1741 — le crochet relit la MEME regle, et
+                        // c'est indispensable : un apercu suit jusqu'a trois
+                        // redirections, et le service appelant ne les controle
+                        // qu'APRES COUP, en relisant l'historique Guzzle. A ce
+                        // moment la requete vers l'hote interne a deja ete
+                        // faite. Ici, elle ne part pas.
+                        'on_redirect' => static function ($req, $rep, $uri) use ($base, $options): void {
+                            $hoteSuivant = $uri->getHost();
+
+                            if (! self::hoteEstLocal($hoteSuivant) && ! SortieDeRecette::autorisee($hoteSuivant, $options)) {
+                                throw new RuntimeException(self::messageHttp($hoteSuivant, $base, true));
                             }
                         },
                     ]);

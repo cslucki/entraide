@@ -2,19 +2,13 @@
 
 namespace App\Services;
 
+use App\Support\Http\PublicHostPolicy;
+use App\Support\Ops\SortieDeRecette;
 use Illuminate\Support\Facades\Http;
 
 class UrlPreviewService
 {
     private const ALLOWED_SCHEMES = ['http', 'https'];
-
-    private const BLOCKED_HOSTS = [
-        'localhost',
-        '127.0.0.1',
-        '0.0.0.0',
-        '[::1]',
-        '::1',
-    ];
 
     /**
      * TASK-1704 correctif 3 — DEUX identites, et le double essai qui va avec.
@@ -165,6 +159,16 @@ class UrlPreviewService
         try {
             $response = Http::timeout(self::TIMEOUT)
                 ->withOptions([
+                    // TASK-1741 — le MARQUEUR de transport. C'est le seul
+                    // endroit du code qui le pose, et c'est la troisieme des
+                    // quatre conditions cumulatives de `SortieDeRecette` : une
+                    // requete HTTP ordinaire vers le meme hote reste refusee
+                    // par `ExternalEgressGuard`.
+                    //
+                    // Une option Guzzle, et non un en-tete : un en-tete serait
+                    // recopie par une redirection et voyagerait hors de notre
+                    // controle.
+                    SortieDeRecette::OPTION_APERCU_LIEN => true,
                     'allow_redirects' => [
                         'max' => self::MAX_REDIRECTS,
                         'track_redirects' => true,
@@ -204,75 +208,25 @@ class UrlPreviewService
         }
     }
 
+    /**
+     * TASK-1741 — la politique de destination vit desormais dans
+     * {@see PublicHostPolicy}, et ces deux methodes n'en sont plus que les
+     * portes d'entree.
+     *
+     * Elle a du sortir d'ici : `ExternalEgressGuard` doit appliquer LA MEME
+     * regle dans son crochet `on_redirect`, parce que ce service ne controle
+     * ses redirections qu'APRES COUP — a ce moment, la requete vers l'hote
+     * interne a deja ete faite. Deux copies de la regle auraient diverge au
+     * premier correctif.
+     */
     private function normalizeHost(string $host): string
     {
-        $host = trim($host);
-        $host = rtrim($host, '.');
-
-        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
-            return $host;
-        }
-
-        return $host;
+        return PublicHostPolicy::normaliser($host);
     }
 
     private function isHostAllowed(string $host): bool
     {
-        $lower = mb_strtolower($host);
-
-        if (in_array($lower, self::BLOCKED_HOSTS, true)) {
-            return false;
-        }
-
-        if (str_starts_with($lower, '[')) {
-            return false;
-        }
-
-        $ip = null;
-        if (filter_var($lower, FILTER_VALIDATE_IP)) {
-            $ip = $lower;
-        } else {
-            $resolved = gethostbynamel($lower);
-            if ($resolved !== false && count($resolved) > 0) {
-                $ip = $resolved[0];
-            }
-        }
-
-        if ($ip !== null) {
-            if (! filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                return false;
-            }
-
-            if ($this->isPrivateCidr($ip)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private function isPrivateCidr(string $ip): bool
-    {
-        $long = ip2long($ip);
-        if ($long === false) {
-            return false;
-        }
-
-        $long = (float) sprintf('%u', $long);
-
-        if ($long >= (float) sprintf('%u', ip2long('10.0.0.0')) && $long <= (float) sprintf('%u', ip2long('10.255.255.255'))) {
-            return true;
-        }
-
-        if ($long >= (float) sprintf('%u', ip2long('172.16.0.0')) && $long <= (float) sprintf('%u', ip2long('172.31.255.255'))) {
-            return true;
-        }
-
-        if ($long >= (float) sprintf('%u', ip2long('192.168.0.0')) && $long <= (float) sprintf('%u', ip2long('192.168.255.255'))) {
-            return true;
-        }
-
-        return false;
+        return PublicHostPolicy::estPublic($host);
     }
 
     private function parseHtml(string $html, string $url, string $host): array
