@@ -377,6 +377,35 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             'GET org/{organization}/about',
             'GET org/{organization}/flowchart',
             'GET org/{organization}/forgot-password',
+            // TASK-1737 — l'ecran d'installation de l'application, vu depuis
+            // cette Organization.
+            //
+            // Pourquoi il EXISTE : la garde de lien de `TASK1699` / `TASK1700`
+            // a refuse que le bandeau d'une surface tenant mene a la route
+            // GLOBALE `/installer`. Et elle avait raison au-dela de la
+            // doctrine — depuis la landing OFSH, le retour de cet ecran
+            // pointait sur `url('/')`, qui redirige vers `/org/main` : on
+            // changeait de TENANT en voulant revenir.
+            //
+            // Pourquoi il est PUBLIC : installer l'application ne demande pas
+            // d'etre membre, exactement comme `home` et `about`.
+            //
+            // Ce qu'il rend : le meme gabarit que la route globale, et AUCUNE
+            // lecture de tenant — pas meme son nom. La seule chose qu'il
+            // apprend de l'Organization, c'est l'adresse de son accueil, pour
+            // y revenir.
+            //
+            // Sa frontiere est portee par le CONTROLEUR, et ce choix est paye :
+            // la premiere version etait une `Route::view()`, qui n'a pas de
+            // controleur donc pas de garde, et rendait **200** pour une
+            // Organization non publique la ou `/about` rend 302. Rien n'etait
+            // divulgue du tenant, mais son EXISTENCE etait confirmee —
+            // exactement l'oracle que `test_g_bis` ci-dessous mesure pour
+            // `about()`. `OrganizationLandingController::installer()` recopie
+            // donc ses deux gardes, et
+            // `TASK1737PwaInstallScreenTest::test_the_scoped_screen_is_no_more_open_than_the_about_page`
+            // exige que les deux routes rendent le MEME statut.
+            'GET org/{organization}/installer',
             'GET org/{organization}/login',
             'GET org/{organization}/mentions-legales',
             'GET org/{organization}/mycelium',

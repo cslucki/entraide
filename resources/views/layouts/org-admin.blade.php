@@ -41,6 +41,9 @@
              explicite que la boucle suivante regenerait deja, aux memes valeurs.
              Cette redondance disparait sans changer une seule valeur calculee. --}}
         <x-theme-tokens />
+        {{-- TASK-1737 — le contrat d'installabilite PWA, declare une seule fois. --}}
+        <x-pwa-head />
+        <x-pwa-boot />
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles

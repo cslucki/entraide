@@ -175,6 +175,10 @@
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="$_pubServicesCreateHref">{{ __('navigation.offer_service', ['service' => $T['service']]) }}</x-dropdown-link>
                         <x-dropdown-link :href="$_pubRequestsCreateHref">{{ __('navigation.make_request', ['request' => $T['request']]) }}</x-dropdown-link>
+                        {{-- TASK-1738 — l'entree de repli du partage : iPhone et
+                             desktop n'ont pas de feuille de partage vers une PWA,
+                             le collage d'un lien passe par ici (CDC 4.3). --}}
+                        <x-dropdown-link :href="route('partage.choisir')">{{ __('sharing.nav_share_link') }}</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="$organizationRouteParam ? route('organization.points.index', ['organization' => $organizationRouteParam]) : route('points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
                         <x-dropdown-link :href="$organizationRouteParam ? route('organization.invitations.index', ['organization' => $organizationRouteParam]) : route('invitations.index')">{{ __('navigation.invitations') }}</x-dropdown-link>
@@ -300,6 +304,8 @@
                 @endif
                 <x-responsive-nav-link :href="$_pubServicesCreateHref">{{ __('navigation.offer_service', ['service' => $T['service']]) }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="$_pubRequestsCreateHref">{{ __('navigation.make_request', ['request' => $T['request']]) }}</x-responsive-nav-link>
+                {{-- TASK-1738 — meme entree de repli que le menu avatar. --}}
+                <x-responsive-nav-link :href="route('partage.choisir')">{{ __('sharing.nav_share_link') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.points.index', ['organization' => $organizationRouteParam]) : route('points.index')">{{ __('navigation.points_history') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.invitations.index', ['organization' => $organizationRouteParam]) : route('invitations.index')">{{ __('navigation.invitations') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-responsive-nav-link>
