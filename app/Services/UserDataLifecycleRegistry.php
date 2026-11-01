@@ -196,6 +196,15 @@ class UserDataLifecycleRegistry
             // il suit son auteur. FK NOT NULL ON DELETE CASCADE.
             ['key' => 'member_notification_preferences_user_id', 'type' => 'sql', 'table' => 'member_notification_preferences', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'A notification preference is a personal choice about what a person receives: it has no meaning without them and serves no one else. The FK is NOT NULL ON DELETE CASCADE and the registry says so.'],
             ['key' => 'member_notifications_recipient_id', 'type' => 'sql', 'table' => 'member_notifications', 'column' => 'recipient_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'An in-app notification is addressed TO a person: it is an address, not a trace, and it carries no content of its own (references only). The FK is NOT NULL ON DELETE CASCADE and the registry says so.'],
+            // TASK-1739 — un abonnement Web Push est un DESTINATAIRE TECHNIQUE :
+            // le trio (endpoint, p256dh, auth) qu'un navigateur remet apres un
+            // consentement. Il ne designe que le couple « cette personne, cet
+            // appareil » et ne vaut rien sans elle : aucune autre personne ne
+            // peut l'employer, et le conserver apres la suppression du compte
+            // n'autoriserait qu'une chose, envoyer un Push a un compte qui
+            // n'existe plus. FK NOT NULL ON DELETE CASCADE, et la politique
+            // RECOPIE ce que la FK fait, conformement a la doctrine du registre.
+            ['key' => 'push_subscriptions_user_id', 'type' => 'sql', 'table' => 'push_subscriptions', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'A Web Push subscription is a technical recipient for one person on one device: it is useless to anyone else and keeping it after the account is gone would only allow pushing to an account that no longer exists. The FK is NOT NULL ON DELETE CASCADE and the registry says so.'],
             ['key' => 'member_notifications_actor_id', 'type' => 'sql', 'table' => 'member_notifications', 'column' => 'actor_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'The actor is an attribution, not the reason the row exists: the recipient notification must outlive whoever triggered it, so the author is simply detached (FK nullOnDelete).'],
             ['key' => 'messages_pinned_by_id', 'type' => 'sql', 'table' => 'messages', 'column' => 'pinned_by_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_transaction', 'justification' => 'Pin attribution can be detached.'],
             ['key' => 'messages_sent', 'type' => 'sql', 'table' => 'messages', 'column' => 'sender_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_transaction', 'justification' => 'Conversation sender can be anonymized.'],
