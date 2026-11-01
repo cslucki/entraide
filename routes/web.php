@@ -199,6 +199,13 @@ Route::get('/boucles', [HomeController::class, 'boucles'])->name('boucles.index'
 // session, puis repond 303 vers une URL nue — aucun GET n'ecrit de message
 // (CDC 4.6). Les deux routes suivantes exigent une session ; l'intention
 // survit a la connexion parce que `regenerate()` CONSERVE le contenu.
+//
+// PIEGE pour qui ajoutera un sous-chemin ici : `ResolveUrlOrganization`
+// lit `/{slug}/{feature}` comme une route de PARTENAIRE des que le second
+// segment appartient a `$defaultOrganizationRoutes`. `choisir` et `publier`
+// n'y sont pas, donc ces deux routes passent ; `/partage/loops` ou
+// `/partage/blog`, en revanche, seraient resolues comme le partenaire
+// « partage » et rendraient un 404 incomprehensible.
 Route::get('/partage', [ShareTargetController::class, 'receive'])->middleware('throttle:60,1')->name('partage.recevoir');
 Route::get('/partage/choisir', [ShareTargetController::class, 'show'])->middleware('auth')->name('partage.choisir');
 Route::post('/partage/publier', [ShareTargetController::class, 'publish'])->middleware(['auth', 'throttle:20,1'])->name('partage.publier');
