@@ -421,7 +421,77 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
     }
 
     // =====================================================================
-    // 4. L'outil de diagnostic entre au rail gauche — demande Cyril 02/11
+    // 4. La charge utile — recette Android du 02/11
+    // =====================================================================
+
+    public function test_la_cible_du_clic_est_un_CHEMIN_jamais_une_URL_absolue(): void
+    {
+        // LE défaut de la recette n°3 : le clic ouvrait la page d'accueil au
+        // lieu de la Boucle.
+        //
+        // La charge est fabriquée par le WORKER, donc hors requête, donc sur
+        // `APP_URL`. Le Service Worker REFUSE une cible qui n'est pas de son
+        // origine — à raison — et retombe sur `/`. Servie par un tunnel, la
+        // PWA avait une autre origine que `APP_URL` : toutes les cibles
+        // étaient rejetées, en silence.
+        //
+        // Un chemin relatif rend la question sans objet : le Service Worker
+        // le résout contre SA propre origine, donc il est same-origin par
+        // construction — y compris en production avec un `APP_URL` erroné.
+        $url = $this->chargeUtilePour($this->inviter())['url'];
+
+        $this->assertStringStartsWith('/', $url, 'la cible doit être un chemin');
+        $this->assertStringNotContainsString('://', $url, 'aucune origine ne doit voyager');
+        $this->assertNotSame('/', $url, 'et elle doit mener quelque part de précis');
+    }
+
+    public function test_le_corps_nomme_une_boucle_PUBLIQUE(): void
+    {
+        // CDC 6.2 écrit « pas de nom de Boucle PRIVÉE », et 6.4 « aucun nom
+        // de Boucle CONFIDENTIELLE ». La distinction est dans le texte : une
+        // Boucle publique est déjà lisible sans être connecté, son nom
+        // n'apprend rien à qui regarde l'écran verrouillé.
+        //
+        // Et c'est l'information que la personne cherche : « Vous avez
+        // rejoint une Boucle / Touchez pour voir » ne disait pas laquelle.
+        $this->loop->forceFill(['visibility' => 'public', 'name' => 'Entraide publique T1744'])->save();
+
+        $this->assertSame('Entraide publique T1744', $this->chargeUtilePour($this->inviter())['body']);
+    }
+
+    public function test_le_corps_ne_nomme_JAMAIS_une_boucle_privee(): void
+    {
+        // La garde qui compte. Un nom de Boucle privée sur un écran
+        // verrouillé est exactement ce que le CDC interdit.
+        $this->loop->forceFill(['visibility' => 'private', 'name' => 'Boucle Très Confidentielle'])->save();
+
+        $charge = $this->chargeUtilePour($this->inviter());
+
+        $this->assertStringNotContainsString('Confidentielle', json_encode($charge, JSON_UNESCAPED_UNICODE));
+
+        // Et le repli n'est pas le générique vide : chaque clé a sa phrase.
+        $this->assertSame(__('notifications.push_body.loop_invitation'), $charge['body']);
+        $this->assertNotSame(__('notifications.push_body_generic'), $charge['body']);
+    }
+
+    public function test_chaque_cle_poussee_porte_un_corps_propre_dans_les_deux_locales(): void
+    {
+        foreach (self::CLES_POUSSEES as $cle) {
+            $chemin = 'notifications.push_body.'.str_replace('.', '_', $cle);
+
+            foreach (['fr', 'en'] as $locale) {
+                $this->assertTrue(Lang::has($chemin, $locale), "[{$locale}] corps manquant pour [{$cle}].");
+                $this->assertNotSame(
+                    __('notifications.push_body_generic', [], $locale),
+                    __($chemin, [], $locale),
+                    "[{$locale}] [{$cle}] doit avoir son propre corps.",
+                );
+            }
+        }
+    }
+
+    // =====================================================================
+    // 5. L'outil de diagnostic entre au rail gauche — demande Cyril 02/11
     // =====================================================================
 
     public function test_le_rail_du_superadmin_porte_l_outil_de_test_push(): void
@@ -467,6 +537,33 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         return (string) MemberNotification::query()
             ->where('recipient_id', $this->membre->id)
             ->value('id');
+    }
+
+    /**
+     * La charge utile REELLEMENT composee pour cette notification.
+     *
+     * Lue par reflexion, et c'est le bon niveau : le corps part CHIFFRE, donc
+     * illisible depuis la requete sortante — c'est precisement ce que T1740
+     * mesure deja (`test_la_charge_utile_ne_dit_rien_de_prive`). Ce qui est
+     * neuf ici est la COMPOSITION, pas le transport.
+     *
+     * La cible vient du vrai resolveur, pas d'une chaine inventee : le defaut
+     * du 02/11 portait justement sur la forme de cette cible.
+     *
+     * @return array<string, mixed>
+     */
+    private function chargeUtilePour(string $notificationId): array
+    {
+        $notification = MemberNotification::query()->findOrFail($notificationId);
+        $cible = app(\App\Support\Notifications\NotificationTargetResolver::class)->resolve($notification);
+
+        $this->assertNotNull($cible, 'la cible doit etre resolvable, sinon le test ne mesure rien');
+
+        $livreur = app(NotificationWebPushDeliverer::class);
+        $methode = new \ReflectionMethod($livreur, 'chargeUtile');
+        $methode->setAccessible(true);
+
+        return json_decode($methode->invoke($livreur, $notification, $cible), true);
     }
 
     private function livraisonPush(string $notificationId): MemberNotificationDelivery

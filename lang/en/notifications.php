@@ -45,11 +45,32 @@ return [
 
     // TASK-1740 — text that lands on a LOCKED screen.
     //
-    // CDC 6.4: no person's name, no Boucle name, no excerpt. It must stay
-    // true in front of anyone — the detail is read AFTER the tap, on a page
-    // the server re-authorises.
+    // CDC 6.4: no person's name, no excerpt, no CONFIDENTIAL Loop name. It
+    // must stay true in front of anyone — the detail is read AFTER the tap,
+    // on a page the server re-authorises.
+    //
+    // TASK-1744 nuances it the way the CDC itself does: a PUBLIC Loop's name
+    // may travel (6.2 says "no PRIVATE Loop name"), and the deliverer is the
+    // only place that decides — see `nomDeBouclePublique()`.
     'push_title_fallback' => 'BouclePro',
     'push_body_generic' => 'Tap to see.',
+    /*
+     * TASK-1744 — a BODY per event.
+     *
+     * "Tap to see" said nothing the title did not already say. It
+     * remains the last resort, for a key without its own sentence.
+     *
+     * These sentences are used ONLY when the Loop is not public:
+     * when it is, the deliverer puts its NAME here instead, which
+     * is what the person is looking for.
+     */
+    'push_body' => [
+        'loop_invitation' => 'Open BouclePro to reply.',
+        'loop_member_added' => 'You can now take part.',
+        'loop_join_request_accepted' => 'You can now take part.',
+        'blog_co_author_added' => 'Open the article to get started.',
+    ],
+
     'push_title' => [
         'loop_invitation' => 'An invitation is waiting',
         'loop_member_added' => 'You have joined a Boucle',
