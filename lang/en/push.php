@@ -29,6 +29,7 @@ return [
     // nothing, right above the very boxes they had to tick.
     'ready_none' => 'Your device is ready, but no notification is enabled yet: tick “On my devices” below, then save.',
     'ready_some' => 'Your device is ready. You will receive the notifications ticked “On my devices” below.',
+    'ready_none_action' => 'Go to per-event settings',
 
     'enable_failed' => 'Enabling did not go through. Try again in a moment.',
     'disable_failed' => 'Disabling did not go through. Try again in a moment.',

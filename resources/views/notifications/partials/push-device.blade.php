@@ -51,16 +51,56 @@
 
     {{-- Les deux boutons sont rendus masqués et c'est le script qui révèle
          celui qui correspond à l'état réel. Un bouton « Activer » visible
-         alors que le navigateur a refusé serait un bouton factice. --}}
+         alors que le navigateur a refusé serait un bouton factice.
+
+         TASK-1744 — `hidden` SEUL ne masquait RIEN, et ça a coûté une recette.
+
+         L'attribut `hidden` ne masque que par la feuille de style du
+         navigateur (`[hidden] { display: none }`). La classe `inline-flex`
+         de Tailwind pose `display: inline-flex` au niveau AUTEUR, qui gagne.
+         Mesuré : `hidden=true` sur les DEUX boutons, et pourtant
+         `display: flex`, hauteur non nulle, les deux visibles — dans tous les
+         états, depuis T1739.
+
+         Conséquence vécue : un bouton primaire « Activer les notifications »
+         s'affichait en permanence, y compris sur un appareil DÉJÀ activé. Il
+         ressemblait à l'action à faire, et il détournait de la seule qui
+         restait à faire — cocher les événements, plus bas.
+
+         D'où le `display: none` EN LIGNE : une déclaration d'auteur, que
+         `peindre()` lève ou repose. Pas de règle globale `[hidden]
+         { display: none !important }` : elle changerait le comportement de
+         tous les `hidden` du dépôt pour régler un défaut local. --}}
     <div class="mt-4 flex flex-wrap gap-2">
-        <button type="button" data-push-enable hidden
+        <button type="button" data-push-enable hidden style="display: none"
                 class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60">
             {{ __('push.enable') }}
         </button>
-        <button type="button" data-push-disable hidden
+        <button type="button" data-push-disable hidden style="display: none"
                 class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--bp-border)] px-5 text-sm font-semibold text-[var(--bp-text)] transition hover:bg-[var(--bp-hover)] disabled:opacity-60">
             {{ __('push.disable') }}
         </button>
+    </div>
+
+    {{-- TASK-1744 — l'aide remonte AVANT le panneau de diagnostic.
+
+         Elle vivait en dessous. Sur un téléphone, cela plaçait la phrase
+         « cochez Sur mes appareils ci-dessous » après ~280 px de diagnostic,
+         et la première case à cocher à 724 px du haut — soit deux écrans
+         plus bas que l'état qu'elle commente. Mesuré, pas supposé.
+
+         Et elle porte désormais un LIEN : lire « ci-dessous » ne vaut rien si
+         « ci-dessous » est hors de l'écran. --}}
+    <div data-push-help-box hidden style="display: none"
+         class="mt-3 rounded-lg bg-[var(--bp-hover)] px-3 py-2 text-xs text-[var(--bp-muted)]">
+        <p data-push-help></p>
+
+        @if(($pushActifs ?? 0) === 0)
+            <a href="#reglages-par-evenement" data-push-help-lien
+               class="mt-1 inline-flex min-h-11 items-center font-semibold text-[var(--bp-primary)] underline">
+                {{ __('push.ready_none_action') }}
+            </a>
+        @endif
     </div>
 
     {{-- =====================================================================
@@ -81,11 +121,18 @@
          Les libellés sont en clair et non traduits : volontaire, pour ne pas
          faire entrer un outil temporaire dans les catalogues de langue.
          ===================================================================== --}}
+    {{-- TASK-1744 — REPLIÉ par défaut.
+
+         Déplié, il mesure ~280 px et s'intercale entre l'état de l'appareil
+         et les réglages par événement. Sur un téléphone, il repoussait la
+         première case à cocher deux écrans plus bas : l'outil de recette
+         empêchait de faire la recette. Son contenu est intact, il reste à un
+         doigt. --}}
     @if(app()->environment('local'))
-        <div data-push-diag-panel class="mt-4 rounded-lg border border-dashed border-amber-400 bg-amber-50/50 p-3 dark:bg-amber-900/10">
-            <p class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+        <details data-push-diag-panel class="mt-4 rounded-lg border border-dashed border-amber-400 bg-amber-50/50 p-3 dark:bg-amber-900/10">
+            <summary class="cursor-pointer text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
                 Diagnostic (recette locale)
-            </p>
+            </summary>
 
             <dl data-push-diag class="mt-2 space-y-1 font-mono text-[11px] leading-snug text-[var(--bp-text)]">
                 @foreach([
@@ -130,10 +177,8 @@
             </div>
 
             <p data-push-diag-resultat hidden class="mt-2 text-[11px] font-semibold"></p>
-        </div>
+        </details>
     @endif
-
-    <p data-push-help hidden class="mt-3 rounded-lg bg-[var(--bp-hover)] px-3 py-2 text-xs text-[var(--bp-muted)]"></p>
 
     {{-- Les messages passent par des attributs de données : ils sont
          traduits côté serveur, et le script n'en fabrique aucun. --}}

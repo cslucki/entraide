@@ -36,7 +36,7 @@ if (bloc) {
     const elEtat = bloc.querySelector('[data-push-state]');
     const elPoint = bloc.querySelector('[data-push-dot]');
     const elNombre = bloc.querySelector('[data-push-count]');
-    const elAide = bloc.querySelector('[data-push-help]');
+    const elAide = bloc.querySelector('[data-push-help-box]');
     const btnActiver = bloc.querySelector('[data-push-enable]');
     const btnDesactiver = bloc.querySelector('[data-push-disable]');
 
@@ -52,6 +52,16 @@ if (bloc) {
 
     const supporte = () =>
         actif && vapid !== '' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+    // TASK-1744 — masquer POUR DE BON. `hidden` ne suffit pas quand une
+    // classe utilitaire declare un `display` : il faut une declaration
+    // d'auteur de meme niveau. On garde `hidden` pour l'accessibilite et les
+    // tests, et on y ajoute le style en ligne qui, lui, s'applique.
+    const montrer = (el, visible) => {
+        if (!el) return;
+        el.hidden = !visible;
+        el.style.display = visible ? '' : 'none';
+    };
 
     const peindre = (etat, nombre, aide) => {
         const libelles = {
@@ -70,8 +80,13 @@ if (bloc) {
         elEtat.textContent = libelles[etat];
         elPoint.className = `inline-block h-2.5 w-2.5 shrink-0 rounded-full ${couleurs[etat]}`;
 
-        btnActiver.hidden = etat !== 'off';
-        btnDesactiver.hidden = etat !== 'on';
+        // TASK-1744 — `hidden` seul ne masque RIEN ici : la classe
+        // `inline-flex` de Tailwind pose un `display` d'AUTEUR, qui gagne
+        // contre le `[hidden] { display: none }` du navigateur. Mesuré : les
+        // deux boutons restaient visibles dans tous les états. On pose donc
+        // aussi la declaration d'auteur, et on la leve de meme.
+        montrer(btnActiver, etat === 'off');
+        montrer(btnDesactiver, etat === 'on');
 
         // Le nombre d'appareils n'a de sens que si le serveur en a parlé.
         if (typeof nombre === 'number') {
@@ -82,8 +97,8 @@ if (bloc) {
         // Un message d'aide n'apparaît que s'il y a quelque chose à faire.
         const texteAide =
             aide ?? (etat === 'denied' ? textes.textDeniedHelp : etat === 'unsupported' ? textes.textUnsupportedHelp : null);
-        elAide.hidden = texteAide === null;
-        if (texteAide !== null) elAide.textContent = texteAide;
+        montrer(elAide, texteAide !== null);
+        if (texteAide !== null) elAide.querySelector('[data-push-help]').textContent = texteAide;
     };
 
     /** Un `ArrayBuffer` rendu dans la forme base64url des clefs VAPID. */

@@ -68,7 +68,11 @@
         <form method="POST" action="{{ route($routeUpdate, $routeParams) }}">
             @csrf
 
-            <ul class="space-y-2">
+            {{-- TASK-1744 — cible du lien « Aller aux réglages par
+                 événement » du panneau d'appareil. Sans elle, l'aide renvoie
+                 à un « ci-dessous » qui, sur un téléphone, est deux écrans
+                 plus bas. --}}
+            <ul id="reglages-par-evenement" class="scroll-mt-4 space-y-2">
                 @foreach($etat as $cle => $canaux)
                     <li data-preference-key="{{ $cle }}"
                         class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 shadow-sm">

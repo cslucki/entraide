@@ -38,6 +38,7 @@ return [
      */
     'ready_none' => 'Votre appareil est prêt, mais aucune notification n’est encore activée : cochez « Sur mes appareils » ci-dessous, puis enregistrez.',
     'ready_some' => 'Votre appareil est prêt. Vous recevrez les notifications cochées « Sur mes appareils » ci-dessous.',
+    'ready_none_action' => 'Aller aux réglages par événement',
 
     'enable_failed' => 'L’activation n’a pas abouti. Réessayez dans un instant.',
     'disable_failed' => 'La désactivation n’a pas abouti. Réessayez dans un instant.',

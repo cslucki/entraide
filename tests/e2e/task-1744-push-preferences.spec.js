@@ -58,6 +58,66 @@ test.describe('TASK-1744 — reglages Web Push', () => {
         }
     });
 
+    /**
+     * Recette Android du 02/11 — le panneau montrait DEUX boutons à la fois.
+     *
+     * `hidden` ne masque que par la feuille de style du navigateur. La classe
+     * `inline-flex` de Tailwind pose un `display` d'AUTEUR, qui gagne : les
+     * deux boutons restaient visibles dans TOUS les états, depuis T1739. Un
+     * bouton primaire « Activer les notifications » s'affichait donc sur un
+     * appareil déjà activé, et détournait de la seule action qui restait.
+     *
+     * Aucun test PHP ne pouvait le voir : `assertSee()` lit le HTML, où
+     * l'attribut `hidden` était bel et bien présent. Il fallait un navigateur
+     * et une mesure de hauteur.
+     *
+     * Le banc est en état `denied` (Chromium headless refuse les
+     * notifications) : AUCUN des deux boutons ne doit y être visible. Avant
+     * le correctif, les deux l'étaient — y compris dans cet état-là.
+     */
+    test('aucun bouton factice ne reste visible', async ({ page }) => {
+        await loginAsMember(page);
+        await page.goto('/notifications/preferences');
+        await page.waitForLoadState('networkidle');
+
+        for (const bouton of ['data-push-enable', 'data-push-disable']) {
+            await expect(
+                page.locator(`[${bouton}]`),
+                `[${bouton}] ne doit pas s'afficher dans un état qui ne l'appelle pas`,
+            ).toBeHidden();
+        }
+    });
+
+    /**
+     * L'aide doit précéder le panneau de diagnostic, et viser une ancre.
+     *
+     * Déplié, le diagnostic mesure ~280 px et s'intercalait entre l'état de
+     * l'appareil et les réglages par événement : sur un téléphone, la
+     * première case à cocher tombait à 724 px du haut, deux écrans sous la
+     * phrase qui disait « cochez ci-dessous ». L'outil de recette empêchait
+     * de faire la recette.
+     */
+    test('l aide precede le diagnostic et mene aux reglages', async ({ page }) => {
+        await loginAsMember(page);
+        await page.goto('/notifications/preferences');
+        await page.waitForLoadState('networkidle');
+
+        const y = async (selecteur) =>
+            (await page.locator(selecteur).first().boundingBox())?.y ?? Number.MAX_SAFE_INTEGER;
+
+        const aide = await y('[data-push-help-box]');
+        const diag = await y('[data-push-diag-panel]');
+
+        expect(aide, "l'aide doit venir AVANT le diagnostic").toBeLessThan(diag);
+
+        // Replié : il ne repousse plus les réglages hors de l'écran.
+        await expect(page.locator('[data-push-diag-panel]')).not.toHaveAttribute('open', /.*/);
+
+        // Et la cible du lien existe vraiment — un lien mort vaut moins que
+        // pas de lien du tout.
+        await expect(page.locator('#reglages-par-evenement')).toHaveCount(1);
+    });
+
     test('les deux evenements ecartes n exposent AUCUN reglage Push', async ({ page }) => {
         await loginAsMember(page);
         await page.goto('/notifications/preferences');
