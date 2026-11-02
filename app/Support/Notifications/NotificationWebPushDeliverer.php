@@ -482,10 +482,22 @@ class NotificationWebPushDeliverer
             // errone produirait le meme silence.
             'url' => $this->cheminDe($cible),
 
-            // `tag` : un second Push de la MEME cle REMPLACE le precedent au
-            // lieu de s'empiler. C'est l'anti-bruit du CDC 9.3, et il ne
-            // pretend pas etre un resume periodique.
-            'tag' => $cle,
+            // `tag` : un second Push du MEME FAIT remplace le precedent au
+            // lieu de s'empiler (anti-bruit, CDC 9.3).
+            //
+            // TASK-1744 — le tag porte desormais l'OBJET, pas seulement la
+            // cle, et ce n'est pas un detail : la recette du 02/11 a vu deux
+            // ajouts de Boucle a treize minutes d'intervalle ne produire
+            // qu'UNE notification a l'ecran. Les deux partageaient le tag
+            // `loop.member_added`, le second a donc REMPLACE le premier —
+            // avec un titre et un corps identiques, le remplacement est
+            // indiscernable de « rien n'est arrive ».
+            //
+            // « Etre ajoute a deux Boucles » sont DEUX faits : ils doivent
+            // s'empiler. « Le meme ajout repousse deux fois » est UN fait :
+            // il doit se remplacer. L'objet est exactement ce qui les
+            // distingue.
+            'tag' => $cle.($notification->object_id !== null ? ':'.$notification->object_id : ''),
         ], JSON_UNESCAPED_UNICODE);
     }
 

@@ -1964,4 +1964,28 @@ return [
     'push_test_recipient_refused' => 'This recipient is not an authorised test account. Nothing was sent.',
     'push_test_device_refused' => 'This device does not belong to that account, or its subscription was not created on this environment. Nothing was sent.',
     'push_test_accepted_is_not_displayed' => 'A 201 means the provider ACCEPTED the message, not that Android displayed it. Check the phone.',
+
+    // TASK-1744 — the notification inspector. Distinct from the T1380
+    // cockpit, which COUNTS without naming anyone.
+    'notif_inspector_title' => 'Notifications sent',
+    'notif_inspector_intro' => 'What went out, to whom, and why it did not arrive. Delivery states, channel by channel.',
+    'notif_inspector_scope' => 'Replay is restricted to test accounts (.test): it triggers a real send to a device.',
+    'notif_inspector_filter_recipient' => 'Recipient',
+    'notif_inspector_filter_key' => 'Event',
+    'notif_inspector_filter_channel' => 'Channel',
+    'notif_inspector_filter_all' => 'All',
+    'notif_inspector_filter_submit' => 'Filter',
+    'notif_inspector_col_when' => 'When',
+    'notif_inspector_col_key' => 'Event',
+    'notif_inspector_col_recipient' => 'Recipient',
+    'notif_inspector_col_deliveries' => 'Deliveries',
+    'notif_inspector_col_action' => 'Replay',
+    'notif_inspector_in_app_implicit' => 'carried by the notification',
+    'notif_inspector_replay' => 'Replay the Push',
+    'notif_inspector_real_account' => 'real account — replay forbidden',
+    'notif_inspector_empty' => 'No notification for these filters.',
+    'notif_inspector_not_found' => 'This notification no longer exists.',
+    'notif_inspector_recipient_refused' => 'Replay refused: the recipient is not a test account.',
+    'notif_inspector_channel_refused' => 'Replay refused: the catalogue does not allow Web Push for this event.',
+    'notif_inspector_replayed' => 'Replay done — status: :statut · diagnostic: :diagnostic',
 ];

@@ -50,6 +50,15 @@ class MemberNotificationDelivery extends Model
     /** Les colonnes qui ne peuvent JAMAIS changer apres creation. */
     private const IDENTITE = ['notification_id', 'channel'];
 
+    /**
+     * TASK-1744 — l'UNIQUE porte par laquelle un etat terminal se rouvre.
+     *
+     * Transitoire, jamais persistee, remise a `false` dans un `finally`. Elle
+     * n'est levee que par {@see rouvrirPourRejeu()}, et le hook `updating`
+     * ne la consulte que pour un retour vers `pending`.
+     */
+    private bool $rejeuAdministratifEnCours = false;
+
     protected static function booted(): void
     {
         static::creating(function (self $livraison): void {
@@ -81,6 +90,24 @@ class MemberNotificationDelivery extends Model
             $depuis = (string) $livraison->getOriginal('status');
             $vers = (string) $livraison->status;
 
+            // TASK-1744 — la reouverture ADMINISTRATIVE, et elle seule.
+            //
+            // Le message ci-dessous dit « a delivery is never replayed
+            // AUTOMATICALLY », et c'est exactement la frontiere : aucun
+            // worker, aucun producteur, aucun rejeu de job ne peut repasser
+            // par ici. Seul `rouvrirPourRejeu()`, appele depuis un ecran
+            // d'administration sur un compte de recette, leve le drapeau.
+            //
+            // Trois conditions cumulatives, parce qu'une seule se contourne :
+            // le drapeau transitoire, un etat de depart TERMINAL, et une
+            // arrivee sur `pending` — jamais sur `sent`, qui reste
+            // irreversible dans tous les cas.
+            if ($livraison->rejeuAdministratifEnCours
+                && NotificationDeliveryStatus::estTerminal($depuis)
+                && $vers === NotificationDeliveryStatus::PENDING) {
+                return;
+            }
+
             if (! NotificationDeliveryStatus::transitionPermise($depuis, $vers)) {
                 throw new RuntimeException(
                     "Forbidden notification delivery transition [{$depuis}] -> [{$vers}]. "
@@ -88,6 +115,51 @@ class MemberNotificationDelivery extends Model
                 );
             }
         });
+    }
+
+    /**
+     * Rouvrir cette livraison pour un rejeu DECIDE PAR UN HUMAIN.
+     *
+     * TASK-1744, demande Cyril du 02/11 : l'administration doit pouvoir
+     * renvoyer un Push dont on vient de corriger la cause — une preference
+     * coupee, un appareil reabonne — sans fabriquer un evenement metier qui
+     * n'a pas eu lieu.
+     *
+     * ## Pourquoi cette methode existe plutot qu'un assouplissement
+     *
+     * La machine d'etats de T1377 est volontairement sans retour : « rien ne
+     * revient en arriere », pour qu'un rejeu ACCIDENTEL ne reprenne jamais
+     * une livraison deja tranchee. Ajouter `terminal -> pending` a la table
+     * des transitions aurait ouvert cette porte a tout le monde, worker
+     * compris, et c'est precisement ce que la table existe pour interdire.
+     *
+     * Une methode nommee, au contraire, se cherche : `grep rouvrirPourRejeu`
+     * rend la liste complete de ses appelants. Aujourd'hui il y en a un, et
+     * il est derriere `['auth','admin']` plus la politique des comptes de
+     * recette.
+     *
+     * `sent` reste atteignable comme etat de depart — on rejoue aussi une
+     * livraison « reussie » dont le telephone n'a rien montre, c'est meme le
+     * cas d'usage qui a motive l'outil. Ce qui reste interdit, c'est
+     * d'ARRIVER sur `sent` autrement que par le livreur.
+     */
+    public function rouvrirPourRejeu(): void
+    {
+        $this->rejeuAdministratifEnCours = true;
+
+        try {
+            $this->forceFill([
+                'status' => NotificationDeliveryStatus::PENDING,
+                'diagnostic' => null,
+                'sent_at' => null,
+                'claimed_at' => null,
+            ])->save();
+        } finally {
+            // Dans un `finally` : une exception de sauvegarde ne doit pas
+            // laisser l'instance avec le drapeau leve, ou l'ecriture suivante
+            // passerait pour un rejeu.
+            $this->rejeuAdministratifEnCours = false;
+        }
     }
 
     protected function casts(): array

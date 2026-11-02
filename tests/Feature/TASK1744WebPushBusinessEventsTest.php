@@ -93,6 +93,11 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         $this->membre = User::factory()->create([
             'organization_id' => $this->org->id,
             'preferred_locale' => 'fr',
+            // Une adresse en `.test` : c'est le discriminant de
+            // `PushTestPolicy`, et le rejeu de l'inspecteur s'y tient. Une
+            // adresse de fabrique ordinaire ferait echouer le rejeu pour une
+            // raison qui n'a rien a voir avec ce qu'on mesure.
+            'email' => 'membre.t1744@bouclepro.test',
         ]);
 
         $this->loop = Loop::factory()->create([
@@ -474,6 +479,51 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         $this->assertNotSame(__('notifications.push_body_generic'), $charge['body']);
     }
 
+    public function test_deux_faits_DISTINCTS_ne_se_remplacent_pas_a_l_ecran(): void
+    {
+        // Le symptôme rapporté le 02/11 : « la notification est dans l'app
+        // mais pas sur le smartphone ». Deux ajouts de Boucle à treize
+        // minutes d'intervalle, tous deux `sent devices:1`, et UNE seule
+        // notification visible.
+        //
+        // Les deux partageaient le tag `loop.member_added` : le second a
+        // REMPLACÉ le premier. Avec un titre et un corps identiques, un
+        // remplacement est indiscernable de « rien n'est arrivé ».
+        //
+        // Le tag porte donc l'OBJET. Deux Boucles = deux faits = deux
+        // notifications qui s'empilent.
+        $autreLoop = Loop::factory()->create([
+            'organization_id' => $this->org->id,
+            'created_by' => $this->expediteur->id,
+            'status' => 'active',
+        ]);
+
+        $premier = $this->chargeUtilePour($this->inviter())['tag'];
+
+        $this->loop = $autreLoop;
+        $autreMembre = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'email' => 'second.t1744@bouclepro.test',
+        ]);
+        $second = $this->chargeUtilePour($this->inviter($autreMembre->email))['tag'];
+
+        $this->assertNotSame($premier, $second, 'deux objets distincts doivent porter des tags distincts');
+        $this->assertStringStartsWith(NotificationCatalogue::LOOP_INVITATION.':', $premier);
+    }
+
+    public function test_le_MEME_fait_repousse_garde_le_meme_tag(): void
+    {
+        // L'autre moitié de la règle, et c'est elle qui tient l'anti-bruit du
+        // CDC 9.3 : rejouer le même fait ne doit pas empiler deux lignes sur
+        // l'écran verrouillé.
+        $notificationId = $this->inviter();
+
+        $this->assertSame(
+            $this->chargeUtilePour($notificationId)['tag'],
+            $this->chargeUtilePour($notificationId)['tag'],
+        );
+    }
+
     public function test_chaque_cle_poussee_porte_un_corps_propre_dans_les_deux_locales(): void
     {
         foreach (self::CLES_POUSSEES as $cle) {
@@ -488,6 +538,182 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
                 );
             }
         }
+    }
+
+    // =====================================================================
+    // 5. L'inspecteur des notifications — demande Cyril 02/11
+    // =====================================================================
+
+    public function test_l_inspecteur_montre_le_destinataire_ET_le_diagnostic(): void
+    {
+        // C'est tout l'objet de l'ecran, et c'est ce que le cockpit T1380
+        // refuse de montrer par doctrine : il COMPTE sans nommer personne.
+        // Trois recettes Push ont ete diagnostiquees au `tinker` faute de
+        // cette page, alors que `skipped_preference` etait en base.
+        $this->inviter();
+
+        $html = $this->actingAs($this->superAdmin())
+            ->get(route('admin.outils.notifications'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString($this->membre->email, $html);
+        $this->assertStringContainsString('loop.invitation', $html);
+        $this->assertStringContainsString('web_push', $html);
+    }
+
+    public function test_l_inspecteur_est_reserve_a_l_administration(): void
+    {
+        $this->actingAs($this->membre)
+            ->get(route('admin.outils.notifications'))
+            ->assertForbidden();
+    }
+
+    public function test_le_rejeu_renvoie_vraiment_le_push(): void
+    {
+        Http::fake(['*' => Http::response('', 201)]);
+
+        $appareil = $this->appareil();
+        $this->allumerLePush(NotificationCatalogue::LOOP_INVITATION);
+
+        $notificationId = $this->inviter();
+        $livraison = $this->livraisonPush($notificationId);
+
+        // On la met dans un etat TERMINAL, comme apres un echec reel : c'est
+        // precisement l'etat que le rejeu doit savoir rouvrir.
+        $livraison->forceFill([
+            'status' => NotificationDeliveryStatus::SKIPPED_PREFERENCE,
+            'diagnostic' => 'channel_disabled_by_member',
+        ])->save();
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.outils.notifications.replay', $notificationId))
+            ->assertRedirect();
+
+        Http::assertSent(fn ($request) => $request->url() === $appareil->endpoint);
+        $this->assertSame(NotificationDeliveryStatus::SENT, $livraison->fresh()->status);
+    }
+
+    public function test_la_machine_d_etats_reste_SANS_RETOUR_hors_de_cette_porte(): void
+    {
+        // La garde la plus importante de l'inspecteur. T1377 a rendu les
+        // etats terminaux irreversibles pour qu'un rejeu ACCIDENTEL ne
+        // reprenne jamais une livraison deja tranchee. Ouvrir
+        // `terminal -> pending` dans la table des transitions aurait ouvert
+        // cette porte a tout le monde, worker compris.
+        //
+        // Elle est donc NOMMEE : seule `rouvrirPourRejeu()` passe, et un
+        // `forceFill` ordinaire continue de lever.
+        $livraison = $this->livraisonPush($this->inviter());
+
+        // On l'amene a `sent` par le chemin LEGITIME — `pending` ne mene
+        // qu'a `sending`. Y sauter directement leverait pour une autre
+        // raison que celle qu'on veut mesurer.
+        $livraison->forceFill(['status' => NotificationDeliveryStatus::SENDING])->save();
+        $livraison->forceFill(['status' => NotificationDeliveryStatus::SENT, 'sent_at' => now()])->save();
+
+        try {
+            $livraison->forceFill(['status' => NotificationDeliveryStatus::PENDING])->save();
+            $this->fail('un forceFill ordinaire ne doit PAS pouvoir rouvrir un etat terminal');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('Forbidden notification delivery transition', $e->getMessage());
+        }
+
+        // La porte nommee, elle, passe — et elle efface le verdict precedent.
+        $livraison->fresh()->rouvrirPourRejeu();
+
+        $apres = $livraison->fresh();
+        $this->assertSame(NotificationDeliveryStatus::PENDING, $apres->status);
+        $this->assertNull($apres->sent_at);
+        $this->assertNull($apres->diagnostic);
+    }
+
+    public function test_le_rejeu_ne_FABRIQUE_aucun_evenement_metier(): void
+    {
+        // La difference avec l'outil de test : celui-ci n'ecrit rien, le
+        // rejeu rouvre une LIVRAISON. Ni l'un ni l'autre ne doit inventer un
+        // fait metier qui n'a pas eu lieu.
+        Http::fake(['*' => Http::response('', 201)]);
+
+        $this->appareil();
+        $this->allumerLePush(NotificationCatalogue::LOOP_INVITATION);
+        $notificationId = $this->inviter();
+
+        $avant = MemberNotification::query()->count();
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.outils.notifications.replay', $notificationId));
+
+        $this->assertSame($avant, MemberNotification::query()->count());
+        $this->assertSame(
+            1,
+            MemberNotificationDelivery::query()
+                ->where('notification_id', $notificationId)
+                ->forChannel(NotificationCatalogue::CHANNEL_WEB_PUSH)
+                ->count(),
+            'une seule livraison Push, jamais une seconde',
+        );
+    }
+
+    public function test_un_compte_REEL_ne_peut_pas_etre_rejoue(): void
+    {
+        // LA garde du lot. Le jumeau `bouclepro_prod_work` porte de VRAIES
+        // adresses : rejouer une notification de l'an dernier reveillerait le
+        // telephone de quelqu'un qui n'a rien demande, depuis un
+        // environnement de travail.
+        Http::fake(['*' => Http::response('', 201)]);
+
+        $reel = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'email' => 'personne.reelle@gmail.com',
+        ]);
+
+        $notificationId = $this->inviter($reel->email);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.outils.notifications.replay', $notificationId))
+            ->assertRedirect();
+
+        Http::assertNothingSent();
+    }
+
+    public function test_une_cle_sans_push_au_catalogue_ne_se_rejoue_pas(): void
+    {
+        // Le catalogue est relu AU MOMENT du rejeu, pas au moment de
+        // l'emission : retirer le canal d'une cle doit suffire a fermer la
+        // porte, ici comme ailleurs.
+        Http::fake(['*' => Http::response('', 201)]);
+        $this->appareil();
+
+        $notification = MemberNotification::create([
+            'organization_id' => $this->org->id,
+            'recipient_id' => $this->membre->id,
+            'notification_key' => NotificationCatalogue::LOOP_JOIN_REQUEST_REJECTED,
+            'event_id' => (string) \Illuminate\Support\Str::uuid(),
+            'object_type' => NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST,
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.outils.notifications.replay', $notification->id))
+            ->assertRedirect();
+
+        Http::assertNothingSent();
+        $this->assertSame(
+            0,
+            MemberNotificationDelivery::query()->where('notification_id', $notification->id)->count(),
+            'aucune livraison ne doit etre fabriquee pour une cle non autorisee',
+        );
+    }
+
+    public function test_le_rail_porte_l_inspecteur(): void
+    {
+        $html = $this->actingAs($this->superAdmin())
+            ->get(route('admin.outils.notifications'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(route('admin.outils.notifications'), $html);
+        $this->assertStringContainsString(__('admin.notif_inspector_title'), $html);
     }
 
     // =====================================================================
@@ -530,13 +756,25 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
     // Harnais
     // =====================================================================
 
-    private function inviter(): string
+    private function inviter(?string $email = null): string
     {
-        app(LoopInvitationService::class)->invite($this->loop, $this->expediteur, $this->membre->email);
+        $email ??= $this->membre->email;
+
+        app(LoopInvitationService::class)->invite($this->loop, $this->expediteur, $email);
+
+        $destinataireId = (string) \Illuminate\Support\Facades\DB::table('users')->where('email', $email)->value('id');
 
         return (string) MemberNotification::query()
-            ->where('recipient_id', $this->membre->id)
+            ->where('recipient_id', $destinataireId)
             ->value('id');
+    }
+
+    private function superAdmin(): User
+    {
+        return User::factory()->create([
+            'organization_id' => $this->org->id,
+            'is_admin' => true,
+        ]);
     }
 
     /**

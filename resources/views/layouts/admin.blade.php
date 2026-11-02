@@ -158,6 +158,12 @@
                             // Ici l'objet est l'appareil qu'on reveille, pas la
                             // notification qu'on supervise.
                             ['route' => 'admin.outils.test-notification', 'label' => __('admin.push_test_title_page'), 'icon' => 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z'],
+                            // TASK-1744 (demande Cyril, 02/11) — lire les
+                            // notifications emises et en rejouer une. Voisine
+                            // de l'outil de test ci-dessus, et volontairement :
+                            // l'une envoie un essai, l'autre explique ce qui
+                            // est deja parti.
+                            ['route' => 'admin.outils.notifications', 'label' => __('admin.notif_inspector_title'), 'icon' => 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
                             // TASK-1646 — Scenario Manager. Entree canonique du produit
                             // (CDC 5.1 : « Outils -> Scenarios », et non « IA »).
                             ['route' => 'admin.outils.scenarios', 'label' => __('admin.scenario_manager.nav_label'), 'icon' => 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'],
