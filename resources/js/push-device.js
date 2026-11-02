@@ -222,7 +222,7 @@ if (bloc) {
         // répond du même coup à « est-il à MOI ? ».
         try {
             const etat = await confirmer(abonnement);
-            peindre('on', etat.device_count, textes.textNotYet);
+            peindre('on', etat.device_count, textes.textReady);
         } catch {
             const etat = await etatServeur(abonnement.endpoint);
             peindre(etat?.subscribed ? 'on' : 'off', etat?.device_count);
@@ -283,7 +283,7 @@ if (bloc) {
                 }));
 
             const etat = await confirmer(abonnement, libelleAppareil());
-            peindre('on', etat.device_count, textes.textNotYet);
+            peindre('on', etat.device_count, textes.textReady);
         } catch {
             peindre('off', undefined, textes.textEnableFailed);
         } finally {

@@ -42,7 +42,21 @@
              Hors du formulaire des préférences : un abonnement est un état
              d'appareil, activer EST le geste, il n'y a rien à « enregistrer ».
         --}}
-        @include('notifications.partials.push-device')
+        @php
+            // TASK-1744 — combien d'événements cette personne a-t-elle
+            // réellement ouverts au Push ? Le panneau d'appareil en a besoin
+            // pour dire la vérité plutôt qu'une promesse : un appareil
+            // enregistré sans aucune case cochée ne reçoit RIEN, et c'est ce
+            // silence-là qui a fait échouer la première recette.
+            //
+            // Compté ici et non dans le contrôleur : `$etat` est déjà
+            // l'autorité de cet écran, et le partiel n'est inclus que d'ici.
+            $pushActifs = collect($etat)
+                ->filter(fn (array $canaux) => ($canaux[\App\Support\Notifications\NotificationCatalogue::CHANNEL_WEB_PUSH]['enabled'] ?? false) === true)
+                ->count();
+        @endphp
+
+        @include('notifications.partials.push-device', ['pushActifs' => $pushActifs])
 
         @if(session('notification_preferences_saved'))
             <div data-preferences-saved

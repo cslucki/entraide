@@ -197,28 +197,63 @@ class TASK1739PushRoutesTest extends TestCase
         $this->assertStringNotContainsString(str_repeat('p', 43), $html);
     }
 
-    public function test_l_ecran_ne_promet_pas_une_reception_non_livree(): void
+    /**
+     * TASK-1744 — PORTE au nouveau contrat, meme intention.
+     *
+     * CDC 3.2 : ne pas promettre une capacite qui n'est pas operationnelle.
+     * T1739 l'honorait en affichant « l'envoi sera active prochainement » :
+     * c'etait vrai, aucun canal `web_push` n'existait au catalogue.
+     *
+     * T1744 ouvre le canal, et cette phrase est devenue l'INVERSE de la
+     * verite — elle a coute la premiere recette Android, en disant a la
+     * personne qui venait d'activer son appareil qu'elle ne recevrait rien,
+     * juste au-dessus des cases qu'il fallait cocher.
+     *
+     * L'exigence ne change pas, sa formulation si : l'ecran doit dire ce qui
+     * est vrai POUR CETTE PERSONNE. Alice n'a coche aucun evenement, elle
+     * doit donc lire qu'elle ne recevra rien ET ce qu'il faut faire.
+     */
+    public function test_l_ecran_dit_la_verite_sur_ce_que_la_personne_recevra(): void
     {
-        // CDC 3.2 : ne pas promettre une capacite qui n'est pas operationnelle.
-        // Le canal `web_push` n'existe pas encore au catalogue.
         $html = $this->actingAs($this->alice)->get(route('notifications.preferences.edit'))
             ->assertOk()->getContent();
 
-        $this->assertStringContainsString(__('push.not_yet_sending'), $html);
+        $this->assertStringContainsString(__('push.ready_none'), $html);
+
+        // Et la promesse morte ne doit subsister nulle part.
+        $this->assertStringNotContainsString('sera activé prochainement', $html);
     }
 
-    public function test_le_catalogue_n_a_PAS_ete_touche(): void
+    /**
+     * TASK-1744 — la premisse de `test_le_catalogue_n_a_PAS_ete_touche` est
+     * morte, et ce test ne pouvait DE TOUTE FACON pas echouer.
+     *
+     * Il ecrivait `array_keys(NotificationCatalogue::channelsFor($cle))`.
+     * Mais `channelsFor()` rend DEJA la liste des noms de canaux : le second
+     * `array_keys()` la transformait en `[0, 1]`, et l'assertion comparait
+     * donc `'web_push'` a des entiers. Elle serait restee verte meme si
+     * T1739 avait declare le canal — c'est-a-dire exactement dans le cas
+     * qu'elle existait pour interdire.
+     *
+     * Le perimetre de T1739 est aujourd'hui un fait d'HISTOIRE, pas une
+     * contrainte : T1744 declare le canal a dessein. Ce qui reste a defendre
+     * est la raison qui justifiait l'interdiction — qu'un canal ne mette en
+     * file QUE son propre job — et cette garde vit dans
+     * `TASK1740WebPushChannelTest::test_un_canal_ne_met_en_file_que_SON_job`.
+     *
+     * On garde donc une mesure ici, mais ECRITE CORRECTEMENT, et sur ce qui
+     * est vrai maintenant.
+     */
+    public function test_le_canal_est_desormais_declare_et_l_assertion_le_voit(): void
     {
-        // Le perimetre de la TASK, mesure : aucun canal `web_push` n'est
-        // declare. L'ajouter avant la correction du planificateur ferait
-        // dispatcher un job email par canal.
-        foreach (\App\Support\Notifications\NotificationCatalogue::keys() as $cle) {
-            $this->assertNotContains(
-                'web_push',
-                array_keys(\App\Support\Notifications\NotificationCatalogue::channelsFor($cle)),
-                "la cle {$cle} ne doit pas declarer web_push dans cette TASK",
-            );
-        }
+        $canaux = \App\Support\Notifications\NotificationCatalogue::channelsFor(
+            \App\Support\Notifications\NotificationCatalogue::LOOP_INVITATION
+        );
+
+        // Sans le `array_keys()` superflu : on compare des chaines a des
+        // chaines. C'est la forme que l'ancienne assertion aurait du avoir.
+        $this->assertContains('web_push', $canaux);
+        $this->assertContains('in_app', $canaux);
     }
 
     // ── L'ACCES a l'ecran, qui manquait ────────────────────────────────────

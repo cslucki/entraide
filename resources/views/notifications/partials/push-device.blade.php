@@ -145,7 +145,11 @@
           data-text-unsupported="{{ __('push.state_unsupported') }}"
           data-text-denied-help="{{ __('push.denied_help') }}"
           data-text-unsupported-help="{{ __('push.unsupported_help') }}"
-          data-text-not-yet="{{ __('push.not_yet_sending') }}"
+          {{-- TASK-1744 — le message affiché quand l'appareil est enregistré.
+               Il dépend de ce que CETTE personne a coché, pas d'un état
+               général du produit : voir le calcul de `$pushActifs` dans
+               `notifications/preferences.blade.php`. --}}
+          data-text-ready="{{ ($pushActifs ?? 0) > 0 ? __('push.ready_some') : __('push.ready_none') }}"
           data-text-enable-failed="{{ __('push.enable_failed') }}"
           data-text-disable-failed="{{ __('push.disable_failed') }}"
           data-text-key-stale="{{ __('push.key_stale') }}"
