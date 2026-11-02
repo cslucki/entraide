@@ -54,6 +54,11 @@ return [
         'loop_invitation' => 'An invitation is waiting',
         'loop_member_added' => 'You have joined a Boucle',
         'loop_join_request_accepted' => 'Your request was accepted',
+
+        // TASK-1744 — the fourth key opened to Push. The title does not name
+        // the article: a co-written draft has no reason to show up in front of
+        // anyone.
+        'blog_co_author_added' => 'You have been added to an article',
     ],
 
     'keys' => [

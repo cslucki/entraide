@@ -54,6 +54,11 @@ return [
         'loop_invitation' => 'Une invitation vous attend',
         'loop_member_added' => 'Vous avez rejoint une Boucle',
         'loop_join_request_accepted' => 'Votre demande a été acceptée',
+
+        // TASK-1744 — la quatrième clé ouverte au Push. Le titre ne nomme pas
+        // l'article : un brouillon co-écrit n'a aucune raison de s'afficher
+        // devant n'importe qui.
+        'blog_co_author_added' => 'On vous associe à un article',
     ],
 
     'keys' => [
