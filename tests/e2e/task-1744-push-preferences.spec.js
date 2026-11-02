@@ -89,6 +89,33 @@ test.describe('TASK-1744 — reglages Web Push', () => {
     });
 
     /**
+     * État « pas encore abonné » : le bouton Activer DOIT s'afficher.
+     *
+     * Le test précédent mesure l'état `denied`, où aucun bouton ne doit
+     * paraître. Il ne dit rien de la réciproque, et la réciproque est ce qui
+     * compte : si le correctif du 02/11 avait masqué les DEUX boutons en
+     * toutes circonstances, plus personne n'aurait pu abonner un appareil —
+     * une panne pire que celle qu'il corrigeait, et invisible depuis la
+     * suite telle qu'elle était écrite.
+     *
+     * Chromium headless refuse les notifications quoi qu'on lui accorde. On
+     * force donc la seule entrée que le script lit pour brancher,
+     * `Notification.permission` ; tout le reste du chemin est le vrai.
+     */
+    test('sans abonnement, le bouton Activer est bien propose', async ({ page }) => {
+        await page.addInitScript(() => {
+            Object.defineProperty(Notification, 'permission', { get: () => 'granted', configurable: true });
+        });
+
+        await loginAsMember(page);
+        await page.goto('/notifications/preferences');
+        await page.waitForLoadState('networkidle');
+
+        await expect(page.locator('[data-push-enable]')).toBeVisible();
+        await expect(page.locator('[data-push-disable]')).toBeHidden();
+    });
+
+    /**
      * L'aide doit précéder le panneau de diagnostic, et viser une ancre.
      *
      * Déplié, le diagnostic mesure ~280 px et s'intercalait entre l'état de
