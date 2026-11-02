@@ -421,6 +421,42 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
     }
 
     // =====================================================================
+    // 4. L'outil de diagnostic entre au rail gauche — demande Cyril 02/11
+    // =====================================================================
+
+    public function test_le_rail_du_superadmin_porte_l_outil_de_test_push(): void
+    {
+        // T1740 avait livre l'outil sans aucune entree de navigation : il
+        // n'etait atteignable que par son URL. C'est la forme la plus
+        // discrete de code mort — present, fonctionnel, introuvable.
+        $superAdmin = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'is_admin' => true,
+        ]);
+
+        $html = $this->actingAs($superAdmin)
+            ->get(route('admin.outils.integrite'))
+            ->assertOk()
+            ->getContent();
+
+        // L'URL doit figurer dans le rail, et le libelle avec elle : une
+        // entree sans texte lisible ne se clique pas.
+        $this->assertStringContainsString(route('admin.outils.test-notification'), $html);
+        $this->assertStringContainsString(__('admin.push_test_title_page'), $html);
+    }
+
+    public function test_l_outil_reste_refuse_a_qui_n_est_pas_administrateur(): void
+    {
+        // Rendre un outil visible ne doit pas le rendre accessible. La garde
+        // est celle de la route, et l'entree de rail n'y change rien — mais
+        // on le mesure, parce que c'est le genre de chose qu'on croit sur
+        // parole.
+        $this->actingAs($this->membre)
+            ->get(route('admin.outils.test-notification'))
+            ->assertForbidden();
+    }
+
+    // =====================================================================
     // Harnais
     // =====================================================================
 

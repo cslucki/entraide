@@ -147,6 +147,17 @@
                             ['route' => 'admin.outils.dossiers', 'label' => __('admin.dossiers_cleanup.nav_label'), 'icon' => 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z'],
                             // TASK-1632 — cockpit d'integrite, en lecture seule.
                             ['route' => 'admin.outils.integrite', 'label' => __('admin.integrity.nav_label'), 'icon' => 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'],
+                            // TASK-1744 (demande Cyril, 02/11) — le diagnostic Web Push de
+                            // T1740 n'etait atteignable QUE par son URL. Un outil de
+                            // recette qu'il faut connaitre par coeur ne sert qu'a celui
+                            // qui l'a ecrit.
+                            //
+                            // Icone d'APPAREIL et non la cloche : la cloche appartient
+                            // deja au cockpit des notifications (ligne 54), et deux
+                            // entrees qui se ressemblent dans le meme rail se confondent.
+                            // Ici l'objet est l'appareil qu'on reveille, pas la
+                            // notification qu'on supervise.
+                            ['route' => 'admin.outils.test-notification', 'label' => __('admin.push_test_title_page'), 'icon' => 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z'],
                             // TASK-1646 — Scenario Manager. Entree canonique du produit
                             // (CDC 5.1 : « Outils -> Scenarios », et non « IA »).
                             ['route' => 'admin.outils.scenarios', 'label' => __('admin.scenario_manager.nav_label'), 'icon' => 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'],
