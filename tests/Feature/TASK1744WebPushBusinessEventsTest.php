@@ -562,6 +562,64 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         $this->assertStringContainsString('web_push', $html);
     }
 
+    public function test_l_inspecteur_n_offre_PAS_un_rejeu_sans_appareil(): void
+    {
+        // Mesure du 02/11 : le rejeu a conclu `all_devices_revoked` parce
+        // que le dernier endpoint venait d'etre revoque par le fournisseur
+        // — vider le cache d'une PWA detruit son abonnement Push.
+        //
+        // Le bouton etait pourtant propose. Un ecran de diagnostic qui
+        // promet une action impossible fabrique le doute qu'il est cense
+        // lever : on ne sait plus si c'est le Push qui est casse ou le
+        // telephone.
+        $this->inviter();
+
+        // Aucun appareil : c'est l'etat exact apres une revocation.
+        $this->assertSame(0, PushSubscription::query()->count());
+
+        $html = $this->actingAs($this->superAdmin())
+            ->get(route('admin.outils.notifications'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(__('admin.notif_inspector_no_device'), $html);
+        $this->assertStringNotContainsString('data-rejouer', $html, 'aucun bouton de rejeu sans appareil');
+    }
+
+    public function test_l_inspecteur_offre_le_rejeu_des_qu_un_appareil_existe(): void
+    {
+        // L'autre moitie : la garde ne doit pas tout fermer. Un appareil
+        // abonne, et le bouton revient.
+        $this->appareil();
+        $this->inviter();
+
+        $html = $this->actingAs($this->superAdmin())
+            ->get(route('admin.outils.notifications'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-rejouer', $html);
+        $this->assertStringContainsString(trans_choice('admin.notif_inspector_devices', 1, ['count' => 1]), $html);
+    }
+
+    public function test_le_compte_d_appareils_suit_la_MEME_regle_que_l_envoi(): void
+    {
+        // Un compte affiche « 1 appareil » que l'envoi refuserait serait
+        // exactement le mensonge que cet ecran existe pour dissiper. Les
+        // deux passent donc par `conditionsEnvoyables()`, et ce test le
+        // mesure sur le cas qui separe : une clef VAPID perimee.
+        $appareil = $this->appareil();
+        $appareil->forceFill(['vapid_key_hash' => 'une-clef-qui-n-a-plus-cours'])->save();
+
+        $politique = app(\App\Support\Push\PushTestPolicy::class);
+
+        $this->assertSame(
+            $politique->abonnementsEnvoyables($this->membre)->count(),
+            $politique->comptesDAppareilsEnvoyables([(string) $this->membre->id])[(string) $this->membre->id] ?? 0,
+        );
+        $this->assertSame(0, $politique->abonnementsEnvoyables($this->membre)->count());
+    }
+
     public function test_l_inspecteur_est_reserve_a_l_administration(): void
     {
         $this->actingAs($this->membre)

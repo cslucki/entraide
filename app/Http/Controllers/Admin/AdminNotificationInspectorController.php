@@ -117,6 +117,14 @@ class AdminNotificationInspectorController extends Controller
             'cles' => NotificationCatalogue::keys(),
             'filtres' => ['q' => $recherche, 'cle' => $cle, 'canal' => $canal],
             'rejouables' => $this->politique->destinatairesAdmis()->pluck('id')->flip(),
+
+            // TASK-1744 — combien d'appareils chaque destinataire a-t-il
+            // REELLEMENT ? Un rejeu sans appareil ne peut que conclure
+            // `all_devices_revoked` : offrir le bouton quand meme, c'est
+            // promettre une action impossible. Mesure du 02/11.
+            'appareils' => $this->politique->comptesDAppareilsEnvoyables(
+                $destinataires->keys()->map(fn ($id) => (string) $id)->all()
+            ),
         ]);
     }
 

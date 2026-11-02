@@ -1988,4 +1988,9 @@ return [
     'notif_inspector_recipient_refused' => 'Replay refused: the recipient is not a test account.',
     'notif_inspector_channel_refused' => 'Replay refused: the catalogue does not allow Web Push for this event.',
     'notif_inspector_replayed' => 'Replay done — status: :statut · diagnostic: :diagnostic',
+
+    // TASK-1744 — device count, shown even at zero: at zero it explains why
+    // no replay is offered.
+    'notif_inspector_devices' => '{0}no device subscribed|{1}1 device subscribed|[2,*]:count devices subscribed',
+    'notif_inspector_no_device' => 'no device — nothing to wake',
 ];

@@ -80,7 +80,9 @@
                     @php
                         $destinataire = $destinataires[$notification->recipient_id] ?? null;
                         $lignes = $livraisons[$notification->id] ?? collect();
-                        $rejouable = $destinataire !== null && $rejouables->has($destinataire->id);
+                        $compteRecette = $destinataire !== null && $rejouables->has($destinataire->id);
+                        $nbAppareils = $destinataire === null ? 0 : ($appareils[(string) $destinataire->id] ?? 0);
+                        $rejouable = $compteRecette && $nbAppareils > 0;
                     @endphp
 
                     <tr data-notification="{{ $notification->id }}">
@@ -92,6 +94,13 @@
 
                         <td class="px-3 py-2 text-xs">
                             {{ $destinataire?->email ?? '—' }}
+
+                            {{-- Le nombre d'appareils envoyables, affiché même
+                                 à zéro : c'est à zéro qu'il explique tout. --}}
+                            <span data-appareils="{{ $nbAppareils }}"
+                                  class="mt-1 block font-mono text-[11px] {{ $nbAppareils > 0 ? 'text-gray-500' : 'text-amber-700 dark:text-amber-300' }}">
+                                {{ trans_choice('admin.notif_inspector_devices', $nbAppareils, ['count' => $nbAppareils]) }}
+                            </span>
                         </td>
 
                         <td class="px-3 py-2">
@@ -132,9 +141,12 @@
                             @else
                                 {{-- Pas de bouton grisé : un bouton qu'on ne peut
                                      pas actionner invite quand même à essayer. On
-                                     dit pourquoi il n'y en a pas. --}}
-                                <span data-non-rejouable class="text-[11px] italic text-gray-400">
-                                    {{ __('admin.notif_inspector_real_account') }}
+                                     dit pourquoi il n'y en a pas — et les deux
+                                     raisons ne se confondent pas. --}}
+                                <span data-non-rejouable class="text-[11px] italic text-amber-700 dark:text-amber-300">
+                                    {{ $compteRecette
+                                        ? __('admin.notif_inspector_no_device')
+                                        : __('admin.notif_inspector_real_account') }}
                                 </span>
                             @endif
                         </td>

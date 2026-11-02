@@ -87,8 +87,60 @@ class PushTestPolicy
      */
     public function abonnementsEnvoyables(User $destinataire): Builder
     {
-        return PushSubscription::query()
-            ->where('user_id', $destinataire->getKey())
+        return $this->conditionsEnvoyables(
+            PushSubscription::query()->where('user_id', $destinataire->getKey())
+        )->orderByDesc('last_seen_at');
+    }
+
+    /**
+     * Combien d'appareils envoyables chacun de ces comptes possede-t-il ?
+     *
+     * TASK-1744 — l'inspecteur en a besoin AVANT de proposer un rejeu.
+     * Mesure du 02/11 : un bouton « Rejouer le Push » etait offert pour un
+     * destinataire dont le dernier endpoint venait d'etre revoque par le
+     * fournisseur. Le rejeu ne pouvait que conclure `all_devices_revoked` —
+     * l'ecran promettait une action impossible.
+     *
+     * UNE requete pour toute la page, et surtout LES MEMES conditions que
+     * l'envoi : elles sont posees par `conditionsEnvoyables()`, pas recopiees
+     * ici. Un compte affiche « 1 appareil » que l'envoi refuserait serait
+     * exactement le genre de mensonge que cet ecran existe pour dissiper.
+     *
+     * @param  list<string>  $idsUtilisateurs
+     * @return array<string, int> id du compte => nombre d'appareils
+     */
+    public function comptesDAppareilsEnvoyables(array $idsUtilisateurs): array
+    {
+        if ($idsUtilisateurs === []) {
+            return [];
+        }
+
+        return $this->conditionsEnvoyables(
+            PushSubscription::query()->whereIn('user_id', $idsUtilisateurs)
+        )
+            ->selectRaw('user_id, COUNT(*) as total')
+            ->groupBy('user_id')
+            ->pluck('total', 'user_id')
+            ->map(fn ($n) => (int) $n)
+            ->all();
+    }
+
+    /**
+     * Les conditions qui rendent un abonnement ENVOYABLE, posees une fois.
+     *
+     * La seconde est celle que MASTER a demandee : l'abonnement doit avoir
+     * ete CREE sur cet environnement. Un abonnement importe d'un dump de
+     * production porte `production` et ne passe pas ; une ligne anterieure a
+     * T1740 porte `null`, c'est-a-dire « origine inconnue », et ne passe pas
+     * non plus. Un `null` ne vaut PAS « locale » — c'est un cout reel,
+     * prefere a une valeur par defaut qui mentirait.
+     *
+     * @param  Builder<PushSubscription>  $requete
+     * @return Builder<PushSubscription>
+     */
+    private function conditionsEnvoyables(Builder $requete): Builder
+    {
+        return $requete
             ->where('created_env', (string) config('app.env'))
             // TASK-1740 — ecarter les abonnements crees avec une clef VAPID
             // qui n'a plus cours. Le fournisseur les accepterait (`201`) et le
@@ -100,8 +152,7 @@ class PushTestPolicy
             ->where(function ($q): void {
                 $q->whereNull('vapid_key_hash')
                     ->orWhere('vapid_key_hash', PushSubscription::empreinteCleVapid());
-            })
-            ->orderByDesc('last_seen_at');
+            });
     }
 
     /**

@@ -2021,4 +2021,9 @@ return [
     'notif_inspector_recipient_refused' => 'Rejeu refusé : le destinataire n’est pas un compte de recette.',
     'notif_inspector_channel_refused' => 'Rejeu refusé : le catalogue n’autorise pas le Web Push pour cet événement.',
     'notif_inspector_replayed' => 'Rejeu effectué — statut : :statut · diagnostic : :diagnostic',
+
+    // TASK-1744 — le nombre d'appareils, affiche meme a zero : c'est a zero
+    // qu'il explique pourquoi le rejeu n'est pas propose.
+    'notif_inspector_devices' => '{0}aucun appareil abonné|{1}1 appareil abonné|[2,*]:count appareils abonnés',
+    'notif_inspector_no_device' => 'aucun appareil — rien à réveiller',
 ];
