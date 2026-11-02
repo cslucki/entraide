@@ -140,4 +140,5 @@ return [
     'myorg_mail_linked_subject' => 'Vos comptes sont maintenant liés',
     'myorg_mail_linked_line' => 'Votre compte et votre compte de :other sont maintenant liés. Vous pouvez révoquer ce lien à tout moment, depuis l\'un ou l\'autre compte.',
     'myorg_mail_linked_action' => 'Gérer mes comptes liés',
+    'login_switch_organization' => 'Se connecter à une autre organisation :',
 ];

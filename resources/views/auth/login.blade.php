@@ -1,6 +1,21 @@
 <x-guest-layout>
     @php
-        $isOrg = !is_null($currentOrganization);
+        /*
+         * TASK-1742 — l'autorite est la ROUTE, jamais la variable d'habillage.
+         *
+         * `$currentOrganization` est partage par le `View::composer('*')` de
+         * `AppServiceProvider` : faute d'Organization liee a la requete, il y
+         * place l'organisation PAR DEFAUT pour habiller la page. Le lire comme
+         * « nous sommes sur la porte d'une Organization » etait donc faux sur
+         * `/login`, qui se presentait silencieusement comme la porte de Main :
+         * pas de selecteur, le sous-titre de Main, et un lien « connexion
+         * globale » qui invitait a aller la ou l'on etait deja.
+         *
+         * La route, elle, ne ment pas — et c'est deja elle qui fait autorite
+         * cote serveur (`LoginRequest::organizationDeLaTentative()`).
+         */
+        $isOrg = request()->route('organization') !== null;
+        $organisationDeLaPorte = $isOrg ? $currentOrganization : null;
         $ref = request()->input('ref');
         $loginAction = $isOrg ? route('organization.login', $currentOrganization) : route('login');
         $registerLink = $isOrg
@@ -12,7 +27,7 @@
     <div class="px-8 pt-8 pb-2 border-b border-gray-100 dark:border-gray-700">
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ __('auth.login_title') }}</h1>
         @if($isOrg)
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('auth.login_subtitle_org', ['name' => $currentOrganization->name]) }}</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('auth.login_subtitle_org', ['name' => $organisationDeLaPorte?->name]) }}</p>
         @endif
     </div>
 
@@ -58,6 +73,40 @@
                     </p>
                     @endif
                 </div>
+
+                {{-- TASK-1742 — changer d'Organization depuis SA porte.
+
+                     MASTER veut pouvoir choisir l'Organization « sur chaque
+                     page de connexion ». Sur `/org/{slug}/login`, un champ
+                     POSTE contredirait la route — et le serveur le refuse
+                     (T1728). On NAVIGUE donc vers l'autre porte.
+
+                     La difference n'est pas cosmetique : une navigation change
+                     la ROUTE, donc l'autorite reste exactement la ou T1728 l'a
+                     mise. Rien n'est poste, rien n'est devine.
+
+                     La liste ne contient que du PUBLIC et de l'ACTIF, et
+                     jamais la porte courante : on y est deja. Elle ne dit rien
+                     d'aucune appartenance — ce sont les memes Organizations
+                     que `/login` propose a quiconque. --}}
+                @if($isOrg && ($organizationsAlternatives ?? collect())->isNotEmpty())
+                <div data-login-organization-switch class="pt-1">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
+                        {{ __('auth.login_switch_organization') }}
+                    </p>
+                    <ul class="flex flex-wrap gap-2">
+                        @foreach($organizationsAlternatives as $alternative)
+                        <li>
+                            <a href="{{ route('organization.login', $alternative) }}"
+                               data-login-organization-switch-item="{{ $alternative->slug }}"
+                               class="inline-flex min-h-11 items-center rounded-lg border border-gray-300 dark:border-gray-600 px-3 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                                {{ $alternative->name }}
+                            </a>
+                        </li>
+                        @endforeach
+                    </ul>
+                </div>
+                @endif
 
                 {{-- TASK-1728 (A3) — le selecteur d'Organization, FACULTATIF.
 
