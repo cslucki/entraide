@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\Organization;
 use App\Services\InvitationResumption;
 use App\Services\Users\LoginAccountResolver;
 use Illuminate\Http\RedirectResponse;
@@ -31,12 +32,33 @@ class AuthenticatedSessionController extends Controller
      */
     public function create(Request $request, LoginAccountResolver $comptes): View
     {
-        if ($request->route('organization') !== null) {
-            return view('auth.login', ['organizationsProposables' => collect()]);
+        $proposables = $comptes->organizationsProposables();
+        $organization = $request->route('organization');
+
+        if ($organization !== null) {
+            $slugCourant = $organization instanceof Organization
+                ? $organization->slug
+                : (string) $organization;
+
+            // TASK-1742 — aucun selecteur POSTE ici : l'Organization vient de
+            // la route, et le serveur refuse qu'un champ la contredise
+            // (T1728). Mais MASTER veut pouvoir changer d'Organization depuis
+            // n'importe quelle page de connexion : on propose donc d'ALLER
+            // vers l'autre porte, par une navigation ordinaire.
+            //
+            // La difference n'est pas cosmetique : une navigation change la
+            // ROUTE, donc l'autorite reste exactement la ou T1728 l'a mise.
+            return view('auth.login', [
+                'organizationsProposables' => collect(),
+                'organizationsAlternatives' => $proposables
+                    ->reject(fn ($o): bool => $o->slug === $slugCourant)
+                    ->values(),
+            ]);
         }
 
         return view('auth.login', [
-            'organizationsProposables' => $comptes->organizationsProposables(),
+            'organizationsProposables' => $proposables,
+            'organizationsAlternatives' => collect(),
         ]);
     }
 
