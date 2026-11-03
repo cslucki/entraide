@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Support\Notifications\NotificationCatalogue;
+use App\Support\Pwa\PwaInstallContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -114,41 +114,94 @@ class TASK1745PwaInstallShortcutTest extends TestCase
         $this->assertStringNotContainsString('est installé', $html);
     }
 
-    public function test_la_note_sur_les_notifications_suit_le_CATALOGUE(): void
+    public function test_la_note_sur_les_notifications_suit_la_CAPACITE_REELLE(): void
     {
         // CDC 3.2 : ne rien promettre qui ne soit pas livré. La phrase
-        // « BouclePro vous proposera d'activer les notifications » n'est
-        // vraie que si le canal `web_push` est réellement ouvert.
+        // « BouclePro vous proposera d'activer les notifications » n'est vraie
+        // que si le Push peut réellement partir.
         //
-        // La question est posée au catalogue plutôt qu'à un drapeau : il est
-        // déjà l'autorité de ce qui peut partir, et la réponse se met à jour
-        // seule. Ce test vaut donc sur une branche où le canal est ouvert
-        // comme sur une où il ne l'est pas — et c'est tout l'intérêt, les
-        // deux existent en ce moment même.
-        $ouvert = array_filter(
-            NotificationCatalogue::keys(),
-            fn (string $cle) => NotificationCatalogue::allowsChannel($cle, NotificationCatalogue::CHANNEL_WEB_PUSH),
+        // ## Ce test a ROUGI la CI le 03/11, et il avait tort
+        //
+        // Sa première version interrogeait le CATALOGUE SEUL, alors que la vue
+        // demande `PwaInstallContext::annonceLesNotifications()` — qui exige
+        // DEUX choses : le catalogue ouvert **et** `webpush.enabled`.
+        //
+        // Il posait donc la moitié de la question. En local il passait, parce
+        // que le `.env` de développement porte `WEB_PUSH_ENABLED=true` ; en CI
+        // la variable n'existe pas, la note disparaissait à juste titre, et le
+        // test la réclamait quand même. Le produit avait raison, le test avait
+        // tort — et l'écart n'est apparu qu'une fois T1744 fusionné, parce que
+        // sur T1745 seule le catalogue était fermé et les deux moitiés
+        // rendaient `false` ensemble, par accident.
+        //
+        // Leçon : un test qui RE-DÉRIVE la condition d'une vue au lieu de
+        // demander à la MÊME autorité finit par diverger d'elle. Il interroge
+        // désormais exactement ce que la vue interroge.
+        //
+        // ## Et il mesure les DEUX SENS
+        //
+        // Ne vérifier que la présence laisserait passer une note affichée en
+        // permanence — c'est précisément le défaut `hidden` de T1744, où un
+        // bouton restait visible dans tous les états faute d'avoir testé la
+        // réciproque. L'interrupteur d'exploitation est donc basculé ici, et
+        // la note doit suivre dans les deux positions.
+        //
+        // ## La note est cherchée dans les DEUX LANGUES, délibérément
+        //
+        // Second défaut du premier jet : il comparait `__('pwa.installing_note')`
+        // — résolu dans la locale du PROCESSUS DE TEST — au HTML d'une page
+        // rendue en `lang="en"`. Une chaîne française cherchée dans une page
+        // anglaise ne se trouve jamais, et l'échec ne disait rien du produit.
+        //
+        // On cherche donc l'une OU l'autre, comme le font déjà les specs
+        // navigateur de cette TASK : ce qu'on mesure ici est la PRÉSENCE de la
+        // promesse, pas la langue dans laquelle elle est faite.
+        $notes = [
+            trans('pwa.installing_note', [], 'fr'),
+            trans('pwa.installing_note', [], 'en'),
+        ];
+
+        $contient = static fn (string $html): bool => array_filter(
+            $notes,
+            static fn (string $n): bool => str_contains($html, $n),
         ) !== [];
 
-        $html = $this->withHeader('User-Agent', self::UA_TELEPHONE)
-            ->get('/about')
-            ->assertOk()
-            ->getContent();
+        // Position HAUTE — la capacité existe-t-elle vraiment ?
+        config()->set('webpush.enabled', true);
+        config()->set('webpush.vapid.public_key', str_repeat('B', 87));
 
-        if ($ouvert) {
-            $this->assertStringContainsString(
-                __('pwa.installing_note'),
-                $html,
-                'le canal est ouvert : la note doit être annoncée',
+        $htmlAvecPush = $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->get('/about')->assertOk()->getContent();
+
+        if (PwaInstallContext::annonceLesNotifications()) {
+            $this->assertTrue(
+                $contient($htmlAvecPush),
+                'la capacité est annoncée : la note doit apparaître',
             );
-
-            return;
+        } else {
+            // Catalogue fermé : même interrupteur allumé, on ne promet rien.
+            $this->assertFalse(
+                $contient($htmlAvecPush),
+                'le catalogue est fermé : annoncer les notifications serait une promesse creuse',
+            );
         }
 
-        $this->assertStringNotContainsString(
-            __('pwa.installing_note'),
-            $html,
-            "le canal n'est pas ouvert : annoncer les notifications serait une promesse creuse",
+        // Position BASSE — l'interrupteur d'exploitation ferme la promesse,
+        // quoi que dise le catalogue. C'est la réciproque, et c'est elle qui
+        // a manqué.
+        config()->set('webpush.enabled', false);
+
+        $this->assertFalse(
+            PwaInstallContext::annonceLesNotifications(),
+            'le Push éteint doit fermer la capacité annoncée',
+        );
+
+        $htmlSansPush = $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->get('/about')->assertOk()->getContent();
+
+        $this->assertFalse(
+            $contient($htmlSansPush),
+            'Push éteint : la note ne doit pas être affichée',
         );
     }
 
