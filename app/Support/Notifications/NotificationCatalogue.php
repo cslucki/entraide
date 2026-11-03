@@ -251,10 +251,12 @@ final class NotificationCatalogue
                 // du CDC section 6.5 : « une invitation autorisee provoque une
                 // ligne in-app existante ET une livraison Push ».
                 //
-                // `default => false` : voir le docblock de CHANNEL_WEB_PUSH. La
-                // personne doit avoir accorde la permission systeme, abonne un
-                // appareil, PUIS allume ce reglage. Trois gestes, et aucun ne
-                // peut etre fait a sa place.
+                // `default => true` depuis l'arbitrage Cyril du 03/11 : voir le
+                // docblock de CHANNEL_WEB_PUSH. Le defaut ne reveille personne
+                // a lui seul — il faut encore un appareil abonne ET la
+                // permission systeme, deux gestes explicites qui ne peuvent pas
+                // etre faits a sa place. Ce reglage sert donc a REDUIRE le
+                // bruit, pas a autoriser le canal.
                 self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
@@ -410,9 +412,9 @@ final class NotificationCatalogue
                 // « plutot non par defaut ».
                 //
                 // Pas de canal EMAIL ici, donc le Push est le SEUL canal
-                // sortant de cette cle. Cela ne change rien a `default =>
-                // false` : le defaut d'un canal ne se decide pas a la
-                // disponibilite des autres.
+                // sortant de cette cle. Cela ne change rien a son defaut : le
+                // defaut d'un canal ne se decide pas a la disponibilite des
+                // autres.
                 self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
