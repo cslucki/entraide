@@ -34,6 +34,24 @@ return [
     'preferences_save' => 'Save',
     'preferences_saved' => 'Your settings have been saved.',
     'preferences_mandatory' => 'Always on',
+
+    // TASK-1746 (CDC §7A) — sections named by what the event ASKS of the
+    // person, never by the technical object it refers to. The third one is
+    // provisioned for §9.2 and stays empty; an empty section is not shown.
+    'intentions' => [
+        'sollicitation_directe' => [
+            'title' => "When someone reaches out to me",
+            'hint' => "Addressed to you personally, and waiting for your reply.",
+        ],
+        'changements' => [
+            'title' => "Invitations and changes",
+            'hint' => "Things that concern you without asking anything: you are kept informed.",
+        ],
+        'sollicitation_pertinente' => [
+            'title' => "Relevant requests",
+            'hint' => "Requests you could answer, picked from what you know how to do.",
+        ],
+    ],
     'preferences_mandatory_hint' => 'This notification is addressed to you personally and calls for a reply: it cannot be turned off.',
     'preferences_link' => 'Settings',
     'preferences_back' => 'My notifications',

@@ -117,6 +117,57 @@ final class NotificationCatalogue
      */
     public const CHANNEL_WEB_PUSH = 'web_push';
 
+    /**
+     * TASK-1746 (CDC §7A) — l'INTENTION d'un evenement, et pourquoi ce n'est
+     * pas `category`.
+     *
+     * `category` existait deja et ne prend que deux valeurs : `loop` et
+     * `blog`. Ce sont des DOMAINES D'OBJET. En deriver les sections de l'ecran
+     * de reglages donnerait « Boucles » et « Blog » — un classement par
+     * technique, alors que le CDC §7 demande que la personne « comprenne
+     * pourquoi elle est prevenue ».
+     *
+     * Et le domaine se degrade des le §8.1 : une demande d'aide serait rangee
+     * dans `loop`, a cote d'une invitation, alors que les deux n'ont rien de
+     * commun pour qui les recoit. L'une appelle une reponse, l'autre informe.
+     *
+     * L'intention repond donc a une autre question — « qu'est-ce que cela me
+     * demande ? » — et c'est elle qui gouverne le regroupement. `category`
+     * reste intact dans son role.
+     *
+     * Ce qui m'est ADRESSE et attend quelque chose de moi.
+     */
+    public const INTENTION_SOLLICITATION_DIRECTE = 'sollicitation_directe';
+
+    /** Ce qui me CONCERNE sans rien exiger : on m'informe. */
+    public const INTENTION_CHANGEMENTS = 'changements';
+
+    /**
+     * Ce qui m'est propose parce que je PEUX AIDER (CDC §9.2).
+     *
+     * Declaree des maintenant, et volontairement sans aucune cle : la decision
+     * MASTER du 03/11 rend la sollicitation pertinente CONFIGURABLE, elle aura
+     * donc besoin d'une section. La provisionner ici evite de rouvrir l'ecran
+     * au moment du §9.2 — et une section sans cle eligible ne s'affiche pas,
+     * donc elle ne coute rien a personne en attendant.
+     */
+    public const INTENTION_SOLLICITATION_PERTINENTE = 'sollicitation_pertinente';
+
+    /**
+     * L'ORDRE d'affichage des sections, et il porte une decision produit.
+     *
+     * Ce qui attend une reponse vient en premier : c'est ce qu'on vient
+     * regler quand on arrive ici parce qu'on recoit trop. Les changements
+     * ensuite, les propositions en dernier.
+     *
+     * @var list<string>
+     */
+    public const INTENTIONS = [
+        self::INTENTION_SOLLICITATION_DIRECTE,
+        self::INTENTION_CHANGEMENTS,
+        self::INTENTION_SOLLICITATION_PERTINENTE,
+    ];
+
     public const LOOP_INVITATION = 'loop.invitation';
 
     /**
@@ -226,6 +277,7 @@ final class NotificationCatalogue
     private const ENTRIES = [
         self::LOOP_INVITATION => [
             'category' => 'loop',
+            'intention' => self::INTENTION_SOLLICITATION_DIRECTE,
             'object_type' => self::OBJECT_LOOP_INVITATION,
             'channels' => [
                 // CDC section 8 : « Invitation nominative : in-app OBLIGATOIRE ».
@@ -264,6 +316,7 @@ final class NotificationCatalogue
         // TASK-1719 — l'ajout direct dans une Boucle.
         self::LOOP_MEMBER_ADDED => [
             'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
             'object_type' => self::OBJECT_LOOP,
             'channels' => [
                 // IN_APP obligatoire, comme l'invitation : on ne se desabonne
@@ -344,6 +397,7 @@ final class NotificationCatalogue
         // rien de plus.
         self::LOOP_JOIN_REQUEST_ACCEPTED => [
             'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
             'object_type' => self::OBJECT_LOOP_JOIN_REQUEST,
             'channels' => [
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
@@ -365,6 +419,7 @@ final class NotificationCatalogue
 
         self::LOOP_JOIN_REQUEST_REJECTED => [
             'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
             'object_type' => self::OBJECT_LOOP_JOIN_REQUEST,
             'channels' => [
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
@@ -374,6 +429,7 @@ final class NotificationCatalogue
         // TASK-1697 — l'auteur d'un article est prevenu qu'on l'a commente.
         self::BLOG_COMMENT_CREATED => [
             'category' => 'blog',
+            'intention' => self::INTENTION_CHANGEMENTS,
             'object_type' => self::OBJECT_BLOG_COMMENT,
             'channels' => [
                 // `configurable => true`, et c'est la difference avec une
@@ -392,6 +448,7 @@ final class NotificationCatalogue
         // TASK-1702 — on vous a ajoute comme co-auteur d'un article.
         self::BLOG_CO_AUTHOR_ADDED => [
             'category' => 'blog',
+            'intention' => self::INTENTION_SOLLICITATION_DIRECTE,
             'object_type' => self::OBJECT_BLOG_POST,
             'channels' => [
                 // `configurable => false`, comme une invitation et a la
@@ -454,6 +511,46 @@ final class NotificationCatalogue
     public static function objectTypeFor(string $notificationKey): ?string
     {
         return self::definition($notificationKey)['object_type'] ?? null;
+    }
+
+    /**
+     * L'intention de cette cle — ce que l'evenement DEMANDE a la personne.
+     *
+     * Rend `null` pour une cle inconnue, comme ses voisines. Une cle CONNUE
+     * qui n'en declare pas est en revanche un defaut, pas un cas limite : la
+     * garde de `TASK1746PreferenceIntentionsTest` echoue alors, pour qu'une
+     * cle ajoutee demain ne puisse pas disparaitre de l'ecran en silence.
+     */
+    public static function intentionFor(string $notificationKey): ?string
+    {
+        return self::definition($notificationKey)['intention'] ?? null;
+    }
+
+    /**
+     * Les cles de chaque intention, dans l'ordre d'affichage declare.
+     *
+     * Les intentions SANS cle sont rendues elles aussi, avec un tableau vide :
+     * c'est a l'appelant de decider quoi en faire, et l'ecran choisit de ne
+     * pas les afficher. Les omettre ici cacherait au contraire qu'une
+     * intention est declaree mais vide — ce qui est une information.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function keysByIntention(): array
+    {
+        $parIntention = array_fill_keys(self::INTENTIONS, []);
+
+        foreach (self::ENTRIES as $cle => $definition) {
+            $intention = $definition['intention'] ?? null;
+
+            if ($intention === null || ! array_key_exists($intention, $parIntention)) {
+                continue;
+            }
+
+            $parIntention[$intention][] = $cle;
+        }
+
+        return $parIntention;
     }
 
     public static function allowsChannel(string $notificationKey, string $channel): bool

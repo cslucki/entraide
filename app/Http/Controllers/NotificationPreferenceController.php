@@ -43,8 +43,27 @@ class NotificationPreferenceController extends Controller
 
         $slug = $request->route('organization');
 
+        $etat = $resolver->overview($user);
+
         return view('notifications.preferences', [
-            'etat' => $resolver->overview($user),
+            'etat' => $etat,
+
+            // TASK-1746 (CDC §7A) — le meme etat, REGROUPE par intention.
+            //
+            // `etat` est conserve tel quel : il reste la forme plate, et
+            // `update()` continue de raisonner sur le catalogue entier. On
+            // n'ajoute qu'une LECTURE, aucune seconde verite.
+            //
+            // Les sections sont derivees du catalogue, jamais ecrites en dur :
+            // une cle ajoutee demain declare son intention et prend sa place
+            // seule. Une intention sans cle eligible est ECARTEE ici plutot
+            // que dans la vue — un titre de section sans rien dessous serait
+            // une promesse vide, et c'est le cas de la sollicitation
+            // pertinente tant que le §9.2 n'existe pas.
+            'sections' => collect(NotificationCatalogue::keysByIntention())
+                ->map(fn (array $cles): array => array_intersect_key($etat, array_flip($cles)))
+                ->reject(fn (array $cles): bool => $cles === [])
+                ->all(),
             'routeUpdate' => $slug ? 'organization.notifications.preferences.update' : 'notifications.preferences.update',
             'routeParams' => $slug ? ['organization' => $slug] : [],
             'routeCentre' => $slug ? 'organization.notifications.index' : 'notifications.index',
