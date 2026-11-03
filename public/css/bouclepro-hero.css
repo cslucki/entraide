@@ -111,6 +111,21 @@ body.bp-hero-v2{
 .bp-hero-v2 .cta-secondary:hover{box-shadow:0 16px 34px -10px rgba(255,79,154,.62)}
 .bp-hero-v2 .cta-secondary:active{transform:scale(.97)}
 
+/* TASK-1745 — « A propos » dans le bloc CTA : la taille de `btn-join`, la
+   couleur de `cta-secondary`.
+
+   Une MODIFICATION de `.btn-join`, et non un troisieme bouton : la geometrie
+   — padding, rayon, graisse, taille de police — reste declaree a un seul
+   endroit. Un bouton « de meme taille » obtenu en recopiant les valeurs
+   aurait cesse de l'etre au premier ajustement de l'original. */
+.bp-hero-v2 .btn-join--about{
+  background:var(--pink);color:#fff;
+  box-shadow:0 10px 26px -8px rgba(255,79,154,.55), 0 1px 3px rgba(20,24,60,.08);
+}
+.bp-hero-v2 .btn-join--about:hover{
+  box-shadow:0 14px 32px -8px rgba(255,79,154,.62), 0 1px 3px rgba(20,24,60,.08);
+}
+
 /* ============ FOOTER ============ */
 .bp-hero-v2 .foot{
   display:grid;grid-template-columns:auto 1fr;align-items:center;gap:18px;
@@ -309,6 +324,12 @@ body.bp-hero-v2{
 @media (max-width:760px){
   .bp-hero-v2 .nav-menu{gap:14px;font-size:14px}
   .bp-hero-v2 .nav-menu .lang{margin-left:2px;margin-right:-6px;font-size:12px}
+  /* TASK-1745 (demande Cyril, 03/11) — « A propos » quitte la barre sur
+     TELEPHONE, et seulement la. Elle y portait deja le lien d'abonnement, le
+     selecteur de langue et la connexion ou l'avatar : une entree de plus s'y
+     perdait. Le bouton rose du bloc CTA la remplace, ou elle se voit.
+     Sur bureau, rien ne change — la barre reste le chemin attendu. */
+  .bp-hero-v2 .nav-menu .nav-about{display:none}
 }
 @media (max-width:560px){
   .bp-hero-v2 .page{padding:18px 18px 30px;overflow-x:hidden}

@@ -74,7 +74,11 @@ $secondaryCtaUrl = $showInternalHomepageContent
     <div class="brand"><span class="flower"></span><b>{{ $organization->name }}</b></div>
     <nav class="nav-right">
       <nav class="nav-menu" aria-label="Menu">
-        <a href="{{ $aboutUrl }}">{{ __('navigation.about') }}</a>
+        {{-- TASK-1745 — masquee sur TELEPHONE par la feuille de style, ou
+             elle est remplacee par le bouton rose du bloc CTA. Elle reste
+             dans le HTML : le bureau s'en sert, et la retirer cote serveur
+             obligerait a deviner la taille de l'ecran depuis le User-Agent. --}}
+        <a href="{{ $aboutUrl }}" class="nav-about" data-nav-about>{{ __('navigation.about') }}</a>
         {{-- TASK-1692, correctif post-CI — l'offre d'abonnement est une surface
            COMMERCIALE publique. Son seul discriminant est le reglage de
            l'Organization ; la garde de route protege la page. --}}
@@ -160,8 +164,19 @@ $secondaryCtaUrl = $showInternalHomepageContent
       </div>
       <div class="cta-row" data-anim>
         <a href="{{ $primaryCtaUrl }}" class="cta-primary">{{ $settingText('primary_cta_label', 'hero.cta_primary', ['CTA primaire — label']) }} <i class="ti ti-arrow-right"></i></a>
-        @if($showInternalHomepageContent || auth()->guest())
-          <a href="{{ $secondaryCtaUrl }}" class="cta-secondary"><i class="ti ti-circle-plus"></i>{{ $showInternalHomepageContent ? $settingText('secondary_cta_label', 'hero.cta_secondary', ['CTA secondaire — label']) : org_trans('hero.nav_login') }}</a>
+        {{-- TASK-1745 (demande Cyril, 03/11) — plus de « Connexion » ICI.
+
+             La barre du haut en porte deja un, visible sur bureau comme sur
+             telephone depuis T1743. Deux boutons pour la meme porte, a
+             quelques centimetres l'un de l'autre, ne doublent pas les
+             chances d'entrer : ils font hesiter.
+
+             Le CTA secondaire REGLABLE, lui, reste — c'est une autre chose.
+             Il appartient aux Organizations qui ont configure leur page, et
+             la condition `auth()->guest()` seule ne le concernait pas : elle
+             ne servait qu'a fabriquer ce second bouton de connexion. --}}
+        @if($showInternalHomepageContent)
+          <a href="{{ $secondaryCtaUrl }}" class="cta-secondary"><i class="ti ti-circle-plus"></i>{{ $settingText('secondary_cta_label', 'hero.cta_secondary', ['CTA secondaire — label']) }}</a>
         @endif
         {{-- TASK-1692 / MICRO-11.8 — « Kit demo » sort de la garde tenant.
              `bouclepro.com/demo` est une adresse EXTERNE, sans prefixe
@@ -171,6 +186,17 @@ $secondaryCtaUrl = $showInternalHomepageContent
              un kit de demonstration s'adresse. Meme arbitrage qu'au pied de
              page partage (MICRO-11.2D). --}}
         <a href="{{ $demoUrl }}" class="btn-join" data-hero-kit-demo>{{ __('hero.cta_demo') }} <i class="ti ti-external-link"></i></a>
+
+        {{-- TASK-1745 (demande Cyril, 03/11) — « A propos » descend ICI.
+
+             Meme gabarit que « Voir une demo » (`btn-join`, donc meme taille
+             exactement), en ROSE pour le distinguer du blanc voisin.
+
+             Il remplace l'entree de la barre du haut, retiree sur TELEPHONE
+             seulement : sur un petit ecran, la barre portait trop de choses
+             et « A propos » y passait inapercu. Sur bureau, les deux
+             coexistent — la barre reste le chemin attendu. --}}
+        <a href="{{ $aboutUrl }}" class="btn-join btn-join--about" data-hero-about>{{ __('navigation.about') }}</a>
       </div>
     </section>
 
