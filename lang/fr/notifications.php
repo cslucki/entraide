@@ -34,6 +34,30 @@ return [
     'preferences_save' => 'Enregistrer',
     'preferences_saved' => 'Vos réglages ont été enregistrés.',
     'preferences_mandatory' => 'Toujours active',
+
+    /*
+     * TASK-1746 (CDC §7A) — les sections de l'ecran, nommees par ce que
+     * l'evenement DEMANDE a la personne, jamais par l'objet technique dont il
+     * parle. « Boucles » et « Blog » auraient classe par domaine ; ici on
+     * repond a « pourquoi suis-je prevenu, et que dois-je en faire ».
+     *
+     * La troisieme est provisionnee pour le §9.2 et reste vide : une section
+     * sans cle eligible n'est pas affichee.
+     */
+    'intentions' => [
+        'sollicitation_directe' => [
+            'title' => "Quand on me sollicite",
+            'hint' => "Ce qui vous est adressé personnellement et attend une réponse de votre part.",
+        ],
+        'changements' => [
+            'title' => "Invitations et changements",
+            'hint' => "Ce qui vous concerne sans rien exiger : on vous tient au courant.",
+        ],
+        'sollicitation_pertinente' => [
+            'title' => "Sollicitations pertinentes",
+            'hint' => "Les demandes auxquelles vous pourriez répondre, choisies selon ce que vous savez faire.",
+        ],
+    ],
     'preferences_mandatory_hint' => 'Cette notification vous est adressée personnellement et appelle une réponse : elle ne peut pas être désactivée.',
     'preferences_link' => 'Réglages',
     'preferences_back' => 'Mes notifications',

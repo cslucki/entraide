@@ -72,8 +72,31 @@
                  événement » du panneau d'appareil. Sans elle, l'aide renvoie
                  à un « ci-dessous » qui, sur un téléphone, est deux écrans
                  plus bas. --}}
-            <ul id="reglages-par-evenement" class="scroll-mt-4 space-y-2">
-                @foreach($etat as $cle => $canaux)
+            {{-- TASK-1746 (CDC §7A) — REGROUPE par intention.
+
+                 Six evenements a plat, chacun avec jusqu'a trois canaux :
+                 le §7 redoute « des dizaines d'interrupteurs », et chaque
+                 producteur du §8 aggravera le compte. Les sections repondent
+                 a « qu'est-ce que cela me demande ? », pas a « de quel objet
+                 technique cela parle ».
+
+                 Le regroupement ajoute un niveau AUTOUR : `data-preference-key`
+                 et `data-preference-channel` sont intacts, et c'est
+                 deliberé — le banc T1744 localise les lignes par ces ancres,
+                 et les casser ferait rougir une TASK fusionnee pour une
+                 raison cosmetique. --}}
+            <div id="reglages-par-evenement" class="scroll-mt-4 space-y-6">
+                @foreach($sections as $intention => $evenements)
+                <section data-preference-intention="{{ $intention }}">
+                    <h2 class="text-sm font-semibold text-[var(--bp-text)]">
+                        {{ __('notifications.intentions.'.$intention.'.title') }}
+                    </h2>
+                    <p class="mt-0.5 text-xs text-[var(--bp-muted)]">
+                        {{ __('notifications.intentions.'.$intention.'.hint') }}
+                    </p>
+
+                    <ul class="mt-2 space-y-2">
+                @foreach($evenements as $cle => $canaux)
                     <li data-preference-key="{{ $cle }}"
                         class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 shadow-sm">
                         <p class="text-sm font-semibold text-[var(--bp-text)]">{{ $libelleCle($cle) }}</p>
@@ -115,7 +138,10 @@
                         @endif
                     </li>
                 @endforeach
-            </ul>
+                    </ul>
+                </section>
+                @endforeach
+            </div>
 
             @php $ilYADuConfigurable = collect($etat)->flatten(1)->contains(fn (array $r) => $r['configurable']); @endphp
 
