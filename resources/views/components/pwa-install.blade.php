@@ -493,9 +493,23 @@
                     <b>{{ __('pwa.banner.title') }}</b>
                     <span>{{ __('pwa.banner.body') }}</span>
                 </div>
-                {{-- Un LIEN, pas un bouton : le bandeau mene a l'ecran dedie, ou
-                     tout est explique. Il fonctionne donc sans JavaScript. --}}
-                <a class="bp-pwa__bar-action" href="{{ $pwa->urlEcranDedie() }}">
+            {{-- Un LIEN, et il le reste : sans JavaScript, sur iOS et sur
+                 tout navigateur qui n'emet pas `beforeinstallprompt`, il mene
+                 a l'ecran dedie ou les instructions manuelles vivent.
+
+                 TASK-1745 (demande Cyril, 03/11) — `data-bp-pwa-action` le
+                 PROMEUT en bouton d'installation des que l'evenement natif a
+                 ete capture. Le gestionnaire ne fait `preventDefault()` que
+                 dans ce cas : la navigation reste donc le comportement par
+                 defaut, et l'amelioration est progressive.
+
+                 Ce que cela retire : l'ecran intermediaire. Le parcours
+                 mesure etait bandeau -> ecran dedie -> dialogue natif, soit
+                 trois surfaces dont une seule, la derniere, est obligatoire.
+                 Le bandeau ne proposait pas d'installer, il proposait d'aller
+                 sur une page qui le proposerait. --}}
+                <a class="bp-pwa__bar-action" href="{{ $pwa->urlEcranDedie() }}"
+                   data-bp-pwa-action="install">
                     {{ __('pwa.banner.action') }}
                 </a>
                 <button type="button" class="bp-pwa__bar-close"
@@ -610,7 +624,24 @@
                             differe.userChoice.then(function (choix) {
                                 if (choix && choix.outcome === 'accepted') {
                                     racine.removeAttribute('data-bp-prompt');
-                                    montrerPlateforme('installing');
+
+                                    // TASK-1745 — le bandeau n'a rien a dire
+                                    // apres un accord : il se retire. Sans
+                                    // renoncement, car installer n'est pas
+                                    // refuser — le cookie ferait disparaitre
+                                    // la proposition sur tout le site pour
+                                    // quelqu'un qui vient de l'accepter.
+                                    //
+                                    // L'ecran plein format, lui, RESTE et
+                                    // bascule sur « installation en cours » :
+                                    // il n'y a rien dessous, le retirer
+                                    // laisserait un ecran noir (recette du
+                                    // 31/10).
+                                    if (racine.getAttribute('data-bp-pwa-install') === 'banner') {
+                                        if (racine.parentNode) { racine.parentNode.removeChild(racine); }
+                                    } else {
+                                        montrerPlateforme('installing');
+                                    }
                                 }
                                 differe = null;
                             });
