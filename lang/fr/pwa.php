@@ -63,8 +63,9 @@ return [
     // On ne dit JAMAIS « c'est installe » : l'installation se termine hors de
     // notre page, et sur iOS elle n'est meme pas observable. On invite a ouvrir
     // l'icone, ce qui est verifiable par la personne elle-meme.
-    'installing_title' => 'Presque terminé',
-    'installing_body' => 'Ouvrez BouclePro depuis votre écran d\'accueil.',
+    'installing_title' => "BouclePro s’installe sur votre téléphone",
+    'installing_body' => "Vous êtes encore dans votre navigateur. Retrouvez son icône sur votre écran d’accueil ou dans vos applications, puis ouvrez-la.",
+    'installing_note' => "Lors du premier lancement, BouclePro vous proposera d’activer les notifications importantes.",
 
     // ── Quand `/installer` n'a rien a proposer ───────────────────────────────
     //
@@ -113,4 +114,51 @@ return [
     // ── Accessibilite ───────────────────────────────────────────────────────
     'dialog_label' => 'Installer l\'application BouclePro',
     'close' => 'Fermer',
+
+    /*
+     * TASK-1745 — la proposition du PREMIER LANCEMENT installe.
+     *
+     * Le corps nomme les evenements reellement couverts par le catalogue
+     * (T1744) : invitation, ajout a une Boucle, demande acceptee. Promettre
+     * plus serait creux, promettre moins ferait refuser a tort.
+     *
+     * Et il dit comment revenir en arriere AVANT de demander : une
+     * permission qu'on sait reversible se refuse moins par reflexe.
+     */
+    'first_run_title' => "Activer les notifications ?",
+    'first_run_body' => "BouclePro vous préviendra lorsqu’on vous invite, qu’on vous ajoute à une Boucle ou qu’on accepte votre demande. Vous pourrez changer d’avis à tout moment dans vos réglages.",
+    'first_run_accept' => "Activer les notifications",
+    'first_run_later' => "Plus tard",
+    'first_run_failed' => "Les notifications n’ont pas pu être activées. Vous pourrez réessayer depuis vos réglages.",
+
+    /*
+     * TASK-1745, recette du 03/11 — les trois états de permission sont trois
+     * parcours, et chacun a son corps de texte.
+     *
+     * `granted` : l'autorisation système est déjà là (accordée autrefois, ou
+     * depuis les contrôles du site — Chrome Android 155+). Le texte doit dire
+     * qu'AUCUNE demande ne repartira : c'est ce qui fait cliquer.
+     *
+     * `denied` : aucun bouton ne peut rouvrir une permission refusée — on
+     * EXPLIQUE le chemin, sans relancer une demande impossible. Le texte
+     * nomme le geste Android réel : les réglages du site.
+     */
+    'first_run_granted_body' => "Votre autorisation est déjà accordée : il ne reste qu’à activer cet appareil, sans nouvelle demande.",
+    'first_run_denied_body' => "Les notifications sont bloquées pour BouclePro dans votre navigateur. Pour les rouvrir : réglages du site (icône à côté de l’adresse, ou Paramètres › Notifications), autorisez les notifications, puis revenez ici.",
+    'first_run_understood' => "Compris",
+
+    /*
+     * TASK-1745, recette du 03/11 — les gestes NUMEROTES de la carte de
+     * confirmation. Une liste se parcourt du coin de l'oeil ; une phrase
+     * continue oblige a tout lire pour trouver ce qu'on doit faire.
+     *
+     * Le dernier n'est pas un geste mais une ANNONCE, et il a sa variante
+     * `_done` : une reinstallation sur un appareil deja abonne ne doit pas
+     * promettre une question qui ne sera pas posee.
+     */
+    'installing_step_wait' => "Android termine l’installation, cela prend quelques secondes.",
+    'installing_step_icon' => "Retrouvez l’icône BouclePro sur votre écran d’accueil ou dans vos applications.",
+    'installing_step_open' => "Ouvrez-la : vous êtes encore dans votre navigateur, pas dans l’application.",
+    'installing_step_notifications' => "Au premier lancement, BouclePro vous proposera d’activer les notifications importantes.",
+    'installing_step_notifications_done' => "Les notifications sont déjà actives sur cet appareil : rien à refaire.",
 ];

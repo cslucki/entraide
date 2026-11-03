@@ -48,6 +48,24 @@
 
     $entrees = [
         ['url' => route('dashboard'), 'label' => __('navigation.dashboard')],
+
+        // TASK-1745 (demande Cyril, 03/11) — le Centre de notifications.
+        //
+        // Place en DEUXIEME, juste apres le tableau de bord : c'est une
+        // destination « ce qui me concerne », et elle se consulte plus
+        // souvent que les reglages ou le signalement de bug.
+        //
+        // Une seule ligne couvre les TROIS homepages — `hero-v2`,
+        // `artscilab-hero` et `ofsh-hero` partagent ce partiel depuis T1720,
+        // precisement pour qu'une entree ajoutee ne le soit pas trois fois,
+        // ni oubliee sur l'une des trois.
+        //
+        // Org-scopee quand la route existe sous cette forme, globale sinon :
+        // le meme idiome que les trois entrees voisines. Arriver sur le
+        // Centre d'un autre tenant que celui de la page serait une bascule
+        // silencieuse.
+        ['url' => $lien('organization.notifications.index', 'notifications.index'), 'label' => __('navigation.notifications')],
+
         ['url' => $lien('organization.profile.edit', 'profile.edit'), 'label' => __('navigation.settings')],
         ['url' => $lien('organization.loops.index', 'loops.index'), 'label' => __('navigation.loops')],
         ['url' => $lien('organization.bug-reports.index', 'bug-reports.index'), 'label' => __('footer.bug')],

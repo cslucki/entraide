@@ -307,6 +307,38 @@
                 box-shadow: 0 -8px 28px rgba(0, 0, 0, .3);
             }
 
+            /* TASK-1745 — la CARTE de confirmation.
+
+               Volontairement plus haute et plus contrastee que le bandeau
+               qu'elle remplace : c'est le moment ou la personne a le plus
+               besoin d'etre guidee, et une ligne de 38 px ne s'y voyait pas.
+               Elle reste dans le meme conteneur `fixed bottom`, donc toujours
+               non bloquante. */
+            .bp-pwa__confirm {
+                max-width: 40rem;
+                margin: 0 auto;
+                border-left: 4px solid var(--bp-pwa-accent, #6B2CFF);
+                padding-left: .9rem;
+            }
+            .bp-pwa__confirm-head { display: flex; align-items: center; gap: .75rem; }
+            .bp-pwa__confirm-head img { width: 44px; height: 44px; border-radius: 11px; flex: 0 0 auto; }
+            .bp-pwa__confirm-head b {
+                flex: 1 1 auto; min-width: 0;
+                font-size: 1rem; font-weight: 700; line-height: 1.25;
+            }
+            .bp-pwa__confirm-steps {
+                margin: .6rem 0 0;
+                padding-left: 1.25rem;
+                display: grid;
+                gap: .3rem;
+                font-size: .82rem;
+                line-height: 1.4;
+                color: var(--bp-pwa-ink);
+            }
+            /* Le dernier pas — les notifications — se detache : c'est le seul
+               qui annonce ce qui arrivera APRES, et non un geste a faire. */
+            .bp-pwa__confirm-steps li:last-child { color: var(--bp-pwa-ink-faint); }
+
             .bp-pwa__bar { display: flex; align-items: center; gap: .85rem; max-width: 40rem; margin: 0 auto; }
             .bp-pwa__bar img { width: 38px; height: 38px; border-radius: 10px; flex: 0 0 auto; }
             .bp-pwa__bar-text { flex: 1 1 auto; min-width: 0; }
@@ -459,6 +491,19 @@
                     <div data-bp-pwa-platform="installing" hidden>
                         <p class="bp-pwa__manual-intro">{{ __('pwa.installing_title') }}</p>
                         <p class="bp-pwa__disclaimer">{{ __('pwa.installing_body') }}</p>
+                        {{-- TASK-1745 — ce que la personne rencontrera ENSUITE.
+                             Annonce ici plutot que decouverte au lancement :
+                             une demande de permission qu'on a vue venir se
+                             refuse moins par reflexe (CDC 5.3).
+
+                             Conditionnee a la REALITE du catalogue : CDC 3.2
+                             interdit de promettre une capacite non livree, et
+                             sur une branche ou le canal `web_push` n'est pas
+                             encore ouvert, cette phrase serait un mensonge.
+                             Elle apparait d'elle-meme le jour ou il l'est. --}}
+                        @if(\App\Support\Pwa\PwaInstallContext::annonceLesNotifications())
+                            <p class="bp-pwa__disclaimer">{{ __('pwa.installing_note') }}</p>
+                        @endif
                     </div>
                 </div>
 
@@ -486,6 +531,11 @@
         </div>
     @else
         <div class="bp-pwa bp-pwa--banner" data-bp-pwa-install="banner"
+             {{-- TASK-1745 point 4 — l'adresse qui dit si CET appareil est
+                  deja abonne. Posee seulement pour une personne connectee :
+                  la route exige une session, et un visiteur anonyme n'a pas
+                  d'appareil a reconnaitre. --}}
+             @auth data-bp-pwa-push-state="{{ route('notifications.push.show') }}" @endauth
              role="region" aria-label="{{ __('pwa.dialog_label') }}">
             <div class="bp-pwa__bar">
                 <img src="/brand/icon-192.png" width="38" height="38" alt="" aria-hidden="true">
@@ -493,14 +543,86 @@
                     <b>{{ __('pwa.banner.title') }}</b>
                     <span>{{ __('pwa.banner.body') }}</span>
                 </div>
-                {{-- Un LIEN, pas un bouton : le bandeau mene a l'ecran dedie, ou
-                     tout est explique. Il fonctionne donc sans JavaScript. --}}
-                <a class="bp-pwa__bar-action" href="{{ $pwa->urlEcranDedie() }}">
+            {{-- Un LIEN, et il le reste : sans JavaScript, sur iOS et sur
+                 tout navigateur qui n'emet pas `beforeinstallprompt`, il mene
+                 a l'ecran dedie ou les instructions manuelles vivent.
+
+                 TASK-1745 (demande Cyril, 03/11) — `data-bp-pwa-action` le
+                 PROMEUT en bouton d'installation des que l'evenement natif a
+                 ete capture. Le gestionnaire ne fait `preventDefault()` que
+                 dans ce cas : la navigation reste donc le comportement par
+                 defaut, et l'amelioration est progressive.
+
+                 Ce que cela retire : l'ecran intermediaire. Le parcours
+                 mesure etait bandeau -> ecran dedie -> dialogue natif, soit
+                 trois surfaces dont une seule, la derniere, est obligatoire.
+                 Le bandeau ne proposait pas d'installer, il proposait d'aller
+                 sur une page qui le proposerait. --}}
+                <a class="bp-pwa__bar-action" href="{{ $pwa->urlEcranDedie() }}"
+                   data-bp-pwa-action="install">
                     {{ __('pwa.banner.action') }}
                 </a>
                 <button type="button" class="bp-pwa__bar-close"
                         data-bp-pwa-action="dismiss"
                         aria-label="{{ __('pwa.banner.dismiss') }}">&times;</button>
+            </div>
+
+            {{-- TASK-1745 (demande Cyril, 03/11) — la CONFIRMATION pedagogique.
+
+                 Le defaut constate : apres avoir accepte le dialogue natif,
+                 la personne reste dans son navigateur et ne comprend pas
+                 qu'elle doit maintenant ouvrir l'application depuis son
+                 telephone. Rien a l'ecran ne le lui dit.
+
+                 Ma premiere version RETIRAIT le bandeau apres un accord. Elle
+                 avait tort : disparaitre, c'est precisement ne rien
+                 expliquer. Le bandeau reste donc, et change de role.
+
+                 Ce n'est ni une page, ni une etape de plus : c'est le MEME
+                 element, dans un autre etat. Le parcours ne s'allonge pas.
+
+                 `hidden` ET `style="display:none"` : la lecon de T1744 —
+                 `hidden` seul ne masque rien face a une classe utilitaire
+                 qui declare un `display`. --}}
+            {{-- TASK-1745, recette du 03/11 — « trop discret ».
+
+                 La premiere version reutilisait la ligne du bandeau : une
+                 icone, deux phrases serrees, 38 px de haut. Au moment ou la
+                 personne vient d'accepter une installation, c'est le message
+                 le plus important de l'ecran, et il ressemblait a l'invitation
+                 qu'il remplace.
+
+                 C'est donc une CARTE : accent colore, titre lisible, et les
+                 trois gestes NUMEROTES plutot que noyes dans une phrase.
+
+                 Ce qui ne change pas : toujours le meme element, toujours
+                 ancre en bas, toujours non bloquant. Ni page, ni modale, ni
+                 piege de focus — la navigation reste entiere derriere. --}}
+            <div class="bp-pwa__confirm" data-bp-pwa-confirm hidden style="display: none"
+                 role="status" aria-live="polite">
+                <div class="bp-pwa__confirm-head">
+                    <img src="/brand/icon-192.png" width="44" height="44" alt="" aria-hidden="true">
+                    <b>{{ __('pwa.installing_title') }}</b>
+                    {{-- Une seule sortie, et elle ne pose AUCUN renoncement :
+                         fermer une confirmation n'est pas refuser
+                         l'installation qu'on vient d'accepter. --}}
+                    <button type="button" class="bp-pwa__bar-close"
+                            data-bp-pwa-action="close-confirm"
+                            aria-label="{{ __('pwa.banner.dismiss') }}">&times;</button>
+                </div>
+
+                <ol class="bp-pwa__confirm-steps">
+                    <li>{{ __('pwa.installing_step_wait') }}</li>
+                    <li>{{ __('pwa.installing_step_icon') }}</li>
+                    <li>{{ __('pwa.installing_step_open') }}</li>
+                    {{-- Conditionnee a la realite du catalogue (CDC 3.2), et
+                         le script l'echange contre « deja actives » quand
+                         l'appareil est deja abonne — une reinstallation ne
+                         doit pas redemander ce qui est acquis. --}}
+                    @if(\App\Support\Pwa\PwaInstallContext::annonceLesNotifications())
+                        <li data-bp-pwa-confirm-notifs>{{ __('pwa.installing_step_notifications') }}</li>
+                    @endif
+                </ol>
             </div>
         </div>
     @endif
@@ -552,10 +674,96 @@
                     racine.setAttribute('data-bp-prompt', 'ready');
                 });
 
-                window.addEventListener('appinstalled', function () {
+                /**
+                 * TASK-1745 — passer en etat de CONFIRMATION.
+                 *
+                 * Appelee par DEUX signaux qui ne disent pas la meme chose,
+                 * et le texte affiche tient compte de la difference :
+                 *
+                 * - `userChoice.outcome === 'accepted'` dit que la personne a
+                 *   accepte la boite du navigateur. L'installation est
+                 *   LANCEE, pas terminee.
+                 * - `appinstalled` dit que le systeme a reellement pose
+                 *   l'icone. C'est le signal fort, mais il n'est pas emis
+                 *   partout.
+                 *
+                 * D'ou un libelle qui ne promet rien de plus que le plus
+                 * faible des deux : « BouclePro s'installe », jamais
+                 * « BouclePro est installe ». Meme doctrine qu'en T1740 —
+                 * un accuse de reception n'est pas une livraison.
+                 *
+                 * Idempotente : les deux signaux arrivent souvent tous les
+                 * deux, et le second ne doit rien defaire.
+                 */
+                function confirmer() {
                     racine.removeAttribute('data-bp-prompt');
+
+                    if (racine.getAttribute('data-bp-pwa-install') === 'banner') {
+                        var barre = racine.querySelector('.bp-pwa__bar:not([data-bp-pwa-confirm])');
+                        var confirmation = racine.querySelector('[data-bp-pwa-confirm]');
+
+                        // `hidden` ET le style en ligne : `hidden` seul ne
+                        // masque rien face a une classe qui declare un
+                        // `display` — lecon payee en T1744.
+                        if (barre) { barre.hidden = true; barre.style.display = 'none'; }
+                        if (confirmation) { confirmation.hidden = false; confirmation.style.display = ''; }
+
+                        ajusterLeMotDesNotifications();
+
+                        return;
+                    }
+
                     montrerPlateforme('installing');
-                });
+                }
+
+                /**
+                 * TASK-1745 point 4 — une REINSTALLATION ne redemande pas ce
+                 * qui est acquis.
+                 *
+                 * Le navigateur garde son abonnement Push a travers une
+                 * desinstallation : meme origine, meme Service Worker. Une
+                 * personne qui reinstalle peut donc etre DEJA abonnee, et lui
+                 * annoncer « BouclePro vous proposera d'activer les
+                 * notifications » serait promettre une question qui ne sera
+                 * pas posee — la proposition du premier lancement se tait
+                 * precisement dans ce cas.
+                 *
+                 * La reponse vient du SERVEUR, jamais d'une supposition
+                 * locale : un abonnement que le serveur ignore n'en est pas
+                 * un, et c'est exactement l'etat qu'on observe apres une
+                 * revocation cote fournisseur.
+                 *
+                 * Silencieuse en cas d'echec : le texte par defaut annonce la
+                 * proposition, ce qui reste vrai si l'on ne sait pas.
+                 */
+                async function ajusterLeMotDesNotifications() {
+                    var ligne = racine.querySelector('[data-bp-pwa-confirm-notifs]');
+                    var adresse = racine.getAttribute('data-bp-pwa-push-state');
+
+                    if (!ligne || !adresse || !('serviceWorker' in navigator)) { return; }
+
+                    try {
+                        var inscription = await navigator.serviceWorker.ready;
+                        var abonnement = await inscription.pushManager.getSubscription();
+
+                        if (abonnement === null) { return; }
+
+                        var reponse = await fetch(
+                            adresse + '?endpoint=' + encodeURIComponent(abonnement.endpoint),
+                            { headers: { Accept: 'application/json' } }
+                        );
+
+                        if (!reponse.ok) { return; }
+
+                        var etat = await reponse.json();
+
+                        if (etat && etat.subscribed === true) {
+                            ligne.textContent = @json(__('pwa.installing_step_notifications_done'));
+                        }
+                    } catch (e) {}
+                }
+
+                window.addEventListener('appinstalled', confirmer);
 
                 function poserLeRenoncement() {
                     var jours = {{ (int) config('pwa.install.dismiss_days') }};
@@ -599,6 +807,17 @@
                         return;
                     }
 
+                    // TASK-1745 — fermer la CONFIRMATION n'est pas refuser.
+                    // Aucun renoncement n'est pose : la personne a accepte
+                    // l'installation, le cookie ferait disparaitre la
+                    // proposition sur tout le site pour trente jours alors
+                    // qu'elle vient de dire oui.
+                    if (geste === 'close-confirm') {
+                        evenement.preventDefault();
+                        if (racine.parentNode) { racine.parentNode.removeChild(racine); }
+                        return;
+                    }
+
                     if (geste === 'install' && differe) {
                         evenement.preventDefault();
                         differe.prompt();
@@ -608,9 +827,16 @@
                         // n'annonce donc jamais « c'est installe » ici.
                         if (differe.userChoice && differe.userChoice.then) {
                             differe.userChoice.then(function (choix) {
+                                // TASK-1745 — SEUL un accord confirme.
+                                //
+                                // Un refus ou une annulation laisse le
+                                // bandeau tel quel : expliquer comment
+                                // ouvrir une application qu'on vient de ne
+                                // pas installer serait absurde, et donnerait
+                                // l'impression que le refus n'a pas ete
+                                // entendu.
                                 if (choix && choix.outcome === 'accepted') {
-                                    racine.removeAttribute('data-bp-prompt');
-                                    montrerPlateforme('installing');
+                                    confirmer();
                                 }
                                 differe = null;
                             });

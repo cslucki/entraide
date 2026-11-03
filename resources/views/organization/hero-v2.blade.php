@@ -74,7 +74,20 @@ $secondaryCtaUrl = $showInternalHomepageContent
     <div class="brand"><span class="flower"></span><b>{{ $organization->name }}</b></div>
     <nav class="nav-right">
       <nav class="nav-menu" aria-label="Menu">
-        <a href="{{ $aboutUrl }}">{{ __('navigation.about') }}</a>
+        {{-- TASK-1745 (demande Cyril, 03/11) — « A propos » a QUITTE la barre.
+
+             La consigne d'abord recue disait « sur telephone uniquement », et
+             la premiere version la masquait par media query. Cyril a corrige
+             le lendemain : elle part des DEUX tailles d'ecran.
+
+             Et c'est la meme raison que pour le bouton « Connexion » retire
+             du bloc CTA : « A propos » y est desormais un bouton rose, bien
+             visible. Le garder aussi dans la barre, a quelques centimetres,
+             ne double pas les chances d'y aller — cela fait hesiter.
+
+             La regle CSS qui le masquait sur telephone a ete retiree avec
+             lui : une regle qui ne vise plus rien se transforme vite en
+             fausse piste pour qui lira cette feuille. --}}
         {{-- TASK-1692, correctif post-CI — l'offre d'abonnement est une surface
            COMMERCIALE publique. Son seul discriminant est le reglage de
            l'Organization ; la garde de route protege la page. --}}
@@ -86,6 +99,24 @@ $secondaryCtaUrl = $showInternalHomepageContent
         langue d'affichage choisie, et le selecteur ne promet plus un choix que
         le site ne propose pas. --}}
     @if($organization->multilingual_enabled)
+        @php
+            // TASK-1745 (recette Cyril, 03/11) — sur telephone, deux pastilles
+            // FR / EN mangeaient un tiers de la barre pour un choix binaire.
+            //
+            // Avec DEUX langues, un selecteur n'a pas lieu d'etre : il n'y a
+            // qu'une destination possible. Le telephone recoit donc une
+            // BASCULE — une seule pastille, qui porte la langue COURANTE et
+            // mene a l'autre.
+            //
+            // Montrer la langue courante plutot que la cible est un choix :
+            // l'etat se lit sans reflechir, et l'icone de langue dit que
+            // c'est un bouton. Un simple « EN » aurait oblige a deviner s'il
+            // decrit ou s'il agit.
+            $autreLocale = app()->getLocale() === 'fr' ? 'en' : 'fr';
+        @endphp
+
+        {{-- Le couple FR / EN : le BUREAU, ou la place ne manque pas et ou
+             voir les deux options a de la valeur. --}}
         <div class="lang" aria-label="Langue / Language">
           @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
             <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" class="inline">
@@ -94,6 +125,18 @@ $secondaryCtaUrl = $showInternalHomepageContent
             </form>
           @endforeach
         </div>
+
+        {{-- La bascule : le TELEPHONE. Les deux sont rendues, et la feuille
+             de style choisit — deviner la taille de l'ecran depuis le
+             User-Agent est une erreur que T1737 a deja payee. --}}
+        <form method="POST" action="{{ route('locale.switch', ['locale' => $autreLocale]) }}"
+              class="lang-toggle" data-lang-toggle>
+          @csrf
+          <button type="submit" aria-label="{{ __('navigation.locale_switch_to_'.$autreLocale) }}">
+            <i class="ti ti-language" aria-hidden="true"></i>
+            <span>{{ mb_strtoupper(app()->getLocale()) }}</span>
+          </button>
+        </form>
     @endif
         @guest
           <a href="{{ route('organization.login', $organization) }}" class="btn-join">{{ org_trans('hero.nav_login') }}</a>
@@ -160,8 +203,19 @@ $secondaryCtaUrl = $showInternalHomepageContent
       </div>
       <div class="cta-row" data-anim>
         <a href="{{ $primaryCtaUrl }}" class="cta-primary">{{ $settingText('primary_cta_label', 'hero.cta_primary', ['CTA primaire — label']) }} <i class="ti ti-arrow-right"></i></a>
-        @if($showInternalHomepageContent || auth()->guest())
-          <a href="{{ $secondaryCtaUrl }}" class="cta-secondary"><i class="ti ti-circle-plus"></i>{{ $showInternalHomepageContent ? $settingText('secondary_cta_label', 'hero.cta_secondary', ['CTA secondaire — label']) : org_trans('hero.nav_login') }}</a>
+        {{-- TASK-1745 (demande Cyril, 03/11) — plus de « Connexion » ICI.
+
+             La barre du haut en porte deja un, visible sur bureau comme sur
+             telephone depuis T1743. Deux boutons pour la meme porte, a
+             quelques centimetres l'un de l'autre, ne doublent pas les
+             chances d'entrer : ils font hesiter.
+
+             Le CTA secondaire REGLABLE, lui, reste — c'est une autre chose.
+             Il appartient aux Organizations qui ont configure leur page, et
+             la condition `auth()->guest()` seule ne le concernait pas : elle
+             ne servait qu'a fabriquer ce second bouton de connexion. --}}
+        @if($showInternalHomepageContent)
+          <a href="{{ $secondaryCtaUrl }}" class="cta-secondary"><i class="ti ti-circle-plus"></i>{{ $settingText('secondary_cta_label', 'hero.cta_secondary', ['CTA secondaire — label']) }}</a>
         @endif
         {{-- TASK-1692 / MICRO-11.8 — « Kit demo » sort de la garde tenant.
              `bouclepro.com/demo` est une adresse EXTERNE, sans prefixe
@@ -171,6 +225,17 @@ $secondaryCtaUrl = $showInternalHomepageContent
              un kit de demonstration s'adresse. Meme arbitrage qu'au pied de
              page partage (MICRO-11.2D). --}}
         <a href="{{ $demoUrl }}" class="btn-join" data-hero-kit-demo>{{ __('hero.cta_demo') }} <i class="ti ti-external-link"></i></a>
+
+        {{-- TASK-1745 (demande Cyril, 03/11) — « A propos » descend ICI.
+
+             Meme gabarit que « Voir une demo » (`btn-join`, donc meme taille
+             exactement), en ROSE pour le distinguer du blanc voisin.
+
+             Il remplace l'entree de la barre du haut, retiree sur TELEPHONE
+             seulement : sur un petit ecran, la barre portait trop de choses
+             et « A propos » y passait inapercu. Sur bureau, les deux
+             coexistent — la barre reste le chemin attendu. --}}
+        <a href="{{ $aboutUrl }}" class="btn-join btn-join--about" data-hero-about>{{ __('navigation.about') }}</a>
       </div>
     </section>
 

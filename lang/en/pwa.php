@@ -40,8 +40,9 @@ return [
     // On `/installer` the secondary action is a RETURN, not a dismissal.
     'back_to_site' => 'Back to the site',
 
-    'installing_title' => 'Almost there',
-    'installing_body' => 'Open BouclePro from your home screen.',
+    'installing_title' => "BouclePro is installing on your phone",
+    'installing_body' => "You are still in your browser. Find its icon on your home screen or in your apps, then open it.",
+    'installing_note' => "On first launch, BouclePro will offer to turn on important notifications.",
 
     // ── When `/installer` has nothing to offer ───────────────────────────────
     //
@@ -83,4 +84,35 @@ return [
 
     'dialog_label' => 'Install the BouclePro app',
     'close' => 'Close',
+
+    // TASK-1745 — the first-launch prompt, in the installed app. The body
+    // names the events the catalogue actually covers (T1744), and says how
+    // to undo BEFORE asking.
+    'first_run_title' => "Turn on notifications?",
+    'first_run_body' => "BouclePro will let you know when you are invited, added to a Loop, or when your request is accepted. You can change your mind at any time in your settings.",
+    'first_run_accept' => "Turn on notifications",
+    'first_run_later' => "Later",
+    'first_run_failed' => "Notifications could not be turned on. You can try again from your settings.",
+
+    // TASK-1745, 03/11 recipe — one body per permission state. `granted`
+    // must say no new prompt will appear; `denied` explains the way back
+    // (site settings) instead of offering a button that can only fail.
+    'first_run_granted_body' => "Permission is already granted: this device just needs to be switched on — no new prompt will appear.",
+    'first_run_denied_body' => "Notifications are blocked for BouclePro in your browser. To re-enable them: open the site settings (icon next to the address, or Settings › Notifications), allow notifications, then come back here.",
+    'first_run_understood' => "Got it",
+
+    /*
+     * TASK-1745, recette du 03/11 — les gestes NUMEROTES de la carte de
+     * confirmation. Une liste se parcourt du coin de l'oeil ; une phrase
+     * continue oblige a tout lire pour trouver ce qu'on doit faire.
+     *
+     * Le dernier n'est pas un geste mais une ANNONCE, et il a sa variante
+     * `_done` : une reinstallation sur un appareil deja abonne ne doit pas
+     * promettre une question qui ne sera pas posee.
+     */
+    'installing_step_wait' => "Android is finishing the installation, it takes a few seconds.",
+    'installing_step_icon' => "Find the BouclePro icon on your home screen or in your apps.",
+    'installing_step_open' => "Open it: you are still in your browser, not in the app.",
+    'installing_step_notifications' => "On first launch, BouclePro will offer to turn on important notifications.",
+    'installing_step_notifications_done' => "Notifications are already on for this device: nothing to redo.",
 ];

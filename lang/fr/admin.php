@@ -1993,6 +1993,14 @@ return [
     'push_test_device_refused' => 'Cet appareil n appartient pas a ce compte, ou son abonnement n a pas ete cree sur cet environnement. Rien n a ete envoye.',
     'push_test_accepted_is_not_displayed' => 'Un code 201 signifie que le fournisseur a ACCEPTE le message, pas qu Android l a affiche. Verifiez sur le telephone.',
 
+    // TASK-1745 — retrait d'un appareil depuis l'outil de recette. Le
+    // libelle DIT ce que l'action ne fait pas : le serveur ne sait pas
+    // desabonner un navigateur.
+    'push_test_device_forgotten' => "Appareil retiré du serveur. Le navigateur, lui, garde son abonnement : désactivez-le depuis l’appareil, sinon il se réenregistrera au prochain affichage des réglages.",
+    'push_test_forget' => "Oublier",
+    'push_test_forget_confirm' => "Retirer cet appareil du serveur ? Il se réenregistrera tout seul au prochain affichage des réglages si le navigateur n’a pas été désabonné depuis l’appareil.",
+    'push_test_forget_help' => "« Oublier » retire la ligne serveur, pas l’abonnement du navigateur. Pour repartir de zéro : « Désactiver sur cet appareil » depuis le téléphone d’abord, puis « Oublier » ici si une ligne subsiste.",
+
     /*
      * TASK-1744 (demande Cyril, 02/11) — l'inspecteur des notifications.
      *

@@ -1189,6 +1189,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/outils/test-notification', [AdminTestNotificationController::class, 'index'])->name('outils.test-notification');
     Route::post('/outils/test-notification', [AdminTestNotificationController::class, 'send'])->middleware('throttle:10,1')->name('outils.test-notification.send');
 
+    // TASK-1745 (recette Cyril, 03/11) — retirer UN appareil du serveur, pour
+    // pouvoir rejouer le parcours d'abonnement. Outil de recette : le
+    // controleur refuse hors `local`, en plus de la politique des comptes de
+    // recette. La garde est dans le CONTROLEUR, pas dans la declaration de
+    // route : un 404 y est rendu hors `local`.
+    Route::post('/outils/test-notification/oublier', [AdminTestNotificationController::class, 'forget'])
+        ->middleware('throttle:10,1')
+        ->name('outils.test-notification.forget');
+
     // TASK-1744 (demande Cyril, 02/11) — LIRE les notifications emises et en
     // rejouer une. Distinct du cockpit T1380, qui COMPTE et ne nomme
     // personne : voir le docblock du controleur pour pourquoi l'un n'absorbe

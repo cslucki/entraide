@@ -41,6 +41,25 @@ body.bp-hero-v2{
 .bp-hero-v2 .nav-menu a:not(.btn-join){color:var(--ink-soft);transition:color .15s}
 .bp-hero-v2 .nav-menu a:not(.btn-join):hover{color:var(--ink)}
 .bp-hero-v2 .nav-menu .lang{margin-left:6px;margin-right:-12px;font-size:13px}
+/* TASK-1745 — la BASCULE de langue, pour le telephone.
+   Rendue partout, affichee seulement sous le point de rupture : la feuille
+   de style decide, pas le User-Agent. */
+.bp-hero-v2 .lang-toggle{display:none}
+.bp-hero-v2 .lang-toggle button{
+  /* `min-height` et non un simple `padding` : la pastille doit rester
+     COMPACTE a l'oeil et confortable au POUCE. Mesure du 03/11 : 27 px de
+     haut, contre 35 pour « Connexion » juste a cote — trop petit pour une
+     cible tactile, et desaligne par-dessus le marche. Les deux s'accordent
+     desormais sur la meme hauteur. */
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  min-height:35px;padding:0 11px;border-radius:999px;
+  font-size:12.5px;font-weight:700;letter-spacing:.02em;
+  color:var(--ink-soft);background:rgba(20,24,60,.055);
+  transition:background .15s,color .15s;
+}
+.bp-hero-v2 .lang-toggle button:hover{background:rgba(20,24,60,.09);color:var(--ink)}
+.bp-hero-v2 .lang-toggle button:active{transform:scale(.96)}
+.bp-hero-v2 .lang-toggle .ti{font-size:15px;opacity:.75}
 .bp-hero-v2 .lang a:not([aria-current="true"]),.bp-hero-v2 .lang button:not([aria-current="true"]){color:#CBCDD6}
 .bp-hero-v2 .btn-join{
   background:#fff;color:var(--ink);font-weight:700;font-size:15px;
@@ -110,6 +129,21 @@ body.bp-hero-v2{
 .bp-hero-v2 .cta-secondary .ti{font-size:19px}
 .bp-hero-v2 .cta-secondary:hover{box-shadow:0 16px 34px -10px rgba(255,79,154,.62)}
 .bp-hero-v2 .cta-secondary:active{transform:scale(.97)}
+
+/* TASK-1745 — « A propos » dans le bloc CTA : la taille de `btn-join`, la
+   couleur de `cta-secondary`.
+
+   Une MODIFICATION de `.btn-join`, et non un troisieme bouton : la geometrie
+   — padding, rayon, graisse, taille de police — reste declaree a un seul
+   endroit. Un bouton « de meme taille » obtenu en recopiant les valeurs
+   aurait cesse de l'etre au premier ajustement de l'original. */
+.bp-hero-v2 .btn-join--about{
+  background:var(--pink);color:#fff;
+  box-shadow:0 10px 26px -8px rgba(255,79,154,.55), 0 1px 3px rgba(20,24,60,.08);
+}
+.bp-hero-v2 .btn-join--about:hover{
+  box-shadow:0 14px 32px -8px rgba(255,79,154,.62), 0 1px 3px rgba(20,24,60,.08);
+}
 
 /* ============ FOOTER ============ */
 .bp-hero-v2 .foot{
@@ -307,8 +341,22 @@ body.bp-hero-v2{
    telephone. On resserre seulement l'espacement, qui etait calibre pour un
    grand ecran. */
 @media (max-width:760px){
-  .bp-hero-v2 .nav-menu{gap:14px;font-size:14px}
-  .bp-hero-v2 .nav-menu .lang{margin-left:2px;margin-right:-6px;font-size:12px}
+  .bp-hero-v2 .nav-menu{gap:10px;font-size:14px}
+
+  /* TASK-1745 (recette Cyril, 03/11) — deux pastilles FR / EN mangeaient un
+     tiers de la barre pour un choix BINAIRE. Avec deux langues, un selecteur
+     n'a pas lieu d'etre : il n'y a qu'une destination possible. Le couple
+     cede donc la place a la bascule, qui dit la langue courante et mene a
+     l'autre. */
+  .bp-hero-v2 .nav-menu .lang{display:none}
+  .bp-hero-v2 .lang-toggle{display:inline-flex}
+
+  /* Et « Connexion » maigrit. Il reste le seul bouton plein de la barre,
+     donc la cible evidente : il n'a plus besoin de la largeur qu'il prenait
+     quand « A propos » et le couple de langues se disputaient la ligne.
+     La hauteur tactile, elle, ne bouge pas — 38 px de haut restent
+     confortables au pouce. */
+  .bp-hero-v2 .btn-join{padding:9px 15px;font-size:14px}
 }
 @media (max-width:560px){
   .bp-hero-v2 .page{padding:18px 18px 30px;overflow-x:hidden}
