@@ -42,7 +42,21 @@
              Hors du formulaire des préférences : un abonnement est un état
              d'appareil, activer EST le geste, il n'y a rien à « enregistrer ».
         --}}
-        @include('notifications.partials.push-device')
+        @php
+            // TASK-1744 — combien d'événements cette personne a-t-elle
+            // réellement ouverts au Push ? Le panneau d'appareil en a besoin
+            // pour dire la vérité plutôt qu'une promesse : un appareil
+            // enregistré sans aucune case cochée ne reçoit RIEN, et c'est ce
+            // silence-là qui a fait échouer la première recette.
+            //
+            // Compté ici et non dans le contrôleur : `$etat` est déjà
+            // l'autorité de cet écran, et le partiel n'est inclus que d'ici.
+            $pushActifs = collect($etat)
+                ->filter(fn (array $canaux) => ($canaux[\App\Support\Notifications\NotificationCatalogue::CHANNEL_WEB_PUSH]['enabled'] ?? false) === true)
+                ->count();
+        @endphp
+
+        @include('notifications.partials.push-device', ['pushActifs' => $pushActifs])
 
         @if(session('notification_preferences_saved'))
             <div data-preferences-saved
@@ -54,7 +68,11 @@
         <form method="POST" action="{{ route($routeUpdate, $routeParams) }}">
             @csrf
 
-            <ul class="space-y-2">
+            {{-- TASK-1744 — cible du lien « Aller aux réglages par
+                 événement » du panneau d'appareil. Sans elle, l'aide renvoie
+                 à un « ci-dessous » qui, sur un téléphone, est deux écrans
+                 plus bas. --}}
+            <ul id="reglages-par-evenement" class="scroll-mt-4 space-y-2">
                 @foreach($etat as $cle => $canaux)
                     <li data-preference-key="{{ $cle }}"
                         class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 shadow-sm">

@@ -41,6 +41,10 @@ namespace App\Support\Notifications;
  * reponses a une demande d'adhesion, sur IN_APP seulement. Rien ne se peuple
  * d'avance : une cle n'entre ici que le jour ou un producteur reel l'emet.
  *
+ * T1744 n'ajoute AUCUNE cle : elle ouvre le canal `web_push` sur quatre cles
+ * qui existaient deja, et c'est tout ce que l'activation du Push demandait —
+ * le transport etait livre depuis T1740 et attendait cette decision produit.
+ *
  * ## `in_app` obligatoire n'est pas une regle du canal
  *
  * Trois cles le declarent aujourd'hui non reglable, mais chacune pour SA raison
@@ -84,8 +88,32 @@ final class NotificationCatalogue
      *
      * Un Push n'est jamais OBLIGATOIRE : il sort de l'application et atterrit
      * sur un ecran verrouille. Toute cle qui l'autorise le declare donc
-     * `configurable => true`, et `default => false` — on n'allume pas une
-     * sollicitation systeme a la place de quelqu'un.
+     * `configurable => true`.
+     *
+     * ## `default => true`, et pourquoi ce n'est PAS « allumer a la place de
+     * quelqu'un » (arbitrage Cyril, 03/11)
+     *
+     * T1744 avait livre ces cles en `default => false`, au motif qu'un Push
+     * s'affiche sur un ecran verrouille. L'argument etait juste sur la
+     * CONSEQUENCE et faux sur la PORTE : le defaut du catalogue ne peut
+     * reveiller personne a lui seul.
+     *
+     * La vraie barriere est ailleurs, et elle est double : il faut un
+     * abonnement d'appareil — un geste explicite, revocable d'un bouton — et
+     * la permission systeme accordee au navigateur. Sans appareil abonne, le
+     * livreur conclut `no_device_subscribed` quel que soit le defaut. Un
+     * compte sans telephone ne recoit donc rien, et c'est le cas de la
+     * quasi-totalite des gens.
+     *
+     * Ce que `default => false` produisait reellement : une personne qui
+     * venait d'activer les notifications sur son appareil — donc qui avait
+     * demande a etre prevenue — ne recevait RIEN, et devait deviner qu'il
+     * restait des cases a cocher ailleurs dans la page. La recette du 02/11
+     * s'y est cassee deux fois.
+     *
+     * Le panneau d'appareil promet « Recevez une notification lorsqu'une
+     * personne a besoin de vous ». `default => true` tient cette promesse ;
+     * les cases servent alors a REDUIRE le bruit, pas a autoriser le canal.
      */
     public const CHANNEL_WEB_PUSH = 'web_push';
 
@@ -218,6 +246,18 @@ final class NotificationCatalogue
                 // mailer legacy s'efface pour les membres de l'Organization.
                 // La retirer suffit a revenir en arriere.
                 self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+
+                // TASK-1744 — WEB PUSH active, et c'est l'evenement de recette
+                // du CDC section 6.5 : « une invitation autorisee provoque une
+                // ligne in-app existante ET une livraison Push ».
+                //
+                // `default => true` depuis l'arbitrage Cyril du 03/11 : voir le
+                // docblock de CHANNEL_WEB_PUSH. Le defaut ne reveille personne
+                // a lui seul — il faut encore un appareil abonne ET la
+                // permission systeme, deux gestes explicites qui ne peuvent pas
+                // etre faits a sa place. Ce reglage sert donc a REDUIRE le
+                // bruit, pas a autoriser le canal.
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
 
@@ -236,6 +276,12 @@ final class NotificationCatalogue
                 // l'existence. Configurable parce que le fait reste visible
                 // dans le Centre, donc couper l'email ne fait rien perdre.
                 self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+
+                // TASK-1744 — CDC 6.2 : « Oui, si opt-in. Pas de nom de Boucle
+                // privee ». Le titre de Push ne nomme donc aucune Boucle, la
+                // ou le libelle du Centre le fait depuis T1725 : un Push
+                // s'affiche sur un ecran verrouille, le Centre non.
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
 
@@ -302,6 +348,18 @@ final class NotificationCatalogue
             'channels' => [
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
                 self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+
+                // TASK-1744 — la reponse a une demande que la personne a FAITE
+                // elle-meme et qu'elle attend : c'est le cas ou un Push sert le
+                // mieux, parce qu'il arrive au moment ou la reponse arrive.
+                //
+                // Son jumeau « refuse » n'en recoit PAS, et c'est un arbitrage,
+                // pas un oubli : CDC 6.2 le classe « plutot non au lancement »,
+                // au titre de l'anti-bruit. Un refus n'ouvre aucune porte et
+                // n'appelle aucun geste — le reveiller sur un ecran verrouille
+                // ajouterait une peine sans rien permettre. Le fait reste
+                // visible dans le Centre pour qui va voir.
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
 
@@ -342,6 +400,22 @@ final class NotificationCatalogue
                 // de vous. Le commentaire, lui, se desactive — son entree
                 // au-dessus l'explique.
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+
+                // TASK-1744 — CDC 6.2 : « Oui si pertinent. Pas de details
+                // prives ». Le meme raisonnement que pour `in_app` ci-dessus
+                // vaut pour le Push : la co-ecriture vous est adressee.
+                //
+                // Et c'est precisement ce qui le separe de
+                // `blog.comment.created`, qui reste SANS Push : un commentaire
+                // ne vous est pas adresse, n'appelle aucune reponse, et un
+                // auteur prolifique en recevrait des dizaines. CDC 6.2 :
+                // « plutot non par defaut ».
+                //
+                // Pas de canal EMAIL ici, donc le Push est le SEUL canal
+                // sortant de cette cle. Cela ne change rien a son defaut : le
+                // defaut d'un canal ne se decide pas a la disponibilite des
+                // autres.
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
     ];

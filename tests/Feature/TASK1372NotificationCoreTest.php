@@ -111,6 +111,15 @@ class TASK1372NotificationCoreTest extends TestCase
         $avecAdaptateur = [
             NotificationCatalogue::CHANNEL_IN_APP,  // rendu par le Centre (T1373)
             NotificationCatalogue::CHANNEL_EMAIL,   // NotificationEmailDeliverer (T1377)
+
+            // TASK-1744 — `NotificationWebPushDeliverer`, livre en T1740.
+            //
+            // L'inventaire s'allonge le jour ou l'ADAPTATEUR existe, pas le
+            // jour ou une cle l'annonce : c'est tout l'objet de ce test. T1740
+            // avait livre le livreur sans qu'aucune cle l'autorise, donc sans
+            // que cette liste ait a bouger ; T1744 ouvre les cles, et la
+            // ligne devient due.
+            NotificationCatalogue::CHANNEL_WEB_PUSH,
         ];
 
         foreach (NotificationCatalogue::keys() as $cle) {
