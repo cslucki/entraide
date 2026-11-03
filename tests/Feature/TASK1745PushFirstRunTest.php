@@ -186,7 +186,13 @@ class TASK1745PushFirstRunTest extends TestCase
         app()->detectEnvironment(fn () => 'local');
 
         $this->actingAs($this->membre)->get('/notifications/preferences')->assertOk()
-            ->assertSee('data-push-first-run-reset', false);
+            ->assertSee('data-push-first-run-reset', false)
+            // Recette n°2 du 03/11 : le bouton doit porter les TROIS réponses
+            // possibles — le script redécide après l'effacement et choisit
+            // celle de l'état réel, il n'en fabrique aucune.
+            ->assertSee('data-reset-done', false)
+            ->assertSee('data-reset-done-subscribed', false)
+            ->assertSee('data-reset-done-browser-tab', false);
     }
 
     public function test_toute_entree_vite_appelee_par_une_vue_est_DECLAREE(): void

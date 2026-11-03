@@ -235,6 +235,56 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
         );
     });
 
+    test('le bouton de recette efface le report, REDÉCIDE, et nomme le vrai blocage', async ({ page }) => {
+        // Recette n°2 du 03/11 : « ça ne marche pas ». Le bouton effaçait
+        // bien le report — mais le report n'était pas ce qui bloquait :
+        // l'appareil était DÉJÀ abonné, état où la proposition ne revient
+        // jamais (règle voulue). Le bouton doit répondre avec l'état RÉEL.
+        const posts = [];
+
+        await loginAsMember(page);
+        await armer(page, {
+            standalone: true,
+            permission: 'granted',
+            subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/banc-e2e-reset' },
+            reportJusqua: Date.now() + 1000 * 3600,
+        });
+        await doublerLeServeurPush(page, { enabled: true, subscribed: true, device_count: 1 }, posts);
+        await page.goto('/notifications/preferences');
+
+        // Avant le clic : le report gouverne, et la ligne de diagnostic
+        // du panneau ambre LE DIT — c'est elle qui manquait à la recette.
+        expect(await attendreLaDecision(page)).toBe('report-en-cours');
+        await expect(page.locator('[data-push-diag-value="premier-lancement"]')).toHaveText('report-en-cours');
+
+        const bouton = page.locator('[data-push-first-run-reset]');
+        await bouton.click();
+
+        // Le report est EFFACÉ pour de vrai…
+        expect(await page.evaluate((clef) => window.localStorage.getItem(clef), CLEF)).toBeNull();
+
+        // …la décision est reprise, et le bouton nomme le vrai blocage :
+        // appareil déjà abonné, la proposition ne reviendra pas ainsi.
+        await expect(page.locator(BLOC)).toHaveAttribute('data-push-first-run-etat', 'deja-abonne');
+        await expect(page.locator('[data-push-diag-value="premier-lancement"]')).toHaveText('deja-abonne');
+        await expect(bouton).toContainText(/DÉJÀ abonné/);
+        await expect(bouton).toBeDisabled();
+        await expect(page.locator(BLOC)).toBeHidden();
+    });
+
+    test('le bouton de recette, cliqué dans un ONGLET, dit d’ouvrir l’application', async ({ page }) => {
+        await loginAsMember(page);
+        await armer(page, { standalone: false, permission: 'default', subscription: null });
+        await page.goto('/notifications/preferences');
+
+        expect(await attendreLaDecision(page)).toBe('onglet-ordinaire');
+
+        const bouton = page.locator('[data-push-first-run-reset]');
+        await bouton.click();
+
+        await expect(bouton).toContainText(/onglet de navigateur/);
+    });
+
     test('permission REFUSÉE : une explication, et aucun bouton qui ne peut qu’échouer', async ({ page }) => {
         await loginAsMember(page);
         await armer(page, { standalone: true, permission: 'denied', subscription: null });

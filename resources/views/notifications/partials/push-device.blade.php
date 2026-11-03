@@ -98,6 +98,13 @@
                     'empreinte' => 'Empreinte',
                     'base' => 'Connu du serveur',
                     'cle' => 'Clé d’abonnement',
+
+                    // TASK-1745, recette 03/11 n°2 — la CAUSE de la décision
+                    // du premier lancement, écrite par `push-first-run.js`
+                    // (`dire()`). « La barre ne s'affiche pas » ne disait pas
+                    // POURQUOI ; cette ligne le dit en continu :
+                    // `deja-abonne`, `report-en-cours`, `onglet-ordinaire`…
+                    'premier-lancement' => 'Premier lancement',
                 ] as $cle => $libelle)
                     <div class="flex gap-2">
                         <dt class="w-32 shrink-0 text-[var(--bp-muted)]">{{ $libelle }}</dt>
@@ -133,9 +140,18 @@
                      l'abonnement, ni le Service Worker, ni le cache. C'est le
                      moyen sûr de revoir la proposition — l'alternative
                      « vider les données du site » détruirait l'abonnement
-                     Push. Écouté par `push-first-run.js`, qui possède la clé. --}}
+                     Push. Écouté par `push-first-run.js`, qui possède la clé.
+
+                     Recette n°2 (03/11) : la première version disait « fermez
+                     et rouvrez » sans regarder si la proposition POUVAIT
+                     revenir. Sur l'appareil de Cyril, le blocage n'était pas
+                     le report mais « déjà abonné » — et le bouton laissait
+                     deviner. Il REDÉCIDE maintenant après l'effacement et
+                     rend la réponse qui correspond à l'état réel. --}}
                 <button type="button" data-push-first-run-reset
-                        data-reset-done="Report effacé — fermez et rouvrez l'application"
+                        data-reset-done="Report effacé — fermez et rouvrez l'application : la proposition reviendra"
+                        data-reset-done-subscribed="Report effacé — mais cet appareil est DÉJÀ abonné, et la proposition ne s'affiche jamais sur un appareil abonné. « Désactiver sur cet appareil » d'abord, puis fermez et rouvrez l'application"
+                        data-reset-done-browser-tab="Report effacé — la proposition n'apparaît que dans l'application INSTALLÉE, pas dans un onglet de navigateur"
                         class="inline-flex min-h-11 items-center rounded-lg border border-amber-500 px-3 text-xs font-semibold text-amber-800 disabled:opacity-60 dark:text-amber-200">
                     Revoir la proposition du premier lancement
                 </button>

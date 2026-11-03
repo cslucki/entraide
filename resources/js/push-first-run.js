@@ -89,9 +89,19 @@ if (bloc) {
      * Chaque décision écrit sa cause sur le bloc. C'est le diagnostic qui a
      * manqué le 03/11 : « rien ne s'affiche » ne disait pas POURQUOI, et le
      * pourquoi n'était lisible nulle part depuis l'appareil.
+     *
+     * La cause est AUSSI recopiée dans la ligne « Premier lancement » du
+     * panneau de diagnostic des réglages (local uniquement) : un attribut
+     * de données ne se lit pas depuis un téléphone, une ligne à l'écran si.
      */
     const dire = (cause) => {
         bloc.dataset.pushFirstRunEtat = cause;
+
+        const ligne = document.querySelector('[data-push-diag-value="premier-lancement"]');
+
+        if (ligne) ligne.textContent = cause;
+
+        return cause;
     };
 
     /** L'application est-elle lancée INSTALLÉE ? */
@@ -268,16 +278,32 @@ if (bloc) {
      * réglages, qui n'existe qu'en environnement `local` — efface le report
      * sans toucher à rien d'autre. JAMAIS « vider le cache de la PWA » :
      * ce geste détruit l'abonnement Push lui-même.
+     *
+     * Recette n°2 (03/11) : effacer ne suffit pas à RÉPONDRE. Sur l'appareil
+     * de Cyril, le blocage n'était pas le report mais « déjà abonné » — la
+     * proposition ne s'affiche jamais sur un appareil abonné (règle voulue),
+     * et « fermez et rouvrez » promettait donc un retour impossible. Le
+     * bouton REDÉCIDE après l'effacement et rend le message de l'état réel :
+     * abonné → désactiver d'abord ; onglet → ouvrir l'application ; sinon →
+     * fermer et rouvrir suffit.
      */
-    document.querySelector('[data-push-first-run-reset]')?.addEventListener('click', (evenement) => {
+    document.querySelector('[data-push-first-run-reset]')?.addEventListener('click', async (evenement) => {
+        const bouton = evenement.currentTarget;
+        bouton.disabled = true;
+
         try {
             window.localStorage.removeItem(CLEF_REPORT);
             window.localStorage.removeItem(CLEF_V1);
         } catch (e) {}
 
-        const bouton = evenement.currentTarget;
-        bouton.textContent = bouton.dataset.resetDone || bouton.textContent;
-        bouton.disabled = true;
+        const cause = await decider();
+
+        bouton.textContent =
+            (cause === 'deja-abonne' || cause === 'resynchronise'
+                ? bouton.dataset.resetDoneSubscribed
+                : cause === 'onglet-ordinaire'
+                  ? bouton.dataset.resetDoneBrowserTab
+                  : bouton.dataset.resetDone) || bouton.textContent;
     });
 
     decider();
