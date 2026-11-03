@@ -48,13 +48,19 @@ test.describe('TASK-1744 — reglages Web Push', () => {
             ).toBeVisible();
         }
 
-        // Et le defaut est OFF : la case est DECOCHEE pour qui n'a rien regle.
-        // C'est la propriete produit du lot, et elle se verifie a l'ecran.
+        // Le defaut est ON depuis l'arbitrage du 03/11 : la case est COCHEE
+        // pour qui n'a rien regle.
+        //
+        // Ce n'est pas « allumer a la place de quelqu'un » : le defaut du
+        // catalogue ne reveille personne a lui seul. La vraie barriere est
+        // l'abonnement de l'appareil plus la permission systeme, tous deux
+        // sur geste explicite. Sans appareil, le livreur conclut
+        // `no_device_subscribed` quel que soit ce qui est coche ici.
         for (const cle of cles) {
             await expect(
                 page.locator(`[data-preference-channel="${cle}:web_push"] input[type="checkbox"]`),
-                `[${cle}] le Push ne doit pas etre pre-coche`,
-            ).not.toBeChecked();
+                `[${cle}] le Push est actif par defaut et doit etre pre-coche`,
+            ).toBeChecked();
         }
     });
 

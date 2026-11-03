@@ -218,7 +218,12 @@ class TASK1739PushRoutesTest extends TestCase
         $html = $this->actingAs($this->alice)->get(route('notifications.preferences.edit'))
             ->assertOk()->getContent();
 
-        $this->assertStringContainsString(__('push.ready_none'), $html);
+        // TASK-1744, arbitrage du 03/11 : les quatre cles sont ON par defaut.
+        // Alice n'a donc rien a cocher, et l'ecran doit lui dire ce qu'elle
+        // recevra plutot que ce qui lui manque. L'exigence est inchangee —
+        // dire ce qui est VRAI pour cette personne-la — seule la reponse a
+        // change avec le defaut produit.
+        $this->assertStringContainsString(__('push.ready_some'), $html);
 
         // Et la promesse morte ne doit subsister nulle part.
         $this->assertStringNotContainsString('sera activé prochainement', $html);

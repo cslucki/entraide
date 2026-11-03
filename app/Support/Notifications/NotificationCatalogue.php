@@ -88,8 +88,32 @@ final class NotificationCatalogue
      *
      * Un Push n'est jamais OBLIGATOIRE : il sort de l'application et atterrit
      * sur un ecran verrouille. Toute cle qui l'autorise le declare donc
-     * `configurable => true`, et `default => false` — on n'allume pas une
-     * sollicitation systeme a la place de quelqu'un.
+     * `configurable => true`.
+     *
+     * ## `default => true`, et pourquoi ce n'est PAS « allumer a la place de
+     * quelqu'un » (arbitrage Cyril, 03/11)
+     *
+     * T1744 avait livre ces cles en `default => false`, au motif qu'un Push
+     * s'affiche sur un ecran verrouille. L'argument etait juste sur la
+     * CONSEQUENCE et faux sur la PORTE : le defaut du catalogue ne peut
+     * reveiller personne a lui seul.
+     *
+     * La vraie barriere est ailleurs, et elle est double : il faut un
+     * abonnement d'appareil — un geste explicite, revocable d'un bouton — et
+     * la permission systeme accordee au navigateur. Sans appareil abonne, le
+     * livreur conclut `no_device_subscribed` quel que soit le defaut. Un
+     * compte sans telephone ne recoit donc rien, et c'est le cas de la
+     * quasi-totalite des gens.
+     *
+     * Ce que `default => false` produisait reellement : une personne qui
+     * venait d'activer les notifications sur son appareil — donc qui avait
+     * demande a etre prevenue — ne recevait RIEN, et devait deviner qu'il
+     * restait des cases a cocher ailleurs dans la page. La recette du 02/11
+     * s'y est cassee deux fois.
+     *
+     * Le panneau d'appareil promet « Recevez une notification lorsqu'une
+     * personne a besoin de vous ». `default => true` tient cette promesse ;
+     * les cases servent alors a REDUIRE le bruit, pas a autoriser le canal.
      */
     public const CHANNEL_WEB_PUSH = 'web_push';
 
@@ -231,7 +255,7 @@ final class NotificationCatalogue
                 // personne doit avoir accorde la permission systeme, abonne un
                 // appareil, PUIS allume ce reglage. Trois gestes, et aucun ne
                 // peut etre fait a sa place.
-                self::CHANNEL_WEB_PUSH => ['default' => false, 'configurable' => true],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
 
@@ -255,7 +279,7 @@ final class NotificationCatalogue
                 // privee ». Le titre de Push ne nomme donc aucune Boucle, la
                 // ou le libelle du Centre le fait depuis T1725 : un Push
                 // s'affiche sur un ecran verrouille, le Centre non.
-                self::CHANNEL_WEB_PUSH => ['default' => false, 'configurable' => true],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
 
@@ -333,7 +357,7 @@ final class NotificationCatalogue
                 // n'appelle aucun geste — le reveiller sur un ecran verrouille
                 // ajouterait une peine sans rien permettre. Le fait reste
                 // visible dans le Centre pour qui va voir.
-                self::CHANNEL_WEB_PUSH => ['default' => false, 'configurable' => true],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
 
@@ -389,7 +413,7 @@ final class NotificationCatalogue
                 // sortant de cette cle. Cela ne change rien a `default =>
                 // false` : le defaut d'un canal ne se decide pas a la
                 // disponibilite des autres.
-                self::CHANNEL_WEB_PUSH => ['default' => false, 'configurable' => true],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
     ];

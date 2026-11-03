@@ -139,12 +139,11 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         }
     }
 
-    public function test_aucun_push_n_est_allume_a_la_place_de_quelqu_un(): void
+    public function test_le_push_reste_toujours_REGLABLE(): void
     {
-        // La propriete la plus importante du lot. Un Push sort de
-        // l'application et atterrit sur un ecran VERROUILLE : il exige trois
-        // gestes de la personne — permission systeme, abonnement de
-        // l'appareil, puis ce reglage — et aucun ne peut etre fait pour elle.
+        // Un Push sort de l'application et atterrit sur un ecran VERROUILLE.
+        // Quelle que soit la valeur par defaut, la personne doit pouvoir
+        // l'eteindre : aucune cle ne peut le declarer obligatoire.
         //
         // Ecrit sur TOUTE cle du catalogue, et pas seulement sur les quatre :
         // c'est la regle du canal, elle doit tenir pour celles qu'on ouvrira
@@ -154,15 +153,43 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
                 continue;
             }
 
-            $this->assertFalse(
-                NotificationCatalogue::channelDefault($cle, NotificationCatalogue::CHANNEL_WEB_PUSH),
-                "[{$cle}] le Push ne doit JAMAIS etre actif par defaut.",
-            );
             $this->assertTrue(
                 NotificationCatalogue::channelIsConfigurable($cle, NotificationCatalogue::CHANNEL_WEB_PUSH),
                 "[{$cle}] le Push ne doit JAMAIS etre obligatoire.",
             );
         }
+    }
+
+    public function test_la_VRAIE_barriere_est_l_appareil_pas_le_defaut(): void
+    {
+        // Arbitrage Cyril du 03/11 : « les categories importantes sont ON par
+        // defaut cote BouclePro, mais la permission systeme est demandee
+        // uniquement apres un clic explicite ».
+        //
+        // Ce test mesure pourquoi ce defaut est sans danger : il ne peut
+        // reveiller personne a lui seul. Sans appareil abonne — l'etat de la
+        // quasi-totalite des comptes — le livreur conclut `no_device`, quel
+        // que soit le catalogue.
+        //
+        // C'est l'argument qui a remplace `default => false` : la barriere
+        // n'etait pas la ou je l'avais mise.
+        Http::fake(['*' => Http::response('', 201)]);
+
+        $this->assertTrue(
+            NotificationCatalogue::channelDefault(
+                NotificationCatalogue::LOOP_INVITATION,
+                NotificationCatalogue::CHANNEL_WEB_PUSH
+            ),
+            'le defaut produit est desormais ON',
+        );
+
+        // Aucun appareil, aucune preference stockee : le defaut est ON.
+        $livraison = $this->livraisonPush($this->inviter());
+        app(NotificationWebPushDeliverer::class)->deliver((string) $livraison->notification_id);
+
+        Http::assertNothingSent();
+        $this->assertSame(NotificationDeliveryStatus::SKIPPED_UNREACHABLE, $livraison->fresh()->status);
+        $this->assertSame('no_device_subscribed', $livraison->fresh()->diagnostic);
     }
 
     public function test_le_catalogue_n_a_gagne_AUCUNE_cle(): void
@@ -288,14 +315,18 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         );
     }
 
-    public function test_sans_le_reglage_du_membre_RIEN_ne_part(): void
+    public function test_le_membre_qui_a_COUPE_le_reglage_ne_recoit_rien(): void
     {
-        // Le defaut est OFF : un membre abonne qui n'a rien regle ne doit rien
-        // recevoir. C'est la garde que `default => false` achete, et elle se
-        // mesure avec un appareil REELLEMENT abonne — sinon le test serait
+        // Le defaut est ON depuis le 03/11 : ce qui doit etre mesure n'est
+        // plus l'absence de reglage, mais sa COUPURE explicite. C'est la
+        // garde qui compte desormais — « comprendre comment arreter » est la
+        // premiere exigence du CDC section 7.
+        //
+        // Mesure avec un appareil REELLEMENT abonne : sinon le test serait
         // vert faute d'appareil, pas faute de reglage.
         Http::fake(['*' => Http::response('', 201)]);
         $this->appareil();
+        $this->eteindreLePush(NotificationCatalogue::LOOP_INVITATION);
 
         $livraison = $this->livraisonPush($this->inviter());
 
@@ -405,8 +436,36 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         }
     }
 
-    public function test_le_membre_peut_allumer_le_push_depuis_l_ecran(): void
+    public function test_le_membre_peut_COUPER_le_push_depuis_l_ecran(): void
     {
+        // Le defaut etant ON, c'est la coupure qui produit un ECART stocke.
+        // Un formulaire ou la case est decochee n'envoie que le champ cache
+        // a `0` — c'est precisement ce que ce champ existe pour garantir.
+        $this->actingAs($this->membre)
+            ->post(route('notifications.preferences.update'), [
+                'canaux' => [
+                    NotificationCatalogue::LOOP_INVITATION => [
+                        NotificationCatalogue::CHANNEL_WEB_PUSH => '0',
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('member_notification_preferences', [
+            'user_id' => $this->membre->id,
+            'notification_key' => NotificationCatalogue::LOOP_INVITATION,
+            'channel' => NotificationCatalogue::CHANNEL_WEB_PUSH,
+            'enabled' => false,
+        ]);
+    }
+
+    public function test_rallumer_EFFACE_l_ecart_au_lieu_d_en_stocker_un_second(): void
+    {
+        // La doctrine de T1375 : la base ne porte QUE les ecarts au
+        // catalogue. Revenir au defaut doit donc retirer la ligne, pas en
+        // ecrire une qui dirait la meme chose que le defaut.
+        $this->eteindreLePush(NotificationCatalogue::LOOP_INVITATION);
+
         $this->actingAs($this->membre)
             ->post(route('notifications.preferences.update'), [
                 'canaux' => [
@@ -417,11 +476,10 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             ])
             ->assertRedirect();
 
-        $this->assertDatabaseHas('member_notification_preferences', [
+        $this->assertDatabaseMissing('member_notification_preferences', [
             'user_id' => $this->membre->id,
             'notification_key' => NotificationCatalogue::LOOP_INVITATION,
             'channel' => NotificationCatalogue::CHANNEL_WEB_PUSH,
-            'enabled' => true,
         ]);
     }
 
@@ -907,6 +965,18 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             ->where('notification_id', $notificationId)
             ->forChannel(NotificationCatalogue::CHANNEL_WEB_PUSH)
             ->firstOrFail();
+    }
+
+    /** L'ecart INVERSE : couper un canal actif par defaut. */
+    private function eteindreLePush(string $cle): void
+    {
+        $preference = new MemberNotificationPreference([
+            'notification_key' => $cle,
+            'channel' => NotificationCatalogue::CHANNEL_WEB_PUSH,
+            'enabled' => false,
+        ]);
+        $preference->user_id = (string) $this->membre->id;
+        $preference->save();
     }
 
     /** L'ECART stocke : le defaut vit dans le catalogue, la base ne porte que les ecarts. */
