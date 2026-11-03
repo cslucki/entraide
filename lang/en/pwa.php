@@ -84,4 +84,13 @@ return [
 
     'dialog_label' => 'Install the BouclePro app',
     'close' => 'Close',
+
+    // TASK-1745 — the first-launch prompt, in the installed app. The body
+    // names the events the catalogue actually covers (T1744), and says how
+    // to undo BEFORE asking.
+    'first_run_title' => "Turn on notifications?",
+    'first_run_body' => "BouclePro will let you know when you are invited, added to a Loop, or when your request is accepted. You can change your mind at any time in your settings.",
+    'first_run_accept' => "Turn on notifications",
+    'first_run_later' => "Later",
+    'first_run_failed' => "Notifications could not be turned on. You can try again from your settings.",
 ];

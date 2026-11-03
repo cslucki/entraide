@@ -25,6 +25,16 @@
  * plus une.
  */
 
+import {
+    abonnementCourant,
+    clePublique,
+    confirmer as confirmerAuServeur,
+    etatServeur as interrogerServeur,
+    jeton,
+    libelleAppareil,
+    supporte as pushSupporte,
+} from './push-abonnement.js';
+
 const bloc = document.querySelector('[data-push-device]');
 
 if (bloc) {
@@ -40,18 +50,13 @@ if (bloc) {
     const btnActiver = bloc.querySelector('[data-push-enable]');
     const btnDesactiver = bloc.querySelector('[data-push-disable]');
 
-    const jeton = () => document.querySelector('meta[name="csrf-token"]')?.content ?? '';
-
-    /** La clé VAPID doit partir en Uint8Array, pas en base64url. */
-    const clePublique = (base64url) => {
-        const bourrage = '='.repeat((4 - (base64url.length % 4)) % 4);
-        const base64 = (base64url + bourrage).replace(/-/g, '+').replace(/_/g, '/');
-        const brut = atob(base64);
-        return Uint8Array.from([...brut].map((c) => c.charCodeAt(0)));
-    };
-
-    const supporte = () =>
-        actif && vapid !== '' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    // TASK-1745 — la mecanique vit desormais dans `push-abonnement.js`,
+    // partagee avec la proposition du premier lancement. Ce n'est pas un
+    // nouveau moteur : c'est le code de T1739, avec deux appelants au lieu
+    // d'un. Le recopier aurait cree une seconde verite sur du code de
+    // securite — conversion de clef VAPID, `userVisibleOnly`, envoi de
+    // l'endpoint — et deux copies divergent toujours.
+    const supporte = () => pushSupporte(actif, vapid);
 
     const peindre = (etat, nombre, aide) => {
         const libelles = {
@@ -116,11 +121,6 @@ if (bloc) {
         return !!cle && vapid !== '' && enBase64Url(cle) !== vapid;
     };
 
-    const abonnementCourant = async () => {
-        const inscription = await navigator.serviceWorker.ready;
-        return inscription.pushManager.getSubscription();
-    };
-
     /**
      * Interroger l'exemplaire du Service Worker RÉELLEMENT actif.
      *
@@ -165,23 +165,9 @@ if (bloc) {
      * l'opération est idempotente — et c'est elle qui ramène au bon compte un
      * appareil revendiqué par un compte frère.
      */
-    const confirmer = async (abonnement, libelle = null) => {
-        const brut = abonnement.toJSON();
-        const reponse = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': jeton(), Accept: 'application/json' },
-            body: JSON.stringify({ endpoint: brut.endpoint, keys: brut.keys, device_label: libelle }),
-        });
-        if (!reponse.ok) throw new Error(`push store ${reponse.status}`);
-        return reponse.json();
-    };
+    const confirmer = (abonnement, libelle = null) => confirmerAuServeur(url, abonnement, libelle);
 
-    const etatServeur = async (endpoint) => {
-        const reponse = await fetch(`${url}?endpoint=${encodeURIComponent(endpoint ?? '')}`, {
-            headers: { Accept: 'application/json' },
-        });
-        return reponse.ok ? reponse.json() : null;
-    };
+    const etatServeur = (endpoint) => interrogerServeur(url, endpoint);
 
     /** L'état réel, en composant les deux moitiés. */
     const rafraichir = async () => {
@@ -231,16 +217,6 @@ if (bloc) {
 
     // Un libellé GROSSIER, pour que la personne reconnaisse son appareil.
     // Jamais un UA complet, jamais une signature (CDC 5.4).
-    const libelleAppareil = () => {
-        const ua = navigator.userAgent;
-        if (/Android/i.test(ua)) return 'Android';
-        if (/iPhone/i.test(ua)) return 'iPhone';
-        if (/iPad/i.test(ua)) return 'iPad';
-        if (/Macintosh/i.test(ua)) return 'Mac';
-        if (/Windows/i.test(ua)) return 'Windows';
-        return null;
-    };
-
     btnActiver.addEventListener('click', async () => {
         btnActiver.disabled = true;
         try {

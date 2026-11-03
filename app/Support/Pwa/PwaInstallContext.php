@@ -354,8 +354,13 @@ final class PwaInstallContext
      * partir, et la reponse se met a jour toute seule quand il change. Une
      * liste de capacites tenue ailleurs aurait fini par mentir dans un sens
      * ou dans l'autre.
+     *
+     * STATIQUE a dessein : la reponse ne depend ni du mode d'affichage, ni
+     * de l'appareil, ni de la requete. La rendre d'instance obligerait
+     * l'appelant a fabriquer un contexte — or `PwaInstallContext` exige un
+     * `$mode` et n'est pas resoluble par le conteneur.
      */
-    public function annonceLesNotifications(): bool
+    public static function annonceLesNotifications(): bool
     {
         if (! (bool) config('webpush.enabled', false)) {
             return false;

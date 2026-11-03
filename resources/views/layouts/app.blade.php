@@ -367,5 +367,13 @@
         <livewire:scripts />
         {{-- TASK-1737 — l'invitation a installer ; `PwaInstallContext` decide de sa forme, ou de son absence. --}}
     <x-pwa-install />
+
+    {{-- TASK-1745 — « Activer les notifications », au premier lancement de
+         la PWA installee. Le composant decide lui-meme de son absence :
+         capacite inexistante, visiteur anonyme, onglet ordinaire, appareil
+         deja abonne ou refus deja exprime. --}}
+    <x-push-first-run
+        :url-push="route('notifications.push.show')"
+        :annonce-les-notifications="\App\Support\Pwa\PwaInstallContext::annonceLesNotifications()" />
 </body>
 </html>

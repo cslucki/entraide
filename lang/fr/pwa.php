@@ -114,4 +114,20 @@ return [
     // ── Accessibilite ───────────────────────────────────────────────────────
     'dialog_label' => 'Installer l\'application BouclePro',
     'close' => 'Fermer',
+
+    /*
+     * TASK-1745 — la proposition du PREMIER LANCEMENT installe.
+     *
+     * Le corps nomme les evenements reellement couverts par le catalogue
+     * (T1744) : invitation, ajout a une Boucle, demande acceptee. Promettre
+     * plus serait creux, promettre moins ferait refuser a tort.
+     *
+     * Et il dit comment revenir en arriere AVANT de demander : une
+     * permission qu'on sait reversible se refuse moins par reflexe.
+     */
+    'first_run_title' => "Activer les notifications ?",
+    'first_run_body' => "BouclePro vous préviendra lorsqu’on vous invite, qu’on vous ajoute à une Boucle ou qu’on accepte votre demande. Vous pourrez changer d’avis à tout moment dans vos réglages.",
+    'first_run_accept' => "Activer les notifications",
+    'first_run_later' => "Plus tard",
+    'first_run_failed' => "Les notifications n’ont pas pu être activées. Vous pourrez réessayer depuis vos réglages.",
 ];

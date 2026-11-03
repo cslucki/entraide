@@ -469,7 +469,7 @@
                              sur une branche ou le canal `web_push` n'est pas
                              encore ouvert, cette phrase serait un mensonge.
                              Elle apparait d'elle-meme le jour ou il l'est. --}}
-                        @if($pwa->annonceLesNotifications())
+                        @if(\App\Support\Pwa\PwaInstallContext::annonceLesNotifications())
                             <p class="bp-pwa__disclaimer">{{ __('pwa.installing_note') }}</p>
                         @endif
                     </div>
@@ -554,7 +554,7 @@
                     <span>{{ __('pwa.installing_body') }}</span>
                     {{-- Conditionnee a la realite du catalogue : voir l'ecran
                          plein format, meme raison (CDC 3.2). --}}
-                    @if($pwa->annonceLesNotifications())
+                    @if(\App\Support\Pwa\PwaInstallContext::annonceLesNotifications())
                         <span>{{ __('pwa.installing_note') }}</span>
                     @endif
                 </div>
