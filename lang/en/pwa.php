@@ -94,6 +94,13 @@ return [
     'first_run_later' => "Later",
     'first_run_failed' => "Notifications could not be turned on. You can try again from your settings.",
 
+    // TASK-1745, 03/11 recipe — one body per permission state. `granted`
+    // must say no new prompt will appear; `denied` explains the way back
+    // (site settings) instead of offering a button that can only fail.
+    'first_run_granted_body' => "Permission is already granted: this device just needs to be switched on — no new prompt will appear.",
+    'first_run_denied_body' => "Notifications are blocked for BouclePro in your browser. To re-enable them: open the site settings (icon next to the address, or Settings › Notifications), allow notifications, then come back here.",
+    'first_run_understood' => "Got it",
+
     /*
      * TASK-1745, recette du 03/11 — les gestes NUMEROTES de la carte de
      * confirmation. Une liste se parcourt du coin de l'oeil ; une phrase

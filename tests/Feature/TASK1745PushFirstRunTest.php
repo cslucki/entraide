@@ -102,19 +102,85 @@ class TASK1745PushFirstRunTest extends TestCase
             ->assertDontSee('data-push-first-run', false);
     }
 
-    public function test_les_deux_libelles_existent_dans_les_DEUX_locales(): void
+    public function test_le_script_du_premier_lancement_est_EMIS_sur_la_page(): void
     {
-        // « Activer les notifications » ET « Plus tard ». Le second n'est pas
-        // décoratif : un refus doit être une sortie VISIBLE, sinon la
-        // proposition devient un mur.
+        // LE défaut de la recette du 03/11, et la garde qui manquait.
+        //
+        // Le composant poussait son `@vite` dans `@push('scripts')` — mais il
+        // est inclus APRÈS la ligne `@stack('scripts')` du layout. La pile
+        // était déjà rendue : le script n'était émis sur AUCUNE page, le bloc
+        // restait `display:none` à vie, et aucune des quatre conditions du
+        // premier lancement n'était même évaluée. Tous les tests passaient :
+        // ils mesuraient le BALISAGE du bloc, jamais l'émission du SCRIPT qui
+        // le révèle.
+        //
+        // On mesure donc l'implication, dans les deux sens : bloc rendu ⇒
+        // script émis ; bloc absent ⇒ script absent. Le motif cherché est le
+        // nom d'entrée que Vite conserve dans le nom du fichier compilé.
+        $reponse = $this->actingAs($this->membre)->get('/boucles')->assertOk();
+
+        if (PwaInstallContext::annonceLesNotifications()) {
+            $reponse->assertSee('data-push-first-run', false);
+            $reponse->assertSee('push-first-run-', false);
+
+            return;
+        }
+
+        $reponse->assertDontSee('push-first-run-', false);
+    }
+
+    public function test_chaque_etat_de_permission_a_son_corps_de_texte(): void
+    {
+        // Demande Cyril 03/11, points 3 à 5 : `granted` propose une
+        // activation simple, `denied` explique la réactivation. Les deux
+        // corps voyagent en attributs de données — le script ne fabrique
+        // aucun texte — donc leur présence se mesure sur la page.
+        if (! PwaInstallContext::annonceLesNotifications()) {
+            $this->markTestSkipped('canal fermé sur cette branche : le bloc n’est pas rendu');
+        }
+
+        $this->actingAs($this->membre)->get('/boucles')->assertOk()
+            ->assertSee('data-push-text-granted-body', false)
+            ->assertSee('data-push-text-denied-body', false)
+            ->assertSee('data-push-text-understood', false);
+    }
+
+    public function test_tout_libelle_APPELE_par_le_gabarit_existe_dans_les_DEUX_locales(): void
+    {
+        // La v1 a payé pour la liste recopiée : la vue lisait `push.*`, les
+        // clés vivaient dans `pwa.*`, et ce test — qui vérifiait sa propre
+        // liste `pwa.*`, correcte — restait vert pendant que l'écran aurait
+        // montré des clés brutes. On dérive donc les clés DU GABARIT : ce
+        // que la vue appelle est exactement ce qu'on exige des catalogues.
+        $html = (string) file_get_contents(resource_path('views/components/push-first-run.blade.php'));
+
+        preg_match_all("/__\('([a-z]+\.[a-z0-9_]+)'\)/", $html, $appels);
+
+        $this->assertNotSame([], $appels[1], 'aucun appel __() trouvé : le motif de recherche est à revoir');
+
         foreach (['fr', 'en'] as $locale) {
-            foreach (['first_run_title', 'first_run_body', 'first_run_accept', 'first_run_later', 'first_run_failed'] as $cle) {
+            foreach (array_unique($appels[1]) as $cle) {
                 $this->assertTrue(
-                    \Illuminate\Support\Facades\Lang::has("pwa.{$cle}", $locale),
-                    "[{$locale}] libellé manquant : pwa.{$cle}",
+                    \Illuminate\Support\Facades\Lang::has($cle, $locale),
+                    "[{$locale}] le gabarit appelle {$cle}, absente du catalogue : l’écran montrerait la clé brute",
                 );
             }
         }
+    }
+
+    public function test_la_reinitialisation_du_report_n_existe_qu_en_LOCAL(): void
+    {
+        // Point 6 de la demande du 03/11 : un moyen sûr de revoir la
+        // proposition, pour la recette UNIQUEMENT. Même garde serveur que le
+        // panneau de diagnostic qui l'héberge : hors local, le bouton
+        // n'existe pas dans le HTML — rien à désactiver côté navigateur.
+        $this->actingAs($this->membre)->get('/notifications/preferences')->assertOk()
+            ->assertDontSee('data-push-first-run-reset', false);
+
+        app()->detectEnvironment(fn () => 'local');
+
+        $this->actingAs($this->membre)->get('/notifications/preferences')->assertOk()
+            ->assertSee('data-push-first-run-reset', false);
     }
 
     public function test_toute_entree_vite_appelee_par_une_vue_est_DECLAREE(): void

@@ -127,6 +127,18 @@
                         class="inline-flex min-h-11 items-center rounded-lg border border-amber-500 px-3 text-xs font-semibold text-amber-800 dark:text-amber-200">
                     Simuler une charge Push
                 </button>
+
+                {{-- TASK-1745 (point 6, recette 03/11) — efface le REPORT du
+                     premier lancement (`localStorage`), et rien d'autre : ni
+                     l'abonnement, ni le Service Worker, ni le cache. C'est le
+                     moyen sûr de revoir la proposition — l'alternative
+                     « vider les données du site » détruirait l'abonnement
+                     Push. Écouté par `push-first-run.js`, qui possède la clé. --}}
+                <button type="button" data-push-first-run-reset
+                        data-reset-done="Report effacé — fermez et rouvrez l'application"
+                        class="inline-flex min-h-11 items-center rounded-lg border border-amber-500 px-3 text-xs font-semibold text-amber-800 disabled:opacity-60 dark:text-amber-200">
+                    Revoir la proposition du premier lancement
+                </button>
             </div>
 
             <p data-push-diag-resultat hidden class="mt-2 text-[11px] font-semibold"></p>

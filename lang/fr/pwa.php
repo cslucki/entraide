@@ -132,6 +132,22 @@ return [
     'first_run_failed' => "Les notifications n’ont pas pu être activées. Vous pourrez réessayer depuis vos réglages.",
 
     /*
+     * TASK-1745, recette du 03/11 — les trois états de permission sont trois
+     * parcours, et chacun a son corps de texte.
+     *
+     * `granted` : l'autorisation système est déjà là (accordée autrefois, ou
+     * depuis les contrôles du site — Chrome Android 155+). Le texte doit dire
+     * qu'AUCUNE demande ne repartira : c'est ce qui fait cliquer.
+     *
+     * `denied` : aucun bouton ne peut rouvrir une permission refusée — on
+     * EXPLIQUE le chemin, sans relancer une demande impossible. Le texte
+     * nomme le geste Android réel : les réglages du site.
+     */
+    'first_run_granted_body' => "Votre autorisation est déjà accordée : il ne reste qu’à activer cet appareil, sans nouvelle demande.",
+    'first_run_denied_body' => "Les notifications sont bloquées pour BouclePro dans votre navigateur. Pour les rouvrir : réglages du site (icône à côté de l’adresse, ou Paramètres › Notifications), autorisez les notifications, puis revenez ici.",
+    'first_run_understood' => "Compris",
+
+    /*
      * TASK-1745, recette du 03/11 — les gestes NUMEROTES de la carte de
      * confirmation. Une liste se parcourt du coin de l'oeil ; une phrase
      * continue oblige a tout lire pour trouver ce qu'on doit faire.
