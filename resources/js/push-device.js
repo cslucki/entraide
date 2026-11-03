@@ -53,6 +53,27 @@ if (bloc) {
     const supporte = () =>
         actif && vapid !== '' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 
+    /**
+     * TASK-1744 — en recette LOCALE, dire POURQUOI ça a échoué.
+     *
+     * Les deux gestionnaires avalaient l'erreur dans un `catch` vide et
+     * n'affichaient que « L'activation n'a pas abouti. Réessayez dans un
+     * instant. » Sur un téléphone, c'est une impasse : on réessaie, ça
+     * échoue pareil, et rien ne dit si c'est la permission, le Service
+     * Worker, la clé VAPID ou le réseau.
+     *
+     * Mesure du 02/11 : un réabonnement a échoué trois fois de suite sans
+     * laisser la moindre trace exploitable.
+     *
+     * La garde est la MÊME que celle du panneau de diagnostic — rendue côté
+     * serveur, donc l'attribut n'existe simplement pas ailleurs qu'en local.
+     * Un message d'erreur technique n'a rien à faire devant un membre.
+     */
+    const debogage = bloc.dataset.pushDebug === '1';
+
+    const avecCause = (message, erreur) =>
+        debogage && erreur ? `${message} [${erreur.name ?? 'Error'}: ${erreur.message ?? erreur}]` : message;
+
     // TASK-1744 — masquer POUR DE BON. `hidden` ne suffit pas quand une
     // classe utilitaire declare un `display` : il faut une declaration
     // d'auteur de meme niveau. On garde `hidden` pour l'accessibilite et les
@@ -299,8 +320,8 @@ if (bloc) {
 
             const etat = await confirmer(abonnement, libelleAppareil());
             peindre('on', etat.device_count, textes.textReady);
-        } catch {
-            peindre('off', undefined, textes.textEnableFailed);
+        } catch (e) {
+            peindre('off', undefined, avecCause(textes.textEnableFailed, e));
         } finally {
             btnActiver.disabled = false;
         }
@@ -326,8 +347,8 @@ if (bloc) {
 
             const etat = await etatServeur(null);
             peindre('off', etat?.device_count);
-        } catch {
-            peindre('on', undefined, textes.textDisableFailed);
+        } catch (e) {
+            peindre('on', undefined, avecCause(textes.textDisableFailed, e));
         } finally {
             btnDesactiver.disabled = false;
         }

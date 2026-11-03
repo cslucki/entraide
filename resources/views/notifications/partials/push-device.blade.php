@@ -37,6 +37,11 @@
          data-push-enabled="{{ config('webpush.enabled') ? '1' : '0' }}"
          data-push-vapid="{{ config('webpush.vapid.public_key') }}"
          data-push-url="{{ route($routePush, $routeParams) }}"
+         {{-- TASK-1744 — meme garde que le panneau de diagnostic : l'attribut
+              n'existe pas hors local. Un message d'erreur technique n'a rien
+              a faire devant un membre, mais sans lui une recette se fait a
+              l'aveugle. --}}
+         data-push-debug="{{ app()->environment('local') ? '1' : '0' }}"
          class="mb-8 rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] p-5">
 
     <h2 class="text-lg font-semibold text-[var(--bp-text)]">{{ __('push.device_title') }}</h2>
