@@ -50,12 +50,32 @@ const PAGES = [
     { chemin: '/about', fichier: 'phone-a-propos.jpg', label: 'A propos de BouclePro' },
 ];
 
+// La langue du manifest. Lue ICI plutot qu'ecrite en dur : c'est elle qui
+// doit gouverner la capture, et les deux ne peuvent plus diverger.
+const LANGUE = JSON.parse(fs.readFileSync(path.resolve('public/site.webmanifest'), 'utf8')).lang;
+
 test.describe('TASK-1737 captures du manifest', () => {
     test.use({
         viewport: { width: LARGEUR, height: HAUTEUR },
         deviceScaleFactor: ECHELLE,
         isMobile: true,
         hasTouch: true,
+
+        // TASK-1745 (verification du point 4, 03/11) — la LOCALE, et c'est un
+        // defaut constate, pas une precaution.
+        //
+        // Sans elle, Playwright negocie en `en-US` : `phone-a-propos.jpg`
+        // etait entierement en ANGLAIS (« Connect the right people at the
+        // right moment ») alors que le manifest declare `lang: fr` et que son
+        // propre `label` est en francais. Android aurait montre une capture
+        // anglaise dans la boite d'installation d'une application annoncee
+        // francaise.
+        //
+        // Le defaut etait invisible : rien ne reliait la langue du manifest a
+        // celle du navigateur qui capture. La garde `<html lang>` ci-dessous
+        // ferme le trou.
+        locale: LANGUE,
+        extraHTTPHeaders: { 'Accept-Language': `${LANGUE},${LANGUE.split('-')[0]};q=0.9` },
     });
 
     for (const { chemin, fichier } of PAGES) {
@@ -77,6 +97,14 @@ test.describe('TASK-1737 captures du manifest', () => {
             // Garde : une capture d'une page en erreur serait pire que pas de
             // capture du tout — le manifest montrerait une panne.
             await expect(page.locator('body')).toBeVisible();
+
+            // Garde de LANGUE : la page servie doit etre dans la langue que le
+            // manifest annonce. C'est ce qui manquait le 03/11 — une capture
+            // anglaise dans un manifest francais, et rien pour le dire.
+            await expect(
+                page.locator('html'),
+                `la capture doit etre servie en « ${LANGUE} », la langue declaree au manifest`,
+            ).toHaveAttribute('lang', new RegExp(`^${LANGUE.split('-')[0]}`, 'i'));
 
             const destination = path.join(DOSSIER, fichier);
             await page.screenshot({ path: destination, fullPage: false, type: 'jpeg', quality: 82 });
