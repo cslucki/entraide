@@ -93,4 +93,19 @@ return [
     'first_run_accept' => "Turn on notifications",
     'first_run_later' => "Later",
     'first_run_failed' => "Notifications could not be turned on. You can try again from your settings.",
+
+    /*
+     * TASK-1745, recette du 03/11 — les gestes NUMEROTES de la carte de
+     * confirmation. Une liste se parcourt du coin de l'oeil ; une phrase
+     * continue oblige a tout lire pour trouver ce qu'on doit faire.
+     *
+     * Le dernier n'est pas un geste mais une ANNONCE, et il a sa variante
+     * `_done` : une reinstallation sur un appareil deja abonne ne doit pas
+     * promettre une question qui ne sera pas posee.
+     */
+    'installing_step_wait' => "Android is finishing the installation, it takes a few seconds.",
+    'installing_step_icon' => "Find the BouclePro icon on your home screen or in your apps.",
+    'installing_step_open' => "Open it: you are still in your browser, not in the app.",
+    'installing_step_notifications' => "On first launch, BouclePro will offer to turn on important notifications.",
+    'installing_step_notifications_done' => "Notifications are already on for this device: nothing to redo.",
 ];

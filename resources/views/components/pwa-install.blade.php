@@ -307,6 +307,38 @@
                 box-shadow: 0 -8px 28px rgba(0, 0, 0, .3);
             }
 
+            /* TASK-1745 — la CARTE de confirmation.
+
+               Volontairement plus haute et plus contrastee que le bandeau
+               qu'elle remplace : c'est le moment ou la personne a le plus
+               besoin d'etre guidee, et une ligne de 38 px ne s'y voyait pas.
+               Elle reste dans le meme conteneur `fixed bottom`, donc toujours
+               non bloquante. */
+            .bp-pwa__confirm {
+                max-width: 40rem;
+                margin: 0 auto;
+                border-left: 4px solid var(--bp-pwa-accent, #6B2CFF);
+                padding-left: .9rem;
+            }
+            .bp-pwa__confirm-head { display: flex; align-items: center; gap: .75rem; }
+            .bp-pwa__confirm-head img { width: 44px; height: 44px; border-radius: 11px; flex: 0 0 auto; }
+            .bp-pwa__confirm-head b {
+                flex: 1 1 auto; min-width: 0;
+                font-size: 1rem; font-weight: 700; line-height: 1.25;
+            }
+            .bp-pwa__confirm-steps {
+                margin: .6rem 0 0;
+                padding-left: 1.25rem;
+                display: grid;
+                gap: .3rem;
+                font-size: .82rem;
+                line-height: 1.4;
+                color: var(--bp-pwa-ink);
+            }
+            /* Le dernier pas — les notifications — se detache : c'est le seul
+               qui annonce ce qui arrivera APRES, et non un geste a faire. */
+            .bp-pwa__confirm-steps li:last-child { color: var(--bp-pwa-ink-faint); }
+
             .bp-pwa__bar { display: flex; align-items: center; gap: .85rem; max-width: 40rem; margin: 0 auto; }
             .bp-pwa__bar img { width: 38px; height: 38px; border-radius: 10px; flex: 0 0 auto; }
             .bp-pwa__bar-text { flex: 1 1 auto; min-width: 0; }
@@ -499,6 +531,11 @@
         </div>
     @else
         <div class="bp-pwa bp-pwa--banner" data-bp-pwa-install="banner"
+             {{-- TASK-1745 point 4 — l'adresse qui dit si CET appareil est
+                  deja abonne. Posee seulement pour une personne connectee :
+                  la route exige une session, et un visiteur anonyme n'a pas
+                  d'appareil a reconnaitre. --}}
+             @auth data-bp-pwa-push-state="{{ route('notifications.push.show') }}" @endauth
              role="region" aria-label="{{ __('pwa.dialog_label') }}">
             <div class="bp-pwa__bar">
                 <img src="/brand/icon-192.png" width="38" height="38" alt="" aria-hidden="true">
@@ -547,23 +584,45 @@
                  `hidden` ET `style="display:none"` : la lecon de T1744 —
                  `hidden` seul ne masque rien face a une classe utilitaire
                  qui declare un `display`. --}}
-            <div class="bp-pwa__bar" data-bp-pwa-confirm hidden style="display: none">
-                <img src="/brand/icon-192.png" width="38" height="38" alt="" aria-hidden="true">
-                <div class="bp-pwa__bar-text">
+            {{-- TASK-1745, recette du 03/11 — « trop discret ».
+
+                 La premiere version reutilisait la ligne du bandeau : une
+                 icone, deux phrases serrees, 38 px de haut. Au moment ou la
+                 personne vient d'accepter une installation, c'est le message
+                 le plus important de l'ecran, et il ressemblait a l'invitation
+                 qu'il remplace.
+
+                 C'est donc une CARTE : accent colore, titre lisible, et les
+                 trois gestes NUMEROTES plutot que noyes dans une phrase.
+
+                 Ce qui ne change pas : toujours le meme element, toujours
+                 ancre en bas, toujours non bloquant. Ni page, ni modale, ni
+                 piege de focus — la navigation reste entiere derriere. --}}
+            <div class="bp-pwa__confirm" data-bp-pwa-confirm hidden style="display: none"
+                 role="status" aria-live="polite">
+                <div class="bp-pwa__confirm-head">
+                    <img src="/brand/icon-192.png" width="44" height="44" alt="" aria-hidden="true">
                     <b>{{ __('pwa.installing_title') }}</b>
-                    <span>{{ __('pwa.installing_body') }}</span>
-                    {{-- Conditionnee a la realite du catalogue : voir l'ecran
-                         plein format, meme raison (CDC 3.2). --}}
-                    @if(\App\Support\Pwa\PwaInstallContext::annonceLesNotifications())
-                        <span>{{ __('pwa.installing_note') }}</span>
-                    @endif
+                    {{-- Une seule sortie, et elle ne pose AUCUN renoncement :
+                         fermer une confirmation n'est pas refuser
+                         l'installation qu'on vient d'accepter. --}}
+                    <button type="button" class="bp-pwa__bar-close"
+                            data-bp-pwa-action="close-confirm"
+                            aria-label="{{ __('pwa.banner.dismiss') }}">&times;</button>
                 </div>
-                {{-- Une seule sortie, et elle ne pose AUCUN renoncement :
-                     fermer une confirmation n'est pas refuser l'installation
-                     qu'on vient d'accepter. --}}
-                <button type="button" class="bp-pwa__bar-close"
-                        data-bp-pwa-action="close-confirm"
-                        aria-label="{{ __('pwa.banner.dismiss') }}">&times;</button>
+
+                <ol class="bp-pwa__confirm-steps">
+                    <li>{{ __('pwa.installing_step_wait') }}</li>
+                    <li>{{ __('pwa.installing_step_icon') }}</li>
+                    <li>{{ __('pwa.installing_step_open') }}</li>
+                    {{-- Conditionnee a la realite du catalogue (CDC 3.2), et
+                         le script l'echange contre « deja actives » quand
+                         l'appareil est deja abonne — une reinstallation ne
+                         doit pas redemander ce qui est acquis. --}}
+                    @if(\App\Support\Pwa\PwaInstallContext::annonceLesNotifications())
+                        <li data-bp-pwa-confirm-notifs>{{ __('pwa.installing_step_notifications') }}</li>
+                    @endif
+                </ol>
             </div>
         </div>
     @endif
@@ -649,10 +708,59 @@
                         if (barre) { barre.hidden = true; barre.style.display = 'none'; }
                         if (confirmation) { confirmation.hidden = false; confirmation.style.display = ''; }
 
+                        ajusterLeMotDesNotifications();
+
                         return;
                     }
 
                     montrerPlateforme('installing');
+                }
+
+                /**
+                 * TASK-1745 point 4 — une REINSTALLATION ne redemande pas ce
+                 * qui est acquis.
+                 *
+                 * Le navigateur garde son abonnement Push a travers une
+                 * desinstallation : meme origine, meme Service Worker. Une
+                 * personne qui reinstalle peut donc etre DEJA abonnee, et lui
+                 * annoncer « BouclePro vous proposera d'activer les
+                 * notifications » serait promettre une question qui ne sera
+                 * pas posee — la proposition du premier lancement se tait
+                 * precisement dans ce cas.
+                 *
+                 * La reponse vient du SERVEUR, jamais d'une supposition
+                 * locale : un abonnement que le serveur ignore n'en est pas
+                 * un, et c'est exactement l'etat qu'on observe apres une
+                 * revocation cote fournisseur.
+                 *
+                 * Silencieuse en cas d'echec : le texte par defaut annonce la
+                 * proposition, ce qui reste vrai si l'on ne sait pas.
+                 */
+                async function ajusterLeMotDesNotifications() {
+                    var ligne = racine.querySelector('[data-bp-pwa-confirm-notifs]');
+                    var adresse = racine.getAttribute('data-bp-pwa-push-state');
+
+                    if (!ligne || !adresse || !('serviceWorker' in navigator)) { return; }
+
+                    try {
+                        var inscription = await navigator.serviceWorker.ready;
+                        var abonnement = await inscription.pushManager.getSubscription();
+
+                        if (abonnement === null) { return; }
+
+                        var reponse = await fetch(
+                            adresse + '?endpoint=' + encodeURIComponent(abonnement.endpoint),
+                            { headers: { Accept: 'application/json' } }
+                        );
+
+                        if (!reponse.ok) { return; }
+
+                        var etat = await reponse.json();
+
+                        if (etat && etat.subscribed === true) {
+                            ligne.textContent = @json(__('pwa.installing_step_notifications_done'));
+                        }
+                    } catch (e) {}
                 }
 
                 window.addEventListener('appinstalled', confirmer);

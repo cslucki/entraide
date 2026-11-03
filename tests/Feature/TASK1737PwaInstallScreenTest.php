@@ -605,7 +605,18 @@ class TASK1737PwaInstallScreenTest extends TestCase
         // reellement autoriser le canal. Cette garde-la se met a jour toute
         // seule, et elle rougira le jour ou quelqu'un vantera une capacite
         // retiree.
-        if (str_contains(mb_strtolower($html), 'notification')) {
+        // TASK-1745 — on mesure ce que la personne LIT, pas le HTML brut.
+        //
+        // Les blocs `<style>` et `<script>` du composant sont rendus dans la
+        // page, commentaires compris. Un commentaire qui explique pourquoi la
+        // derniere etape parle de notifications faisait rougir cette garde,
+        // alors qu'aucune promesse n'etait faite a personne.
+        //
+        // Le depot a deja paye ce piege deux fois (T1734, T1741). Le fermer
+        // ici une bonne fois : une promesse est un texte VISIBLE.
+        $lisible = preg_replace('#<(script|style)\b[^>]*>.*?</\1>#is', ' ', $html);
+
+        if (str_contains(mb_strtolower($lisible), 'notification')) {
             $this->assertNotSame(
                 [],
                 array_filter(
@@ -625,7 +636,7 @@ class TASK1737PwaInstallScreenTest extends TestCase
         // posee — meme doctrine qu'en T1740, un accuse de reception n'est
         // pas une livraison.
         foreach (['est installé', 'is installed'] as $mensonge) {
-            $this->assertStringNotContainsString($mensonge, $html);
+            $this->assertStringNotContainsString($mensonge, $lisible);
         }
     }
 

@@ -130,4 +130,19 @@ return [
     'first_run_accept' => "Activer les notifications",
     'first_run_later' => "Plus tard",
     'first_run_failed' => "Les notifications n’ont pas pu être activées. Vous pourrez réessayer depuis vos réglages.",
+
+    /*
+     * TASK-1745, recette du 03/11 — les gestes NUMEROTES de la carte de
+     * confirmation. Une liste se parcourt du coin de l'oeil ; une phrase
+     * continue oblige a tout lire pour trouver ce qu'on doit faire.
+     *
+     * Le dernier n'est pas un geste mais une ANNONCE, et il a sa variante
+     * `_done` : une reinstallation sur un appareil deja abonne ne doit pas
+     * promettre une question qui ne sera pas posee.
+     */
+    'installing_step_wait' => "Android termine l’installation, cela prend quelques secondes.",
+    'installing_step_icon' => "Retrouvez l’icône BouclePro sur votre écran d’accueil ou dans vos applications.",
+    'installing_step_open' => "Ouvrez-la : vous êtes encore dans votre navigateur, pas dans l’application.",
+    'installing_step_notifications' => "Au premier lancement, BouclePro vous proposera d’activer les notifications importantes.",
+    'installing_step_notifications_done' => "Les notifications sont déjà actives sur cet appareil : rien à refaire.",
 ];

@@ -1187,6 +1187,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // liste d'autorisation a tenir a jour.
     Route::get('/outils/test-notification', [AdminTestNotificationController::class, 'index'])->name('outils.test-notification');
     Route::post('/outils/test-notification', [AdminTestNotificationController::class, 'send'])->middleware('throttle:10,1')->name('outils.test-notification.send');
+
+    // TASK-1745 (recette Cyril, 03/11) — retirer UN appareil du serveur, pour
+    // pouvoir rejouer le parcours d'abonnement. Outil de recette : le
+    // controleur refuse hors `local`, en plus de la politique des comptes de
+    // recette. La garde est dans le CONTROLEUR, pas dans la declaration de
+    // route : un 404 y est rendu hors `local`.
+    Route::post('/outils/test-notification/oublier', [AdminTestNotificationController::class, 'forget'])
+        ->middleware('throttle:10,1')
+        ->name('outils.test-notification.forget');
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
 

@@ -134,9 +134,50 @@
                                 · {{ $appareil->vu?->diffForHumans() }}
                                 · <span class="text-xs">{{ $appareil->origine }}</span>
                             </span>
+
+                            {{-- TASK-1745 (recette Cyril, 03/11) — « Oublier ».
+
+                                 La confirmation est un DEPLIANT, pas un
+                                 `confirm()` du navigateur : une boite modale
+                                 native bloque la page, n'est pas stylable, et
+                                 rend l'ecran intestable au banc. `<details>`
+                                 fait le meme travail sans une ligne de script.
+
+                                 Le bouton vit hors du formulaire d'envoi —
+                                 un formulaire ne s'imbrique pas — et lui est
+                                 rattache par l'attribut `form`, qui accepte
+                                 un bouton place n'importe ou dans la page. --}}
+                            @if(app()->environment('local'))
+                                <details data-push-forget="{{ $appareil->id }}" class="ml-auto shrink-0 text-right">
+                                    <summary class="cursor-pointer text-xs font-semibold text-red-700 dark:text-red-300">
+                                        {{ __('admin.push_test_forget') }}
+                                    </summary>
+                                    <p class="mt-2 max-w-xs text-left text-[11px] leading-snug text-gray-600 dark:text-gray-400">
+                                        {{ __('admin.push_test_forget_confirm') }}
+                                    </p>
+                                    <button type="submit" form="oublier-{{ $appareil->id }}"
+                                            data-push-forget-confirm
+                                            class="mt-2 inline-flex min-h-11 items-center rounded-lg border border-red-500 px-3 text-xs font-semibold text-red-700 dark:text-red-300">
+                                        {{ __('admin.push_test_forget') }}
+                                    </button>
+                                </details>
+                            @endif
                         </label>
                     @endforeach
                 </fieldset>
+
+                {{-- TASK-1745 — dire ce que « Oublier » ne fait PAS.
+
+                     Le serveur ne sait pas desabonner un navigateur. Retirer
+                     la ligne sans agir cote appareil ne reinitialise donc
+                     rien : la reconciliation de T1739 la recreera au
+                     prochain affichage des reglages. L'ordre des gestes est
+                     ecrit ici plutot que suppose connu. --}}
+                @if(app()->environment('local'))
+                    <p data-push-forget-help class="rounded-lg bg-amber-50 p-3 text-xs leading-snug text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                        {{ __('admin.push_test_forget_help') }}
+                    </p>
+                @endif
 
                 <div class="grid gap-3 sm:grid-cols-2">
                     <label class="block">
@@ -165,6 +206,21 @@
                     {{ __('admin.push_test_send') }}
                 </button>
             </form>
+
+            {{-- TASK-1745 — les formulaires de retrait, HORS du formulaire
+                 d'envoi : un formulaire ne s'imbrique pas dans un autre. Les
+                 boutons de chaque rangee leur sont rattaches par l'attribut
+                 `form`, qui accepte un bouton place n'importe ou. --}}
+            @if(app()->environment('local'))
+                @foreach($appareils as $appareil)
+                    <form id="oublier-{{ $appareil->id }}" method="POST"
+                          action="{{ route('admin.outils.test-notification.forget') }}" class="hidden">
+                        @csrf
+                        <input type="hidden" name="user" value="{{ $choisi->id }}">
+                        <input type="hidden" name="subscription" value="{{ $appareil->id }}">
+                    </form>
+                @endforeach
+            @endif
         @endif
     @endif
 </x-admin-layout>

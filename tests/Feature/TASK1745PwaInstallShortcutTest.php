@@ -95,7 +95,18 @@ class TASK1745PwaInstallShortcutTest extends TestCase
 
         $this->assertStringContainsString('data-bp-pwa-confirm', $html);
         $this->assertStringContainsString(__('pwa.installing_title'), $html);
-        $this->assertStringContainsString(__('pwa.installing_body'), $html);
+
+        // TASK-1745, recette du 03/11 — « trop discret ». La carte dit
+        // desormais les gestes UN PAR UN plutot qu'en une phrase : une liste
+        // se parcourt du coin de l'oeil, une phrase continue oblige a tout
+        // lire pour trouver ce qu'on doit faire.
+        foreach (['installing_step_wait', 'installing_step_icon', 'installing_step_open'] as $etape) {
+            $this->assertStringContainsString(
+                __('pwa.'.$etape),
+                $html,
+                "l'etape [{$etape}] doit figurer dans la confirmation",
+            );
+        }
 
         // Et elle ne promet JAMAIS que c'est fini : un accord au dialogue
         // natif n'est pas une icône posée. Même doctrine qu'en T1740 — un

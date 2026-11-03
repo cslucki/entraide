@@ -1964,4 +1964,12 @@ return [
     'push_test_recipient_refused' => 'This recipient is not an authorised test account. Nothing was sent.',
     'push_test_device_refused' => 'This device does not belong to that account, or its subscription was not created on this environment. Nothing was sent.',
     'push_test_accepted_is_not_displayed' => 'A 201 means the provider ACCEPTED the message, not that Android displayed it. Check the phone.',
+
+    // TASK-1745 — retrait d'un appareil depuis l'outil de recette. Le
+    // libelle DIT ce que l'action ne fait pas : le serveur ne sait pas
+    // desabonner un navigateur.
+    'push_test_device_forgotten' => "Device removed from the server. The browser keeps its subscription: turn it off from the device, otherwise it will re-register next time the settings screen is shown.",
+    'push_test_forget' => "Forget",
+    'push_test_forget_confirm' => "Remove this device from the server? It will re-register on its own next time the settings screen is shown, unless the browser was unsubscribed from the device.",
+    'push_test_forget_help' => "“Forget” removes the server row, not the browser subscription. To start over: “Turn off on this device” from the phone first, then “Forget” here if a row remains.",
 ];

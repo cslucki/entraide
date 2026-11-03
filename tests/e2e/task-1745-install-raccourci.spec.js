@@ -107,9 +107,19 @@ test.describe('TASK-1745 — raccourci d’installation', () => {
         const confirmation = page.locator('[data-bp-pwa-confirm]');
         await expect(confirmation).toBeVisible();
 
-        // Ce qui doit TOUJOURS etre dit : ou on en est, et ou aller.
+        // Ce qui doit TOUJOURS etre dit, en TROIS gestes numerotes : ou on
+        // en est, ou trouver l'icone, et qu'on est encore dans le navigateur.
         await expect(confirmation).toContainText(/s’installe|is installing/);
+        await expect(confirmation).toContainText(/icône BouclePro|BouclePro icon/);
         await expect(confirmation).toContainText(/encore dans votre navigateur|still in your browser/);
+
+        // Et elle est VISIBLEMENT plus qu'une ligne : la recette du 03/11 la
+        // trouvait « trop discrete ». On mesure la hauteur, pas l'intention.
+        const hauteur = (await confirmation.boundingBox())?.height ?? 0;
+        expect(hauteur, 'la confirmation doit etre une carte, pas une ligne').toBeGreaterThan(100);
+
+        // Non bloquante malgre tout : pas de modale, pas de piege de focus.
+        await expect(confirmation).not.toHaveAttribute('role', 'dialog');
 
         // La troisieme phrase — « BouclePro vous proposera d'activer les
         // notifications » — est CONDITIONNELLE : elle ne s'affiche que si le
