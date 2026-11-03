@@ -117,6 +117,60 @@ class TASK1745PushFirstRunTest extends TestCase
         }
     }
 
+    public function test_toute_entree_vite_appelee_par_une_vue_est_DECLAREE(): void
+    {
+        // Défaut trouvé le 03/11 par l'intégration de recette T1744+T1745,
+        // et invisible autrement.
+        //
+        // `push-first-run.js` existait, était importé par `@vite()`, et
+        // n'était PAS dans les entrées de `vite.config.js`. Une entrée non
+        // déclarée est absente du manifeste, et `@vite()` lève alors une
+        // `ViteException` **en pleine page** : 500 sur toute surface
+        // authentifiée. `npm run build` ne dit rien — il construit ce qu'on
+        // lui déclare, pas ce qu'on utilise.
+        //
+        // Sur la branche T1745 seule, le bloc n'est jamais rendu faute de
+        // canal au catalogue : la page ne touchait donc jamais la ligne
+        // fautive. Il a fallu les deux branches ensemble pour la révéler.
+        //
+        // Cette garde ferme le trou pour TOUTES les entrées, pas seulement
+        // celle-ci : c'est la classe de défaut qui compte.
+        $config = file_get_contents(base_path('vite.config.js'));
+
+        $vues = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator(resource_path('views'), \FilesystemIterator::SKIP_DOTS)
+        );
+
+        $appelees = [];
+
+        foreach ($vues as $fichier) {
+            if (! str_ends_with((string) $fichier, '.blade.php')) {
+                continue;
+            }
+
+            preg_match_all(
+                "/@vite\(\s*'([^']+\.(?:js|css))'\s*\)/",
+                (string) file_get_contents((string) $fichier),
+                $trouvees
+            );
+
+            foreach ($trouvees[1] as $entree) {
+                $appelees[$entree] = (string) $fichier;
+            }
+        }
+
+        $this->assertNotSame([], $appelees, 'aucun @vite() trouvé : le motif de recherche est à revoir');
+
+        foreach ($appelees as $entree => $fichier) {
+            $this->assertStringContainsString(
+                "'".$entree."'",
+                $config,
+                "[{$entree}] est appelée par ".basename($fichier)." mais n'est pas déclarée dans vite.config.js : "
+                .'la page lèvera une ViteException à l\'exécution.',
+            );
+        }
+    }
+
     public function test_la_proposition_ne_bloque_PAS_la_navigation(): void
     {
         // Point explicite de la demande. Le bloc est une barre `fixed` en
