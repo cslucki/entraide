@@ -1993,4 +1993,9 @@ return [
     // no replay is offered.
     'notif_inspector_devices' => '{0}no device subscribed|{1}1 device subscribed|[2,*]:count devices subscribed',
     'notif_inspector_no_device' => 'no device — nothing to wake',
+
+    // TASK-1744 — the 03/11 failure: a notification job asleep in the queue
+    // looks exactly like a broken Push. This banner tells them apart.
+    'notif_inspector_queue_waiting' => '{1}1 send is waiting in the queue|[2,*]:count sends are waiting in the queue',
+    'notif_inspector_queue_hint' => 'No worker seems to be consuming them. A replay from this screen is synchronous and will still go through; a real event will not.',
 ];

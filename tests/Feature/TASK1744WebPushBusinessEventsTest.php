@@ -620,6 +620,45 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         $this->assertSame(0, $politique->abonnementsEnvoyables($this->membre)->count());
     }
 
+    public function test_l_inspecteur_signale_une_file_que_personne_ne_consomme(): void
+    {
+        // LA panne du 03/11, et la plus coûteuse de la série parce qu'elle ne
+        // ressemble à rien : le rejeu fonctionne, la préférence est cochée,
+        // l'appareil est abonné, la notification s'affiche dans
+        // l'application… et aucun Push n'arrive.
+        //
+        // La différence est que le rejeu est SYNCHRONE, alors qu'un évènement
+        // réel passe par la file. Sans worker, le job dort dans `jobs`, la
+        // livraison reste `pending`, et rien ne le disait nulle part.
+        config()->set('queue.default', 'database');
+
+        \Illuminate\Support\Facades\DB::table('jobs')->insert([
+            'queue' => \App\Support\Notifications\NotificationWebPushDeliverer::QUEUE,
+            'payload' => '{}',
+            'attempts' => 0,
+            'reserved_at' => null,
+            'available_at' => now()->timestamp,
+            'created_at' => now()->timestamp,
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('admin.outils.notifications'))
+            ->assertOk()
+            ->assertSee('data-file-en-attente="1"', false);
+    }
+
+    public function test_l_inspecteur_ne_crie_pas_quand_la_file_est_vide(): void
+    {
+        // Une alerte permanente ne se lit plus. Elle ne doit paraître que
+        // lorsqu'il y a réellement quelque chose qui attend.
+        config()->set('queue.default', 'database');
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('admin.outils.notifications'))
+            ->assertOk()
+            ->assertDontSee('data-file-en-attente', false);
+    }
+
     public function test_l_inspecteur_est_reserve_a_l_administration(): void
     {
         $this->actingAs($this->membre)

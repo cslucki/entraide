@@ -125,7 +125,45 @@ class AdminNotificationInspectorController extends Controller
             'appareils' => $this->politique->comptesDAppareilsEnvoyables(
                 $destinataires->keys()->map(fn ($id) => (string) $id)->all()
             ),
+
+            'enAttente' => $this->jobsEnAttente(),
         ]);
+    }
+
+    /**
+     * Combien de jobs de notification attendent dans la file ?
+     *
+     * TASK-1744 — la panne du 03/11, et la plus couteuse de la serie parce
+     * qu'elle ne ressemble a rien : le rejeu fonctionne, la preference est
+     * cochee, l'appareil est abonne, la notification s'affiche dans
+     * l'application… et aucun Push n'arrive.
+     *
+     * La difference est que le REJEU est synchrone, tandis qu'un evenement
+     * reel passe par la file. Sans worker, le job dort dans `jobs`, la
+     * livraison reste `pending`, et rien ne le dit nulle part. Deux heures
+     * de recette ont ete depensees a chercher ailleurs.
+     *
+     * Une livraison `pending` n'est donc PAS un etat neutre sur cet ecran :
+     * c'est soit « ca va partir », soit « personne ne ramasse ». Ce compteur
+     * tranche entre les deux.
+     *
+     * Borne au pilote `database` : ailleurs la table `jobs` n'existe pas, et
+     * en `sync` il n'y a par construction rien a attendre.
+     *
+     * @return int|null `null` = la question ne se pose pas pour ce pilote
+     */
+    private function jobsEnAttente(): ?int
+    {
+        if (config('queue.default') !== 'database') {
+            return null;
+        }
+
+        return DB::table('jobs')
+            ->whereIn('queue', [
+                NotificationWebPushDeliverer::QUEUE,
+                'notifications-email',
+            ])
+            ->count();
     }
 
     /**

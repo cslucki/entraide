@@ -2026,4 +2026,9 @@ return [
     // qu'il explique pourquoi le rejeu n'est pas propose.
     'notif_inspector_devices' => '{0}aucun appareil abonné|{1}1 appareil abonné|[2,*]:count appareils abonnés',
     'notif_inspector_no_device' => 'aucun appareil — rien à réveiller',
+
+    // TASK-1744 — la panne du 03/11 : un job de notification qui dort dans la
+    // file ressemble a un Push casse. Le bandeau tranche.
+    'notif_inspector_queue_waiting' => '{1}1 envoi attend dans la file|[2,*]:count envois attendent dans la file',
+    'notif_inspector_queue_hint' => "Aucun worker ne semble les consommer. Un rejeu depuis cet écran est synchrone et aboutira quand même ; un évènement réel, lui, restera en attente.",
 ];

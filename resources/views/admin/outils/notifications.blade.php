@@ -20,6 +20,25 @@
         <p class="mt-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">{{ __('admin.notif_inspector_scope') }}</p>
     </div>
 
+    {{-- TASK-1744 — la panne du 03/11, rendue visible.
+
+         Un évènement réel passe par la FILE ; le rejeu, lui, est synchrone.
+         Sans worker, le job dort, la livraison reste `pending`, et tout le
+         reste a l'air normal : préférence cochée, appareil abonné,
+         notification affichée dans l'application. Rien ne disait que
+         personne ne ramassait.
+
+         Une livraison `pending` n'est donc pas un état neutre ici. Ce
+         bandeau tranche entre « ça va partir » et « ça ne partira pas ». --}}
+    @if(($enAttente ?? 0) > 0)
+        <div data-file-en-attente="{{ $enAttente }}"
+             class="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+            <p class="font-semibold">{{ trans_choice('admin.notif_inspector_queue_waiting', $enAttente, ['count' => $enAttente]) }}</p>
+            <p class="mt-1 text-xs">{{ __('admin.notif_inspector_queue_hint') }}</p>
+            <p class="mt-1 font-mono text-[11px]">php artisan queue:work --queue=notifications-web-push,notifications-email</p>
+        </div>
+    @endif
+
     @if(session('inspecteur_resultat'))
         <div data-inspecteur-resultat
              class="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-800 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-200">
