@@ -99,6 +99,24 @@ $secondaryCtaUrl = $showInternalHomepageContent
         langue d'affichage choisie, et le selecteur ne promet plus un choix que
         le site ne propose pas. --}}
     @if($organization->multilingual_enabled)
+        @php
+            // TASK-1745 (recette Cyril, 03/11) — sur telephone, deux pastilles
+            // FR / EN mangeaient un tiers de la barre pour un choix binaire.
+            //
+            // Avec DEUX langues, un selecteur n'a pas lieu d'etre : il n'y a
+            // qu'une destination possible. Le telephone recoit donc une
+            // BASCULE — une seule pastille, qui porte la langue COURANTE et
+            // mene a l'autre.
+            //
+            // Montrer la langue courante plutot que la cible est un choix :
+            // l'etat se lit sans reflechir, et l'icone de langue dit que
+            // c'est un bouton. Un simple « EN » aurait oblige a deviner s'il
+            // decrit ou s'il agit.
+            $autreLocale = app()->getLocale() === 'fr' ? 'en' : 'fr';
+        @endphp
+
+        {{-- Le couple FR / EN : le BUREAU, ou la place ne manque pas et ou
+             voir les deux options a de la valeur. --}}
         <div class="lang" aria-label="Langue / Language">
           @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
             <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" class="inline">
@@ -107,6 +125,18 @@ $secondaryCtaUrl = $showInternalHomepageContent
             </form>
           @endforeach
         </div>
+
+        {{-- La bascule : le TELEPHONE. Les deux sont rendues, et la feuille
+             de style choisit — deviner la taille de l'ecran depuis le
+             User-Agent est une erreur que T1737 a deja payee. --}}
+        <form method="POST" action="{{ route('locale.switch', ['locale' => $autreLocale]) }}"
+              class="lang-toggle" data-lang-toggle>
+          @csrf
+          <button type="submit" aria-label="{{ __('navigation.locale_switch_to_'.$autreLocale) }}">
+            <i class="ti ti-language" aria-hidden="true"></i>
+            <span>{{ mb_strtoupper(app()->getLocale()) }}</span>
+          </button>
+        </form>
     @endif
         @guest
           <a href="{{ route('organization.login', $organization) }}" class="btn-join">{{ org_trans('hero.nav_login') }}</a>
