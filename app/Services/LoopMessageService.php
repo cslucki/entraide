@@ -10,6 +10,8 @@ use App\Models\LoopMessage;
 use App\Models\LoopPoll;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Support\Notifications\NotificationCatalogue;
+use App\Support\Notifications\NotificationEmitter;
 use Illuminate\Support\Facades\DB;
 
 class LoopMessageService
@@ -48,6 +50,81 @@ class LoopMessageService
         });
     }
 
+    /**
+     * TASK-1747 (CDC §8.1) — prevenir la Boucle qu'une demande d'aide y est
+     * posee. PREMIER producteur du §8.
+     *
+     * ## Pourquoi ici, et pas sur l'evenement de message
+     *
+     * Le reflexe aurait ete d'ecouter `LoopMessageCreated` et d'y filtrer le
+     * type. Ce serait un piege : le jour ou quelqu'un ajoute un type, le
+     * listener le verrait passer, et il suffirait d'une condition mal ecrite
+     * pour notifier TOUS les messages de ChatLoop — exactement ce que le CDC
+     * interdit (§8.1, « eviter le Push pour chaque message »).
+     *
+     * L'emission vit donc la ou le type est DECIDE : dans les deux methodes
+     * qui posent `help_request`, et nulle part ailleurs. Un message ordinaire
+     * ne passe jamais par ici, et `TASK1747HelpRequestNotificationTest` le
+     * prouve plutot que de le supposer.
+     *
+     * ## Les deux sites, et pourquoi les deux comptent
+     *
+     * La demande NATIVE et la PROJECTION d'une Demande canonique sont, du
+     * point de vue des membres, le meme fait : un besoin vient d'apparaitre
+     * dans leur Boucle. Que la Demande ait ete creee ailleurs ne change rien
+     * pour eux — ils ne l'avaient pas vue.
+     *
+     * ## Destinataires
+     *
+     * Les membres ACTIFS de la Boucle, sauf l'auteur : se faire prevenir de
+     * sa propre demande n'apprend rien. La requete est bornee par
+     * l'Organization de la Boucle en plus de son identifiant — une Boucle
+     * n'est pas un Tenant, et la borne de tenant se pose a la main.
+     *
+     * ## Pas de transaction supplementaire
+     *
+     * L'appel se fait DANS celle de l'appelant. L'emetteur garantit
+     * l'idempotence par `event_id`, et les jobs de livraison portent
+     * `afterCommit()` : rien ne part avant que le message soit reellement
+     * ecrit.
+     */
+    private function notifierLaDemandeDAide(Loop $loop, User $auteur, LoopMessage $message): void
+    {
+        $destinataires = User::query()
+            ->whereIn(
+                'id',
+                LoopMember::query()
+                    ->where('loop_id', $loop->id)
+                    ->where('organization_id', $loop->organization_id)
+                    ->where('status', 'active')
+                    ->whereKeyNot(null)
+                    ->pluck('user_id'),
+            )
+            ->whereKeyNot($auteur->getKey())
+            ->get();
+
+        if ($destinataires->isEmpty()) {
+            return;
+        }
+
+        $emetteur = app(NotificationEmitter::class);
+
+        foreach ($destinataires as $destinataire) {
+            $emetteur->emit(
+                notificationKey: NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
+                organization: (string) $loop->organization_id,
+                recipient: $destinataire,
+                // L'identifiant du MESSAGE, pas de la Boucle : deux demandes
+                // posees dans la meme Boucle sont deux faits distincts, et
+                // l'unicite `(event_id, recipient_id)` doit les separer.
+                eventId: (string) $message->getKey(),
+                objectType: NotificationCatalogue::OBJECT_LOOP,
+                objectId: (string) $loop->getKey(),
+                actor: $auteur,
+            );
+        }
+    }
+
     public function sendHelpRequestMessage(
         Loop $loop,
         User $sender,
@@ -77,6 +154,8 @@ class LoopMessageService
                 ],
                 'organization_id' => $loop->organization_id,
             ]);
+
+            $this->notifierLaDemandeDAide($loop, $sender, $message);
 
             event(new LoopMessageCreated($message));
 
@@ -121,6 +200,8 @@ class LoopMessageService
                 ],
                 'organization_id' => $loop->organization_id,
             ]);
+
+            $this->notifierLaDemandeDAide($loop, $sender, $message);
 
             event(new LoopMessageCreated($message));
 

@@ -49,7 +49,9 @@ return [
         ],
         'sollicitation_pertinente' => [
             'title' => "Relevant requests",
-            'hint' => "Requests you could answer, picked from what you know how to do.",
+            // TASK-1747 — widened: the section now also carries requests
+            // posted in the Boucles you belong to, not just future matches.
+            'hint' => "Requests you could answer: those from your Boucles, and those matching what you know how to do.",
         ],
     ],
     'preferences_mandatory_hint' => 'This notification is addressed to you personally and calls for a reply: it cannot be turned off.',
@@ -87,6 +89,11 @@ return [
         'loop_member_added' => 'You can now take part.',
         'loop_join_request_accepted' => 'You can now take part.',
         'blog_co_author_added' => 'Open the article to get started.',
+
+        // TASK-1747 — names NEITHER the Boucle NOR the person: a request
+        // may be posted in a private Boucle, and a Push body shows on a
+        // locked screen.
+        'loop_help_request_created' => 'Open BouclePro to see if you can help.',
     ],
 
     'push_title' => [
@@ -98,9 +105,17 @@ return [
         // the article: a co-written draft has no reason to show up in front of
         // anyone.
         'blog_co_author_added' => 'You have been added to an article',
+
+        // TASK-1747 — the channel is OFF by default, but the label must
+        // exist: the coherence guard requires it as soon as a channel is
+        // declared.
+        'loop_help_request_created' => 'A request for help in your Boucle',
     ],
 
     'keys' => [
+        // TASK-1747 (CDC §8.1)
+        'loop_help_request_created' => 'A request for help was posted',
+
         // TASK-1702
         'blog_co_author_added' => 'You were added as a co-author of an article',
 

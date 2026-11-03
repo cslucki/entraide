@@ -198,6 +198,13 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         // inventaire figé le dit mieux qu'une intention : si une cle apparait
         // — un message de ChatLoop, une demande d'aide, un rappel — ce test
         // rougit, et la decision se prend dans la TASK qui l'introduit.
+        //
+        // TASK-1747 : la garde a fait EXACTEMENT ce pour quoi elle a ete
+        // ecrite. `loop.help_request.created` est la demande d'aide qu'elle
+        // nommait par avance, et l'inventaire s'ouvre ici parce que la
+        // decision a ete prise la-bas — in-app ON et configurable, Web Push
+        // declare mais ETEINT (arbitrage MASTER du 03/11), aucun canal email.
+        // Cette ligne n'affaiblit pas la garde : elle l'acquitte.
         $attendues = [
             NotificationCatalogue::LOOP_INVITATION,
             NotificationCatalogue::LOOP_MEMBER_ADDED,
@@ -205,6 +212,7 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             NotificationCatalogue::LOOP_JOIN_REQUEST_REJECTED,
             NotificationCatalogue::BLOG_COMMENT_CREATED,
             NotificationCatalogue::BLOG_CO_AUTHOR_ADDED,
+            NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
         ];
 
         sort($attendues);

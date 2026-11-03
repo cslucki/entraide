@@ -213,6 +213,23 @@ final class NotificationCatalogue
      * Cyril : « quand on ajoute un auteur X en co-ecriture, il doit recevoir
      * une notification dans l'application pour l'informer de cela. »
      */
+    /**
+     * TASK-1747 (CDC §8.1) — une demande d'aide vient d'etre publiee dans une
+     * Boucle dont je suis membre.
+     *
+     * PREMIER producteur du §8, et le premier evenement COLLECTIF du
+     * catalogue : les six cles precedentes s'adressaient a UNE personne
+     * designee — on l'invite, on l'ajoute, on accepte sa demande, on la nomme
+     * co-auteur. Celle-ci previent TOUS les membres d'une Boucle.
+     *
+     * C'est ce qui justifie ses deux particularites, decidees par MASTER le
+     * 03/11 : l'in-app est CONFIGURABLE — contrairement a une invitation, on
+     * doit pouvoir calmer un evenement recurrent — et le Web Push est declare
+     * mais ETEINT, pour ne pas transformer le premier producteur collectif en
+     * sollicitation de masse sur ecran verrouille.
+     */
+    public const LOOP_HELP_REQUEST_CREATED = 'loop.help_request.created';
+
     public const BLOG_CO_AUTHOR_ADDED = 'blog.co_author.added';
 
     /**
@@ -473,6 +490,54 @@ final class NotificationCatalogue
                 // defaut d'un canal ne se decide pas a la disponibilite des
                 // autres.
                 self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        /*
+         * TASK-1747 (CDC §8.1) — la demande d'aide publiee dans une Boucle.
+         *
+         * ## L'objet vise est la BOUCLE, et c'est un choix
+         *
+         * Pas un type « message de Boucle », qui aurait exige une branche de
+         * resolution de plus, ses tests, et son acceptation par la garde de
+         * coherence — pour aboutir au meme endroit. La branche `loop` existe,
+         * elle est eprouvee, elle borne le tenant et verifie l'appartenance
+         * active du destinataire. On s'en sert.
+         *
+         * Consequence assumee : deux demandes posees dans la meme Boucle
+         * partagent leur `tag` de regroupement. Sans effet aujourd'hui, le
+         * Push etant eteint ; a revoir le jour ou on l'ouvrira.
+         */
+        self::LOOP_HELP_REQUEST_CREATED => [
+            'category' => 'loop',
+
+            // Ni « on me sollicite » (ce n'est pas adresse personnellement),
+            // ni « invitations et changements » (cela demande quelque chose).
+            // Cette cle rend la troisieme section REELLE, alors qu'elle
+            // n'etait que provisionnee depuis le §7A.
+            'intention' => self::INTENTION_SOLLICITATION_PERTINENTE,
+
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                // CONFIGURABLE, contrairement aux six cles precedentes.
+                //
+                // Une invitation n'arrive qu'une fois et appelle une reponse :
+                // s'en desabonner n'aurait pas de sens. Une demande d'aide est
+                // RECURRENTE — c'est le premier evenement du catalogue dont on
+                // peut raisonnablement vouloir se taire sans quitter la
+                // Boucle. Le §7B lui ajoutera une sourdine par Boucle ; en
+                // attendant, cette case est la seule sortie.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+
+                // Declare mais ETEINT (decision MASTER, 03/11). Le canal doit
+                // exister pour que la personne puisse l'allumer elle-meme, et
+                // pour que le jour ou on changera ce defaut, rien d'autre
+                // n'ait a bouger.
+                self::CHANNEL_WEB_PUSH => ['default' => false, 'configurable' => true],
+
+                // PAS de canal EMAIL, et c'est delibere : un courriel par
+                // demande d'aide collective serait exactement le bruit de
+                // masse que le §7 combat. Rien ne le reclame.
             ],
         ],
     ];
