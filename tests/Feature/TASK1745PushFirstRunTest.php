@@ -115,18 +115,24 @@ class TASK1745PushFirstRunTest extends TestCase
         // le révèle.
         //
         // On mesure donc l'implication, dans les deux sens : bloc rendu ⇒
-        // script émis ; bloc absent ⇒ script absent. Le motif cherché est le
-        // nom d'entrée que Vite conserve dans le nom du fichier compilé.
+        // script émis ; bloc absent ⇒ script absent.
+        //
+        // Le motif vise `assets/push-first-run-` — le CHEMIN de l'actif
+        // compilé, dont Vite conserve le nom d'entrée. Le premier jet
+        // cherchait `push-first-run-` tout court et restait VERT sous
+        // sabotage : le balisage du bloc contient `data-push-first-run-accept`,
+        // qui matchait à la place du script. Un motif d'assertion se choisit
+        // pour ce que LUI SEUL peut contenir.
         $reponse = $this->actingAs($this->membre)->get('/boucles')->assertOk();
 
         if (PwaInstallContext::annonceLesNotifications()) {
             $reponse->assertSee('data-push-first-run', false);
-            $reponse->assertSee('push-first-run-', false);
+            $reponse->assertSee('assets/push-first-run-', false);
 
             return;
         }
 
-        $reponse->assertDontSee('push-first-run-', false);
+        $reponse->assertDontSee('assets/push-first-run-', false);
     }
 
     public function test_chaque_etat_de_permission_a_son_corps_de_texte(): void

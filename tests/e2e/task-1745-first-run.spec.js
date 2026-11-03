@@ -26,6 +26,14 @@ import { loginAsMember } from './helpers/auth.js';
  * que le client DEMANDE, sans écrire d'endpoint factice en base.
  */
 test.describe('TASK-1745 — décision du premier lancement', () => {
+    // Sans ceci, le VRAI Service Worker de la PWA contrôle la page, et tout
+    // `fetch` transite par lui — hors de portée de `page.route`. Mesuré le
+    // 03/11 : les doublures réseau ne prenaient pas, les POST partaient au
+    // serveur réel et ÉCRIVAIENT des endpoints factices dans la base de dev
+    // (deux lignes `banc-e2e-*`, nettoyées). Le spec n'a pas besoin du vrai
+    // SW : `serviceWorker.ready` est doublé dans `armer()`.
+    test.use({ serviceWorkers: 'block' });
+
     const BLOC = '[data-push-first-run]';
     const CLEF = 'bpPushFirstRunSnoozedUntil';
 
@@ -36,6 +44,12 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
      * reportJusqua } — tout est explicite, rien n'hérite d'un défaut du banc
      * (le `denied` d'office du headless a précisément coûté une heure de
      * recette ailleurs).
+     *
+     * À appeler APRÈS `loginAsMember`, jamais avant — mesuré le 03/11 : un
+     * init script s'applique à TOUTES les navigations suivantes, donc armé
+     * avant la connexion il faisait tourner le premier lancement sur la page
+     * d'atterrissage du login, AVANT la pose des doublures réseau — et la
+     * resynchronisation écrivait de vrais endpoints factices en base de dev.
      */
     const armer = (page, options) =>
         page.addInitScript((opts) => {
@@ -110,8 +124,8 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
     };
 
     test('dans un onglet ordinaire, la proposition se tait — et DIT pourquoi', async ({ page }) => {
-        await armer(page, { standalone: false, permission: 'default', subscription: null });
         await loginAsMember(page);
+        await armer(page, { standalone: false, permission: 'default', subscription: null });
         await page.goto('/boucles');
 
         expect(await attendreLaDecision(page)).toBe('onglet-ordinaire');
@@ -119,8 +133,8 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
     });
 
     test('installée, jamais abonnée, permission default : la proposition APPARAÎT', async ({ page }) => {
-        await armer(page, { standalone: true, permission: 'default', subscription: null });
         await loginAsMember(page);
+        await armer(page, { standalone: true, permission: 'default', subscription: null });
         await page.goto('/boucles');
 
         expect(await attendreLaDecision(page)).toBe('proposition');
@@ -132,8 +146,8 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
     });
 
     test('« Plus tard » pose un report DATÉ, qui tient au relancement', async ({ page }) => {
-        await armer(page, { standalone: true, permission: 'default', subscription: null });
         await loginAsMember(page);
+        await armer(page, { standalone: true, permission: 'default', subscription: null });
         await page.goto('/boucles');
 
         await expect(page.locator(BLOC)).toBeVisible();
@@ -156,13 +170,13 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
     });
 
     test('un report EXPIRÉ ne se tait plus', async ({ page }) => {
+        await loginAsMember(page);
         await armer(page, {
             standalone: true,
             permission: 'default',
             subscription: null,
             reportJusqua: Date.now() - 1000,
         });
-        await loginAsMember(page);
         await page.goto('/boucles');
 
         expect(await attendreLaDecision(page)).toBe('proposition');
@@ -177,8 +191,8 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
         const endpoint = 'https://fcm.googleapis.com/fcm/send/banc-e2e-resync';
         const posts = [];
 
-        await armer(page, { standalone: true, permission: 'granted', subscription: { endpoint } });
         await loginAsMember(page);
+        await armer(page, { standalone: true, permission: 'granted', subscription: { endpoint } });
         await doublerLeServeurPush(page, { enabled: true, subscribed: false, device_count: 0 }, posts);
         await page.goto('/boucles');
 
@@ -190,12 +204,12 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
     });
 
     test('appareil déjà abonné et connu du serveur : silence', async ({ page }) => {
+        await loginAsMember(page);
         await armer(page, {
             standalone: true,
             permission: 'granted',
             subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/banc-e2e-connu' },
         });
-        await loginAsMember(page);
         await doublerLeServeurPush(page, { enabled: true, subscribed: true, device_count: 1 });
         await page.goto('/boucles');
 
@@ -207,8 +221,8 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
         // Point 4 : la permission est là (accordée autrefois, ou depuis les
         // contrôles du site — Chrome 155+). Le corps doit dire qu'aucune
         // nouvelle demande ne partira.
-        await armer(page, { standalone: true, permission: 'granted', subscription: null });
         await loginAsMember(page);
+        await armer(page, { standalone: true, permission: 'granted', subscription: null });
         await page.goto('/boucles');
 
         expect(await attendreLaDecision(page)).toBe('activation-simple');
@@ -222,8 +236,8 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
     });
 
     test('permission REFUSÉE : une explication, et aucun bouton qui ne peut qu’échouer', async ({ page }) => {
-        await armer(page, { standalone: true, permission: 'denied', subscription: null });
         await loginAsMember(page);
+        await armer(page, { standalone: true, permission: 'denied', subscription: null });
         await page.goto('/boucles');
 
         expect(await attendreLaDecision(page)).toBe('permission-refusee');
