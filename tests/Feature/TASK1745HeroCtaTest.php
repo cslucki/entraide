@@ -102,21 +102,35 @@ class TASK1745HeroCtaTest extends TestCase
         }
     }
 
-    public function test_a_propos_est_masque_dans_la_barre_sur_TELEPHONE_seulement(): void
+    public function test_a_propos_a_QUITTE_la_barre_sur_les_deux_tailles_d_ecran(): void
     {
+        // Consigne corrigée le 03/11 : d'abord « sur téléphone uniquement »,
+        // puis sur les deux. La première version masquait par media query ;
+        // le lien part maintenant du balisage.
+        //
+        // Même raison que pour le bouton « Connexion » retiré du bloc CTA :
+        // « À propos » y est désormais un bouton rose bien visible, et le
+        // garder aussi dans la barre fait hésiter plutôt que d'aider.
         $html = $this->get('/org/'.$this->org->slug)->assertOk()->getContent();
 
-        // Le lien reste dans le HTML — le bureau s'en sert.
-        $this->assertStringContainsString('data-nav-about', $html);
+        $this->assertStringNotContainsString('data-nav-about', $html);
 
-        // Et la règle qui le masque vit sous le point de rupture mobile, pas
-        // en dehors : la masquer partout retirerait l'entrée du bureau.
+        // La règle CSS qui le masquait sur téléphone part avec lui : une
+        // règle qui ne vise plus rien devient une fausse piste pour qui lira
+        // cette feuille.
         $css = file_get_contents(public_path('css/bouclepro-hero.css'));
 
-        $this->assertMatchesRegularExpression(
-            '/@media \(max-width:760px\)\{[^@]*\.bp-hero-v2 \.nav-menu \.nav-about\{display:none\}/s',
-            $css,
-            "la règle doit vivre SOUS le point de rupture téléphone",
-        );
+        $this->assertStringNotContainsString('.nav-about', $css);
+    }
+
+    public function test_la_porte_vers_A_PROPOS_reste_OUVERTE(): void
+    {
+        // La garde qui compte, et la symétrique de celle sur la connexion :
+        // retirer une entrée de barre ne doit pas fermer la destination.
+        // Elle vit maintenant dans le bloc CTA, et nulle part ailleurs.
+        $html = $this->get('/org/'.$this->org->slug)->assertOk()->getContent();
+
+        $this->assertStringContainsString('href="'.route('about').'"', $html);
+        $this->assertStringContainsString(__('navigation.about'), $html);
     }
 }

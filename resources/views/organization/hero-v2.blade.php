@@ -74,11 +74,20 @@ $secondaryCtaUrl = $showInternalHomepageContent
     <div class="brand"><span class="flower"></span><b>{{ $organization->name }}</b></div>
     <nav class="nav-right">
       <nav class="nav-menu" aria-label="Menu">
-        {{-- TASK-1745 — masquee sur TELEPHONE par la feuille de style, ou
-             elle est remplacee par le bouton rose du bloc CTA. Elle reste
-             dans le HTML : le bureau s'en sert, et la retirer cote serveur
-             obligerait a deviner la taille de l'ecran depuis le User-Agent. --}}
-        <a href="{{ $aboutUrl }}" class="nav-about" data-nav-about>{{ __('navigation.about') }}</a>
+        {{-- TASK-1745 (demande Cyril, 03/11) — « A propos » a QUITTE la barre.
+
+             La consigne d'abord recue disait « sur telephone uniquement », et
+             la premiere version la masquait par media query. Cyril a corrige
+             le lendemain : elle part des DEUX tailles d'ecran.
+
+             Et c'est la meme raison que pour le bouton « Connexion » retire
+             du bloc CTA : « A propos » y est desormais un bouton rose, bien
+             visible. Le garder aussi dans la barre, a quelques centimetres,
+             ne double pas les chances d'y aller — cela fait hesiter.
+
+             La regle CSS qui le masquait sur telephone a ete retiree avec
+             lui : une regle qui ne vise plus rien se transforme vite en
+             fausse piste pour qui lira cette feuille. --}}
         {{-- TASK-1692, correctif post-CI — l'offre d'abonnement est une surface
            COMMERCIALE publique. Son seul discriminant est le reglage de
            l'Organization ; la garde de route protege la page. --}}
