@@ -88,7 +88,21 @@ class TASK1200SdkEmbeddingsInstrumentationTest extends TestCase
         $this->indexer()->synchronize($organization->id, $dossier->id, $secondPost->id);
 
         $rows = AdminAiInteraction::where('correlation_id', $correlationId)
+            // TASK-1748 — `created_at` SEUL n'ordonne rien de fiable ici.
+            //
+            // Les deux lignes sont ecrites dans la MEME requete : elles
+            // partagent regulierement l'horodatage, et PostgreSQL rend alors
+            // l'ordre qu'il veut. Le test passait en local, passait sur
+            // SQLite, et rougissait par intermittence sur la CI PostgreSQL —
+            // deux fois, dont une sur la PR de release.
+            //
+            // `id` departage de facon deterministe : `HasUuids` produit des
+            // UUIDv7, horodates et donc triables dans l'ordre d'insertion.
+            // On garde `created_at` en tete pour que l'INTENTION reste
+            // lisible — on veut l'ordre chronologique — et `id` ne sert qu'a
+            // trancher les egalites.
             ->orderBy('created_at')
+            ->orderBy('id')
             ->get();
 
         $this->assertCount(2, $rows);
@@ -117,7 +131,21 @@ class TASK1200SdkEmbeddingsInstrumentationTest extends TestCase
         $post->update(['content' => '<p>changed so a new batch is produced</p>']);
 
         $correlations = AdminAiInteraction::where('scenario_id', 'dossier_embeddings_index')
+            // TASK-1748 — `created_at` SEUL n'ordonne rien de fiable ici.
+            //
+            // Les deux lignes sont ecrites dans la MEME requete : elles
+            // partagent regulierement l'horodatage, et PostgreSQL rend alors
+            // l'ordre qu'il veut. Le test passait en local, passait sur
+            // SQLite, et rougissait par intermittence sur la CI PostgreSQL —
+            // deux fois, dont une sur la PR de release.
+            //
+            // `id` departage de facon deterministe : `HasUuids` produit des
+            // UUIDv7, horodates et donc triables dans l'ordre d'insertion.
+            // On garde `created_at` en tete pour que l'INTENTION reste
+            // lisible — on veut l'ordre chronologique — et `id` ne sert qu'a
+            // trancher les egalites.
             ->orderBy('created_at')
+            ->orderBy('id')
             ->pluck('correlation_id');
 
         $this->assertCount(2, $correlations);

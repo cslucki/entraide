@@ -345,4 +345,10 @@ return [
     'my_org_switch' => 'passer',
     'my_org_confirm_by_email' => 'confirmer par email',
     'my_org_unavailable' => 'indisponible',
+
+    // TASK-1745 — l'intitule de la BASCULE de langue du telephone. Chacun
+    // est ecrit DANS la langue vers laquelle il mene : c'est la seule forme
+    // qu'une personne qui ne lit pas la langue courante peut comprendre.
+    'locale_switch_to_en' => 'Switch to English',
+    'locale_switch_to_fr' => 'Passer en français',
 ];

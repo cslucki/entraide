@@ -105,16 +105,41 @@
                 <p class="mt-1 text-sm text-[var(--bp-muted)]">{{ __('notifications.subtitle') }}</p>
             </div>
 
-            @if($nonLues > 0)
-                <form method="POST" action="{{ route($routeReadAll, $routeParams) }}">
-                    @csrf
-                    <button type="submit"
-                            data-notifications-mark-all
-                            class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
-                        {{ __('notifications.mark_all_read') }}
-                    </button>
-                </form>
-            @endif
+            <div class="flex flex-wrap items-center gap-2">
+                {{-- TASK-1739 — l'acces aux reglages, qui MANQUAIT.
+
+                     Mesure du 01/11 : `notifications.preferences.edit` existait
+                     depuis T1375 mais AUCUNE vue ne pointait dessus — ni le
+                     menu avatar, ni ce centre, ni la barre laterale. L'ecran
+                     n'etait atteignable qu'en tapant son URL, et la page de
+                     reglages porte pourtant un lien de RETOUR vers ici : le
+                     chemin existait dans un seul sens.
+
+                     Ce lien appartient a cette TASK parce que sans lui son
+                     bloc « Notifications sur cet appareil » est inatteignable,
+                     donc la fonctionnalite n'existe pas pour la personne.
+
+                     Rendu avant « Tout marquer comme lu » et SANS condition :
+                     le bouton voisin disparait quand tout est lu, et accrocher
+                     les reglages a la meme condition les ferait disparaitre
+                     precisement quand on vient les regler. --}}
+                <a href="{{ route($routePreferences, $routeParams) }}"
+                   data-notifications-preferences
+                   class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--bp-border)] px-5 text-sm font-semibold text-[var(--bp-text)] transition hover:bg-[var(--bp-hover)]">
+                    {{ __('notifications.preferences_title') }}
+                </a>
+
+                @if($nonLues > 0)
+                    <form method="POST" action="{{ route($routeReadAll, $routeParams) }}">
+                        @csrf
+                        <button type="submit"
+                                data-notifications-mark-all
+                                class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                            {{ __('notifications.mark_all_read') }}
+                        </button>
+                    </form>
+                @endif
+            </div>
         </div>
 
         {{-- Filtres en GET : une vue filtree se partage par son URL. --}}

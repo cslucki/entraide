@@ -34,13 +34,88 @@ return [
     'preferences_save' => 'Save',
     'preferences_saved' => 'Your settings have been saved.',
     'preferences_mandatory' => 'Always on',
+
+    // TASK-1746 (CDC §7A) — sections named by what the event ASKS of the
+    // person, never by the technical object it refers to. The third one is
+    // provisioned for §9.2 and stays empty; an empty section is not shown.
+    'intentions' => [
+        'sollicitation_directe' => [
+            'title' => "When someone reaches out to me",
+            'hint' => "Addressed to you personally, and waiting for your reply.",
+        ],
+        'changements' => [
+            'title' => "Invitations and changes",
+            'hint' => "Things that concern you without asking anything: you are kept informed.",
+        ],
+        'sollicitation_pertinente' => [
+            'title' => "Relevant requests",
+            // TASK-1747 — widened: the section now also carries requests
+            // posted in the Boucles you belong to, not just future matches.
+            'hint' => "Requests you could answer: those from your Boucles, and those matching what you know how to do.",
+        ],
+    ],
     'preferences_mandatory_hint' => 'This notification is addressed to you personally and calls for a reply: it cannot be turned off.',
     'preferences_link' => 'Settings',
     'preferences_back' => 'My notifications',
     'channel_in_app' => 'In the app',
     'channel_email' => 'By email',
+    // TASK-1740 — third channel. The label names the DEVICE, not the
+    // technique: "web push" means nothing to the person setting it.
+    'channel_web_push' => 'On my devices',
+
+    // TASK-1740 — text that lands on a LOCKED screen.
+    //
+    // CDC 6.4: no person's name, no excerpt, no CONFIDENTIAL Loop name. It
+    // must stay true in front of anyone — the detail is read AFTER the tap,
+    // on a page the server re-authorises.
+    //
+    // TASK-1744 nuances it the way the CDC itself does: a PUBLIC Loop's name
+    // may travel (6.2 says "no PRIVATE Loop name"), and the deliverer is the
+    // only place that decides — see `nomDeBouclePublique()`.
+    'push_title_fallback' => 'BouclePro',
+    'push_body_generic' => 'Tap to see.',
+    /*
+     * TASK-1744 — a BODY per event.
+     *
+     * "Tap to see" said nothing the title did not already say. It
+     * remains the last resort, for a key without its own sentence.
+     *
+     * These sentences are used ONLY when the Loop is not public:
+     * when it is, the deliverer puts its NAME here instead, which
+     * is what the person is looking for.
+     */
+    'push_body' => [
+        'loop_invitation' => 'Open BouclePro to reply.',
+        'loop_member_added' => 'You can now take part.',
+        'loop_join_request_accepted' => 'You can now take part.',
+        'blog_co_author_added' => 'Open the article to get started.',
+
+        // TASK-1747 — names NEITHER the Boucle NOR the person: a request
+        // may be posted in a private Boucle, and a Push body shows on a
+        // locked screen.
+        'loop_help_request_created' => 'Open BouclePro to see if you can help.',
+    ],
+
+    'push_title' => [
+        'loop_invitation' => 'An invitation is waiting',
+        'loop_member_added' => 'You have joined a Boucle',
+        'loop_join_request_accepted' => 'Your request was accepted',
+
+        // TASK-1744 — the fourth key opened to Push. The title does not name
+        // the article: a co-written draft has no reason to show up in front of
+        // anyone.
+        'blog_co_author_added' => 'You have been added to an article',
+
+        // TASK-1747 — the channel is OFF by default, but the label must
+        // exist: the coherence guard requires it as soon as a channel is
+        // declared.
+        'loop_help_request_created' => 'A request for help in your Boucle',
+    ],
 
     'keys' => [
+        // TASK-1747 (CDC §8.1)
+        'loop_help_request_created' => 'A request for help was posted',
+
         // TASK-1702
         'blog_co_author_added' => 'You were added as a co-author of an article',
 

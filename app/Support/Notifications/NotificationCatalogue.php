@@ -41,6 +41,10 @@ namespace App\Support\Notifications;
  * reponses a une demande d'adhesion, sur IN_APP seulement. Rien ne se peuple
  * d'avance : une cle n'entre ici que le jour ou un producteur reel l'emet.
  *
+ * T1744 n'ajoute AUCUNE cle : elle ouvre le canal `web_push` sur quatre cles
+ * qui existaient deja, et c'est tout ce que l'activation du Push demandait —
+ * le transport etait livre depuis T1740 et attendait cette decision produit.
+ *
  * ## `in_app` obligatoire n'est pas une regle du canal
  *
  * Trois cles le declarent aujourd'hui non reglable, mais chacune pour SA raison
@@ -68,6 +72,101 @@ final class NotificationCatalogue
      * `ENTRIES` reste seul juge de qui a le droit de s'en servir.
      */
     public const CHANNEL_EMAIL = 'email';
+
+    /**
+     * Le canal WEB PUSH. Abonnements livres en T1739, ENVOI livre en T1740.
+     *
+     * TROISIEME canal de la MEME autorite, jamais un systeme parallele : un
+     * evenement metier reste UNE notification, et `in_app`, `email` et
+     * `web_push` en sont trois modes de livraison que le catalogue et les
+     * preferences gouvernent de la meme facon (CDC section 6.1).
+     *
+     * Il est declare ici APRES la correction du defaut de
+     * `NotificationDeliveryPlanner::plan()` — qui dispatchait le job email
+     * dans la boucle sur les canaux — parce que l'ajouter avant aurait mis en
+     * file un job EMAIL pour chaque notification eligible au Push.
+     *
+     * Un Push n'est jamais OBLIGATOIRE : il sort de l'application et atterrit
+     * sur un ecran verrouille. Toute cle qui l'autorise le declare donc
+     * `configurable => true`.
+     *
+     * ## `default => true`, et pourquoi ce n'est PAS « allumer a la place de
+     * quelqu'un » (arbitrage Cyril, 03/11)
+     *
+     * T1744 avait livre ces cles en `default => false`, au motif qu'un Push
+     * s'affiche sur un ecran verrouille. L'argument etait juste sur la
+     * CONSEQUENCE et faux sur la PORTE : le defaut du catalogue ne peut
+     * reveiller personne a lui seul.
+     *
+     * La vraie barriere est ailleurs, et elle est double : il faut un
+     * abonnement d'appareil — un geste explicite, revocable d'un bouton — et
+     * la permission systeme accordee au navigateur. Sans appareil abonne, le
+     * livreur conclut `no_device_subscribed` quel que soit le defaut. Un
+     * compte sans telephone ne recoit donc rien, et c'est le cas de la
+     * quasi-totalite des gens.
+     *
+     * Ce que `default => false` produisait reellement : une personne qui
+     * venait d'activer les notifications sur son appareil — donc qui avait
+     * demande a etre prevenue — ne recevait RIEN, et devait deviner qu'il
+     * restait des cases a cocher ailleurs dans la page. La recette du 02/11
+     * s'y est cassee deux fois.
+     *
+     * Le panneau d'appareil promet « Recevez une notification lorsqu'une
+     * personne a besoin de vous ». `default => true` tient cette promesse ;
+     * les cases servent alors a REDUIRE le bruit, pas a autoriser le canal.
+     */
+    public const CHANNEL_WEB_PUSH = 'web_push';
+
+    /**
+     * TASK-1746 (CDC §7A) — l'INTENTION d'un evenement, et pourquoi ce n'est
+     * pas `category`.
+     *
+     * `category` existait deja et ne prend que deux valeurs : `loop` et
+     * `blog`. Ce sont des DOMAINES D'OBJET. En deriver les sections de l'ecran
+     * de reglages donnerait « Boucles » et « Blog » — un classement par
+     * technique, alors que le CDC §7 demande que la personne « comprenne
+     * pourquoi elle est prevenue ».
+     *
+     * Et le domaine se degrade des le §8.1 : une demande d'aide serait rangee
+     * dans `loop`, a cote d'une invitation, alors que les deux n'ont rien de
+     * commun pour qui les recoit. L'une appelle une reponse, l'autre informe.
+     *
+     * L'intention repond donc a une autre question — « qu'est-ce que cela me
+     * demande ? » — et c'est elle qui gouverne le regroupement. `category`
+     * reste intact dans son role.
+     *
+     * Ce qui m'est ADRESSE et attend quelque chose de moi.
+     */
+    public const INTENTION_SOLLICITATION_DIRECTE = 'sollicitation_directe';
+
+    /** Ce qui me CONCERNE sans rien exiger : on m'informe. */
+    public const INTENTION_CHANGEMENTS = 'changements';
+
+    /**
+     * Ce qui m'est propose parce que je PEUX AIDER (CDC §9.2).
+     *
+     * Declaree des maintenant, et volontairement sans aucune cle : la decision
+     * MASTER du 03/11 rend la sollicitation pertinente CONFIGURABLE, elle aura
+     * donc besoin d'une section. La provisionner ici evite de rouvrir l'ecran
+     * au moment du §9.2 — et une section sans cle eligible ne s'affiche pas,
+     * donc elle ne coute rien a personne en attendant.
+     */
+    public const INTENTION_SOLLICITATION_PERTINENTE = 'sollicitation_pertinente';
+
+    /**
+     * L'ORDRE d'affichage des sections, et il porte une decision produit.
+     *
+     * Ce qui attend une reponse vient en premier : c'est ce qu'on vient
+     * regler quand on arrive ici parce qu'on recoit trop. Les changements
+     * ensuite, les propositions en dernier.
+     *
+     * @var list<string>
+     */
+    public const INTENTIONS = [
+        self::INTENTION_SOLLICITATION_DIRECTE,
+        self::INTENTION_CHANGEMENTS,
+        self::INTENTION_SOLLICITATION_PERTINENTE,
+    ];
 
     public const LOOP_INVITATION = 'loop.invitation';
 
@@ -114,6 +213,23 @@ final class NotificationCatalogue
      * Cyril : « quand on ajoute un auteur X en co-ecriture, il doit recevoir
      * une notification dans l'application pour l'informer de cela. »
      */
+    /**
+     * TASK-1747 (CDC §8.1) — une demande d'aide vient d'etre publiee dans une
+     * Boucle dont je suis membre.
+     *
+     * PREMIER producteur du §8, et le premier evenement COLLECTIF du
+     * catalogue : les six cles precedentes s'adressaient a UNE personne
+     * designee — on l'invite, on l'ajoute, on accepte sa demande, on la nomme
+     * co-auteur. Celle-ci previent TOUS les membres d'une Boucle.
+     *
+     * C'est ce qui justifie ses deux particularites, decidees par MASTER le
+     * 03/11 : l'in-app est CONFIGURABLE — contrairement a une invitation, on
+     * doit pouvoir calmer un evenement recurrent — et le Web Push est declare
+     * mais ETEINT, pour ne pas transformer le premier producteur collectif en
+     * sollicitation de masse sur ecran verrouille.
+     */
+    public const LOOP_HELP_REQUEST_CREATED = 'loop.help_request.created';
+
     public const BLOG_CO_AUTHOR_ADDED = 'blog.co_author.added';
 
     /**
@@ -178,6 +294,7 @@ final class NotificationCatalogue
     private const ENTRIES = [
         self::LOOP_INVITATION => [
             'category' => 'loop',
+            'intention' => self::INTENTION_SOLLICITATION_DIRECTE,
             'object_type' => self::OBJECT_LOOP_INVITATION,
             'channels' => [
                 // CDC section 8 : « Invitation nominative : in-app OBLIGATOIRE ».
@@ -198,12 +315,25 @@ final class NotificationCatalogue
                 // mailer legacy s'efface pour les membres de l'Organization.
                 // La retirer suffit a revenir en arriere.
                 self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+
+                // TASK-1744 — WEB PUSH active, et c'est l'evenement de recette
+                // du CDC section 6.5 : « une invitation autorisee provoque une
+                // ligne in-app existante ET une livraison Push ».
+                //
+                // `default => true` depuis l'arbitrage Cyril du 03/11 : voir le
+                // docblock de CHANNEL_WEB_PUSH. Le defaut ne reveille personne
+                // a lui seul — il faut encore un appareil abonne ET la
+                // permission systeme, deux gestes explicites qui ne peuvent pas
+                // etre faits a sa place. Ce reglage sert donc a REDUIRE le
+                // bruit, pas a autoriser le canal.
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
 
         // TASK-1719 — l'ajout direct dans une Boucle.
         self::LOOP_MEMBER_ADDED => [
             'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
             'object_type' => self::OBJECT_LOOP,
             'channels' => [
                 // IN_APP obligatoire, comme l'invitation : on ne se desabonne
@@ -216,6 +346,12 @@ final class NotificationCatalogue
                 // l'existence. Configurable parce que le fait reste visible
                 // dans le Centre, donc couper l'email ne fait rien perdre.
                 self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+
+                // TASK-1744 — CDC 6.2 : « Oui, si opt-in. Pas de nom de Boucle
+                // privee ». Le titre de Push ne nomme donc aucune Boucle, la
+                // ou le libelle du Centre le fait depuis T1725 : un Push
+                // s'affiche sur un ecran verrouille, le Centre non.
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
 
@@ -278,15 +414,29 @@ final class NotificationCatalogue
         // rien de plus.
         self::LOOP_JOIN_REQUEST_ACCEPTED => [
             'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
             'object_type' => self::OBJECT_LOOP_JOIN_REQUEST,
             'channels' => [
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
                 self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+
+                // TASK-1744 — la reponse a une demande que la personne a FAITE
+                // elle-meme et qu'elle attend : c'est le cas ou un Push sert le
+                // mieux, parce qu'il arrive au moment ou la reponse arrive.
+                //
+                // Son jumeau « refuse » n'en recoit PAS, et c'est un arbitrage,
+                // pas un oubli : CDC 6.2 le classe « plutot non au lancement »,
+                // au titre de l'anti-bruit. Un refus n'ouvre aucune porte et
+                // n'appelle aucun geste — le reveiller sur un ecran verrouille
+                // ajouterait une peine sans rien permettre. Le fait reste
+                // visible dans le Centre pour qui va voir.
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
 
         self::LOOP_JOIN_REQUEST_REJECTED => [
             'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
             'object_type' => self::OBJECT_LOOP_JOIN_REQUEST,
             'channels' => [
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
@@ -296,6 +446,7 @@ final class NotificationCatalogue
         // TASK-1697 — l'auteur d'un article est prevenu qu'on l'a commente.
         self::BLOG_COMMENT_CREATED => [
             'category' => 'blog',
+            'intention' => self::INTENTION_CHANGEMENTS,
             'object_type' => self::OBJECT_BLOG_COMMENT,
             'channels' => [
                 // `configurable => true`, et c'est la difference avec une
@@ -314,6 +465,7 @@ final class NotificationCatalogue
         // TASK-1702 — on vous a ajoute comme co-auteur d'un article.
         self::BLOG_CO_AUTHOR_ADDED => [
             'category' => 'blog',
+            'intention' => self::INTENTION_SOLLICITATION_DIRECTE,
             'object_type' => self::OBJECT_BLOG_POST,
             'channels' => [
                 // `configurable => false`, comme une invitation et a la
@@ -322,6 +474,70 @@ final class NotificationCatalogue
                 // de vous. Le commentaire, lui, se desactive — son entree
                 // au-dessus l'explique.
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+
+                // TASK-1744 — CDC 6.2 : « Oui si pertinent. Pas de details
+                // prives ». Le meme raisonnement que pour `in_app` ci-dessus
+                // vaut pour le Push : la co-ecriture vous est adressee.
+                //
+                // Et c'est precisement ce qui le separe de
+                // `blog.comment.created`, qui reste SANS Push : un commentaire
+                // ne vous est pas adresse, n'appelle aucune reponse, et un
+                // auteur prolifique en recevrait des dizaines. CDC 6.2 :
+                // « plutot non par defaut ».
+                //
+                // Pas de canal EMAIL ici, donc le Push est le SEUL canal
+                // sortant de cette cle. Cela ne change rien a son defaut : le
+                // defaut d'un canal ne se decide pas a la disponibilite des
+                // autres.
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        /*
+         * TASK-1747 (CDC §8.1) — la demande d'aide publiee dans une Boucle.
+         *
+         * ## L'objet vise est la BOUCLE, et c'est un choix
+         *
+         * Pas un type « message de Boucle », qui aurait exige une branche de
+         * resolution de plus, ses tests, et son acceptation par la garde de
+         * coherence — pour aboutir au meme endroit. La branche `loop` existe,
+         * elle est eprouvee, elle borne le tenant et verifie l'appartenance
+         * active du destinataire. On s'en sert.
+         *
+         * Consequence assumee : deux demandes posees dans la meme Boucle
+         * partagent leur `tag` de regroupement. Sans effet aujourd'hui, le
+         * Push etant eteint ; a revoir le jour ou on l'ouvrira.
+         */
+        self::LOOP_HELP_REQUEST_CREATED => [
+            'category' => 'loop',
+
+            // Ni « on me sollicite » (ce n'est pas adresse personnellement),
+            // ni « invitations et changements » (cela demande quelque chose).
+            // Cette cle rend la troisieme section REELLE, alors qu'elle
+            // n'etait que provisionnee depuis le §7A.
+            'intention' => self::INTENTION_SOLLICITATION_PERTINENTE,
+
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                // CONFIGURABLE, contrairement aux six cles precedentes.
+                //
+                // Une invitation n'arrive qu'une fois et appelle une reponse :
+                // s'en desabonner n'aurait pas de sens. Une demande d'aide est
+                // RECURRENTE — c'est le premier evenement du catalogue dont on
+                // peut raisonnablement vouloir se taire sans quitter la
+                // Boucle. Le §7B lui ajoutera une sourdine par Boucle ; en
+                // attendant, cette case est la seule sortie.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+
+                // Declare mais ETEINT (decision MASTER, 03/11). Le canal doit
+                // exister pour que la personne puisse l'allumer elle-meme, et
+                // pour que le jour ou on changera ce defaut, rien d'autre
+                // n'ait a bouger.
+                self::CHANNEL_WEB_PUSH => ['default' => false, 'configurable' => true],
+
+                // PAS de canal EMAIL, et c'est delibere : un courriel par
+                // demande d'aide collective serait exactement le bruit de
+                // masse que le §7 combat. Rien ne le reclame.
             ],
         ],
     ];
@@ -360,6 +576,46 @@ final class NotificationCatalogue
     public static function objectTypeFor(string $notificationKey): ?string
     {
         return self::definition($notificationKey)['object_type'] ?? null;
+    }
+
+    /**
+     * L'intention de cette cle — ce que l'evenement DEMANDE a la personne.
+     *
+     * Rend `null` pour une cle inconnue, comme ses voisines. Une cle CONNUE
+     * qui n'en declare pas est en revanche un defaut, pas un cas limite : la
+     * garde de `TASK1746PreferenceIntentionsTest` echoue alors, pour qu'une
+     * cle ajoutee demain ne puisse pas disparaitre de l'ecran en silence.
+     */
+    public static function intentionFor(string $notificationKey): ?string
+    {
+        return self::definition($notificationKey)['intention'] ?? null;
+    }
+
+    /**
+     * Les cles de chaque intention, dans l'ordre d'affichage declare.
+     *
+     * Les intentions SANS cle sont rendues elles aussi, avec un tableau vide :
+     * c'est a l'appelant de decider quoi en faire, et l'ecran choisit de ne
+     * pas les afficher. Les omettre ici cacherait au contraire qu'une
+     * intention est declaree mais vide — ce qui est une information.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function keysByIntention(): array
+    {
+        $parIntention = array_fill_keys(self::INTENTIONS, []);
+
+        foreach (self::ENTRIES as $cle => $definition) {
+            $intention = $definition['intention'] ?? null;
+
+            if ($intention === null || ! array_key_exists($intention, $parIntention)) {
+                continue;
+            }
+
+            $parIntention[$intention][] = $cle;
+        }
+
+        return $parIntention;
     }
 
     public static function allowsChannel(string $notificationKey, string $channel): bool

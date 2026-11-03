@@ -34,11 +34,92 @@ return [
     'preferences_save' => 'Enregistrer',
     'preferences_saved' => 'Vos réglages ont été enregistrés.',
     'preferences_mandatory' => 'Toujours active',
+
+    /*
+     * TASK-1746 (CDC §7A) — les sections de l'ecran, nommees par ce que
+     * l'evenement DEMANDE a la personne, jamais par l'objet technique dont il
+     * parle. « Boucles » et « Blog » auraient classe par domaine ; ici on
+     * repond a « pourquoi suis-je prevenu, et que dois-je en faire ».
+     *
+     * La troisieme est provisionnee pour le §9.2 et reste vide : une section
+     * sans cle eligible n'est pas affichee.
+     */
+    'intentions' => [
+        'sollicitation_directe' => [
+            'title' => "Quand on me sollicite",
+            'hint' => "Ce qui vous est adressé personnellement et attend une réponse de votre part.",
+        ],
+        'changements' => [
+            'title' => "Invitations et changements",
+            'hint' => "Ce qui vous concerne sans rien exiger : on vous tient au courant.",
+        ],
+        'sollicitation_pertinente' => [
+            'title' => "Sollicitations pertinentes",
+            // TASK-1747 — elargi : la section n'est plus seulement celle du
+            // matching a venir, elle porte des maintenant les demandes
+            // publiees dans les Boucles dont on est membre.
+            'hint' => "Les demandes auxquelles vous pourriez répondre : celles de vos Boucles, et celles qui correspondent à ce que vous savez faire.",
+        ],
+    ],
     'preferences_mandatory_hint' => 'Cette notification vous est adressée personnellement et appelle une réponse : elle ne peut pas être désactivée.',
     'preferences_link' => 'Réglages',
     'preferences_back' => 'Mes notifications',
     'channel_in_app' => "Dans l'application",
     'channel_email' => 'Par email',
+    // TASK-1740 — troisieme canal. Le libelle nomme l'APPAREIL, pas la
+    // technique : « web push » ne veut rien dire pour la personne qui regle.
+    'channel_web_push' => 'Sur mes appareils',
+
+    // TASK-1740 — les textes qui partent sur un ecran VERROUILLE.
+    //
+    // CDC 6.4 : aucun nom de personne, aucun extrait, aucun nom de Boucle
+    // CONFIDENTIELLE. Ils doivent rester vrais devant n'importe qui — le
+    // detail se lit APRES le clic, sur une page que le serveur re-autorise.
+    //
+    // TASK-1744 nuance comme le CDC lui-meme nuance : le nom d'une Boucle
+    // PUBLIQUE a le droit de voyager (6.2 ecrit « pas de nom de Boucle
+    // PRIVEE »), et le livreur est le seul a en decider — voir
+    // `nomDeBouclePublique()`.
+    'push_title_fallback' => 'BouclePro',
+    'push_body_generic' => 'Touchez pour voir.',
+    /*
+     * TASK-1744 — un CORPS par evenement.
+     *
+     * « Touchez pour voir » ne disait rien que le titre ne disait
+     * deja. Il reste le dernier recours, pour une cle qui n'aurait
+     * pas sa phrase.
+     *
+     * Ces phrases ne servent QUE lorsque la Boucle n'est pas
+     * publique : quand elle l'est, le livreur met son NOM a la
+     * place, qui est ce que la personne cherche.
+     */
+    'push_body' => [
+        'loop_invitation' => 'Ouvrez BouclePro pour répondre.',
+        'loop_member_added' => 'Vous pouvez maintenant y participer.',
+        'loop_join_request_accepted' => 'Vous pouvez maintenant y participer.',
+        'blog_co_author_added' => 'Ouvrez l’article pour commencer.',
+
+        // TASK-1747 — ne nomme NI la Boucle NI la personne : une demande
+        // d'aide peut etre posee dans une Boucle privee, et le corps d'un
+        // Push s'affiche sur un ecran verrouille.
+        'loop_help_request_created' => 'Ouvrez BouclePro pour voir si vous pouvez aider.',
+    ],
+
+    'push_title' => [
+        'loop_invitation' => 'Une invitation vous attend',
+        'loop_member_added' => 'Vous avez rejoint une Boucle',
+        'loop_join_request_accepted' => 'Votre demande a été acceptée',
+
+        // TASK-1744 — la quatrième clé ouverte au Push. Le titre ne nomme pas
+        // l'article : un brouillon co-écrit n'a aucune raison de s'afficher
+        // devant n'importe qui.
+        'blog_co_author_added' => 'On vous associe à un article',
+
+        // TASK-1747 — le canal est ETEINT par defaut, mais le libelle doit
+        // exister : la garde de coherence l'exige des qu'un canal est
+        // declare, et l'oublier ferait rougir le jour de l'ouverture.
+        'loop_help_request_created' => 'Une demande d’aide dans votre Boucle',
+    ],
 
     'keys' => [
         // TASK-1702
@@ -48,6 +129,9 @@ return [
         'blog_comment_created' => 'Un nouveau commentaire sur votre article',
         'loop_invitation' => 'Invitation à rejoindre une Boucle',
         'loop_member_added' => 'Ajout à une Boucle',
+
+        // TASK-1747 (CDC §8.1)
+        'loop_help_request_created' => 'Une demande d’aide a été publiée',
 
         // TASK-1381 — deux libellés, parce que ce sont deux faits. Le membre
         // doit savoir ce qui lui est arrivé sans avoir à ouvrir quoi que ce soit.

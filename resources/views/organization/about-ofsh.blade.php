@@ -121,6 +121,9 @@ $rubriques = array_filter([
      système qu'à l'accueil : les deux pages d'OFSH se ressemblent dans les
      deux modes. --}}
 <x-theme-tokens system-dark />
+{{-- TASK-1737 — le contrat d'installabilite PWA, declare une seule fois. --}}
+<x-pwa-head />
+<x-pwa-boot />
 </head>
 <body>
 
@@ -378,5 +381,7 @@ $rubriques = array_filter([
 {{-- TASK-1609 — la barre basse de découverte, partagée avec « Mycélium » et
      « Logigramme ». Téléphone uniquement, connecté ou non. --}}
 <x-discovery-bottom-nav :organization="$organization" />
+    {{-- TASK-1737 — l'invitation a installer ; `PwaInstallContext` decide de sa forme, ou de son absence. --}}
+    <x-pwa-install />
 </body>
 </html>

@@ -18,6 +18,9 @@
        avec ces jetons : sans eux, `var()` ne resout rien et la barre
        s'affiche transparente, texte invisible. Verifie dans le style calcule. --}}
   <x-theme-tokens />
+  {{-- TASK-1737 — le contrat d'installabilite PWA, declare une seule fois. --}}
+  <x-pwa-head />
+  <x-pwa-boot />
 
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -400,5 +403,7 @@
 {{-- TASK-1609 — la barre basse de decouverte, partagee avec « Mycelium » et
      « Logigramme ». Telephone uniquement, connecte ou non. --}}
 <x-discovery-bottom-nav :organization="$organization" />
+    {{-- TASK-1737 — l'invitation a installer ; `PwaInstallContext` decide de sa forme, ou de son absence. --}}
+    <x-pwa-install />
 </body>
 </html>

@@ -44,6 +44,18 @@ use Tests\TestCase;
  * Consequence utile : la substitution du resolveur de preferences n'a plus lieu
  * d'etre, et ces tests exercent desormais le VRAI resolveur et le VRAI contenu
  * de production. Ils mesurent donc plus qu'avant.
+ *
+ * ## TASK-1744 : les livraisons sont desormais BORNEES AU CANAL
+ *
+ * Ces tests comptaient les livraisons de la table ENTIERE, et affirmaient
+ * « une » parce qu'un seul canal asynchrone etait actif. Le proxy a cesse
+ * d'etre vrai le jour ou `loop.invitation` a gagne `web_push` : deux
+ * livraisons existent pour une invitation, et c'est le comportement attendu.
+ *
+ * La propriete defendue ici n'a pas change — UNE livraison EMAIL, aucune
+ * seconde au rejeu — elle est seulement enoncee sur le canal dont elle parle.
+ * Les assertions a ZERO livraison restent, elles, NON bornees : la, ne rien
+ * creer du tout est precisement ce qu'on mesure.
  */
 class TASK1377NotificationEmailAsyncTest extends TestCase
 {
@@ -121,9 +133,9 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
         app(LoopInvitationService::class)->invite($this->loop, $this->expediteur, $this->membre->email);
 
         $this->assertSame(1, MemberNotification::query()->count(), 'La notification in_app est bien emise.');
-        $this->assertSame(1, MemberNotificationDelivery::query()->count(), 'Et UNE livraison email.');
+        $this->assertSame(1, MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->count(), 'Et UNE livraison email.');
 
-        $livraison = MemberNotificationDelivery::query()->firstOrFail();
+        $livraison = MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->firstOrFail();
         $this->assertSame(NotificationCatalogue::CHANNEL_EMAIL, $livraison->channel);
         $this->assertSame(NotificationDeliveryStatus::PENDING, $livraison->status);
 
@@ -151,7 +163,7 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
         $service->invite($this->loop, $this->expediteur, $this->membre->email);
 
         $this->assertSame(1, MemberNotification::query()->count(), 'Le rejeu ne cree pas de seconde notification.');
-        $this->assertSame(1, MemberNotificationDelivery::query()->count(), 'Ni de seconde livraison.');
+        $this->assertSame(1, MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->count(), 'Ni de seconde livraison.');
         Queue::assertPushed(SendNotificationEmail::class, 1);
     }
 
@@ -181,7 +193,7 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
         $planificateur->plan($notification);
         $planificateur->plan($notification);
 
-        $this->assertSame(1, MemberNotificationDelivery::query()->count(), 'La CONTRAINTE tranche le rejeu.');
+        $this->assertSame(1, MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->count(), 'La CONTRAINTE tranche le rejeu.');
 
         // Et surtout : le rejeu ne remet AUCUN job en file. Remettre un job ici
         // reintroduirait exactement le double envoi que la contrainte empeche.

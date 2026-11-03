@@ -46,6 +46,17 @@ use Tests\TestCase;
  * le destinataire, et ne doit pas dormir dans `email_logs`, table consultable
  * et sans expiration propre. Le gabarit est rendu deux fois : le vrai lien part
  * et est hache, un marqueur expurge est archive.
+ *
+ * ## TASK-1744 : les livraisons sont desormais BORNEES AU CANAL
+ *
+ * Cette suite lisait « la » livraison de l'invitation par un `firstOrFail()`
+ * sur la table entiere, et comptait « une » livraison. Les deux tenaient parce
+ * qu'un seul canal asynchrone etait actif. `web_push` ouvert sur
+ * `loop.invitation`, une invitation en produit DEUX — et le `firstOrFail()`
+ * ne rendait plus la bonne que par l'ordre d'insertion.
+ *
+ * Les lectures et les comptes sont donc bornes a EMAIL. Le cutover mesure ici
+ * est inchange : un seul email part, et le legacy s'efface.
  */
 class TASK1378LoopInvitationEmailCutoverTest extends TestCase
 {
@@ -136,7 +147,7 @@ class TASK1378LoopInvitationEmailCutoverTest extends TestCase
         $this->assertSame(LoopInvitation::TYPE_EXISTING_MEMBER, $invitation->invitation_type);
         $this->assertSame(1, MemberNotification::query()->count());
 
-        $livraison = MemberNotificationDelivery::query()->firstOrFail();
+        $livraison = MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->firstOrFail();
         $this->assertSame(NotificationCatalogue::CHANNEL_EMAIL, $livraison->channel);
         $this->assertSame(NotificationDeliveryStatus::PENDING, $livraison->status);
 
@@ -154,7 +165,7 @@ class TASK1378LoopInvitationEmailCutoverTest extends TestCase
     public function test_the_worker_sends_exactly_one_email_to_a_member(): void
     {
         $invitation = $this->inviter($this->membre->email);
-        $livraison = MemberNotificationDelivery::query()->firstOrFail();
+        $livraison = MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->firstOrFail();
 
         // Le mailer legacy est sollicite comme en production — il doit s'effacer.
         app(LoopInvitationMailer::class)->send($invitation);
@@ -183,7 +194,7 @@ class TASK1378LoopInvitationEmailCutoverTest extends TestCase
     public function test_the_real_link_is_sent_but_the_token_is_never_archived(): void
     {
         $invitation = $this->inviter($this->membre->email);
-        $livraison = MemberNotificationDelivery::query()->firstOrFail();
+        $livraison = MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->firstOrFail();
 
         app(NotificationEmailDeliverer::class)->deliver((string) $livraison->notification_id);
 
@@ -265,7 +276,7 @@ class TASK1378LoopInvitationEmailCutoverTest extends TestCase
     public function test_replaying_the_same_pending_invitation_sends_nothing_more(): void
     {
         $invitation = $this->inviter($this->membre->email);
-        $livraison = MemberNotificationDelivery::query()->firstOrFail();
+        $livraison = MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->firstOrFail();
 
         app(NotificationEmailDeliverer::class)->deliver((string) $livraison->notification_id);
         $this->assertCount(1, $this->messagesEnvoyes());
@@ -274,7 +285,7 @@ class TASK1378LoopInvitationEmailCutoverTest extends TestCase
         $this->inviter($this->membre->email);
 
         $this->assertSame(1, MemberNotification::query()->count());
-        $this->assertSame(1, MemberNotificationDelivery::query()->count(), 'Aucune seconde livraison.');
+        $this->assertSame(1, MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->count(), 'Aucune seconde livraison.');
 
         app(NotificationEmailDeliverer::class)->deliver((string) $livraison->notification_id);
 
@@ -322,7 +333,7 @@ class TASK1378LoopInvitationEmailCutoverTest extends TestCase
             'La colonne est figee : c\'est precisement ce qui rend ce test discriminant.'
         );
         $this->assertSame(1, MemberNotification::query()->count(), 'La clause VIVE, elle, a bien vu le nouveau membre.');
-        $this->assertSame(1, MemberNotificationDelivery::query()->count());
+        $this->assertSame(1, MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->count());
 
         // 4. Le mailer legacy est sollicite comme en production. Il doit
         //    s'effacer — sinon deux emails partent pour un seul fait.
@@ -331,7 +342,7 @@ class TASK1378LoopInvitationEmailCutoverTest extends TestCase
         $this->assertSame([], $this->messagesEnvoyes(), 'Le legacy doit s\'effacer malgre la colonne perimee.');
 
         // 5. Et le pipeline en envoie EXACTEMENT un.
-        $livraison = MemberNotificationDelivery::query()->firstOrFail();
+        $livraison = MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->firstOrFail();
         app(NotificationEmailDeliverer::class)->deliver((string) $livraison->notification_id);
 
         $this->assertCount(1, $this->messagesEnvoyes(), 'EXACTEMENT un email, pas deux.');
@@ -341,14 +352,14 @@ class TASK1378LoopInvitationEmailCutoverTest extends TestCase
     public function test_a_second_sender_sends_no_second_email(): void
     {
         $invitation = $this->inviter($this->membre->email);
-        $livraison = MemberNotificationDelivery::query()->firstOrFail();
+        $livraison = MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->firstOrFail();
 
         app(NotificationEmailDeliverer::class)->deliver((string) $livraison->notification_id);
 
         $autreExpediteur = User::factory()->create(['organization_id' => $this->orgA->id]);
         app(LoopInvitationService::class)->invite($this->loop, $autreExpediteur, $this->membre->email);
 
-        $this->assertSame(1, MemberNotificationDelivery::query()->count());
+        $this->assertSame(1, MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->count());
 
         app(NotificationEmailDeliverer::class)->deliver((string) $livraison->notification_id);
 
@@ -363,7 +374,7 @@ class TASK1378LoopInvitationEmailCutoverTest extends TestCase
     public function test_a_member_who_disabled_email_receives_nothing(): void
     {
         $invitation = $this->inviter($this->membre->email);
-        $livraison = MemberNotificationDelivery::query()->firstOrFail();
+        $livraison = MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->firstOrFail();
 
         // L'ecart est pose APRES l'emission : c'est tout l'interet de relire.
         $preference = new MemberNotificationPreference([
@@ -426,7 +437,7 @@ class TASK1378LoopInvitationEmailCutoverTest extends TestCase
     public function test_a_recipient_moved_to_another_tenant_sends_nothing(): void
     {
         $this->inviter($this->membre->email);
-        $livraison = MemberNotificationDelivery::query()->firstOrFail();
+        $livraison = MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->firstOrFail();
 
         DB::table('users')->where('id', $this->membre->id)->update(['organization_id' => $this->orgB->id]);
 
@@ -453,7 +464,7 @@ class TASK1378LoopInvitationEmailCutoverTest extends TestCase
     public function test_the_worker_borrows_no_session_authority(): void
     {
         $this->inviter($this->membre->email);
-        $livraison = MemberNotificationDelivery::query()->firstOrFail();
+        $livraison = MemberNotificationDelivery::query()->forChannel(NotificationCatalogue::CHANNEL_EMAIL)->firstOrFail();
 
         $intrus = User::factory()->create(['organization_id' => $this->orgB->id]);
         $this->actingAs($intrus);

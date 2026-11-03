@@ -60,5 +60,25 @@
              sans rapport, pendant que la CI, elle, serait restee verte. Les
              gardes de TASK-1713 posent leur propre valeur par `config()->set()`. -->
         <env name="TURNSTILE_ENABLED" value="false" force="true"/>
+        <!-- TASK-1737 — meme lecon que ci-dessus, appliquee a deux variables, et
+             declaree dans les QUATRE bancs (le local et les trois de CI) comme
+             l'est `TURNSTILE_ENABLED` : un banc qui ne declare pas son etat le
+             laisse decider par l'environnement de qui le lance.
+
+             `PWA_INSTALL_POLICY` : le banc mesure le mode LIVRE (`banner`),
+             jamais celui qu'un `.env` de recette a pose. La recette du
+             31/10/2026 demande `install_first` dans le `.env` de travail : sans
+             cette ligne, le banc local mesurerait le plein ecran sur les
+             vitrines — donc autre chose que le produit — et en CI, ou il n'y a
+             aucun `.env`, la valeur serait nulle. Un test atteste cette ligne.
+
+             `APP_DEBUG` : divergence trouvee le 31/10/2026 en la cherchant. La
+             CI n'a pas de `.env` et tournait donc deja debogage ETEINT, pendant
+             que le `.env` local le laissait allume : les deux bancs ne
+             mesuraient pas le meme produit, en silence. Les quatre sont fixes
+             sur la valeur que la CI exerce deja — verte — et plus aucun reglage
+             reseau du moment ne la fait bouger. -->
+        <env name="PWA_INSTALL_POLICY" value="banner" force="true"/>
+        <env name="APP_DEBUG" value="false" force="true"/>
     </php>
 </phpunit>

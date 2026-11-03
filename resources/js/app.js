@@ -8436,9 +8436,13 @@ registerRoadmapMenu();
 // PAGE, `/open-source`, rendue cote serveur : les autres pages ne portent
 // plus qu'un lien.
 
-// Service Worker registration
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js');
-    });
-}
+// TASK-1737 — l'enregistrement du Service Worker n'est plus ici.
+//
+// Il vivait dans ce fichier, et c'etait le defaut : les gabarits d'entree
+// autonomes (`ofsh-hero`, `hero-v2`, `artscilab-hero`, `about-*`) ne chargent
+// pas ce bundle. Mesure du 31/10/2026 : `/org/main` n'enregistrait AUCUN
+// Service Worker, donc Chrome n'y declenchait jamais `beforeinstallprompt` et
+// l'installation Android etait impossible.
+//
+// Il vit desormais dans `<x-pwa-boot />`, inclus par tout document HTML
+// complet — voir le docbloc du composant pour la raison complete.

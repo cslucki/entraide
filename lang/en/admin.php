@@ -1936,4 +1936,74 @@ return [
     'roadmap_deleted' => 'Task deleted.',
     'roadmap_empty' => 'No task for this filter.',
     'roadmap_count' => '{0} No task|{1} 1 task|[2,*] :count tasks',
+
+    // TASK-1740 — outil de diagnostic et d'envoi de test Web Push.
+    'push_test_title_page' => 'Test a Push notification',
+    'push_test_intro' => 'Web Push diagnostics, and a test notification sent to YOUR own devices.',
+    'push_test_send' => 'Send me a test notification',
+    'push_test_title' => 'BouclePro test',
+    'push_test_body' => 'If you can read this, notifications work.',
+    'push_test_no_device' => 'No device subscribed for your account. Enable notifications from My notifications, then Settings.',
+    'push_test_done' => 'Done: :ok success(es), :revoques revoked subscription(s), :echecs failure(s).',
+    'push_test_state_on' => 'on',
+    'push_test_state_off' => 'off',
+    'push_test_egress_blocked' => 'HTTP egress is BLOCKED on this database (production twin). Nothing will be sent: that is ExternalEgressGuard, and it is intended.',
+    'push_test_egress_ok' => 'HTTP egress is allowed on this database.',
+    'push_test_egress_push_only' => 'HTTP egress is blocked on this database (production twin), EXCEPT the Web Push transport: targeted TASK-1740 exception, local only and towards recognised Push providers.',
+    'push_test_scope' => 'Recipients limited to test accounts (.test addresses). Real accounts copied from production can never be selected.',
+    'push_test_step_user' => '1. Choose the recipient',
+    'push_test_step_device' => '2. Choose a device for :email',
+    'push_test_search' => 'Search a test account…',
+    'push_test_search_submit' => 'Search',
+    'push_test_no_recipient' => 'No test account matches.',
+    'push_test_no_eligible_device' => 'No eligible subscription for this account. Subscriptions must have been created on THIS environment: enable notifications from the device, then come back.',
+    'push_test_device_unknown' => 'Device',
+    'push_test_field_title' => 'Title',
+    'push_test_field_body' => 'Message',
+    'push_test_field_path' => 'Internal destination (optional)',
+    'push_test_recipient_refused' => 'This recipient is not an authorised test account. Nothing was sent.',
+    'push_test_device_refused' => 'This device does not belong to that account, or its subscription was not created on this environment. Nothing was sent.',
+    'push_test_accepted_is_not_displayed' => 'A 201 means the provider ACCEPTED the message, not that Android displayed it. Check the phone.',
+
+    // TASK-1745 — retrait d'un appareil depuis l'outil de recette. Le
+    // libelle DIT ce que l'action ne fait pas : le serveur ne sait pas
+    // desabonner un navigateur.
+    'push_test_device_forgotten' => "Device removed from the server. The browser keeps its subscription: turn it off from the device, otherwise it will re-register next time the settings screen is shown.",
+    'push_test_forget' => "Forget",
+    'push_test_forget_confirm' => "Remove this device from the server? It will re-register on its own next time the settings screen is shown, unless the browser was unsubscribed from the device.",
+    'push_test_forget_help' => "“Forget” removes the server row, not the browser subscription. To start over: “Turn off on this device” from the phone first, then “Forget” here if a row remains.",
+
+    // TASK-1744 — the notification inspector. Distinct from the T1380
+    // cockpit, which COUNTS without naming anyone.
+    'notif_inspector_title' => 'Notifications sent',
+    'notif_inspector_intro' => 'What went out, to whom, and why it did not arrive. Delivery states, channel by channel.',
+    'notif_inspector_scope' => 'Replay is restricted to test accounts (.test): it triggers a real send to a device.',
+    'notif_inspector_filter_recipient' => 'Recipient',
+    'notif_inspector_filter_key' => 'Event',
+    'notif_inspector_filter_channel' => 'Channel',
+    'notif_inspector_filter_all' => 'All',
+    'notif_inspector_filter_submit' => 'Filter',
+    'notif_inspector_col_when' => 'When',
+    'notif_inspector_col_key' => 'Event',
+    'notif_inspector_col_recipient' => 'Recipient',
+    'notif_inspector_col_deliveries' => 'Deliveries',
+    'notif_inspector_col_action' => 'Replay',
+    'notif_inspector_in_app_implicit' => 'carried by the notification',
+    'notif_inspector_replay' => 'Replay the Push',
+    'notif_inspector_real_account' => 'real account — replay forbidden',
+    'notif_inspector_empty' => 'No notification for these filters.',
+    'notif_inspector_not_found' => 'This notification no longer exists.',
+    'notif_inspector_recipient_refused' => 'Replay refused: the recipient is not a test account.',
+    'notif_inspector_channel_refused' => 'Replay refused: the catalogue does not allow Web Push for this event.',
+    'notif_inspector_replayed' => 'Replay done — status: :statut · diagnostic: :diagnostic',
+
+    // TASK-1744 — device count, shown even at zero: at zero it explains why
+    // no replay is offered.
+    'notif_inspector_devices' => '{0}no device subscribed|{1}1 device subscribed|[2,*]:count devices subscribed',
+    'notif_inspector_no_device' => 'no device — nothing to wake',
+
+    // TASK-1744 — the 03/11 failure: a notification job asleep in the queue
+    // looks exactly like a broken Push. This banner tells them apart.
+    'notif_inspector_queue_waiting' => '{1}1 send is waiting in the queue|[2,*]:count sends are waiting in the queue',
+    'notif_inspector_queue_hint' => 'No worker seems to be consuming them. A replay from this screen is synchronous and will still go through; a real event will not.',
 ];

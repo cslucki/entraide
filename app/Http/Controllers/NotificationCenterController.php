@@ -111,6 +111,10 @@ class NotificationCenterController extends Controller
             'routeRead' => $slug ? 'organization.notifications.read' : 'notifications.read',
             'routeOpen' => $slug ? 'organization.notifications.open' : 'notifications.open',
             'routeReadAll' => $slug ? 'organization.notifications.read-all' : 'notifications.read-all',
+            // TASK-1739 — l'acces aux reglages depuis le centre. Il manquait :
+            // `notifications.preferences.edit` existait depuis T1375 sans
+            // qu'aucune vue ne pointe dessus.
+            'routePreferences' => $slug ? 'organization.notifications.preferences.edit' : 'notifications.preferences.edit',
         ]);
     }
 
