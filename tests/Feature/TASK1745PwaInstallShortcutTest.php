@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\Notifications\NotificationCatalogue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -76,6 +77,67 @@ class TASK1745PwaInstallShortcutTest extends TestCase
             '/<a[^>]*class="bp-pwa__bar-action"[^>]*href="'.preg_quote(route('pwa.install'), '/').'"/s',
             $html,
             "le lien du bandeau doit conserver sa destination",
+        );
+    }
+
+    public function test_la_confirmation_existe_et_dit_ou_aller(): void
+    {
+        // Le défaut rapporté par Cyril : après avoir accepté le dialogue
+        // natif, la personne reste dans son navigateur et ne comprend pas
+        // qu'elle doit maintenant ouvrir l'application depuis son téléphone.
+        //
+        // Ma première version faisait DISPARAÎTRE le bandeau après un
+        // accord. Disparaître, c'est précisément ne rien expliquer.
+        $html = $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->get('/about')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-bp-pwa-confirm', $html);
+        $this->assertStringContainsString(__('pwa.installing_title'), $html);
+        $this->assertStringContainsString(__('pwa.installing_body'), $html);
+
+        // Et elle ne promet JAMAIS que c'est fini : un accord au dialogue
+        // natif n'est pas une icône posée. Même doctrine qu'en T1740 — un
+        // accusé de réception n'est pas une livraison.
+        $this->assertStringNotContainsString('est installé', $html);
+    }
+
+    public function test_la_note_sur_les_notifications_suit_le_CATALOGUE(): void
+    {
+        // CDC 3.2 : ne rien promettre qui ne soit pas livré. La phrase
+        // « BouclePro vous proposera d'activer les notifications » n'est
+        // vraie que si le canal `web_push` est réellement ouvert.
+        //
+        // La question est posée au catalogue plutôt qu'à un drapeau : il est
+        // déjà l'autorité de ce qui peut partir, et la réponse se met à jour
+        // seule. Ce test vaut donc sur une branche où le canal est ouvert
+        // comme sur une où il ne l'est pas — et c'est tout l'intérêt, les
+        // deux existent en ce moment même.
+        $ouvert = array_filter(
+            NotificationCatalogue::keys(),
+            fn (string $cle) => NotificationCatalogue::allowsChannel($cle, NotificationCatalogue::CHANNEL_WEB_PUSH),
+        ) !== [];
+
+        $html = $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->get('/about')
+            ->assertOk()
+            ->getContent();
+
+        if ($ouvert) {
+            $this->assertStringContainsString(
+                __('pwa.installing_note'),
+                $html,
+                'le canal est ouvert : la note doit être annoncée',
+            );
+
+            return;
+        }
+
+        $this->assertStringNotContainsString(
+            __('pwa.installing_note'),
+            $html,
+            "le canal n'est pas ouvert : annoncer les notifications serait une promesse creuse",
         );
     }
 

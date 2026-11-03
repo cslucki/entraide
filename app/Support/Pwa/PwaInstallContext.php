@@ -3,6 +3,7 @@
 namespace App\Support\Pwa;
 
 use App\Support\Devices\DeviceKind;
+use App\Support\Notifications\NotificationCatalogue;
 use Illuminate\Http\Request;
 
 /**
@@ -338,6 +339,37 @@ final class PwaInstallContext
      * surfaces qui ne sont pas prefixees, et on fabriquerait alors un lien
      * tenant depuis une page globale, c'est-a-dire l'erreur symetrique.
      */
+    /**
+     * Peut-on annoncer que l'application proposera des notifications ?
+     *
+     * TASK-1745 — CDC 3.2 : ne rien promettre qui ne soit pas livre.
+     *
+     * La confirmation d'installation annonce « BouclePro vous proposera
+     * d'activer les notifications importantes ». C'est vrai le jour ou au
+     * moins une cle du catalogue autorise le canal `web_push`, et faux
+     * avant — T1737 interdisait d'ailleurs le mot, pour cette raison exacte.
+     *
+     * La question est donc posee au CATALOGUE plutot qu'a une constante ou a
+     * un drapeau de configuration : il est deja l'autorite de ce qui peut
+     * partir, et la reponse se met a jour toute seule quand il change. Une
+     * liste de capacites tenue ailleurs aurait fini par mentir dans un sens
+     * ou dans l'autre.
+     */
+    public function annonceLesNotifications(): bool
+    {
+        if (! (bool) config('webpush.enabled', false)) {
+            return false;
+        }
+
+        foreach (NotificationCatalogue::keys() as $cle) {
+            if (NotificationCatalogue::allowsChannel($cle, NotificationCatalogue::CHANNEL_WEB_PUSH)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function urlEcranDedie(): string
     {
         $organization = self::organizationDeLaRoute();

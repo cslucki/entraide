@@ -40,8 +40,9 @@ return [
     // On `/installer` the secondary action is a RETURN, not a dismissal.
     'back_to_site' => 'Back to the site',
 
-    'installing_title' => 'Almost there',
-    'installing_body' => 'Open BouclePro from your home screen.',
+    'installing_title' => "BouclePro is installing on your phone",
+    'installing_body' => "You are still in your browser. Find its icon on your home screen or in your apps, then open it.",
+    'installing_note' => "On first launch, BouclePro will offer to turn on important notifications.",
 
     // ── When `/installer` has nothing to offer ───────────────────────────────
     //

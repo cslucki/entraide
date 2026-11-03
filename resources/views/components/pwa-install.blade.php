@@ -459,6 +459,19 @@
                     <div data-bp-pwa-platform="installing" hidden>
                         <p class="bp-pwa__manual-intro">{{ __('pwa.installing_title') }}</p>
                         <p class="bp-pwa__disclaimer">{{ __('pwa.installing_body') }}</p>
+                        {{-- TASK-1745 — ce que la personne rencontrera ENSUITE.
+                             Annonce ici plutot que decouverte au lancement :
+                             une demande de permission qu'on a vue venir se
+                             refuse moins par reflexe (CDC 5.3).
+
+                             Conditionnee a la REALITE du catalogue : CDC 3.2
+                             interdit de promettre une capacite non livree, et
+                             sur une branche ou le canal `web_push` n'est pas
+                             encore ouvert, cette phrase serait un mensonge.
+                             Elle apparait d'elle-meme le jour ou il l'est. --}}
+                        @if($pwa->annonceLesNotifications())
+                            <p class="bp-pwa__disclaimer">{{ __('pwa.installing_note') }}</p>
+                        @endif
                     </div>
                 </div>
 
@@ -516,6 +529,42 @@
                         data-bp-pwa-action="dismiss"
                         aria-label="{{ __('pwa.banner.dismiss') }}">&times;</button>
             </div>
+
+            {{-- TASK-1745 (demande Cyril, 03/11) — la CONFIRMATION pedagogique.
+
+                 Le defaut constate : apres avoir accepte le dialogue natif,
+                 la personne reste dans son navigateur et ne comprend pas
+                 qu'elle doit maintenant ouvrir l'application depuis son
+                 telephone. Rien a l'ecran ne le lui dit.
+
+                 Ma premiere version RETIRAIT le bandeau apres un accord. Elle
+                 avait tort : disparaitre, c'est precisement ne rien
+                 expliquer. Le bandeau reste donc, et change de role.
+
+                 Ce n'est ni une page, ni une etape de plus : c'est le MEME
+                 element, dans un autre etat. Le parcours ne s'allonge pas.
+
+                 `hidden` ET `style="display:none"` : la lecon de T1744 —
+                 `hidden` seul ne masque rien face a une classe utilitaire
+                 qui declare un `display`. --}}
+            <div class="bp-pwa__bar" data-bp-pwa-confirm hidden style="display: none">
+                <img src="/brand/icon-192.png" width="38" height="38" alt="" aria-hidden="true">
+                <div class="bp-pwa__bar-text">
+                    <b>{{ __('pwa.installing_title') }}</b>
+                    <span>{{ __('pwa.installing_body') }}</span>
+                    {{-- Conditionnee a la realite du catalogue : voir l'ecran
+                         plein format, meme raison (CDC 3.2). --}}
+                    @if($pwa->annonceLesNotifications())
+                        <span>{{ __('pwa.installing_note') }}</span>
+                    @endif
+                </div>
+                {{-- Une seule sortie, et elle ne pose AUCUN renoncement :
+                     fermer une confirmation n'est pas refuser l'installation
+                     qu'on vient d'accepter. --}}
+                <button type="button" class="bp-pwa__bar-close"
+                        data-bp-pwa-action="close-confirm"
+                        aria-label="{{ __('pwa.banner.dismiss') }}">&times;</button>
+            </div>
         </div>
     @endif
 
@@ -566,10 +615,47 @@
                     racine.setAttribute('data-bp-prompt', 'ready');
                 });
 
-                window.addEventListener('appinstalled', function () {
+                /**
+                 * TASK-1745 — passer en etat de CONFIRMATION.
+                 *
+                 * Appelee par DEUX signaux qui ne disent pas la meme chose,
+                 * et le texte affiche tient compte de la difference :
+                 *
+                 * - `userChoice.outcome === 'accepted'` dit que la personne a
+                 *   accepte la boite du navigateur. L'installation est
+                 *   LANCEE, pas terminee.
+                 * - `appinstalled` dit que le systeme a reellement pose
+                 *   l'icone. C'est le signal fort, mais il n'est pas emis
+                 *   partout.
+                 *
+                 * D'ou un libelle qui ne promet rien de plus que le plus
+                 * faible des deux : « BouclePro s'installe », jamais
+                 * « BouclePro est installe ». Meme doctrine qu'en T1740 —
+                 * un accuse de reception n'est pas une livraison.
+                 *
+                 * Idempotente : les deux signaux arrivent souvent tous les
+                 * deux, et le second ne doit rien defaire.
+                 */
+                function confirmer() {
                     racine.removeAttribute('data-bp-prompt');
+
+                    if (racine.getAttribute('data-bp-pwa-install') === 'banner') {
+                        var barre = racine.querySelector('.bp-pwa__bar:not([data-bp-pwa-confirm])');
+                        var confirmation = racine.querySelector('[data-bp-pwa-confirm]');
+
+                        // `hidden` ET le style en ligne : `hidden` seul ne
+                        // masque rien face a une classe qui declare un
+                        // `display` — lecon payee en T1744.
+                        if (barre) { barre.hidden = true; barre.style.display = 'none'; }
+                        if (confirmation) { confirmation.hidden = false; confirmation.style.display = ''; }
+
+                        return;
+                    }
+
                     montrerPlateforme('installing');
-                });
+                }
+
+                window.addEventListener('appinstalled', confirmer);
 
                 function poserLeRenoncement() {
                     var jours = {{ (int) config('pwa.install.dismiss_days') }};
@@ -613,6 +699,17 @@
                         return;
                     }
 
+                    // TASK-1745 — fermer la CONFIRMATION n'est pas refuser.
+                    // Aucun renoncement n'est pose : la personne a accepte
+                    // l'installation, le cookie ferait disparaitre la
+                    // proposition sur tout le site pour trente jours alors
+                    // qu'elle vient de dire oui.
+                    if (geste === 'close-confirm') {
+                        evenement.preventDefault();
+                        if (racine.parentNode) { racine.parentNode.removeChild(racine); }
+                        return;
+                    }
+
                     if (geste === 'install' && differe) {
                         evenement.preventDefault();
                         differe.prompt();
@@ -622,26 +719,16 @@
                         // n'annonce donc jamais « c'est installe » ici.
                         if (differe.userChoice && differe.userChoice.then) {
                             differe.userChoice.then(function (choix) {
+                                // TASK-1745 — SEUL un accord confirme.
+                                //
+                                // Un refus ou une annulation laisse le
+                                // bandeau tel quel : expliquer comment
+                                // ouvrir une application qu'on vient de ne
+                                // pas installer serait absurde, et donnerait
+                                // l'impression que le refus n'a pas ete
+                                // entendu.
                                 if (choix && choix.outcome === 'accepted') {
-                                    racine.removeAttribute('data-bp-prompt');
-
-                                    // TASK-1745 — le bandeau n'a rien a dire
-                                    // apres un accord : il se retire. Sans
-                                    // renoncement, car installer n'est pas
-                                    // refuser — le cookie ferait disparaitre
-                                    // la proposition sur tout le site pour
-                                    // quelqu'un qui vient de l'accepter.
-                                    //
-                                    // L'ecran plein format, lui, RESTE et
-                                    // bascule sur « installation en cours » :
-                                    // il n'y a rien dessous, le retirer
-                                    // laisserait un ecran noir (recette du
-                                    // 31/10).
-                                    if (racine.getAttribute('data-bp-pwa-install') === 'banner') {
-                                        if (racine.parentNode) { racine.parentNode.removeChild(racine); }
-                                    } else {
-                                        montrerPlateforme('installing');
-                                    }
+                                    confirmer();
                                 }
                                 differe = null;
                             });

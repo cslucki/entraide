@@ -590,13 +590,42 @@ class TASK1737PwaInstallScreenTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        foreach (['notification', 'Notification', 'push', 'Push', 'partage', 'Partage'] as $promesse) {
-            $this->assertStringNotContainsString(
-                $promesse,
-                $html,
-                "L'ecran d'installation parle de [{$promesse}], capacite non encore livree. "
-                .'Les benefices doivent etre vrais AUJOURD\'HUI (CDC 3.2).'
+        // TASK-1745 — la PREMISSE de ce test a change, pas son exigence.
+        //
+        // T1737 interdisait les mots « notification », « push » et
+        // « partage » : aucune de ces capacites n'existait, les nommer aurait
+        // ete une promesse creuse. Les trois ont ete livrees depuis — partage
+        // en T1738, Push en T1744, recette Android validee le 03/11. Une
+        // liste de mots interdits ne peut pas savoir cela, et elle aurait fini
+        // par interdire de dire la verite.
+        //
+        // L'exigence du CDC 3.2 reste : ne rien promettre qui ne soit pas
+        // livre. Elle est donc enoncee sur le FAIT plutot que sur le
+        // vocabulaire — si l'ecran parle de notifications, le catalogue doit
+        // reellement autoriser le canal. Cette garde-la se met a jour toute
+        // seule, et elle rougira le jour ou quelqu'un vantera une capacite
+        // retiree.
+        if (str_contains(mb_strtolower($html), 'notification')) {
+            $this->assertNotSame(
+                [],
+                array_filter(
+                    \App\Support\Notifications\NotificationCatalogue::keys(),
+                    fn (string $cle) => \App\Support\Notifications\NotificationCatalogue::allowsChannel(
+                        $cle,
+                        \App\Support\Notifications\NotificationCatalogue::CHANNEL_WEB_PUSH
+                    )
+                ),
+                "L'ecran d'installation parle de notifications, mais AUCUNE cle du catalogue "
+                .'n\'autorise le canal `web_push`. Les benefices doivent etre vrais AUJOURD\'HUI (CDC 3.2).'
             );
+        }
+
+        // Ce qui reste interdit sans condition : annoncer l'installation
+        // comme ACQUISE. Un accord au dialogue natif n'est pas une icone
+        // posee — meme doctrine qu'en T1740, un accuse de reception n'est
+        // pas une livraison.
+        foreach (['est installé', 'is installed'] as $mensonge) {
+            $this->assertStringNotContainsString($mensonge, $html);
         }
     }
 

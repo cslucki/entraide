@@ -63,8 +63,9 @@ return [
     // On ne dit JAMAIS « c'est installe » : l'installation se termine hors de
     // notre page, et sur iOS elle n'est meme pas observable. On invite a ouvrir
     // l'icone, ce qui est verifiable par la personne elle-meme.
-    'installing_title' => 'Presque terminé',
-    'installing_body' => 'Ouvrez BouclePro depuis votre écran d\'accueil.',
+    'installing_title' => "BouclePro s’installe sur votre téléphone",
+    'installing_body' => "Vous êtes encore dans votre navigateur. Retrouvez son icône sur votre écran d’accueil ou dans vos applications, puis ouvrez-la.",
+    'installing_note' => "Lors du premier lancement, BouclePro vous proposera d’activer les notifications importantes.",
 
     // ── Quand `/installer` n'a rien a proposer ───────────────────────────────
     //

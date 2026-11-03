@@ -80,10 +80,16 @@ test.describe('TASK-1745 — raccourci d’installation', () => {
         await expect(page.locator('[data-bp-pwa-install="full"]')).toBeVisible();
     });
 
-    test('un accord retire le bandeau, sans poser de renoncement', async ({ page }) => {
-        // Installer n'est pas refuser. Le cookie de renoncement ferait
-        // disparaitre la proposition sur TOUT le site pour quelqu'un qui
-        // vient justement de l'accepter — et il n'y a pas de retour.
+    /**
+     * Un accord ne fait pas DISPARAITRE le bandeau : il l'explique.
+     *
+     * Ma premiere version le retirait. Elle avait tort, et le defaut
+     * rapporte par Cyril le dit : apres avoir accepte le dialogue natif, la
+     * personne reste dans son navigateur et ne comprend pas qu'elle doit
+     * maintenant ouvrir l'application depuis son telephone. Disparaitre,
+     * c'est precisement ne rien expliquer.
+     */
+    test('un accord REMPLACE le bandeau par une confirmation pedagogique', async ({ page }) => {
         await page.addInitScript(() => {
             window.addEventListener('load', () => {
                 const e = new Event('beforeinstallprompt');
@@ -98,12 +104,75 @@ test.describe('TASK-1745 — raccourci d’installation', () => {
 
         await page.locator('[data-bp-pwa-install="banner"] [data-bp-pwa-action="install"]').click();
 
-        await expect(page.locator('[data-bp-pwa-install="banner"]')).toHaveCount(0);
+        const confirmation = page.locator('[data-bp-pwa-confirm]');
+        await expect(confirmation).toBeVisible();
+
+        // Ce qui doit TOUJOURS etre dit : ou on en est, et ou aller.
+        await expect(confirmation).toContainText(/s’installe|is installing/);
+        await expect(confirmation).toContainText(/encore dans votre navigateur|still in your browser/);
+
+        // La troisieme phrase — « BouclePro vous proposera d'activer les
+        // notifications » — est CONDITIONNELLE : elle ne s'affiche que si le
+        // catalogue autorise reellement le canal (CDC 3.2). Un banc
+        // navigateur ne peut pas interroger le catalogue ; cette moitie-la
+        // est donc mesuree cote PHP, dans
+        // `TASK1745PwaInstallShortcutTest::test_la_note_sur_les_notifications_suit_le_CATALOGUE`.
+
+        // Et le bandeau d'invitation a cede la place — pas deux messages a la
+        // fois, sinon on propose encore ce qui vient d'etre accepte.
+        await expect(
+            page.locator('[data-bp-pwa-install="banner"] [data-bp-pwa-action="install"]'),
+        ).toBeHidden();
 
         const cookies = await page.context().cookies();
         expect(
             cookies.map((c) => c.name).filter((n) => n.includes('pwa')),
             'aucun cookie de renoncement apres un accord',
         ).toEqual([]);
+    });
+
+    test('un REFUS ne declenche aucune confirmation', async ({ page }) => {
+        // Point 5. Expliquer comment ouvrir une application qu'on vient de
+        // ne PAS installer serait absurde, et donnerait l'impression que le
+        // refus n'a pas ete entendu.
+        await page.addInitScript(() => {
+            window.addEventListener('load', () => {
+                const e = new Event('beforeinstallprompt');
+                e.prompt = () => {};
+                e.userChoice = Promise.resolve({ outcome: 'dismissed' });
+                window.dispatchEvent(e);
+            });
+        });
+
+        await page.goto('/about');
+        await page.waitForLoadState('networkidle');
+
+        await page.locator('[data-bp-pwa-install="banner"] [data-bp-pwa-action="install"]').click();
+        await page.waitForTimeout(400);
+
+        await expect(page.locator('[data-bp-pwa-confirm]')).toBeHidden();
+
+        // Et la proposition reste offerte : un refus du dialogue natif n'est
+        // pas un refus de BouclePro.
+        await expect(
+            page.locator('[data-bp-pwa-install="banner"] [data-bp-pwa-action="install"]'),
+        ).toBeVisible();
+    });
+
+    test('appinstalled confirme aussi, et sans promettre plus', async ({ page }) => {
+        // Point 4. `appinstalled` est le signal FORT — le systeme a pose
+        // l'icone — mais il n'est pas emis partout. Le texte ne promet donc
+        // jamais plus que le plus faible des deux signaux : « s'installe »,
+        // jamais « est installe ». Meme doctrine qu'en T1740 : un accuse de
+        // reception n'est pas une livraison.
+        await page.goto('/about');
+        await page.waitForLoadState('networkidle');
+
+        await expect(page.locator('[data-bp-pwa-confirm]')).toBeHidden();
+
+        await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
+
+        await expect(page.locator('[data-bp-pwa-confirm]')).toBeVisible();
+        await expect(page.locator('[data-bp-pwa-confirm]')).not.toContainText(/est installé|is installed/);
     });
 });
