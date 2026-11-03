@@ -55,7 +55,10 @@ return [
         ],
         'sollicitation_pertinente' => [
             'title' => "Sollicitations pertinentes",
-            'hint' => "Les demandes auxquelles vous pourriez répondre, choisies selon ce que vous savez faire.",
+            // TASK-1747 — elargi : la section n'est plus seulement celle du
+            // matching a venir, elle porte des maintenant les demandes
+            // publiees dans les Boucles dont on est membre.
+            'hint' => "Les demandes auxquelles vous pourriez répondre : celles de vos Boucles, et celles qui correspondent à ce que vous savez faire.",
         ],
     ],
     'preferences_mandatory_hint' => 'Cette notification vous est adressée personnellement et appelle une réponse : elle ne peut pas être désactivée.',
@@ -95,6 +98,11 @@ return [
         'loop_member_added' => 'Vous pouvez maintenant y participer.',
         'loop_join_request_accepted' => 'Vous pouvez maintenant y participer.',
         'blog_co_author_added' => 'Ouvrez l’article pour commencer.',
+
+        // TASK-1747 — ne nomme NI la Boucle NI la personne : une demande
+        // d'aide peut etre posee dans une Boucle privee, et le corps d'un
+        // Push s'affiche sur un ecran verrouille.
+        'loop_help_request_created' => 'Ouvrez BouclePro pour voir si vous pouvez aider.',
     ],
 
     'push_title' => [
@@ -106,6 +114,11 @@ return [
         // l'article : un brouillon co-écrit n'a aucune raison de s'afficher
         // devant n'importe qui.
         'blog_co_author_added' => 'On vous associe à un article',
+
+        // TASK-1747 — le canal est ETEINT par defaut, mais le libelle doit
+        // exister : la garde de coherence l'exige des qu'un canal est
+        // declare, et l'oublier ferait rougir le jour de l'ouverture.
+        'loop_help_request_created' => 'Une demande d’aide dans votre Boucle',
     ],
 
     'keys' => [
@@ -116,6 +129,9 @@ return [
         'blog_comment_created' => 'Un nouveau commentaire sur votre article',
         'loop_invitation' => 'Invitation à rejoindre une Boucle',
         'loop_member_added' => 'Ajout à une Boucle',
+
+        // TASK-1747 (CDC §8.1)
+        'loop_help_request_created' => 'Une demande d’aide a été publiée',
 
         // TASK-1381 — deux libellés, parce que ce sont deux faits. Le membre
         // doit savoir ce qui lui est arrivé sans avoir à ouvrir quoi que ce soit.
