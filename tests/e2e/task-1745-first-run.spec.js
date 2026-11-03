@@ -117,6 +117,13 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
         });
     };
 
+    /** Le panneau ambre est un `<details>` replié par défaut (T1744). */
+    const deplierLeDiagnostic = async (page) => {
+        const resume = page.locator('[data-push-diag-panel] summary');
+
+        if (await resume.count()) await resume.click();
+    };
+
     const attendreLaDecision = async (page) => {
         await expect(page.locator(BLOC)).toHaveAttribute('data-push-first-run-etat', /.+/);
 
@@ -257,6 +264,11 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
         expect(await attendreLaDecision(page)).toBe('report-en-cours');
         await expect(page.locator('[data-push-diag-value="premier-lancement"]')).toHaveText('report-en-cours');
 
+        // Le panneau est un <details> REPLIÉ par défaut (T1744) : le
+        // bouton n'est cliquable qu'après l'avoir déplié — exactement le
+        // geste de la recette réelle.
+        await deplierLeDiagnostic(page);
+
         const bouton = page.locator('[data-push-first-run-reset]');
         await bouton.click();
 
@@ -278,6 +290,8 @@ test.describe('TASK-1745 — décision du premier lancement', () => {
         await page.goto('/notifications/preferences');
 
         expect(await attendreLaDecision(page)).toBe('onglet-ordinaire');
+
+        await deplierLeDiagnostic(page);
 
         const bouton = page.locator('[data-push-first-run-reset]');
         await bouton.click();
