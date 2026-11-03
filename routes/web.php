@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\AdminUserBulkCreationController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
+use App\Http\Controllers\Admin\AdminNotificationInspectorController;
 use App\Http\Controllers\Admin\AdminTestNotificationController;
 use App\Http\Controllers\Admin\AdminRoadmapController;
 use App\Http\Controllers\Admin\AdminLoopPermissionController;
@@ -1187,6 +1188,18 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // liste d'autorisation a tenir a jour.
     Route::get('/outils/test-notification', [AdminTestNotificationController::class, 'index'])->name('outils.test-notification');
     Route::post('/outils/test-notification', [AdminTestNotificationController::class, 'send'])->middleware('throttle:10,1')->name('outils.test-notification.send');
+
+    // TASK-1744 (demande Cyril, 02/11) — LIRE les notifications emises et en
+    // rejouer une. Distinct du cockpit T1380, qui COMPTE et ne nomme
+    // personne : voir le docblock du controleur pour pourquoi l'un n'absorbe
+    // pas l'autre.
+    //
+    // Le rejeu est limite en frequence comme l'outil de test : il declenche
+    // un envoi reel vers un appareil.
+    Route::get('/outils/notifications', [AdminNotificationInspectorController::class, 'index'])->name('outils.notifications');
+    Route::post('/outils/notifications/{notification}/rejouer', [AdminNotificationInspectorController::class, 'replay'])
+        ->middleware('throttle:10,1')
+        ->name('outils.notifications.replay');
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
 

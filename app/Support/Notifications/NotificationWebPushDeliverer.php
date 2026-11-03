@@ -438,22 +438,143 @@ class NotificationWebPushDeliverer
      * CDC 6.4 : un Push s'affiche sur un ecran verrouille, devant n'importe
      * qui. Le titre vient du catalogue, l'URL est une route same-origin que le
      * serveur re-autorisera au clic, et rien d'autre ne voyage. Aucun nom de
-     * personne, aucun nom de Boucle, aucun extrait de message.
+     * personne, aucun extrait de message.
+     *
+     * TASK-1744 — le corps peut nommer une Boucle PUBLIQUE, et seulement elle.
+     * Le CDC ecrit « pas de nom de Boucle PRIVEE » (6.2) et « aucun nom de
+     * Boucle CONFIDENTIELLE » (6.4) : la distinction est dans le texte, elle
+     * n'est pas inventee ici. Une Boucle publique est deja lisible par
+     * n'importe qui sans etre connecte — son nom sur un ecran verrouille
+     * n'apprend rien que la personne ne pourrait voir en ouvrant le site.
      */
     private function chargeUtile(MemberNotification $notification, string $cible): string
     {
         $cle = (string) $notification->notification_key;
         $titre = 'notifications.push_title.'.str_replace('.', '_', $cle);
+        $corps = 'notifications.push_body.'.str_replace('.', '_', $cle);
 
         return (string) json_encode([
             'title' => \Illuminate\Support\Facades\Lang::has($titre) ? __($titre) : __('notifications.push_title_fallback'),
-            'body' => __('notifications.push_body_generic'),
-            'url' => $cible,
-            // `tag` : un second Push de la MEME cle REMPLACE le precedent au
-            // lieu de s'empiler. C'est l'anti-bruit du CDC 9.3, et il ne
-            // pretend pas etre un resume periodique.
-            'tag' => $cle,
+
+            // Le nom d'une Boucle publique vaut mieux que n'importe quelle
+            // phrase : c'est l'information que la personne cherche. A defaut,
+            // une phrase propre a l'evenement, et « Touchez pour voir » en
+            // dernier recours seulement.
+            'body' => $this->nomDeBouclePublique($notification)
+                ?? (\Illuminate\Support\Facades\Lang::has($corps) ? __($corps) : __('notifications.push_body_generic')),
+
+            // TASK-1744 — un CHEMIN, jamais une URL absolue.
+            //
+            // Le resolveur rend une URL absolue, batie sur `APP_URL` : c'est
+            // ce qu'il faut pour un email. Dans un Push, c'est un defaut.
+            // Le Service Worker REFUSE une cible qui n'est pas de son origine
+            // — a raison, sinon une charge distante deviendrait une
+            // redirection ouverte — et retombe alors sur `/`.
+            //
+            // Mesure du 02/11 : la charge est fabriquee par le WORKER, donc
+            // hors requete, donc `APP_URL` (`https://test.laravel`) ; la PWA
+            // tournait sur un tunnel. Origines differentes, cible rejetee,
+            // clic ouvrant la PAGE D'ACCUEIL au lieu de la Boucle.
+            //
+            // Un chemin relatif supprime la question : le Service Worker le
+            // resout contre SA propre origine, donc il est same-origin par
+            // construction. Cela vaut aussi en production, ou un `APP_URL`
+            // errone produirait le meme silence.
+            'url' => $this->cheminDe($cible),
+
+            // `tag` : un second Push du MEME FAIT remplace le precedent au
+            // lieu de s'empiler (anti-bruit, CDC 9.3).
+            //
+            // TASK-1744 — le tag porte desormais l'OBJET, pas seulement la
+            // cle, et ce n'est pas un detail : la recette du 02/11 a vu deux
+            // ajouts de Boucle a treize minutes d'intervalle ne produire
+            // qu'UNE notification a l'ecran. Les deux partageaient le tag
+            // `loop.member_added`, le second a donc REMPLACE le premier —
+            // avec un titre et un corps identiques, le remplacement est
+            // indiscernable de « rien n'est arrive ».
+            //
+            // « Etre ajoute a deux Boucles » sont DEUX faits : ils doivent
+            // s'empiler. « Le meme ajout repousse deux fois » est UN fait :
+            // il doit se remplacer. L'objet est exactement ce qui les
+            // distingue.
+            'tag' => $cle.($notification->object_id !== null ? ':'.$notification->object_id : ''),
         ], JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Le chemin d'une URL, requete et fragment compris.
+     *
+     * Rend `/` plutot que `null` sur une entree illisible : une cible vide
+     * laisse le Service Worker ouvrir l'accueil, ce qui est le comportement
+     * deja prevu, et jamais une origine etrangere.
+     */
+    private function cheminDe(string $url): string
+    {
+        $morceaux = parse_url($url);
+
+        if ($morceaux === false) {
+            return '/';
+        }
+
+        $chemin = $morceaux['path'] ?? '/';
+
+        if (($morceaux['query'] ?? '') !== '') {
+            $chemin .= '?'.$morceaux['query'];
+        }
+
+        if (($morceaux['fragment'] ?? '') !== '') {
+            $chemin .= '#'.$morceaux['fragment'];
+        }
+
+        return $chemin === '' ? '/' : $chemin;
+    }
+
+    /**
+     * Le nom de la Boucle concernee, UNIQUEMENT si elle est publique.
+     *
+     * Rend `null` des que le moindre doute existe — Boucle privee, objet
+     * d'un autre type, ligne introuvable, tenant qui ne correspond pas. Le
+     * silence est le repli sur : on ne nomme jamais « au cas ou ».
+     *
+     * Les requetes sont ecrites hors Eloquent et bornees A LA MAIN par
+     * `organization_id`, pour la meme raison qu'en T1720 : ce code tourne
+     * dans un WORKER, ou `BelongsToOrganizationScope` appliquerait son
+     * fail-closed et rendrait la Boucle introuvable EN SILENCE.
+     */
+    private function nomDeBouclePublique(MemberNotification $notification): ?string
+    {
+        $objetId = $notification->object_id;
+
+        if ($objetId === null) {
+            return null;
+        }
+
+        $boucleId = match ($notification->object_type) {
+            NotificationCatalogue::OBJECT_LOOP => $objetId,
+            NotificationCatalogue::OBJECT_LOOP_INVITATION => DB::table('loop_invitations')->where('id', $objetId)->value('loop_id'),
+            NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST => DB::table('loop_join_requests')->where('id', $objetId)->value('loop_id'),
+
+            // Un article co-ecrit est le plus souvent un BROUILLON : son titre
+            // n'a rien a faire sur un ecran verrouille.
+            default => null,
+        };
+
+        if ($boucleId === null) {
+            return null;
+        }
+
+        $boucle = DB::table('loops')
+            ->where('id', $boucleId)
+            ->where('organization_id', $notification->organization_id)
+            ->first(['name', 'visibility']);
+
+        if ($boucle === null || $boucle->visibility !== 'public') {
+            return null;
+        }
+
+        $nom = trim((string) $boucle->name);
+
+        return $nom === '' ? null : $nom;
     }
 
     /**

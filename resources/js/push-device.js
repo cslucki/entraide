@@ -36,7 +36,7 @@ if (bloc) {
     const elEtat = bloc.querySelector('[data-push-state]');
     const elPoint = bloc.querySelector('[data-push-dot]');
     const elNombre = bloc.querySelector('[data-push-count]');
-    const elAide = bloc.querySelector('[data-push-help]');
+    const elAide = bloc.querySelector('[data-push-help-box]');
     const btnActiver = bloc.querySelector('[data-push-enable]');
     const btnDesactiver = bloc.querySelector('[data-push-disable]');
 
@@ -52,6 +52,37 @@ if (bloc) {
 
     const supporte = () =>
         actif && vapid !== '' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+    /**
+     * TASK-1744 — en recette LOCALE, dire POURQUOI ça a échoué.
+     *
+     * Les deux gestionnaires avalaient l'erreur dans un `catch` vide et
+     * n'affichaient que « L'activation n'a pas abouti. Réessayez dans un
+     * instant. » Sur un téléphone, c'est une impasse : on réessaie, ça
+     * échoue pareil, et rien ne dit si c'est la permission, le Service
+     * Worker, la clé VAPID ou le réseau.
+     *
+     * Mesure du 02/11 : un réabonnement a échoué trois fois de suite sans
+     * laisser la moindre trace exploitable.
+     *
+     * La garde est la MÊME que celle du panneau de diagnostic — rendue côté
+     * serveur, donc l'attribut n'existe simplement pas ailleurs qu'en local.
+     * Un message d'erreur technique n'a rien à faire devant un membre.
+     */
+    const debogage = bloc.dataset.pushDebug === '1';
+
+    const avecCause = (message, erreur) =>
+        debogage && erreur ? `${message} [${erreur.name ?? 'Error'}: ${erreur.message ?? erreur}]` : message;
+
+    // TASK-1744 — masquer POUR DE BON. `hidden` ne suffit pas quand une
+    // classe utilitaire declare un `display` : il faut une declaration
+    // d'auteur de meme niveau. On garde `hidden` pour l'accessibilite et les
+    // tests, et on y ajoute le style en ligne qui, lui, s'applique.
+    const montrer = (el, visible) => {
+        if (!el) return;
+        el.hidden = !visible;
+        el.style.display = visible ? '' : 'none';
+    };
 
     const peindre = (etat, nombre, aide) => {
         const libelles = {
@@ -70,8 +101,13 @@ if (bloc) {
         elEtat.textContent = libelles[etat];
         elPoint.className = `inline-block h-2.5 w-2.5 shrink-0 rounded-full ${couleurs[etat]}`;
 
-        btnActiver.hidden = etat !== 'off';
-        btnDesactiver.hidden = etat !== 'on';
+        // TASK-1744 — `hidden` seul ne masque RIEN ici : la classe
+        // `inline-flex` de Tailwind pose un `display` d'AUTEUR, qui gagne
+        // contre le `[hidden] { display: none }` du navigateur. Mesuré : les
+        // deux boutons restaient visibles dans tous les états. On pose donc
+        // aussi la declaration d'auteur, et on la leve de meme.
+        montrer(btnActiver, etat === 'off');
+        montrer(btnDesactiver, etat === 'on');
 
         // Le nombre d'appareils n'a de sens que si le serveur en a parlé.
         if (typeof nombre === 'number') {
@@ -82,8 +118,8 @@ if (bloc) {
         // Un message d'aide n'apparaît que s'il y a quelque chose à faire.
         const texteAide =
             aide ?? (etat === 'denied' ? textes.textDeniedHelp : etat === 'unsupported' ? textes.textUnsupportedHelp : null);
-        elAide.hidden = texteAide === null;
-        if (texteAide !== null) elAide.textContent = texteAide;
+        montrer(elAide, texteAide !== null);
+        if (texteAide !== null) elAide.querySelector('[data-push-help]').textContent = texteAide;
     };
 
     /** Un `ArrayBuffer` rendu dans la forme base64url des clefs VAPID. */
@@ -222,7 +258,7 @@ if (bloc) {
         // répond du même coup à « est-il à MOI ? ».
         try {
             const etat = await confirmer(abonnement);
-            peindre('on', etat.device_count, textes.textNotYet);
+            peindre('on', etat.device_count, textes.textReady);
         } catch {
             const etat = await etatServeur(abonnement.endpoint);
             peindre(etat?.subscribed ? 'on' : 'off', etat?.device_count);
@@ -283,9 +319,9 @@ if (bloc) {
                 }));
 
             const etat = await confirmer(abonnement, libelleAppareil());
-            peindre('on', etat.device_count, textes.textNotYet);
-        } catch {
-            peindre('off', undefined, textes.textEnableFailed);
+            peindre('on', etat.device_count, textes.textReady);
+        } catch (e) {
+            peindre('off', undefined, avecCause(textes.textEnableFailed, e));
         } finally {
             btnActiver.disabled = false;
         }
@@ -311,8 +347,8 @@ if (bloc) {
 
             const etat = await etatServeur(null);
             peindre('off', etat?.device_count);
-        } catch {
-            peindre('on', undefined, textes.textDisableFailed);
+        } catch (e) {
+            peindre('on', undefined, avecCause(textes.textDisableFailed, e));
         } finally {
             btnDesactiver.disabled = false;
         }

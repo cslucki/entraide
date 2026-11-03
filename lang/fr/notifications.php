@@ -45,15 +45,43 @@ return [
 
     // TASK-1740 — les textes qui partent sur un ecran VERROUILLE.
     //
-    // CDC 6.4 : aucun nom de personne, aucun nom de Boucle, aucun extrait.
-    // Ils doivent rester vrais devant n'importe qui — le detail se lit APRES
-    // le clic, sur une page que le serveur re-autorise.
+    // CDC 6.4 : aucun nom de personne, aucun extrait, aucun nom de Boucle
+    // CONFIDENTIELLE. Ils doivent rester vrais devant n'importe qui — le
+    // detail se lit APRES le clic, sur une page que le serveur re-autorise.
+    //
+    // TASK-1744 nuance comme le CDC lui-meme nuance : le nom d'une Boucle
+    // PUBLIQUE a le droit de voyager (6.2 ecrit « pas de nom de Boucle
+    // PRIVEE »), et le livreur est le seul a en decider — voir
+    // `nomDeBouclePublique()`.
     'push_title_fallback' => 'BouclePro',
     'push_body_generic' => 'Touchez pour voir.',
+    /*
+     * TASK-1744 — un CORPS par evenement.
+     *
+     * « Touchez pour voir » ne disait rien que le titre ne disait
+     * deja. Il reste le dernier recours, pour une cle qui n'aurait
+     * pas sa phrase.
+     *
+     * Ces phrases ne servent QUE lorsque la Boucle n'est pas
+     * publique : quand elle l'est, le livreur met son NOM a la
+     * place, qui est ce que la personne cherche.
+     */
+    'push_body' => [
+        'loop_invitation' => 'Ouvrez BouclePro pour répondre.',
+        'loop_member_added' => 'Vous pouvez maintenant y participer.',
+        'loop_join_request_accepted' => 'Vous pouvez maintenant y participer.',
+        'blog_co_author_added' => 'Ouvrez l’article pour commencer.',
+    ],
+
     'push_title' => [
         'loop_invitation' => 'Une invitation vous attend',
         'loop_member_added' => 'Vous avez rejoint une Boucle',
         'loop_join_request_accepted' => 'Votre demande a été acceptée',
+
+        // TASK-1744 — la quatrième clé ouverte au Push. Le titre ne nomme pas
+        // l'article : un brouillon co-écrit n'a aucune raison de s'afficher
+        // devant n'importe qui.
+        'blog_co_author_added' => 'On vous associe à un article',
     ],
 
     'keys' => [

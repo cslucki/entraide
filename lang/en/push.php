@@ -23,7 +23,13 @@ return [
     'devices_count' => '{0}No device registered|{1}1 device registered|[2,*]:count devices registered',
 
     // We do not promise what has not shipped (CDC 3.2).
-    'not_yet_sending' => 'Your device is registered. Sending will be switched on soon: you will not receive anything just yet.',
+    // TASK-1744 — `not_yet_sending` is DEAD: true under T1739 (no channel in
+    // the catalogue), the exact opposite of the truth once T1744 opened it.
+    // It told whoever had just enabled their device that they would receive
+    // nothing, right above the very boxes they had to tick.
+    'ready_none' => 'Your device is ready, but no notification is enabled yet: tick “On my devices” below, then save.',
+    'ready_some' => 'Your device is ready. You will receive the notifications ticked “On my devices” below.',
+    'ready_none_action' => 'Go to per-event settings',
 
     'enable_failed' => 'Enabling did not go through. Try again in a moment.',
     'disable_failed' => 'Disabling did not go through. Try again in a moment.',

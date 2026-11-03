@@ -1992,4 +1992,43 @@ return [
     'push_test_recipient_refused' => 'Ce destinataire n est pas un compte de recette autorise. Rien n a ete envoye.',
     'push_test_device_refused' => 'Cet appareil n appartient pas a ce compte, ou son abonnement n a pas ete cree sur cet environnement. Rien n a ete envoye.',
     'push_test_accepted_is_not_displayed' => 'Un code 201 signifie que le fournisseur a ACCEPTE le message, pas qu Android l a affiche. Verifiez sur le telephone.',
+
+    /*
+     * TASK-1744 (demande Cyril, 02/11) — l'inspecteur des notifications.
+     *
+     * Distinct du cockpit T1380 : celui-ci COMPTE sans nommer personne,
+     * celui-la montre les lignes UNE PAR UNE, avec destinataire et
+     * diagnostic. C'est ce qui manquait pendant trois recettes Push.
+     */
+    'notif_inspector_title' => 'Notifications émises',
+    'notif_inspector_intro' => "Ce qui est parti, vers qui, et pourquoi ce n'est pas arrivé. Les états de livraison, canal par canal.",
+    'notif_inspector_scope' => 'Le rejeu est réservé aux comptes de recette (.test) : il déclenche un envoi réel vers un appareil.',
+    'notif_inspector_filter_recipient' => 'Destinataire',
+    'notif_inspector_filter_key' => 'Événement',
+    'notif_inspector_filter_channel' => 'Canal',
+    'notif_inspector_filter_all' => 'Tous',
+    'notif_inspector_filter_submit' => 'Filtrer',
+    'notif_inspector_col_when' => 'Quand',
+    'notif_inspector_col_key' => 'Événement',
+    'notif_inspector_col_recipient' => 'Destinataire',
+    'notif_inspector_col_deliveries' => 'Livraisons',
+    'notif_inspector_col_action' => 'Rejeu',
+    'notif_inspector_in_app_implicit' => 'porté par la notification',
+    'notif_inspector_replay' => 'Rejouer le Push',
+    'notif_inspector_real_account' => 'compte réel — rejeu interdit',
+    'notif_inspector_empty' => 'Aucune notification pour ces filtres.',
+    'notif_inspector_not_found' => "Cette notification n'existe plus.",
+    'notif_inspector_recipient_refused' => 'Rejeu refusé : le destinataire n’est pas un compte de recette.',
+    'notif_inspector_channel_refused' => 'Rejeu refusé : le catalogue n’autorise pas le Web Push pour cet événement.',
+    'notif_inspector_replayed' => 'Rejeu effectué — statut : :statut · diagnostic : :diagnostic',
+
+    // TASK-1744 — le nombre d'appareils, affiche meme a zero : c'est a zero
+    // qu'il explique pourquoi le rejeu n'est pas propose.
+    'notif_inspector_devices' => '{0}aucun appareil abonné|{1}1 appareil abonné|[2,*]:count appareils abonnés',
+    'notif_inspector_no_device' => 'aucun appareil — rien à réveiller',
+
+    // TASK-1744 — la panne du 03/11 : un job de notification qui dort dans la
+    // file ressemble a un Push casse. Le bandeau tranche.
+    'notif_inspector_queue_waiting' => '{1}1 envoi attend dans la file|[2,*]:count envois attendent dans la file',
+    'notif_inspector_queue_hint' => "Aucun worker ne semble les consommer. Un rejeu depuis cet écran est synchrone et aboutira quand même ; un évènement réel, lui, restera en attente.",
 ];
