@@ -194,8 +194,27 @@
                  Le test de condition est le MEME que celui du `@forelse` a
                  l'interieur : la card parait si et seulement si sa liste a de quoi
                  remplir une ligne. Deux conditions differentes auraient produit une
-                 card visible et vide, ou une liste masquee dans une card ouverte. --}}
-            @if(count($myServices) > 0)
+                 card visible et vide, ou une liste masquee dans une card ouverte.
+
+                 ## TASK-1749 — cette regle ne vaut PLUS pour les deux premieres
+
+                 « Mes propositions d'aide » et « Mes demandes d'aide » sont
+                 desormais rendues quoi qu'il arrive (demande Cyril, 04/11). La
+                 regle ci-dessus ne gouverne donc plus que les cards ECHANGES et
+                 MESSAGES — celles qui ne portent aucun geste a declencher. --}}
+            {{-- TASK-1749 (demande Cyril, 04/11) — ces deux cards sont la QUOI
+                 QU'IL ARRIVE.
+
+                 TASK-1725 les conditionnait a `count(...) > 0` : une card vide
+                 disparaissait, pour qu'un nouvel arrivant ne voie que son
+                 On-boarding. L'effet constate etait l'inverse de l'intention —
+                 quelqu'un dont les propositions sont inactives et les demandes
+                 fermees perdait les deux portes qui lui servent le plus.
+
+                 Le `@empty` du `@forelse` reprend son role : la card parait,
+                 vide, et son appel a l'action y est. Les deux autres cards
+                 (echanges, messages) gardent la regle de T1725 : elles ne
+                 portent aucun geste a declencher, seulement de l'historique. --}}
             <!-- Services -->
             <div x-data="{ open: true }" data-dashboard-card="services" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
@@ -249,10 +268,9 @@
                     @endforelse
                 </div>
             </div>
-            @endif
 
             <!-- Requests -->
-            @if(count($myRequests) > 0)
+
             <div x-data="{ open: true }" data-dashboard-card="requests" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">
@@ -318,7 +336,6 @@
                     @endforelse
                 </div>
             </div>
-            @endif
 
             @if(count($exchanges) > 0)
             {{-- TASK-1693 bug T — UNE seule card « Échanges ».
@@ -435,41 +452,25 @@
             </div>
             @endif
         </div>
-        {{-- TASK-1725 — le cas que la regle ci-dessus ouvre, et qu'il fallait
-             fermer.
+        {{-- TASK-1749 — le bloc « rien pour l'instant » de T1725 est RETIRE.
 
-             Les etapes d'On-boarding se calculent sur l'EXISTENCE d'une demande
-             ou d'un service (`MemberOnboardingSteps::doneFor()`), quel que soit
-             leur statut ; les cards, elles, filtrent sur `active` et sur
-             `open`+`in_progress`. Une personne avec une biographie, une demande
-             FERMEE, un service INACTIF et un agent publie est donc a 4/4 — plus
-             de card d'accueil — et ses quatre cards sont vides. Sans ce bloc,
-             son tableau de bord serait entierement BLANC.
+             Il existait pour une seule raison, ecrite alors : les quatre cards
+             masquees, le tableau de bord aurait ete entierement BLANC. Il
+             reprenait donc les deux appels a l'action que les etats vides des
+             cards allaient emporter.
 
-             Il ne parait que dans ce cas precis : des qu'une seule ligne existe
-             quelque part, les cards reviennent et celui-ci s'efface. Un nouvel
-             arrivant ne le voit JAMAIS — il a encore son On-boarding.
+             Depuis que « Mes propositions d'aide » et « Mes demandes d'aide »
+             sont rendues quoi qu'il arrive, le tableau de bord ne peut plus
+             etre blanc, et ces deux appels a l'action vivent de nouveau dans le
+             `@empty` de chaque card. Garder ce bloc revenait a afficher les
+             MEMES deux boutons une seconde fois, juste en dessous.
 
-             Il reprend les deux appels a l'action qui vivaient dans les etats
-             vides des cards : c'est ce que la regle allait faire disparaitre, et
-             c'est la seule chose qu'elle ne devait pas emporter. Arbitrage
-             Cyril, 29/10. --}}
-        @if($aucuneDonnee && $onboardingTermine)
-        <div data-dashboard-nothing-yet class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 px-5 py-10 text-center">
-            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.nothing_yet_title') }}</p>
-            <p class="mx-auto mt-1 max-w-md text-sm text-gray-500 dark:text-gray-400">{{ __('dashboard.nothing_yet_body') }}</p>
-            <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
-                <a href="{{ $_dashServicesCreateHref }}"
-                   class="inline-flex min-h-11 items-center rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95">
-                    {{ __('dashboard.create_service') }}
-                </a>
-                <a href="{{ $requestCreateUrl }}"
-                   class="inline-flex min-h-11 items-center rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                    {{ __('dashboard.ask_help') }}
-                </a>
-            </div>
-        </div>
-        @endif
+             Mesure : la garde `test_les_appels_a_l_action_ne_sont_pas_rendus_deux_fois`
+             etait ROUGE avant ce retrait — le doublon etait reel, pas suppose.
+
+             `$aucuneDonnee` et `$onboardingTermine` restent calcules par
+             `DashboardController` : d'autres vues peuvent en avoir besoin, et
+             les retirer depasserait ce correctif. --}}
 
         <!-- Admin shortcuts -->
         @if($user->is_admin || ($user->organization && $user->organization->admin_id === $user->id))
