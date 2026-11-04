@@ -57,8 +57,38 @@ class FeedPostPolicy
             return false;
         }
 
-        return $user->organization_id === $org->id
-            && $feedPost->organization_id === $org->id;
+        if ($user->organization_id !== $org->id || $feedPost->organization_id !== $org->id) {
+            return false;
+        }
+
+        // TASK-1752 — l'AUDIENCE, et c'est ce qui rend le filtre de liste
+        // autre chose qu'un maquillage.
+        //
+        // Sans ce controle, une ligne restreinte a une Boucle disparaitrait du
+        // Flux mais resterait atteignable par son URL directe — `/flux/{id}` —
+        // et la garde ne protegerait que ceux qui ne cherchent pas.
+        //
+        // `react` et `comment` DELEGUENT a cette methode : la restriction les
+        // suit sans qu'on ait a y penser, ce qui est exactement pourquoi elle
+        // se pose ici et pas dans le composant.
+        if (($feedPost->visibility ?? 'organization') !== 'loop') {
+            return true;
+        }
+
+        if ($user->is_admin) {
+            return true;
+        }
+
+        if ($feedPost->loop_id === null) {
+            // Restreinte sans Boucle nommee : personne ne peut en etre membre.
+            // Fail-closed — dans le doute, on montre moins.
+            return false;
+        }
+
+        return \App\Models\LoopMember::where('loop_id', $feedPost->loop_id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
     }
 
     public function react(User $user, FeedPost $feedPost): bool

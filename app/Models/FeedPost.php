@@ -122,6 +122,56 @@ class FeedPost extends Model
         return $query->where('status', self::STATUS_PUBLISHED);
     }
 
+    /**
+     * TASK-1752 — le filtre d'AUDIENCE, transpose de `agendaFor()`.
+     *
+     * ## Ce qu'il filtre, et ce qu'il ne filtre pas
+     *
+     * Il ne remplace PAS la portee d'Organization : celle-ci reste posee sur
+     * la requete, en dehors de ce scope. C'est elle qui garantit qu'un Flux ne
+     * montre qu'un tenant, et rien ici ne l'effleure.
+     *
+     * Ce scope repond a une seule question : « cette ligne s'adresse-t-elle a
+     * cette personne ? ». Une ligne `organization` s'adresse a tout le monde ;
+     * une ligne `loop` aux seuls membres ACTIFS de sa Boucle.
+     *
+     * ## Le SuperAdmin plateforme voit tout le tenant
+     *
+     * Meme raison qu'en T1658 sur l'agenda : entre dans une Organization pour
+     * l'inspecter, il n'y verrait que les lignes remontees au niveau
+     * Organization. Acceder sans voir n'est pas inspecter. Le bypass porte sur
+     * l'APPARTENANCE, jamais sur le tenant.
+     *
+     * ## Les annonces humaines restent visibles de tous
+     *
+     * Elles portent `visibility = organization` par defaut de colonne, donc la
+     * premiere branche les prend. Aucune ligne existante ne devient invisible
+     * du fait de cette TASK — c'est la condition pour que la migration soit
+     * additive au sens plein.
+     */
+    public function scopeVisibleTo($query, ?\App\Models\User $user)
+    {
+        if ($user === null) {
+            return $query->where('visibility', 'organization');
+        }
+
+        if ($user->is_admin) {
+            return $query;
+        }
+
+        $boucles = \App\Models\LoopMember::where('user_id', $user->id)
+            ->where('status', 'active')
+            ->pluck('loop_id');
+
+        return $query->where(function ($q) use ($boucles) {
+            $q->where('visibility', 'organization')
+                ->orWhere(function ($interne) use ($boucles) {
+                    $interne->where('visibility', 'loop')
+                        ->whereIn('loop_id', $boucles);
+                });
+        });
+    }
+
     public function scopeDraft($query)
     {
         return $query->where('status', self::STATUS_DRAFT);
