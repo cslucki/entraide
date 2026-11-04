@@ -233,6 +233,24 @@ final class NotificationCatalogue
     public const BLOG_CO_AUTHOR_ADDED = 'blog.co_author.added';
 
     /**
+     * TASK-1751 — quelqu'un repond a votre annonce.
+     *
+     * ## UNE cle, et pas deux
+     *
+     * Les deux boutons — « Demander cette aide » sur un service, « Proposer
+     * mon aide » sur une demande — passent par le MEME `store()`, et les roles
+     * s'y inversent. On aurait donc pu declarer deux cles.
+     *
+     * Le catalogue dit qu'une notification designe un FAIT. Vu du
+     * destinataire, le fait ne change pas : quelqu'un repond a l'annonce que
+     * j'ai postee, et je dois decider. `$transaction->subject` rend deja le
+     * titre du service OU de la demande sans que l'appelant ait a savoir
+     * lequel. Deux cles auraient duplique l'entree, la migration, le seeder et
+     * les quatre libelles pour une nuance de texte.
+     */
+    public const TRANSACTION_PROPOSAL_CREATED = 'transaction.proposal_created';
+
+    /**
      * Le type d'objet de cette cle, expose comme constante.
      *
      * Le resolver de cible en a besoin pour brancher. Le lire ici plutot que de
@@ -275,6 +293,17 @@ final class NotificationCatalogue
      * sur la page publique ne menerait nulle part.
      */
     public const OBJECT_BLOG_POST = 'blog_post';
+
+    /**
+     * TASK-1751 — l'ECHANGE lui-meme.
+     *
+     * La cible est la CONVERSATION (`messages.show`), et non une fiche
+     * d'annonce : c'est la que le destinataire decide, et les boutons
+     * Accepter / Refuser y sont deja rendus pour une Transaction `pending`.
+     * L'envoyer sur le service ou la demande lui ferait relire son propre
+     * texte sans rien pouvoir faire.
+     */
+    public const OBJECT_TRANSACTION = 'transaction';
 
     /**
      * Le registre.
@@ -538,6 +567,42 @@ final class NotificationCatalogue
                 // PAS de canal EMAIL, et c'est delibere : un courriel par
                 // demande d'aide collective serait exactement le bruit de
                 // masse que le §7 combat. Rien ne le reclame.
+            ],
+        ],
+
+        /*
+         * TASK-1751 — quelqu'un repond a votre annonce.
+         *
+         * Le destinataire doit DECIDER (accepter ou refuser) : c'est une
+         * sollicitation directe, au meme titre qu'une invitation — et non une
+         * information qu'on classe.
+         *
+         * A ne pas confondre avec `LOOP_HELP_REQUEST_CREATED`, qui est
+         * COLLECTIF (une demande posee dans une Boucle, adressee a tout le
+         * monde) et donc eteint par defaut sur le Push. Ici l'evenement est
+         * PERSONNEL : une seule personne est concernee, sur sa propre annonce.
+         * C'est cette difference qui justifie des defauts opposes.
+         */
+        self::TRANSACTION_PROPOSAL_CREATED => [
+            'category' => 'transaction',
+            'intention' => self::INTENTION_SOLLICITATION_DIRECTE,
+            'object_type' => self::OBJECT_TRANSACTION,
+            'channels' => [
+                // OBLIGATOIRE, comme l'invitation : on ne se desabonne pas
+                // d'apprendre qu'on a une decision a prendre. Et l'annonce
+                // resterait sans reponse sans que son auteur sache pourquoi.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+
+                // Actif, et configurable. Actif parce qu'on ne peut pas
+                // supposer que la personne reviendra d'elle-meme voir si
+                // quelqu'un a repondu. Configurable parce que le fait reste
+                // visible dans le Centre : couper l'email ne fait rien perdre.
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+
+                // Aligne sur `LOOP_INVITATION`, pas sur l'evenement collectif.
+                // Le defaut ne reveille personne a lui seul : il faut encore un
+                // appareil abonne ET la permission systeme.
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
     ];

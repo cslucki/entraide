@@ -10,6 +10,8 @@ use App\Models\ServiceRequest;
 use App\Services\ServiceRequestLifecycle;
 use App\Models\Transaction;
 use App\Notifications\TransactionStatusChanged;
+use App\Support\Notifications\NotificationCatalogue;
+use App\Support\Notifications\NotificationEmitter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -53,6 +55,14 @@ class TransactionController extends Controller
             $seller = $service->user;
             $sellerId = $seller->id;
             $organizationId = $service->organization_id;
+
+            // TASK-1751 — le destinataire est pose ICI, dans la branche.
+            //
+            // Il doit etre celui qui n'a PAS clique : l'auteur de l'annonce.
+            // Le deduire apres coup de `$buyer` ou `$seller` serait fragile —
+            // la branche voisine REASSIGNE `$buyer` quelques lignes plus bas,
+            // et une relecture distraite notifierait l'acteur lui-meme.
+            $destinataire = $service->user;
         } else {
             $serviceReq = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($data['request_id']);
 
@@ -64,6 +74,10 @@ class TransactionController extends Controller
             $sellerId = $buyer->id;
             $buyer = $serviceReq->user;
             $organizationId = $serviceReq->organization_id;
+
+            // TASK-1751 — ici aussi l'auteur de l'annonce, et c'est la ligne
+            // qui rend le piege visible : `$buyer` VIENT d'etre reassigne.
+            $destinataire = $serviceReq->user;
         }
 
         // Prevent self-transaction
@@ -115,6 +129,33 @@ class TransactionController extends Controller
         ]);
 
         $this->addSystemMessage($transaction, 'Nouvel échange envoyé : '.$data['points_proposed'].' points.');
+
+        // TASK-1751 — prevenir l'auteur de l'annonce.
+        //
+        // `store()` n'emettait RIEN jusqu'ici : ni in-app, ni email, ni push.
+        // Quelqu'un pouvait repondre a votre annonce sans que vous l'appreniez
+        // autrement qu'en revenant voir par vous-meme.
+        //
+        // `rescue()` comme `approve()` et `refuse()` le font deja : l'echange
+        // EST cree a ce stade, et la transaction metier ne doit jamais echouer
+        // parce qu'une notification a leve. Le destinataire verrait une erreur
+        // pour un echange pourtant enregistre.
+        //
+        // `eventId` = l'id de la Transaction. Ici l'EVENEMENT (« cet echange
+        // vient d'etre cree ») et l'OBJET coincident, parce qu'une Transaction
+        // n'est creee qu'une fois — contrairement a `loop.help_request.created`
+        // qui devait eviter l'id de la Boucle, reutilisable par plusieurs
+        // demandes. L'idempotence sur `(event_id, recipient_id)` protege donc
+        // d'une double soumission.
+        rescue(fn () => app(NotificationEmitter::class)->emit(
+            notificationKey: NotificationCatalogue::TRANSACTION_PROPOSAL_CREATED,
+            organization: (string) $organizationId,
+            recipient: $destinataire,
+            eventId: (string) $transaction->id,
+            objectType: NotificationCatalogue::OBJECT_TRANSACTION,
+            objectId: (string) $transaction->id,
+            actor: $actor,
+        ), report: true);
 
         // TASK-1693 bug W — la demande ne quitte PLUS l'explorateur ici.
         //

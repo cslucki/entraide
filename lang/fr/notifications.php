@@ -103,10 +103,17 @@ return [
         // d'aide peut etre posee dans une Boucle privee, et le corps d'un
         // Push s'affiche sur un ecran verrouille.
         'loop_help_request_created' => 'Ouvrez BouclePro pour voir si vous pouvez aider.',
+
+        // TASK-1751 — ni la personne, ni le titre de l'annonce.
+        'transaction_proposal_created' => 'Ouvrez BouclePro pour voir la proposition.',
     ],
 
     'push_title' => [
         'loop_invitation' => 'Une invitation vous attend',
+
+        // TASK-1751 — ni le nom de la personne, ni le titre de l'annonce :
+        // ce texte s'affiche sur un écran VERROUILLÉ (CDC §6.4/6.5).
+        'transaction_proposal_created' => 'On répond à votre annonce',
         'loop_member_added' => 'Vous avez rejoint une Boucle',
         'loop_join_request_accepted' => 'Votre demande a été acceptée',
 
@@ -132,6 +139,11 @@ return [
 
         // TASK-1747 (CDC §8.1)
         'loop_help_request_created' => 'Une demande d’aide a été publiée',
+
+        // TASK-1751 — le libellé ne dit pas « service » ou « demande » :
+        // une seule clé sert les deux sens de l'échange, et le fait vu du
+        // destinataire est le même — on répond à SON annonce.
+        'transaction_proposal_created' => 'Quelqu’un répond à votre annonce',
 
         // TASK-1381 — deux libellés, parce que ce sont deux faits. Le membre
         // doit savoir ce qui lui est arrivé sans avoir à ouvrir quoi que ce soit.
@@ -187,6 +199,18 @@ return [
     |
     */
     'email' => [
+        // TASK-1751 — REPLI. Le rendu passe normalement par le gabarit
+        // administrable `transaction_proposal_created` ; ce texte sert si
+        // le gabarit est absent ou désactivé. La suite de cohérence
+        // l'exige dès que le canal `email` est déclaré.
+        'transaction_proposal_created' => [
+            'subject' => 'Quelqu’un répond à votre annonce',
+            'body' => '<p>Bonjour,</p>'
+                .'<p>Quelqu’un vient de répondre à une annonce que vous avez publiée sur BouclePro.</p>'
+                .'<p><a href=":url">Voir l’échange</a></p>'
+                .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
+                .'<p>À bientôt,<br>L’équipe BouclePro</p>',
+        ],
         'loop_invitation' => [
             'subject' => 'Vous êtes invité à rejoindre une boucle',
             'body' => '<p>Bonjour,</p>'

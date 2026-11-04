@@ -300,6 +300,17 @@ class LoopInvitationMailer
      * @param  callable(): array{subject: string, html: string}  $repli
      * @return array{subject: string, body: string, fallback_reason: string|null}
      */
+    /**
+     * TASK-1751 — le moteur a ete EXTRAIT dans `GabaritEmail`.
+     *
+     * Une proposition d'echange avait besoin du meme rendu, et composer une
+     * transaction depuis une classe nommee « LoopInvitationMailer » aurait
+     * menti sur ce que fait le code. Recopier les quarante lignes aurait
+     * garanti que les deux copies divergent.
+     *
+     * Cette methode reste ici parce que trois composeurs de ce fichier
+     * l'appellent : elle delegue, sans rien changer au comportement.
+     */
     private function rendreGabarit(
         string $slug,
         string $organizationId,
@@ -308,41 +319,8 @@ class LoopInvitationMailer
         array $vars,
         callable $repli,
     ): array {
-        $resolver = app(SystemEmailTemplateResolver::class);
-        $template = $resolver->resolve($slug, $organizationId, $langue);
-
-        $emailer = app(EmailerService::class);
-        $extraKeys = array_keys($vars);
-        $vars = array_merge($sender ? $emailer->availableVariables($sender) : [], $vars);
-
-        $fallbackReason = null;
-        $subject = null;
-        $html = null;
-
-        if ($template) {
-            try {
-                $subject = $emailer->interpolateSubject($template->subject, $vars, $extraKeys);
-                $html = $emailer->interpolate($template->content_html, $vars, $extraKeys);
-            } catch (\Throwable $e) {
-                $fallbackReason = 'render_error: '.$e->getMessage();
-            }
-        } else {
-            $fallbackReason = $resolver->diagnoseAbsence($slug, $organizationId);
-        }
-
-        if ($fallbackReason !== null) {
-            Log::warning($slug.' e-mail fell back to the Blade template', [
-                'reason' => $fallbackReason,
-                'organization_id' => $organizationId,
-                'locale' => $langue,
-            ]);
-
-            $secours = $repli();
-            $subject = $secours['subject'];
-            $html = $secours['html'];
-        }
-
-        return ['subject' => $subject, 'body' => $html, 'fallback_reason' => $fallbackReason];
+        return app(\App\Support\Notifications\GabaritEmail::class)
+            ->rendre($slug, $organizationId, $langue, $sender, $vars, $repli);
     }
 
     public function compose(LoopInvitation $invitation, ?string $urlOverride = null, ?string $locale = null): array

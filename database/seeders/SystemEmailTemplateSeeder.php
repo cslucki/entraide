@@ -209,6 +209,31 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        /*
+         * TASK-1751 — la proposition recue sur une annonce.
+         *
+         * Pose AUSSI par migration, pour les bases deja migrees. Cette entree
+         * sert les bases FRAICHES — recette, CI, nouvelle installation — qui
+         * ne rejouent pas l'historique des migrations. Les deux textes doivent
+         * donc rester identiques.
+         *
+         * A ne pas confondre avec `transaction_status_changed` ci-dessus, qui
+         * sert le chemin HERITE (approve/refuse/complete/confirm), hors
+         * catalogue et hors preferences.
+         */
+        'transaction_proposal_created' => [
+            'name_fr' => 'Proposition reçue sur votre annonce',
+            'name_en' => 'Proposal received on your listing',
+            'subject_fr' => 'Quelqu’un répond à votre annonce « {{ subject_title }} »',
+            'subject_en' => 'Someone replied to your listing “{{ subject_title }}”',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ sender_name }} vient de répondre à votre annonce <strong>{{ subject_title }}</strong> au sein de {{ organization_name }}, pour {{ points_proposed }} points.</p><p>Vous pouvez accepter ou refuser cette proposition depuis la conversation.</p><p><a href="{{ exchange_url }}">Voir la proposition</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ exchange_url }}</p><p>À bientôt,<br>{{ app_name }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ sender_name }} has just replied to your listing <strong>{{ subject_title }}</strong> in {{ organization_name }}, for {{ points_proposed }} points.</p><p>You can accept or decline this proposal from the conversation.</p><p><a href="{{ exchange_url }}">View the proposal</a></p><p>If the link does not work, copy this address into your browser:<br>{{ exchange_url }}</p><p>See you soon,<br>{{ app_name }}</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
+                'subject_title', 'points_proposed', 'exchange_url', 'app_name',
+            ],
+        ],
+
         'loop_invitation' => [
             'name_fr' => 'Invitation à rejoindre une Boucle',
             'name_en' => 'Invitation to join a Loop',

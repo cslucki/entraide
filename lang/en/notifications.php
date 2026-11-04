@@ -94,6 +94,9 @@ return [
         // may be posted in a private Boucle, and a Push body shows on a
         // locked screen.
         'loop_help_request_created' => 'Open BouclePro to see if you can help.',
+
+        // TASK-1751 — names neither the person nor the listing.
+        'transaction_proposal_created' => 'Open BouclePro to see the proposal.',
     ],
 
     'push_title' => [
@@ -110,11 +113,17 @@ return [
         // exist: the coherence guard requires it as soon as a channel is
         // declared.
         'loop_help_request_created' => 'A request for help in your Boucle',
+
+        // TASK-1751 — shown on a LOCKED screen (CDC §6.4/6.5).
+        'transaction_proposal_created' => 'Someone replied to your listing',
     ],
 
     'keys' => [
         // TASK-1747 (CDC §8.1)
         'loop_help_request_created' => 'A request for help was posted',
+
+        // TASK-1751 — one key for both directions of the exchange.
+        'transaction_proposal_created' => 'Someone replied to your listing',
 
         // TASK-1702
         'blog_co_author_added' => 'You were added as a co-author of an article',
@@ -170,6 +179,17 @@ return [
     |
     */
     'email' => [
+        // TASK-1751 — FALLBACK, used when the administrable template is
+        // missing or disabled. The coherence suite requires it as soon as
+        // the `email` channel is declared.
+        'transaction_proposal_created' => [
+            'subject' => 'Someone replied to your listing',
+            'body' => '<p>Hello,</p>'
+                .'<p>Someone has just replied to a listing you published on BouclePro.</p>'
+                .'<p><a href=":url">View the exchange</a></p>'
+                .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
+                .'<p>See you soon,<br>The BouclePro team</p>',
+        ],
         'loop_invitation' => [
             'subject' => 'You have been invited to join a loop',
             'body' => '<p>Hello,</p>'

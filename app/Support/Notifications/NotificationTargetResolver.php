@@ -11,6 +11,7 @@ use App\Models\LoopMember;
 use App\Models\MemberNotification;
 use App\Models\Organization;
 use App\Models\Scopes\BelongsToOrganizationScope;
+use App\Models\Transaction;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -54,6 +55,8 @@ class NotificationTargetResolver
             NotificationCatalogue::OBJECT_LOOP => $this->loop($notification),
             NotificationCatalogue::OBJECT_BLOG_COMMENT => $this->blogComment($notification),
             NotificationCatalogue::OBJECT_BLOG_POST => $this->blogPost($notification),
+            // TASK-1751 — un echange mene a SA conversation.
+            NotificationCatalogue::OBJECT_TRANSACTION => $this->transaction($notification),
             default => null,
         };
     }
@@ -425,5 +428,62 @@ class NotificationTargetResolver
             'organization' => $organization->slug,
             'post' => $post->slug,
         ]);
+    }
+
+    /**
+     * TASK-1751 — un echange mene a SA conversation, pas a l'annonce.
+     *
+     * C'est dans la conversation que la decision se prend : `MessageController`
+     * y rend deja « Accepter » et « Refuser » pour une Transaction `pending`.
+     * Renvoyer vers la fiche du service ou de la demande ferait relire au
+     * destinataire sa propre annonce, sans action possible.
+     *
+     * ## La garde d'appartenance, et pourquoi elle n'est pas decorative
+     *
+     * Le destinataire doit TOUJOURS etre partie a l'echange — c'est ce
+     * qu'exige `TransactionPolicy::view`. Le lien est resolu au moment du
+     * CLIC, pas de l'emission : entre les deux, la situation peut avoir
+     * change. Sans ce controle, on fabriquerait un lien vers une conversation
+     * ou la personne se ferait refuser a l'arrivee.
+     *
+     * `withoutGlobalScope` : le resolveur tourne en file, hors d'une requete
+     * HTTP, donc sans Organization courante — le scope ne trouverait rien. La
+     * portee est retablie explicitement par le `where` sur
+     * `organization_id`, qui est la vraie garde de locataire.
+     */
+    private function transaction(MemberNotification $notification): ?string
+    {
+        if ($notification->object_id === null) {
+            return null;
+        }
+
+        $transaction = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->whereKey($notification->object_id)
+            ->where('organization_id', $notification->organization_id)
+            ->first();
+
+        if ($transaction === null) {
+            return null;
+        }
+
+        if ($notification->recipient_id !== $transaction->buyer_id
+            && $notification->recipient_id !== $transaction->seller_id) {
+            return null;
+        }
+
+        $organization = Organization::query()
+            ->whereKey($notification->organization_id)
+            ->first();
+
+        if ($organization === null) {
+            return null;
+        }
+
+        return \Illuminate\Support\Facades\Route::has('organization.messages.show')
+            ? route('organization.messages.show', [
+                'organization' => $organization->slug,
+                'transaction' => $transaction->id,
+            ])
+            : route('messages.show', ['transaction' => $transaction->id]);
     }
 }
