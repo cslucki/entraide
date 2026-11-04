@@ -133,8 +133,14 @@
                         @endif
                     </div>
 
+                    {{-- TASK-1750 — les liens declares s'ajoutent a la rangee
+                         existante. La condition les prend en compte, sinon la
+                         rangee resterait invisible pour qui n'aurait rempli que
+                         la liste et aucun des deux champs du haut. --}}
+                    @php($_liensDeclares = $user->liensDeProfil())
+
                     <!-- Links row -->
-                    @if($user->website || $user->linkedin_url)
+                    @if($user->website || $user->linkedin_url || $_liensDeclares)
                     <div class="flex flex-wrap justify-center sm:justify-start gap-3 mt-3">
                         @if($user->website)
                         <a href="{{ $user->website }}" target="_blank" rel="noopener noreferrer"
@@ -150,6 +156,20 @@
                             LinkedIn
                         </a>
                         @endif
+
+                        {{-- Les liens supplementaires. `ProfileLinks::hote()`
+                             retombe sur l'URL complete quand `parse_url()` ne
+                             rend pas d'hote, pour ne jamais afficher une
+                             pastille sans texte. --}}
+                        @foreach($_liensDeclares as $_lien)
+                        <a href="{{ $_lien['url'] }}" target="_blank" rel="noopener noreferrer"
+                           data-profile-link="{{ $_lien['type'] }}"
+                           class="inline-flex items-center gap-1 text-xs hover:underline {{ \App\Support\ProfileLinks::couleur($_lien['type']) }}">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m4.5-4.5l1.5-1.5a4 4 0 015.656 5.656l-3 3a4 4 0 01-5.656 0"/></svg>
+                            <span class="sr-only">{{ \App\Support\ProfileLinks::libelle($_lien['type']) }} —</span>
+                            {{ \App\Support\ProfileLinks::hote($_lien['url']) }}
+                        </a>
+                        @endforeach
                     </div>
                     @endif
 

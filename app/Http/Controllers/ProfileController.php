@@ -12,6 +12,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Rules\NomDePersonneAcceptable;
 use App\Services\UserSlugService;
+use App\Support\ProfileLinks;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use App\Rules\UniqueEmailInOrganization;
@@ -295,6 +296,20 @@ class ProfileController extends Controller
             'postal_code' => ['nullable', 'string', 'max:30'],
             'website' => ['nullable', 'url', 'max:255'],
             'linkedin_url' => ['nullable', 'url', 'max:255'],
+            // TASK-1750 — la liste de liens supplementaires.
+            //
+            // `url:http,https` et pas `url` seul : ces adresses sortent dans
+            // un `href` rendu a des visiteurs, et `url` accepte `javascript:`
+            // comme `data:`. La liste BLANCHE est la seule forme qui tienne —
+            // interdire au cas par cas laisserait passer le schema suivant.
+            //
+            // Les lignes VIDES ne sont pas refusees : le formulaire renvoie
+            // celles que la personne a ajoutees puis abandonnees, et les
+            // refuser transformerait un geste anodin en message d'erreur.
+            // Elles sont ecartees plus bas, a l'assainissement.
+            'profile_links' => ['nullable', 'array', 'max:'.ProfileLinks::MAXIMUM],
+            'profile_links.*.type' => ['nullable', Rule::in(ProfileLinks::clefs())],
+            'profile_links.*.url' => ['nullable', 'url:'.implode(',', ProfileLinks::SCHEMAS), 'max:255'],
             // TASK-1693 bug Z — l'adresse publique. `nullable` : la laisser
             // vide revient a l'adresse technique, ce qui doit rester possible.
             'slug' => ['nullable', 'string', 'max:60'],
@@ -331,6 +346,19 @@ class ProfileController extends Controller
 
         if ($request->hasFile('avatar')) {
             $data['avatar'] = $this->stockerAvatar($request->file('avatar'));
+        }
+
+        // TASK-1750 — on n'enregistre que les lignes COMPLETES, et seulement
+        // si le formulaire a reellement porte le champ.
+        //
+        // Le test sur `has()` compte : le formulaire de profil n'est pas le
+        // seul a passer ici, et un `PUT` qui n'envoie pas `profile_links`
+        // demande de ne RIEN changer — assigner un tableau vide effacerait
+        // silencieusement la liste de la personne.
+        if ($request->has('profile_links')) {
+            $data['profile_links'] = ProfileLinks::assainir($data['profile_links'] ?? null);
+        } else {
+            unset($data['profile_links']);
         }
 
         // Handle booleans (checkboxes are not sent if unchecked)

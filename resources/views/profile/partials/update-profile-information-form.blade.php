@@ -208,6 +208,74 @@
             </div>
         </div>
 
+        {{-- TASK-1750 — « Autres liens », EN DESSOUS des deux champs ci-dessus.
+
+            Les deux champs du haut restent les liens mis en avant : ce bloc les
+            complete, il ne les remplace pas.
+
+            Alpine porte l'ajout et le retrait de lignes. Il EST disponible
+            ici — c'est ce qui fait marcher la modale photo de T1749 — a ne pas
+            confondre avec `layouts/guest`, qui ne l'embarque pas.
+
+            L'index de chaque ligne vient d'un compteur PROPRE (`suivant`) et
+            non de la position dans le tableau : apres un retrait, reutiliser la
+            position ferait porter a deux lignes le meme `name`, et la seconde
+            ecraserait la premiere a l'envoi.
+        --}}
+        <div class="mt-6"
+             x-data="{
+                liens: @js(old('profile_links', $user->liensDeProfil())),
+                suivant: {{ count(old('profile_links', $user->liensDeProfil())) }},
+                ajouter() {
+                    if (this.liens.length >= {{ \App\Support\ProfileLinks::MAXIMUM }}) return;
+                    this.liens.push({ type: '{{ \App\Support\ProfileLinks::clefs()[0] }}', url: '', _k: this.suivant++ });
+                },
+                retirer(i) { this.liens.splice(i, 1); },
+             }"
+             data-profile-links>
+            <div class="flex items-center justify-between">
+                <x-input-label :value="__('profile.links_heading')" />
+                <span class="text-xs text-gray-500 dark:text-gray-400" x-text="liens.length + ' / {{ \App\Support\ProfileLinks::MAXIMUM }}'"></span>
+            </div>
+
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.links_help') }}</p>
+
+            <template x-for="(lien, i) in liens" :key="lien._k ?? i">
+                <div class="mt-2 flex items-start gap-2" data-profile-link-row>
+                    <select :name="'profile_links[' + i + '][type]'" x-model="lien.type"
+                            class="w-40 shrink-0 rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm">
+                        @foreach(\App\Support\ProfileLinks::types() as $clef => $type)
+                            <option value="{{ $clef }}">{{ __($type['label']) }}</option>
+                        @endforeach
+                    </select>
+
+                    <div class="min-w-0 flex-1">
+                        <input type="url" :name="'profile_links[' + i + '][url]'" x-model="lien.url"
+                               placeholder="https://..."
+                               class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm" />
+                    </div>
+
+                    <button type="button" @click="retirer(i)" data-profile-link-remove
+                            class="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+                            :aria-label="'{{ __('profile.links_remove') }}'">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            </template>
+
+            <button type="button" @click="ajouter()" data-profile-link-add
+                    x-show="liens.length < {{ \App\Support\ProfileLinks::MAXIMUM }}"
+                    class="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-sm text-gray-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                {{ __('profile.links_add') }}
+            </button>
+
+            <x-input-error class="mt-2" :messages="$errors->get('profile_links')" />
+            @foreach($errors->get('profile_links.*.url') as $messages)
+                <x-input-error class="mt-2" :messages="$messages" />
+            @endforeach
+        </div>
+
         {{-- TASK-1749 — meme zone de depot que la fenetre du profil public.
 
              Le champ gardait la commande NATIVE (« Choisir un fichier / Aucun

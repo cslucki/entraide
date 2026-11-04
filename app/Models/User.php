@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\HasOrganizationId;
+use App\Support\ProfileLinks;
 use App\Services\ReferralCodeGenerator;
 use App\Services\Users\Exceptions\UserOrganizationImmutableException;
 use Database\Factories\UserFactory;
@@ -162,6 +163,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'show_phone',
         'website',
         'linkedin_url',
+        'profile_links',
         'points_balance',
         'is_available',
         'is_admin',
@@ -182,6 +184,11 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'approved_at' => 'datetime',
             'password' => 'hashed',
+            // TASK-1750 — la colonne est `nullable`, donc ce cast rend `null`
+            // tant que personne n'a rien saisi. Passer par `liensDeProfil()`
+            // plutot que de lire l'attribut : tout ce qui PARCOURT la liste
+            // casserait sur `null`.
+            'profile_links' => 'array',
             'is_available' => 'boolean',
             // TASK-1659 — deliberement HORS `$fillable`, comme
             // `email_verified_at` : seul le parcours d'invitation le pose,
@@ -202,6 +209,23 @@ class User extends Authenticatable implements MustVerifyEmail
             'points_balance' => 'integer',
             'rating' => 'decimal:2',
         ];
+    }
+
+    /**
+     * TASK-1750 — les liens de profil, TOUJOURS une liste parcourable.
+     *
+     * La colonne est `nullable` : l'attribut brut rend `null` pour qui n'a
+     * rien saisi, et c'est le cas de tous les comptes existants. Chaque
+     * `@foreach` aurait donc eu besoin de son propre repli. Il y en a un,
+     * ici, et les lignes incompletes sont ecartees au passage — une ligne
+     * ajoutee puis abandonnee dans le formulaire ne doit pas produire une
+     * pastille sans destination.
+     *
+     * @return list<array{type: string, url: string}>
+     */
+    public function liensDeProfil(): array
+    {
+        return ProfileLinks::assainir($this->profile_links);
     }
 
     public function organization(): BelongsTo
