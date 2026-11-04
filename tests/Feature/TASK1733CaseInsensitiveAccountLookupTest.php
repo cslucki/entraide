@@ -233,7 +233,29 @@ class TASK1733CaseInsensitiveAccountLookupTest extends TestCase
         $this->assertNull($resolveur->compteUnique('FRERE@EXAMPLE.TEST'), 'Et la casse ne contourne pas le refus.');
     }
 
-    /** Le refus n'eprouve AUCUN mot de passe : la session reste fermee. */
+    /**
+     * Le refus n'eprouve AUCUN mot de passe : la session reste fermee.
+     *
+     * ## AVERTISSEMENT — TASK-1749 : ce test passe desormais PLUS TOT
+     *
+     * Depuis que l'Organization est OBLIGATOIRE sur la porte globale, cette
+     * requete est refusee par la VALIDATION (« The organization field is
+     * required ») et n'atteint plus le refus d'ambiguite qu'elle pretend
+     * mesurer. L'assertion reste vraie — personne n'est connecte — mais pour
+     * une autre raison que son nom.
+     *
+     * Il n'y a PAS de regression de securite : la porte est devenue plus
+     * stricte, pas moins. Mais la garde est creusee, et elle ne rougirait plus
+     * si le refus d'ambiguite disparaissait.
+     *
+     * Le chemin HTTP reste atteignable en nommant une porte ou DEUX comptes
+     * partagent la meme adresse a la casse pres. Le remettre en place demande
+     * de verifier si l'unicite par Organization est sensible a la casse — hors
+     * du perimetre de T1749, signale a Cyril pour la TASK suivante.
+     *
+     * Les gardes de ce fichier qui portent sur le RESOLVEUR, elles, mesurent
+     * toujours exactement ce qu'elles disent.
+     */
     public function test_the_ambiguous_refusal_does_not_authenticate_anyone(): void
     {
         $this->compte($this->orgA, 'Frere@example.test');

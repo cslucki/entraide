@@ -34,6 +34,10 @@ class UserDeactivationTest extends TestCase
         $this->organization = Organization::factory()->create([
             'slug' => 'main',
             'is_active' => true,
+            // TASK-1749 : la porte globale ne propose que les Organizations
+            // PUBLIQUES (condition D2). Sans cela, la selection est refusee
+            // et le test ne mesurerait plus la desactivation.
+            'is_public' => true,
             'is_default' => true,
         ]);
     }
@@ -93,6 +97,8 @@ class UserDeactivationTest extends TestCase
         $user = $this->createUser(['banned_at' => now(), 'password' => bcrypt('password')]);
 
         $response = $this->post('/login', [
+            // TASK-1749 : sur la porte GLOBALE, l'Organization est desormais exigee.
+            'organization' => $this->organization->slug,
             'email' => $user->email,
             'password' => 'password',
         ]);
@@ -458,6 +464,8 @@ class UserDeactivationTest extends TestCase
         $user->update(['banned_at' => null]);
 
         $response = $this->post('/login', [
+            // TASK-1749 : sur la porte GLOBALE, l'Organization est desormais exigee.
+            'organization' => $this->organization->slug,
             'email' => $user->email,
             'password' => 'password',
         ]);

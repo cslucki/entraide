@@ -140,6 +140,8 @@ class TASK1601PostLoginTenantRedirectTest extends TestCase
         app()->forgetInstance('current_organization');
 
         $this->post('/login', [
+            // TASK-1749 : sur la porte GLOBALE, l'Organization est desormais exigee.
+            'organization' => $this->otherOrg->slug,
             'email' => $this->otherMember->email,
             'password' => 'password',
         ])->assertRedirect('/loops');

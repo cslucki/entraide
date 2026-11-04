@@ -22,7 +22,7 @@ use Tests\TestCase;
  * L'effet constate est l'inverse de l'intention. Les etapes d'On-boarding se
  * calculent sur l'EXISTENCE d'une demande ou d'un service, quel que soit leur
  * statut ; les cards, elles, filtrent sur `active` et sur `open`+`in_progress`.
- * Quelqu'un dont les propositions sont inactives et les demandes fermees est
+ * Quelqu'un dont les propositions sont en pause et les demandes fermees est
  * donc a 4/4 — plus d'On-boarding — et perdait les deux portes qui lui servent
  * le plus.
  *
@@ -60,7 +60,7 @@ class TASK1749DashboardAlwaysOnCardsTest extends TestCase
      *
      * Les trois etapes retenues ici — biographie, une demande, une proposition —
      * se calculent sur l'EXISTENCE, quel que soit le statut. La demande est
-     * FERMEE et la proposition INACTIVE : ni l'une ni l'autre ne parait dans sa
+     * FERMEE et la proposition EN PAUSE : ni l'une ni l'autre ne parait dans sa
      * card, qui ne retient que `open`/`in_progress` et `active`.
      *
      * L'etape « profil IA » ne compte pas : elle est retiree quand l'IA de
@@ -88,7 +88,9 @@ class TASK1749DashboardAlwaysOnCardsTest extends TestCase
             'user_id' => $membre->id,
             'organization_id' => $this->organization->id,
             'category_id' => $categorie->id,
-            'status' => 'inactive',
+            // `services_status_check` n'admet que active/paused/deleted :
+            // `inactive` passait en SQLite et violait la contrainte en PostgreSQL.
+            'status' => 'paused',
         ]);
     }
 
