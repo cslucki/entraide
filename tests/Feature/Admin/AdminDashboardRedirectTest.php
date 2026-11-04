@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Http\Requests\Auth\LoginRequest;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -117,7 +116,7 @@ class AdminDashboardRedirectTest extends TestCase
         ])->assertRedirect(route('organization.home', ['organization' => $organization->slug], absolute: false));
     }
 
-    public function test_tenantless_admin_login_defaults_to_admin_dashboard_url(): void
+    public function test_tenantless_admin_can_no_longer_sign_in(): void
     {
         $admin = User::factory()->create([
             'is_admin' => true,
@@ -125,12 +124,14 @@ class AdminDashboardRedirectTest extends TestCase
             'password' => Hash::make('password'),
         ]);
 
-        // TASK-1749 — cet administrateur est DETACHE (`organization_id` null) :
-        // il designe sa situation, faute d'Organization a nommer.
+        // TASK-1749 (arbitrage Cyril) — meme regle pour un ADMINISTRATEUR
+        // detache : sans Organization a nommer, il n'entre plus.
+        //
+        // Mesure du 04/11 avant d'arbitrer : les 3 administrateurs reels de la
+        // base portent tous une Organization. Personne n'est enferme dehors.
         $this->post(route('login'), [
             'email' => $admin->email,
             'password' => 'password',
-            'organization' => LoginRequest::SANS_ORGANIZATION,
-        ])->assertRedirect(route('admin.dashboard', absolute: false));
+        ])->assertSessionHasErrors('organization');
     }
 }

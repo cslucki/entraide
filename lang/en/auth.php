@@ -83,8 +83,6 @@ return [
     // TASK-1749 — the choice becomes MANDATORY. See the French file.
     'login_organization_label' => "Organization",
     'login_organization_hint' => "Pick the organization your account belongs to.",
-    // TASK-1749 — the door for DETACHED accounts. See the French file.
-    'login_organization_none' => "I don't belong to any organization",
     'login_try_global' => "Is your account in another organization? Sign in here.",
 
     // TASK-1730 (A5a) — la bascule entre comptes d'Organizations differentes.

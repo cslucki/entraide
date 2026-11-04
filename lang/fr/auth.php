@@ -82,10 +82,6 @@ return [
     // clef qui nomme une option qui n'existe plus finit par être réemployée.
     'login_organization_label' => "Organisation",
     'login_organization_hint' => "Choisissez l'organisation à laquelle votre compte appartient.",
-    // TASK-1749 — la porte des comptes DÉTACHÉS : `organization_id` à NULL,
-    // produits par la suppression d'une Organization. Sans cette ligne, le
-    // choix obligatoire les enfermait dehors.
-    'login_organization_none' => "Je n'appartiens à aucune organisation",
     'login_try_global' => "Votre compte appartient à une autre organisation ? Connectez-vous ici.",
 
     // TASK-1730 (A5a) — la bascule entre comptes d'Organizations differentes.

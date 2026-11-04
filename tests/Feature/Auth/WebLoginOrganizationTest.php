@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Http\Requests\Auth\LoginRequest;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -10,7 +9,7 @@ use Tests\TestCase;
 
 class WebLoginOrganizationTest extends TestCase
 {
-    public function test_non_admin_without_organization_is_redirected_to_home_on_login(): void
+    public function test_non_admin_without_organization_can_no_longer_sign_in(): void
     {
         $user = User::factory()->create([
             'is_admin' => false,
@@ -18,13 +17,15 @@ class WebLoginOrganizationTest extends TestCase
             'password' => Hash::make('password'),
         ]);
 
-        // TASK-1749 — la selection est obligatoire sur `/login`. Un compte
-        // DETACHE n'a aucune Organization a nommer : il designe sa situation.
+        // TASK-1749 (arbitrage Cyril) — un compte DETACHE n'a aucune
+        // Organization a nommer, et la selection est obligatoire : il n'entre
+        // plus. Ses membres doivent etre migres par un administrateur.
         $this->post(route('login'), [
             'email' => $user->email,
             'password' => 'password',
-            'organization' => LoginRequest::SANS_ORGANIZATION,
-        ])->assertRedirect('/dashboard');
+        ])->assertSessionHasErrors('organization');
+
+        $this->assertGuest();
     }
 
     public function test_non_admin_with_organization_lands_on_chatloop_on_login(): void

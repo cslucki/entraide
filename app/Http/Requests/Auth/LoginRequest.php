@@ -16,21 +16,6 @@ use RuntimeException;
 
 class LoginRequest extends FormRequest
 {
-    /**
-     * TASK-1749 — la valeur que porte « Je n'appartiens a aucune organisation ».
-     *
-     * Rendre la selection obligatoire retirait leur SEULE porte aux comptes
-     * detaches (`organization_id` NULL) : ils ne peuvent rien selectionner, et
-     * T1728 garantit qu'ils n'entrent par aucune porte d'Organization. Or ces
-     * comptes se fabriquent par un geste courant —
-     * `AdminOrganizationController::destroy()` detache les membres de
-     * l'Organization supprimee.
-     *
-     * Un slug ne peut pas porter cette valeur : le motif de route des
-     * Organizations exige `[a-z0-9][a-z0-9\-]*`, et les tirets bas en sont
-     * absents. Aucune Organization reelle ne peut donc l'usurper.
-     */
-    public const SANS_ORGANIZATION = '__sans_organisation__';
 
     /**
      * Determine if the user is authorized to make this request.
@@ -106,13 +91,6 @@ class LoginRequest extends FormRequest
 
         $slug = trim((string) $this->input('organization', ''));
 
-        // TASK-1749 — « Je n'appartiens a aucune organisation » : il n'y a pas
-        // d'Organization a resoudre, et ce n'est pas un defaut de selection.
-        // La portee est posee a part, par `viseLesComptesDetaches()`.
-        if ($slug === self::SANS_ORGANIZATION) {
-            return null;
-        }
-
         if ($slug === '') {
             return null;
         }
@@ -134,21 +112,6 @@ class LoginRequest extends FormRequest
         }
 
         return $selectionnee;
-    }
-
-    /**
-     * TASK-1749 — la tentative vise-t-elle les comptes DETACHES ?
-     *
-     * Seulement sur `/login`. Sur `/org/{slug}/login`, l'Organization vient de
-     * la route et gouverne : un `organization` poste y est ignore, sentinelle
-     * comprise. Sans cette borne, poster la sentinelle sur la porte d'une
-     * Organization aurait elargi la recherche hors de ce tenant — exactement ce
-     * que T1728 interdit.
-     */
-    private function viseLesComptesDetaches(): bool
-    {
-        return $this->route('organization') === null
-            && trim((string) $this->input('organization', '')) === self::SANS_ORGANIZATION;
     }
 
     /**
@@ -196,17 +159,7 @@ class LoginRequest extends FormRequest
         // reponse dirait dans quelle Organization une adresse se trouve.
         $organization = $this->organizationDeLaTentative($comptes);
 
-        // TASK-1749 — trois portees possibles, et plus deux.
-        //
-        // Avant : une Organization, ou « aucune selection » qui cherchait dans
-        // TOUS les locataires. Depuis que la selection est obligatoire, la
-        // seconde n'existe plus comme reponse de l'interface ; elle est
-        // remplacee par une portee PLUS ETROITE, les comptes detaches.
-        $user = $comptes->compteUnique(
-            $this->string('email')->toString(),
-            $organization,
-            $this->viseLesComptesDetaches(),
-        );
+        $user = $comptes->compteUnique($this->string('email')->toString(), $organization);
 
         if ($user && $user->banned_at !== null) {
             // TASK-1716 — le refus est le MEME, le message ne l'est pas.

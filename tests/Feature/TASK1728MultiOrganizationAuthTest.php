@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Http\Requests\Auth\LoginRequest;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Users\LoginAccountResolver;
@@ -487,70 +486,25 @@ class TASK1728MultiOrganizationAuthTest extends TestCase
             'password' => Hash::make('password'),
         ]);
 
-        // TASK-1749 — la GARANTIE ne bouge pas, la forme du geste si.
+        // TASK-1749 (decision Cyril, 04/11) — la GARANTIE EST LEVEE, et le
+        // test est retourne plutot que supprime.
         //
-        // La selection d'Organization est devenue OBLIGATOIRE sur `/login`
-        // (decision Cyril, 04/11). Un compte detache n'en a pourtant aucune a
-        // nommer : il designe donc explicitement sa situation, au lieu de
-        // laisser le champ vide comme avant.
+        // T1728 avait ecrit « le parcours global demeure sa porte » pour un
+        // compte detache. La selection d'Organization est devenue OBLIGATOIRE :
+        // il n'a plus rien a nommer, et il n'entre par aucune porte.
         //
-        // Ce que le test garantissait — « le parcours global demeure sa
-        // porte » — est INTACT, et la portee est meme plus etroite qu'avant :
-        // la sentinelle ne regarde que les comptes sans Organization, la ou le
-        // champ vide cherchait dans TOUS les locataires.
+        // Une option « Je n'appartiens a aucune organisation » avait ete posee
+        // pour lui, puis RETIREE sur arbitrage : une Organization supprimee
+        // n'est plus operationnelle, ses membres doivent etre migres par un
+        // administrateur. Le cas est juge rarissime — aucune suppression
+        // d'Organization n'est prevue.
+        //
+        // Le supprimer aurait laisse un trou : plus rien n'aurait dit ce qui
+        // arrive a un compte detache. Il mesure donc la regle neuve.
         $this->post(route('login'), [
             'email' => $orphelin->email,
             'password' => 'password',
-            'organization' => LoginRequest::SANS_ORGANIZATION,
-        ])->assertRedirect();
-
-        $this->assertAuthenticatedAs($orphelin);
-    }
-
-    /**
-     * TASK-1749 — la sentinelle n'est PAS une porte derobee.
-     *
-     * Elle ne doit ouvrir que des comptes detaches. Si elle pouvait atteindre
-     * un membre d'un tenant, elle rendrait a `/login` le comportement
-     * « cherche partout » que le choix obligatoire vient justement de retirer.
-     */
-    public function test_la_sentinelle_sans_organization_n_atteint_AUCUN_membre_d_un_tenant(): void
-    {
-        $membre = User::factory()->create([
-            'organization_id' => $this->publiqueA->id,
-            'email' => 'membre-tenant-1749@exemple.test',
-            'password' => Hash::make('password'),
-        ]);
-
-        $this->post(route('login'), [
-            'email' => $membre->email,
-            'password' => 'password',
-            'organization' => LoginRequest::SANS_ORGANIZATION,
-        ])->assertSessionHasErrors('email');
-
-        $this->assertGuest();
-    }
-
-    /**
-     * TASK-1749 — et elle ne traverse pas non plus la porte d'une Organization.
-     *
-     * Sur `/org/{slug}/login`, la route gouverne : un `organization` poste y est
-     * ignore, sentinelle comprise. Sans cette borne, la poster sur la porte d'un
-     * tenant aurait elargi la recherche hors de lui.
-     */
-    public function test_la_sentinelle_est_ignoree_sur_la_porte_d_une_organization(): void
-    {
-        $orphelin = User::factory()->create([
-            'organization_id' => null,
-            'email' => 'orphelin-porte-1749@exemple.test',
-            'password' => Hash::make('password'),
-        ]);
-
-        $this->post(route('organization.login', $this->publiqueA), [
-            'email' => $orphelin->email,
-            'password' => 'password',
-            'organization' => LoginRequest::SANS_ORGANIZATION,
-        ])->assertSessionHasErrors('email');
+        ])->assertSessionHasErrors('organization');
 
         $this->assertGuest();
     }

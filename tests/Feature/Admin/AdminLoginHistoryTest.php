@@ -3,7 +3,6 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\LoginLog;
-use App\Http\Requests\Auth\LoginRequest;
 use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
@@ -228,11 +227,12 @@ class AdminLoginHistoryTest extends TestCase
             'password' => bcrypt('password'),
         ]);
 
-        // TASK-1749 — compte DETACHE : il n'a pas d'Organization a nommer.
+        // TASK-1749 — un compte DETACHE n'entre plus : la selection est
+        // obligatoire et il n'a rien a nommer. Aucun journal n'est donc ecrit,
+        // ce que ce test mesurait deja.
         $this->post(route('login'), [
             'email' => $user->email,
             'password' => 'password',
-            'organization' => LoginRequest::SANS_ORGANIZATION,
         ]);
 
         $this->assertDatabaseMissing('login_logs', [

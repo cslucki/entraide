@@ -326,31 +326,6 @@
                         </option>
                         @endforeach
 
-                        {{-- TASK-1749 (decision Cyril, 04/11) — la porte des comptes
-                             DETACHES.
-
-                             Rendre la selection obligatoire leur retirait leur SEULE
-                             porte : `organization_id` a NULL, rien a selectionner, et
-                             T1728 garantit qu'ils n'entrent par aucune porte
-                             d'Organization. Ces comptes se fabriquent par un geste
-                             courant — `AdminOrganizationController::destroy()` detache
-                             les membres de l'Organization supprimee, et le message de
-                             confirmation du bouton l'annonce.
-
-                             Cette portee est PLUS ETROITE que l'ancien
-                             « — Toutes les organisations — » qu'elle remplace : celui-la
-                             cherchait dans TOUS les locataires, celle-ci ne regarde que
-                             les comptes sans Organization.
-
-                             Placee en DERNIER, apres un separateur : elle ne concerne
-                             qu'une situation rare, et ne doit pas se lire comme un choix
-                             ordinaire. --}}
-                        <option disabled>──────────</option>
-                        <option value="{{ \App\Http\Requests\Auth\LoginRequest::SANS_ORGANIZATION }}"
-                                data-login-organization-detached
-                                {{ old('organization') === \App\Http\Requests\Auth\LoginRequest::SANS_ORGANIZATION ? 'selected' : '' }}>
-                            {{ __('auth.login_organization_none') }}
-                        </option>
                     </select>
                     <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                         {{ __('auth.login_organization_hint') }}
