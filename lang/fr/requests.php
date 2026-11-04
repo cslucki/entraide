@@ -21,6 +21,7 @@ return [
     'show' => [
         'back' => 'Retour à l\'explorateur',
         'edit' => 'Modifier',
+        'relaunch' => 'Relancer une demande similaire',
         'points' => 'points',
         'attachments' => 'Pièces jointes',
         'report_button' => 'Signaler cette demande',
@@ -75,4 +76,6 @@ return [
         'another_offer_accepted' => "L'auteur de la demande a retenu une autre proposition. Cet échange est donc clos — merci de votre proposition.",
         'insufficient_balance' => "Le solde de l'auteur de la demande ne couvre plus ce montant. L'echange ne peut pas etre accepte.",
     ],
+    // TASK-1749 — le bandeau du formulaire de relance.
+    'relaunch_notice' => 'Vous relancez une demande similaire à « :title ». Les textes et les pièces jointes sont repris ; ajustez ce que vous voulez avant de publier. L\'échéance est à redéfinir.',
 ];

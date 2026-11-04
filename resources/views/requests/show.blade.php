@@ -6,6 +6,12 @@
         $_reqReportAction = $_reqOrgSlug && Route::has('organization.reports.request') ? route('organization.reports.request', ['organization' => $_reqOrgSlug, 'serviceRequest' => $request]) : route('reports.request', $request);
         $_reqTxStoreAction = $_reqOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_reqOrgSlug]) : route('transactions.store');
         $_reqEditHref = $_reqOrgSlug && Route::has('organization.requests.edit') ? route('organization.requests.edit', ['organization' => $_reqOrgSlug, 'request' => $request]) : route('requests.edit', $request);
+        // TASK-1749 — la relance passe par le formulaire de CREATION, avec la
+        // demande d'origine en parametre. Pas de route dediee : c'est le meme
+        // ecran, simplement rempli d'avance.
+        $_reqRelaunchHref = ($_reqOrgSlug && Route::has('organization.requests.create')
+            ? route('organization.requests.create', ['organization' => $_reqOrgSlug])
+            : route('requests.create')).'?relancer='.$request->id;
     @endphp
     {{-- Desktop topbar --}}
     <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
@@ -138,8 +144,30 @@
                 </div>
                 @endif
                 @else
+                {{-- TASK-1749 (demande Cyril, 04/11) — « Modifier » menait a un
+                     refus sur une demande POURVUE.
+
+                     `ServiceRequestPolicy::update()` refuse des qu'une
+                     transaction reference la demande, et c'est juste : editer
+                     reecrirait les termes d'un echange deja conclu. Le bouton
+                     etait pourtant rendu SANS CONDITION, et le refus
+                     s'affichait en « Vous n'avez pas acces a cette page » —
+                     ce qui se lit comme un defaut de permission sur sa PROPRE
+                     demande.
+
+                     Sur une demande pourvue, il devient donc « Relancer une
+                     demande similaire » : une demande NEUVE, pre-remplie, qui
+                     ne reecrit rien. L'ancienne reste le registre de ce qui
+                     s'est passe. --}}
                 <div class="border-t border-gray-100 dark:border-gray-700 pt-6 flex gap-3">
-                    <a href="{{ $_reqEditHref }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">{{ __('requests.show.edit') }}</a>
+                    @if($request->status === 'closed')
+                        <a href="{{ $_reqRelaunchHref }}" data-request-relaunch
+                           class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold transition hover:bg-indigo-700">
+                            {{ __('requests.show.relaunch') }}
+                        </a>
+                    @else
+                        <a href="{{ $_reqEditHref }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">{{ __('requests.show.edit') }}</a>
+                    @endif
                 </div>
                 @endif
                 @endauth

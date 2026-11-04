@@ -21,6 +21,7 @@ return [
     'show' => [
         'back' => 'Back to explorer',
         'edit' => 'Edit',
+        'relaunch' => 'Post a similar request',
         'points' => 'points',
         'attachments' => 'Attachments',
         'report_button' => 'Report this request',
@@ -69,4 +70,6 @@ return [
         'another_offer_accepted' => 'The requester accepted another offer. This exchange is therefore closed — thank you for offering.',
         'insufficient_balance' => 'The requester\u2019s balance no longer covers this amount. The exchange cannot be accepted.',
     ],
+    // TASK-1749 — the relaunch form banner.
+    'relaunch_notice' => 'You are posting a request similar to \":title\". The text and attachments are carried over; adjust anything before publishing. The deadline needs setting again.',
 ];
