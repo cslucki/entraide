@@ -257,7 +257,7 @@ if (! function_exists('bp_themes')) {
      */
     function bp_themes(): array
     {
-        $cachePath = storage_path('app/bouclepro-themes.php');
+        $cachePath = bp_themes_cache_path();
 
         if (file_exists($cachePath)) {
             $themes = require $cachePath;
@@ -271,6 +271,46 @@ if (! function_exists('bp_themes')) {
             'themes' => config('bouclepro_themes.themes'),
             'default' => config('bouclepro_themes.default', 'zen'),
         ];
+    }
+}
+
+if (! function_exists('bp_themes_cache_path')) {
+    /**
+     * TASK-1749 — le cache de themes a un fichier PAR ENVIRONNEMENT.
+     *
+     * ## Le defaut corrige, et il etait silencieux
+     *
+     * `Theme::regenerateCache()` ecrivait toujours
+     * `storage/app/bouclepro-themes.php`. Or `storage_path()` n'est PAS
+     * redirige en environnement de test, et la migration
+     * `2026_10_25_230000_write_the_ofsh_palette_into_its_theme_row` appelle
+     * cette methode dans son `up()`.
+     *
+     * Consequence mesuree le 04/11 : chaque `RefreshDatabase` republiait le
+     * cache DEPUIS LA BASE DE TEST, par-dessus celui du poste de travail. Les
+     * themes presents en base de dev mais absents des seeders — `lp` et `ut` —
+     * disparaissaient. Un simple `bin/test` faisait donc basculer la porte de
+     * LaunchPals sur la couleur de `zen`, sans que rien ne le signale.
+     *
+     * ## Seul le TEST devie, et c'est delibere
+     *
+     * Suffixer par environnement aurait fait perdre son cache a `local`, a
+     * `ai-validation` et a tout autre : le fichier existant s'appelle
+     * `bouclepro-themes.php`, et ils seraient tous retombes sur la
+     * configuration — donc sur des themes sans les personnalisations de leur
+     * base — jusqu'a une regeneration manuelle.
+     *
+     * Le defaut mesure ne vient que du banc de test. C'est donc LUI qu'on
+     * devie, et rien d'autre : aucun environnement reel ne change de fichier.
+     *
+     * Lecteur et ecrivain passent par cette fonction — c'etait la condition
+     * pour qu'ils ne divergent pas.
+     */
+    function bp_themes_cache_path(): string
+    {
+        return app()->environment('testing')
+            ? storage_path('app/bouclepro-themes.testing.php')
+            : storage_path('app/bouclepro-themes.php');
     }
 }
 

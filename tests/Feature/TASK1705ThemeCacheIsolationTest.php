@@ -185,7 +185,10 @@ class TASK1705ThemeCacheIsolationTest extends TestCase
      */
     private function avecLeCacheRendu(callable $corps): void
     {
-        $chemin = storage_path('app/bouclepro-themes.php');
+        // TASK-1749 — meme resolution que le lecteur, l'ecrivain et le trait.
+        // Fige, ce chemin aurait fait eprouver ces gardes sur un fichier que le
+        // banc n'ecrit plus : elles seraient restees vertes sans rien mesurer.
+        $chemin = bp_themes_cache_path();
         $original = is_file($chemin) ? file_get_contents($chemin) : null;
 
         try {
