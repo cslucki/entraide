@@ -270,6 +270,43 @@
                         if (! champ || ! champ.hasAttribute('data-login-organization-nav')) { return; }
                         if (champ.value) { window.location.href = champ.value; }
                     });
+
+                    /*
+                     * TASK-1749 (bug signale par Cyril, 04/11) — le RETOUR
+                     * ARRIERE laissait « BouclePro » dans le menu.
+                     *
+                     * Le serveur rend pourtant le bon etat : sans `?org=`, c'est
+                     * le libelle neutre qui porte `selected`. Ce n'est donc pas
+                     * un defaut de rendu — c'est le NAVIGATEUR qui restaure
+                     * l'etat des formulaires en revenant en arriere, et qui
+                     * reecrit par-dessus ce que le serveur a envoye.
+                     *
+                     * Resultat incoherent : le menu annoncait une Organization
+                     * choisie pendant que les champs d'identifiants etaient,
+                     * eux, verrouilles par le serveur — les deux ne pouvaient
+                     * pas etre vrais en meme temps.
+                     *
+                     * `defaultSelected` est la reponse exacte : il reflete
+                     * l'attribut `selected` du HTML — donc la VERITE DU
+                     * SERVEUR — et jamais le choix que la personne a fait
+                     * ensuite. Aucun attribut supplementaire a poser, rien a
+                     * tenir a jour en double.
+                     *
+                     * `pageshow` et pas `DOMContentLoaded` : un retour depuis
+                     * le cache de navigation ne rejoue PAS `DOMContentLoaded`.
+                     * C'est precisement le cas a couvrir.
+                     */
+                    window.addEventListener('pageshow', function () {
+                        document.querySelectorAll('[data-login-organization-nav]').forEach(function (champ) {
+                            var attendu = Array.prototype.findIndex.call(champ.options, function (option) {
+                                return option.defaultSelected;
+                            });
+
+                            if (attendu !== -1 && champ.selectedIndex !== attendu) {
+                                champ.selectedIndex = attendu;
+                            }
+                        });
+                    });
                 </script>
                 @endpush
                 @endif
