@@ -16,7 +16,6 @@ return [
         'loop_created' => ':name a créé la Boucle :object',
         'loop_event_created' => ':name a créé l\'évènement :object',
         'object_gone' => 'un contenu supprimé',
-        'see' => 'Voir',
     ],
 
     'organization' => 'Organisation',

@@ -68,6 +68,76 @@ final class FeedEventRenderer
     }
 
     /**
+     * TASK-1752 (design A, choix Cyril) — la LIGNE compacte, en HTML.
+     *
+     * ## Le contrat de securite, et il est strict
+     *
+     * Cette methode rend du HTML consomme avec `{!! !!}`. La regle qui rend
+     * cela sur : **tout ce qui est dynamique passe par `e()`** — le gabarit
+     * de traduction, le nom, le nom de l'objet, les URLs. Les seules balises
+     * non echappees sont celles ecrites ICI, en dur. Un nom contenant
+     * `<script>` ou `[texte](url)` sort donc en texte, jamais en balise.
+     *
+     * ## Pourquoi composer sur le GABARIT, placeholders intacts
+     *
+     * « :name a rejoint la Boucle :object » et « :name joined the :object
+     * Loop » n'ont pas le meme ordre de mots. Decouper la phrase en morceaux
+     * cote PHP aurait fige l'ordre francais ; substituer les placeholders
+     * APRES coup laisse chaque langue ecrire sa phrase.
+     */
+    public static function ligneHtml(FeedPost $post, ?string $organizationSlug): ?string
+    {
+        $type = (string) $post->type;
+
+        if (! FeedEventCatalogue::connait($type)) {
+            return null;
+        }
+
+        $clef = FeedEventCatalogue::libelle($type);
+
+        if ($clef === null) {
+            return null;
+        }
+
+        $nom = $post->user?->publicDisplayName() ?? __('feed.member_fallback');
+        $profil = self::lienProfil($post->user, $organizationSlug);
+
+        $nomHtml = $profil !== null
+            ? '<a href="'.e($profil).'" class="font-semibold text-gray-900 hover:underline dark:text-gray-100">'.e($nom).'</a>'
+            : '<span class="font-semibold text-gray-500 dark:text-gray-400">'.e($nom).'</span>';
+
+        $objetNom = self::nomDeLObjet($post);
+        $objetUrl = self::lien($post, $organizationSlug);
+
+        $objetHtml = $objetUrl !== null
+            ? '<a href="'.e($objetUrl).'" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">'.e($objetNom).'</a>'
+            : '<span class="font-medium">'.e($objetNom).'</span>';
+
+        // `__($clef)` SANS remplacement rend le gabarit, `:name` et `:object`
+        // intacts — aucun caractere que `e()` transformerait.
+        return str_replace([':name', ':object'], [$nomHtml, $objetHtml], e(__($clef)));
+    }
+
+    /**
+     * Le lien vers le profil PUBLIC de l'acteur.
+     *
+     * `null` — donc pas de lien — pour un compte disparu ou DESACTIVE : sa
+     * fiche n'a plus rien a montrer, et `publicDisplayName()` rend deja un
+     * libelle neutre. Un lien qui mene a un refus est pire que pas de lien.
+     */
+    public static function lienProfil(?User $user, ?string $organizationSlug): ?string
+    {
+        if ($user === null || $organizationSlug === null || $user->isDeactivated()) {
+            return null;
+        }
+
+        return self::route('organization.profile.show', [
+            'organization' => $organizationSlug,
+            'user' => $user->slug ?: $user->getKey(),
+        ]);
+    }
+
+    /**
      * Le lien vers l'objet concerne, s'il est encore la et nommable.
      *
      * Rend `null` plutot qu'une adresse morte : un lien qui mene a un 404 est

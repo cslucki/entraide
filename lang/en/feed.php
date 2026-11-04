@@ -12,7 +12,6 @@ return [
         'loop_created' => ':name created the :object Loop',
         'loop_event_created' => ':name created the event :object',
         'object_gone' => 'a deleted item',
-        'see' => 'View',
     ],
 
     'organization' => 'Organization',

@@ -6,6 +6,10 @@
     $lastComment = $post->comments->first();
     $preview = $post->url_preview;
     $authorName = $post->user?->publicDisplayName() ?? __('feed.member_fallback');
+
+    // TASK-1752 (design A, choix Cyril) — un evenement n'est pas une annonce :
+    // il n'a ni titre, ni image, ni paragraphe. Sa carte est une LIGNE.
+    $estEvenement = \App\Support\Feed\FeedEventCatalogue::connait($post->type);
 @endphp
 
 <article id="feed-post-{{ $post->id }}" class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900" x-data="{ showComments: false, showReactions: false }">
@@ -13,7 +17,8 @@
         <img src="{{ $post->imageUrl() }}" alt="" class="h-56 w-full object-cover sm:h-72">
     @endif
 
-    <div class="space-y-4 p-4 sm:p-5">
+    <div class="{{ $estEvenement ? 'space-y-3 px-4 py-3 sm:px-5' : 'space-y-4 p-4 sm:p-5' }}">
+        @unless($estEvenement)
         <header class="flex items-start justify-between gap-3">
             <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
@@ -35,6 +40,7 @@
                 </p>
             </div>
         </header>
+        @endunless
 
         {{-- TASK-1752 — DEUX rendus, et la separation n'est pas cosmetique.
 
@@ -45,16 +51,33 @@
 
             Le libelle est CALCULE : la langue et le nom sont resolus
             maintenant, pas au moment ou la ligne a ete ecrite. --}}
-        @php($_libelleEvenement = \App\Support\Feed\FeedEventRenderer::libelle($post))
+        @if($estEvenement)
+            {{-- La ligne : avatar cliquable, phrase ou le NOM et l'OBJET sont
+                des liens, date courte a droite.
 
-        @if($_libelleEvenement !== null)
-            @php($_lienEvenement = \App\Support\Feed\FeedEventRenderer::lien($post, currentOrganization()?->slug))
-            <p class="text-sm text-gray-800 dark:text-gray-100" data-feed-event="{{ $post->type }}">
-                {{ $_libelleEvenement }}
-                @if($_lienEvenement)
-                    <a href="{{ $_lienEvenement }}" class="ml-1 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400">{{ __('feed.events.see') }}</a>
+                `ligneHtml()` rend du HTML dont TOUTES les parties dynamiques
+                sont echappees par `e()` — c'est son contrat, ecrit dans son
+                docblock. Jamais `markdown()` ici : la syntaxe resterait
+                active et un nom contenant `[texte](url)` produirait un lien. --}}
+            @php($_slugOrganization = currentOrganization()?->slug)
+            @php($_lienProfil = \App\Support\Feed\FeedEventRenderer::lienProfil($post->user, $_slugOrganization))
+            <div class="flex items-center gap-3" data-feed-event="{{ $post->type }}">
+                @if($_lienProfil)
+                    <a href="{{ $_lienProfil }}" class="shrink-0 rounded-full transition hover:ring-2 hover:ring-indigo-300 dark:hover:ring-indigo-600" aria-label="{{ $authorName }}">
+                        <x-user-avatar :user="$post->user" size="sm" />
+                    </a>
+                @else
+                    <x-user-avatar :user="$post->user" size="sm" class="shrink-0" />
                 @endif
-            </p>
+
+                <p class="min-w-0 flex-1 text-sm leading-snug text-gray-700 dark:text-gray-200">
+                    {!! \App\Support\Feed\FeedEventRenderer::ligneHtml($post, $_slugOrganization) !!}
+                </p>
+
+                <span class="shrink-0 text-xs text-gray-400 dark:text-gray-500">
+                    {{ ($post->published_at ?? $post->created_at)->isoFormat('ll') }}
+                </span>
+            </div>
         @elseif(filled($post->content))
             <div class="prose prose-sm max-w-none text-gray-800 dark:prose-invert dark:text-gray-100">
                 {!! markdown($post->content) !!}
