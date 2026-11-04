@@ -97,6 +97,8 @@ return [
     // TASK-1693 bug U — l'etat d'une demande, porte par la pastille.
     'request_open' => 'Ouverte',
     'request_in_progress' => 'Prise en charge',
+    // TASK-1749 — une demande dont la prestation est terminée.
+    'request_fulfilled' => 'Pourvue',
     'ask_help' => 'Demander de l\'aide',
     'my_current_exchanges' => 'Mes échanges en cours',
     'current_exchanges' => 'Échanges en cours',

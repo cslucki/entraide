@@ -293,7 +293,14 @@
                          @class(['divide-y divide-gray-100 dark:divide-gray-700',
                                   'max-h-64 overflow-y-auto' => count($myRequests) > 4])>
                     @forelse($myRequests as $req)
-                    @php $reqPriseEnCharge = $req->status === 'in_progress'; @endphp
+                    {{-- TASK-1749 — TROIS etats, et plus deux.
+                         `$reqPourvue` doit etre lu AVANT `$reqPriseEnCharge`
+                         partout : une demande close n'est ni « ouverte » ni
+                         « prise en charge ». --}}
+                    @php
+                        $reqPourvue = $req->status === 'closed';
+                        $reqPriseEnCharge = $req->status === 'in_progress';
+                    @endphp
                     <div class="px-5 py-3 flex items-start gap-2" data-dashboard-request="{{ $req->id }}">
                         <div class="min-w-0 flex-1">
                             <a href="{{ $_dashRoute('requests.show', ['request' => $req]) }}" class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600">{{ $req->title }}</a>
@@ -301,12 +308,26 @@
                         </div>
                         {{-- TASK-1693 bug U — la pastille dit l'etat, puisque la
                              card porte desormais les deux. --}}
+                        {{-- TASK-1749 — la pastille etait BINAIRE : tout ce qui
+                             n'etait pas `in_progress` s'affichait « Ouverte ».
+                             Ajouter `closed` sans la reecrire aurait donc
+                             annonce « Ouverte » sur une demande pourvue.
+
+                             Gris pour « pourvue » : la demande n'appelle plus
+                             aucun geste, elle ne doit pas tirer l'oeil comme un
+                             etat vivant. --}}
                         <span class="shrink-0 rounded-full px-2 py-0.5 text-xs
-                            {{ $reqPriseEnCharge
-                                ? 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
-                                : 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300' }}"
+                            @if($reqPourvue) bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300
+                            @elseif($reqPriseEnCharge) bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300
+                            @else bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 @endif"
                               data-dashboard-request-state="{{ $req->status }}">
-                            {{ $reqPriseEnCharge ? __('dashboard.request_in_progress') : __('dashboard.request_open') }}
+                            @if($reqPourvue)
+                                {{ __('dashboard.request_fulfilled') }}
+                            @elseif($reqPriseEnCharge)
+                                {{ __('dashboard.request_in_progress') }}
+                            @else
+                                {{ __('dashboard.request_open') }}
+                            @endif
                         </span>
                         {{-- « Fermer » n'est offert que sur une demande encore
                              OUVERTE. Fermer une demande deja prise en charge
@@ -314,7 +335,11 @@
                              une demande close, sans rien dire a la personne qui
                              l'a faite : ce serait offrir un geste dont la
                              consequence n'est pas nommee. --}}
-                        @if(! $reqPriseEnCharge)
+                        {{-- TASK-1749 — `! $reqPourvue` ajoute. Sans lui, « Fermer »
+                             restait offert sur une demande DEJA close : un geste
+                             sans effet, propose au seul endroit ou il ne veut
+                             plus rien dire. --}}
+                        @if(! $reqPriseEnCharge && ! $reqPourvue)
                         <form method="POST" action="{{ $_dashRoute('requests.destroy', ['request' => $req]) }}" class="flex-shrink-0" x-data="{ asked: false }"
                               data-dashboard-request-close="{{ $req->id }}">
                             @csrf @method('DELETE')

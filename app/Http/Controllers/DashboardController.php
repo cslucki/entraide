@@ -32,18 +32,38 @@ class DashboardController extends Controller
         // elle devenait vivante — c'est-a-dire au moment le plus interessant.
         //
         // Le titre dit « mes demandes », pas « mes demandes que personne n'a
-        // encore vues ». On liste donc les deux etats, et c'est la PASTILLE qui
-        // dit lequel. `closed` reste dehors : son auteur l'a ferme
-        // deliberement, exactement comme les echanges termines restent hors de
-        // la card « Échanges ».
+        // encore vues ». On liste donc les etats, et c'est la PASTILLE qui dit
+        // lequel.
+        //
+        // TASK-1749 (demande Cyril, 04/11) — `closed` ENTRE dans la card.
+        //
+        // T1693 l'en avait tenu dehors au motif que « son auteur l'a ferme
+        // deliberement ». Le motif ne tient pas pour le cas principal :
+        // `ServiceRequestLifecycle::close()` ferme la demande quand la
+        // prestation est TERMINEE. Son auteur ne l'a donc pas fermee — elle a
+        // abouti, et c'est le moment ou elle merite le plus d'etre vue. La
+        // pastille le dit.
+        //
+        // L'ORDRE compte, et il n'est plus seulement chronologique. Melangees
+        // par date, de vieilles demandes pourvues passeraient devant des
+        // demandes ouvertes recentes — et la card se dote d'un ascenseur
+        // au-dela de 4 elements, donc les actives sortiraient du champ. Les
+        // etats vivants remontent.
+        //
+        // `orderByDesc('id')` en dernier n'est pas decoratif : deux demandes
+        // creees dans la meme seconde ne sont pas departagees par
+        // `created_at`, et l'ordre deviendrait celui du tas PostgreSQL — vert
+        // en local, rouge en CI sous charge.
         //
         // A noter : la page « Voir tout » (`dashboard.requests`) n'a JAMAIS
         // filtre sur le statut. L'information n'etait donc pas perdue, elle
         // etait absente de l'ecran d'accueil — la card mentait par omission.
         $myRequests = $user->serviceRequests()
-            ->whereIn('status', ['open', 'in_progress'])
+            ->whereIn('status', ['open', 'in_progress', 'closed'])
             ->with('category')
+            ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'open' THEN 1 ELSE 2 END")
             ->latest()
+            ->orderByDesc('id')
             ->get();
 
         // TASK-1693 bug T — UNE seule card « Échanges », l'UNION des deux.

@@ -96,6 +96,8 @@ return [
     // TASK-1693 bug U — a request's state, carried by the pill.
     'request_open' => 'Open',
     'request_in_progress' => 'Being handled',
+    // TASK-1749 — a request whose work is completed.
+    'request_fulfilled' => 'Fulfilled',
     'ask_help' => 'Ask for help',
     'my_current_exchanges' => 'My current exchanges',
     'current_exchanges' => 'Current exchanges',
