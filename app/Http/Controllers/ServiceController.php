@@ -6,6 +6,8 @@ use App\Jobs\GenerateServiceThumbnail;
 use App\Models\Category;
 use App\Models\Organization;
 use App\Models\Service;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 use App\Models\ServiceImage;
 use App\Models\Skill;
 use App\Models\Tag;
@@ -328,6 +330,18 @@ class ServiceController extends Controller
             'points_cost' => $data['points_cost'],
             'status' => 'active',
         ]);
+
+        // TASK-1752 — le Flux apprend la publication.
+        //
+        // `rescue()` : l'objet EST cree a ce stade. Le geste metier ne doit
+        // jamais echouer parce que le Flux a eu un probleme — la personne
+        // verrait une erreur pour une publication pourtant enregistree.
+        rescue(fn () => app(FeedEventEmitter::class)->emettre(
+            FeedEventCatalogue::PROPOSITION_PUBLIEE,
+            $service,
+            $user,
+            $organization,
+        ), report: true);
 
         if (! empty($data['skills'])) {
             $service->skills()->syncWithPivotValues($data['skills'], ['organization_id' => $service->organization_id]);

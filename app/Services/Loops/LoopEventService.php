@@ -4,6 +4,8 @@ namespace App\Services\Loops;
 
 use App\Models\Loop;
 use App\Models\LoopEvent;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 use App\Models\LoopEventResponse;
 use App\Models\LoopMember;
 use App\Models\User;
@@ -177,12 +179,33 @@ class LoopEventService
 
         $clean = $this->validated($data, $user, $loop);
 
-        return DB::transaction(fn () => LoopEvent::create($clean + [
+        $evenement = DB::transaction(fn () => LoopEvent::create($clean + [
             'organization_id' => $loop->organization_id,
             'loop_id' => $loop->id,
             'created_by' => $user->id,
             'status' => LoopEvent::STATUS_SCHEDULED,
         ]));
+
+        // TASK-1752 — UN seul site pour DEUX ecrans.
+        //
+        // L'agenda et la Card Evenements creent tous deux par ici, et c'est ce
+        // qui rend l'emission honnete : la Card poste en plus un message
+        // ChatLoop, l'agenda non. Poser l'emission dans les controleurs aurait
+        // donc livre un evenement qui ne se declenche que depuis un ecran sur
+        // deux — exactement le defaut de T1693 bug L.
+        //
+        // L'audience SUIT celle de l'Evenement : il porte deja la distinction
+        // `organization` / `loop`, et `canPublishToOrganization()` a deja
+        // garanti qu'une Boucle privee ne remonte jamais.
+        rescue(fn () => app(FeedEventEmitter::class)->emettre(
+            FeedEventCatalogue::EVENEMENT_CREE,
+            $evenement,
+            $user,
+            (string) $loop->organization_id,
+            $loop,
+        ) && $this->accorderAudienceAuFlux($evenement, $loop), report: true);
+
+        return $evenement;
     }
 
     /**
@@ -247,7 +270,7 @@ class LoopEventService
             $this->assert($this->canPublishToOrganization($user, $loop), 'events.error_private_loop');
         }
 
-        return DB::transaction(function () use ($event, $visibility) {
+        $resultat = DB::transaction(function () use ($event, $visibility) {
             $fresh = LoopEvent::whereKey($event->id)->lockForUpdate()->firstOrFail();
 
             // Les reponses ne bougent pas : quelqu'un qui perd l'acces garde sa
@@ -257,6 +280,39 @@ class LoopEventService
 
             return $fresh->fresh();
         });
+
+        // TASK-1752 — la promotion SUIT la ligne de Flux deja ecrite.
+        //
+        // Un Evenement cree « loop » peut devenir « organization » plus tard.
+        // Sans cette mise a jour, la ligne de Flux resterait restreinte et le
+        // Flux mentirait ; et en creer une seconde est impossible — la
+        // contrainte d'unicite la refuserait, ce qui est precisement le
+        // comportement voulu.
+        rescue(fn () => $this->accorderAudienceAuFlux($resultat, $loop), report: true);
+
+        return $resultat;
+    }
+
+    /**
+     * Aligne l'audience de la ligne de Flux sur celle de l'Evenement.
+     *
+     * L'Evenement est l'autorite : il porte deja `visibility`, et le refus
+     * d'une Boucle privee a deja ete applique en amont. On ne re-derive pas la
+     * regle ici — on la LIT.
+     */
+    private function accorderAudienceAuFlux(LoopEvent $evenement, Loop $loop): bool
+    {
+        app(FeedEventEmitter::class)->mettreAJourAudience(
+            FeedEventCatalogue::EVENEMENT_CREE,
+            $evenement,
+            (string) $loop->organization_id,
+            $evenement->visibility === LoopEvent::VISIBILITY_ORGANIZATION
+                ? FeedEventCatalogue::VISIBILITE_ORGANIZATION
+                : FeedEventCatalogue::VISIBILITE_BOUCLE,
+            $loop,
+        );
+
+        return true;
     }
 
     /** @throws EventException */

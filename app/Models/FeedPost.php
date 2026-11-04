@@ -34,11 +34,19 @@ class FeedPost extends Model
         'organization_id',
         'user_id',
         'type',
+        // TASK-1752 — la reference de l'objet concerne. Le couple porte
+        // l'idempotence (contrainte unique en base) et le lien cliquable.
+        'object_type',
+        'object_id',
         'title',
         'content',
         'image_path',
         'url_preview',
         'status',
+        // TASK-1752 — l'audience. `organization` par defaut ; `loop` restreint
+        // aux membres de `loop_id`.
+        'visibility',
+        'loop_id',
         'pinned_at',
         'pinned_by_id',
         'scheduled_at',

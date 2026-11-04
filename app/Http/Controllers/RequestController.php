@@ -7,6 +7,8 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\RequestAttachment;
 use App\Models\ServiceRequest;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 use App\Models\User;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\LoopMessageService;
@@ -223,6 +225,18 @@ class RequestController extends Controller
             'deadline' => $data['deadline'] ?? null,
             'status' => 'open',
         ]);
+
+        // TASK-1752 — le Flux apprend la publication.
+        //
+        // `rescue()` : l'objet EST cree a ce stade. Le geste metier ne doit
+        // jamais echouer parce que le Flux a eu un probleme — la personne
+        // verrait une erreur pour une publication pourtant enregistree.
+        rescue(fn () => app(FeedEventEmitter::class)->emettre(
+            FeedEventCatalogue::DEMANDE_PUBLIEE,
+            $serviceRequest,
+            $user,
+            $organization,
+        ), report: true);
 
         $this->storeAttachments($httpRequest, $serviceRequest);
 
