@@ -147,5 +147,9 @@ return [
     'myorg_mail_linked_subject' => 'Your accounts are now linked',
     'myorg_mail_linked_line' => 'Your account and your :other account are now linked. You can revoke this link at any time, from either account.',
     'myorg_mail_linked_action' => 'Manage my linked accounts',
-    'login_switch_organization' => 'Sign in to another organisation:',
+    // TASK-1749 — the organisation selector on an organisation's own door.
+    // See the French file for the reasoning.
+    'login_organization_nav_label' => 'Organisation',
+    'login_organization_nav_placeholder' => 'Join your organisation',
+    'login_organization_nav_hint' => 'Pick the organisation your account belongs to.',
 ];

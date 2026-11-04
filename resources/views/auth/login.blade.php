@@ -89,23 +89,153 @@
                      jamais la porte courante : on y est deja. Elle ne dit rien
                      d'aucune appartenance — ce sont les memes Organizations
                      que `/login` propose a quiconque. --}}
+                {{-- TASK-1749 (recette Cyril, 04/11) — les pastilles deviennent
+                     un SELECTEUR, comme sur la porte globale.
+
+                     ## Le defaut mesure, et ce n'etait PAS la couleur
+
+                     Le bloc vivait deja ici, entre Email et Mot de passe. Mais
+                     il se presentait en « Se connecter a une autre organisation : »
+                     suivi de deux PASTILLES cliquables portant la meme bordure
+                     arrondie que les champs voisins. Au milieu d'un formulaire,
+                     deux boutons nommes « OFSH » et « LaunchPals » se lisent
+                     comme des boutons d'envoi : saisir ses identifiants puis
+                     cliquer sur l'un d'eux etait la lecture naturelle de ce
+                     qu'on montrait.
+
+                     Foncer le libelle aurait rendu la chose plus visible, pas
+                     moins trompeuse. Un `<select>` etiquete, lui, ne ressemble
+                     a aucun bouton d'envoi : c'est un champ, et il annonce
+                     qu'il contient des choix.
+
+                     ## Il NAVIGUE, il ne poste pas — et ce n'est pas un detail
+
+                     Sur `/org/{slug}/login`, `LoginRequest::organizationDeLaTentative()`
+                     rend l'Organization DE LA ROUTE et sort avant meme de lire
+                     l'entree postee. Un `<select name="organization">` ici
+                     serait un mensonge d'interface : il afficherait un choix
+                     que le serveur ne regarde jamais.
+
+                     Il porte donc `data-login-organization-nav` et AUCUN `name` :
+                     rien ne part dans le POST, la route reste souveraine, et
+                     l'autorite demeure exactement la ou T1728 l'a mise.
+
+                     ## AUCUNE Organization n'est preselectionnee — demande Cyril
+
+                     La premiere version affichait la porte courante (« BouclePro »)
+                     comme option selectionnee. C'etait factuellement vrai et
+                     pratiquement nuisible, pour une raison de PARCOURS D'ARRIVEE :
+
+                     qui cherche OFSH tape la marque qu'il connait — « bouclepro »
+                     dans un moteur, `bouclepro.com` dans la barre d'adresse — et
+                     atterrit donc ici, sur la porte de BouclePro. Un menu
+                     PRE-REMPLI lui dit alors « rien a faire ici » : un champ deja
+                     renseigne ne se relit pas. Il saisit ses identifiants, echoue,
+                     et ne comprend pas pourquoi.
+
+                     Le menu s'ouvre donc sur un libelle NEUTRE a valeur vide, et
+                     liste TOUTES les Organizations publiques — la courante
+                     comprise, sans quoi qui est au bon endroit ne pourrait pas se
+                     le confirmer. Choisir conduit a la porte choisie ; ne rien
+                     choisir ne conduit nulle part et ne rassure personne.
+
+                     ## Sans JavaScript
+
+                     Le menu ne bascule pas : on reste sur la porte ou l'on est,
+                     qui est celle de l'URL — rien n'est casse. Les liens sont
+                     neanmoins rendus dans un `<noscript>` pour que la sortie
+                     existe toujours. --}}
                 @if($isOrg && ($organizationsAlternatives ?? collect())->isNotEmpty())
-                <div data-login-organization-switch class="pt-1">
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
-                        {{ __('auth.login_switch_organization') }}
-                    </p>
-                    <ul class="flex flex-wrap gap-2">
-                        @foreach($organizationsAlternatives as $alternative)
-                        <li>
-                            <a href="{{ route('organization.login', $alternative) }}"
-                               data-login-organization-switch-item="{{ $alternative->slug }}"
-                               class="inline-flex min-h-11 items-center rounded-lg border border-gray-300 dark:border-gray-600 px-3 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-50 dark:hover:bg-gray-700">
-                                {{ $alternative->name }}
-                            </a>
-                        </li>
+                @php
+                    // TOUTES les portes publiques, la courante comprise, triees
+                    // par nom : le menu ne doit designer personne d'office.
+                    $portes = $organizationsAlternatives
+                        ->concat($organisationDeLaPorte ? [$organisationDeLaPorte] : [])
+                        ->sortBy('name')
+                        ->values();
+
+                    /*
+                     * TASK-1749, recette Cyril — la BOUCLE, et sa sortie.
+                     *
+                     * Defaut signale : sur `/org/main/login`, choisir
+                     * « BouclePro » conduisait a `/org/main/login`, qui se
+                     * rechargeait sur le libelle NEUTRE. Le choix etait perdu a
+                     * chaque fois, et on ne pouvait plus se connecter.
+                     *
+                     * Le libelle neutre reste juste A L'ARRIVEE : personne n'a
+                     * encore choisi, et preselectionner la porte dirait « rien a
+                     * faire ici » a qui s'est trompe d'adresse. Mais apres un
+                     * choix EXPLICITE, l'afficher n'est plus un defaut — c'est
+                     * la confirmation du geste qu'on vient de faire.
+                     *
+                     * Les deux situations se distinguent par ce drapeau, pose
+                     * par le menu au moment de naviguer. Il ne decide RIEN : la
+                     * route reste souveraine, et on ne l'honore que s'il DESIGNE
+                     * la porte ou l'on se trouve. Un parametre bricole a la main
+                     * ne peut donc pas faire afficher une autre Organization que
+                     * celle de l'URL.
+                     */
+                    $porteChoisie = request()->query('org') === $organisationDeLaPorte?->slug
+                        ? $organisationDeLaPorte->slug
+                        : null;
+                @endphp
+                <div data-login-organization-switch>
+                    <label for="organization-nav" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ __('auth.login_organization_nav_label') }}
+                    </label>
+                    <select id="organization-nav" data-login-organization-nav
+                            class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
+                        <option value="" @selected($porteChoisie === null)>{{ __('auth.login_organization_nav_placeholder') }}</option>
+                        @foreach($portes as $porte)
+                        <option value="{{ route('organization.login', ['organization' => $porte, 'org' => $porte->slug]) }}"
+                                data-login-organization-switch-item="{{ $porte->slug }}"
+                                @selected($porteChoisie === $porte->slug)>
+                            {{ $porte->name }}
+                        </option>
                         @endforeach
-                    </ul>
+                    </select>
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                        {{ __('auth.login_organization_nav_hint') }}
+                    </p>
+                    <noscript>
+                        {{-- Les ALTERNATIVES seulement, et la difference avec le
+                             menu ci-dessus est VOULUE.
+
+                             Le menu nomme toutes les portes, la courante comprise :
+                             c'est ce qui permet a qui est au bon endroit de se le
+                             confirmer, puisque rien n'est preselectionne.
+
+                             Ici ce sont des LIENS. Un lien vers la page ou l'on se
+                             trouve deja ne conduit nulle part — et la garde de
+                             TASK-1742 l'interdit explicitement (« pas de lien vers
+                             sa propre porte : on y est »). --}}
+                        <ul class="mt-1.5 flex flex-wrap gap-2">
+                            @foreach($organizationsAlternatives as $alternative)
+                            <li>
+                                <a href="{{ route('organization.login', ['organization' => $alternative, 'org' => $alternative->slug]) }}"
+                                   class="inline-flex min-h-11 items-center rounded-lg border border-gray-300 dark:border-gray-600 px-3 text-sm text-gray-700 dark:text-gray-300">
+                                    {{ $alternative->name }}
+                                </a>
+                            </li>
+                            @endforeach
+                        </ul>
+                    </noscript>
                 </div>
+
+                {{-- Pose dans `head` : `layouts/guest` ne declare QU'UNE pile,
+                     `@stack('head')`. Un `@push('scripts')` n'y serait empile
+                     nulle part et sortirait sans aucune trace (mesure du 04/11).
+                     L'ecouteur est DELEGUE sur `document` : il n'a besoin
+                     d'aucun element present au moment ou il s'attache. --}}
+                @push('head')
+                <script>
+                    document.addEventListener('change', function (e) {
+                        var champ = e.target;
+                        if (! champ || ! champ.hasAttribute('data-login-organization-nav')) { return; }
+                        if (champ.value) { window.location.href = champ.value; }
+                    });
+                </script>
+                @endpush
                 @endif
 
                 {{-- TASK-1728 (A3) — le selecteur d'Organization, FACULTATIF.
