@@ -554,6 +554,11 @@ Route::middleware('auth')->group(function () {
     // TASK-1229 : « Voir les offres » — page d'information (aucun paiement).
     Route::get('/profile/ai-usage/offers', [UserAiUsageController::class, 'offers'])->name('profile.ai-offers');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    // TASK-1749 — changer sa photo sans traverser le formulaire complet.
+    // Declaree ici ET dans la forme prefixee par l'Organization, comme ses
+    // voisines : la fenetre s'ouvre depuis le profil public, qui existe sous
+    // les deux formes.
+    Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
     Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
     // TASK-1716 — `profile.destroy` a DISPARU, ici et dans la forme prefixee
     // par l'Organization. Elle appelait `$user->delete()` nu, ce qui levait un
@@ -1642,6 +1647,9 @@ Route::prefix('/org/{organization}')
             Route::get('/profile/ai-usage', [UserAiUsageController::class, 'index'])->name('profile.ai-usage');
             Route::get('/profile/ai-usage/offers', [UserAiUsageController::class, 'offers'])->name('profile.ai-offers');
             Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+            // TASK-1749 — jumelle prefixee de `profile.avatar`. Voir la note
+            // sur la forme nue.
+            Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
             Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
             // TASK-1716 — voir la note sur la forme nue, ligne ~446 : cette
             // declaration est remplacee par la route globale `account.close`

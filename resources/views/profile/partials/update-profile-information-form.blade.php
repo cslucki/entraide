@@ -208,17 +208,52 @@
             </div>
         </div>
 
-        <div x-data="{ preview: null }">
+        {{-- TASK-1749 — meme zone de depot que la fenetre du profil public.
+
+             Le champ gardait la commande NATIVE (« Choisir un fichier / Aucun
+             fichier choisi »), qui ne ressemble a rien d'autre dans ce
+             formulaire et se laisse oublier entre « Profil LinkedIn » et la
+             case de disponibilite. Il reste ici — on modifie bien sa photo en
+             modifiant son profil —, mais il se voit.
+
+             `<label for>` et non un `<div>` au clic simule : le clavier y
+             arrive sans qu'on ait a l'ecrire. L'`<input>` est masque
+             visuellement (`sr-only`), pas `hidden` — un champ `hidden` ne se
+             declenche pas au clavier. --}}
+        <div x-data="{
+                 preview: null,
+                 survol: false,
+                 nom: null,
+                 choisir(fichiers) {
+                     const f = fichiers && fichiers[0];
+                     if (! f) return;
+                     this.nom = f.name;
+                     this.preview = URL.createObjectURL(f);
+                 },
+                 deposer(e) {
+                     this.survol = false;
+                     this.$refs.champ.files = e.dataTransfer.files;
+                     this.choisir(e.dataTransfer.files);
+                 }
+             }">
             <x-input-label for="avatar" :value="__('profile.avatar')" />
             <div class="mt-2 flex items-center gap-4">
                 <img :src="preview ?? '{{ $user->avatar_url }}'"
-                     class="w-14 h-14 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600" alt="">
-                <div class="flex-1">
-                    <input id="avatar" name="avatar" type="file" accept="image/*"
-                        @change="preview = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null"
-                        class="block w-full text-sm text-gray-600 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-300 hover:file:bg-indigo-100">
-                    <p class="text-xs text-gray-400 mt-1">{{ __('profile.avatar_help') }}</p>
-                </div>
+                     class="w-14 h-14 flex-shrink-0 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600" alt="">
+                <label for="avatar"
+                       @dragover.prevent="survol = true"
+                       @dragleave.prevent="survol = false"
+                       @drop.prevent="deposer($event)"
+                       :class="survol
+                           ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                           : 'border-gray-300 dark:border-gray-600 hover:border-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-700/40'"
+                       class="flex-1 cursor-pointer rounded-xl border-2 border-dashed px-4 py-3 text-center transition">
+                    <span class="block text-sm font-semibold text-indigo-600 dark:text-indigo-400">{{ __('profile.avatar_drop') }}</span>
+                    <span class="mt-0.5 block text-xs text-gray-400" x-text="nom ?? '{{ __('profile.avatar_help') }}'"></span>
+                </label>
+                <input id="avatar" name="avatar" type="file" accept="image/*"
+                    x-ref="champ" @change="choisir($event.target.files)"
+                    class="sr-only">
             </div>
             <x-input-error class="mt-2" :messages="$errors->get('avatar')" />
         </div>
