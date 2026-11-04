@@ -189,6 +189,98 @@ final class FeedEventRenderer
         return rescue(fn () => route($nom, $parametres), null, report: false);
     }
 
+    /**
+     * TASK-1752 (demande Cyril) — la PIECE JOINTE graphique d'un evenement.
+     *
+     * La ligne compacte reste le socle ; sous elle, chaque type montre ce
+     * qu'il a de plus parlant : l'extrait de presentation et la photo pour
+     * une personne, l'image de couverture pour une Boucle, l'extrait du
+     * texte pour une demande ou une proposition.
+     *
+     * Tout est resolu A L'AFFICHAGE, comme le libelle : une bio reecrite, une
+     * couverture changee, un compte desactive — l'apercu suit, jamais gele.
+     *
+     * La photo n'est montree QUE si une image a reellement ete deposee
+     * (`filled($user->avatar)`) : `avatar_url` retombe sinon sur ui-avatars,
+     * un tiers a qui partirait le nom de la personne — la regle du composant
+     * `x-user-avatar`, reprise ici.
+     *
+     * `null` = pas de piece jointe, et la ligne se suffit. Jamais de boite
+     * vide.
+     *
+     * @return array{url: ?string, image: ?string, ronde: bool, titre: ?string, texte: ?string}|null
+     */
+    public static function apercu(FeedPost $post, ?string $organizationSlug): ?array
+    {
+        $type = (string) $post->type;
+
+        if (! FeedEventCatalogue::connait($type)) {
+            return null;
+        }
+
+        if ($type === FeedEventCatalogue::PRESENTATION_TERMINEE) {
+            $personne = $post->user;
+
+            if ($personne === null || $personne->isDeactivated() || blank($personne->bio)) {
+                return null;
+            }
+
+            return [
+                'url' => self::lienProfil($personne, $organizationSlug),
+                'image' => filled($personne->avatar) ? $personne->avatar_url : null,
+                'ronde' => true,
+                'titre' => null,
+                'texte' => \Illuminate\Support\Str::limit(trim((string) $personne->bio), 180),
+            ];
+        }
+
+        $objet = self::objet($post);
+
+        if ($objet === null) {
+            return null;
+        }
+
+        $boucle = match (true) {
+            $objet instanceof Loop => $objet,
+            $objet instanceof LoopMember => Loop::withoutGlobalScopes()->find($objet->loop_id),
+            default => null,
+        };
+
+        if ($boucle !== null) {
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => $boucle->cover_image_url,
+                'ronde' => false,
+                'titre' => (string) $boucle->name,
+                'texte' => filled($boucle->tagline)
+                    ? (string) $boucle->tagline
+                    : \Illuminate\Support\Str::limit(trim((string) $boucle->description), 140),
+            ];
+        }
+
+        if ($objet instanceof Service || $objet instanceof ServiceRequest) {
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => null,
+                'ronde' => false,
+                'titre' => (string) $objet->title,
+                'texte' => \Illuminate\Support\Str::limit(trim((string) $objet->description), 160),
+            ];
+        }
+
+        if ($objet instanceof LoopEvent) {
+            return [
+                'url' => null,
+                'image' => null,
+                'ronde' => false,
+                'titre' => (string) $objet->title,
+                'texte' => $objet->starts_at?->isoFormat('LLL'),
+            ];
+        }
+
+        return null;
+    }
+
     private static function nomDeLObjet(FeedPost $post): string
     {
         $objet = self::objet($post);
@@ -217,15 +309,25 @@ final class FeedEventRenderer
      * La frontiere de locataire n'est pas perdue : la LIGNE de Flux porte deja
      * `organization_id`, et c'est elle qui a ete filtree en amont.
      */
+    /** @var array<string, mixed> memo par ligne — voir `objet()` */
+    private static array $objets = [];
+
     private static function objet(FeedPost $post): mixed
     {
+        // MEMOISE : `ligneHtml()` (nom + lien) et `apercu()` resolvent le
+        // meme objet. Sans ce cache, chaque ligne du Flux coutait TROIS fois
+        // la meme requete — la garde de pente de T1640 finirait par le voir.
+        if (array_key_exists((string) $post->id, self::$objets)) {
+            return self::$objets[(string) $post->id];
+        }
+
         $classe = $post->object_type;
 
         if (! is_string($classe) || $post->object_id === null || ! class_exists($classe)) {
-            return null;
+            return self::$objets[(string) $post->id] = null;
         }
 
-        return rescue(
+        return self::$objets[(string) $post->id] = rescue(
             fn () => $classe::withoutGlobalScopes()->whereKey($post->object_id)->first(),
             null,
             report: false,

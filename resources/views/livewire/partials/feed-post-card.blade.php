@@ -78,6 +78,33 @@
                     {{ ($post->published_at ?? $post->created_at)->isoFormat('ll') }}
                 </span>
             </div>
+
+            {{-- La PIECE JOINTE graphique (demande Cyril) : extrait de
+                presentation + photo pour une personne, couverture pour une
+                Boucle, extrait du texte pour une demande ou une proposition.
+                Resolue a l'affichage comme le libelle — jamais gelee.
+                `ms-10` = la largeur de l'avatar sm + l'ecart, pour que la
+                boite s'aligne sous la phrase. --}}
+            @php($_apercu = \App\Support\Feed\FeedEventRenderer::apercu($post, $_slugOrganization))
+            @if($_apercu !== null)
+                @php($_balise = $_apercu['url'] ? 'a' : 'div')
+                <{{ $_balise }} @if($_apercu['url']) href="{{ $_apercu['url'] }}" @endif
+                    class="ms-10 flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 transition dark:border-gray-800 dark:bg-gray-800/50 {{ $_apercu['url'] ? 'hover:bg-gray-100 dark:hover:bg-gray-800' : '' }}"
+                    data-feed-event-apercu>
+                    @if($_apercu['image'])
+                        <img src="{{ $_apercu['image'] }}" alt=""
+                             class="{{ $_apercu['ronde'] ? 'h-14 w-14 rounded-full' : 'h-14 w-20 rounded-xl' }} shrink-0 object-cover">
+                    @endif
+                    <span class="min-w-0 flex-1">
+                        @if($_apercu['titre'])
+                            <span class="block truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $_apercu['titre'] }}</span>
+                        @endif
+                        @if($_apercu['texte'])
+                            <span class="mt-0.5 block text-xs leading-relaxed text-gray-500 line-clamp-2 dark:text-gray-400">{{ $_apercu['texte'] }}</span>
+                        @endif
+                    </span>
+                </{{ $_balise }}>
+            @endif
         @elseif(filled($post->content))
             <div class="prose prose-sm max-w-none text-gray-800 dark:prose-invert dark:text-gray-100">
                 {!! markdown($post->content) !!}
