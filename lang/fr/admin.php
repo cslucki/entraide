@@ -1,6 +1,27 @@
 <?php
 
 return [
+    // TASK-1752 — l'outil de reprise d'historique, par Organization.
+    'feed_replay_pick_organization' => 'Choisissez une organisation dans le filtre ci-dessus pour générer ou retirer son historique de flux.',
+    'feed_replay_title' => 'Historique du flux — :name',
+    'feed_replay_help' => 'Génère des lignes de flux à partir des faits déjà survenus (Boucles créées, adhésions, propositions, demandes, présentations), datées à leur date réelle. N\'écrit jamais deux fois le même fait.',
+    'feed_replay_generate' => 'Générer l\'historique',
+    'feed_replay_source_loops_created' => 'Boucles créées',
+    'feed_replay_source_memberships' => 'Adhésions à une Boucle',
+    'feed_replay_source_services' => 'Propositions d\'aide',
+    'feed_replay_source_requests' => 'Demandes d\'aide',
+    'feed_replay_source_events' => 'Évènements créés',
+    'feed_replay_source_presentations' => 'Présentations terminées',
+    'feed_replay_total' => ':count ligne(s) à écrire au total.',
+    'feed_replay_nothing' => 'Rien à générer — tout est déjà à jour',
+    'feed_replay_run' => 'Générer :count ligne(s)',
+    'feed_replay_remove' => 'Supprimer des évènements',
+    'feed_replay_remove_warning' => 'Suppression DÉFINITIVE. Les commentaires des lignes retirées sont effacés avec elles ; leurs réactions aussi. Les annonces écrites à la main ne sont jamais concernées.',
+    'feed_replay_remove_confirm' => 'Supprimer définitivement les types cochés ? Leurs commentaires et réactions seront effacés avec eux.',
+    'feed_replay_remove_action' => 'Supprimer les types cochés',
+    'feed_replay_pick_a_type' => 'Cochez au moins un type à supprimer.',
+    'feed_replay_done' => ':count ligne(s) générée(s) pour :name.',
+    'feed_replay_removed' => ':count ligne(s) supprimée(s) pour :name.',
     // TASK-1752 — la page SuperAdmin du Flux.
     'feed_nav' => 'Flux',
     'feed_title' => 'Flux des organisations',

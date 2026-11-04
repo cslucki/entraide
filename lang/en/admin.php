@@ -1,6 +1,27 @@
 <?php
 
 return [
+    // TASK-1752 — the history replay tool, per Organization.
+    'feed_replay_pick_organization' => 'Choose an organization in the filter above to generate or remove its feed history.',
+    'feed_replay_title' => 'Feed history — :name',
+    'feed_replay_help' => 'Generates feed lines from things that already happened (Loops created, memberships, offers, requests, presentations), dated to their real date. Never writes the same fact twice.',
+    'feed_replay_generate' => 'Generate history',
+    'feed_replay_source_loops_created' => 'Loops created',
+    'feed_replay_source_memberships' => 'Loop memberships',
+    'feed_replay_source_services' => 'Offers of help',
+    'feed_replay_source_requests' => 'Requests for help',
+    'feed_replay_source_events' => 'Events created',
+    'feed_replay_source_presentations' => 'Completed presentations',
+    'feed_replay_total' => ':count line(s) to write in total.',
+    'feed_replay_nothing' => 'Nothing to generate — already up to date',
+    'feed_replay_run' => 'Generate :count line(s)',
+    'feed_replay_remove' => 'Remove events',
+    'feed_replay_remove_warning' => 'PERMANENT deletion. Comments on removed lines are erased with them; so are their reactions. Hand-written announcements are never affected.',
+    'feed_replay_remove_confirm' => 'Permanently delete the checked types? Their comments and reactions will be erased with them.',
+    'feed_replay_remove_action' => 'Delete checked types',
+    'feed_replay_pick_a_type' => 'Check at least one type to delete.',
+    'feed_replay_done' => ':count line(s) generated for :name.',
+    'feed_replay_removed' => ':count line(s) deleted for :name.',
     // TASK-1752 — the SuperAdmin feed page.
     'feed_nav' => 'Feed',
     'feed_title' => 'Organization feeds',

@@ -734,6 +734,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'update'])->name('feed.update');
     Route::delete('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'destroy'])->name('feed.destroy');
     Route::put('/flux/commentaire/{comment}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'basculerCommentaire'])->name('feed.comment.toggle');
+    Route::post('/flux/reprendre-historique', [\App\Http\Controllers\Admin\AdminFeedController::class, 'reprendreHistorique'])->name('feed.replay');
 
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
     Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');

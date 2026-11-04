@@ -8,6 +8,7 @@ use App\Models\FeedPostComment;
 use App\Models\Organization;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedHistoryReplay;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -72,13 +73,80 @@ class AdminFeedController extends Controller
         $posts = $query->orderByDesc('published_at')->orderByDesc('created_at')
             ->paginate(50)->withQueryString();
 
+        // TASK-1752 — l'outil de reprise, par Organization.
+        //
+        // Le compte a blanc n'est calcule QUE si une Organization est
+        // designee : il parcourt cinq tables, et le faire pour les trois
+        // tenants a chaque affichage de la page serait du travail pour rien.
+        //
+        // C'est aussi la regle produit : jamais « toutes » par defaut. Trois
+        // tenants, trois decisions.
+        $organizationChoisie = $organizationId !== ''
+            ? Organization::whereKey($organizationId)->first()
+            : null;
+
+        $reprise = null;
+
+        if ($organizationChoisie !== null) {
+            $service = app(FeedHistoryReplay::class);
+
+            $reprise = [
+                'organization' => $organizationChoisie,
+                'comptes' => $service->compter($organizationChoisie),
+                'parType' => $service->poseesParType($organizationChoisie),
+            ];
+        }
+
         return view('admin.feed.index', [
             'posts' => $posts,
             'organizations' => Organization::orderBy('name')->get(['id', 'name', 'slug']),
             'organizationId' => $organizationId,
             'type' => $type,
             'typesEvenement' => FeedEventCatalogue::clefs(),
+            'reprise' => $reprise,
         ]);
+    }
+
+    /**
+     * Rejouer — ou retirer — l'historique d'UNE Organization.
+     *
+     * L'Organization est OBLIGATOIRE et validee contre la base : « toutes »
+     * n'existe pas ici. La logique vit dans `FeedHistoryReplay`, partagee
+     * avec la commande Artisan — deux implementations auraient diverge a la
+     * premiere correction de source.
+     */
+    public function reprendreHistorique(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'organization_id' => 'required|uuid|exists:organizations,id',
+            'action' => 'required|in:reprendre,retirer',
+            // Les types a retirer. `FeedHistoryReplay::retirer()` refait de
+            // toute facon l'intersection avec le registre : une valeur
+            // bricolee dans la requete ne peut atteindre aucune annonce
+            // humaine. Cette regle valide l'ENTREE, le service garde la
+            // FRONTIERE — les deux, pas l'une ou l'autre.
+            'types' => 'nullable|array',
+            'types.*' => 'string|in:'.implode(',', FeedEventCatalogue::clefs()),
+        ]);
+
+        $organization = Organization::whereKey($data['organization_id'])->firstOrFail();
+        $service = app(FeedHistoryReplay::class);
+
+        if ($data['action'] === 'retirer') {
+            $types = $data['types'] ?? null;
+
+            if ($types === []) {
+                return back()->with('error', __('admin.feed_replay_pick_a_type'));
+            }
+
+            $n = $service->retirer($organization, $types);
+
+            return back()->with('success', __('admin.feed_replay_removed', ['count' => $n, 'name' => $organization->name]));
+        }
+
+        $n = array_sum($service->reprendre($organization));
+
+        return back()->with('success', __('admin.feed_replay_done', ['count' => $n, 'name' => $organization->name]));
     }
 
     public function update(Request $request, string $post): RedirectResponse

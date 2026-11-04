@@ -41,6 +41,91 @@
         <a href="{{ route('admin.feed') }}" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">{{ __('admin.feed_clear') }}</a>
     </form>
 
+    {{-- TASK-1752 (§8.4, demande Cyril) — l'outil de reprise d'historique.
+
+         Par ORGANISATION, jamais « toutes » : trois tenants, trois decisions.
+         Le panneau n'apparait donc que lorsqu'une Organization est choisie
+         dans le filtre ci-dessus — et le compte a blanc, qui parcourt cinq
+         tables, n'est calcule qu'a ce moment-la. --}}
+    @if($reprise === null)
+        <div class="mb-6 rounded-xl border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400" data-marqueur="reprise-invite">
+            {{ __('admin.feed_replay_pick_organization') }}
+        </div>
+    @else
+        @php($_aEcrire = array_sum($reprise['comptes']))
+        @php($_enPlace = array_sum($reprise['parType']))
+
+        <section class="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800/40" data-marqueur="reprise-historique">
+            <h2 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ __('admin.feed_replay_title', ['name' => $reprise['organization']->name]) }}</h2>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('admin.feed_replay_help') }}</p>
+
+            <div class="mt-4 grid gap-5 md:grid-cols-2">
+                {{-- Generer --}}
+                <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                    <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('admin.feed_replay_generate') }}</h3>
+
+                    <ul class="mt-3 space-y-1 text-sm" data-marqueur="reprise-comptes">
+                        @foreach($reprise['comptes'] as $clef => $n)
+                            <li class="flex items-center justify-between {{ $n > 0 ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-600' }}">
+                                <span>{{ __('admin.feed_replay_source_'.$clef) }}</span>
+                                <span class="font-semibold tabular-nums">{{ $n }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+
+                    <p class="mt-3 border-t border-gray-100 pt-3 text-sm font-semibold text-gray-900 dark:border-gray-800 dark:text-gray-100">
+                        {{ __('admin.feed_replay_total', ['count' => $_aEcrire]) }}
+                    </p>
+
+                    <form method="POST" action="{{ route('admin.feed.replay') }}" class="mt-3">
+                        @csrf
+                        <input type="hidden" name="organization_id" value="{{ $reprise['organization']->id }}">
+                        <input type="hidden" name="action" value="reprendre">
+                        <button type="submit" @disabled($_aEcrire === 0)
+                                class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                data-marqueur="reprise-generer">
+                            {{ $_aEcrire === 0 ? __('admin.feed_replay_nothing') : __('admin.feed_replay_run', ['count' => $_aEcrire]) }}
+                        </button>
+                    </form>
+                </div>
+
+                {{-- Supprimer, par TYPE --}}
+                <form method="POST" action="{{ route('admin.feed.replay') }}"
+                      class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
+                      onsubmit="return confirm('{{ __('admin.feed_replay_remove_confirm') }}')">
+                    @csrf
+                    <input type="hidden" name="organization_id" value="{{ $reprise['organization']->id }}">
+                    <input type="hidden" name="action" value="retirer">
+
+                    <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('admin.feed_replay_remove') }}</h3>
+
+                    <div class="mt-3 space-y-1" data-marqueur="reprise-types">
+                        @foreach($reprise['parType'] as $clef => $n)
+                            <label class="flex items-center justify-between gap-3 rounded px-1 py-0.5 text-sm {{ $n > 0 ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-600' }}">
+                                <span class="flex items-center gap-2">
+                                    <input type="checkbox" name="types[]" value="{{ $clef }}" @checked($n > 0) @disabled($n === 0)
+                                           class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800">
+                                    {{ \App\Support\Feed\FeedEventCatalogue::libelleCourt($clef) }}
+                                </span>
+                                <span class="font-semibold tabular-nums">{{ $n }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+
+                    <p class="mt-3 border-t border-gray-100 pt-3 text-xs text-amber-700 dark:border-gray-800 dark:text-amber-400">
+                        {{ __('admin.feed_replay_remove_warning') }}
+                    </p>
+
+                    <button type="submit" @disabled($_enPlace === 0)
+                            class="mt-3 w-full rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-800 dark:hover:bg-red-900/30"
+                            data-marqueur="reprise-supprimer">
+                        {{ __('admin.feed_replay_remove_action') }}
+                    </button>
+                </form>
+            </div>
+        </section>
+    @endif
+
     <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm" data-marqueur="table-flux">
             <thead class="bg-gray-50 dark:bg-gray-800/60">

@@ -144,6 +144,30 @@ final class FeedEventCatalogue
     }
 
     /**
+     * Le libelle COURT d'un type, SANS parametre — pour une case a cocher,
+     * un filtre, un intitule de colonne. `libelle()` rend la PHRASE complete
+     * (« :name a rejoint la Boucle :object »), inutilisable ici : il n'y a ni
+     * acteur ni objet a cette echelle, juste le TYPE lui-meme.
+     *
+     * Les clefs vivent sous `admin.feed_replay_source_*`, partagees avec
+     * `FeedHistoryReplay` : la commande Artisan et la page SuperAdmin disent
+     * le meme mot pour le meme type.
+     */
+    public static function libelleCourt(string $type): string
+    {
+        $courts = [
+            self::BOUCLE_CREEE => 'loops_created',
+            self::ADHESION_BOUCLE => 'memberships',
+            self::PROPOSITION_PUBLIEE => 'services',
+            self::DEMANDE_PUBLIEE => 'requests',
+            self::EVENEMENT_CREE => 'events',
+            self::PRESENTATION_TERMINEE => 'presentations',
+        ];
+
+        return __('admin.feed_replay_source_'.($courts[$type] ?? $type));
+    }
+
+    /**
      * L'audience d'un evenement, objet en main.
      *
      * Un seul type a une audience VARIABLE — l'adhesion a une Boucle. Pour

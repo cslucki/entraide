@@ -2,17 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\FeedPost;
-use App\Models\Loop;
-use App\Models\LoopEvent;
-use App\Models\LoopMember;
 use App\Models\Organization;
-use App\Models\Scopes\BelongsToOrganizationScope;
-use App\Models\Service;
-use App\Models\ServiceRequest;
-use App\Models\User;
-use App\Support\Feed\FeedEventCatalogue;
-use App\Support\Feed\FeedEventEmitter;
+use App\Support\Feed\FeedHistoryReplay;
 use Illuminate\Console\Command;
 
 /**
@@ -85,13 +76,31 @@ class FluxReprendreHistorique extends Command
             return self::FAILURE;
         }
 
+        $reprise = app(FeedHistoryReplay::class);
+
         if ($this->option('annuler')) {
-            return $this->annuler($organization);
+            $n = $reprise->dejaPosees($organization);
+
+            if ($n === 0) {
+                $this->info('Aucune ligne d\'evenement a retirer.');
+
+                return self::SUCCESS;
+            }
+
+            if (! $this->confirm("Retirer {$n} ligne(s) d'evenement de « {$organization->name} » ? Leurs commentaires seront effaces avec elles.")) {
+                $this->line('Annule.');
+
+                return self::SUCCESS;
+            }
+
+            $this->info($reprise->retirer($organization).' ligne(s) retiree(s).');
+
+            return self::SUCCESS;
         }
 
         $presentations = (string) $this->option('presentations');
 
-        if (! in_array($presentations, ['date-du-compte', 'ignorer'], true)) {
+        if (! in_array($presentations, [FeedHistoryReplay::PRESENTATIONS_DATE_DU_COMPTE, FeedHistoryReplay::PRESENTATIONS_IGNORER], true)) {
             $this->error('--presentations attend `date-du-compte` ou `ignorer`.');
 
             return self::FAILURE;
@@ -102,16 +111,12 @@ class FluxReprendreHistorique extends Command
         $this->info(($sec ? '[A BLANC] ' : '').'Organization : '.$organization->name.' ('.$organization->slug.')');
         $this->newLine();
 
-        $comptes = [];
+        $comptes = $sec
+            ? $reprise->compter($organization, $presentations)
+            : $reprise->reprendre($organization, $presentations);
 
-        foreach ($this->sources($organization, $presentations) as $libelle => $source) {
-            $comptes[$libelle] = $this->reprendre($organization, $source, $sec);
-        }
-
-        $this->newLine();
-
-        foreach ($comptes as $libelle => $n) {
-            $this->line(sprintf('  %-28s %d', $libelle, $n));
+        foreach ($comptes as $clef => $n) {
+            $this->line(sprintf('  %-28s %d', __('admin.feed_replay_source_'.$clef), $n));
         }
 
         $total = array_sum($comptes);
@@ -120,190 +125,6 @@ class FluxReprendreHistorique extends Command
         $this->info($sec
             ? "A blanc : {$total} ligne(s) seraient ajoutee(s). Relancer sans --dry-run pour ecrire."
             : "{$total} ligne(s) ajoutee(s).");
-
-        return self::SUCCESS;
-    }
-
-    /**
-     * Les cinq sources, chacune avec sa vraie date.
-     *
-     * Les scopes globaux sont retires nommement : cette commande tourne en
-     * console, sans Organization courante, et le fail-closed du scope ne
-     * trouverait rien. La portee est reposee a la main par le `where`.
-     *
-     * @return array<string, iterable<array{type: string, objet: mixed, acteur: User|null, boucle: Loop|null, date: mixed}>>
-     */
-    private function sources(Organization $organization, string $presentations): array
-    {
-        $sources = [];
-
-        $sources['Boucles creees'] = Loop::withoutGlobalScopes()
-            ->where('organization_id', $organization->id)
-            ->get()
-            ->map(fn (Loop $loop) => [
-                'type' => FeedEventCatalogue::BOUCLE_CREEE,
-                'objet' => $loop,
-                'acteur' => $loop->created_by ? User::find($loop->created_by) : null,
-                'boucle' => $loop,
-                'date' => $loop->created_at,
-            ]);
-
-        $sources['Adhesions'] = LoopMember::withoutGlobalScopes()
-            ->where('organization_id', $organization->id)
-            ->where('status', 'active')
-            // `owner` exclu : sinon chaque creation produirait DEUX lignes.
-            ->where('role', '!=', 'owner')
-            ->get()
-            ->map(function (LoopMember $m) {
-                $boucle = Loop::withoutGlobalScopes()->find($m->loop_id);
-
-                return [
-                    'type' => FeedEventCatalogue::ADHESION_BOUCLE,
-                    // L'appartenance, pas la Boucle : sinon une seule ligne
-                    // par Boucle survivrait a la contrainte d'unicite.
-                    'objet' => $m,
-                    'acteur' => User::find($m->user_id),
-                    'boucle' => $boucle,
-                    'date' => $m->joined_at ?? $m->created_at,
-                ];
-            });
-
-        $sources['Propositions d\'aide'] = Service::withoutGlobalScopes()
-            ->where('organization_id', $organization->id)
-            ->get()
-            ->map(fn (Service $s) => [
-                'type' => FeedEventCatalogue::PROPOSITION_PUBLIEE,
-                'objet' => $s,
-                'acteur' => User::find($s->user_id),
-                'boucle' => null,
-                'date' => $s->created_at,
-            ]);
-
-        $sources['Demandes d\'aide'] = ServiceRequest::withoutGlobalScopes()
-            ->where('organization_id', $organization->id)
-            ->get()
-            ->map(fn (ServiceRequest $d) => [
-                'type' => FeedEventCatalogue::DEMANDE_PUBLIEE,
-                'objet' => $d,
-                'acteur' => User::find($d->user_id),
-                'boucle' => null,
-                'date' => $d->created_at,
-            ]);
-
-        $sources['Evenements'] = LoopEvent::withoutGlobalScopes()
-            ->where('organization_id', $organization->id)
-            ->get()
-            ->map(function (LoopEvent $e) {
-                $boucle = Loop::withoutGlobalScopes()->find($e->loop_id);
-
-                return [
-                    'type' => FeedEventCatalogue::EVENEMENT_CREE,
-                    'objet' => $e,
-                    'acteur' => $e->created_by ? User::find($e->created_by) : null,
-                    'boucle' => $boucle,
-                    'date' => $e->created_at,
-                ];
-            });
-
-        if ($presentations === 'date-du-compte') {
-            $sources['Presentations'] = User::where('organization_id', $organization->id)
-                ->whereNotNull('bio')
-                ->where('bio', '!=', '')
-                ->get()
-                ->map(fn (User $u) => [
-                    'type' => FeedEventCatalogue::PRESENTATION_TERMINEE,
-                    'objet' => $u,
-                    'acteur' => $u,
-                    'boucle' => null,
-                    // APPROXIMATION ASSUMEE, voir le docblock de la classe.
-                    'date' => $u->created_at,
-                ]);
-        }
-
-        return $sources;
-    }
-
-    private function reprendre(Organization $organization, iterable $lignes, bool $sec): int
-    {
-        $emetteur = app(FeedEventEmitter::class);
-        $ecrites = 0;
-
-        foreach ($lignes as $ligne) {
-            if ($ligne['objet'] === null || $ligne['acteur'] === null) {
-                continue;
-            }
-
-            // Compter a blanc demande la MEME question que l'ecriture : la
-            // ligne existe-t-elle deja ? Sinon le compte annonce serait faux
-            // des la seconde passe.
-            $dejaLa = FeedPost::withTrashed()->where([
-                'organization_id' => $organization->id,
-                'type' => $ligne['type'],
-                'object_type' => FeedEventCatalogue::classeAttendue($ligne['type']),
-                'object_id' => (string) $ligne['objet']->getKey(),
-            ])->exists();
-
-            if ($dejaLa) {
-                continue;
-            }
-
-            if ($sec) {
-                $ecrites++;
-
-                continue;
-            }
-
-            $resultat = $emetteur->emettre(
-                $ligne['type'],
-                $ligne['objet'],
-                $ligne['acteur'],
-                $organization,
-                $ligne['boucle'],
-                $ligne['date'],
-            );
-
-            if ($resultat !== null) {
-                $ecrites++;
-            }
-        }
-
-        return $ecrites;
-    }
-
-    /**
-     * Le retrait EXACT.
-     *
-     * Vise uniquement les lignes dont le `type` est au registre : une annonce
-     * humaine ne peut pas etre emportee, quelle que soit la faute de frappe.
-     */
-    private function annuler(Organization $organization): int
-    {
-        $lignes = FeedPost::withTrashed()
-            ->where('organization_id', $organization->id)
-            ->whereIn('type', FeedEventCatalogue::clefs());
-
-        $n = (clone $lignes)->count();
-
-        if ($n === 0) {
-            $this->info('Aucune ligne d\'evenement a retirer.');
-
-            return self::SUCCESS;
-        }
-
-        if (! $this->confirm("Retirer {$n} ligne(s) d'evenement de « {$organization->name} » ? Leurs commentaires seront effaces avec elles.")) {
-            $this->line('Annule.');
-
-            return self::SUCCESS;
-        }
-
-        foreach ($lignes->get() as $ligne) {
-            // Les reactions sont un morph SANS FK : sans ce retrait explicite,
-            // elles survivraient en orphelines.
-            $ligne->reactions()->delete();
-            $ligne->forceDelete();
-        }
-
-        $this->info("{$n} ligne(s) retiree(s).");
 
         return self::SUCCESS;
     }
