@@ -1,4 +1,11 @@
 <x-app-layout>
+    {{-- TASK-1749 — la barre du haut standard. Le `<h1>` est retire : la barre
+         porte le titre. L'eyebrow « Qualite » et le sous-titre restent, ils
+         disent autre chose. --}}
+    <x-page-topbar :back="organizationScopedUrl('dashboard', 'organization.dashboard')"
+                   :title="__('bugs.title')"
+                   :label="__('dashboard.back_to_dashboard')" />
+
     <div class="max-w-4xl mx-auto px-4 py-8">
         @php
             $organizationRouteParam = request()->route('organization');
@@ -11,7 +18,6 @@
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">{{ __('bugs.quality') }}</p>
-                    <h1 class="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('bugs.title') }}</h1>
                     <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
                         {{ __('bugs.subtitle') }}{{ $organization ? ' '.$organization->name : '' }}{{ $organization ? '' : __('bugs.subtitle_org') }}
                     </p>

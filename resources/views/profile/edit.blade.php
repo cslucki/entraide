@@ -1,8 +1,21 @@
 <x-app-layout>
     <x-slot name="title">{{ __('profile.edit_title') }}</x-slot>
 
+    {{-- TASK-1749 — la barre du haut standard (`x-page-topbar`).
+
+         Le gros `<h1>` qui vivait DANS le conteneur est retire : la barre
+         porte desormais le titre, et les garder tous les deux l'aurait affiche
+         deux fois sur la meme page. Les paragraphes d'introduction restent —
+         ce sont du CONTENU, pas un titre.
+
+         `organizationScopedUrl()` et pas `route('dashboard')` : le retour doit
+         rester dans le locataire. C'est le defaut que TASK-1697 a corrige neuf
+         fois sur la seule fiche profil. --}}
+    <x-page-topbar :back="organizationScopedUrl('dashboard', 'organization.dashboard')"
+                   :title="__('profile.edit_title')"
+                   :label="__('dashboard.back_to_dashboard')" />
+
     <x-page-container>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">{{ __('profile.edit_title') }}</h1>
 
         @include('partials.profile-reminder')
 

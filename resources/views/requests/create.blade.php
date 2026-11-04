@@ -9,7 +9,12 @@
     $pointHelpContext = ['organization' => $organization->name, 'min' => $pointMin, 'max' => $pointMax];
 @endphp
 
-<x-page :heading="__('marketplace.request_create_heading', ['request' => $requestTerm])" width="3xl">
+{{-- TASK-1749 — `back` fait rendre la barre du haut standard a la place de
+     l'en-tete d'origine. Le retour va au tableau de bord, scope sur
+     l'Organization par `organizationScopedUrl()`. --}}
+<x-page :heading="__('marketplace.request_create_heading', ['request' => $requestTerm])" width="3xl"
+        :back="organizationScopedUrl('dashboard', 'organization.dashboard')"
+        :back-label="__('dashboard.back_to_dashboard')">
 
         <!-- Note pédagogique -->
         <div class="mb-6 flex gap-3 bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-sm text-green-700 dark:text-green-300">

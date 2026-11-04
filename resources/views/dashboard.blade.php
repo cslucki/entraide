@@ -10,20 +10,28 @@
         $_dashServicesCreateHref = $_dashRoute('services.create');
         $_dashRequestsCreateHref = $_dashRoute('requests.create');
     @endphp
+    {{-- TASK-1749 — la barre du haut standard.
+
+         Le retour va vers la HOMEPAGE et non vers le tableau de bord
+         (demande explicite de Cyril) : cette page EST le tableau de bord, une
+         fleche qui y ramene ne menerait nulle part.
+
+         Le gros `<h1>` est retire — la barre porte le titre, et les garder
+         tous les deux l'aurait affiche deux fois. Le sous-titre
+         « dashboard.summary » reste : c'est du contenu.
+
+         `organizationScopedUrl()` : le retour reste dans le locataire. --}}
+    @php $tenant = $currentOrganization ?? null; @endphp
+    <x-page-topbar :back="organizationScopedUrl('home', 'organization.home')"
+                   :title="$tenant
+                        ? __('dashboard.title_with_tenant', ['name' => $tenant->name])
+                        : __('dashboard.hello', ['name' => $user->fullName])"
+                   :label="__('dashboard.back_to_home')"
+                   data-dashboard-topbar="dashboard" />
+
     <div class="max-w-7xl mx-auto px-4 py-8">
-        <!-- Header -->
-        <div class="hidden sm:flex sm:items-center sm:justify-between sm:gap-3 sm:mb-8">
-            <div class="min-w-0">
-                @php $tenant = $currentOrganization ?? null; @endphp
-                <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 break-words">
-                    @if($tenant)
-                        {{ __('dashboard.title_with_tenant', ['name' => $tenant->name]) }}
-                    @else
-                        {{ __('dashboard.hello', ['name' => $user->fullName]) }}
-                    @endif
-                </h1>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">{{ __('dashboard.summary') }}</p>
-            </div>
+        <div class="hidden sm:block sm:mb-8">
+            <p class="text-gray-500 dark:text-gray-400 text-sm">{{ __('dashboard.summary') }}</p>
         </div>
 
         <x-user-dashboard-nav class="mb-8" />

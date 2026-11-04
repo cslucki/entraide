@@ -196,6 +196,7 @@ return [
     'create_request' => 'Créer une demande',
     'create_service_link' => 'Créer une proposition',
     'back_to_dashboard' => 'Retour au tableau de bord',
+    'back_to_home' => 'Retour à l\'accueil',
     'back_to_requests' => 'Retour à mes demandes',
     'back_to_services' => 'Retour à mes propositions',
     'edit_service' => 'Modifier',

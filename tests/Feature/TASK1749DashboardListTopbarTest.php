@@ -94,7 +94,10 @@ class TASK1749DashboardListTopbarTest extends TestCase
         // Borne a la balise de la fleche : la page porte d'autres liens vers le
         // tableau de bord (rail de navigation), et une assertion posee sur la
         // PAGE passerait grace a eux.
-        $debut = strpos($html, 'data-dashboard-topbar-back');
+        // Le marqueur vient de `x-page-topbar`, le composant partage : la
+        // barre a quitte ces deux gabarits pour vivre en UN exemplaire, et
+        // c'est lui qui porte desormais la fleche.
+        $debut = strpos($html, 'data-page-topbar-back');
         $this->assertNotFalse($debut, 'La fleche de retour est absente de la barre.');
 
         $balise = substr($html, max(0, $debut - 400), 400);

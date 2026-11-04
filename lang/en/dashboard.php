@@ -195,6 +195,7 @@ return [
     'create_request' => 'Create a request',
     'create_service_link' => 'Create a service',
     'back_to_dashboard' => 'Back to dashboard',
+    'back_to_home' => 'Back to home',
     'back_to_requests' => 'Back to my requests',
     'back_to_services' => 'Back to my services',
     'edit_service' => 'Edit',
