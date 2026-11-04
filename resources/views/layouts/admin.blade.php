@@ -88,6 +88,8 @@
                             // est une rencontre entre membres, pas une fonction d'intelligence
                             // artificielle : il n'etait dans IA que parce que la campagne Growth qui
                             // l'a cree y vivait.
+                            // TASK-1752 : le Flux, toutes Organizations.
+                            ['route' => 'admin.feed', 'label' => __('admin.feed_nav'), 'icon' => 'M4 6h16M4 12h16M4 18h7'],
                             ['route' => 'admin.workshops', 'label' => __('admin.workshops_nav'), 'icon' => 'M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z'],
                         ];
 
@@ -97,7 +99,7 @@
                         if (! auth()->user()?->is_admin) {
                             $echangesItems = array_values(array_filter(
                                 $echangesItems,
-                                fn ($item) => ! in_array($item['route'], ['admin.loop-types', 'admin.loop-plugins', 'admin.loop-permissions', 'admin.workshops'], true),
+                                fn ($item) => ! in_array($item['route'], ['admin.loop-types', 'admin.loop-plugins', 'admin.loop-permissions', 'admin.workshops', 'admin.feed'], true),
                             ));
                         }
 
