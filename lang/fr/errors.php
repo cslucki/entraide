@@ -37,4 +37,11 @@ return [
     'org_member_required_body' => 'Vous êtes connecté avec un compte qui n\'appartient pas à cette organisation.',
     'org_member_required_own_space' => 'Retourner à mon espace',
     'org_member_required_public_home' => 'Voir l\'accueil de cette organisation',
+    // TASK-1749 — la page de maintenance d'une Organization.
+    'org_maintenance_badge' => 'Maintenance',
+    'org_maintenance_title' => 'Organisation en maintenance',
+    'org_maintenance_heading' => ':organization est en maintenance',
+    'org_maintenance_heading_neutral' => 'Cette organisation est en maintenance',
+    'org_maintenance_body' => 'Son équipe effectue une opération technique. L\'accès sera rétabli dès qu\'elle sera terminée — vos données et votre compte ne sont pas affectés.',
+    'org_maintenance_home' => 'Retour à l\'accueil',
 ];

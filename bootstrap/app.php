@@ -12,6 +12,7 @@ use App\Http\Middleware\EnsureScenarioPersonaContextIsValid;
 use App\Http\Middleware\EnsureOrganizationMember;
 use App\Http\Middleware\EnsureUserIsNotBanned;
 use App\Http\Middleware\ResolveApiOrganization;
+use App\Http\Middleware\OrganizationMaintenance;
 use App\Http\Middleware\ResolveOrganization;
 use App\Http\Middleware\ResolveUrlOrganization;
 use App\Http\Middleware\SetLocale;
@@ -122,6 +123,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => AdminMiddleware::class,
             'organization' => ResolveOrganization::class,
+            // TASK-1749 — la maintenance d'une Organization, enfin APPLIQUEE.
+            'organization.maintenance' => OrganizationMaintenance::class,
             'profile.complete' => EnsureProfileComplete::class,
             'url.organization' => ResolveUrlOrganization::class,
             'api.organization' => ResolveApiOrganization::class,
@@ -189,6 +192,24 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToPriorityList(
             RequireVerifiedEmail::class,
             RequireApprovedAccount::class,
+        );
+        // TASK-1749 — la maintenance se dit AVANT que `Authenticate` ne
+        // redirige.
+        //
+        // Sans cette priorite, un visiteur anonyme sur une surface protegee
+        // d'une Organization en maintenance recevait un 302 vers la connexion
+        // au lieu de la page de maintenance : `Authenticate` est dans la liste
+        // de priorite du framework, pas ce middleware-ci, et passait donc
+        // devant. Mesure du 04/11 — `/org/ofsh/loops` rendait 302 la ou on
+        // attendait 503.
+        //
+        // Le repere est le CONTRAT `AuthenticatesRequests`, pas la classe
+        // `Authenticate` : c'est lui qui figure dans la liste du framework, et
+        // viser la classe placait cette garde APRES (mesure : elle atterrissait
+        // en 15e position, le contrat etant en 5e).
+        $middleware->prependToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            OrganizationMaintenance::class,
         );
         // TASK-145: Reorder web group so ResolveUrlOrganization runs BEFORE
         // SubstituteBindings. With appendToGroup, ResolveUrlOrganization ran AFTER

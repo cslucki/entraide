@@ -1376,7 +1376,17 @@ $organizationConstraint = '(?!login|register|admin|api|sitemap|search|explorer|p
 
 // Organization-prefixed routes (/org/{organization}/...) — en parallèle des routes legacy /{community}
 Route::prefix('/org/{organization}')
-    ->middleware(['web', 'organization', 'auth', 'organization.member'])
+    // TASK-1749 — `organization.maintenance` est pose JUSTE APRES `organization`,
+    // qui resout le tenant, et AVANT `auth` : une Organization fermee doit le
+    // dire aussi a un visiteur anonyme, pas l'envoyer d'abord se connecter.
+    //
+    // Il reste donc actif sur `organization.home`, la vitrine publique, qui
+    // retire `auth` et `organization.member` mais garde ces deux-la.
+    //
+    // `/org/{slug}/login` n'est PAS dans ce groupe (il vit avec les routes
+    // d'invites) : il reste joignable, sans quoi un SuperAdmin non connecte ne
+    // pourrait pas s'authentifier pour venir voir.
+    ->middleware(['web', 'organization', 'organization.maintenance', 'auth', 'organization.member'])
     ->where(['organization' => $organizationConstraint])
     ->name('organization.')
     ->group(function () {
@@ -1526,8 +1536,20 @@ Route::prefix('/org/{organization}')
               ->withoutMiddleware(['auth', 'organization.member'])
               ->name('mycelium');
 
+        // TASK-1749 — les portes d'AUTHENTIFICATION sortent de la garde de
+        // maintenance, et c'est necessaire.
+        //
+        // Sans cette exemption, une Organization en maintenance rendait 503 sur
+        // sa propre page de connexion : un SuperAdmin non connecte ne pouvait
+        // plus s'authentifier pour venir voir ce qui s'y passe. Mesure du 04/11,
+        // trouvee en eprouvant le correctif — j'avais cru a tort que ce
+        // sous-groupe vivait hors du groupe prefixe.
+        //
+        // Un membre ordinaire peut donc s'y connecter aussi. Il rencontrera la
+        // page de maintenance a la premiere surface qu'il demandera, ce qui dit
+        // la meme chose au bon moment.
         Route::middleware('guest')
-            ->withoutMiddleware(['auth', 'organization.member'])
+            ->withoutMiddleware(['auth', 'organization.member', 'organization.maintenance'])
             ->group(function () {
             Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
             Route::post('/login', [AuthenticatedSessionController::class, 'store']);
