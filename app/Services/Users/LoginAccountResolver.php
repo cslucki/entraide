@@ -69,7 +69,7 @@ class LoginAccountResolver
      *
      * @return Collection<int, User>
      */
-    public function candidats(string $email, ?Organization $organization = null): Collection
+    public function candidats(string $email, ?Organization $organization = null, bool $sansOrganization = false): Collection
     {
         return User::query()
             // TASK-1733 (A7) — `LOWER()` des DEUX cotes, et c'est exactement la
@@ -82,6 +82,23 @@ class LoginAccountResolver
             ->when(
                 $organization !== null,
                 fn ($query) => $query->where('organization_id', $organization->getKey())
+            )
+            // TASK-1749 — la portee des comptes DETACHES.
+            //
+            // Depuis que la selection d'Organization est obligatoire sur
+            // `/login`, « aucune selection » n'existe plus comme reponse de
+            // l'interface. Il fallait pourtant garder une porte a ceux dont
+            // `organization_id` est NULL : la suppression d'une Organization
+            // detache ses membres (`AdminOrganizationController::destroy`), et
+            // ils n'entrent par aucune porte d'Organization.
+            //
+            // Cette portee est PLUS ETROITE que l'ancien « aucune selection »,
+            // qui cherchait dans TOUS les locataires. Ici on ne regarde que les
+            // comptes sans Organization — un membre d'un tenant ne peut pas s'y
+            // glisser.
+            ->when(
+                $sansOrganization,
+                fn ($query) => $query->whereNull('organization_id')
             )
             // Ni `first()`, ni `limit` : c'est tout l'objet de ce service. Le
             // tri rend l'ensemble stable pour les tests, il ne sert pas a
@@ -99,9 +116,9 @@ class LoginAccountResolver
      * generique, sans quoi la reponse dirait a qui la lit dans quelle
      * Organization une adresse se trouve.
      */
-    public function compteUnique(string $email, ?Organization $organization = null): ?User
+    public function compteUnique(string $email, ?Organization $organization = null, bool $sansOrganization = false): ?User
     {
-        $candidats = $this->candidats($email, $organization);
+        $candidats = $this->candidats($email, $organization, $sansOrganization);
 
         return $candidats->count() === 1 ? $candidats->first() : null;
     }

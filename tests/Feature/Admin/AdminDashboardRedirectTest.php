@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Http\Requests\Auth\LoginRequest;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -12,7 +13,7 @@ class AdminDashboardRedirectTest extends TestCase
 {
     public function test_admin_with_organization_gets_user_dashboard_on_dashboard_url(): void
     {
-        $organization = Organization::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         $admin = User::factory()->create([
             'is_admin' => true,
             'organization_id' => $organization->id,
@@ -27,7 +28,7 @@ class AdminDashboardRedirectTest extends TestCase
 
     public function test_dashboard_and_admin_dashboard_are_distinct_for_admin_with_organization(): void
     {
-        $organization = Organization::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         $admin = User::factory()->create([
             'is_admin' => true,
             'organization_id' => $organization->id,
@@ -70,7 +71,7 @@ class AdminDashboardRedirectTest extends TestCase
 
     public function test_member_with_organization_still_accesses_member_dashboard(): void
     {
-        $organization = Organization::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         $member = User::factory()->create([
             'is_admin' => false,
             'organization_id' => $organization->id,
@@ -101,16 +102,18 @@ class AdminDashboardRedirectTest extends TestCase
     #[Group('ci-known-red')]
     public function test_admin_with_organization_login_defaults_to_chatloop_url(): void
     {
-        $organization = Organization::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         $admin = User::factory()->create([
             'is_admin' => true,
             'organization_id' => $organization->id,
             'password' => Hash::make('password'),
         ]);
 
+        // TASK-1749 — selection obligatoire sur `/login`.
         $this->post(route('login'), [
             'email' => $admin->email,
             'password' => 'password',
+            'organization' => $organization->slug,
         ])->assertRedirect(route('organization.home', ['organization' => $organization->slug], absolute: false));
     }
 
@@ -122,9 +125,12 @@ class AdminDashboardRedirectTest extends TestCase
             'password' => Hash::make('password'),
         ]);
 
+        // TASK-1749 — cet administrateur est DETACHE (`organization_id` null) :
+        // il designe sa situation, faute d'Organization a nommer.
         $this->post(route('login'), [
             'email' => $admin->email,
             'password' => 'password',
+            'organization' => LoginRequest::SANS_ORGANIZATION,
         ])->assertRedirect(route('admin.dashboard', absolute: false));
     }
 }

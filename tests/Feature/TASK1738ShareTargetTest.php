@@ -55,7 +55,9 @@ class TASK1738ShareTargetTest extends TestCase
     {
         parent::setUp();
 
-        $this->org = Organization::factory()->create(['loops_enabled' => true, 'is_active' => true]);
+        // TASK-1749 — `is_public` explicite : la selection d'Organization est
+        // obligatoire sur `/login` et le selecteur ne propose que du public.
+        $this->org = Organization::factory()->create(['loops_enabled' => true, 'is_active' => true, 'is_public' => true]);
         $this->autreOrg = Organization::factory()->create(['loops_enabled' => true, 'is_active' => true]);
 
         $this->membre = User::factory()->create(['organization_id' => $this->org->id]);
@@ -195,6 +197,7 @@ class TASK1738ShareTargetTest extends TestCase
         $this->post(route('login'), [
             'email' => $this->membre->email,
             'password' => 'password',
+            'organization' => $this->org->slug,
         ])->assertSessionHasNoErrors();
 
         $this->get(route('partage.choisir'))

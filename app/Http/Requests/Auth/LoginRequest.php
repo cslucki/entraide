@@ -10,11 +10,28 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class LoginRequest extends FormRequest
 {
+    /**
+     * TASK-1749 — la valeur que porte « Je n'appartiens a aucune organisation ».
+     *
+     * Rendre la selection obligatoire retirait leur SEULE porte aux comptes
+     * detaches (`organization_id` NULL) : ils ne peuvent rien selectionner, et
+     * T1728 garantit qu'ils n'entrent par aucune porte d'Organization. Or ces
+     * comptes se fabriquent par un geste courant —
+     * `AdminOrganizationController::destroy()` detache les membres de
+     * l'Organization supprimee.
+     *
+     * Un slug ne peut pas porter cette valeur : le motif de route des
+     * Organizations exige `[a-z0-9][a-z0-9\-]*`, et les tirets bas en sont
+     * absents. Aucune Organization reelle ne peut donc l'usurper.
+     */
+    public const SANS_ORGANIZATION = '__sans_organisation__';
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -33,12 +50,32 @@ class LoginRequest extends FormRequest
         return [
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
-            // TASK-1728 (A3) — la selection explicite d'Organization sur le
-            // formulaire GLOBAL. Facultative, et jamais une regle `exists` :
-            // un slug inconnu doit rendre le MEME refus generique qu'un mot de
-            // passe faux, pas une erreur de validation qui confirmerait quelles
-            // Organizations existent.
-            'organization' => ['sometimes', 'nullable', 'string', 'max:255'],
+            // TASK-1728 (A3), rendue OBLIGATOIRE par TASK-1749 (decision Cyril,
+            // 04/11).
+            //
+            // Jamais une regle `exists` : un slug inconnu doit rendre le MEME
+            // refus generique qu'un mot de passe faux, pas une erreur de
+            // validation qui confirmerait quelles Organizations existent. Cette
+            // discipline de T1728 ne bouge pas.
+            //
+            // CE QUI CHANGE : elle n'est plus facultative sur `/login`.
+            //
+            // La justification ecrite en T1728 — « tant que `users.email` est
+            // globalement unique, une adresse ne designe qu'un compte » — est
+            // PERIMEE depuis T1729 : l'index est `(organization_id,
+            // lower(email))`, et des adresses sont deja portees par plusieurs
+            // comptes. Une adresse ne designe donc plus une personne.
+            //
+            // La regle est conditionnee a l'ABSENCE de parametre de route, et
+            // c'est indispensable : sur `/org/{slug}/login` l'Organization vient
+            // de l'URL, le formulaire ne porte aucun champ, et un `required`
+            // inconditionnel aurait refuse toutes les connexions de ces trois
+            // portes.
+            'organization' => [
+                Rule::requiredIf(fn (): bool => $this->route('organization') === null),
+                'string',
+                'max:255',
+            ],
         ];
     }
 
@@ -69,6 +106,13 @@ class LoginRequest extends FormRequest
 
         $slug = trim((string) $this->input('organization', ''));
 
+        // TASK-1749 — « Je n'appartiens a aucune organisation » : il n'y a pas
+        // d'Organization a resoudre, et ce n'est pas un defaut de selection.
+        // La portee est posee a part, par `viseLesComptesDetaches()`.
+        if ($slug === self::SANS_ORGANIZATION) {
+            return null;
+        }
+
         if ($slug === '') {
             return null;
         }
@@ -90,6 +134,21 @@ class LoginRequest extends FormRequest
         }
 
         return $selectionnee;
+    }
+
+    /**
+     * TASK-1749 — la tentative vise-t-elle les comptes DETACHES ?
+     *
+     * Seulement sur `/login`. Sur `/org/{slug}/login`, l'Organization vient de
+     * la route et gouverne : un `organization` poste y est ignore, sentinelle
+     * comprise. Sans cette borne, poster la sentinelle sur la porte d'une
+     * Organization aurait elargi la recherche hors de ce tenant — exactement ce
+     * que T1728 interdit.
+     */
+    private function viseLesComptesDetaches(): bool
+    {
+        return $this->route('organization') === null
+            && trim((string) $this->input('organization', '')) === self::SANS_ORGANIZATION;
     }
 
     /**
@@ -137,7 +196,17 @@ class LoginRequest extends FormRequest
         // reponse dirait dans quelle Organization une adresse se trouve.
         $organization = $this->organizationDeLaTentative($comptes);
 
-        $user = $comptes->compteUnique($this->string('email')->toString(), $organization);
+        // TASK-1749 — trois portees possibles, et plus deux.
+        //
+        // Avant : une Organization, ou « aucune selection » qui cherchait dans
+        // TOUS les locataires. Depuis que la selection est obligatoire, la
+        // seconde n'existe plus comme reponse de l'interface ; elle est
+        // remplacee par une portee PLUS ETROITE, les comptes detaches.
+        $user = $comptes->compteUnique(
+            $this->string('email')->toString(),
+            $organization,
+            $this->viseLesComptesDetaches(),
+        );
 
         if ($user && $user->banned_at !== null) {
             // TASK-1716 — le refus est le MEME, le message ne l'est pas.

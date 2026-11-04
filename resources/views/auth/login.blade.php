@@ -22,6 +22,32 @@
             ? route('organization.register', array_filter(['organization' => $currentOrganization->slug, 'ref' => $ref]))
             : route('register', array_filter(['ref' => $ref]));
         $forgotPasswordLink = $isOrg ? route('organization.password.request', $currentOrganization) : route('password.request');
+
+        /*
+         * TASK-1749 (recette Cyril, 04/11) — les identifiants attendent que
+         * l'Organization soit designee.
+         *
+         * Le menu de la porte d'Organization NAVIGUE : choisir recharge la
+         * page. Quelqu'un qui saisit son adresse puis choisit son Organization
+         * perd donc sa saisie et doit tout recommencer — et c'est le parcours
+         * NORMAL de qui arrive par la marque la plus connue.
+         *
+         * Les deux champs sont donc verrouilles tant qu'aucun choix n'a ete
+         * fait. C'est l'ordre naturel : d'abord ou, ensuite qui.
+         *
+         * `disabled` est rendu COTE SERVEUR, pas pose par un script : sans
+         * JavaScript le verrou tient quand meme, et il se leve par la
+         * navigation elle-meme.
+         *
+         * Il ne s'applique QUE sur la porte d'une Organization, et seulement
+         * quand il y a plusieurs portes. Sur `/login`, le selecteur POSTE au
+         * lieu de naviguer : rien n'y est perdu, et verrouiller y serait une
+         * gene sans contrepartie.
+         */
+        $alternativesDeLaPorte = $isOrg ? ($organizationsAlternatives ?? collect()) : collect();
+        $identifiantsVerrouilles = $isOrg
+            && $alternativesDeLaPorte->isNotEmpty()
+            && request()->query('org') !== $organisationDeLaPorte?->slug;
     @endphp
 
     <div class="px-8 pt-8 pb-2 border-b border-gray-100 dark:border-gray-700">
@@ -47,8 +73,11 @@
                          It is never a guarantee: the server re-checks the address against
                          the invitation after authentication. old() still wins on redisplay. --}}
                     <input id="email" type="email" name="email" value="{{ old('email', request('email')) }}"
-                           required autofocus autocomplete="username"
-                           class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
+                           required @if(! $identifiantsVerrouilles) autofocus @endif
+                           autocomplete="username"
+                           @disabled($identifiantsVerrouilles)
+                           @if($identifiantsVerrouilles) data-login-locked @endif
+                           class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 dark:disabled:bg-gray-800">
                     <x-input-error :messages="$errors->get('email')" class="mt-1.5" />
 
                     {{-- TASK-1728 (A3) — la sortie de secours du parcours
@@ -194,8 +223,15 @@
                         </option>
                         @endforeach
                     </select>
-                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                        {{ __('auth.login_organization_nav_hint') }}
+                    {{-- Un champ grise sans explication se lit comme une panne.
+                         Tant que le verrou tient, l'aide dit ce qu'on attend ;
+                         une fois l'Organization choisie, elle redevient la
+                         phrase ordinaire. --}}
+                    <p class="mt-1.5 text-xs {{ $identifiantsVerrouilles ? 'font-medium text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400' }}"
+                       data-login-organization-nav-hint>
+                        {{ $identifiantsVerrouilles
+                            ? __('auth.login_organization_nav_first')
+                            : __('auth.login_organization_nav_hint') }}
                     </p>
                     <noscript>
                         {{-- Les ALTERNATIVES seulement, et la difference avec le
@@ -272,15 +308,49 @@
                     <label for="organization" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         {{ __('auth.login_organization_label') }}
                     </label>
-                    <select id="organization" name="organization"
+                    <select id="organization" name="organization" required
                             data-login-organization-selector
                             class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
-                        <option value="">{{ __('auth.login_organization_any') }}</option>
+                        {{-- TASK-1749 — « — Toutes les organisations — » etait une
+                             valeur RETENABLE qui elargissait la recherche a tous
+                             les locataires. Elle devient un libelle d'invite :
+                             `disabled` pour qu'on ne puisse pas y revenir apres
+                             avoir choisi, `selected` pour qu'aucune Organization
+                             ne soit designee d'office. --}}
+                        <option value="" disabled {{ old('organization') ? '' : 'selected' }}>
+                            {{ __('auth.login_organization_nav_placeholder') }}
+                        </option>
                         @foreach($organizationsProposables as $proposable)
                         <option value="{{ $proposable->slug }}" {{ old('organization') === $proposable->slug ? 'selected' : '' }}>
                             {{ $proposable->name }}
                         </option>
                         @endforeach
+
+                        {{-- TASK-1749 (decision Cyril, 04/11) — la porte des comptes
+                             DETACHES.
+
+                             Rendre la selection obligatoire leur retirait leur SEULE
+                             porte : `organization_id` a NULL, rien a selectionner, et
+                             T1728 garantit qu'ils n'entrent par aucune porte
+                             d'Organization. Ces comptes se fabriquent par un geste
+                             courant — `AdminOrganizationController::destroy()` detache
+                             les membres de l'Organization supprimee, et le message de
+                             confirmation du bouton l'annonce.
+
+                             Cette portee est PLUS ETROITE que l'ancien
+                             « — Toutes les organisations — » qu'elle remplace : celui-la
+                             cherchait dans TOUS les locataires, celle-ci ne regarde que
+                             les comptes sans Organization.
+
+                             Placee en DERNIER, apres un separateur : elle ne concerne
+                             qu'une situation rare, et ne doit pas se lire comme un choix
+                             ordinaire. --}}
+                        <option disabled>──────────</option>
+                        <option value="{{ \App\Http\Requests\Auth\LoginRequest::SANS_ORGANIZATION }}"
+                                data-login-organization-detached
+                                {{ old('organization') === \App\Http\Requests\Auth\LoginRequest::SANS_ORGANIZATION ? 'selected' : '' }}>
+                            {{ __('auth.login_organization_none') }}
+                        </option>
                     </select>
                     <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                         {{ __('auth.login_organization_hint') }}
@@ -304,7 +374,9 @@
                     </div>
                     <input id="password" type="password" name="password"
                            required autocomplete="current-password"
-                           class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
+                           @disabled($identifiantsVerrouilles)
+                           @if($identifiantsVerrouilles) data-login-locked @endif
+                           class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 dark:disabled:bg-gray-800">
                     <x-input-error :messages="$errors->get('password')" class="mt-1.5" />
                 </div>
 
@@ -318,8 +390,11 @@
                 </div>
 
                 <!-- Bouton connexion -->
+                {{-- Verrouille lui aussi : un bouton actif au-dessus de champs
+                     grises promettrait une action impossible. --}}
                 <button type="submit"
-                        class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                        @disabled($identifiantsVerrouilles)
+                        class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700">
                     {{ __('auth.login_button') }}
                 </button>
             </div>

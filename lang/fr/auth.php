@@ -70,9 +70,22 @@ return [
 
     // TASK-1728 (A3) — le selecteur d'Organization du formulaire global,
     // et la sortie de secours du parcours d'Organization.
-    'login_organization_label' => "Organisation (facultatif)",
-    'login_organization_any' => "— Toutes les organisations —",
-    'login_organization_hint' => "Utile seulement si votre adresse est rattachée à plusieurs organisations. Laissez vide sinon.",
+    // TASK-1749 (décision Cyril, 04/11) — le choix devient OBLIGATOIRE.
+    //
+    // « (facultatif) » et « — Toutes les organisations — » disparaissent :
+    // laisser vide élargissait la recherche à TOUS les locataires, et le libellé
+    // invitait à le faire. La justification de T1728 — « tant que l'email est
+    // globalement unique, la sélection n'a rien à départager » — est périmée
+    // depuis T1729 : l'index est `(organization_id, lower(email))`.
+    //
+    // `login_organization_any` est RETIRÉE plutôt que laissée en place : une
+    // clef qui nomme une option qui n'existe plus finit par être réemployée.
+    'login_organization_label' => "Organisation",
+    'login_organization_hint' => "Choisissez l'organisation à laquelle votre compte appartient.",
+    // TASK-1749 — la porte des comptes DÉTACHÉS : `organization_id` à NULL,
+    // produits par la suppression d'une Organization. Sans cette ligne, le
+    // choix obligatoire les enfermait dehors.
+    'login_organization_none' => "Je n'appartiens à aucune organisation",
     'login_try_global' => "Votre compte appartient à une autre organisation ? Connectez-vous ici.",
 
     // TASK-1730 (A5a) — la bascule entre comptes d'Organizations differentes.
@@ -156,4 +169,5 @@ return [
     'login_organization_nav_label' => 'Organisation',
     'login_organization_nav_placeholder' => 'Rejoignez votre organisation',
     'login_organization_nav_hint' => 'Choisissez l\'organisation à laquelle votre compte appartient.',
+    'login_organization_nav_first' => 'Choisissez d\'abord votre organisation : les champs ci-dessous s\'activeront ensuite.',
 ];

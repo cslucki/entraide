@@ -80,9 +80,11 @@ return [
 
     // TASK-1728 (A3) — le selecteur d'Organization du formulaire global,
     // et la sortie de secours du parcours d'Organization.
-    'login_organization_label' => "Organization (optional)",
-    'login_organization_any' => "— All organizations —",
-    'login_organization_hint' => "Only needed if your address belongs to several organizations. Leave empty otherwise.",
+    // TASK-1749 — the choice becomes MANDATORY. See the French file.
+    'login_organization_label' => "Organization",
+    'login_organization_hint' => "Pick the organization your account belongs to.",
+    // TASK-1749 — the door for DETACHED accounts. See the French file.
+    'login_organization_none' => "I don't belong to any organization",
     'login_try_global' => "Is your account in another organization? Sign in here.",
 
     // TASK-1730 (A5a) — la bascule entre comptes d'Organizations differentes.
@@ -152,4 +154,5 @@ return [
     'login_organization_nav_label' => 'Organisation',
     'login_organization_nav_placeholder' => 'Join your organisation',
     'login_organization_nav_hint' => 'Pick the organisation your account belongs to.',
+    'login_organization_nav_first' => 'Pick your organisation first — the fields below will then unlock.',
 ];

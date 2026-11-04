@@ -501,8 +501,10 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
         ]);
 
         // Sans selection : refus generique, meme avec un mot de passe juste.
+        // TASK-1749 — selection obligatoire : sans elle, c'est la validation qui
+        // refuse, sur `organization`, avant d'atteindre le resolveur.
         $this->post(route('login'), ['email' => 'login-a4@exemple.test', 'password' => 'password'])
-            ->assertSessionHasErrors(['email' => trans('auth.failed')]);
+            ->assertSessionHasErrors('organization');
         $this->assertGuest();
 
         // Avec selection : chacun chez lui.
