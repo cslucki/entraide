@@ -333,12 +333,21 @@ class TASK1632DataIntegrityToolTest extends TestCase
         // d'une invitation), avec sa FK `nullOnDelete` — d'ou 24 -> 25.
         // TASK-1695 ajoute `dossier_file_loop_shares.loop_id` (un fichier
         // partage avec une Boucle), avec sa FK `cascadeOnDelete` — 25 -> 26.
+        // TASK-1752 ajoute `feed_posts.loop_id` (l'audience d'une ligne de
+        // Flux restreinte a une Boucle), avec sa FK `nullOnDelete` — 26 -> 27.
+        //
+        // `nullOnDelete` et non `cascadeOnDelete`, et c'est un choix : si la
+        // Boucle disparait, la ligne de Flux ne doit pas disparaitre avec
+        // elle — elle porte peut-etre des commentaires et des reactions de
+        // membres. Elle perd sa restriction d'audience, et la policy traite
+        // alors une ligne `loop` sans `loop_id` comme INVISIBLE (fail-closed,
+        // voir `FeedPostPolicy::view()`).
         //
         // `unprotected` reste a 0 : c'est la VRAIE assertion de ce test. Le
         // compte de tables n'est qu'un garde-fou contre une table ajoutee
         // sans contrainte, et il DOIT etre mis a jour sciemment — jamais pour
         // faire taire la CI.
-        $this->assertSame(26, $check->replacements['tables']);
+        $this->assertSame(27, $check->replacements['tables']);
         $this->assertSame(0, $check->replacements['unprotected']);
     }
 
