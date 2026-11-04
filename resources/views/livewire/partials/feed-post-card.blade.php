@@ -17,7 +17,7 @@
         <header class="flex items-start justify-between gap-3">
             <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
-                    <span class="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">{{ __('feed.post_badge') }}</span>
+                    <span class="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">{{ \App\Support\Feed\FeedEventCatalogue::connait($post->type) ? __('feed.events.badge') : __('feed.post_badge') }}</span>
                     @if($post->isPinned())
                         <span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">{{ __('feed.pinned_badge') }}</span>
                     @endif
@@ -36,9 +36,30 @@
             </div>
         </header>
 
-        <div class="prose prose-sm max-w-none text-gray-800 dark:prose-invert dark:text-gray-100">
-            {!! markdown($post->content) !!}
-        </div>
+        {{-- TASK-1752 — DEUX rendus, et la separation n'est pas cosmetique.
+
+            Un evenement automatique ne passe JAMAIS par `markdown()`. Le
+            filtre est sur : `html_input => escape`, donc pas de faille HTML.
+            Mais la syntaxe Markdown reste active, et un nom contenant
+            `[texte](url)` produirait un lien. `{{ }}` echappe, point.
+
+            Le libelle est CALCULE : la langue et le nom sont resolus
+            maintenant, pas au moment ou la ligne a ete ecrite. --}}
+        @php($_libelleEvenement = \App\Support\Feed\FeedEventRenderer::libelle($post))
+
+        @if($_libelleEvenement !== null)
+            @php($_lienEvenement = \App\Support\Feed\FeedEventRenderer::lien($post, currentOrganization()?->slug))
+            <p class="text-sm text-gray-800 dark:text-gray-100" data-feed-event="{{ $post->type }}">
+                {{ $_libelleEvenement }}
+                @if($_lienEvenement)
+                    <a href="{{ $_lienEvenement }}" class="ml-1 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400">{{ __('feed.events.see') }}</a>
+                @endif
+            </p>
+        @elseif(filled($post->content))
+            <div class="prose prose-sm max-w-none text-gray-800 dark:prose-invert dark:text-gray-100">
+                {!! markdown($post->content) !!}
+            </div>
+        @endif
 
         @if(is_array($preview))
             <a href="{{ $preview['url'] ?? '#' }}" target="_blank" rel="noopener noreferrer" class="flex gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-3 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/70 dark:hover:bg-gray-800">
