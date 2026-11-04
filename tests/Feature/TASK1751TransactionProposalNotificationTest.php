@@ -300,6 +300,12 @@ class TASK1751TransactionProposalNotificationTest extends TestCase
 
         $transaction = Transaction::withoutGlobalScopes()->firstOrFail();
 
+        // LE point que la recette du 04/11 a du m'apprendre : ce code tourne
+        // dans un WORKER, ou aucune Organization n'est resolue. Un test qui
+        // garde le contexte HTTP charge les relations sans difficulte et
+        // passe au vert pendant que la production envoie un titre generique.
+        app()->forgetInstance('current_organization');
+
         $rendu = app(\App\Services\Transactions\TransactionProposalMailer::class)->compose(
             $transaction,
             $this->auteurDeLAnnonce,

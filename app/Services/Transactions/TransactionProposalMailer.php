@@ -35,6 +35,56 @@ final class TransactionProposalMailer
     public const SLUG = 'transaction_proposal_created';
 
     /**
+     * Le titre de l'annonce, lu SANS les scopes globaux.
+     *
+     * ## Le defaut que cette methode repare (trouve en recette, 04/11)
+     *
+     * `Transaction::subject` lit `$this->service` et `$this->serviceRequest`.
+     * Ces relations portent `BelongsToOrganizationScope`, qui se resout sur
+     * l'Organization COURANTE. Or ce code tourne dans un worker, ou il n'y en
+     * a aucune : les deux relations rendaient `null`, et `subject` retombait
+     * sur son repli generique. L'objet du courriel annoncait
+     * « Échange #01a1a865 » au lieu de « Relire un dossier de candidature ».
+     *
+     * Le defaut etait INVISIBLE au test : un test HTTP s'execute avec une
+     * Organization courante, et la relation se chargeait donc correctement.
+     * Seule la recette, qui passe par la vraie file, pouvait le montrer.
+     *
+     * La frontiere de locataire n'est pas perdue pour autant : elle est
+     * reposee explicitement par le `where` sur `organization_id`, qui est la
+     * vraie garde — le scope n'etait qu'une commodite de requete.
+     */
+    private function titreDeLAnnonce(Transaction $transaction): string
+    {
+        if ($transaction->service_id !== null) {
+            $service = \App\Models\Service::withoutGlobalScopes()
+                ->whereKey($transaction->service_id)
+                ->where('organization_id', $transaction->organization_id)
+                ->first();
+
+            if ($service !== null) {
+                return (string) $service->title;
+            }
+        }
+
+        if ($transaction->request_id !== null) {
+            $demande = \App\Models\ServiceRequest::withoutGlobalScopes()
+                ->whereKey($transaction->request_id)
+                ->where('organization_id', $transaction->organization_id)
+                ->first();
+
+            if ($demande !== null) {
+                return (string) $demande->title;
+            }
+        }
+
+        // L'annonce a disparu entre l'emission et l'envoi : le repli de
+        // `subject` reste la reponse juste, mais il est desormais le DERNIER
+        // recours et non le cas ordinaire.
+        return (string) $transaction->subject;
+    }
+
+    /**
      * @return array{subject: string, body: string, fallback_reason: string|null}
      */
     public function compose(
@@ -61,7 +111,7 @@ final class TransactionProposalMailer
                     'sender_name' => $acteur?->publicDisplayName() ?? '',
                     'organization_name' => $organization?->name ?? '',
                     // Le titre du service OU de la demande, indifferemment.
-                    'subject_title' => $transaction->subject,
+                    'subject_title' => $this->titreDeLAnnonce($transaction),
                     'points_proposed' => (string) $transaction->points_proposed,
                     'exchange_url' => $url,
                     'app_name' => config('app.name'),
