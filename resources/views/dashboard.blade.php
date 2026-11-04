@@ -10,21 +10,40 @@
         $_dashServicesCreateHref = $_dashRoute('services.create');
         $_dashRequestsCreateHref = $_dashRoute('requests.create');
     @endphp
+    {{-- TASK-1749 — la barre du haut standard.
+
+         Le retour va vers la HOMEPAGE et non vers le tableau de bord
+         (demande explicite de Cyril) : cette page EST le tableau de bord, une
+         fleche qui y ramene ne menerait nulle part.
+
+         Le gros `<h1>` est retire — la barre porte le titre, et les garder
+         tous les deux l'aurait affiche deux fois. Le sous-titre
+         « dashboard.summary » reste : c'est du contenu.
+
+         `organizationScopedUrl()` : le retour reste dans le locataire. --}}
+    {{-- TASK-1749 (demande Cyril, 04/11) — le titre nomme LA PERSONNE, plus
+         l'Organization.
+
+         Il disait « Tableau de bord - BouclePro » : le nom du locataire, que le
+         rail gauche, le menu Avatar et la barre de marque annoncent deja trois
+         fois sur la meme page. Il dit desormais a qui ce tableau appartient.
+
+         REPLI SUR L'ADRESSE : `fullName` rend une chaine VIDE quand ni le
+         prenom ni le nom ne sont renseignes (`User::getFullNameAttribute()`,
+         qui retombe sur `$this->name ?? ''`). Sans ce repli, le titre aurait
+         ete « Tableau de bord de  » — une phrase tronquee, pire qu'un nom
+         technique. `filled()` et non `isset()` : la chaine vide doit compter
+         comme absente.
+
+         Le sous-titre « Voici un resume de votre activite » est RETIRE
+         (demande Cyril) : il decrivait la page a qui la regarde deja. --}}
+    @php $_dashNom = filled($user->fullName) ? $user->fullName : $user->email; @endphp
+    <x-page-topbar :back="organizationScopedUrl('home', 'organization.home')"
+                   :title="__('dashboard.title_of', ['name' => $_dashNom])"
+                   :label="__('dashboard.back_to_home')"
+                   data-dashboard-topbar="dashboard" />
+
     <div class="max-w-7xl mx-auto px-4 py-8">
-        <!-- Header -->
-        <div class="hidden sm:flex sm:items-center sm:justify-between sm:gap-3 sm:mb-8">
-            <div class="min-w-0">
-                @php $tenant = $currentOrganization ?? null; @endphp
-                <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 break-words">
-                    @if($tenant)
-                        {{ __('dashboard.title_with_tenant', ['name' => $tenant->name]) }}
-                    @else
-                        {{ __('dashboard.hello', ['name' => $user->fullName]) }}
-                    @endif
-                </h1>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">{{ __('dashboard.summary') }}</p>
-            </div>
-        </div>
 
         <x-user-dashboard-nav class="mb-8" />
 
@@ -194,8 +213,27 @@
                  Le test de condition est le MEME que celui du `@forelse` a
                  l'interieur : la card parait si et seulement si sa liste a de quoi
                  remplir une ligne. Deux conditions differentes auraient produit une
-                 card visible et vide, ou une liste masquee dans une card ouverte. --}}
-            @if(count($myServices) > 0)
+                 card visible et vide, ou une liste masquee dans une card ouverte.
+
+                 ## TASK-1749 — cette regle ne vaut PLUS pour les deux premieres
+
+                 « Mes propositions d'aide » et « Mes demandes d'aide » sont
+                 desormais rendues quoi qu'il arrive (demande Cyril, 04/11). La
+                 regle ci-dessus ne gouverne donc plus que les cards ECHANGES et
+                 MESSAGES — celles qui ne portent aucun geste a declencher. --}}
+            {{-- TASK-1749 (demande Cyril, 04/11) — ces deux cards sont la QUOI
+                 QU'IL ARRIVE.
+
+                 TASK-1725 les conditionnait a `count(...) > 0` : une card vide
+                 disparaissait, pour qu'un nouvel arrivant ne voie que son
+                 On-boarding. L'effet constate etait l'inverse de l'intention —
+                 quelqu'un dont les propositions sont inactives et les demandes
+                 fermees perdait les deux portes qui lui servent le plus.
+
+                 Le `@empty` du `@forelse` reprend son role : la card parait,
+                 vide, et son appel a l'action y est. Les deux autres cards
+                 (echanges, messages) gardent la regle de T1725 : elles ne
+                 portent aucun geste a declencher, seulement de l'historique. --}}
             <!-- Services -->
             <div x-data="{ open: true }" data-dashboard-card="services" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
@@ -249,10 +287,9 @@
                     @endforelse
                 </div>
             </div>
-            @endif
 
             <!-- Requests -->
-            @if(count($myRequests) > 0)
+
             <div x-data="{ open: true }" data-dashboard-card="requests" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <button type="button" @click="open = !open" class="flex min-w-0 items-center gap-2 text-left font-semibold text-gray-900 dark:text-gray-100">
@@ -275,7 +312,14 @@
                          @class(['divide-y divide-gray-100 dark:divide-gray-700',
                                   'max-h-64 overflow-y-auto' => count($myRequests) > 4])>
                     @forelse($myRequests as $req)
-                    @php $reqPriseEnCharge = $req->status === 'in_progress'; @endphp
+                    {{-- TASK-1749 — TROIS etats, et plus deux.
+                         `$reqPourvue` doit etre lu AVANT `$reqPriseEnCharge`
+                         partout : une demande close n'est ni « ouverte » ni
+                         « prise en charge ». --}}
+                    @php
+                        $reqPourvue = $req->status === 'closed';
+                        $reqPriseEnCharge = $req->status === 'in_progress';
+                    @endphp
                     <div class="px-5 py-3 flex items-start gap-2" data-dashboard-request="{{ $req->id }}">
                         <div class="min-w-0 flex-1">
                             <a href="{{ $_dashRoute('requests.show', ['request' => $req]) }}" class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600">{{ $req->title }}</a>
@@ -283,12 +327,26 @@
                         </div>
                         {{-- TASK-1693 bug U — la pastille dit l'etat, puisque la
                              card porte desormais les deux. --}}
+                        {{-- TASK-1749 — la pastille etait BINAIRE : tout ce qui
+                             n'etait pas `in_progress` s'affichait « Ouverte ».
+                             Ajouter `closed` sans la reecrire aurait donc
+                             annonce « Ouverte » sur une demande pourvue.
+
+                             Gris pour « pourvue » : la demande n'appelle plus
+                             aucun geste, elle ne doit pas tirer l'oeil comme un
+                             etat vivant. --}}
                         <span class="shrink-0 rounded-full px-2 py-0.5 text-xs
-                            {{ $reqPriseEnCharge
-                                ? 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
-                                : 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300' }}"
+                            @if($reqPourvue) bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300
+                            @elseif($reqPriseEnCharge) bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300
+                            @else bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 @endif"
                               data-dashboard-request-state="{{ $req->status }}">
-                            {{ $reqPriseEnCharge ? __('dashboard.request_in_progress') : __('dashboard.request_open') }}
+                            @if($reqPourvue)
+                                {{ __('dashboard.request_fulfilled') }}
+                            @elseif($reqPriseEnCharge)
+                                {{ __('dashboard.request_in_progress') }}
+                            @else
+                                {{ __('dashboard.request_open') }}
+                            @endif
                         </span>
                         {{-- « Fermer » n'est offert que sur une demande encore
                              OUVERTE. Fermer une demande deja prise en charge
@@ -296,7 +354,11 @@
                              une demande close, sans rien dire a la personne qui
                              l'a faite : ce serait offrir un geste dont la
                              consequence n'est pas nommee. --}}
-                        @if(! $reqPriseEnCharge)
+                        {{-- TASK-1749 — `! $reqPourvue` ajoute. Sans lui, « Fermer »
+                             restait offert sur une demande DEJA close : un geste
+                             sans effet, propose au seul endroit ou il ne veut
+                             plus rien dire. --}}
+                        @if(! $reqPriseEnCharge && ! $reqPourvue)
                         <form method="POST" action="{{ $_dashRoute('requests.destroy', ['request' => $req]) }}" class="flex-shrink-0" x-data="{ asked: false }"
                               data-dashboard-request-close="{{ $req->id }}">
                             @csrf @method('DELETE')
@@ -318,7 +380,6 @@
                     @endforelse
                 </div>
             </div>
-            @endif
 
             @if(count($exchanges) > 0)
             {{-- TASK-1693 bug T — UNE seule card « Échanges ».
@@ -435,41 +496,25 @@
             </div>
             @endif
         </div>
-        {{-- TASK-1725 — le cas que la regle ci-dessus ouvre, et qu'il fallait
-             fermer.
+        {{-- TASK-1749 — le bloc « rien pour l'instant » de T1725 est RETIRE.
 
-             Les etapes d'On-boarding se calculent sur l'EXISTENCE d'une demande
-             ou d'un service (`MemberOnboardingSteps::doneFor()`), quel que soit
-             leur statut ; les cards, elles, filtrent sur `active` et sur
-             `open`+`in_progress`. Une personne avec une biographie, une demande
-             FERMEE, un service INACTIF et un agent publie est donc a 4/4 — plus
-             de card d'accueil — et ses quatre cards sont vides. Sans ce bloc,
-             son tableau de bord serait entierement BLANC.
+             Il existait pour une seule raison, ecrite alors : les quatre cards
+             masquees, le tableau de bord aurait ete entierement BLANC. Il
+             reprenait donc les deux appels a l'action que les etats vides des
+             cards allaient emporter.
 
-             Il ne parait que dans ce cas precis : des qu'une seule ligne existe
-             quelque part, les cards reviennent et celui-ci s'efface. Un nouvel
-             arrivant ne le voit JAMAIS — il a encore son On-boarding.
+             Depuis que « Mes propositions d'aide » et « Mes demandes d'aide »
+             sont rendues quoi qu'il arrive, le tableau de bord ne peut plus
+             etre blanc, et ces deux appels a l'action vivent de nouveau dans le
+             `@empty` de chaque card. Garder ce bloc revenait a afficher les
+             MEMES deux boutons une seconde fois, juste en dessous.
 
-             Il reprend les deux appels a l'action qui vivaient dans les etats
-             vides des cards : c'est ce que la regle allait faire disparaitre, et
-             c'est la seule chose qu'elle ne devait pas emporter. Arbitrage
-             Cyril, 29/10. --}}
-        @if($aucuneDonnee && $onboardingTermine)
-        <div data-dashboard-nothing-yet class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 px-5 py-10 text-center">
-            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.nothing_yet_title') }}</p>
-            <p class="mx-auto mt-1 max-w-md text-sm text-gray-500 dark:text-gray-400">{{ __('dashboard.nothing_yet_body') }}</p>
-            <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
-                <a href="{{ $_dashServicesCreateHref }}"
-                   class="inline-flex min-h-11 items-center rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95">
-                    {{ __('dashboard.create_service') }}
-                </a>
-                <a href="{{ $requestCreateUrl }}"
-                   class="inline-flex min-h-11 items-center rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                    {{ __('dashboard.ask_help') }}
-                </a>
-            </div>
-        </div>
-        @endif
+             Mesure : la garde `test_les_appels_a_l_action_ne_sont_pas_rendus_deux_fois`
+             etait ROUGE avant ce retrait — le doublon etait reel, pas suppose.
+
+             `$aucuneDonnee` et `$onboardingTermine` restent calcules par
+             `DashboardController` : d'autres vues peuvent en avoir besoin, et
+             les retirer depasserait ce correctif. --}}
 
         <!-- Admin shortcuts -->
         @if($user->is_admin || ($user->organization && $user->organization->admin_id === $user->id))

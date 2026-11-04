@@ -99,7 +99,15 @@
             <img src="{{ auth()->user()->avatar_url }}" alt="" class="bpam-head-avatar" aria-hidden="true">
             <span class="bpam-head-text">
                 <strong>{{ auth()->user()->full_name }}</strong>
-                <span>{{ auth()->user()->points_balance }} pts</span>
+                {{-- TASK-1749 (demande Cyril, 04/11) — sous le nom, l'Organization
+                     et non plus le solde de points, comme dans le rail gauche.
+
+                     Ici, aucune precedence a arbitrer : `$organization` est
+                     l'Organization de la page, celle que le gabarit de homepage
+                     rend deja. Les trois vitrines passent la leur. --}}
+                @if($organization->name)
+                    <span>{{ $organization->name }}</span>
+                @endif
             </span>
         </div>
         @foreach($entrees as $entree)
@@ -149,7 +157,10 @@
 .bpam-head-text{min-width:0;display:block}
 .bpam-head-text strong{display:block;font-size:13.5px;line-height:1.25;color:#14183C !important;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bpam-head-text span{display:block;font-size:11.5px;line-height:1.3;margin-top:2px;color:#7A8098 !important}
+/* TASK-1749 — la ligne porte desormais un nom d'Organization, bien plus long
+   que « 100 pts ». Sans troncature elle elargissait le panneau de 232px. */
+.bpam-head-text span{display:block;font-size:11.5px;line-height:1.3;margin-top:2px;color:#7A8098 !important;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bpam-panel{
   position:absolute;right:0;top:calc(100% + 10px);z-index:200;width:232px;
   background:#fff;border:1px solid rgba(20,24,60,.10);border-radius:18px;padding:7px;

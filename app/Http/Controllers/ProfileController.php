@@ -330,14 +330,7 @@ class ProfileController extends Controller
         }
 
         if ($request->hasFile('avatar')) {
-            $file = $request->file('avatar');
-            $filename = time().'_'.$file->getClientOriginalName();
-
-            $img = Image::decode($file);
-            $img->cover(300, 300);
-
-            Storage::disk('public')->put('avatars/'.$filename, (string) $img->encode());
-            $data['avatar'] = 'avatars/'.$filename;
+            $data['avatar'] = $this->stockerAvatar($request->file('avatar'));
         }
 
         // Handle booleans (checkboxes are not sent if unchecked)
@@ -417,6 +410,73 @@ class ProfileController extends Controller
 
         return redirect()->route('profile.show', ['user' => $moi->profileRouteKey()])
             ->with('status', 'profile-updated');
+    }
+
+    /**
+     * TASK-1749 (demande Cyril, 04/11) — changer sa photo SANS traverser le
+     * formulaire de profil.
+     *
+     * ## Pourquoi une route a elle seule
+     *
+     * Le geste existait deja, mais il coutait quatre etapes : crayon ->
+     * `/profile/edit` -> chercher le champ au milieu d'une vingtaine d'autres
+     * -> « Enregistrer ». Le champ se trouve entre « Profil LinkedIn » et la
+     * case de disponibilite, et rien ne le signale.
+     *
+     * Reemployer `profile.update` n'etait PAS possible, et c'est la raison
+     * concrete de cette methode : ses regles declarent `name`, `email` et
+     * `phone` en `required`. Un envoi qui ne porte qu'une photo y serait
+     * refuse. Il aurait fallu soit assouplir ces trois regles — on y perdrait
+     * la garde de TASK-1712 sur le nom et celle de TASK-1729 sur l'unicite de
+     * l'adresse —, soit faire porter au formulaire modal une copie cachee de
+     * tout le profil, qui ecraserait silencieusement les champs modifies
+     * ailleurs entre-temps. Les deux sont pires que la route dediee.
+     *
+     * ## Ce qu'elle ne touche pas
+     *
+     * Une seule colonne, `avatar`. Ni le nom, ni l'adresse, ni le telephone,
+     * ni le slug : aucun verrou `UserWriteLock` n'est donc requis ici, a la
+     * difference de `update()`, dont la transaction protege l'unicite de
+     * l'adresse. Rien a serialiser quand on n'ecrit qu'un chemin de fichier.
+     *
+     * `required` et non `nullable` : on arrive ici en ayant choisi une photo.
+     * Un envoi vide est une erreur a signaler, pas un no-op silencieux.
+     */
+    public function updateAvatar(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'avatar' => ['required', 'image', 'max:2048'],
+        ]);
+
+        $moi = $request->user();
+        $moi->update(['avatar' => $this->stockerAvatar($request->file('avatar'))]);
+
+        return back()->with('success', __('profile.avatar_updated'));
+    }
+
+    /**
+     * TASK-1749 — le redimensionnement et l'ecriture sur disque, en UN
+     * exemplaire.
+     *
+     * Ce bloc vivait en ligne dans `update()`. Il est desormais appele par
+     * deux chemins : le formulaire complet et la fenetre « changer ma photo ».
+     * Le recopier aurait garanti qu'ils divergent — au premier changement de
+     * dimension, de disque ou de format.
+     *
+     * Le comportement est repris A L'IDENTIQUE, y compris le nom de fichier
+     * prefixe par `time()` : le modifier aurait change l'adresse des avatars
+     * sans que personne ne l'ait demande.
+     */
+    private function stockerAvatar(\Illuminate\Http\UploadedFile $file): string
+    {
+        $filename = time().'_'.$file->getClientOriginalName();
+
+        $img = Image::decode($file);
+        $img->cover(300, 300);
+
+        Storage::disk('public')->put('avatars/'.$filename, (string) $img->encode());
+
+        return 'avatars/'.$filename;
     }
 
     public function toggleAvailability(Request $request): RedirectResponse

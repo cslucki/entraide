@@ -2,6 +2,7 @@
 
 return [
     'title_with_tenant' => 'Dashboard - :name',
+    'title_of' => ':name\'s dashboard',
     'hello' => 'Hello, :name 👋',
     'summary' => 'Here is a summary of your activity',
     'available' => 'Available',
@@ -96,6 +97,8 @@ return [
     // TASK-1693 bug U — a request's state, carried by the pill.
     'request_open' => 'Open',
     'request_in_progress' => 'Being handled',
+    // TASK-1749 — a request whose work is completed.
+    'request_fulfilled' => 'Fulfilled',
     'ask_help' => 'Ask for help',
     'my_current_exchanges' => 'My current exchanges',
     'current_exchanges' => 'Current exchanges',
@@ -104,7 +107,7 @@ return [
     'no_current_exchange' => 'No current exchanges.',
     // TASK-1693 bug T — the single card replacing the two previous ones.
     // TASK-1694 bug A — dashboard card.
-    'exchanges' => 'Mutual aid',
+    'exchanges' => 'Mutual aid in progress',
     'no_exchange' => 'No current exchanges.',
     'my_announcements' => 'My announcements',
     'untitled' => 'Untitled',
@@ -193,6 +196,7 @@ return [
     'create_request' => 'Create a request',
     'create_service_link' => 'Create a service',
     'back_to_dashboard' => 'Back to dashboard',
+    'back_to_home' => 'Back to home',
     'back_to_requests' => 'Back to my requests',
     'back_to_services' => 'Back to my services',
     'edit_service' => 'Edit',

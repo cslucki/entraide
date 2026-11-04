@@ -12,7 +12,7 @@ class AdminDashboardRedirectTest extends TestCase
 {
     public function test_admin_with_organization_gets_user_dashboard_on_dashboard_url(): void
     {
-        $organization = Organization::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         $admin = User::factory()->create([
             'is_admin' => true,
             'organization_id' => $organization->id,
@@ -27,7 +27,7 @@ class AdminDashboardRedirectTest extends TestCase
 
     public function test_dashboard_and_admin_dashboard_are_distinct_for_admin_with_organization(): void
     {
-        $organization = Organization::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         $admin = User::factory()->create([
             'is_admin' => true,
             'organization_id' => $organization->id,
@@ -70,7 +70,7 @@ class AdminDashboardRedirectTest extends TestCase
 
     public function test_member_with_organization_still_accesses_member_dashboard(): void
     {
-        $organization = Organization::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         $member = User::factory()->create([
             'is_admin' => false,
             'organization_id' => $organization->id,
@@ -101,20 +101,22 @@ class AdminDashboardRedirectTest extends TestCase
     #[Group('ci-known-red')]
     public function test_admin_with_organization_login_defaults_to_chatloop_url(): void
     {
-        $organization = Organization::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         $admin = User::factory()->create([
             'is_admin' => true,
             'organization_id' => $organization->id,
             'password' => Hash::make('password'),
         ]);
 
+        // TASK-1749 — selection obligatoire sur `/login`.
         $this->post(route('login'), [
             'email' => $admin->email,
             'password' => 'password',
+            'organization' => $organization->slug,
         ])->assertRedirect(route('organization.home', ['organization' => $organization->slug], absolute: false));
     }
 
-    public function test_tenantless_admin_login_defaults_to_admin_dashboard_url(): void
+    public function test_tenantless_admin_can_no_longer_sign_in(): void
     {
         $admin = User::factory()->create([
             'is_admin' => true,
@@ -122,9 +124,14 @@ class AdminDashboardRedirectTest extends TestCase
             'password' => Hash::make('password'),
         ]);
 
+        // TASK-1749 (arbitrage Cyril) — meme regle pour un ADMINISTRATEUR
+        // detache : sans Organization a nommer, il n'entre plus.
+        //
+        // Mesure du 04/11 avant d'arbitrer : les 3 administrateurs reels de la
+        // base portent tous une Organization. Personne n'est enferme dehors.
         $this->post(route('login'), [
             'email' => $admin->email,
             'password' => 'password',
-        ])->assertRedirect(route('admin.dashboard', absolute: false));
+        ])->assertSessionHasErrors('organization');
     }
 }

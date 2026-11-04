@@ -84,14 +84,39 @@ class TASK1697ProfileTenantLinksTest extends TestCase
         // correctif : il vit dans le mobilier, pas dans la fiche profil.
         //
         // Une garde ecrite sur la page entiere serait donc rouge quoi qu'il
-        // arrive. Elle porte sur les deux balises marquees.
+        // arrive. Elle porte sur les balises marquees.
+        //
+        // TASK-1749 — ils etaient DEUX, il n'en reste qu'UN, et ce n'est pas un
+        // affaiblissement de la garde.
+        //
+        // Le second marque etait le crayon pose sur l'avatar. Il ne mene plus
+        // au formulaire : il ouvre la fenetre « changer ma photo », et c'est
+        // devenu un `<button>` sans destination — il n'y a donc plus de lien a
+        // garder dans le locataire a cet endroit. Le bouton « Modifier le
+        // profil » en haut a droite, lui, est inchange.
+        //
+        // Ce que le crayon a produit a sa place est une ECRITURE, exactement la
+        // categorie que le septieme correctif de cette TASK visait (le
+        // signalement d'un membre) : elle est verifiee juste en dessous.
         preg_match_all('/<a[^>]*data-profile-edit[^>]*>/', $html, $trouvees);
-        $this->assertCount(2, $trouvees[0], 'Les deux liens « Modifier » de la fiche profil ne sont pas tous deux rendus.');
+        $this->assertCount(1, $trouvees[0], 'Le lien « Modifier le profil » de la fiche n\'est pas rendu.');
 
         foreach ($trouvees[0] as $balise) {
             $this->assertStringContainsString(e($this->scopee('profile.edit')), $balise);
             $this->assertStringNotContainsString(e(route('profile.edit')).'"', $balise);
         }
+
+        // TASK-1749 — l'envoi de la nouvelle photo est une ECRITURE, et elle
+        // doit rester dans le locataire comme les sept liens d'origine. Partie
+        // vers la forme nue, elle aurait ecrit depuis l'Organization PAR DEFAUT
+        // de la plateforme.
+        $this->assertStringContainsString(e($this->scopee('profile.avatar')), $html);
+        $this->assertStringNotContainsString(e(route('profile.avatar')).'"', $html);
+
+        // Et le crayon ouvre bien la fenetre au lieu de naviguer : sans cette
+        // ligne, le remplacer par un lien vers `/profile/edit` repasserait la
+        // garde ci-dessus en silence, puisqu'il n'y aurait plus rien a compter.
+        $this->assertStringContainsString('data-avatar-edit', $html);
 
         $this->assertStringContainsString(e($this->scopee('agent-ia.interactions')), $html);
         $this->assertStringNotContainsString(e(route('agent-ia.interactions')), $html);

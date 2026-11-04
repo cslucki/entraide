@@ -7,6 +7,7 @@ use App\Http\Middleware\ResolveApiOrganization;
 use App\Http\Middleware\ResolveOrganization;
 use App\Http\Middleware\ResolveUrlOrganization;
 use App\Http\Middleware\SetLocale;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -153,9 +154,19 @@ class WebCsrfProtectionTest extends TestCase
         // Tests\TestCase::setUp appelle withoutMiddleware(PreventRequestForgery::class),
         // et le middleware lui-meme sort sur runningUnitTests(). Les deux
         // ceintures doivent tenir : sans elles, toute la suite virerait au 419.
-        $user = User::factory()->create(['password' => bcrypt('password-tripwire-1318')]);
+        // TASK-1749 : la porte globale exige une Organization, et ne propose
+        // que les publiques. Le sujet de ce test est le middleware, pas la
+        // porte : on la nomme explicitement.
+        $porte = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
+
+        $user = User::factory()->create([
+            'organization_id' => $porte->id,
+            'password' => bcrypt('password-tripwire-1318'),
+        ]);
 
         $response = $this->post('/login', [
+            // TASK-1749 : sur la porte GLOBALE, l'Organization est desormais exigee.
+            'organization' => $porte->slug,
             'email' => $user->email,
             'password' => 'password-tripwire-1318',
         ]);

@@ -28,4 +28,11 @@ return [
     'org_member_required_body' => 'You are signed in with an account that does not belong to this organization.',
     'org_member_required_own_space' => 'Back to my space',
     'org_member_required_public_home' => 'View this organization\'s home page',
+    // TASK-1749 — an organisation's maintenance page.
+    'org_maintenance_badge' => 'Maintenance',
+    'org_maintenance_title' => 'Organisation under maintenance',
+    'org_maintenance_heading' => ':organization is under maintenance',
+    'org_maintenance_heading_neutral' => 'This organisation is under maintenance',
+    'org_maintenance_body' => 'Its team is carrying out technical work. Access will be restored as soon as it is done — your data and your account are not affected.',
+    'org_maintenance_home' => 'Back to home',
 ];

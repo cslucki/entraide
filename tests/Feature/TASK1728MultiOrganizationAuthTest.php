@@ -197,18 +197,35 @@ class TASK1728MultiOrganizationAuthTest extends TestCase
 
     // ── 2. Connexion GLOBALE, avec et sans selection (D2) ───────────────────
 
-    public function test_le_parcours_global_historique_fonctionne_sans_selection(): void
+    /**
+     * TASK-1749 — cette garantie est LEVEE, et le test est retourne plutot que
+     * supprime.
+     *
+     * Il affirmait l'inverse : « le parcours global historique fonctionne sans
+     * selection », au motif qu'« une adresse ne designe qu'un compte tant que
+     * `users.email` est globalement unique ».
+     *
+     * Ce motif a cesse d'etre vrai le 30/10 : TASK-1729 a remplace l'unique
+     * global par `(organization_id, LOWER(email))`. Une adresse peut desormais
+     * designer plusieurs comptes, et « aucune selection » revenait a chercher
+     * dans TOUS les locataires.
+     *
+     * Decision Cyril du 04/11 : la selection devient OBLIGATOIRE sur `/login`.
+     *
+     * Le supprimer aurait laissé un trou : plus rien n'aurait dit ce qui se
+     * passe quand le champ manque. Il mesure donc maintenant la regle neuve, et
+     * reste la sentinelle de ce comportement.
+     */
+    public function test_le_parcours_global_EXIGE_desormais_une_selection(): void
     {
-        // La non-regression la plus importante du lot : l'immense majorite des
-        // connexions n'exprime aucune Organization, et ne doit rien changer.
         $membre = $this->compte($this->publiqueA, 'historique@exemple.test');
 
         $this->post(route('login'), [
             'email' => $membre->email,
             'password' => 'password',
-        ])->assertRedirect();
+        ])->assertSessionHasErrors('organization');
 
-        $this->assertAuthenticatedAs($membre);
+        $this->assertGuest();
     }
 
     public function test_une_selection_correcte_authentifie(): void
@@ -432,9 +449,13 @@ class TASK1728MultiOrganizationAuthTest extends TestCase
         $banni = $this->compte($this->publiqueA, 'banni@exemple.test');
         $banni->forceFill(['banned_at' => now()])->save();
 
+        // TASK-1749 — la selection est desormais obligatoire sur `/login`.
+        // Elle est fournie pour que le test mesure ce qu'il annonce : le
+        // MESSAGE PROPRE d'un compte banni, et non un refus de validation.
         $this->post(route('login'), [
             'email' => $banni->email,
             'password' => 'password',
+            'organization' => $this->publiqueA->slug,
         ])->assertSessionHasErrors('email');
 
         $this->assertGuest();
@@ -465,12 +486,27 @@ class TASK1728MultiOrganizationAuthTest extends TestCase
             'password' => Hash::make('password'),
         ]);
 
+        // TASK-1749 (decision Cyril, 04/11) — la GARANTIE EST LEVEE, et le
+        // test est retourne plutot que supprime.
+        //
+        // T1728 avait ecrit « le parcours global demeure sa porte » pour un
+        // compte detache. La selection d'Organization est devenue OBLIGATOIRE :
+        // il n'a plus rien a nommer, et il n'entre par aucune porte.
+        //
+        // Une option « Je n'appartiens a aucune organisation » avait ete posee
+        // pour lui, puis RETIREE sur arbitrage : une Organization supprimee
+        // n'est plus operationnelle, ses membres doivent etre migres par un
+        // administrateur. Le cas est juge rarissime — aucune suppression
+        // d'Organization n'est prevue.
+        //
+        // Le supprimer aurait laisse un trou : plus rien n'aurait dit ce qui
+        // arrive a un compte detache. Il mesure donc la regle neuve.
         $this->post(route('login'), [
             'email' => $orphelin->email,
             'password' => 'password',
-        ])->assertRedirect();
+        ])->assertSessionHasErrors('organization');
 
-        $this->assertAuthenticatedAs($orphelin);
+        $this->assertGuest();
     }
 
     public function test_un_compte_orphelin_n_entre_par_AUCUNE_porte_d_organization(): void
@@ -514,20 +550,30 @@ class TASK1728MultiOrganizationAuthTest extends TestCase
         // Le coeur de D2, et le seul test qui l'atteigne vraiment.
         [$a, $b] = $this->deuxHomonymes('ambigu@exemple.test', 'mot-de-passe-de-b');
 
-        // Sans selection : refus generique, meme avec un mot de passe JUSTE
-        // pour l'un des deux. C'est contre-intuitif et c'est voulu : essayer
-        // les mots de passe l'un apres l'autre ferait du formulaire un oracle
-        // d'appartenance.
+        // TASK-1749 — sans selection, on n'atteint MEME PLUS le resolveur :
+        // la validation refuse avant, et sur `organization`.
+        //
+        // La garantie D2 — refuser une adresse ambigue sans eprouver aucun mot
+        // de passe — n'est pas perdue pour autant. Elle devient simplement
+        // INATTEIGNABLE depuis ce formulaire : avec une Organization imposee,
+        // l'index `(organization_id, LOWER(email))` de T1729 garantit au plus
+        // un candidat. Elle reste mesuree la ou elle vit encore, sur le
+        // resolveur lui-meme — voir
+        // `test_le_resolveur_refuse_l_ambiguite_et_borne_par_tenant` — et sur
+        // l'API, qui n'a pas ce champ.
+        //
+        // Les deux envois portent un mot de passe JUSTE pour l'un des comptes :
+        // c'est ce qui montre qu'aucun n'est eprouve.
         $this->post(route('login'), [
             'email' => 'ambigu@exemple.test',
             'password' => 'password',
-        ])->assertSessionHasErrors(['email' => trans('auth.failed')]);
+        ])->assertSessionHasErrors('organization');
         $this->assertGuest();
 
         $this->post(route('login'), [
             'email' => 'ambigu@exemple.test',
             'password' => 'mot-de-passe-de-b',
-        ])->assertSessionHasErrors(['email' => trans('auth.failed')]);
+        ])->assertSessionHasErrors('organization');
         $this->assertGuest();
 
         // AVEC selection : chacun entre chez lui, avec SON mot de passe.

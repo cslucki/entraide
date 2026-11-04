@@ -36,8 +36,9 @@ class TASK1078BlogInvitationResumptionTest extends TestCase
     {
         parent::setUp();
 
+        // TASK-1749 — `is_public` explicite : voir T1077.
         $this->org = Organization::factory()->create([
-            'is_active' => true, 'is_default' => true, 'slug' => 'main-t1078',
+            'is_active' => true, 'is_default' => true, 'is_public' => true, 'slug' => 'main-t1078',
         ]);
         $this->owner = User::factory()->create(['organization_id' => $this->org->id]);
         app()->instance('current_organization', $this->org);
@@ -309,7 +310,7 @@ class TASK1078BlogInvitationResumptionTest extends TestCase
         $user = $this->invitee();
 
         $this->post(route('blog.invite.prepare', $invitation->token), ['intent' => 'login']);
-        $this->post(route('login'), ['email' => 'invitee@example.com', 'password' => 'password-1234'])
+        $this->post(route('login'), ['email' => 'invitee@example.com', 'password' => 'password-1234', 'organization' => $this->org->slug])
             ->assertRedirect(route('organization.blog.edit', ['organization' => $this->org->slug, 'post' => $this->post->slug]));
 
         $this->assertDatabaseHas('blog_post_user', [
@@ -354,7 +355,7 @@ class TASK1078BlogInvitationResumptionTest extends TestCase
         ]);
 
         $this->post(route('blog.invite.prepare', $invitation->token), ['intent' => 'login']);
-        $this->post(route('login'), ['email' => 'someone.else@example.com', 'password' => 'password-1234']);
+        $this->post(route('login'), ['email' => 'someone.else@example.com', 'password' => 'password-1234', 'organization' => $this->org->slug]);
 
         $this->assertDatabaseMissing('blog_post_user', [
             'blog_post_id' => $this->post->id, 'user_id' => $other->id,
@@ -369,7 +370,7 @@ class TASK1078BlogInvitationResumptionTest extends TestCase
     {
         $user = $this->invitee();
 
-        $this->post(route('login'), ['email' => 'invitee@example.com', 'password' => 'password-1234'])
+        $this->post(route('login'), ['email' => 'invitee@example.com', 'password' => 'password-1234', 'organization' => $this->org->slug])
             ->assertRedirect($user->getLoginRedirectTarget());
     }
 
@@ -432,7 +433,7 @@ class TASK1078BlogInvitationResumptionTest extends TestCase
         $user = $this->invitee();
 
         $this->post(route('loop-invitations.prepare', $loopInvitation->token), ['intent' => 'login']);
-        $this->post(route('login'), ['email' => 'invitee@example.com', 'password' => 'password-1234'])
+        $this->post(route('login'), ['email' => 'invitee@example.com', 'password' => 'password-1234', 'organization' => $this->org->slug])
             ->assertRedirect(route('organization.loops.show', ['organization' => $this->org->slug, 'loop' => $loop->id]));
 
         $this->assertSame(LoopInvitation::STATUS_ACCEPTED, $loopInvitation->fresh()->status);

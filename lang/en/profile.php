@@ -79,6 +79,13 @@ return [
     'linkedin' => 'LinkedIn profile',
     'avatar' => 'Avatar',
     'avatar_help' => 'JPG, PNG or GIF — max 2 MB',
+    // TASK-1749 — the "change my photo" window, opened by the pencil on the
+    // avatar of the public profile.
+    'avatar_change' => 'Change my photo',
+    'avatar_modal_help' => 'It appears on your profile, your messages and your Loops.',
+    'avatar_drop' => 'Drop a photo here, or click to choose one',
+    'avatar_save' => 'Save photo',
+    'avatar_updated' => 'Your photo has been updated.',
     'available_label' => 'I am available for exchanges',
     'save' => 'Save',
     'saved' => 'Saved.',

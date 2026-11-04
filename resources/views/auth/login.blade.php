@@ -22,6 +22,32 @@
             ? route('organization.register', array_filter(['organization' => $currentOrganization->slug, 'ref' => $ref]))
             : route('register', array_filter(['ref' => $ref]));
         $forgotPasswordLink = $isOrg ? route('organization.password.request', $currentOrganization) : route('password.request');
+
+        /*
+         * TASK-1749 (recette Cyril, 04/11) — les identifiants attendent que
+         * l'Organization soit designee.
+         *
+         * Le menu de la porte d'Organization NAVIGUE : choisir recharge la
+         * page. Quelqu'un qui saisit son adresse puis choisit son Organization
+         * perd donc sa saisie et doit tout recommencer — et c'est le parcours
+         * NORMAL de qui arrive par la marque la plus connue.
+         *
+         * Les deux champs sont donc verrouilles tant qu'aucun choix n'a ete
+         * fait. C'est l'ordre naturel : d'abord ou, ensuite qui.
+         *
+         * `disabled` est rendu COTE SERVEUR, pas pose par un script : sans
+         * JavaScript le verrou tient quand meme, et il se leve par la
+         * navigation elle-meme.
+         *
+         * Il ne s'applique QUE sur la porte d'une Organization, et seulement
+         * quand il y a plusieurs portes. Sur `/login`, le selecteur POSTE au
+         * lieu de naviguer : rien n'y est perdu, et verrouiller y serait une
+         * gene sans contrepartie.
+         */
+        $alternativesDeLaPorte = $isOrg ? ($organizationsAlternatives ?? collect()) : collect();
+        $identifiantsVerrouilles = $isOrg
+            && $alternativesDeLaPorte->isNotEmpty()
+            && request()->query('org') !== $organisationDeLaPorte?->slug;
     @endphp
 
     <div class="px-8 pt-8 pb-2 border-b border-gray-100 dark:border-gray-700">
@@ -47,8 +73,11 @@
                          It is never a guarantee: the server re-checks the address against
                          the invitation after authentication. old() still wins on redisplay. --}}
                     <input id="email" type="email" name="email" value="{{ old('email', request('email')) }}"
-                           required autofocus autocomplete="username"
-                           class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
+                           required @if(! $identifiantsVerrouilles) autofocus @endif
+                           autocomplete="username"
+                           @disabled($identifiantsVerrouilles)
+                           @if($identifiantsVerrouilles) data-login-locked @endif
+                           class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 dark:disabled:bg-gray-800">
                     <x-input-error :messages="$errors->get('email')" class="mt-1.5" />
 
                     {{-- TASK-1728 (A3) — la sortie de secours du parcours
@@ -89,23 +118,197 @@
                      jamais la porte courante : on y est deja. Elle ne dit rien
                      d'aucune appartenance — ce sont les memes Organizations
                      que `/login` propose a quiconque. --}}
+                {{-- TASK-1749 (recette Cyril, 04/11) — les pastilles deviennent
+                     un SELECTEUR, comme sur la porte globale.
+
+                     ## Le defaut mesure, et ce n'etait PAS la couleur
+
+                     Le bloc vivait deja ici, entre Email et Mot de passe. Mais
+                     il se presentait en « Se connecter a une autre organisation : »
+                     suivi de deux PASTILLES cliquables portant la meme bordure
+                     arrondie que les champs voisins. Au milieu d'un formulaire,
+                     deux boutons nommes « OFSH » et « LaunchPals » se lisent
+                     comme des boutons d'envoi : saisir ses identifiants puis
+                     cliquer sur l'un d'eux etait la lecture naturelle de ce
+                     qu'on montrait.
+
+                     Foncer le libelle aurait rendu la chose plus visible, pas
+                     moins trompeuse. Un `<select>` etiquete, lui, ne ressemble
+                     a aucun bouton d'envoi : c'est un champ, et il annonce
+                     qu'il contient des choix.
+
+                     ## Il NAVIGUE, il ne poste pas — et ce n'est pas un detail
+
+                     Sur `/org/{slug}/login`, `LoginRequest::organizationDeLaTentative()`
+                     rend l'Organization DE LA ROUTE et sort avant meme de lire
+                     l'entree postee. Un `<select name="organization">` ici
+                     serait un mensonge d'interface : il afficherait un choix
+                     que le serveur ne regarde jamais.
+
+                     Il porte donc `data-login-organization-nav` et AUCUN `name` :
+                     rien ne part dans le POST, la route reste souveraine, et
+                     l'autorite demeure exactement la ou T1728 l'a mise.
+
+                     ## AUCUNE Organization n'est preselectionnee — demande Cyril
+
+                     La premiere version affichait la porte courante (« BouclePro »)
+                     comme option selectionnee. C'etait factuellement vrai et
+                     pratiquement nuisible, pour une raison de PARCOURS D'ARRIVEE :
+
+                     qui cherche OFSH tape la marque qu'il connait — « bouclepro »
+                     dans un moteur, `bouclepro.com` dans la barre d'adresse — et
+                     atterrit donc ici, sur la porte de BouclePro. Un menu
+                     PRE-REMPLI lui dit alors « rien a faire ici » : un champ deja
+                     renseigne ne se relit pas. Il saisit ses identifiants, echoue,
+                     et ne comprend pas pourquoi.
+
+                     Le menu s'ouvre donc sur un libelle NEUTRE a valeur vide, et
+                     liste TOUTES les Organizations publiques — la courante
+                     comprise, sans quoi qui est au bon endroit ne pourrait pas se
+                     le confirmer. Choisir conduit a la porte choisie ; ne rien
+                     choisir ne conduit nulle part et ne rassure personne.
+
+                     ## Sans JavaScript
+
+                     Le menu ne bascule pas : on reste sur la porte ou l'on est,
+                     qui est celle de l'URL — rien n'est casse. Les liens sont
+                     neanmoins rendus dans un `<noscript>` pour que la sortie
+                     existe toujours. --}}
                 @if($isOrg && ($organizationsAlternatives ?? collect())->isNotEmpty())
-                <div data-login-organization-switch class="pt-1">
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
-                        {{ __('auth.login_switch_organization') }}
-                    </p>
-                    <ul class="flex flex-wrap gap-2">
-                        @foreach($organizationsAlternatives as $alternative)
-                        <li>
-                            <a href="{{ route('organization.login', $alternative) }}"
-                               data-login-organization-switch-item="{{ $alternative->slug }}"
-                               class="inline-flex min-h-11 items-center rounded-lg border border-gray-300 dark:border-gray-600 px-3 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-50 dark:hover:bg-gray-700">
-                                {{ $alternative->name }}
-                            </a>
-                        </li>
+                @php
+                    // TOUTES les portes publiques, la courante comprise, triees
+                    // par nom : le menu ne doit designer personne d'office.
+                    $portes = $organizationsAlternatives
+                        ->concat($organisationDeLaPorte ? [$organisationDeLaPorte] : [])
+                        ->sortBy('name')
+                        ->values();
+
+                    /*
+                     * TASK-1749, recette Cyril — la BOUCLE, et sa sortie.
+                     *
+                     * Defaut signale : sur `/org/main/login`, choisir
+                     * « BouclePro » conduisait a `/org/main/login`, qui se
+                     * rechargeait sur le libelle NEUTRE. Le choix etait perdu a
+                     * chaque fois, et on ne pouvait plus se connecter.
+                     *
+                     * Le libelle neutre reste juste A L'ARRIVEE : personne n'a
+                     * encore choisi, et preselectionner la porte dirait « rien a
+                     * faire ici » a qui s'est trompe d'adresse. Mais apres un
+                     * choix EXPLICITE, l'afficher n'est plus un defaut — c'est
+                     * la confirmation du geste qu'on vient de faire.
+                     *
+                     * Les deux situations se distinguent par ce drapeau, pose
+                     * par le menu au moment de naviguer. Il ne decide RIEN : la
+                     * route reste souveraine, et on ne l'honore que s'il DESIGNE
+                     * la porte ou l'on se trouve. Un parametre bricole a la main
+                     * ne peut donc pas faire afficher une autre Organization que
+                     * celle de l'URL.
+                     */
+                    $porteChoisie = request()->query('org') === $organisationDeLaPorte?->slug
+                        ? $organisationDeLaPorte->slug
+                        : null;
+                @endphp
+                <div data-login-organization-switch>
+                    <label for="organization-nav" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ __('auth.login_organization_nav_label') }}
+                    </label>
+                    <select id="organization-nav" data-login-organization-nav
+                            class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
+                        <option value="" @selected($porteChoisie === null)>{{ __('auth.login_organization_nav_placeholder') }}</option>
+                        @foreach($portes as $porte)
+                        <option value="{{ route('organization.login', ['organization' => $porte, 'org' => $porte->slug]) }}"
+                                data-login-organization-switch-item="{{ $porte->slug }}"
+                                @selected($porteChoisie === $porte->slug)>
+                            {{ $porte->name }}
+                        </option>
                         @endforeach
-                    </ul>
+                    </select>
+                    {{-- Un champ grise sans explication se lit comme une panne.
+                         Tant que le verrou tient, l'aide dit ce qu'on attend ;
+                         une fois l'Organization choisie, elle redevient la
+                         phrase ordinaire. --}}
+                    <p class="mt-1.5 text-xs {{ $identifiantsVerrouilles ? 'font-medium text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400' }}"
+                       data-login-organization-nav-hint>
+                        {{ $identifiantsVerrouilles
+                            ? __('auth.login_organization_nav_first')
+                            : __('auth.login_organization_nav_hint') }}
+                    </p>
+                    <noscript>
+                        {{-- Les ALTERNATIVES seulement, et la difference avec le
+                             menu ci-dessus est VOULUE.
+
+                             Le menu nomme toutes les portes, la courante comprise :
+                             c'est ce qui permet a qui est au bon endroit de se le
+                             confirmer, puisque rien n'est preselectionne.
+
+                             Ici ce sont des LIENS. Un lien vers la page ou l'on se
+                             trouve deja ne conduit nulle part — et la garde de
+                             TASK-1742 l'interdit explicitement (« pas de lien vers
+                             sa propre porte : on y est »). --}}
+                        <ul class="mt-1.5 flex flex-wrap gap-2">
+                            @foreach($organizationsAlternatives as $alternative)
+                            <li>
+                                <a href="{{ route('organization.login', ['organization' => $alternative, 'org' => $alternative->slug]) }}"
+                                   class="inline-flex min-h-11 items-center rounded-lg border border-gray-300 dark:border-gray-600 px-3 text-sm text-gray-700 dark:text-gray-300">
+                                    {{ $alternative->name }}
+                                </a>
+                            </li>
+                            @endforeach
+                        </ul>
+                    </noscript>
                 </div>
+
+                {{-- Pose dans `head` : `layouts/guest` ne declare QU'UNE pile,
+                     `@stack('head')`. Un `@push('scripts')` n'y serait empile
+                     nulle part et sortirait sans aucune trace (mesure du 04/11).
+                     L'ecouteur est DELEGUE sur `document` : il n'a besoin
+                     d'aucun element present au moment ou il s'attache. --}}
+                @push('head')
+                <script>
+                    document.addEventListener('change', function (e) {
+                        var champ = e.target;
+                        if (! champ || ! champ.hasAttribute('data-login-organization-nav')) { return; }
+                        if (champ.value) { window.location.href = champ.value; }
+                    });
+
+                    /*
+                     * TASK-1749 (bug signale par Cyril, 04/11) — le RETOUR
+                     * ARRIERE laissait « BouclePro » dans le menu.
+                     *
+                     * Le serveur rend pourtant le bon etat : sans `?org=`, c'est
+                     * le libelle neutre qui porte `selected`. Ce n'est donc pas
+                     * un defaut de rendu — c'est le NAVIGATEUR qui restaure
+                     * l'etat des formulaires en revenant en arriere, et qui
+                     * reecrit par-dessus ce que le serveur a envoye.
+                     *
+                     * Resultat incoherent : le menu annoncait une Organization
+                     * choisie pendant que les champs d'identifiants etaient,
+                     * eux, verrouilles par le serveur — les deux ne pouvaient
+                     * pas etre vrais en meme temps.
+                     *
+                     * `defaultSelected` est la reponse exacte : il reflete
+                     * l'attribut `selected` du HTML — donc la VERITE DU
+                     * SERVEUR — et jamais le choix que la personne a fait
+                     * ensuite. Aucun attribut supplementaire a poser, rien a
+                     * tenir a jour en double.
+                     *
+                     * `pageshow` et pas `DOMContentLoaded` : un retour depuis
+                     * le cache de navigation ne rejoue PAS `DOMContentLoaded`.
+                     * C'est precisement le cas a couvrir.
+                     */
+                    window.addEventListener('pageshow', function () {
+                        document.querySelectorAll('[data-login-organization-nav]').forEach(function (champ) {
+                            var attendu = Array.prototype.findIndex.call(champ.options, function (option) {
+                                return option.defaultSelected;
+                            });
+
+                            if (attendu !== -1 && champ.selectedIndex !== attendu) {
+                                champ.selectedIndex = attendu;
+                            }
+                        });
+                    });
+                </script>
+                @endpush
                 @endif
 
                 {{-- TASK-1728 (A3) — le selecteur d'Organization, FACULTATIF.
@@ -142,15 +345,24 @@
                     <label for="organization" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         {{ __('auth.login_organization_label') }}
                     </label>
-                    <select id="organization" name="organization"
+                    <select id="organization" name="organization" required
                             data-login-organization-selector
                             class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
-                        <option value="">{{ __('auth.login_organization_any') }}</option>
+                        {{-- TASK-1749 — « — Toutes les organisations — » etait une
+                             valeur RETENABLE qui elargissait la recherche a tous
+                             les locataires. Elle devient un libelle d'invite :
+                             `disabled` pour qu'on ne puisse pas y revenir apres
+                             avoir choisi, `selected` pour qu'aucune Organization
+                             ne soit designee d'office. --}}
+                        <option value="" disabled {{ old('organization') ? '' : 'selected' }}>
+                            {{ __('auth.login_organization_nav_placeholder') }}
+                        </option>
                         @foreach($organizationsProposables as $proposable)
                         <option value="{{ $proposable->slug }}" {{ old('organization') === $proposable->slug ? 'selected' : '' }}>
                             {{ $proposable->name }}
                         </option>
                         @endforeach
+
                     </select>
                     <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                         {{ __('auth.login_organization_hint') }}
@@ -174,7 +386,9 @@
                     </div>
                     <input id="password" type="password" name="password"
                            required autocomplete="current-password"
-                           class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
+                           @disabled($identifiantsVerrouilles)
+                           @if($identifiantsVerrouilles) data-login-locked @endif
+                           class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 dark:disabled:bg-gray-800">
                     <x-input-error :messages="$errors->get('password')" class="mt-1.5" />
                 </div>
 
@@ -188,8 +402,11 @@
                 </div>
 
                 <!-- Bouton connexion -->
+                {{-- Verrouille lui aussi : un bouton actif au-dessus de champs
+                     grises promettrait une action impossible. --}}
                 <button type="submit"
-                        class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                        @disabled($identifiantsVerrouilles)
+                        class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700">
                     {{ __('auth.login_button') }}
                 </button>
             </div>

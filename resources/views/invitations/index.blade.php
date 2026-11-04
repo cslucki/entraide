@@ -1,9 +1,22 @@
 <x-app-layout>
     <x-slot name="title">{{ __('points.invite_peers_title') }}</x-slot>
 
+    {{-- TASK-1749 — la barre du haut standard (`x-page-topbar`).
+
+         Le gros `<h1>` qui vivait DANS le conteneur est retire : la barre
+         porte desormais le titre, et les garder tous les deux l'aurait affiche
+         deux fois sur la meme page. Les paragraphes d'introduction restent —
+         ce sont du CONTENU, pas un titre.
+
+         `organizationScopedUrl()` et pas `route('dashboard')` : le retour doit
+         rester dans le locataire. C'est le defaut que TASK-1697 a corrige neuf
+         fois sur la seule fiche profil. --}}
+    <x-page-topbar :back="organizationScopedUrl('dashboard', 'organization.dashboard')"
+                   :title="__('points.invite_peers_title')"
+                   :label="__('dashboard.back_to_dashboard')" />
+
     <x-page-container x-data="referralModal()">
         <div class="mb-6 hidden sm:block">
-            <h1 class="mb-1 text-3xl font-bold text-gray-900 dark:text-gray-100">{{ __('points.invite_peers_title') }}</h1>
             <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('points.invite_peers_intro') }}</p>
         </div>
 

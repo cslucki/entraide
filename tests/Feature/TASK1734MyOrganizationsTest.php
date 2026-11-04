@@ -640,7 +640,10 @@ class TASK1734MyOrganizationsTest extends TestCase
         // ...et le login, lui, respire toujours : sa clef est distincte.
         $this->post('/logout');
 
-        $this->post('/login', [
+        // TASK-1749 : par SA porte. `orgA` est privee a dessein dans ce
+        // fichier, et la porte globale ne propose que les publiques ; sur la
+        // route scopee c'est la ROUTE qui fait autorite.
+        $this->post(route('organization.login', $this->orgA), [
             'email' => 'marie@exemple.test',
             'password' => 'secret-a',
         ])->assertRedirect();
