@@ -238,7 +238,7 @@ class LoopService
         ]);
 
         $this->notifierAjoutDirect($loop, $user, $actor, $soldees, $membre);
-        $this->annoncerAdhesionAuFlux($loop, $user, $role);
+        $this->annoncerAdhesionAuFlux($loop, $user, $role, $membre);
 
         return $membre;
     }
@@ -361,7 +361,7 @@ class LoopService
 
         // `$role` porte ici `owner` a la naissance de la Boucle : la methode
         // l'ecarte elle-meme, pour que l'exclusion vive en UN endroit.
-        $this->annoncerAdhesionAuFlux($loop, $user, $role);
+        $this->annoncerAdhesionAuFlux($loop, $user, $role, $appartenance);
 
         return $appartenance;
     }
@@ -504,7 +504,7 @@ class LoopService
             'organization_id' => $loop->organization_id,
         ]);
 
-        $this->annoncerAdhesionAuFlux($loop, $user);
+        $this->annoncerAdhesionAuFlux($loop, $user, 'member', $appartenance);
 
         return $appartenance;
     }
@@ -593,7 +593,7 @@ class LoopService
         $nouveauMembre = User::find($joinRequest->user_id);
 
         if ($boucle !== null && $nouveauMembre !== null) {
-            $this->annoncerAdhesionAuFlux($boucle, $nouveauMembre);
+            $this->annoncerAdhesionAuFlux($boucle, $nouveauMembre, 'member', $member);
         }
 
         return $member;
@@ -744,7 +744,7 @@ class LoopService
         ), report: true);
     }
 
-    private function annoncerAdhesionAuFlux(Loop $loop, User $membre, string $role = 'member'): void
+    private function annoncerAdhesionAuFlux(Loop $loop, User $membre, string $role = 'member', ?LoopMember $appartenance = null): void
     {
         if ($role === 'owner') {
             return;
@@ -761,9 +761,20 @@ class LoopService
             return;
         }
 
+        // L'objet est l'APPARTENANCE : avec la Boucle, la contrainte unique
+        // n'aurait garde que la PREMIERE personne a la rejoindre.
+        $appartenance ??= LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $membre->id)
+            ->latest('created_at')
+            ->first();
+
+        if ($appartenance === null) {
+            return;
+        }
+
         rescue(fn () => app(FeedEventEmitter::class)->emettre(
             FeedEventCatalogue::ADHESION_BOUCLE,
-            $loop,
+            $appartenance,
             $membre,
             (string) $loop->organization_id,
             $loop,

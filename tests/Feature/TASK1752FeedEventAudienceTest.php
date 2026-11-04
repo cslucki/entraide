@@ -85,6 +85,22 @@ class TASK1752FeedEventAudienceTest extends TestCase
         return app(FeedEventEmitter::class);
     }
 
+    /**
+     * L'APPARTENANCE, qui est l'objet d'un evenement d'adhesion.
+     *
+     * Ce n'est pas un detail de forme : avec la Boucle comme objet, la
+     * contrainte unique n'aurait garde que la PREMIERE personne a la
+     * rejoindre. Defaut trouve en recette sur de vraies donnees — 15
+     * adhesions sur 3 Boucles n'avaient produit que 3 lignes.
+     */
+    private function appartenance(Loop $boucle, User $qui): LoopMember
+    {
+        return LoopMember::firstOrCreate(
+            ['loop_id' => $boucle->id, 'user_id' => $qui->id],
+            ['role' => 'member', 'status' => 'active', 'joined_at' => now(), 'organization_id' => $this->organization->id],
+        );
+    }
+
     /** @return list<string> les identifiants visibles par cette personne */
     private function visiblesPour(User $user): array
     {
@@ -106,7 +122,7 @@ class TASK1752FeedEventAudienceTest extends TestCase
     {
         $ligne = $this->emetteur()->emettre(
             FeedEventCatalogue::ADHESION_BOUCLE,
-            $this->privee,
+            $this->appartenance($this->privee, $this->membreDeLaPrivee),
             $this->membreDeLaPrivee,
             $this->organization,
             $this->privee,
@@ -128,7 +144,7 @@ class TASK1752FeedEventAudienceTest extends TestCase
     {
         $ligne = $this->emetteur()->emettre(
             FeedEventCatalogue::ADHESION_BOUCLE,
-            $this->privee,
+            $this->appartenance($this->privee, $this->membreDeLaPrivee),
             $this->membreDeLaPrivee,
             $this->organization,
             $this->privee,
@@ -142,7 +158,7 @@ class TASK1752FeedEventAudienceTest extends TestCase
     {
         $ligne = $this->emetteur()->emettre(
             FeedEventCatalogue::ADHESION_BOUCLE,
-            $this->publique,
+            $this->appartenance($this->publique, $this->membreDeLaPrivee),
             $this->membreDeLaPrivee,
             $this->organization,
             $this->publique,
@@ -188,7 +204,7 @@ class TASK1752FeedEventAudienceTest extends TestCase
     {
         $ligne = $this->emetteur()->emettre(
             FeedEventCatalogue::ADHESION_BOUCLE,
-            $this->privee,
+            $this->appartenance($this->privee, $this->membreDeLaPrivee),
             $this->membreDeLaPrivee,
             $this->organization,
             $this->privee,
@@ -286,6 +302,49 @@ class TASK1752FeedEventAudienceTest extends TestCase
         $this->assertSame(2, FeedPost::where('type', FeedPost::TYPE_ANNOUNCEMENT)->count());
     }
 
+    /**
+     * LA garde qui manquait, et que la recette a payee.
+     *
+     * Mes tests n'utilisaient qu'UN SEUL arrivant par Boucle. Avec la Boucle
+     * comme objet, la contrainte unique
+     * `(organization, type, object_type, object_id)` faisait que seule la
+     * PREMIERE personne a la rejoindre obtenait une ligne — toutes les
+     * suivantes etaient avalees en SILENCE, et ce n'etait pas un defaut de la
+     * reprise mais un defaut en usage normal.
+     *
+     * Mesure qui l'a revele : 15 adhesions reparties sur 3 Boucles n'avaient
+     * produit que 3 lignes.
+     */
+    public function test_DEUX_personnes_qui_rejoignent_la_MEME_boucle_produisent_DEUX_lignes(): void
+    {
+        $premier = User::factory()->create(['organization_id' => $this->organization->id]);
+        $second = User::factory()->create(['organization_id' => $this->organization->id]);
+
+        foreach ([$premier, $second] as $qui) {
+            $this->emetteur()->emettre(
+                FeedEventCatalogue::ADHESION_BOUCLE,
+                $this->appartenance($this->publique, $qui),
+                $qui,
+                $this->organization,
+                $this->publique,
+            );
+        }
+
+        $this->assertSame(2, FeedPost::where('type', FeedEventCatalogue::ADHESION_BOUCLE)->count(),
+            'La seconde adhesion a la meme Boucle a ete avalee par la contrainte d\'unicite.');
+
+        // Et l'idempotence tient TOUJOURS pour la MEME personne.
+        $this->emetteur()->emettre(
+            FeedEventCatalogue::ADHESION_BOUCLE,
+            $this->appartenance($this->publique, $premier),
+            $premier,
+            $this->organization,
+            $this->publique,
+        );
+
+        $this->assertSame(2, FeedPost::where('type', FeedEventCatalogue::ADHESION_BOUCLE)->count());
+    }
+
     /** Un type absent du registre est REFUSE — fail-closed. */
     public function test_un_type_inconnu_n_ecrit_rien(): void
     {
@@ -328,8 +387,8 @@ class TASK1752FeedEventAudienceTest extends TestCase
         $this->assertSame(now()->toDateString(), $ancienne->created_at->toDateString());
 
         $future = $this->emetteur()->emettre(
-            FeedEventCatalogue::ADHESION_BOUCLE, $this->publique, $this->membreDeLaPrivee,
-            $this->organization, $this->publique, now()->addYear(),
+            FeedEventCatalogue::ADHESION_BOUCLE, $this->appartenance($this->publique, $this->membreDeLaPrivee),
+            $this->membreDeLaPrivee, $this->organization, $this->publique, now()->addYear(),
         );
 
         $this->assertFalse($future->published_at->isFuture(),

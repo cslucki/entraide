@@ -93,7 +93,7 @@ final class FeedEventEmitter
             return null;
         }
 
-        $audience = FeedEventCatalogue::audiencePour($type, $objet);
+        $audience = FeedEventCatalogue::audiencePour($type, $objet, $boucle);
 
         $quand = $publieLe !== null ? \Illuminate\Support\Carbon::parse($publieLe) : now();
 

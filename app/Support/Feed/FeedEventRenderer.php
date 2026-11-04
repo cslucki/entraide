@@ -5,6 +5,7 @@ namespace App\Support\Feed;
 use App\Models\FeedPost;
 use App\Models\Loop;
 use App\Models\LoopEvent;
+use App\Models\LoopMember;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -81,13 +82,21 @@ final class FeedEventRenderer
         }
 
         return match (true) {
+            $objet instanceof LoopMember => (fn () => (($b = Loop::withoutGlobalScopes()->find($objet->loop_id)) === null) ? null : self::route('organization.loops.show', [
+                'organization' => $organizationSlug,
+                'loop' => $b->slug ?: $b->getKey(),
+            ]))(),
             $objet instanceof Loop => self::route('organization.loops.show', [
                 'organization' => $organizationSlug,
                 'loop' => $objet->slug ?: $objet->getKey(),
             ]),
+            // Le parametre s'appelle `{request}` et non `{serviceRequest}` :
+            // avec le mauvais nom, `route()` levait et le repli rendait
+            // `null` — la pastille « Voir » disparaissait EN SILENCE.
+            // Verifie contre `route:list`, jamais devine.
             $objet instanceof ServiceRequest => self::route('organization.requests.show', [
                 'organization' => $organizationSlug,
-                'serviceRequest' => $objet->getKey(),
+                'request' => $objet->getKey(),
             ]),
             $objet instanceof Service => self::route('organization.services.show', [
                 'organization' => $organizationSlug,
@@ -115,6 +124,9 @@ final class FeedEventRenderer
         $objet = self::objet($post);
 
         return match (true) {
+            // Une appartenance nomme SA Boucle : c'est d'elle que parle la
+            // phrase, l'appartenance n'est que la reference unique du fait.
+            $objet instanceof LoopMember => (string) (Loop::withoutGlobalScopes()->find($objet->loop_id)?->name ?? __('feed.events.object_gone')),
             $objet instanceof Loop => (string) $objet->name,
             $objet instanceof ServiceRequest, $objet instanceof Service => (string) $objet->title,
             $objet instanceof LoopEvent => (string) $objet->title,

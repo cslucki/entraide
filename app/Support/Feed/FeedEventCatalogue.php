@@ -3,6 +3,7 @@
 namespace App\Support\Feed;
 
 use App\Models\Loop;
+use App\Models\LoopMember;
 use App\Models\LoopEvent;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -90,7 +91,20 @@ final class FeedEventCatalogue
                 'libelle' => 'feed.events.service_published',
             ],
             self::ADHESION_BOUCLE => [
-                'object' => Loop::class,
+                // L'objet est l'APPARTENANCE, pas la Boucle.
+                //
+                // DEFAUT TROUVE EN RECETTE (04/11) : avec la Boucle comme
+                // objet, la contrainte unique
+                // `(organization, type, object_type, object_id)` faisait que
+                // SEULE LA PREMIERE personne a rejoindre chaque Boucle
+                // obtenait une ligne — toutes les suivantes etaient avalees
+                // en silence. Mesure : 15 adhesions reparties sur 3 Boucles
+                // n'avaient produit que 3 lignes.
+                //
+                // Invisible aux tests, qui n'utilisaient qu'un seul arrivant
+                // par Boucle. C'est la reprise sur de VRAIES donnees qui l'a
+                // montre.
+                'object' => LoopMember::class,
                 // Defaut seulement : `audiencePour()` tranche sur la Boucle.
                 'visibilite' => self::VISIBILITE_BOUCLE,
                 'libelle' => 'feed.events.loop_joined',
@@ -143,17 +157,23 @@ final class FeedEventCatalogue
      * Si la Boucle manque, on retombe sur la restriction — **fail-closed** :
      * dans le doute, on montre moins, jamais plus.
      */
-    public static function audiencePour(string $type, mixed $objet = null): string
+    public static function audiencePour(string $type, mixed $objet = null, ?Loop $boucle = null): string
     {
         if ($type !== self::ADHESION_BOUCLE) {
             return self::types()[$type]['visibilite'] ?? self::VISIBILITE_BOUCLE;
         }
 
-        if (! $objet instanceof Loop) {
+        // La Boucle est fournie a part : depuis que l'objet est
+        // l'appartenance, elle ne peut plus etre deduite de `$objet`.
+        $boucle ??= $objet instanceof LoopMember
+            ? Loop::withoutGlobalScopes()->find($objet->loop_id)
+            : null;
+
+        if (! $boucle instanceof Loop) {
             return self::VISIBILITE_BOUCLE;
         }
 
-        return $objet->isPublic()
+        return $boucle->isPublic()
             ? self::VISIBILITE_ORGANIZATION
             : self::VISIBILITE_BOUCLE;
     }

@@ -159,7 +159,9 @@ class FluxReprendreHistorique extends Command
 
                 return [
                     'type' => FeedEventCatalogue::ADHESION_BOUCLE,
-                    'objet' => $boucle,
+                    // L'appartenance, pas la Boucle : sinon une seule ligne
+                    // par Boucle survivrait a la contrainte d'unicite.
+                    'objet' => $m,
                     'acteur' => User::find($m->user_id),
                     'boucle' => $boucle,
                     'date' => $m->joined_at ?? $m->created_at,
