@@ -8,7 +8,9 @@ use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
+use App\Models\Transaction;
 use App\Models\User;
+use App\Services\Transactions\TransactionProposalMailer;
 use App\Services\Loops\LoopInvitationMailer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Lang;
@@ -496,6 +498,36 @@ final class NotificationEmailDeliverer
 
             $reel = $mailer->composeForJoinRequestAccepted($loop, $destinataire, $decideur, $cible, $locale);
             $expurge = $mailer->composeForJoinRequestAccepted($loop, $destinataire, $decideur, self::LIEN_EXPURGE, $locale);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
+        // TASK-1751 — la proposition d'echange.
+        //
+        // L'objet EST la Transaction : rien a relire pour remonter ailleurs,
+        // contrairement aux deux branches ci-dessus. Les scopes sont tout de
+        // meme retires et la frontiere de tenant reposee a la main — ce code
+        // tourne sous worker, ou `current_organization` n'existe pas et ou le
+        // fail-closed du scope rendrait l'objet introuvable.
+        if ($cle === NotificationCatalogue::TRANSACTION_PROPOSAL_CREATED) {
+            $transaction = Transaction::withoutGlobalScopes()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($transaction === null) {
+                return null;
+            }
+
+            $acteur = $notification->actor_id ? User::find((string) $notification->actor_id) : null;
+            $composeur = app(TransactionProposalMailer::class);
+
+            $reel = $composeur->compose($transaction, $destinataire, $acteur, $cible, $locale);
+            $expurge = $composeur->compose($transaction, $destinataire, $acteur, self::LIEN_EXPURGE, $locale);
 
             return [
                 'subject' => $reel['subject'],
