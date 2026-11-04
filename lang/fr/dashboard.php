@@ -2,6 +2,7 @@
 
 return [
     'title_with_tenant' => 'Tableau de bord - :name',
+    'title_of' => 'Tableau de bord de :name',
     'hello' => 'Bonjour, :name 👋',
     'summary' => 'Voici un résumé de votre activité',
     'available' => 'Disponible',
@@ -107,7 +108,7 @@ return [
     'no_current_exchange' => 'Aucun échange en cours.',
     // TASK-1693 bug T — la card unique qui remplace les deux precedentes.
     // TASK-1694 bug A — card du tableau de bord.
-    'exchanges' => 'Entraide',
+    'exchanges' => 'Entraide en cours',
     'no_exchange' => 'Aucun échange en cours.',
     'my_announcements' => 'Mes annonces',
     'untitled' => 'Sans titre',

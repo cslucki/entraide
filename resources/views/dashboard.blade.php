@@ -21,18 +21,29 @@
          « dashboard.summary » reste : c'est du contenu.
 
          `organizationScopedUrl()` : le retour reste dans le locataire. --}}
-    @php $tenant = $currentOrganization ?? null; @endphp
+    {{-- TASK-1749 (demande Cyril, 04/11) — le titre nomme LA PERSONNE, plus
+         l'Organization.
+
+         Il disait « Tableau de bord - BouclePro » : le nom du locataire, que le
+         rail gauche, le menu Avatar et la barre de marque annoncent deja trois
+         fois sur la meme page. Il dit desormais a qui ce tableau appartient.
+
+         REPLI SUR L'ADRESSE : `fullName` rend une chaine VIDE quand ni le
+         prenom ni le nom ne sont renseignes (`User::getFullNameAttribute()`,
+         qui retombe sur `$this->name ?? ''`). Sans ce repli, le titre aurait
+         ete « Tableau de bord de  » — une phrase tronquee, pire qu'un nom
+         technique. `filled()` et non `isset()` : la chaine vide doit compter
+         comme absente.
+
+         Le sous-titre « Voici un resume de votre activite » est RETIRE
+         (demande Cyril) : il decrivait la page a qui la regarde deja. --}}
+    @php $_dashNom = filled($user->fullName) ? $user->fullName : $user->email; @endphp
     <x-page-topbar :back="organizationScopedUrl('home', 'organization.home')"
-                   :title="$tenant
-                        ? __('dashboard.title_with_tenant', ['name' => $tenant->name])
-                        : __('dashboard.hello', ['name' => $user->fullName])"
+                   :title="__('dashboard.title_of', ['name' => $_dashNom])"
                    :label="__('dashboard.back_to_home')"
                    data-dashboard-topbar="dashboard" />
 
     <div class="max-w-7xl mx-auto px-4 py-8">
-        <div class="hidden sm:block sm:mb-8">
-            <p class="text-gray-500 dark:text-gray-400 text-sm">{{ __('dashboard.summary') }}</p>
-        </div>
 
         <x-user-dashboard-nav class="mb-8" />
 

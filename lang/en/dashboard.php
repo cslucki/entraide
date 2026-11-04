@@ -2,6 +2,7 @@
 
 return [
     'title_with_tenant' => 'Dashboard - :name',
+    'title_of' => ':name\'s dashboard',
     'hello' => 'Hello, :name 👋',
     'summary' => 'Here is a summary of your activity',
     'available' => 'Available',
@@ -106,7 +107,7 @@ return [
     'no_current_exchange' => 'No current exchanges.',
     // TASK-1693 bug T — the single card replacing the two previous ones.
     // TASK-1694 bug A — dashboard card.
-    'exchanges' => 'Mutual aid',
+    'exchanges' => 'Mutual aid in progress',
     'no_exchange' => 'No current exchanges.',
     'my_announcements' => 'My announcements',
     'untitled' => 'Untitled',
