@@ -8,14 +8,36 @@
                 : route($name, $params);
         };
     @endphp
-    <div class="max-w-7xl mx-auto px-4 py-8">
-        <div class="flex items-center justify-between mb-6">
-            <div class="hidden md:block">
-                <a href="{{ $_dashRoute('dashboard') }}" class="text-sm text-indigo-600 hover:underline">&larr; {{ __('dashboard.back_to_dashboard') }}</a>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ __('dashboard.my_services_page_title') }}</h1>
-            </div>
-            <a href="{{ $_dashRoute('services.create') }}" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">+ {{ __('dashboard.new') }}</a>
-        </div>
+    {{-- TASK-1749 (demande Cyril, 04/11) — la barre du haut STANDARD.
+
+         Ces deux pages portaient un en-tete a elles : un lien texte
+         « ← Retour au tableau de bord » surmontant un titre de 24px, a
+         l'interieur du conteneur. Le reste du produit — `services/show`,
+         `requests/show`, l'annuaire — porte une barre collante en pleine
+         largeur, avec une fleche ronde et le titre sur la meme ligne.
+
+         Deux grammaires pour le meme geste, et c'est celle de ces deux pages
+         qui etait l'exception.
+
+         `hidden md:flex` : sur mobile, `x-mobile-topbar` rend deja le titre de
+         ces deux routes (il les nomme explicitement). Une seconde barre y
+         ferait doublon.
+
+         Le bouton « + Nouveau » monte DANS la barre : il etait a droite de
+         l'ancien en-tete, c'est le geste principal de la page, et le laisser
+         plus bas l'aurait decroche du titre auquel il se rapporte. --}}
+    <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30"
+         data-dashboard-topbar="services">
+        <a href="{{ $_dashRoute('dashboard') }}" data-dashboard-topbar-back
+           class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0"
+           aria-label="{{ __('dashboard.back_to_dashboard') }}">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ __('dashboard.my_services_page_title') }}</span>
+        <a href="{{ $_dashRoute('services.create') }}" class="ml-auto inline-flex shrink-0 items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700">+ {{ __('dashboard.new') }}</a>
+    </div>
+
+    <x-page-container width="7xl">
 
         @if($services->isEmpty())
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
@@ -72,5 +94,5 @@
                 {{ $services->links() }}
             </div>
         @endif
-    </div>
+    </x-page-container>
 </x-app-layout>
