@@ -129,6 +129,9 @@ return [
     ],
 
     'keys' => [
+        // TASK-1761 — la DEMANDE, cote proprietaire. Ses deux voisines
+        // portent la DECISION et vont au demandeur.
+        'loop_join_request_created' => 'Quelqu’un demande à rejoindre votre Boucle',
         // TASK-1702
         'blog_co_author_added' => 'On vous a ajouté comme co-auteur d’un article',
 
@@ -208,6 +211,14 @@ return [
     |
     */
     'email' => [
+        'loop_join_request_created' => [
+            'subject' => 'Quelqu’un demande à rejoindre votre Boucle',
+            'body' => '<p>Bonjour,</p>'
+                .'<p>Une personne demande à rejoindre une Boucle dont vous êtes responsable.</p>'
+                .'<p><a href=":url">Voir la demande</a></p>'
+                .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
+                .'<p>À bientôt,<br>L’équipe BouclePro</p>',
+        ],
         // TASK-1751 — REPLI. Le rendu passe normalement par le gabarit
         // administrable `transaction_proposal_created` ; ce texte sert si
         // le gabarit est absent ou désactivé. La suite de cohérence

@@ -119,6 +119,8 @@ return [
     ],
 
     'keys' => [
+        // TASK-1761 — the REQUEST, owner side.
+        'loop_join_request_created' => 'Someone is asking to join your Loop',
         // TASK-1747 (CDC §8.1)
         'loop_help_request_created' => 'A request for help was posted',
 
@@ -184,6 +186,14 @@ return [
     |
     */
     'email' => [
+        'loop_join_request_created' => [
+            'subject' => 'Someone is asking to join your Loop',
+            'body' => '<p>Hello,</p>'
+                .'<p>Someone is asking to join a Loop you are responsible for.</p>'
+                .'<p><a href=":url">View the request</a></p>'
+                .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
+                .'<p>See you soon,<br>The BouclePro team</p>',
+        ],
         // TASK-1751 — FALLBACK, used when the administrable template is
         // missing or disabled. The coherence suite requires it as soon as
         // the `email` channel is declared.

@@ -197,6 +197,18 @@ final class NotificationCatalogue
      * l'objet metier pour savoir quoi ecrire — donc a dependre d'un etat qui a
      * pu changer depuis. Le fait, lui, ne change pas.
      */
+    /**
+     * TASK-1761 point 1 — QUELQU'UN DEMANDE a rejoindre votre Boucle.
+     *
+     * Les deux cles voisines portent la DECISION, et elles vont au demandeur.
+     * Celle-ci porte la DEMANDE, et elle va au PROPRIETAIRE — c'est le seul
+     * sens dans lequel ce catalogue ne savait rien dire.
+     *
+     * Avant cette TASK, `LoopService::createJoinRequest()` ecrivait la ligne et
+     * n'emettait RIEN : personne n'apprenait qu'on attendait une reponse.
+     */
+    public const LOOP_JOIN_REQUEST_CREATED = 'loop.join_request.created';
+
     public const LOOP_JOIN_REQUEST_ACCEPTED = 'loop.join_request.accepted';
 
     public const LOOP_JOIN_REQUEST_REJECTED = 'loop.join_request.rejected';
@@ -441,6 +453,39 @@ final class NotificationCatalogue
         // peine sans rien lui permettre. Le fait reste visible dans le Centre pour
         // qui va voir. A rouvrir si MASTER le demande : une ligne ici, un gabarit,
         // rien de plus.
+        self::LOOP_JOIN_REQUEST_CREATED => [
+            'category' => 'loop',
+
+            // « On me sollicite » : quelqu'un s'adresse au proprietaire et
+            // attend une reponse de lui. Ce n'est ni un changement subi, ni une
+            // information de fond.
+            'intention' => self::INTENTION_SOLLICITATION_PERTINENTE,
+
+            'object_type' => self::OBJECT_LOOP_JOIN_REQUEST,
+            'channels' => [
+                // NON configurable, et c'est un choix.
+                //
+                // `loop_help_request_created` est configurable parce qu'une
+                // demande d'aide ne reclame rien a personne en particulier. Une
+                // demande d'ADHESION, si : elle attend une decision du
+                // proprietaire, et elle reste en attente tant qu'il ne l'a pas
+                // prise. Se taire ici ne protege pas du bruit, ca laisse
+                // quelqu'un a la porte.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+
+                // EMAIL actif par defaut — demande explicite de Cyril
+                // (« une notification dans l'application ET par email »).
+                // Configurable, parce que le fait reste visible dans le Centre :
+                // couper l'email ne fait rien perdre.
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+
+                // PAS de WEB_PUSH : Cyril ne l'a pas demande, et declarer un
+                // canal touche DEUX enumerations plus les libelles de Push dans
+                // les deux langues. A ouvrir si MASTER le veut — une ligne ici,
+                // deux libelles, rien de plus.
+            ],
+        ],
+
         self::LOOP_JOIN_REQUEST_ACCEPTED => [
             'category' => 'loop',
             'intention' => self::INTENTION_CHANGEMENTS,
