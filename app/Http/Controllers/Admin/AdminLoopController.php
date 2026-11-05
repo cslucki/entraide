@@ -719,8 +719,17 @@ class AdminLoopController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('admin.loops.edit', $loop)
-            ->with('success', __($accepte ? 'admin.loop_join_request_accepted' : 'admin.loop_join_request_rejected'));
+        // TASK-1761 point 2 — `back()` et non la fiche de la Boucle.
+        //
+        // Cette route sert desormais DEUX surfaces : la fiche de la Boucle et
+        // la carte du SuperAdmin, qui vit sur le tableau de bord et sur
+        // `/admin/loops`. Rediriger vers la fiche arracherait le SuperAdmin a
+        // sa page a chaque decision — l'inverse exact de « gerer les demandes
+        // rapidement ».
+        //
+        // Depuis la fiche, `back()` EST la fiche : le comportement d'avant ne
+        // change pas.
+        return back()->with('success', __($accepte ? 'admin.loop_join_request_accepted' : 'admin.loop_join_request_rejected'));
     }
 
     public function addMember(Request $request, Loop $loop): RedirectResponse

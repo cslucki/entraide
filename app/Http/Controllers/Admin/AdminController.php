@@ -66,6 +66,12 @@ class AdminController extends Controller
             'metrics' => $metrics->get(),
             'recentUsers' => $recentUsers,
             'pendingReports' => $pendingReports,
+
+            // TASK-1761 point 2 — TOUTES Organizations confondues, demande
+            // explicite de Cyril. La frontiere n'est pas a la lecture mais a la
+            // DECISION : `LoopPolicy::manageJoinRequests()` autorise un
+            // `is_admin` partout, et une liste qui montre ne decide de rien.
+            'demandesDAdhesion' => \App\Support\Loops\DemandesDAdhesionEnAttente::lister(),
         ]);
     }
 
