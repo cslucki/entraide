@@ -559,7 +559,7 @@ class OrgCrmController extends Controller
         try {
             $contact = $this->contacts->followMember($organization, $user, $request->user());
         } catch (LogicException $e) {
-            return back()->with('error', __('crm.flash.follow_conflict'));
+            return back()->with('error', $this->classerConflitDeSuivi($e, $organization));
         }
 
         // Nouveau Contact, ou Contact existant que ce clic vient de RELIER :
@@ -653,5 +653,46 @@ class OrgCrmController extends Controller
     protected function resolveContact(Organization $organization, string $id): CrmContact
     {
         return CrmContact::forOrganization($organization)->whereKey($id)->firstOrFail();
+    }
+
+    /**
+     * TASK-1753 (§3.5 du CDC) — dire la VRAIE cause d'un echec de « Ajouter au suivi ».
+     *
+     * ## Le defaut repare
+     *
+     * Ce `catch` annoncait `crm.flash.follow_conflict` — « un contact portant cet
+     * email est deja relie a un autre compte » — quelle que soit la cause. Or
+     * TROIS `LogicException` distinctes peuvent remonter ici, et `$e` etait
+     * capture sans jamais etre lu :
+     *
+     * | Origine                                  | Ce que l'ecran disait |
+     * |------------------------------------------|-----------------------|
+     * | `linkToUser` — contact deja relie ailleurs | juste                |
+     * | `followMember` — membre d'un autre tenant  | faux (deja un 404 avant) |
+     * | `defaultStatus` — AUCUN statut actif       | faux et trompeur     |
+     *
+     * Le troisieme cas devient atteignable depuis `/admin/users` : un tenant dont
+     * le pipeline a ete entierement desactive a la main. L'exploitant lisait alors
+     * un conflit d'email qui n'existe pas, et cherchait au mauvais endroit.
+     *
+     * ## Pourquoi l'ETAT et non le texte de l'exception
+     *
+     * Les deux causes sont de simples `LogicException`, sans sous-classe : le type
+     * ne les distingue pas. Filtrer sur le message anglais marcherait aujourd'hui
+     * et casserait en silence a la premiere reformulation. L'absence de statut
+     * ACTIF est, elle, exactement le discriminant — `ensureDefaultPipeline()`
+     * sement les six statuts quand il n'y en a aucun, cette exception ne survient
+     * que lorsqu'ils existent et ont tous ete desactives.
+     *
+     * `report($e)` dans tous les cas : la cause exacte ne doit jamais se perdre,
+     * meme quand l'ecran en dit une version simplifiee.
+     */
+    protected function classerConflitDeSuivi(LogicException $e, Organization $organization): string
+    {
+        report($e);
+
+        return CrmStatus::forOrganization($organization)->active()->exists()
+            ? __('crm.flash.follow_conflict')
+            : __('crm.flash.follow_no_active_status');
     }
 }

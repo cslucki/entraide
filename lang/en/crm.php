@@ -90,6 +90,10 @@ return [
         'member_followed' => 'The member is now followed in Relationships.',
         'member_already_followed' => 'This member was already followed.',
         'follow_conflict' => 'Cannot add this member to follow-up: a contact with this email is already linked to another account.',
+        // TASK-1753 (§3.5) — la cause QUI MANQUAIT. Ce `catch` annonçait un
+        // conflit d'email quelle que soit la panne ; un pipeline entièrement
+        // désactivé à la main envoyait donc chercher au mauvais endroit.
+        'follow_no_active_status' => 'Cannot add this member to follow-up: this organization has no active status in Relations. Re-enable one, then try again.',
     ],
     // TASK-1417 — CRM-5: the contact page.
     'show' => [

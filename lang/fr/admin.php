@@ -127,6 +127,25 @@ return [
     'users_send_email_sent' => '« :template » envoyé à :name.',
     'users_send_email_failed' => 'L\'envoi à :name a échoué. Voir les journaux d\'emails.',
     'users_send_email_inactive' => 'Aucun email envoyé : le compte :name est banni ou inactif.',
+    // TASK-1753 — « Ajouter au suivi » et « Saisir une note » depuis /admin/users.
+    // Les libellés déjà traduits sont réutilisés tels quels (`crm.follow_member`,
+    // `crm.member_picker.already_followed`, `crm.note_placeholder`,
+    // `crm.show.channel_hint`, `crm.channel.*`) : seul ce qui n'existait pas est ici.
+    'crm_note_action' => 'Saisir une note',
+    'crm_note_modal_title' => 'Ajouter une note',
+    // Décision N1 (Cyril, 04/11) : la note ajoute la personne au suivi si besoin.
+    // Le pop-up doit DIRE cette écriture implicite — une écriture silencieuse
+    // dans le tenant d'autrui n'est pas acceptable.
+    'crm_note_implicit_follow' => 'Cette note ajoutera cette personne au suivi de son organisation si elle ne l\'est pas déjà.',
+    'crm_note_submit' => 'Ajouter la note',
+    'crm_note_enter_key' => 'Entrée',
+    'crm_note_shortcut' => 'pour envoyer',
+    'crm_see_contact' => 'Voir la fiche',
+    // Les trois issues réelles du geste, distinguées : le CDC l'exige parce
+    // qu'une restauration de fiche supprimée serait autrement invisible.
+    'crm_note_added_and_followed' => 'Note ajoutée, et cette personne est maintenant suivie dans Relations.',
+    'crm_note_added_and_restored' => 'Note ajoutée, et sa fiche supprimée a été restaurée.',
+    'crm_followed_and_restored' => 'Sa fiche supprimée a été restaurée : le membre est de nouveau suivi.',
     // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
     // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
     // pas un tout-cocher : « Partout » se lisait comme une selection globale.

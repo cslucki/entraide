@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Country;
+use App\Models\CrmContact;
 use App\Models\EmailLog;
 use App\Models\EmailTemplate;
 use App\Models\LoginLog;
@@ -22,6 +23,7 @@ use App\Notifications\WelcomeNotification;
 use App\Models\User;
 use App\Rules\UniqueEmailInOrganization;
 use App\Services\Admin\PlatformDashboardMetrics;
+use App\Services\Crm\CrmTimelineService;
 use App\Services\EmailerService;
 use App\Services\UserDataLifecycleRegistry;
 use App\Services\Users\Exceptions\UserDeletionBlockedException;
@@ -141,6 +143,25 @@ class AdminController extends Controller
             // DANS la ligne. Une seule requete, constante : le test de cout de
             // cet ecran mesure qu'il ne grandit pas avec le nombre de comptes.
             'emailTemplates' => EmailTemplate::orderBy('name')->get(['id', 'name', 'subject', 'locale']),
+            // TASK-1753 — qui est DEJA suivi dans Relations, pour toute la page.
+            //
+            // UNE requete bornee aux comptes de la page courante, jamais un
+            // `exists()` par ligne : `TASK1640UserDeleteFromListTest` mesure la
+            // PENTE de cet ecran — « 9 comptes de plus ne coutent pas 30 requetes
+            // de plus ». Un lookup dans la boucle la casserait a +1 par compte,
+            // et c'est exactement le defaut que ce test a ete ecrit pour attraper.
+            //
+            // Rendu `user_id => contact_id` : la vue a besoin de l'identifiant du
+            // Contact pour le lien « Deja suivi », pas seulement d'un booleen.
+            // Patron repris tel quel de `OrgCrmController::contacts()`.
+            //
+            // Aucun scope de tenant ici : `CrmContact` n'en a pas, et la cle est
+            // `user_id` — un compte n'appartient qu'a une Organization, donc la
+            // correspondance ne peut pas traverser les tenants.
+            'followedContactIds' => CrmContact::whereIn('user_id', $users->pluck('id'))
+                ->pluck('id', 'user_id'),
+            // Les canaux du pop-up : une constante PHP, zero requete.
+            'noteChannels' => CrmTimelineService::CHANNELS,
         ]);
     }
 

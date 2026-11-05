@@ -462,17 +462,23 @@
                              et 396 px de debordement sur mobile. On voyait deux
                              utilisateurs par ecran.
 
-                             `<details>` natif, et non un popover : un menu positionne en
-                             `absolute` serait rogne par l'`overflow-x-auto` du tableau —
-                             c'est exactement le defaut de TASK-1693 bug D. Celui-ci
-                             s'ouvre EN FLUX : la ligne ne grandit que pour celle qu'on
-                             ouvre, rien n'est rogne, et il fonctionne sans JavaScript,
-                             donc aussi sur le layout invite ou Alpine est absent
-                             (mesure du volet 1).
+                             TASK-1753 — RECTIFICATIF. Ce commentaire decrivait un
+                             `<details>` natif qui n'existe plus : introduit en `64c8664a`
+                             (T1714), RETIRE en `615419d7` (T1714 volet 3) au profit du
+                             `sticky right-0` ci-dessus. Le texte, lui, a survecu — et
+                             quiconque ouvrait ce fichier pour ajouter une action lisait
+                             une description fausse de la structure.
 
-                             Deux actions restent DEHORS : « Valider compte », urgente et
-                             rare, et « Modifier », la plus frequente. Les enfouir ferait
-                             payer un clic de plus a ce qu'on fait tout le temps. --}}
+                             Ce qui reste VRAI, et qui gouverne toujours : un menu
+                             positionne en `absolute` serait rogne par l'`overflow-x-auto`
+                             du tableau (defaut mesure en TASK-1693 bug D). C'est pour
+                             cela que les modals de cette page — email (T1694 bug V) et
+                             note (T1753) — sont poses HORS du tableau, un seul pour toute
+                             la page, et que la ligne ne porte que leur declencheur.
+
+                             La colonne porte aujourd'hui SEIZE actions potentielles. Si
+                             elle est jugee chargee en recette, le remede est un chantier
+                             d'ergonomie a part, pas une rustine. --}}
                         <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                             @if($u->attendApprobation())
                             <form method="POST" action="{{ route('admin.users.approve', $u) }}"
@@ -658,6 +664,64 @@
                                     {{ __('admin.users_password_reset_link') }}
                                 </button>
                             </form>
+
+                            {{-- TASK-1753 — les deux gestes de Relations, depuis la liste.
+
+                                 ## Le `@if` n'est pas une politesse d'affichage
+
+                                 `users.organization_id` est NULLABLE, et les deux routes
+                                 portent `{organization}` en parametre OBLIGATOIRE. Un
+                                 `route()` non garde sur un compte sans Organization leve
+                                 une `UrlGenerationException` qui ne casse pas le bouton
+                                 mais TOUTE LA PAGE. Le defaut est invisible sur la base de
+                                 recette (zero compte concerne) et la suite, elle, en cree.
+
+                                 L'autorisation, elle, vit cote serveur
+                                 (`abort_unless(… , 404)`) : ce `@if` protege le RENDU, pas
+                                 l'acces.
+
+                                 ## Deux affordances, toujours
+
+                                 Le bouton note ne change JAMAIS d'etat — avec la decision
+                                 N1 il marche suivi ou non. C'est le geste de suivi, et lui
+                                 seul, qui devient un lien quand la personne est deja
+                                 suivie. --}}
+                            @if($u->organization)
+                                @if($followedContactIds->get($u->id))
+                                    <a href="{{ route('admin.crm.contacts.show', ['organization' => $u->organization->slug, 'contact' => $followedContactIds->get($u->id)]) }}"
+                                       class="inline-flex items-center gap-1 rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 hover:underline whitespace-nowrap dark:bg-green-900/40 dark:text-green-300"
+                                       data-crm-followed="{{ $u->id }}">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                        {{ __('crm.member_picker.already_followed') }}
+                                    </a>
+                                @else
+                                    <form method="POST" action="{{ route('admin.crm.members.follow', ['organization' => $u->organization->slug, 'user' => $u->id]) }}">
+                                        @csrf
+                                        <button class="text-xs font-semibold text-teal-600 hover:underline whitespace-nowrap dark:text-teal-400"
+                                                data-crm-follow="{{ $u->id }}">
+                                            {{ __('crm.follow_member') }}
+                                        </button>
+                                    </form>
+                                @endif
+
+                                {{-- La ligne ne porte que le DECLENCHEUR : le pop-up est
+                                     unique pour toute la page et vit hors du tableau.
+                                     L'URL vient de `route()` cote SERVEUR — un chemin
+                                     recompose en JavaScript n'est verifie par aucun
+                                     `route:list`. --}}
+                                <button type="button"
+                                        @click="$dispatch('crm-note-context', {
+                                            id: @js($u->id),
+                                            nom: @js(trim($u->first_name.' '.$u->name)),
+                                            email: @js($u->email),
+                                            url: @js(route('admin.crm.members.notes.store', ['organization' => $u->organization->slug, 'user' => $u->id])),
+                                            suivi: @js((bool) $followedContactIds->get($u->id))
+                                        }); $dispatch('open-modal', 'crm-note')"
+                                        class="text-xs font-semibold text-teal-600 hover:underline whitespace-nowrap dark:text-teal-400"
+                                        data-crm-note-trigger="{{ $u->id }}">
+                                    {{ __('admin.crm_note_action') }}
+                                </button>
+                            @endif
                         </div>
                     </td>
                 </tr>
@@ -685,6 +749,13 @@
          La ligne ne porte que le declencheur, qui lui passe la personne et son
          URL d'envoi. --}}
     @include('admin.partials.user-send-email-modal')
+
+    {{-- TASK-1753 — UN pop-up « Saisir une note » pour toute la page, hors du
+         tableau. Meme patron que celui du dessus, et pour les memes deux raisons
+         deja payees : un modal PAR LIGNE rendrait 20 copies du formulaire
+         (T1694 bug L), et tout positionnement `absolute` dans la colonne Actions
+         est rogne par son `overflow-x-auto` (T1693 bug D). --}}
+    @include('admin.partials.user-crm-note-modal')
 
     {{-- TASK-1668 — la modal de suppression a laisse place a une PAGE
          (`admin/users/delete.blade.php`). Elle debordait : blocages avec leurs

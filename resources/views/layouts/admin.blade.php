@@ -652,8 +652,20 @@
 
         <!-- Toast notifications -->
         @if(session('success') || session('error') || session('info'))
+        {{-- TASK-1753 — un toast qui porte un LIEN ne s'efface pas tout seul.
+
+             La decision n°3 de Cyril demande un flash avec un lien « voir la
+             fiche ». Mesure : ce bandeau rend `{{ session('success') }}`, donc
+             ECHAPPE — une ancre glissee dans le message sortirait en texte brut.
+             L'URL voyage par une cle de session distincte, `flash_action`, et
+             c'est ici qu'elle devient une vraie ancre.
+
+             Et un lien qui disparait au bout de 4,5 secondes n'est pas un lien :
+             le compte a rebours n'est arme que lorsqu'il n'y a rien a cliquer.
+             Sans `flash_action`, le comportement est inchange — la bascule est
+             purement additive. --}}
         <div x-data="{ show: true }" x-show="show"
-             x-init="setTimeout(() => show = false, 4500)"
+             @if(! session('flash_action')) x-init="setTimeout(() => show = false, 4500)" @endif
              x-transition:enter="transition ease-out duration-300"
              x-transition:enter-start="opacity-0 translate-y-3"
              x-transition:enter-end="opacity-100 translate-y-0"
@@ -665,7 +677,14 @@
             @if(session('success'))
             <div class="flex items-center gap-3 bg-green-600 text-white px-4 py-3 rounded-xl">
                 <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                <p class="text-sm font-medium flex-1">{{ session('success') }}</p>
+                <p class="text-sm font-medium flex-1">
+                    {{ session('success') }}
+                    @if(session('flash_action'))
+                        <a href="{{ session('flash_action')['url'] }}"
+                           class="ml-1 whitespace-nowrap font-semibold underline underline-offset-2 hover:no-underline"
+                           data-flash-action>{{ session('flash_action')['label'] }}</a>
+                    @endif
+                </p>
                 <button @click="show = false" class="opacity-70 hover:opacity-100 text-xl leading-none">&times;</button>
             </div>
             @elseif(session('error'))
