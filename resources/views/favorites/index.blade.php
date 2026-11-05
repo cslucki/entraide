@@ -39,7 +39,7 @@
                             {{ $service->category->displayName('transactions') }}
                         </span>
                         <div class="flex items-center gap-2">
-                            <span class="text-indigo-600 dark:text-indigo-400 font-bold text-sm">{{ $service->points_cost }} pts</span>
+                            <span class="text-indigo-600 dark:text-indigo-400 font-bold text-sm" data-entraide-temps>{{ \App\Support\Entraide\TempsPartage::libelle($service->points_cost) }}</span>
                             <form method="POST" action="{{ $_favoritesOrgSlug ? route('organization.favorites.toggle', ['organization' => $_favoritesOrgSlug, 'service' => $service]) : route('favorites.toggle', $service) }}">
                                 @csrf
                                 <button class="text-red-400 hover:text-red-600" title="{{ __('favorites.remove') }}">

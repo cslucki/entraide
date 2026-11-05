@@ -344,7 +344,7 @@
                                 <span class="px-2.5 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
                                     {{ $service->category->displayName('transactions') }}
                                 </span>
-                                <span class="font-bold text-indigo-600 dark:text-indigo-400 text-sm whitespace-nowrap ml-2">{{ $service->points_cost }} pts</span>
+                                <span class="font-bold text-indigo-600 dark:text-indigo-400 text-sm whitespace-nowrap ml-2" data-entraide-temps>{{ \App\Support\Entraide\TempsPartage::libelle($service->points_cost) }}</span>
                             </div>
                             <p class="font-medium text-gray-900 dark:text-gray-100 text-sm mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">{{ $service->title }}</p>
                             @if($service->skills->isNotEmpty())

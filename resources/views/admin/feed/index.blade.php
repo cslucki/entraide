@@ -59,6 +59,32 @@
             <h2 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ __('admin.feed_replay_title', ['name' => $reprise['organization']->name]) }}</h2>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('admin.feed_replay_help') }}</p>
 
+            {{-- TASK-1758 — l'interrupteur des evenements AUTOMATIQUES.
+                 Il manquait : la page savait RETIRER ce qui etait deja ecrit,
+                 rien n'arretait les suivants. Les deux gestes restent distincts
+                 — on peut vouloir arreter sans effacer l'historique. --}}
+            @php($_evenementsActifs = (bool) ($reprise['organization']->feed_auto_events_enabled ?? true))
+            <form method="POST" action="{{ route('admin.feed.auto-events') }}"
+                  class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3
+                         {{ $_evenementsActifs
+                            ? 'border-green-200 bg-green-50 dark:border-green-800/60 dark:bg-green-900/20'
+                            : 'border-amber-200 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-900/20' }}">
+                @csrf
+                <input type="hidden" name="organization_id" value="{{ $reprise['organization']->id }}">
+                <input type="hidden" name="actif" value="{{ $_evenementsActifs ? 0 : 1 }}">
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold text-gray-900 dark:text-gray-100" data-marqueur="evenements-auto-etat">
+                        {{ $_evenementsActifs ? __('admin.feed_auto_events_active') : __('admin.feed_auto_events_paused') }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-gray-600 dark:text-gray-400">{{ __('admin.feed_auto_events_help') }}</p>
+                </div>
+                <button type="submit" data-marqueur="evenements-auto-bascule"
+                        class="shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white transition
+                            {{ $_evenementsActifs ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700' }}">
+                    {{ $_evenementsActifs ? __('admin.feed_auto_events_pause') : __('admin.feed_auto_events_resume') }}
+                </button>
+            </form>
+
             <div class="mt-4 grid gap-5 md:grid-cols-2">
                 {{-- Generer --}}
                 <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
