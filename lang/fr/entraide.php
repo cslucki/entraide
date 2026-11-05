@@ -34,6 +34,14 @@ return [
         'contestation_impossible' => 'Cet échange ne peut pas être relancé.',
         'pas_encore_termine' => 'C’est noté : l’échange est remis en cours.',
     ],
+    'atelier' => [
+        'complet' => 'Cet atelier est complet.',
+        'places_restantes' => '{0}Complet|{1}1 place restante|[2,*]:count places restantes',
+        'groupe' => 'Atelier de groupe · :n personnes maximum',
+        'champ_label' => 'Pour un groupe ?',
+        'champ_aide' => 'Laissez vide pour une aide individuelle. De 2 à 6 personnes pour un atelier — le temps annoncé est réparti entre les participants.',
+        'champ_individuel' => 'Aide individuelle',
+    ],
     'csv' => [
         'fichier' => 'entraide',
         'entetes' => ['Date', 'Sens', 'Entraide', 'Avec', 'Temps', 'Points', 'Statut'],
