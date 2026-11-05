@@ -40,6 +40,12 @@ return [
     'feed_auto_events_on' => 'Automatic events resumed for :name.',
     'feed_auto_events_off' => 'Automatic events paused for :name. Existing history is kept.',
     'join_requests_card_title' => 'Requests to join a Loop',
+
+    // TASK-1761 points 4 and 5 — on /admin/loops.
+    'join_requests_pending_count' => ':count pending request|:count pending requests',
+    'loop_owners_inline' => 'Owner:|Owners:',
+    'loop_creator_label' => 'Created by',
+    'login_as_short' => 'log in as',
     'join_requests_card_empty' => 'No pending request.',
     'join_requests_card_wants_to_join' => 'is asking to join',
     'join_requests_card_accept' => 'Accept',

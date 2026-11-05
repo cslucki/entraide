@@ -22,6 +22,7 @@ use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
+use App\Support\Loops\DemandesDAdhesionEnAttente;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
@@ -88,7 +89,19 @@ class AdminLoopController extends Controller
         // Everything the list shows is counted in the query rather than walked
         // per row: members, invitations (total and pending) and cards. `cards`
         // is eager-loaded once for the badges — 25 rows, no N+1.
-        $query = Loop::with(['creator:id,name,email', 'organization:id,name,slug', 'cards'])
+        // TASK-1761 point 5 — les PROPRIETAIRES, pas le createur. `owner()` est
+        // marque @deprecated dans le modele : « a Loop can have several owners
+        // and there is no business notion of a primary owner ». On charge donc
+        // la relation plurielle, et la vue les affiche tous.
+        //
+        // `banned_at` et `is_admin` voyagent avec : ce sont les deux refus de
+        // `loginAsUser()`. Les lire ici evite d'offrir un bouton qui echouera.
+        $query = Loop::with([
+            'creator:id,name,first_name,email',
+            'organization:id,name,slug',
+            'cards',
+            'owners.user:id,name,first_name,email,is_admin,banned_at',
+        ])
             ->withCount([
                 'activeMembers',
                 'invitations',
@@ -113,6 +126,13 @@ class AdminLoopController extends Controller
 
         return view('admin.loops.index', [
             'loops' => $loops,
+            // TASK-1761 point 3 — la MEME carte que sur le tableau de bord,
+            // bornee a l'Organization choisie dans le filtre : sous une page
+            // deja filtree, des demandes d'ailleurs seraient un contresens.
+            'demandesDAdhesion' => DemandesDAdhesionEnAttente::lister($selectedOrganization?->id),
+            // TASK-1761 point 4 — une seule requete groupee pour toute la
+            // page, et non un compte par ligne.
+            'demandesParBoucle' => DemandesDAdhesionEnAttente::compterParBoucle($selectedOrganization?->id),
             'organizations' => $organizations,
             'selectedOrganizationId' => $selectedOrganizationId,
             'selectedOrganization' => $selectedOrganization,
