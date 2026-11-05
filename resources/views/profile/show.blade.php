@@ -230,9 +230,13 @@
                     @if($badges->isNotEmpty())
                     <div class="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
                         @foreach($badges as $badge)
-                        <span title="{{ $badge->description }}" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-white cursor-default"
-                              style="background-color: {{ $badge->color }}">
-                            {{ $badge->icon }} {{ $badge->name }}
+                        {{-- TASK-1757 — `libelle()` et non `name` : le libelle en base
+                             porte encore l'ancien vocabulaire (« Prestataire ») et
+                             n'est traduit dans aucune langue. Voir `Badge::libelle()`. --}}
+                        <span title="{{ $badge->explication() }}" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-white cursor-default"
+                              style="background-color: {{ $badge->color }}"
+                              data-badge="{{ $badge->key }}">
+                            {{ $badge->icon }} {{ $badge->libelle() }}
                         </span>
                         @endforeach
                     </div>

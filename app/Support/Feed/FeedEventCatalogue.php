@@ -3,10 +3,11 @@
 namespace App\Support\Feed;
 
 use App\Models\Loop;
-use App\Models\LoopMember;
 use App\Models\LoopEvent;
+use App\Models\LoopMember;
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use App\Models\Transaction;
 use App\Models\User;
 
 /**
@@ -59,6 +60,15 @@ final class FeedEventCatalogue
     public const BOUCLE_CREEE = 'event.loop_created';
 
     public const EVENEMENT_CREE = 'event.loop_event_created';
+
+    /**
+     * TASK-1757 §9.5 — une entraide terminee, et c'est le SEUL type soumis a un
+     * accord explicite : les six autres portent des faits que la personne a
+     * deliberement publies (une annonce, une Boucle). La porte est dans
+     * `TransactionController::partagerDansLeFlux()`, pas ici — ce registre dit
+     * ce qu'un evenement EST, pas quand il a le droit de naitre.
+     */
+    public const ENTRAIDE_TERMINEE = 'event.help_completed';
 
     public const VISIBILITE_ORGANIZATION = 'organization';
 
@@ -118,6 +128,11 @@ final class FeedEventCatalogue
                 'object' => LoopEvent::class,
                 'visibilite' => self::VISIBILITE_ORGANIZATION,
                 'libelle' => 'feed.events.loop_event_created',
+            ],
+            self::ENTRAIDE_TERMINEE => [
+                'object' => Transaction::class,
+                'visibilite' => self::VISIBILITE_ORGANIZATION,
+                'libelle' => 'feed.events.help_completed',
             ],
         ];
     }

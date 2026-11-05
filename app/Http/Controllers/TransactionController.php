@@ -13,6 +13,8 @@ use App\Services\ServiceRequestLifecycle;
 use App\Support\Entraide\Atelier;
 use App\Support\Entraide\MessageSysteme;
 use App\Support\Entraide\TempsPartage;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmitter;
 use Illuminate\Http\RedirectResponse;
@@ -448,7 +450,7 @@ class TransactionController extends Controller
         return $this->complete($transaction);
     }
 
-    public function confirm(Transaction $transaction): RedirectResponse
+    public function confirm(Request $request, Transaction $transaction): RedirectResponse
     {
         $this->authorize('confirm', $transaction);
 
@@ -535,12 +537,66 @@ class TransactionController extends Controller
             false,
         );
 
+        $this->partagerDansLeFlux($request, $fresh);
+
         return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.echange_termine'));
     }
 
-    public function orgConfirm(string $org, Transaction $transaction): RedirectResponse
+    /**
+     * TASK-1757 (§9.5 du CDC entraide) — l'entraide entre dans le Flux, si on
+     * le demande.
+     *
+     * ## L'opt-in se prend ICI, pas dans un reglage
+     *
+     * Arbitrage Cyril du 05/11. Le §9.5 dit « opt-in » et aucun stockage
+     * n'existait pour ca : T1752 n'offre qu'un interrupteur d'Organization
+     * tout-ou-rien. Les trois autres voies demandaient une colonne nouvelle, et
+     * un reglage a OFF enterre dans une page de reglages est une
+     * fonctionnalite invisible — le Flux serait reste vide.
+     *
+     * La case vit donc dans le formulaire de confirmation, la ou la personne
+     * decide. **Aucune colonne, aucune migration** : si la case n'est pas
+     * cochee, aucune ligne n'est ecrite, et il n'y a rien a retenir.
+     *
+     * ## Seul l'AIDANT est nomme
+     *
+     * La carte dit « 🤝 Ottoline a donne 30 min — Bricolage », jamais « a
+     * Barnabe ». Et c'est ce qui rend l'opt-in coherent : celui qui coche est
+     * l'aidant (`confirm()` est SON geste), donc la seule personne exposee est
+     * celle qui a choisi de l'etre. Un accord de l'aidant ne peut pas engager
+     * le beneficiaire — « Barnabe a RECU 30 min d'aide » l'exposerait sans
+     * qu'il ait rien decide.
+     *
+     * ## `rescue()`, comme les six autres points de bascule
+     *
+     * L'echange EST clos a ce stade, les points sont transferes. La personne ne
+     * doit pas voir une erreur pour une entraide pourtant terminee parce que le
+     * Flux a eu un probleme.
+     */
+    private function partagerDansLeFlux(Request $request, Transaction $echange): void
     {
-        return $this->confirm($transaction);
+        if (! $request->boolean('partager_dans_le_flux')) {
+            return;
+        }
+
+        // Une discussion directe n'a rien a raconter : ni annonce, ni temps.
+        if ($echange->isDirectConversation()) {
+            return;
+        }
+
+        rescue(fn () => app(FeedEventEmitter::class)->emettre(
+            FeedEventCatalogue::ENTRAIDE_TERMINEE,
+            $echange,
+            // L'acteur est l'AIDANT, celui qui vient de confirmer — et celui
+            // que la carte nomme.
+            $echange->seller,
+            $echange->organization_id,
+        ), report: true);
+    }
+
+    public function orgConfirm(Request $request, string $org, Transaction $transaction): RedirectResponse
+    {
+        return $this->confirm($request, $transaction);
     }
 
     public function contest(Transaction $transaction): RedirectResponse

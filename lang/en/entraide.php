@@ -31,6 +31,10 @@ return [
         'contestation_impossible' => 'This exchange cannot be reopened.',
         'pas_encore_termine' => 'Noted: the exchange is active again.',
     ],
+    'flux' => [
+        'partager' => 'Share this help in the Feed (your first name and the time given; the name of the person you helped is not shown)',
+    ],
+
     'atelier' => [
         'complet' => 'This workshop is full.',
         'places_restantes' => '{0}Full|{1}1 seat left|[2,*]:count seats left',
