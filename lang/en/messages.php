@@ -49,6 +49,17 @@ return [
 
     // TASK-1754 §9.4 — arbitrage Q6 : la note reste OBLIGATOIRE (colonne NOT
     // NULL qui nourrit la moyenne du profil), donc discrète et non optionnelle.
+    // TASK-1754 §3.4 — les faits du fil, desormais traduits.
+    'systeme' => [
+        'proposition_envoyee' => '🤝 Offer sent — :temps',
+        'echange_accepte' => '✅ Exchange accepted. The help is under way.',
+        'echange_decline' => 'Offer declined.',
+        'temps_ajuste' => 'Time adjusted: :temps',
+        'echange_annule' => 'Exchange cancelled.',
+        'aide_recue' => ':prenom confirmed receiving the help. Awaiting your confirmation.',
+        'echange_termine' => '🎉 Exchange complete — :temps shared.',
+        'pas_encore_termine' => 'The help is not finished yet: the exchange is active again.',
+    ],
     'review_exchange' => 'Say thank you to :prenom',
     'review_intro' => 'The exchange is complete — :temps shared. Your thank-you note will appear on their profile.',
     'review_placeholder' => 'A word of thanks (shown on their profile)…',

@@ -138,8 +138,13 @@
                 @endphp
                 @if($message->isSystem())
                     <div class="flex justify-center">
-                        <span class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded-full">
-                            {{ $message->body }}
+                        {{-- TASK-1754 §3.4 — traduit si la clef est connue, sinon
+                             le `body` tel qu'il a ete ecrit : c'est tout
+                             l'historique anterieur au 05/11/2026, et c'est une
+                             divergence ASSUMEE (arbitrage Q5, critere n°6). --}}
+                        <span class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded-full"
+                              data-message-systeme>
+                            {{ \App\Support\Entraide\MessageSysteme::rendre($message) }}
                         </span>
                     </div>
                 @elseif($editingMessageId === $message->id)
@@ -225,37 +230,71 @@
 
         <x-slot:after>
             <!-- Review form — visible after completion si pas encore noté -->
+            {{-- TASK-1754 §9.4 (maquette M4) — « Dites merci » remplace
+                 « Évaluez cet échange ».
+
+                 Cinq etoiles et un « Commentaire (optionnel) », c'est Uber. La
+                 hierarchie est inversee : le MOT devient le geste principal, la
+                 note passe au second plan.
+
+                 ## Pourquoi la note reste OBLIGATOIRE
+
+                 Arbitrage Q6 de Cyril, pris sur une mesure : `reviews.rating`
+                 est NOT NULL sans defaut, la moyenne du profil se calcule sur
+                 TOUTES les notes (`User::recalculateRating()`) et `BadgeService`
+                 s'en nourrit. La rendre optionnelle sans migration aurait oblige
+                 a ecrire une note que personne n'a choisie — qui aurait compte
+                 dans la moyenne affichee et dans l'attribution des badges. Et le
+                 critere d'acceptation n°8 du CDC interdit la migration.
+
+                 Elle est donc PRE-SELECTIONNEE et MODIFIABLE, et le libelle le
+                 dit honnetement — « Vous pouvez ajuster la note », et non
+                 « optionnelle » comme l'ecrit la maquette, ce qui serait faux. --}}
             @if($transaction->status === 'completed' && !$transaction->hasReviewFrom(auth()->id()))
+            @php
+                $_merciAutre = auth()->id() === $transaction->buyer_id ? $transaction->seller : $transaction->buyer;
+                $_merciTemps = \App\Support\Entraide\TempsPartage::duree($transaction->points_agreed ?? $transaction->points_proposed);
+            @endphp
             <div class="border-t-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-4"
-                 x-data="{ rating: 0, hovered: 0 }">
-                <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-3">
-                    {{ __('messages.review_exchange') }}
+                 x-data="{ rating: 5, hovered: 0 }"
+                 data-entraide-merci>
+                <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                    🙏 {{ __('messages.review_exchange', ['prenom' => $_merciAutre?->first_name ?: $_merciAutre?->name]) }}
+                </p>
+                <p class="mt-1 mb-3 text-xs text-indigo-600/80 dark:text-indigo-300/80">
+                    {{ __('messages.review_intro', ['temps' => $_merciTemps]) }}
                 </p>
                 <form method="POST" action="{{ route('reviews.store', $transaction) }}">
                     @csrf
 
-                    <!-- Étoiles interactives -->
-                    <div class="flex gap-1 mb-3">
-                        @for($i = 1; $i <= 5; $i++)
-                        <button type="button"
-                            @click="rating = {{ $i }}"
-                            @mouseenter="hovered = {{ $i }}"
-                            @mouseleave="hovered = 0"
-                            class="text-2xl transition-transform hover:scale-110 focus:outline-none">
-                            <span x-text="(hovered || rating) >= {{ $i }} ? '★' : '☆'"
-                                  :class="(hovered || rating) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
-                        </button>
-                        @endfor
-                        <input type="hidden" name="rating" :value="rating">
-                    </div>
-
-                    <textarea name="comment" rows="2" placeholder="{{ __('messages.review_placeholder') }}"
+                    {{-- Le MOT d'abord : c'est lui le geste. --}}
+                    <textarea name="comment" rows="3" maxlength="1000"
+                        placeholder="{{ __('messages.review_placeholder') }}"
+                        data-entraide-merci-mot
                         class="w-full px-3 py-2 border border-indigo-200 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500 mb-3 resize-none"></textarea>
 
+                    {{-- La note ensuite, petite, pre-selectionnee, modifiable. --}}
+                    <div class="flex flex-wrap items-center gap-2 mb-3">
+                        <div class="flex gap-0.5" data-entraide-merci-note>
+                            @for($i = 1; $i <= 5; $i++)
+                            <button type="button"
+                                @click="rating = {{ $i }}"
+                                @mouseenter="hovered = {{ $i }}"
+                                @mouseleave="hovered = 0"
+                                aria-label="{{ $i }}/5"
+                                class="text-base transition-transform hover:scale-110 focus:outline-none">
+                                <span x-text="(hovered || rating) >= {{ $i }} ? '★' : '☆'"
+                                      :class="(hovered || rating) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
+                            </button>
+                            @endfor
+                        </div>
+                        <input type="hidden" name="rating" :value="rating">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('messages.review_rating_hint') }}</span>
+                    </div>
+
                     <button type="submit"
-                        :disabled="rating === 0"
-                        :class="rating === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-700'"
-                        class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg font-medium transition">
+                        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg font-medium transition"
+                        data-entraide-merci-envoyer>
                         {{ __('messages.send_review') }}
                     </button>
                 </form>

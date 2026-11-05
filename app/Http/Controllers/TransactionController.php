@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Services\ServiceRequestLifecycle;
 use App\Models\Transaction;
+use App\Support\Entraide\MessageSysteme;
 use App\Support\Entraide\TempsPartage;
 use App\Notifications\TransactionStatusChanged;
 use App\Support\Notifications\NotificationCatalogue;
@@ -153,7 +154,7 @@ class TransactionController extends Controller
             'status' => 'pending',
         ]);
 
-        $this->addSystemMessage($transaction, 'Nouvel échange envoyé : '.$data['points_proposed'].' points.');
+        MessageSysteme::ecrire($transaction, 'proposition_envoyee', ['points' => (int) $data['points_proposed']]);
 
         // TASK-1751 — prevenir l'auteur de l'annonce.
         //
@@ -223,7 +224,7 @@ class TransactionController extends Controller
             'points_agreed' => $transaction->points_proposed,
         ]);
 
-        $this->addSystemMessage($transaction, 'Échange accepté. L\'échange est en cours.');
+        MessageSysteme::ecrire($transaction, 'echange_accepte');
 
         // La demande est pourvue, et les propositions concurrentes closes.
         app(ServiceRequestLifecycle::class)->markHandled($transaction);
@@ -254,7 +255,7 @@ class TransactionController extends Controller
 
         $transaction->update(['status' => 'refused']);
 
-        $this->addSystemMessage($transaction, 'Échange refusé.');
+        MessageSysteme::ecrire($transaction, 'echange_decline');
 
         rescue(
             fn () => $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh())),
@@ -298,7 +299,7 @@ class TransactionController extends Controller
 
         $transaction->update(['points_proposed' => $data['points_proposed']]);
 
-        $this->addSystemMessage($transaction, 'Points ajustés à '.$data['points_proposed'].' points.');
+        MessageSysteme::ecrire($transaction, 'temps_ajuste', ['points' => (int) $data['points_proposed']]);
 
         return $this->redirectToMessage($transaction)->with('success', 'Points ajustés.');
     }
@@ -314,7 +315,7 @@ class TransactionController extends Controller
 
         $transaction->update(['status' => 'cancelled']);
 
-        $this->addSystemMessage($transaction, 'Transaction annulée.');
+        MessageSysteme::ecrire($transaction, 'echange_annule');
 
         // TASK-1693 bug W — ne rouvrir que si AUCUNE autre proposition ne
         // tient la demande. Sans cette condition, relacher une concurrente
@@ -339,7 +340,7 @@ class TransactionController extends Controller
             'buyer_confirmed_at' => now(),
         ]);
 
-        $this->addSystemMessage($transaction, 'L\'acheteur a déclaré la prestation terminée. En attente de confirmation du vendeur.');
+        MessageSysteme::ecrire($transaction, 'aide_recue', ['prenom' => $transaction->buyer?->first_name ?: $transaction->buyer?->name]);
 
         rescue(
             fn () => $transaction->seller->notify(new TransactionStatusChanged($transaction->fresh())),
@@ -423,7 +424,7 @@ class TransactionController extends Controller
                 ->with('error', 'Cette transaction a déjà été traitée.');
         }
 
-        $this->addSystemMessage($transaction, 'Échange complété ! Les points ont été transférés.');
+        MessageSysteme::ecrire($transaction, 'echange_termine', ['points' => (int) ($transaction->points_agreed ?? $transaction->points_proposed)]);
 
         rescue(
             fn () => $fresh->buyer->notify(new TransactionStatusChanged($fresh)),
@@ -477,7 +478,7 @@ class TransactionController extends Controller
                 ->with('error', 'Impossible de contester cette transaction.');
         }
 
-        $this->addSystemMessage($transaction, 'La prestation est contestée. L\'échange est remis en cours.');
+        MessageSysteme::ecrire($transaction, 'pas_encore_termine');
 
         return $this->redirectToMessage($transaction)->with('success', 'Prestation contestée, échange relancé.');
     }
@@ -540,17 +541,6 @@ class TransactionController extends Controller
 
             fclose($handle);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
-    }
-
-    private function addSystemMessage(Transaction $transaction, string $body): void
-    {
-        Message::create([
-            'transaction_id' => $transaction->id,
-            'sender_id' => null,
-            'body' => $body,
-            'type' => 'system',
-            'organization_id' => $transaction->organization_id,
-        ]);
     }
 
     private function redirectToMessage(Transaction $transaction): RedirectResponse

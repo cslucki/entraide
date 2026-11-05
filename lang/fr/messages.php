@@ -62,6 +62,18 @@ return [
     // `reviews.rating` est NOT NULL et nourrit la moyenne du profil ainsi que
     // les badges) — elle est donc discrète, pas optionnelle, et le libellé le
     // dit honnêtement.
+    // TASK-1754 §3.4 — les faits du fil, desormais traduits.
+    // `:temps` est reconstruit depuis les points au moment du rendu.
+    'systeme' => [
+        'proposition_envoyee' => '🤝 Proposition envoyée — :temps',
+        'echange_accepte' => '✅ Échange accepté. L’entraide est en cours.',
+        'echange_decline' => 'Proposition déclinée.',
+        'temps_ajuste' => 'Temps ajusté : :temps',
+        'echange_annule' => 'Échange annulé.',
+        'aide_recue' => ':prenom a confirmé avoir reçu l’aide. En attente de votre confirmation.',
+        'echange_termine' => '🎉 Entraide terminée — :temps partagées.',
+        'pas_encore_termine' => 'L’aide n’est pas encore terminée : l’échange est remis en cours.',
+    ],
     'review_exchange' => 'Dites merci à :prenom',
     'review_intro' => 'L\'entraide est terminée — :temps partagées. Votre mot de remerciement sera affiché sur son profil.',
     'review_placeholder' => 'Un mot de remerciement (affiché sur son profil)…',
