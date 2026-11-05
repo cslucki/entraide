@@ -25,6 +25,10 @@ return [
     'loops_title' => 'Boucles',
     'search_placeholder' => 'Rechercher par prénom ou nom…',
 
+    // TASK-1762 point 10 — le filtre par ville.
+    'city_label' => 'Localisation',
+    'city_all' => 'Toutes les localisations',
+
     // TASK-1762 point 9 — employé quand l'Organization a ouvert le champ Structure.
     'search_placeholder_with_structure' => 'Rechercher par prénom, nom ou structure…',
     'search_label' => 'Rechercher un membre',

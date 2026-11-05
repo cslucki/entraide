@@ -25,6 +25,10 @@ return [
     'loops_title' => 'Loops',
     'search_placeholder' => 'Search by first or last name...',
 
+    // TASK-1762 point 10 — the city filter.
+    'city_label' => 'Location',
+    'city_all' => 'All locations',
+
     // TASK-1762 point 9 — used when the Organization has opened the Structure field.
     'search_placeholder_with_structure' => 'Search by first name, last name or organisation...',
     'search_label' => 'Search for a member',

@@ -96,6 +96,52 @@ class HomeController extends Controller
         // SQLite, il ne l'est pas en PostgreSQL.
         $recherche = trim((string) request()->query('q', ''));
 
+        // TASK-1762 point 10 — le filtre « Localisation ».
+        //
+        // Cyril a tranche le menu plutot que le champ libre : « j'ai peur que
+        // les gens ne trouvent pas le fait qu'on puisse chercher par ville ».
+        // Un menu MONTRE ce qui est cherchable ; un champ libre le cache.
+        $ville = trim((string) request()->query('city', ''));
+
+        // Les villes du parc, REGROUPEES SANS TENIR COMPTE DE LA CASSE.
+        //
+        // Ce n'est pas une precaution theorique : le jumeau porte « Marseille »
+        // ET « MARSEILLE », saisis a la main par des gens differents. Un
+        // `GROUP BY city` brut les listerait tous les deux dans le menu, et
+        // chacun ne montrerait qu'une partie des membres de la ville.
+        //
+        // Le regroupement se fait en PHP plutot qu'en SQL : `LOWER()` sur une
+        // colonne se comporte differemment selon le collationnement, et le
+        // parc d'une Organization tient de toute facon en memoire.
+        $villes = User::where('organization_id', $organizationId)
+            ->activeAccount()
+            ->whereNotNull('city')
+            ->where('city', '!=', '')
+            ->pluck('city')
+            ->groupBy(fn ($v) => mb_strtolower(trim($v)))
+            ->map(function ($graphies) {
+                // L'orthographe la PLUS FREQUENTE represente le groupe, et
+                // l'ordre alphabetique departage les ex aequo : sans ce second
+                // critere, « Marseille » et « MARSEILLE » a une voix chacun
+                // rendraient tantot l'un tantot l'autre d'un chargement a
+                // l'autre.
+                $parGraphie = $graphies->countBy()->sortDesc();
+                $maximum = $parGraphie->first();
+
+                return [
+                    'libelle' => $parGraphie->filter(fn ($n) => $n === $maximum)->keys()->sort()->first(),
+                    'total' => $graphies->count(),
+                ];
+            })
+            ->sortBy('libelle', SORT_NATURAL | SORT_FLAG_CASE);
+
+        // Une ville forgee dans l'URL ne filtre rien : le menu ne propose que
+        // ce que le parc contient, et un parametre invalide doit se lire comme
+        // « aucun filtre », pas comme « aucun membre ».
+        if ($ville !== '' && ! $villes->has(mb_strtolower($ville))) {
+            $ville = '';
+        }
+
         $members = User::where('organization_id', $organizationId)
             ->activeAccount()
             ->when($recherche !== '', function ($q) use ($recherche, $organization) {
@@ -122,6 +168,10 @@ class HomeController extends Controller
                     }
                 });
             })
+            // TASK-1762 point 10 — la comparaison ignore la casse, pour la
+            // meme raison que le regroupement du menu : choisir « Marseille »
+            // doit rendre AUSSI les « MARSEILLE ».
+            ->when($ville !== '', fn ($q) => $q->whereRaw('LOWER(city) = ?', [mb_strtolower($ville)]))
             ->withCount([
                 'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->active()->where('organization_id', $organizationId),
                 'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->open()->where('organization_id', $organizationId),
@@ -174,7 +224,7 @@ class HomeController extends Controller
             ->groupBy('user_id')
             ->map(fn ($lignes) => $lignes->pluck('loop')->filter()->unique('id')->sortBy('name')->values());
 
-        return view('members.index', compact('members', 'recherche', 'articleCounts', 'loopsByUser'));
+        return view('members.index', compact('members', 'recherche', 'articleCounts', 'loopsByUser', 'villes', 'ville'));
     }
 
     public function boucles(): View

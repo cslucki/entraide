@@ -19,13 +19,39 @@
                         champ est ferme promettrait l'inverse. --}}
                    placeholder="{{ structureIsShown() ? __('directory.search_placeholder_with_structure') : __('directory.search_placeholder') }}"
                    class="w-full sm:w-80 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+            {{-- TASK-1762 point 10 — le filtre « Localisation ».
+
+                 Un MENU et non un second champ libre : arbitrage de Cyril,
+                 « j'ai peur que les gens ne trouvent pas le fait qu'on puisse
+                 chercher par ville ». Un menu montre ce qui est cherchable.
+
+                 Il ne s'affiche pas quand le parc n'a qu'une ville ou aucune :
+                 un filtre qui ne filtre rien est du bruit.
+
+                 `onchange` soumet, et le champ de recherche voyage avec lui
+                 puisqu'ils partagent le meme formulaire GET : les deux filtres
+                 se combinent au lieu de s'annuler. --}}
+            @if($villes->count() > 1)
+            <label for="directory-city" class="sr-only">{{ __('directory.city_label') }}</label>
+            <select id="directory-city" name="city" onchange="this.form.submit()" data-directory-city
+                    class="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                <option value="">{{ __('directory.city_all') }}</option>
+                @foreach($villes as $cle => $entree)
+                <option value="{{ $entree['libelle'] }}" @selected(mb_strtolower($ville) === $cle)>{{ $entree['libelle'] }} ({{ $entree['total'] }})</option>
+                @endforeach
+            </select>
+            @endif
+
             <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">{{ __('directory.search_submit') }}</button>
-            @if($recherche !== '')
+            {{-- « Effacer » doit aussi apparaitre quand SEUL le filtre de ville
+                 est pose : sinon on ne sait plus comment revenir a la liste
+                 complete. --}}
+            @if($recherche !== '' || $ville !== '')
             <a href="{{ url()->current() }}" class="text-sm text-gray-500 hover:text-indigo-600">{{ __('directory.search_clear') }}</a>
             @endif
         </form>
 
-        @if($recherche !== '' && $members->total() === 0)
+        @if(($recherche !== '' || $ville !== '') && $members->total() === 0)
         <p class="py-16 text-center text-sm text-gray-500 dark:text-gray-400" data-directory-empty>{{ __('directory.search_no_result') }}</p>
         @endif
 
