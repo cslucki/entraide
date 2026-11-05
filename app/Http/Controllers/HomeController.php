@@ -98,14 +98,28 @@ class HomeController extends Controller
 
         $members = User::where('organization_id', $organizationId)
             ->activeAccount()
-            ->when($recherche !== '', function ($q) use ($recherche) {
+            ->when($recherche !== '', function ($q) use ($recherche, $organization) {
                 $like = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
                 $motif = '%'.$recherche.'%';
 
-                $q->where(function ($w) use ($like, $motif) {
+                // TASK-1762 point 9 — la structure entre dans la recherche,
+                // mais SEULEMENT si l'Organization a ouvert le champ.
+                //
+                // Ce n'est pas une precaution de forme : decocher la case
+                // n'efface AUCUNE donnee (c'est garde par un test du point 2).
+                // Une Organization qui a essaye puis renonce garde donc des
+                // structures en base, et une recherche non bornee les rendrait
+                // trouvables alors qu'elles ne s'affichent plus nulle part.
+                $chercheLaStructure = structureIsShown($organization);
+
+                $q->where(function ($w) use ($like, $motif, $chercheLaStructure) {
                     $w->where('first_name', $like, $motif)
                         ->orWhere('name', $like, $motif)
                         ->orWhereRaw("COALESCE(first_name, '') || ' ' || COALESCE(name, '') ".$like.' ?', [$motif]);
+
+                    if ($chercheLaStructure) {
+                        $w->orWhere('structure', $like, $motif);
+                    }
                 });
             })
             ->withCount([

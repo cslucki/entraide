@@ -12,7 +12,12 @@
         <form method="GET" action="{{ url()->current() }}" class="mb-6 flex flex-wrap items-center gap-2" data-directory-search>
             <label for="directory-q" class="sr-only">{{ __('directory.search_label') }}</label>
             <input id="directory-q" type="search" name="q" value="{{ $recherche }}"
-                   placeholder="{{ __('directory.search_placeholder') }}"
+                   {{-- TASK-1762 point 9 — le texte d'invite suit ce que la
+                        recherche couvre reellement. Annoncer « prenom ou nom »
+                        alors qu'elle trouve aussi les structures ferait manquer
+                        la moitie de ce qu'elle sait faire ; l'annoncer quand le
+                        champ est ferme promettrait l'inverse. --}}
+                   placeholder="{{ structureIsShown() ? __('directory.search_placeholder_with_structure') : __('directory.search_placeholder') }}"
                    class="w-full sm:w-80 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
             <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">{{ __('directory.search_submit') }}</button>
             @if($recherche !== '')

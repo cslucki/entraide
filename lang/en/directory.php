@@ -24,6 +24,9 @@ return [
     'articles_title' => 'Published articles',
     'loops_title' => 'Loops',
     'search_placeholder' => 'Search by first or last name...',
+
+    // TASK-1762 point 9 — used when the Organization has opened the Structure field.
+    'search_placeholder_with_structure' => 'Search by first name, last name or organisation...',
     'search_label' => 'Search for a member',
     'search_submit' => 'Search',
     'search_clear' => 'Clear',

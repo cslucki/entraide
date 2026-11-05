@@ -24,6 +24,9 @@ return [
     'articles_title' => 'Articles publiés',
     'loops_title' => 'Boucles',
     'search_placeholder' => 'Rechercher par prénom ou nom…',
+
+    // TASK-1762 point 9 — employé quand l'Organization a ouvert le champ Structure.
+    'search_placeholder_with_structure' => 'Rechercher par prénom, nom ou structure…',
     'search_label' => 'Rechercher un membre',
     'search_submit' => 'Rechercher',
     'search_clear' => 'Effacer',
