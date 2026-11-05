@@ -262,7 +262,7 @@ class TASK1750ProfileLinksTest extends TestCase
         $this->assertStringContainsString('data-profile-link-add', $html);
         $this->assertStringContainsString(e(__('profile.links_heading')), $html);
 
-        // Les cinq types sont proposes, et le libelle est traduit.
+        // Tous les types sont proposes, et le libelle est traduit.
         foreach (ProfileLinks::clefs() as $clef) {
             $this->assertStringContainsString('value="'.$clef.'"', $html,
                 "Le type « {$clef} » n'est pas propose.");

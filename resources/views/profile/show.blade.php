@@ -248,12 +248,21 @@
                         {{-- Les liens supplementaires. `ProfileLinks::hote()`
                              retombe sur l'URL complete quand `parse_url()` ne
                              rend pas d'hote, pour ne jamais afficher une
-                             pastille sans texte. --}}
+                             pastille sans texte.
+
+                             TASK-1762 point 18 — chaque TYPE porte desormais
+                             son propre pictogramme (demande de Cyril : « pour
+                             Instagram, l'icone d'Instagram »), plus seulement
+                             sa couleur. `iconeRemplie()` choisit le mode de
+                             rendu : un logo de marque est plein, une icone de
+                             trait (site web, blog, app) garde le gabarit
+                             Heroicons du reste de l'application. --}}
                         @foreach($_liensDeclares as $_lien)
+                        @php($_remplie = \App\Support\ProfileLinks::iconeRemplie($_lien['type']))
                         <a href="{{ $_lien['url'] }}" target="_blank" rel="noopener noreferrer"
                            data-profile-link="{{ $_lien['type'] }}"
                            class="inline-flex items-center gap-1 text-xs hover:underline {{ \App\Support\ProfileLinks::couleur($_lien['type']) }}">
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m4.5-4.5l1.5-1.5a4 4 0 015.656 5.656l-3 3a4 4 0 01-5.656 0"/></svg>
+                            <svg class="w-3.5 h-3.5" fill="{{ $_remplie ? 'currentColor' : 'none' }}" viewBox="0 0 24 24" @unless($_remplie) stroke="currentColor" @endunless>{!! \App\Support\ProfileLinks::icone($_lien['type']) !!}</svg>
                             <span class="sr-only">{{ \App\Support\ProfileLinks::libelle($_lien['type']) }} —</span>
                             {{ \App\Support\ProfileLinks::hote($_lien['url']) }}
                         </a>

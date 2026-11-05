@@ -115,7 +115,9 @@ return [
     'links_add' => 'Ajouter un lien',
     'links_remove' => 'Retirer ce lien',
     'link_type_instagram' => 'Instagram',
-    'link_type_twitter' => 'Twitter',
+    // TASK-1762 point 18 — demande de Cyril : le reseau a change de nom.
+    'link_type_twitter' => 'X (ex Twitter)',
+    'link_type_facebook' => 'Facebook',
     'link_type_website' => 'Site web',
     'link_type_blog' => 'Blog',
     'link_type_app' => 'Application',

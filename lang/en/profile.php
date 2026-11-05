@@ -119,7 +119,9 @@ return [
     'links_add' => 'Add a link',
     'links_remove' => 'Remove this link',
     'link_type_instagram' => 'Instagram',
-    'link_type_twitter' => 'Twitter',
+    // TASK-1762 point 18 — Cyril's request: the network's name changed.
+    'link_type_twitter' => 'X (formerly Twitter)',
+    'link_type_facebook' => 'Facebook',
     'link_type_website' => 'Website',
     'link_type_blog' => 'Blog',
     'link_type_app' => 'App',
