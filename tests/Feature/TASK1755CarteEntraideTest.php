@@ -207,6 +207,37 @@ class TASK1755CarteEntraideTest extends TestCase
         $this->assertContains('cancel_withdraw', $marqueurs($this->aide));
     }
 
+    /**
+     * La carte est REELLEMENT rendue dans le fil, avec ses quatre parties.
+     *
+     * Les tests precedents mesurent la DECISION ; celui-ci verifie qu'elle
+     * arrive a l'ecran. Il ne mesure pas la visibilite — `assertSee()` en est
+     * incapable — seulement que les marqueurs sortent, ce que la recette
+     * navigateur completera.
+     */
+    public function test_la_carte_est_rendue_dans_le_fil(): void
+    {
+        $echange = $this->echange('pending');
+
+        $html = $this->actingAs($this->aidant)
+            ->get(route('messages.show', $echange))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-entraide-carte', $html);
+        $this->assertStringContainsString('data-entraide-phrase', $html);
+        $this->assertStringContainsString('data-entraide-etapier="1"', $html);
+        // L'auteur de l'annonce decide : c'est lui qui porte « Accepter ».
+        $this->assertStringContainsString('data-entraide-action="accept"', $html);
+        $this->assertStringContainsString('data-entraide-action="cancel_exchange"', $html);
+
+        // Et celui qui recoit l'aide ne porte PAS l'action principale.
+        $autre = $this->actingAs($this->aide)
+            ->get(route('messages.show', $echange))->assertOk()->getContent();
+        $this->assertStringNotContainsString('data-entraide-action="accept"', $autre);
+        $this->assertStringContainsString('data-entraide-action="cancel_withdraw"', $autre);
+    }
+
     /** La phrase est TRADUITE — jamais figee en francais. */
     public function test_la_phrase_est_traduite(): void
     {
