@@ -1,6 +1,23 @@
 <?php
 
 return [
+    // TASK-1752 — les evenements automatiques.
+    //
+    // Aucun libelle ne dit « vient de » : la meme ligne relue une semaine plus
+    // tard serait fausse, et elle porte deja sa date juste a cote. Le temps du
+    // verbe est un choix gratuit puisque le libelle est CALCULE a l'affichage
+    // — c'est aussi ce qui permet la reprise d'historique antidatee.
+    'events' => [
+        'badge' => 'Activite',
+        'presentation_completed' => ':name a fini sa présentation',
+        'help_request_published' => ':name a publié une demande d\'aide',
+        'service_published' => ':name a publié une proposition d\'aide',
+        'loop_joined' => ':name a rejoint la Boucle :object',
+        'loop_created' => ':name a créé la Boucle :object',
+        'loop_event_created' => ':name a créé l\'évènement :object',
+        'object_gone' => 'un contenu supprimé',
+    ],
+
     'organization' => 'Organisation',
     'title' => 'Flux',
     'subtitle' => 'Annonces utiles, décisions et informations à retenir.',

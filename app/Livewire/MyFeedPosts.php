@@ -35,7 +35,14 @@ class MyFeedPosts extends Component
     {
         $post = FeedPost::findOrFail($feedPostId);
 
-        if (! auth()->user() || ! auth()->user()->can('pin', FeedPost::class)) {
+        // TASK-1752 — on passe L'ANNONCE, pas la classe.
+        //
+        // Avec la classe, la policy ne voyait que l'acteur : elle validait son
+        // appartenance et laissait passer une cible d'une AUTRE Organization.
+        // `FeedPost` n'ayant pas de scope global, le `findOrFail` ci-dessus ne
+        // borne rien non plus. Ses deux voisines `delete()` et `publishNow()`
+        // passaient deja l'objet — c'est cette methode qui etait l'exception.
+        if (! auth()->user() || ! auth()->user()->can('pin', $post)) {
             abort(403);
         }
 

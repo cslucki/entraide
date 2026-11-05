@@ -57,8 +57,38 @@ class FeedPostPolicy
             return false;
         }
 
-        return $user->organization_id === $org->id
-            && $feedPost->organization_id === $org->id;
+        if ($user->organization_id !== $org->id || $feedPost->organization_id !== $org->id) {
+            return false;
+        }
+
+        // TASK-1752 — l'AUDIENCE, et c'est ce qui rend le filtre de liste
+        // autre chose qu'un maquillage.
+        //
+        // Sans ce controle, une ligne restreinte a une Boucle disparaitrait du
+        // Flux mais resterait atteignable par son URL directe — `/flux/{id}` —
+        // et la garde ne protegerait que ceux qui ne cherchent pas.
+        //
+        // `react` et `comment` DELEGUENT a cette methode : la restriction les
+        // suit sans qu'on ait a y penser, ce qui est exactement pourquoi elle
+        // se pose ici et pas dans le composant.
+        if (($feedPost->visibility ?? 'organization') !== 'loop') {
+            return true;
+        }
+
+        if ($user->is_admin) {
+            return true;
+        }
+
+        if ($feedPost->loop_id === null) {
+            // Restreinte sans Boucle nommee : personne ne peut en etre membre.
+            // Fail-closed — dans le doute, on montre moins.
+            return false;
+        }
+
+        return \App\Models\LoopMember::where('loop_id', $feedPost->loop_id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
     }
 
     public function react(User $user, FeedPost $feedPost): bool
@@ -71,7 +101,41 @@ class FeedPostPolicy
         return $this->view($user, $feedPost);
     }
 
-    public function pin(User $user): bool
+    /**
+     * TASK-1752 — `$feedPost` devient un ARGUMENT, et c'est le correctif.
+     *
+     * ## L'ecriture cross-tenant que cette signature ferme
+     *
+     * Cette methode ne recevait que l'acteur. Elle ne verifiait donc que
+     * l'appartenance de CELUI QUI DEMANDE, jamais celle de l'objet vise. Trois
+     * faits se combinaient :
+     *
+     *  1. `FeedPost` n'a PAS de scope global d'Organization — contrairement a
+     *     `Service` et `ServiceRequest`. `HasOrganizationId` ne fait que
+     *     REMPLIR la colonne a la creation ;
+     *  2. `MyFeedPosts::togglePin()` resolvait l'annonce par `findOrFail()`,
+     *     sans portee ;
+     *  3. le `saving` de `FeedPost` DEPINGLE EN MASSE les autres annonces de
+     *     l'Organization de la cible des qu'un `pinned_at` devient non-nul.
+     *
+     * Resultat mesure : l'administrateur de l'Organization A epinglait une
+     * annonce de B, `pinned_by_id` enregistrait quelqu'un qui n'est pas membre
+     * du tenant modifie, et l'epinglage precedent de B disparaissait en
+     * silence. Sur l'invariant n°1 d'`AGENTS.md`.
+     *
+     * ## Pourquoi `?FeedPost` et non `FeedPost`
+     *
+     * `CreateFeedPost` demande la permission AVANT que l'annonce existe
+     * (`can('pin', FeedPost::class)`), et la vue `my-feed-posts` fait de meme
+     * pour decider d'afficher le bouton. Ces deux appels n'ont pas d'objet a
+     * donner, et leur question est legitime : « cette personne a-t-elle le
+     * droit d'epingler, en general ? ».
+     *
+     * L'argument est donc FACULTATIF — mais des qu'il est fourni, la frontiere
+     * de locataire est verifiee. C'est la forme qui laisse les trois appelants
+     * poser leur vraie question.
+     */
+    public function pin(User $user, ?FeedPost $feedPost = null): bool
     {
         if ($user->banned_at) {
             return false;
@@ -84,6 +148,12 @@ class FeedPostPolicy
         }
 
         if ($user->organization_id !== $org->id) {
+            return false;
+        }
+
+        // LA ligne qui manquait. Un objet nomme doit appartenir au locataire
+        // courant, quel que soit le rang de celui qui demande.
+        if ($feedPost !== null && $feedPost->organization_id !== $org->id) {
             return false;
         }
 

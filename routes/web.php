@@ -728,6 +728,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/roadmap/{item}', [AdminRoadmapController::class, 'update'])->name('roadmap.update');
     Route::delete('/roadmap/{item}', [AdminRoadmapController::class, 'destroy'])->name('roadmap.destroy');
 
+    // TASK-1752 — le Flux, toutes Organizations. Meme groupe `['auth','admin']`
+    // que la Roadmap : surface PLATEFORME, jamais un administrateur d'Org.
+    Route::get('/flux', [\App\Http\Controllers\Admin\AdminFeedController::class, 'index'])->name('feed');
+    Route::put('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'update'])->name('feed.update');
+    Route::delete('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'destroy'])->name('feed.destroy');
+    Route::put('/flux/commentaire/{comment}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'basculerCommentaire'])->name('feed.comment.toggle');
+    Route::post('/flux/reprendre-historique', [\App\Http\Controllers\Admin\AdminFeedController::class, 'reprendreHistorique'])->name('feed.replay');
+
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
     Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');
     // TASK-1716 — la reouverture d'un compte ferme par son proprietaire.

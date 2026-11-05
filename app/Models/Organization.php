@@ -37,6 +37,9 @@ class Organization extends Model
         'service_points_min',
         'service_points_max',
         'loops_enabled',
+        // TASK-1752 — l'interrupteur des evenements automatiques du Flux.
+        // Defaut ACTIVE : il existe pour pouvoir ETEINDRE.
+        'feed_auto_events_enabled',
         // TASK-1694 bug R — « Possibilite modifier emails types ».
         'system_emails_editable',
         // TASK-1694 bug AE — la disponibilite des membres est-elle affichee ?
@@ -95,6 +98,7 @@ class Organization extends Model
             'service_points_min' => 'integer',
             'service_points_max' => 'integer',
             'loops_enabled' => 'boolean',
+            'feed_auto_events_enabled' => 'boolean',
             'system_emails_editable' => 'boolean',
             'availability_enabled' => 'boolean',
             'members_can_create_loops' => 'boolean',

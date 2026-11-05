@@ -10,6 +10,8 @@ use App\Models\User;
 use App\Services\Loops\LoopRootDocumentService;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmissionConflict;
 use App\Support\Notifications\NotificationEmitter;
@@ -65,6 +67,15 @@ class LoopService
         if ($owner !== null) {
             $this->addMember($loop, $owner, 'owner');
         }
+
+        // TASK-1752 — la naissance de la Boucle entre au Flux.
+        //
+        // `organization` sans reserve, meme pour une Boucle privee : depuis
+        // T1075, « privee » veut dire « contenu verrouille », pas « cachee ».
+        // Toute Boucle active est deja au catalogue avec son nom, son nombre
+        // de membres et ses animateurs. L'annoncer ne revele donc RIEN de
+        // nouveau — contrairement a une adhesion, qui revele une appartenance.
+        $this->annoncerCreationAuFlux($loop, $owner ?? $creator);
 
         // Was missing here while createLoop() had it: a Loop created from the
         // admin came out with no cards at all and relied on the fallback.
@@ -148,6 +159,8 @@ class LoopService
 
         $this->addMember($loop, $user, 'owner');
 
+        $this->annoncerCreationAuFlux($loop, $user);
+
         // The type's card preset defines the Loop's starting composition
         // (TASK-1079). Additive and idempotent — see LoopTypeRegistry.
         app(LoopTypeRegistry::class)->applyPreset($loop);
@@ -225,6 +238,7 @@ class LoopService
         ]);
 
         $this->notifierAjoutDirect($loop, $user, $actor, $soldees, $membre);
+        $this->annoncerAdhesionAuFlux($loop, $user, $role, $membre);
 
         return $membre;
     }
@@ -336,7 +350,7 @@ class LoopService
 
         $this->resolvePendingJoinRequests($loop, $user->id);
 
-        return LoopMember::create([
+        $appartenance = LoopMember::create([
             'loop_id' => $loop->id,
             'user_id' => $user->id,
             'role' => $role,
@@ -344,6 +358,12 @@ class LoopService
             'joined_at' => now(),
             'organization_id' => $loop->organization_id,
         ]);
+
+        // `$role` porte ici `owner` a la naissance de la Boucle : la methode
+        // l'ecarte elle-meme, pour que l'exclusion vive en UN endroit.
+        $this->annoncerAdhesionAuFlux($loop, $user, $role, $appartenance);
+
+        return $appartenance;
     }
 
     /**
@@ -475,7 +495,7 @@ class LoopService
 
         $this->resolvePendingJoinRequests($loop, $user->id, $user);
 
-        return LoopMember::create([
+        $appartenance = LoopMember::create([
             'loop_id' => $loop->id,
             'user_id' => $user->id,
             'role' => 'member',
@@ -483,6 +503,10 @@ class LoopService
             'joined_at' => now(),
             'organization_id' => $loop->organization_id,
         ]);
+
+        $this->annoncerAdhesionAuFlux($loop, $user, 'member', $appartenance);
+
+        return $appartenance;
     }
 
     public function requestToJoin(Loop $loop, User $user, ?string $message = null): LoopJoinRequest
@@ -561,6 +585,16 @@ class LoopService
             NotificationCatalogue::LOOP_JOIN_REQUEST_ACCEPTED,
             $decidedBy,
         );
+
+        // TASK-1752 — quatrieme et dernier site d'adhesion. Hors transaction
+        // pour la meme raison que la notification ci-dessus : un effet de bord
+        // ne doit pas pouvoir annuler l'adhesion elle-meme.
+        $boucle = Loop::find($joinRequest->loop_id);
+        $nouveauMembre = User::find($joinRequest->user_id);
+
+        if ($boucle !== null && $nouveauMembre !== null) {
+            $this->annoncerAdhesionAuFlux($boucle, $nouveauMembre, 'member', $member);
+        }
 
         return $member;
     }
@@ -654,6 +688,99 @@ class LoopService
      *  - **on s'ajoute soi-meme** : rejoindre une Boucle ouverte est un geste
      *    qu'on vient de faire. S'en avertir serait absurde.
      */
+    /**
+     * TASK-1752 — le Flux apprend qu'une personne a rejoint une Boucle.
+     *
+     * ## Pourquoi une methode privee appelee aux QUATRE sites
+     *
+     * `LoopMember::create()` apparait quatre fois dans cette classe : ajout
+     * direct, naissance de la Boucle, adhesion ouverte, acceptation d'une
+     * demande. **Il n'y a donc aucun point de passage oblige unique.**
+     *
+     * Un observateur Eloquent aurait couvert les quatre d'un coup — mais aussi
+     * les seeders et les packs de scenarios, qui creent des dizaines
+     * d'appartenances : charger un pack aurait rempli le Flux. Les quatre
+     * appels, un par un, laisseraient le defaut de T1693 bug L se reproduire
+     * au cinquieme site.
+     *
+     * Cette methode est le compromis que le fichier emploie DEJA pour les
+     * notifications (`notifierAjoutDirect`, `resolvePendingJoinRequests`) :
+     * un seul corps, des appels explicites. Les seeders ne passent pas par
+     * `LoopService` et restent donc muets, sans avoir rien a neutraliser.
+     *
+     * ## Les deux exclusions, et pourquoi elles ne sont pas des details
+     *
+     * - **`owner` a la naissance** : sans cela, creer une Boucle produirait
+     *   DEUX lignes — « X a cree la Boucle » et « X a rejoint la Boucle ».
+     * - **Les agents IA** : `AiAgentLoopController` inscrit un agent comme
+     *   membre. Ce n'est pas une personne, et le Flux parle de personnes.
+     *
+     * L'audience est tranchee par le registre : `organization` si la Boucle
+     * est publique, `loop` si elle est privee. Annoncer « Marie a rejoint le
+     * Conseil de direction » a toute l'Organization revelerait une
+     * appartenance que le produit n'expose nulle part.
+     */
+    /**
+     * TASK-1752 — la naissance d'une Boucle entre au Flux.
+     *
+     * Deux sites, comme l'adhesion en a quatre : `createLoopForOrg()` (le
+     * chemin administration, SuperAdmin et packs de scenarios) et
+     * `createLoop()` (le chemin membre). La methode porte l'exclusion des
+     * agents IA, dont les Boucles ne sont pas des Boucles de personnes.
+     *
+     * Audience `organization` sans reserve — voir le commentaire a l'appel.
+     */
+    private function annoncerCreationAuFlux(Loop $loop, ?User $auteur): void
+    {
+        if ($auteur === null || $loop->isAiAgent()) {
+            return;
+        }
+
+        rescue(fn () => app(FeedEventEmitter::class)->emettre(
+            FeedEventCatalogue::BOUCLE_CREEE,
+            $loop,
+            $auteur,
+            (string) $loop->organization_id,
+        ), report: true);
+    }
+
+    private function annoncerAdhesionAuFlux(Loop $loop, User $membre, string $role = 'member', ?LoopMember $appartenance = null): void
+    {
+        if ($role === 'owner') {
+            return;
+        }
+
+        // Une Boucle d'agent IA n'est pas une Boucle de personnes.
+        //
+        // `AiAgentLoopController` n'emprunte deja PAS ce service — il ecrit
+        // `Loop::create()` et `LoopMember::create()` directement — donc ce
+        // chemin ne peut pas l'atteindre aujourd'hui. Le test est pose quand
+        // meme : le jour ou l'on routerait ces Boucles par `LoopService`,
+        // l'exclusion serait deja en place plutot qu'a redecouvrir.
+        if ($loop->isAiAgent()) {
+            return;
+        }
+
+        // L'objet est l'APPARTENANCE : avec la Boucle, la contrainte unique
+        // n'aurait garde que la PREMIERE personne a la rejoindre.
+        $appartenance ??= LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $membre->id)
+            ->latest('created_at')
+            ->first();
+
+        if ($appartenance === null) {
+            return;
+        }
+
+        rescue(fn () => app(FeedEventEmitter::class)->emettre(
+            FeedEventCatalogue::ADHESION_BOUCLE,
+            $appartenance,
+            $membre,
+            (string) $loop->organization_id,
+            $loop,
+        ), report: true);
+    }
+
     private function notifierAjoutDirect(
         Loop $loop,
         User $membre,

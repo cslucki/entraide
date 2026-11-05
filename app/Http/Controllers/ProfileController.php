@@ -12,6 +12,8 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Rules\NomDePersonneAcceptable;
 use App\Services\UserSlugService;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 use App\Support\ProfileLinks;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -380,6 +382,25 @@ class ProfileController extends Controller
         // non sur l'URL — elle est immuable depuis TASK-1726.
         $moiAEnregistrer = $request->user();
 
+        // TASK-1752 — « presentation terminee » est une TRANSITION.
+        //
+        // La definition du produit est unique et tient en une ligne :
+        // `MemberOnboardingSteps::doneFor()` dit `filled($user->bio)`. Il n'y
+        // a pas de colonne `presentation_completed_at`, pas d'etat persiste —
+        // et le docblock de cette classe explique pourquoi : elle existe pour
+        // qu'il n'y ait PAS de seconde verite d'onboarding. En inventer une
+        // ici la contredirait.
+        //
+        // Il faut donc observer le PASSAGE de vide a rempli, et le capturer
+        // AVANT le `save()` : apres, `getOriginal()` a deja bascule et la
+        // transition est invisible.
+        //
+        // Un `PUT /profile` ordinaire — changer son telephone — ne doit rien
+        // emettre. Et vider puis remplir a nouveau sa bio ne doit pas
+        // reannoncer : c'est la contrainte d'unicite qui l'achete, pas ce test.
+        $presentationVientDEtreEcrite = blank($moiAEnregistrer->getOriginal('bio'))
+            && filled($data['bio'] ?? null);
+
         DB::transaction(function () use ($moiAEnregistrer, $data) {
             UserWriteLock::acquire();
 
@@ -395,6 +416,15 @@ class ProfileController extends Controller
 
             $moiAEnregistrer->save();
         });
+
+        if ($presentationVientDEtreEcrite) {
+            rescue(fn () => app(FeedEventEmitter::class)->emettre(
+                FeedEventCatalogue::PRESENTATION_TERMINEE,
+                $moiAEnregistrer,
+                $moiAEnregistrer,
+                (string) $moiAEnregistrer->organization_id,
+            ), report: true);
+        }
 
         // TASK-1693 / bug A — destination DETERMINISTE, jamais `intended()`.
         //

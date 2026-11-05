@@ -54,6 +54,29 @@ class User extends Authenticatable implements MustVerifyEmail
 
     protected static function booted(): void
     {
+        // TASK-1752 — un evenement de Flux part avec son acteur.
+        //
+        // `feed_posts.user_id` est en `restrict` : une ligne d'evenement
+        // empecherait purement et simplement de supprimer le compte. Et la
+        // transferer serait pire — « Jean a fini sa presentation » attribue a
+        // quelqu'un d'autre est une phrase fausse, affichee telle quelle
+        // puisque le libelle est rendu depuis `$post->user`.
+        //
+        // La regle vit ICI, et non dans `UserDataLifecycleRegistry` seul,
+        // parce qu'une suppression peut emprunter d'autres chemins — un
+        // `delete()` direct, un test, une reprise de donnees. Une regle qui ne
+        // s'applique qu'a une porte n'est pas une regle.
+        //
+        // Les ANNONCES ecrites a la main ne sont pas touchees : elles gardent
+        // leur sens sans leur auteur, et le registre continue de les
+        // transferer.
+        static::deleting(function (User $user) {
+            \App\Models\FeedPost::withTrashed()
+                ->where('user_id', $user->id)
+                ->whereNotNull('object_type')
+                ->forceDelete();
+        });
+
         static::creating(function (User $user) {
             if (! $user->isDirty('referral_code')) {
                 $user->referral_code = app(ReferralCodeGenerator::class)->generate($user);
