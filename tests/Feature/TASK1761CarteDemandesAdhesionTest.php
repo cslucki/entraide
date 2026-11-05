@@ -210,6 +210,22 @@ class TASK1761CarteDemandesAdhesionTest extends TestCase
             ->assertRedirect(route('admin.dashboard'));
     }
 
+    /**
+     * 🔴 Et SANS referent, elle retombe sur la fiche de la Boucle.
+     *
+     * `back()` seul rend la racine du site des qu'il n'y a pas de referent —
+     * un POST direct, un client qui n'en envoie pas. La CI l'a montre sur deux
+     * tests de T1693. Le repli restitue le comportement d'avant la TASK.
+     */
+    public function test_sans_referent_la_decision_retombe_sur_la_fiche_de_la_boucle(): void
+    {
+        $demande = $this->demandeEnAttente($this->orgA);
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.loops.join-requests.accept', [$demande->loop, $demande]))
+            ->assertRedirect(route('admin.loops.edit', $demande->loop));
+    }
+
     /** 🔴 Un membre ordinaire n'approche pas de ces gestes. */
     public function test_un_membre_ordinaire_ne_peut_ni_voir_ni_decider(): void
     {

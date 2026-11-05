@@ -739,17 +739,18 @@ class AdminLoopController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        // TASK-1761 point 2 — `back()` et non la fiche de la Boucle.
+        // TASK-1761 point 2 — `back()`, pour que la decision prise depuis la carte
+        // du tableau de bord ne quitte pas le tableau de bord.
         //
-        // Cette route sert desormais DEUX surfaces : la fiche de la Boucle et
-        // la carte du SuperAdmin, qui vit sur le tableau de bord et sur
-        // `/admin/loops`. Rediriger vers la fiche arracherait le SuperAdmin a
-        // sa page a chaque decision — l'inverse exact de « gerer les demandes
-        // rapidement ».
+        // **Avec un repli explicite sur la fiche de la Boucle.** Mon commentaire
+        // precedent affirmait que `back()` suffisait « puisque depuis la fiche,
+        // back() EST la fiche ». C'est vrai dans un navigateur et FAUX des qu'il
+        // n'y a pas de referent : `back()` rend alors la racine du site. La CI
+        // l'a montre sur deux tests de T1693 qui ne posent pas de referent.
         //
-        // Depuis la fiche, `back()` EST la fiche : le comportement d'avant ne
-        // change pas.
-        return back()->with('success', __($accepte ? 'admin.loop_join_request_accepted' : 'admin.loop_join_request_rejected'));
+        // Le repli restitue exactement le comportement d'avant la TASK.
+        return back(fallback: route('admin.loops.edit', $loop))
+            ->with('success', __($accepte ? 'admin.loop_join_request_accepted' : 'admin.loop_join_request_rejected'));
     }
 
     public function addMember(Request $request, Loop $loop): RedirectResponse
