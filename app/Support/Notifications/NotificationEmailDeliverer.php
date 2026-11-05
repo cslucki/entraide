@@ -10,8 +10,8 @@ use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
 use App\Models\Transaction;
 use App\Models\User;
-use App\Services\Transactions\TransactionProposalMailer;
 use App\Services\Loops\LoopInvitationMailer;
+use App\Services\Transactions\TransactionProposalMailer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Mail;
@@ -459,6 +459,54 @@ final class NotificationEmailDeliverer
 
             $reel = $mailer->composeForMember($loop, $destinataire, $acteur, $cible, $locale);
             $expurge = $mailer->composeForMember($loop, $destinataire, $acteur, self::LIEN_EXPURGE, $locale);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
+        // TASK-1761 point 1 — la DEMANDE d'adhesion, cote PROPRIETAIRE.
+        //
+        // ## Le defaut que cette branche ferme, trouve par la recette de Cyril
+        //
+        // La cle et le gabarit existaient, mais **aucune branche ne les
+        // reliait** : `rendreDepuisGabarit()` rendait `null`, et l'email
+        // partait par le repli de langue — sans le nom de la Boucle ni celui du
+        // demandeur. Meme famille que la branche `OBJECT_TRANSACTION`
+        // manquante de T1751 : ajouter une cle au catalogue ne suffit JAMAIS,
+        // il faut aussi la brancher ici.
+        //
+        // L'objet est la DEMANDE, pas la Boucle : il faut la relire pour
+        // l'atteindre. Scopes retires puis frontiere de tenant reposee a la
+        // main — ce code tourne sous worker, ou `current_organization`
+        // n'existe pas.
+        if ($cle === NotificationCatalogue::LOOP_JOIN_REQUEST_CREATED) {
+            $demande = LoopJoinRequest::query()
+                ->withoutGlobalScopes()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($demande === null) {
+                return null;
+            }
+
+            $loop = Loop::withoutGlobalScopes()->find((string) $demande->loop_id);
+
+            if ($loop === null) {
+                return null;
+            }
+
+            // Le DEMANDEUR est l'acteur de la notification — pas le
+            // destinataire, qui est le proprietaire.
+            $demandeur = $notification->actor_id
+                ? User::find((string) $notification->actor_id)
+                : User::find((string) $demande->user_id);
+
+            $reel = $mailer->composeForJoinRequestCreated($loop, $destinataire, $demandeur, $cible, $locale);
+            $expurge = $mailer->composeForJoinRequestCreated($loop, $destinataire, $demandeur, self::LIEN_EXPURGE, $locale);
 
             return [
                 'subject' => $reel['subject'],
