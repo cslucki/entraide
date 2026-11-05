@@ -1,6 +1,14 @@
 <?php
 
 return [
+    // TASK-1755 §9.6 — le profil comme bilan d'entraide, pas comme solde.
+    'bilan' => [
+        'personnes_aidees' => '{0}person helped|{1}person helped|[2,*]people helped',
+        'fois_aide' => '{0}times helped|{1}time helped|[2,*]times helped',
+        'temps_offert' => 'of time offered',
+        'mercis' => '{0}no thanks yet|{1}:count thank-you received|[2,*]:count thanks received',
+    ],
+
     'back_to_directory' => 'Back to directory',
     'edit_profile' => 'Edit my profile',
     'available' => 'Available',

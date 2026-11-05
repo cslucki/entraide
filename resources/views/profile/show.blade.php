@@ -122,9 +122,13 @@
                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             {{ trans_choice('profile.exchanges', $completedCount, ['count' => $completedCount]) }}
                         </span>
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-lg text-xs font-medium">
+                        {{-- TASK-1755 §9.6 — le TEMPS disponible, pas un solde
+                             comptable. Meme donnee, lecture d'entraide
+                             (arbitrage Q8 : double affichage). --}}
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-lg text-xs font-medium"
+                              data-entraide-temps>
                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            {{ $user->points_balance }} pts
+                            {{ \App\Support\Entraide\TempsPartage::solde($user->points_balance) }}
                         </span>
                         @if($user->public_location)
                         <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 rounded-lg text-xs font-medium">
@@ -132,6 +136,55 @@
                         </span>
                         @endif
                     </div>
+
+                    {{-- TASK-1755 §9.6 (maquette M4 droite) — LE BILAN D'ENTRAIDE.
+
+                         Le profil disait un solde. C'est un chiffre de
+                         portefeuille : il ne raconte rien de ce que la personne
+                         a fait pour les autres. Trois nombres le remplacent, et
+                         les MOTS de remerciement les accompagnent — un compteur
+                         seul ne rend pas la gratitude.
+
+                         Rien ne s'affiche quand le bilan est vide : « 0 personne
+                         · 0 fois · 0 min » est un reproche, pas un bilan. --}}
+                    @unless(\App\Support\Entraide\BilanEntraide::estVide($bilan))
+                    <div class="mt-4" data-entraide-bilan>
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            @foreach([
+                                ['valeur' => $bilan['personnes_aidees'], 'cle' => 'personnes_aidees', 'marqueur' => 'personnes'],
+                                ['valeur' => $bilan['fois_aide'], 'cle' => 'fois_aide', 'marqueur' => 'fois'],
+                            ] as $_chiffre)
+                                <div class="rounded-xl border border-gray-200 bg-white px-2 py-3 dark:border-gray-700 dark:bg-gray-800">
+                                    <p class="text-xl font-bold text-indigo-600 dark:text-indigo-400 tabular-nums"
+                                       data-entraide-bilan-{{ $_chiffre['marqueur'] }}>{{ $_chiffre['valeur'] }}</p>
+                                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ trans_choice('profile.bilan.'.$_chiffre['cle'], $_chiffre['valeur']) }}</p>
+                                </div>
+                            @endforeach
+                            <div class="rounded-xl border border-gray-200 bg-white px-2 py-3 dark:border-gray-700 dark:bg-gray-800">
+                                <p class="text-xl font-bold text-indigo-600 dark:text-indigo-400 tabular-nums" data-entraide-bilan-temps>
+                                    {{ \App\Support\Entraide\BilanEntraide::tempsOffert($bilan['temps_offert']) }}
+                                </p>
+                                <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('profile.bilan.temps_offert') }}</p>
+                            </div>
+                        </div>
+
+                        @if($bilan['mercis'] > 0)
+                        <div class="mt-3">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400" data-entraide-bilan-mercis>
+                                🙏 {{ trans_choice('profile.bilan.mercis', $bilan['mercis']) }}
+                            </p>
+                            <div class="mt-2 space-y-2">
+                                @foreach($mercis as $_merci)
+                                    <blockquote class="border-s-2 border-amber-400 ps-2.5 text-xs italic text-gray-600 dark:text-gray-300">
+                                        « {{ $_merci->comment }} »
+                                        <span class="not-italic text-gray-400">— {{ $_merci->reviewer?->first_name ?: ($_merci->reviewer?->name ?: __('profile.deactivated_user')) }}</span>
+                                    </blockquote>
+                                @endforeach
+                            </div>
+                        </div>
+                        @endif
+                    </div>
+                    @endunless
 
                     {{-- TASK-1750 — les liens declares s'ajoutent a la rangee
                          existante. La condition les prend en compte, sinon la
