@@ -54,21 +54,41 @@ use Illuminate\Support\Facades\Schema;
  *
  * `down()` retire les deux colonnes et rien d'autre : ni index, ni cle
  * etrangere, aucune autre colonne n'en depend.
+ *
+ * ## Idempotence des deux sens (TASK-1764)
+ *
+ * Les deux sens sont gardes par `Schema::hasColumn`, comme les autres
+ * migrations additives de ce lot. Le deploiement PROD est un
+ * `php artisan migrate --force` en push-to-deploy : une passe interrompue puis
+ * relancee, ou une repetition sur `prod_work`, ne doit pas echouer sur un
+ * `column already exists`. Et un `down()` non garde echoue sur une base ou la
+ * colonne n'a jamais ete posee.
  */
 return new class extends Migration
 {
+    private const COLONNES = ['capacity', 'min_participants'];
+
     public function up(): void
     {
         Schema::table('services', function (Blueprint $table) {
-            $table->smallInteger('capacity')->nullable()->after('points_cost');
-            $table->smallInteger('min_participants')->nullable()->after('capacity');
+            if (! Schema::hasColumn('services', 'capacity')) {
+                $table->smallInteger('capacity')->nullable()->after('points_cost');
+            }
+
+            if (! Schema::hasColumn('services', 'min_participants')) {
+                $table->smallInteger('min_participants')->nullable()->after('capacity');
+            }
         });
     }
 
     public function down(): void
     {
         Schema::table('services', function (Blueprint $table) {
-            $table->dropColumn(['capacity', 'min_participants']);
+            foreach (self::COLONNES as $colonne) {
+                if (Schema::hasColumn('services', $colonne)) {
+                    $table->dropColumn($colonne);
+                }
+            }
         });
     }
 };
