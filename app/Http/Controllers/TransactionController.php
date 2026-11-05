@@ -39,7 +39,11 @@ class TransactionController extends Controller
         $data = $request->validate([
             'service_id' => 'nullable|uuid|exists:services,id',
             'request_id' => 'nullable|uuid|exists:service_requests,id',
-            'points_proposed' => 'required|integer|min:1',
+            // TASK-1754 §9.3 — `min:0`, et c'est LA difference philosophique avec
+            // une place de marche : le don y est impossible, ici il doit etre un
+            // bouton. Arbitrage Q7 de Cyril : partout, pas seulement en reponse a
+            // une demande — une proposition d'aide peut aussi s'offrir.
+            'points_proposed' => 'required|integer|min:0',
         ]);
 
         $buyer = $actor;
@@ -283,7 +287,9 @@ class TransactionController extends Controller
         $this->authorize('adjust', $transaction);
 
         $data = $request->validate([
-            'points_proposed' => 'required|integer|min:1',
+            // TASK-1754 §9.3 — on doit pouvoir OFFRIR en cours de route, pas
+            // seulement a l'ouverture.
+            'points_proposed' => 'required|integer|min:0',
         ]);
 
         if ($transaction->status !== 'pending') {
@@ -366,26 +372,40 @@ class TransactionController extends Controller
                 return;
             }
 
-            $points = $tx->points_agreed;
+            $points = (int) $tx->points_agreed;
 
-            PointLedger::create([
-                'user_id' => $tx->buyer_id,
-                'transaction_id' => $tx->id,
-                'delta' => -$points,
-                'organization_id' => $tx->organization_id,
-                'reason' => 'exchange_spent',
-            ]);
+            // TASK-1754 §9.3 — un coup de main OFFERT ne touche NI le ledger NI
+            // les soldes.
+            //
+            // Deux lignes a zero seraient du bruit comptable : elles
+            // alourdiraient l'historique de points de chaque membre sans rien
+            // dire, et le ledger est la piece justificative des soldes — y
+            // ecrire des mouvements nuls le rend plus difficile a auditer, pas
+            // plus complet.
+            //
+            // Le reste de la choregraphie est INCHANGE : l'echange passe bien a
+            // `completed`, la demande se clot, le remerciement est propose. Un
+            // don traverse donc tout le cycle, il ne transfere simplement rien.
+            if ($points > 0) {
+                PointLedger::create([
+                    'user_id' => $tx->buyer_id,
+                    'transaction_id' => $tx->id,
+                    'delta' => -$points,
+                    'organization_id' => $tx->organization_id,
+                    'reason' => 'exchange_spent',
+                ]);
 
-            PointLedger::create([
-                'user_id' => $tx->seller_id,
-                'transaction_id' => $tx->id,
-                'delta' => $points,
-                'organization_id' => $tx->organization_id,
-                'reason' => 'exchange_earned',
-            ]);
+                PointLedger::create([
+                    'user_id' => $tx->seller_id,
+                    'transaction_id' => $tx->id,
+                    'delta' => $points,
+                    'organization_id' => $tx->organization_id,
+                    'reason' => 'exchange_earned',
+                ]);
 
-            $tx->buyer()->update(['points_balance' => DB::raw('points_balance - '.$points)]);
-            $tx->seller()->update(['points_balance' => DB::raw('points_balance + '.$points)]);
+                $tx->buyer()->update(['points_balance' => DB::raw('points_balance - '.$points)]);
+                $tx->seller()->update(['points_balance' => DB::raw('points_balance + '.$points)]);
+            }
 
             $tx->update([
                 'status' => 'completed',
