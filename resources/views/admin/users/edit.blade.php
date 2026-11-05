@@ -42,6 +42,25 @@
                     </div>
                 </div>
 
+                {{-- TASK-1762 point 7 — la structure, au meme endroit que sur
+                     l'ecran du membre : avant prenom et nom, sur toute la
+                     largeur.
+
+                     `structureIsShown($user->organization)` avec l'Organization
+                     EXPLICITE : le SuperAdmin edite ici des comptes de toutes
+                     les Organizations, et le drapeau est celui de la personne
+                     editee, pas celui de l'URL ni le sien. --}}
+                @if(structureIsShown($user->organization))
+                <div class="mb-4" data-admin-structure-field>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('profile.structure') }}</label>
+                    <input type="text" name="structure" value="{{ old('structure', $user->structure) }}" maxlength="255"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
+                    @error('structure')
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+                    @enderror
+                </div>
+                @endif
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.first_name') }}</label>

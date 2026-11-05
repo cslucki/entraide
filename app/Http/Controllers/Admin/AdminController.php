@@ -348,6 +348,21 @@ class AdminController extends Controller
             $update['membership_value'] = $request->input('membership_value');
         }
 
+        // TASK-1762 point 7 — la structure, modifiable par le SuperAdmin.
+        //
+        // Meme forme que son voisin, et pour la meme raison : la regle n'entre
+        // dans la validation QUE si l'Organization de la personne a ouvert le
+        // champ. Masquer le champ dans la vue ne garderait rien — un PUT forge
+        // ecrirait une structure sur une Organization qui n'en veut pas.
+        //
+        // `$organization` est celle de la personne EDITEE, lue plus haut : une
+        // garde d'ecriture ne se lie jamais a ce que l'URL raconte, et le
+        // SuperAdmin edite ici des comptes de toutes les Organizations.
+        if (structureIsShown($organization)) {
+            $request->validate(['structure' => 'nullable|string|max:255']);
+            $update['structure'] = $request->input('structure');
+        }
+
         if ($request->hasFile('avatar')) {
             $update['avatar'] = $this->remplacerAvatar($user, $request->file('avatar'));
         }
