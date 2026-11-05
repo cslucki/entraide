@@ -15,6 +15,25 @@ return [
     'deja_en_discussion' => 'Vous êtes déjà en discussion pour cette annonce.',
     'discuter_avec' => 'Discuter avec :prenom',
     'echange_en_cours' => 'Votre proposition du :date est en cours — :temps, en attente de réponse.',
+    // TASK-1754 §3 — les toasts. Ils etaient ecrits EN DUR dans le controleur,
+    // donc jamais traduits : un anglophone lisait « Prestation declaree
+    // terminee ». Et c'est la que vivaient trois des mots les plus visibles du
+    // vocabulaire e-commerce.
+    'flash' => [
+        'soi_meme' => 'Vous ne pouvez pas proposer un échange avec vous-même.',
+        'solde_insuffisant' => 'Votre temps disponible ne suffit pas pour cet échange.',
+        'proposition_envoyee' => 'Proposition envoyée !',
+        'echange_accepte' => 'Échange accepté.',
+        'echange_decline' => 'Proposition déclinée.',
+        'ajustement_impossible' => 'Le temps ne peut être ajusté que tant que la proposition est en attente.',
+        'temps_ajuste' => 'Temps ajusté.',
+        'echange_annule' => 'Échange annulé.',
+        'aide_recue' => 'Merci, c’est noté : :prenom doit maintenant confirmer.',
+        'deja_traite' => 'Cet échange a déjà été traité.',
+        'echange_termine' => 'Entraide terminée — merci !',
+        'contestation_impossible' => 'Cet échange ne peut pas être relancé.',
+        'pas_encore_termine' => 'C’est noté : l’échange est remis en cours.',
+    ],
     'csv' => [
         'fichier' => 'entraide',
         'entetes' => ['Date', 'Sens', 'Entraide', 'Avec', 'Temps', 'Points', 'Statut'],

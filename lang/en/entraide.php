@@ -15,6 +15,22 @@ return [
     'deja_en_discussion' => 'You are already in a discussion about this listing.',
     'discuter_avec' => 'Chat with :prenom',
     'echange_en_cours' => 'Your offer from :date is in progress — :temps, awaiting a reply.',
+    // TASK-1754 §3 — les toasts, desormais traduits.
+    'flash' => [
+        'soi_meme' => 'You cannot start an exchange with yourself.',
+        'solde_insuffisant' => 'You do not have enough available time for this exchange.',
+        'proposition_envoyee' => 'Offer sent!',
+        'echange_accepte' => 'Exchange accepted.',
+        'echange_decline' => 'Offer declined.',
+        'ajustement_impossible' => 'The time can only be adjusted while the offer is pending.',
+        'temps_ajuste' => 'Time adjusted.',
+        'echange_annule' => 'Exchange cancelled.',
+        'aide_recue' => 'Noted — :prenom now needs to confirm.',
+        'deja_traite' => 'This exchange has already been handled.',
+        'echange_termine' => 'Exchange complete — thank you!',
+        'contestation_impossible' => 'This exchange cannot be reopened.',
+        'pas_encore_termine' => 'Noted: the exchange is active again.',
+    ],
     'csv' => [
         'fichier' => 'mutual-aid',
         'entetes' => ['Date', 'Direction', 'Exchange', 'With', 'Time', 'Points', 'Status'],

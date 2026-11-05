@@ -5,7 +5,7 @@ return [
         'created' => 'Service publié avec succès.',
         'updated' => 'Service mis à jour.',
         'deleted' => 'Service supprimé.',
-        'delete_blocked' => 'Impossible de supprimer un service avec des transactions en cours.',
+        'delete_blocked' => 'Impossible de supprimer une proposition dont un échange est en cours.',
     ],
 
     'show' => [
@@ -38,7 +38,7 @@ return [
         'images_help' => 'Ajouter des images (JPG, PNG, WebP — max 2 Mo)',
         'add_tag' => 'Ajouter',
         'add_tag_placeholder' => 'Ajouter un tag...',
-        'delivery_mode' => 'Mode de prestation *',
+        'delivery_mode' => 'Comment se passe l’aide ? *',
         'remote' => '🌐 À distance',
         'onsite' => '📍 Sur site',
         'both' => '🌐📍 Les deux',

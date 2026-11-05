@@ -7,11 +7,11 @@ use App\Models\PointLedger;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
-use App\Services\ServiceRequestLifecycle;
 use App\Models\Transaction;
+use App\Notifications\TransactionStatusChanged;
+use App\Services\ServiceRequestLifecycle;
 use App\Support\Entraide\MessageSysteme;
 use App\Support\Entraide\TempsPartage;
-use App\Notifications\TransactionStatusChanged;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmitter;
 use Illuminate\Http\RedirectResponse;
@@ -88,12 +88,12 @@ class TransactionController extends Controller
 
         // Prevent self-transaction
         if ($buyer->id === $sellerId) {
-            return back()->with('error', 'Vous ne pouvez pas créer une transaction avec vous-même.');
+            return back()->with('error', __('entraide.flash.soi_meme'));
         }
 
         // Check buyer balance
         if ($buyer->points_balance < $data['points_proposed']) {
-            return back()->with('error', 'Solde insuffisant pour cet échange.');
+            return back()->with('error', __('entraide.flash.solde_insuffisant'));
         }
 
         // TASK-1693 bug S — « VOUS avez deja une transaction en cours » doit
@@ -195,7 +195,7 @@ class TransactionController extends Controller
         // (`requests/show.blade.php:111`) la montrent sans qu'on ait a les
         // toucher — les deux verrous tombent d'eux-memes.
 
-        return $this->redirectToMessage($transaction)->with('success', 'Échange envoyé !');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.proposition_envoyee'));
     }
 
     public function orgStore(Request $request, string $org): RedirectResponse
@@ -241,7 +241,7 @@ class TransactionController extends Controller
             false,
         );
 
-        return $this->redirectToMessage($transaction)->with('success', 'Échange accepté.');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.echange_accepte'));
     }
 
     public function orgApprove(string $org, Transaction $transaction): RedirectResponse
@@ -275,7 +275,7 @@ class TransactionController extends Controller
         // proposition pouvait exister, plus du tout aujourd'hui.
         app(ServiceRequestLifecycle::class)->releaseIfNothingHolds($transaction);
 
-        return $this->redirectToMessage($transaction)->with('success', 'Échange refusé.');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.echange_decline'));
     }
 
     public function orgRefuse(string $org, Transaction $transaction): RedirectResponse
@@ -294,14 +294,14 @@ class TransactionController extends Controller
         ]);
 
         if ($transaction->status !== 'pending') {
-            return back()->with('error', 'Ajustement impossible hors statut "en attente".');
+            return back()->with('error', __('entraide.flash.ajustement_impossible'));
         }
 
         $transaction->update(['points_proposed' => $data['points_proposed']]);
 
         MessageSysteme::ecrire($transaction, 'temps_ajuste', ['points' => (int) $data['points_proposed']]);
 
-        return $this->redirectToMessage($transaction)->with('success', 'Points ajustés.');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.temps_ajuste'));
     }
 
     public function orgAdjust(Request $request, string $org, Transaction $transaction): RedirectResponse
@@ -323,7 +323,7 @@ class TransactionController extends Controller
         // proposition pouvait exister, plus du tout aujourd'hui.
         app(ServiceRequestLifecycle::class)->releaseIfNothingHolds($transaction);
 
-        return $this->redirectToMessage($transaction)->with('success', 'Transaction annulée.');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.echange_annule'));
     }
 
     public function orgCancel(string $org, Transaction $transaction): RedirectResponse
@@ -354,7 +354,7 @@ class TransactionController extends Controller
             false,
         );
 
-        return $this->redirectToMessage($transaction)->with('success', 'Prestation déclarée terminée.');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.aide_recue', ['prenom' => $transaction->seller?->first_name ?: $transaction->seller?->name]));
     }
 
     public function orgComplete(string $org, Transaction $transaction): RedirectResponse
@@ -421,7 +421,7 @@ class TransactionController extends Controller
 
         if ($fresh->status !== 'completed') {
             return $this->redirectToMessage($transaction)
-                ->with('error', 'Cette transaction a déjà été traitée.');
+                ->with('error', __('entraide.flash.deja_traite'));
         }
 
         MessageSysteme::ecrire($transaction, 'echange_termine', ['points' => (int) ($transaction->points_agreed ?? $transaction->points_proposed)]);
@@ -449,7 +449,7 @@ class TransactionController extends Controller
             false,
         );
 
-        return $this->redirectToMessage($transaction)->with('success', 'Échange complété avec succès !');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.echange_termine'));
     }
 
     public function orgConfirm(string $org, Transaction $transaction): RedirectResponse
@@ -475,12 +475,12 @@ class TransactionController extends Controller
 
         if ($fresh->status !== 'accepted') {
             return $this->redirectToMessage($transaction)
-                ->with('error', 'Impossible de contester cette transaction.');
+                ->with('error', __('entraide.flash.contestation_impossible'));
         }
 
         MessageSysteme::ecrire($transaction, 'pas_encore_termine');
 
-        return $this->redirectToMessage($transaction)->with('success', 'Prestation contestée, échange relancé.');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.pas_encore_termine'));
     }
 
     public function orgContest(string $org, Transaction $transaction): RedirectResponse
