@@ -96,6 +96,18 @@ class HomeController extends Controller
         // SQLite, il ne l'est pas en PostgreSQL.
         $recherche = trim((string) request()->query('q', ''));
 
+        // TASK-1762 point 11.4 — la vue « Nouveaux arrivés ».
+        //
+        // L'annuaire etait DEJA trie du plus recent au plus ancien : un bouton
+        // qui ne ferait que « trier par date » n'aurait rien change a l'ecran.
+        // Arbitrage de Cyril : le bouton change de PRESENTATION — une liste ou
+        // la photo est grande et la presentation lue EN ENTIER, la ou la carte
+        // la tronque a trois lignes.
+        //
+        // Toute valeur autre que `latest` se lit « vue normale » : un parametre
+        // forge ne doit jamais fabriquer un etat tiers.
+        $vueNouveaux = request()->query('view') === 'latest';
+
         // TASK-1762 point 10 — le filtre « Localisation ».
         //
         // Cyril a tranche le menu plutot que le champ libre : « j'ai peur que
@@ -177,6 +189,9 @@ class HomeController extends Controller
                 'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->open()->where('organization_id', $organizationId),
             ])
             ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->active()->where('organization_id', $organizationId)->with('skills', 'category')])
+            // Du plus recent au plus ancien — et depuis le point 11.4, ce tri
+            // est aussi le CONTRAT de la vue « Nouveaux arrivés » : si l'ordre
+            // de la grille change un jour, celui de la vue ne doit pas suivre.
             ->orderByDesc('created_at')
             // TASK-1762 point 11.2 — 36 et non 16.
             //
@@ -233,7 +248,7 @@ class HomeController extends Controller
             ->groupBy('user_id')
             ->map(fn ($lignes) => $lignes->pluck('loop')->filter()->unique('id')->sortBy('name')->values());
 
-        return view('members.index', compact('members', 'recherche', 'articleCounts', 'loopsByUser', 'villes', 'ville'));
+        return view('members.index', compact('members', 'recherche', 'articleCounts', 'loopsByUser', 'villes', 'ville', 'vueNouveaux'));
     }
 
     public function boucles(): View

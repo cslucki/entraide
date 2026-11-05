@@ -29,6 +29,10 @@ return [
     'city_label' => 'Location',
     'city_all' => 'All locations',
 
+    // TASK-1762 point 11.4 — the "New arrivals" view.
+    'latest_button' => 'New arrivals',
+    'joined_ago' => 'Joined :when',
+
     // TASK-1762 point 11.2 — the block that loads the next page.
     'load_more' => 'See the next member|See the next :count members',
 

@@ -43,6 +43,24 @@
             @endif
 
             <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">{{ __('directory.search_submit') }}</button>
+
+            {{-- TASK-1762 point 11.4 — « Nouveaux arrivés », une BASCULE de
+                 presentation et non un tri : l'annuaire est deja ordonne du
+                 plus recent au plus ancien, un bouton de tri n'aurait rien
+                 change a l'ecran.
+
+                 Le lien conserve `q` et `city` : changer de vue ne doit pas
+                 jeter les filtres. Et il retire `page`, car la page 3 de la
+                 grille n'a aucun sens dans la liste. --}}
+            <a href="{{ request()->fullUrlWithQuery(['view' => $vueNouveaux ? null : 'latest', 'page' => null]) }}"
+               data-directory-latest
+               @if($vueNouveaux) aria-pressed="true" @endif
+               class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition {{ $vueNouveaux
+                    ? 'bg-[var(--bp-accent)] text-white shadow-sm hover:brightness-110'
+                    : 'border border-[var(--bp-accent)]/40 text-[var(--bp-accent)] hover:bg-[var(--bp-accent)]/10' }}">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+                {{ __('directory.latest_button') }}
+            </a>
             {{-- « Effacer » doit aussi apparaitre quand SEUL le filtre de ville
                  est pose : sinon on ne sait plus comment revenir a la liste
                  complete. --}}
@@ -77,7 +95,10 @@
              Demande de Cyril : « ainsi cela sera plus aere ». Le palier `xl`
              est simplement retire : au-dela de 1024 px la grille reste a trois
              colonnes, qui s'elargissent au lieu de se multiplier. --}}
-        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5" data-directory-grid>
+        <div class="{{ $vueNouveaux
+                ? 'overflow-hidden rounded-2xl border border-gray-200 bg-white divide-y divide-gray-100 dark:divide-gray-700/60 dark:border-gray-700 dark:bg-gray-800'
+                : 'grid sm:grid-cols-2 lg:grid-cols-3 gap-5' }}"
+             data-directory-grid>
             @foreach($members as $member)
             {{-- TASK-1693 bug AA — l'annuaire fabriquait son URL A LA MAIN, avec
                  l'identifiant, en contournant `route()`. C'est pour cela qu'il
@@ -131,6 +152,78 @@
                     ? $explorateurUrl.'?tab=requests&member='.urlencode($cleMembre)
                     : null;
             @endphp
+            @if($vueNouveaux)
+            {{-- TASK-1762 point 11.4 — LA LIGNE de la vue « Nouveaux arrivés ».
+
+                 Arbitrage de Cyril : « une présentation où l'on voit bien la
+                 photo, l'intégralité du texte de présentation, et pas sous
+                 forme de card. Mais plutôt une sorte de liste. »
+
+                 Donc : la photo en grand, la bio SANS `line-clamp`, une rangee
+                 par personne, et la date d'arrivee en pastille — c'est elle qui
+                 donne son sens a la vue. --}}
+            <article class="relative flex gap-4 p-5 transition hover:bg-gray-50/80 sm:gap-6 sm:p-7 dark:hover:bg-gray-700/20"
+                     data-member-card="{{ $member->id }}" data-member-row>
+                <a href="{{ $profileRoute }}" class="relative shrink-0 self-start">
+                    <img src="{{ $member->avatar_url }}" alt=""
+                         class="h-16 w-16 rounded-2xl object-cover ring-1 ring-gray-200 sm:h-20 sm:w-20 dark:ring-gray-600">
+                    @if(availabilityIsShown() && $member->is_available)
+                    <span class="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-green-500 dark:border-gray-800"></span>
+                    @endif
+                </a>
+
+                <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 pr-10">
+                        <a href="{{ $profileRoute }}"
+                           class="text-lg font-bold text-gray-900 transition hover:text-[var(--bp-accent)] dark:text-gray-100">{{ $member->fullName }}</a>
+                        <span class="rounded-full bg-[var(--bp-accent)]/10 px-2.5 py-0.5 text-xs font-semibold text-[var(--bp-accent)]"
+                              data-member-joined>{{ __('directory.joined_ago', ['when' => $member->created_at->diffForHumans()]) }}</span>
+                    </div>
+
+                    @if(structureIsShown() && filled($member->structure))
+                    <p class="mt-0.5 text-sm font-bold text-[var(--bp-accent)]" data-member-structure>{{ $member->structure }}</p>
+                    @endif
+
+                    @if($member->public_location)
+                    <p class="mt-0.5 text-xs text-gray-400">📍 {{ $member->public_location }}</p>
+                    @endif
+
+                    @if($member->bio)
+                    {{-- L'INTEGRALITE du texte : c'est le coeur de la demande.
+                         `max-w-3xl` borne la ligne a une largeur lisible,
+                         `whitespace-pre-line` respecte les retours ecrits. --}}
+                    <p class="mt-3 max-w-3xl whitespace-pre-line text-sm leading-relaxed text-gray-600 dark:text-gray-300"
+                       data-member-bio-complete>{{ $member->bio }}</p>
+                    @endif
+
+                    @if($boucles->isNotEmpty())
+                    <div class="mt-3 flex flex-wrap gap-1.5">
+                        @foreach($boucles as $boucle)
+                        {{-- Le MEME constructeur d'URL que la carte, garde
+                             `Route::has` comprise : deux fabriques divergeraient. --}}
+                        <a href="{{ $orgParamAnnuaire && Route::has('organization.loops.show')
+                                ? route('organization.loops.show', ['organization' => $orgParamAnnuaire, 'loop' => $boucle->slug ?: $boucle->getKey()])
+                                : route('loops.show', $boucle->slug ?: $boucle->getKey()) }}"
+                           data-member-loop="{{ $boucle->id }}"
+                           class="rounded bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/40">{{ $boucle->name }}</a>
+                        @endforeach
+                    </div>
+                    @endif
+                </div>
+
+                @auth
+                @if(auth()->id() !== $member->id)
+                <a href="{{ $ecrireUrl }}"
+                   data-member-write="{{ $member->id }}"
+                   title="{{ __('directory.write_to', ['name' => $member->fullName]) }}"
+                   aria-label="{{ __('directory.write_to', ['name' => $member->fullName]) }}"
+                   class="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white/90 text-gray-500 shadow-sm transition hover:border-[var(--bp-accent)] hover:text-[var(--bp-accent)] sm:right-7 sm:top-7 dark:border-gray-600 dark:bg-gray-800/90 dark:text-gray-400">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                </a>
+                @endif
+                @endauth
+            </article>
+            @else
             {{-- TASK-1697 correctif 15 — la carte n'est PLUS un seul lien.
                  Elle en portait un, englobant tout ; elle doit desormais porter
                  des liens internes (site web, LinkedIn, articles, Boucles). Un
@@ -311,6 +404,7 @@
             @endif
             @endauth
             </div>
+            @endif
             @endforeach
         </div>
 

@@ -29,6 +29,10 @@ return [
     'city_label' => 'Localisation',
     'city_all' => 'Toutes les localisations',
 
+    // TASK-1762 point 11.4 — la vue « Nouveaux arrivés ».
+    'latest_button' => 'Nouveaux arrivés',
+    'joined_ago' => 'A rejoint :when',
+
     // TASK-1762 point 11.2 — le bloc qui charge la suite.
     'load_more' => 'Voir le membre suivant|Voir les :count membres suivants',
 
