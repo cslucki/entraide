@@ -402,6 +402,8 @@
                 <input type="number" name="points_cost" value="{{ old('points_cost') }}" @if($pointMin !== null) min="{{ $pointMin }}" @endif @if($pointMax !== null) max="{{ $pointMax }}" @endif required
                     class="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
 
+                <x-entraide.champs-atelier />
+
                 {{-- Fourchettes par categorie — TASK-1707 F1, meme defaut et
                      meme correctif que sur le formulaire de demande. --}}
                 @foreach($categories as $cat)

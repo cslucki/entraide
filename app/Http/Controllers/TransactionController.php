@@ -10,6 +10,7 @@ use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Notifications\TransactionStatusChanged;
 use App\Services\ServiceRequestLifecycle;
+use App\Support\Entraide\Atelier;
 use App\Support\Entraide\MessageSysteme;
 use App\Support\Entraide\TempsPartage;
 use App\Support\Notifications\NotificationCatalogue;
@@ -133,6 +134,37 @@ class TransactionController extends Controller
         // supprime l'occasion, cette garde supprime la consequence.
         //
         // `info` et non `error` : il ne s'est rien passe de mal.
+        // TASK-1756 §6.3 — un atelier COMPLET ne recoit plus de proposition.
+        //
+        // Cette garde-ci est un CONFORT : elle evite a quelqu'un d'ecrire pour
+        // rien. Elle ne suffit pas, et ce n'est pas un defaut — voir
+        // `approve()`, ou la borne tient reellement.
+        if (! empty($data['service_id'])) {
+            $annonceVisee = Service::withoutGlobalScope(BelongsToOrganizationScope::class)->find($data['service_id']);
+
+            if ($annonceVisee !== null && Atelier::estComplet($annonceVisee)) {
+                return back()->with('error', __('entraide.atelier.complet'));
+            }
+
+            // TASK-1756, defaut de recette du 05/11 — sur un atelier, le temps
+            // propose n'est pas celui qu'on a tape : c'est la PART.
+            //
+            // La part se calcule, elle ne se negocie pas (voir
+            // `Atelier::tempsNegociable()`). On la pose ICI, avant la garde de
+            // solde, et c'est tout l'enjeu : la vue proposait `points_cost`
+            // entier, si bien qu'un membre a 40 min de solde se voyait refuser
+            // une place a 15 min. Corriger la seule vue aurait laisse la porte
+            // ouverte a un POST forge.
+            //
+            // On pose le MAXIMUM, pas la part du moment : entre la proposition
+            // et l'acceptation l'atelier ne peut que se remplir, donc la part
+            // ne peut que BAISSER. Le participant s'engage sur un plafond qu'il
+            // a vu a l'ecran, et `approve()` arrete le chiffre definitif.
+            if ($annonceVisee !== null && ! Atelier::tempsNegociable($annonceVisee)) {
+                $data['points_proposed'] = Atelier::partMaximale($annonceVisee);
+            }
+        }
+
         $existant = Transaction::echangeActif(
             $actor->id,
             $data['service_id'] ?? null,
@@ -219,9 +251,50 @@ class TransactionController extends Controller
             return back()->with('error', __('requests.lifecycle.insufficient_balance'));
         }
 
+        // TASK-1756 §6.3 — l'atelier est-il COMPLET ?
+        //
+        // ## C'est ICI que la borne tient, pas a `store()`
+        //
+        // Une place est prise par un echange ACCEPTE, pas par une proposition
+        // en attente — sinon trois personnes bloqueraient un atelier de trois
+        // sans que l'aidant ait dit oui a quiconque.
+        //
+        // Consequence : deux propositions en attente pour UNE place restante
+        // sont toutes deux legitimes, et la garde de `store()` les laisse
+        // passer A RAISON. C'est la seconde acceptation qui doit etre refusee.
+        // Une garde posee uniquement a la proposition laisserait donc
+        // sur-reserver, en silence.
+        $annonce = $transaction->service;
+
+        if ($annonce !== null && Atelier::estComplet($annonce)) {
+            return back()->with('error', __('entraide.atelier.complet'));
+        }
+
+        // TASK-1756 §6.3 — sur un ATELIER, la part est calculee et FIGEE ici.
+        //
+        // ## Ce que « figee » achete, et ce qu'elle coute
+        //
+        // Le prix affiche a l'inscription est le prix paye : c'est la promesse
+        // de l'option C, et la tenir vaut qu'on ne rebouge rien ensuite. Le CDC
+        // le recommande aussi (§6.3, points durs) — faire varier la part des
+        // deja-inscrits a chaque nouvelle arrivee rendrait un engagement
+        // instable.
+        //
+        // Consequence assumee : sur 45 min avec un plancher de 3, les trois
+        // premiers paient 15, et un quatrieme ne paie que 12. L'aidant recoit
+        // donc 57 et non 45. L'ecart va TOUJOURS dans ce sens — jamais l'aidant
+        // ne touche moins que son annonce — et il est le prix d'un engagement
+        // qui ne bouge pas sous les pieds de celui qui l'a pris.
+        //
+        // `placesPrises()` compte les deja ACCEPTES ; ce participant-ci n'en
+        // fait pas encore partie, d'ou le `+ 1`.
+        $partConvenue = $annonce !== null && Atelier::estGroupe($annonce)
+            ? Atelier::part($annonce, Atelier::placesPrises($annonce) + 1)
+            : $transaction->points_proposed;
+
         $transaction->update([
             'status' => 'accepted',
-            'points_agreed' => $transaction->points_proposed,
+            'points_agreed' => $partConvenue,
         ]);
 
         MessageSysteme::ecrire($transaction, 'echange_accepte');
@@ -295,6 +368,19 @@ class TransactionController extends Controller
 
         if ($transaction->status !== 'pending') {
             return back()->with('error', __('entraide.flash.ajustement_impossible'));
+        }
+
+        // TASK-1756 — on n'ajuste pas sa part d'atelier.
+        //
+        // `approve()` recalcule de toute facon `points_agreed`, donc un
+        // ajustement n'aurait rien preleve de different : il aurait seulement
+        // ecrit au fil « le temps passe a 5 minutes » avant d'en prelever 15.
+        // Un message systeme qui annonce un chiffre que le produit ne tiendra
+        // pas est un defaut a lui seul.
+        $annonce = $transaction->service;
+
+        if ($annonce !== null && ! Atelier::tempsNegociable($annonce)) {
+            return back()->with('error', __('entraide.atelier.temps_non_negociable'));
         }
 
         $transaction->update(['points_proposed' => $data['points_proposed']]);

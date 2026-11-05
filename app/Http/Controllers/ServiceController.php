@@ -6,17 +6,18 @@ use App\Jobs\GenerateServiceThumbnail;
 use App\Models\Category;
 use App\Models\Organization;
 use App\Models\Service;
-use App\Models\Transaction;
-use App\Support\Feed\FeedEventCatalogue;
-use App\Support\Feed\FeedEventEmitter;
 use App\Models\ServiceImage;
 use App\Models\Skill;
 use App\Models\Tag;
+use App\Models\Transaction;
 use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\Exceptions\SupervisionException;
 use App\Services\Ai\SupervisionEconomicScope;
 use App\Services\Ai\SupervisionProviderResolver;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Entraide\Atelier;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -339,6 +340,8 @@ class ServiceController extends Controller
             'category_id' => $data['category_id'],
             'delivery_mode' => $data['delivery_mode'],
             'points_cost' => $data['points_cost'],
+            'capacity' => $data['capacity'] ?? null,
+            'min_participants' => $data['min_participants'] ?? null,
             'status' => 'active',
         ]);
 
@@ -433,6 +436,8 @@ class ServiceController extends Controller
             'category_id' => $data['category_id'],
             'delivery_mode' => $data['delivery_mode'],
             'points_cost' => $data['points_cost'],
+            'capacity' => $data['capacity'] ?? null,
+            'min_participants' => $data['min_participants'] ?? null,
             'status' => $data['status'],
         ]);
 
@@ -513,6 +518,16 @@ class ServiceController extends Controller
             'category_id' => 'required|uuid|exists:categories,id',
             'delivery_mode' => 'required|in:remote,onsite,both',
             'points_cost' => array_merge(['required', 'integer'], $this->pointLimitRules($organization)),
+            // TASK-1756 §6.3 — la capacite d'un ATELIER. `null` = individuel,
+            // le comportement historique. La borne est une regle PRODUIT, donc
+            // elle vit ici et dans `Atelier`, pas dans une contrainte CHECK
+            // qu'il faudrait migrer le jour ou Cyril voudra des ateliers de dix.
+            'capacity' => ['nullable', 'integer', 'min:'.Atelier::CAPACITE_MIN, 'max:'.Atelier::CAPACITE_MAX],
+            // Le PLANCHER de repartition (option C). `lte:capacity` : declarer
+            // « a partir de 8 » sur un atelier de 6 rendrait le prix maximum
+            // inatteignable. `Atelier::plancher()` le borne aussi a la lecture,
+            // parce qu'une donnee ancienne ou importee ne passe pas par ici.
+            'min_participants' => ['nullable', 'integer', 'min:1', 'lte:capacity'],
             'skills' => 'nullable|array',
             'skills.*' => 'uuid|exists:skills,id',
             'tags' => 'nullable|string',

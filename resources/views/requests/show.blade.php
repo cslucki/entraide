@@ -175,7 +175,7 @@
                         </button>
                         <button type="button" x-show="! autreTemps" x-on:click="autreTemps = true"
                                 class="text-xs text-indigo-600 underline hover:no-underline dark:text-indigo-400"
-                                data-entraide-autre-temps>
+                                data-entraide-negocier>
                             {{ __('entraide.proposer_autre_temps') }}
                         </button>
                         <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['temps' => \App\Support\Entraide\TempsPartage::solde(auth()->user()->points_balance)]) }}</span>

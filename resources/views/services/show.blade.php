@@ -71,6 +71,19 @@
                                     {{ trans_choice('entraide.temps.sous_titre', (int) $service->points_cost, ['points' => (int) $service->points_cost]) }}
                                 @endif
                             </p>
+                            {{-- TASK-1756 §6.3 — sur un ATELIER, le temps annonce est
+                                 celui de la SEANCE ENTIERE : il faut dire ce que chacun
+                                 paiera, sinon le grand nombre se lit comme un prix
+                                 individuel et effraie pour rien. --}}
+                            @if(\App\Support\Entraide\Atelier::estGroupe($service))
+                                <p class="mt-1 text-xs font-medium text-indigo-600 dark:text-indigo-400" data-entraide-atelier-prix>
+                                    {{ __('entraide.atelier.prix_max', ['temps' => \App\Support\Entraide\TempsPartage::duree(\App\Support\Entraide\Atelier::partMaximale($service), offertSiZero: false)]) }}
+                                </p>
+                                <p class="mt-0.5 text-xs {{ \App\Support\Entraide\Atelier::estComplet($service) ? 'text-rose-600 dark:text-rose-400 font-medium' : 'text-gray-500' }}"
+                                   data-entraide-atelier-places>
+                                    {{ trans_choice('entraide.atelier.places_restantes', \App\Support\Entraide\Atelier::placesRestantes($service), ['count' => \App\Support\Entraide\Atelier::placesRestantes($service)]) }}
+                                </p>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -174,7 +187,16 @@
                          l'ecran. `flex-wrap` le fait passer a la ligne
                          au lieu de le pousser dehors ; a partir de `sm`
                          la rangee tient et rien ne change. --}}
-                    @if($echangeActif ?? null)
+                    @if(\App\Support\Entraide\Atelier::estComplet($service) && ! ($echangeActif ?? null))
+                        {{-- Atelier COMPLET : le formulaire disparait. La garde
+                             serveur reste (deux onglets, cache PWA), mais un
+                             bouton qui ne peut que refuser est une promesse
+                             qu'on ne tient pas. --}}
+                        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800/60 dark:bg-rose-900/20 dark:text-rose-200"
+                             data-entraide-atelier-complet>
+                            {{ __('entraide.atelier.complet') }}
+                        </div>
+                    @elseif($echangeActif ?? null)
                         {{-- TASK-1754 §4.2a (maquette M1-B) — un echange est DEJA
                              en cours : le formulaire cede la place au chemin vers
                              la conversation.
@@ -208,24 +230,44 @@
                          un `hidden` au temps de l'annonce ; qui veut proposer autre
                          chose deplie le champ. L'ajustement complet reste disponible
                          dans la conversation. --}}
+                    {{-- TASK-1756, defaut de recette du 05/11 — sur un atelier, le
+                         bouton doit annoncer la PART, pas le prix de l'atelier
+                         entier. Il affichait « Demander cette aide · 45 minutes »
+                         juste sous « au maximum 15 min par personne », et
+                         proposait reellement 45 : un membre a 40 min de solde se
+                         faisait refuser une place a 15. Et le temps d'un atelier
+                         ne se negocie pas, donc le lien d'ajustement disparait —
+                         voir `Atelier::tempsNegociable()`. --}}
+                    @php
+                        $_tempsNegociable = \App\Support\Entraide\Atelier::tempsNegociable($service);
+                        $_tempsPropose = $_tempsNegociable
+                            ? (int) $service->points_cost
+                            : \App\Support\Entraide\Atelier::partMaximale($service);
+                    @endphp
                     <form method="POST" action="{{ $_serviceTxStoreAction }}"
                           x-data="{ autreTemps: false }"
                           class="flex flex-wrap items-center gap-3 sm:gap-4">
                         @csrf
                         <input type="hidden" name="service_id" value="{{ $service->id }}">
-                        <input type="number" name="points_proposed" value="{{ $service->points_cost }}" min="0"
-                            x-show="autreTemps" x-cloak
+                        {{-- Un seul attribut `type` : en ecrire deux ferait garder
+                             le PREMIER par le navigateur, et le champ resterait
+                             visible sur un atelier. --}}
+                        <input type="{{ $_tempsNegociable ? 'number' : 'hidden' }}"
+                            name="points_proposed" value="{{ $_tempsPropose }}" min="0"
+                            @if($_tempsNegociable) x-show="autreTemps" x-cloak @endif
                             data-entraide-autre-temps-champ
                             class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
                         <button type="submit" data-entraide-demander
                                 class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
-                            {{ __('services.show.request_this_help') }} · {{ \App\Support\Entraide\TempsPartage::duree($service->points_cost) }}
+                            {{ __('services.show.request_this_help') }} · {{ \App\Support\Entraide\TempsPartage::duree($_tempsPropose) }}
                         </button>
-                        <button type="button" x-show="! autreTemps" x-on:click="autreTemps = true"
-                                class="text-xs text-indigo-600 underline hover:no-underline dark:text-indigo-400"
-                                data-entraide-autre-temps>
-                            {{ __('entraide.proposer_autre_temps') }}
-                        </button>
+                        @if($_tempsNegociable)
+                            <button type="button" x-show="! autreTemps" x-on:click="autreTemps = true"
+                                    class="text-xs text-indigo-600 underline hover:no-underline dark:text-indigo-400"
+                                    data-entraide-negocier>
+                                {{ __('entraide.proposer_autre_temps') }}
+                            </button>
+                        @endif
                         <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['temps' => \App\Support\Entraide\TempsPartage::solde(auth()->user()->points_balance)]) }}</span>
                     </form>
                     <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('entraide.conversation_d_abord') }}</p>

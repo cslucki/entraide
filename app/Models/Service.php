@@ -30,6 +30,8 @@ class Service extends Model
         'category_id',
         'delivery_mode',
         'points_cost',
+        'capacity',
+        'min_participants',
         'status',
     ];
 
