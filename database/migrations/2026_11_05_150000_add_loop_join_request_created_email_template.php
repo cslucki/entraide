@@ -31,6 +31,25 @@ use Illuminate\Support\Facades\DB;
  *
  * Il borne sur le slug et `organization_id IS NULL` : un gabarit qu'une
  * Organization se serait ecrit pour elle-meme n'est pas de son ressort.
+ *
+ * ## Correctif TASK-1764 — le `down()` contredisait ce contrat
+ *
+ * Tel qu'il etait ecrit, il supprimait TOUTE ligne globale du slug. Or le
+ * `up()` passe son tour quand une ligne existe deja : la ligne epargnee a
+ * l'aller etait donc detruite au retour. Deux pertes reelles possibles sur une
+ * base deployee — un gabarit pose par le seeder avant la migration, et une
+ * reecriture du SuperAdmin depuis `/admin/email-templates`.
+ *
+ * La borne est desormais celle de la doctrine T1711, deja appliquee par
+ * `add_loop_member_added_email_template`, `..._join_request_accepted...` et
+ * `..._transaction_proposal_created...` : ne repartent que les lignes restees
+ * IDENTIQUES au defaut (meme `subject` ET meme `content_html`). Une
+ * personnalisation survit au rollback — la detruire serait perdre une decision
+ * humaine que le `up()` ne sait pas rendre.
+ *
+ * Reste un cas sans perte d'information : une ligne preexistante qui serait
+ * octet pour octet celle de ce defaut repartirait. Rien n'est perdu puisque
+ * rien ne la distingue de ce que le `up()` reecrit.
  */
 return new class extends Migration
 {
@@ -69,10 +88,18 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::table('system_email_templates')
-            ->where('slug', self::SLUG)
-            ->whereNull('organization_id')
-            ->delete();
+        foreach ($this->gabarits() as $locale => $g) {
+            // Seules les lignes restees IDENTIQUES au defaut repartent
+            // (doctrine T1711). Une personnalisation du SuperAdmin, ou un
+            // gabarit que ce `up()` a epargne parce qu'il preexistait, survit.
+            DB::table('system_email_templates')
+                ->where('slug', self::SLUG)
+                ->where('locale', $locale)
+                ->whereNull('organization_id')
+                ->where('subject', $g['subject'])
+                ->where('content_html', $g['html'])
+                ->delete();
+        }
     }
 
     /** @return array<string, array{name: string, subject: string, html: string}> */
