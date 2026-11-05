@@ -22,6 +22,7 @@ use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
+use App\Support\Loops\DemandesDAdhesionEnAttente;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
@@ -88,7 +89,19 @@ class AdminLoopController extends Controller
         // Everything the list shows is counted in the query rather than walked
         // per row: members, invitations (total and pending) and cards. `cards`
         // is eager-loaded once for the badges — 25 rows, no N+1.
-        $query = Loop::with(['creator:id,name,email', 'organization:id,name,slug', 'cards'])
+        // TASK-1761 point 5 — les PROPRIETAIRES, pas le createur. `owner()` est
+        // marque @deprecated dans le modele : « a Loop can have several owners
+        // and there is no business notion of a primary owner ». On charge donc
+        // la relation plurielle, et la vue les affiche tous.
+        //
+        // `banned_at` et `is_admin` voyagent avec : ce sont les deux refus de
+        // `loginAsUser()`. Les lire ici evite d'offrir un bouton qui echouera.
+        $query = Loop::with([
+            'creator:id,name,first_name,email',
+            'organization:id,name,slug',
+            'cards',
+            'owners.user:id,name,first_name,email,is_admin,banned_at',
+        ])
             ->withCount([
                 'activeMembers',
                 'invitations',
@@ -113,6 +126,13 @@ class AdminLoopController extends Controller
 
         return view('admin.loops.index', [
             'loops' => $loops,
+            // TASK-1761 point 3 — la MEME carte que sur le tableau de bord,
+            // bornee a l'Organization choisie dans le filtre : sous une page
+            // deja filtree, des demandes d'ailleurs seraient un contresens.
+            'demandesDAdhesion' => DemandesDAdhesionEnAttente::lister($selectedOrganization?->id),
+            // TASK-1761 point 4 — une seule requete groupee pour toute la
+            // page, et non un compte par ligne.
+            'demandesParBoucle' => DemandesDAdhesionEnAttente::compterParBoucle($selectedOrganization?->id),
             'organizations' => $organizations,
             'selectedOrganizationId' => $selectedOrganizationId,
             'selectedOrganization' => $selectedOrganization,
@@ -719,7 +739,17 @@ class AdminLoopController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('admin.loops.edit', $loop)
+        // TASK-1761 point 2 — `back()`, pour que la decision prise depuis la carte
+        // du tableau de bord ne quitte pas le tableau de bord.
+        //
+        // **Avec un repli explicite sur la fiche de la Boucle.** Mon commentaire
+        // precedent affirmait que `back()` suffisait « puisque depuis la fiche,
+        // back() EST la fiche ». C'est vrai dans un navigateur et FAUX des qu'il
+        // n'y a pas de referent : `back()` rend alors la racine du site. La CI
+        // l'a montre sur deux tests de T1693 qui ne posent pas de referent.
+        //
+        // Le repli restitue exactement le comportement d'avant la TASK.
+        return back(fallback: route('admin.loops.edit', $loop))
             ->with('success', __($accepte ? 'admin.loop_join_request_accepted' : 'admin.loop_join_request_rejected'));
     }
 

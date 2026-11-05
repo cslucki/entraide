@@ -215,11 +215,23 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         // `LOOP_INVITATION` parce que l'evenement est PERSONNEL, et non sur
         // `LOOP_HELP_REQUEST_CREATED` qui est collectif et reste eteint.
         //
+        //
+        // TASK-1761 : TROISIEME fois. `loop.join_request.created` previent le
+        // PROPRIETAIRE qu'on demande a rejoindre sa Boucle — decide dans sa
+        // propre TASK, sur specification de Cyril du 05/11 : in-app ON et NON
+        // configurable (c'est une decision a prendre, on ne s'en desabonne
+        // pas), email ON configurable, et **aucun Web Push**. L'absence de
+        // Push est un choix et non un oubli : son jumeau « acceptee » en a un
+        // parce qu'il repond a une attente de la personne elle-meme, tandis
+        // qu'une demande recue arrive sans qu'on l'attende. CDC 6.2,
+        // anti-bruit, meme raisonnement que pour « refusee ».
+        //
         // La garde reste donc ce qu'elle est : un inventaire qui force la
         // decision a se prendre AILLEURS, dans la TASK qui introduit la cle.
         $attendues = [
             NotificationCatalogue::LOOP_INVITATION,
             NotificationCatalogue::LOOP_MEMBER_ADDED,
+            NotificationCatalogue::LOOP_JOIN_REQUEST_CREATED,
             NotificationCatalogue::LOOP_JOIN_REQUEST_ACCEPTED,
             NotificationCatalogue::LOOP_JOIN_REQUEST_REJECTED,
             NotificationCatalogue::BLOG_COMMENT_CREATED,

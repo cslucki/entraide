@@ -39,6 +39,18 @@ return [
     'feed_auto_events_resume' => 'Réactiver',
     'feed_auto_events_on' => 'Évènements automatiques réactivés pour :name.',
     'feed_auto_events_off' => 'Évènements automatiques mis en pause pour :name. L’historique déjà écrit est conservé.',
+    'join_requests_card_title' => 'Demandes à rejoindre une Boucle',
+
+    // TASK-1761 points 4 et 5 — sur /admin/loops.
+    'join_requests_pending_count' => ':count demande en attente|:count demandes en attente',
+    'loop_owners_inline' => 'Propriétaire :|Propriétaires :',
+    'loop_creator_label' => 'Créée par',
+    'login_as_short' => 'se connecter sous',
+    'join_requests_card_empty' => 'Aucune demande en attente.',
+    'join_requests_card_wants_to_join' => 'souhaite rejoindre',
+    'join_requests_card_accept' => 'Accepter',
+    'join_requests_card_reject' => 'Refuser',
+    'join_requests_card_reject_confirm' => 'Refuser cette demande ? La personne en sera informée.',
     'feed_clear' => 'Réinitialiser',
     'feed_col_content' => 'Contenu',
     'feed_col_title' => 'Titre',
