@@ -55,7 +55,12 @@
         <p class="py-16 text-center text-sm text-gray-500 dark:text-gray-400" data-directory-empty>{{ __('directory.search_no_result') }}</p>
         @endif
 
-        <div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        {{-- TASK-1762 point 11.1 — TROIS colonnes au maximum, et non quatre.
+
+             Demande de Cyril : « ainsi cela sera plus aere ». Le palier `xl`
+             est simplement retire : au-dela de 1024 px la grille reste a trois
+             colonnes, qui s'elargissent au lieu de se multiplier. --}}
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             @foreach($members as $member)
             {{-- TASK-1693 bug AA — l'annuaire fabriquait son URL A LA MAIN, avec
                  l'identifiant, en contournant `route()`. C'est pour cela qu'il

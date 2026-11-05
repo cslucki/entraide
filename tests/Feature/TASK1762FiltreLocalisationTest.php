@@ -185,6 +185,23 @@ class TASK1762FiltreLocalisationTest extends TestCase
         $this->assertMatchesRegularExpression('/<option value="Menton"[^>]*selected/', $html);
     }
 
+    /**
+     * 🔴 TASK-1762 point 11.1 — TROIS colonnes au maximum sur grand ecran.
+     *
+     * Demande de Cyril : « ainsi cela sera plus aere ». Le palier `xl` a ete
+     * retire ; le laisser revenir est exactement le genre de regression qu'une
+     * retouche de grille reintroduit sans qu'on la voie.
+     */
+    public function test_la_grille_ne_depasse_pas_trois_colonnes(): void
+    {
+        $this->membre('Camille', 'MOREAU', 'Marseille');
+
+        $html = $this->page();
+
+        $this->assertStringContainsString('lg:grid-cols-3', $html);
+        $this->assertStringNotContainsString('xl:grid-cols-4', $html);
+    }
+
     /** 🔴 Le menu ne traverse pas les Organizations. */
     public function test_le_menu_ne_traverse_pas_les_organizations(): void
     {
