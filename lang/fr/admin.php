@@ -32,6 +32,25 @@ return [
     'feed_type_announcements' => 'Annonces',
     'feed_type_events' => 'Évènements automatiques',
     'feed_filter' => 'Filtrer',
+    'feed_auto_events_active' => 'Les évènements automatiques sont ACTIFS pour cette Organization',
+    'feed_auto_events_paused' => 'Les évènements automatiques sont EN PAUSE pour cette Organization',
+    'feed_auto_events_help' => 'Mettre en pause n’efface rien : seules les émissions futures sont arrêtées. Pour nettoyer l’existant, employez « Retirer » ci-dessous.',
+    'feed_auto_events_pause' => 'Mettre en pause',
+    'feed_auto_events_resume' => 'Réactiver',
+    'feed_auto_events_on' => 'Évènements automatiques réactivés pour :name.',
+    'feed_auto_events_off' => 'Évènements automatiques mis en pause pour :name. L’historique déjà écrit est conservé.',
+    'join_requests_card_title' => 'Demandes à rejoindre une Boucle',
+
+    // TASK-1761 points 4 et 5 — sur /admin/loops.
+    'join_requests_pending_count' => ':count demande en attente|:count demandes en attente',
+    'loop_owners_inline' => 'Propriétaire :|Propriétaires :',
+    'loop_creator_label' => 'Créée par',
+    'login_as_short' => 'se connecter sous',
+    'join_requests_card_empty' => 'Aucune demande en attente.',
+    'join_requests_card_wants_to_join' => 'souhaite rejoindre',
+    'join_requests_card_accept' => 'Accepter',
+    'join_requests_card_reject' => 'Refuser',
+    'join_requests_card_reject_confirm' => 'Refuser cette demande ? La personne en sera informée.',
     'feed_clear' => 'Réinitialiser',
     'feed_col_content' => 'Contenu',
     'feed_col_title' => 'Titre',
@@ -591,6 +610,10 @@ return [
     'org_membership_section' => 'Appartenance',
     'org_membership_section_hint' => 'Configurez un champ d\'appartenance optionnel pour les profils membres.',
     'org_membership_enabled' => 'Activer le champ d\'appartenance',
+
+    // TASK-1762 point 2 — gouverne l'apparition du champ « Structure ».
+    'org_structure_enabled_label' => 'On peut renseigner sa structure',
+    'org_structure_enabled_desc' => 'Les membres peuvent indiquer leur société, association ou collectif sur leur profil. Décoché, le champ n\'apparaît nulle part.',
     'org_membership_enabled_hint' => 'Quand activé, un champ de saisie « Appartenance » apparaît dans le profil des membres.',
 
     // TASK-1714 volet 2 — approbation des comptes par un administrateur.

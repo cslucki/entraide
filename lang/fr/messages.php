@@ -8,29 +8,98 @@ return [
     'no_conversations' => 'Aucune conversation',
     'back_to_conversations' => 'Retour aux conversations',
     'select_conversation' => 'Sélectionnez une conversation',
-    'direct_conversation' => 'Conversation directe',
-    'direct_conversation_started' => 'Conversation directe démarrée.',
+    'direct_conversation' => 'Discussion',
+    'direct_conversation_started' => 'Discussion démarrée.',
     'exchange_subject' => 'Échange #:id',
+
+    // TASK-1754 §3.2 — arbitrage Q2 de Cyril (05/11) : le BADGE reste court et
+    // NEUTRE, c'est la PHRASE qui porte le sens (qui aide qui). Deux fois moins
+    // de libellés à maintenir, et c'est la phrase qui supprime la confusion
+    // constatée en recette — un badge, aussi bien écrit soit-il, ne dira jamais
+    // « Ottoline dit avoir reçu l'aide, confirmez pour recevoir vos 30 min ».
     'status' => [
-        'pending' => 'En attente',
-        'accepted' => 'Accepté',
-        'buyer_done' => 'Terminé (acheteur)',
-        'completed' => 'Complété',
-        'refused' => 'Refusé',
+        'pending' => 'Proposition',
+        'accepted' => 'Entraide convenue',
+        'buyer_done' => 'À confirmer',
+        'completed' => 'Terminé',
+        'refused' => 'Déclinée',
         'cancelled' => 'Annulé',
     ],
-    'actions' => [
-        'accept' => 'Accepter',
-        'refuse' => 'Refuser',
-        'adjust' => 'Ajuster',
-        'cancel' => 'Annuler',
-        'mark_done' => 'Déclarer terminé',
-        'confirm' => 'Confirmer',
-        'contest' => 'Contester',
+
+    // Les phrases orientées rôle. `:temps` reçoit le double affichage
+    // (« 30 min · 30 pts »), jamais un nombre de points nu.
+    'phrase' => [
+        'pending_decideur' => ':prenom répond à votre annonce « :titre » — :temps',
+        'pending_proposant' => 'Votre proposition est partie. :prenom doit répondre.',
+        'accepted' => 'Vous avez convenu de cet échange — :temps',
+        'buyer_done_aidant' => ':prenom dit avoir reçu l\'aide. Confirmez pour recevoir vos :temps.',
+        'buyer_done_aide' => 'Vous avez dit avoir reçu l\'aide. :prenom doit confirmer.',
+        'completed' => 'Échange terminé — :temps transférés. Merci !',
+        'refused_proposant' => ':prenom a décliné votre proposition.',
+        'refused_decideur' => 'Vous avez décliné cette proposition.',
+        'cancelled' => 'Cet échange a été annulé.',
     ],
-    'review_exchange' => 'Évaluez cet échange',
-    'review_placeholder' => 'Commentaire (optionnel)...',
-    'send_review' => 'Envoyer l\'évaluation',
+
+    // TASK-1754 §3.3 — des verbes d'entraide. `cancel` se dédouble : retirer SA
+    // proposition n'est pas annuler un échange déjà convenu, et les confondre
+    // sous « Annuler » cachait ce qui se passe vraiment.
+    'actions' => [
+        'accept' => 'Accepter l\'échange',
+        'refuse' => 'Décliner',
+        'adjust' => 'Proposer un autre temps',
+        'cancel' => 'Annuler',
+        'cancel_withdraw' => 'Retirer ma proposition',
+        'cancel_exchange' => 'Annuler l\'échange',
+        'mark_done' => 'J\'ai bien reçu l\'aide',
+        'confirm' => 'Confirmer — recevoir mes :temps',
+        // « Contester » était un mot de litige pour dire « l'aide n'est pas
+        // encore finie ». Même route `contest()`, geste dédramatisé.
+        'contest' => 'Pas encore terminé',
+    ],
+
+    // TASK-1754 §9.4 — le MOT devient le geste principal, la note passe au
+    // second plan. Arbitrage Q6 de Cyril : la note reste OBLIGATOIRE (la colonne
+    // `reviews.rating` est NOT NULL et nourrit la moyenne du profil ainsi que
+    // les badges) — elle est donc discrète, pas optionnelle, et le libellé le
+    // dit honnêtement.
+    // TASK-1754 §3.4 — les faits du fil, desormais traduits.
+    // `:temps` est reconstruit depuis les points au moment du rendu.
+    'systeme' => [
+        'proposition_envoyee' => '🤝 Proposition envoyée — :temps',
+        'echange_accepte' => '✅ Échange accepté. L’entraide est en cours.',
+        'echange_decline' => 'Proposition déclinée.',
+        'temps_ajuste' => 'Temps ajusté : :temps',
+        'echange_annule' => 'Échange annulé.',
+        'aide_recue' => ':prenom a confirmé avoir reçu l’aide. En attente de votre confirmation.',
+        'echange_termine' => '🎉 Entraide terminée — :temps partagées.',
+        'pas_encore_termine' => 'L’aide n’est pas encore terminée : l’échange est remis en cours.',
+    ],
+    // TASK-1755 §5.2 — le SENS de l'aide, sur chaque ligne de la liste.
+    // C'est ce qui manquait le plus : la meme personne apparaissait N fois et
+    // seul un badge les distinguait.
+    'sens' => [
+        'vous_aidez' => 'Vous aidez :prenom · :temps',
+        'on_vous_demande' => ':prenom vous demande de l’aide · :temps',
+        'terminee' => 'Entraide terminée · :temps partagées',
+    ],
+    'etapes' => [
+        'proposition' => 'Proposition',
+        'accord' => 'Accord',
+        'aide' => 'Aide',
+        'confirmation' => 'Confirmation',
+    ],
+    'filtres' => [
+        'tous' => 'Tous',
+        'en_cours' => 'En cours',
+        'discussions' => 'Discussions',
+        'termines' => 'Terminés',
+    ],
+    'autres_actions' => 'Autres actions',
+    'review_exchange' => 'Dites merci à :prenom',
+    'review_intro' => 'L\'entraide est terminée — :temps partagées. Votre mot de remerciement sera affiché sur son profil.',
+    'review_placeholder' => 'Un mot de remerciement (affiché sur son profil)…',
+    'review_rating_hint' => 'Vous pouvez ajuster la note.',
+    'send_review' => 'Envoyer le merci',
     'composer_placeholder' => 'Votre message...',
     'conversation_closed' => 'Cette conversation est terminée.',
     'empty_thread' => 'Aucun message pour le moment',
@@ -77,4 +146,21 @@ return [
     'attachment_open' => 'Ouvrir',
     'attachment_download' => 'Télécharger',
     'take_photo' => 'Prendre une photo',
+
+    /*
+     * TASK-1760 — le REPLI de l'email de statut (`emails/transaction_status`).
+     * Le gabarit administrable en base reste le chemin normal ; ces libelles
+     * servent le jour ou il est desactive. La PHRASE de statut, elle, vient
+     * de `CarteEntraide::phrase()` : une seule definition, orientee role.
+     */
+    'email_exchange' => [
+        'title' => 'Mise à jour de votre échange',
+        'greeting' => 'Bonjour :prenom,',
+        'intro' => 'Le statut de votre échange a changé : **:statut**.',
+        'label_exchange' => 'Échange',
+        'label_time' => 'Temps partagé',
+        'cta' => 'Voir la conversation',
+        'untitled' => 'Échange',
+        'subject' => 'Mise à jour de votre échange — :statut',
+    ],
 ];

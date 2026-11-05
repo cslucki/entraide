@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Services\ServiceRequestLifecycle;
 use App\Models\Transaction;
+use App\Support\Entraide\MessageSysteme;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -86,7 +87,7 @@ class TransactionController extends Controller
             'status' => 'pending',
         ]);
 
-        $this->addSystemMessage($transaction, 'Nouvel échange envoyé : '.$data['points_proposed'].' points.');
+        MessageSysteme::ecrire($transaction, 'proposition_envoyee', ['points' => (int) $data['points_proposed']]);
 
         // TASK-1693 bug W — la demande ne quitte plus l'explorateur a la
         // proposition, mais a l'ACCEPTATION. Meme regle que le web : voir
@@ -136,7 +137,7 @@ class TransactionController extends Controller
             'points_agreed' => $transaction->points_proposed,
         ]);
 
-        $this->addSystemMessage($transaction, "Échange accepté. L'échange est en cours.");
+        MessageSysteme::ecrire($transaction, 'echange_accepte');
 
         app(ServiceRequestLifecycle::class)->markHandled($transaction);
 
@@ -156,7 +157,7 @@ class TransactionController extends Controller
         }
 
         $transaction->update(['status' => 'refused']);
-        $this->addSystemMessage($transaction, 'Échange refusé.');
+        MessageSysteme::ecrire($transaction, 'echange_decline');
 
         app(ServiceRequestLifecycle::class)->releaseIfNothingHolds($transaction);
 
@@ -176,7 +177,7 @@ class TransactionController extends Controller
         }
 
         $transaction->update(['status' => 'cancelled']);
-        $this->addSystemMessage($transaction, 'Transaction annulée.');
+        MessageSysteme::ecrire($transaction, 'echange_annule');
 
         app(ServiceRequestLifecycle::class)->releaseIfNothingHolds($transaction);
 
@@ -196,7 +197,7 @@ class TransactionController extends Controller
             'buyer_confirmed_at' => now(),
         ]);
 
-        $this->addSystemMessage($transaction, "L'acheteur a déclaré la prestation terminée. En attente de confirmation du vendeur.");
+        MessageSysteme::ecrire($transaction, 'aide_recue', ['prenom' => $transaction->buyer?->first_name ?: $transaction->buyer?->name]);
 
         return response()->json($this->freshTransactionPayload($transaction));
     }
@@ -240,20 +241,9 @@ class TransactionController extends Controller
             app(ServiceRequestLifecycle::class)->close($transaction);
         });
 
-        $this->addSystemMessage($transaction, 'Échange complété ! Les points ont été transférés.');
+        MessageSysteme::ecrire($transaction, 'echange_termine', ['points' => (int) ($transaction->points_agreed ?? $transaction->points_proposed)]);
 
         return response()->json($this->freshTransactionPayload($transaction));
-    }
-
-    private function addSystemMessage(Transaction $transaction, string $body): void
-    {
-        Message::create([
-            'transaction_id' => $transaction->id,
-            'sender_id' => null,
-            'body' => $body,
-            'type' => 'system',
-            'organization_id' => $transaction->organization_id,
-        ]);
     }
 
     private function transactionPayload(Transaction $transaction): array

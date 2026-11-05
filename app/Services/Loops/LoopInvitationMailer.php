@@ -288,6 +288,66 @@ class LoopInvitationMailer
     }
 
     /**
+     * TASK-1761 point 1 — la DEMANDE d'adhesion, pour le PROPRIETAIRE.
+     *
+     * Sa voisine `composeForJoinRequestAccepted()` porte la DECISION et va au
+     * demandeur. Celle-ci porte la DEMANDE et va a celui qui doit decider : les
+     * roles sont inverses, et c'est tout l'interet d'une methode distincte
+     * plutot qu'un parametre de plus.
+     *
+     * Le lien mene a la Boucle : c'est de la que le proprietaire accepte ou
+     * refuse. `$urlOverride` est toujours fourni par le pipeline de
+     * notification — le repli ne sert qu'a un appel direct.
+     *
+     * @return array{subject: string, body: string}
+     */
+    public function composeForJoinRequestCreated(
+        Loop $loop,
+        User $proprietaire,
+        ?User $demandeur = null,
+        ?string $urlOverride = null,
+        ?string $locale = null,
+    ): array {
+        $langue = $locale ?: app()->getLocale();
+        $langueOrigine = app()->getLocale();
+        app()->setLocale($langue);
+
+        try {
+            $organization = $loop->organization;
+
+            $url = $urlOverride ?? route('organization.loops.show', [
+                'organization' => $loop->organization?->slug ?? $loop->organization_id,
+                'loop' => $loop->slug ?: $loop->getKey(),
+            ]);
+
+            return $this->rendreGabarit(
+                slug: 'loop_join_request_created',
+                organizationId: (string) $loop->organization_id,
+                langue: $langue,
+                sender: $demandeur,
+                vars: [
+                    'recipient_name' => $proprietaire->publicDisplayName(),
+                    'recipient_email' => $proprietaire->email,
+                    'organization_name' => $organization?->name ?? '',
+                    'loop_name' => $loop->name ?? '',
+                    // `publicDisplayName()` et non `fullName` : le demandeur
+                    // peut etre desactive entre la demande et l'envoi, et cette
+                    // methode sait le dire.
+                    'requester_name' => $demandeur?->publicDisplayName() ?? __('profile.deactivated_user'),
+                    'request_url' => $url,
+                    'app_name' => config('app.name'),
+                ],
+                repli: fn () => [
+                    'subject' => __('notifications.email.loop_join_request_created.subject'),
+                    'html' => __('notifications.email.loop_join_request_created.body', ['url' => $url]),
+                ],
+            );
+        } finally {
+            app()->setLocale($langueOrigine);
+        }
+    }
+
+    /**
      * TASK-1719 — resoudre le gabarit `loop_invitation`, l'interpoler, et
      * retomber proprement. En UN seul endroit.
      *

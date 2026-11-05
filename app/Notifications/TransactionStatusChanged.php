@@ -45,7 +45,8 @@ class TransactionStatusChanged extends Notification
         }
 
         return (new MailMessage)
-            ->subject('Mise à jour de votre échange — '.$this->transaction->status_label)
+            // TASK-1760 — le sujet aussi etait en francais code en dur.
+            ->subject(__('messages.email_exchange.subject', ['statut' => $this->transaction->status_label]))
             ->markdown('emails.transaction_status', [
                 'user' => $notifiable,
                 'transaction' => $this->transaction,

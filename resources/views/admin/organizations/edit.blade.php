@@ -415,6 +415,28 @@
                     </label>
                 </div>
 
+                {{-- TASK-1762 point 2 — « On peut renseigner sa structure ».
+                     DECOCHEE par defaut, demande explicite de Cyril : « ce sera a
+                     moi, via le superadmin de cocher la case ». Le champ est donc
+                     invisible partout tant qu'une Organization ne l'a pas voulu.
+
+                     Le `hidden value="0"` qui precede n'est pas une decoration :
+                     une case decochee n'est PAS envoyee par le navigateur, et sans
+                     lui on ne pourrait jamais la decocher. --}}
+                <div>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="hidden" name="structure_enabled" value="0">
+                        <input type="checkbox" name="structure_enabled" value="1"
+                            {{ old('structure_enabled', $organization->structure_enabled) ? 'checked' : '' }}
+                            class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                            data-admin-org-structure-enabled>
+                        <div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.org_structure_enabled_label') }}</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.org_structure_enabled_desc') }}</p>
+                        </div>
+                    </label>
+                </div>
+
                 {{-- TASK-1694 bug AE — la disponibilite des membres.
                      COCHEE par defaut (migration), a l'inverse de la case voisine :
                      celle du bug R retirait une capacite, celle-ci gouverne une

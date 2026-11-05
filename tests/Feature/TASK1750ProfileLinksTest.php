@@ -66,6 +66,8 @@ class TASK1750ProfileLinksTest extends TestCase
             'name' => $this->membre->name,
             'email' => $this->membre->email,
             'phone' => '+33600000000',
+            // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE lui aussi.
+            'slogan' => 'Je resous des problemes, pas des tickets.',
             'website' => $this->membre->website,
             'linkedin_url' => $this->membre->linkedin_url,
         ], $extra));
@@ -260,7 +262,7 @@ class TASK1750ProfileLinksTest extends TestCase
         $this->assertStringContainsString('data-profile-link-add', $html);
         $this->assertStringContainsString(e(__('profile.links_heading')), $html);
 
-        // Les cinq types sont proposes, et le libelle est traduit.
+        // Tous les types sont proposes, et le libelle est traduit.
         foreach (ProfileLinks::clefs() as $clef) {
             $this->assertStringContainsString('value="'.$clef.'"', $html,
                 "Le type « {$clef} » n'est pas propose.");

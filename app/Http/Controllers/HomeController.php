@@ -96,25 +96,135 @@ class HomeController extends Controller
         // SQLite, il ne l'est pas en PostgreSQL.
         $recherche = trim((string) request()->query('q', ''));
 
+        // TASK-1762 point 11.4 — la vue « Nouveaux arrivés ».
+        //
+        // L'annuaire etait DEJA trie du plus recent au plus ancien : un bouton
+        // qui ne ferait que « trier par date » n'aurait rien change a l'ecran.
+        // Arbitrage de Cyril : le bouton change de PRESENTATION — une liste ou
+        // la photo est grande et la presentation lue EN ENTIER, la ou la carte
+        // la tronque a trois lignes.
+        //
+        // Toute valeur autre que `latest` se lit « vue normale » : un parametre
+        // forge ne doit jamais fabriquer un etat tiers.
+        $vueNouveaux = request()->query('view') === 'latest';
+
+        // TASK-1762 point 10 — le filtre « Localisation ».
+        //
+        // Cyril a tranche le menu plutot que le champ libre : « j'ai peur que
+        // les gens ne trouvent pas le fait qu'on puisse chercher par ville ».
+        // Un menu MONTRE ce qui est cherchable ; un champ libre le cache.
+        $ville = trim((string) request()->query('city', ''));
+
+        // Les villes du parc, REGROUPEES SANS TENIR COMPTE DE LA CASSE.
+        //
+        // Ce n'est pas une precaution theorique : le jumeau porte « Marseille »
+        // ET « MARSEILLE », saisis a la main par des gens differents. Un
+        // `GROUP BY city` brut les listerait tous les deux dans le menu, et
+        // chacun ne montrerait qu'une partie des membres de la ville.
+        //
+        // Le regroupement se fait en PHP plutot qu'en SQL : `LOWER()` sur une
+        // colonne se comporte differemment selon le collationnement, et le
+        // parc d'une Organization tient de toute facon en memoire.
+        $villes = User::where('organization_id', $organizationId)
+            ->activeAccount()
+            ->whereNotNull('city')
+            ->where('city', '!=', '')
+            ->pluck('city')
+            ->groupBy(fn ($v) => mb_strtolower(trim($v)))
+            ->map(function ($graphies) {
+                // L'orthographe la PLUS FREQUENTE represente le groupe, et
+                // l'ordre alphabetique departage les ex aequo : sans ce second
+                // critere, « Marseille » et « MARSEILLE » a une voix chacun
+                // rendraient tantot l'un tantot l'autre d'un chargement a
+                // l'autre.
+                $parGraphie = $graphies->countBy()->sortDesc();
+                $maximum = $parGraphie->first();
+
+                return [
+                    'libelle' => $parGraphie->filter(fn ($n) => $n === $maximum)->keys()->sort()->first(),
+                    'total' => $graphies->count(),
+                ];
+            })
+            ->sortBy('libelle', SORT_NATURAL | SORT_FLAG_CASE);
+
+        // Une ville forgee dans l'URL ne filtre rien : le menu ne propose que
+        // ce que le parc contient, et un parametre invalide doit se lire comme
+        // « aucun filtre », pas comme « aucun membre ».
+        if ($ville !== '' && ! $villes->has(mb_strtolower($ville))) {
+            $ville = '';
+        }
+
         $members = User::where('organization_id', $organizationId)
             ->activeAccount()
-            ->when($recherche !== '', function ($q) use ($recherche) {
+            ->when($recherche !== '', function ($q) use ($recherche, $organization) {
                 $like = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
                 $motif = '%'.$recherche.'%';
 
-                $q->where(function ($w) use ($like, $motif) {
+                // TASK-1762 point 9 — la structure entre dans la recherche,
+                // mais SEULEMENT si l'Organization a ouvert le champ.
+                //
+                // Ce n'est pas une precaution de forme : decocher la case
+                // n'efface AUCUNE donnee (c'est garde par un test du point 2).
+                // Une Organization qui a essaye puis renonce garde donc des
+                // structures en base, et une recherche non bornee les rendrait
+                // trouvables alors qu'elles ne s'affichent plus nulle part.
+                $chercheLaStructure = structureIsShown($organization);
+
+                $q->where(function ($w) use ($like, $motif, $chercheLaStructure) {
                     $w->where('first_name', $like, $motif)
                         ->orWhere('name', $like, $motif)
                         ->orWhereRaw("COALESCE(first_name, '') || ' ' || COALESCE(name, '') ".$like.' ?', [$motif]);
+
+                    if ($chercheLaStructure) {
+                        $w->orWhere('structure', $like, $motif);
+                    }
+
+                    // TASK-1762 point 13 — le CONTENU de la presentation.
+                    //
+                    // « la personne dit dans sa présentation "Je suis auditeur
+                    // Qualiopi", on doit pouvoir le trouver en tapant
+                    // "Qualiopi" ». La recherche cesse d'etre un annuaire de
+                    // noms pour devenir un annuaire de COMPETENCES.
+                    //
+                    // Aucune donnee nouvelle n'est exposee : la bio est deja
+                    // affichee sur la carte et, en entier, dans la vue
+                    // « Nouveaux arrivés ». Chercher dedans ne rend trouvable
+                    // que ce qui etait deja lisible.
+                    //
+                    // Pas de garde d'Organization ici, contrairement a la
+                    // structure : la bio n'a pas de drapeau, elle fait partie
+                    // du profil depuis toujours.
+                    $w->orWhere('bio', $like, $motif);
+
+                    // TASK-1762 point 17 — le slogan, meme raisonnement que la
+                    // bio : deja affiche sur la carte et la fiche publique,
+                    // aucune garde d'Organization puisqu'il n'en a pas.
+                    $w->orWhere('slogan', $like, $motif);
                 });
             })
+            // TASK-1762 point 10 — la comparaison ignore la casse, pour la
+            // meme raison que le regroupement du menu : choisir « Marseille »
+            // doit rendre AUSSI les « MARSEILLE ».
+            ->when($ville !== '', fn ($q) => $q->whereRaw('LOWER(city) = ?', [mb_strtolower($ville)]))
             ->withCount([
                 'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->active()->where('organization_id', $organizationId),
                 'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->open()->where('organization_id', $organizationId),
             ])
             ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->active()->where('organization_id', $organizationId)->with('skills', 'category')])
+            // Du plus recent au plus ancien — et depuis le point 11.4, ce tri
+            // est aussi le CONTRAT de la vue « Nouveaux arrivés » : si l'ordre
+            // de la grille change un jour, celui de la vue ne doit pas suivre.
             ->orderByDesc('created_at')
-            ->paginate(16)
+            // TASK-1762 point 11.2 — 36 et non 16.
+            //
+            // Mesure du 05/11 : les Organizations du parc comptent 6, 9 et 35
+            // membres. A 16 par page, la plus grande se coupait en trois pour
+            // rien. A 36, aucune ne pagine aujourd'hui — et le chargement au
+            // defilement prend le relais le jour ou l'une d'elles grandira.
+            //
+            // 36 et pas 30 : la grille fait trois colonnes (point 11.1), donc
+            // un multiple de trois remplit toujours la derniere rangee.
+            ->paginate(36)
             ->withQueryString();
 
         $identifiants = $members->getCollection()->pluck('id');
@@ -158,9 +268,35 @@ class HomeController extends Controller
             ->with(['loop' => fn ($q) => $q->select('id', 'name', 'slug', 'organization_id', 'status')])
             ->get()
             ->groupBy('user_id')
-            ->map(fn ($lignes) => $lignes->pluck('loop')->filter()->unique('id')->sortBy('name')->values());
+            // TASK-1762 point 14 — les plus REPRESENTATIVES d'abord.
+            //
+            // La carte ne montre que les trois premieres et replie le reste :
+            // l'ordre cesse d'etre cosmetique, il decide de ce qu'on voit. Une
+            // Boucle qu'on ANIME dit davantage de quelqu'un qu'une Boucle dont
+            // il est l'un des trente membres.
+            //
+            // Le nom reste le second critere : sans lui, deux Boucles de meme
+            // role rendraient l'ordre de la base, qui n'est garanti par rien.
+            ->map(function ($lignes) {
+                $rang = ['owner' => 0, 'facilitator' => 1, 'moderator' => 1, 'member' => 2];
 
-        return view('members.index', compact('members', 'recherche', 'articleCounts', 'loopsByUser'));
+                return $lignes
+                    ->filter(fn ($ligne) => $ligne->loop !== null)
+                    ->unique(fn ($ligne) => $ligne->loop->id)
+                    // Une clef COMPOSITE, et non un tableau de fermetures :
+                    // `sortBy()` traite un tableau comme des paires
+                    // [colonne, sens], pas comme une suite de criteres — il ne
+                    // triait donc rien du tout, et la base rendait son ordre.
+                    ->sortBy(fn ($ligne) => sprintf(
+                        '%d-%s',
+                        $rang[$ligne->role] ?? 3,
+                        mb_strtolower((string) $ligne->loop->name),
+                    ))
+                    ->pluck('loop')
+                    ->values();
+            });
+
+        return view('members.index', compact('members', 'recherche', 'articleCounts', 'loopsByUser', 'villes', 'ville', 'vueNouveaux'));
     }
 
     public function boucles(): View

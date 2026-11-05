@@ -234,6 +234,27 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        /*
+         * TASK-1761 point 1 — la DEMANDE d'adhesion, cote proprietaire.
+         *
+         * Pose AUSSI par la migration `2026_11_05_150000`, pour les
+         * environnements deja deployes ou le seeder ne tourne pas. Les deux
+         * doivent dire la meme chose : un gabarit pose par migration entre au
+         * catalogue du seeder, sinon une base reconstruite de zero ne l'a pas.
+         */
+        'loop_join_request_created' => [
+            'name_fr' => 'Demande pour rejoindre une Boucle',
+            'name_en' => 'Request to join a Loop',
+            'subject_fr' => 'Quelqu’un demande à rejoindre « {{ loop_name }} »',
+            'subject_en' => 'Someone is asking to join “{{ loop_name }}”',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> demande à rejoindre la Boucle <strong>{{ loop_name }}</strong>, dont vous êtes responsable.</p><p><a href="{{ request_url }}">Voir la demande et répondre</a></p><p>Tant que vous n’avez pas répondu, cette personne reste en attente.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> is asking to join the Loop <strong>{{ loop_name }}</strong>, which you are responsible for.</p><p><a href="{{ request_url }}">View the request and reply</a></p><p>Until you reply, this person stays on hold.</p><p>See you soon,<br>The {{ app_name }} team</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'organization_name',
+                'loop_name', 'requester_name', 'request_url', 'app_name',
+            ],
+        ],
+
         'loop_invitation' => [
             'name_fr' => 'Invitation à rejoindre une Boucle',
             'name_en' => 'Invitation to join a Loop',

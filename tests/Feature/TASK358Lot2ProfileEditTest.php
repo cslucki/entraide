@@ -187,7 +187,18 @@ class TASK358Lot2ProfileEditTest extends TestCase
 
     private function createUserForProfile(array $attributes = []): User
     {
-        $organization = Organization::factory()->create();
+        // TASK-1762 point 15 — la section « Informations privées / facturation »
+        // n'existe que si l'Organization propose des abonnements. Ces tests
+        // portent justement sur ces champs : leur terrain doit donc les offrir,
+        // sans quoi ils mesureraient l'absence de la section.
+        // TASK-1762 points 15 et 16 — ces tests portent sur les champs de
+        // facturation ET sur « Langue principale ». Les deux sont desormais
+        // conditionnels : sans ces deux drapeaux, ils mesureraient l'absence
+        // des sections au lieu de leur contenu.
+        $organization = Organization::factory()->create([
+            'subscriptions_enabled' => true,
+            'multilingual_enabled' => true,
+        ]);
         app()->instance('current_organization', $organization);
 
         return User::factory()->create(array_merge([
@@ -202,6 +213,9 @@ class TASK358Lot2ProfileEditTest extends TestCase
             'name' => $user?->name ?? 'Dupont',
             'email' => $user?->email ?? 'jean.dupont@example.test',
             'phone' => '0612345678',
+            // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE :
+            // sans lui, `ProfileController::update()` refuse tout le reste.
+            'slogan' => 'Je resous des problemes, pas des tickets.',
             'bio' => 'A short profile biography.',
             'city' => 'Paris',
             'country_code' => Country::query()->whereKey('FR')->exists() ? 'FR' : null,

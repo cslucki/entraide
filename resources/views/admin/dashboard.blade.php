@@ -60,6 +60,12 @@
         <p class="mb-6 text-sm text-gray-500 dark:text-gray-400 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3" data-platform-attention-none>{{ __('dashboard.platform_attention_none') }}</p>
     @endif
 
+    {{-- TASK-1761 point 2 — les demandes a traiter, HAUT de page.
+         Elles appellent une decision : les mettre sous les statistiques
+         reviendrait a les ranger parmi ce qu'on consulte, pas parmi ce qu'on
+         fait. Le composant est le MEME que celui de `/admin/loops`. --}}
+    <x-admin.demandes-adhesion :demandes="$demandesDAdhesion" class="mb-6" />
+
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6" data-platform-tiles>
         @foreach($tiles as $tile)
             @php $inner = 'block rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 min-h-[92px]'; @endphp

@@ -181,9 +181,87 @@ class Transaction extends Model
      * branche historique : decideur = vendeur, comportement inchange. Leurs
      * boutons sont de toute facon masques.
      */
+    /**
+     * TASK-1754 (§4) — l'echange ACTIF d'un proposant sur une annonce donnee.
+     *
+     * ## Pourquoi cette methode existe, et pourquoi ICI
+     *
+     * La meme question se pose a TROIS endroits : la garde anti-doublon de
+     * `TransactionController::store()`, et les deux pages d'annonce qui doivent
+     * desormais savoir qu'un echange existe deja (`ServiceController::show()`,
+     * `RequestController::show()`).
+     *
+     * Recopiee trois fois, elle aurait diverge — et la divergence serait MUETTE :
+     * une vue qui croit qu'il n'y a pas d'echange affiche le formulaire, le POST
+     * part, et la garde le refuse. On retomberait exactement sur le cul-de-sac
+     * que ce chantier repare.
+     *
+     * ## La colonne du proposant n'est pas la meme des deux cotes
+     *
+     * Cote PROPOSITION, celui qui repond recoit l'aide : il est `buyer_id`.
+     * Cote DEMANDE, celui qui repond apporte l'aide : il est `seller_id`.
+     * C'est l'inversion deja etablie par TASK-1693 bug S, et c'est precisement
+     * ce qu'une recopie a la main rate.
+     *
+     * ## « Actif » veut dire : qui empeche d'en ouvrir un autre
+     *
+     * `pending` et `accepted` seulement. Un echange `refused`, `cancelled` ou
+     * `completed` ne doit RIEN empecher : on doit pouvoir re-demander de l'aide
+     * a quelqu'un qui a decline, ou redemander la meme aide plus tard.
+     */
+    public static function echangeActif(string $proposantId, ?string $serviceId, ?string $requestId): ?self
+    {
+        if ($serviceId === null && $requestId === null) {
+            return null;
+        }
+
+        $colonneDuProposant = $serviceId !== null ? 'buyer_id' : 'seller_id';
+
+        return static::where($colonneDuProposant, $proposantId)
+            ->whereIn('status', ['pending', 'accepted'])
+            ->when($serviceId !== null,
+                fn ($q) => $q->where('service_id', $serviceId),
+                fn ($q) => $q->where('request_id', $requestId),
+            )
+            ->latest()
+            ->first();
+    }
+
     public function proposerId(): string
     {
         return $this->request_id !== null ? $this->seller_id : $this->buyer_id;
+    }
+
+    /**
+     * TASK-1755 (§1.2 du CDC) — les deux roles HUMAINS, sans colonne nouvelle.
+     *
+     * Le modele parle d'acheteur et de vendeur. Les personnes, elles, aident ou
+     * sont aidees. La correspondance est stable et sans ambiguite — celui qui
+     * ENCAISSE les points est celui qui APPORTE l'aide — mais elle est contre
+     * intuitive a relire : `seller` pour « l'aidant » surprend a chaque lecture,
+     * et c'est ainsi qu'on finit par inverser les deux.
+     *
+     * Ces deux methodes sont la seule traduction du vocabulaire economique vers
+     * le vocabulaire humain. Tout ce qui parle a l'utilisateur passe par elles.
+     *
+     * A ne pas confondre avec `proposerId()` / `decisionMakerId()` : ceux-la
+     * disent qui a PROPOSE et qui DECIDE, ce qui s'inverse selon qu'on repond a
+     * une proposition ou a une demande (T1693 bug S). Le sens de l'aide, lui, ne
+     * s'inverse jamais.
+     */
+    public function estLAidant(User|string|null $user): bool
+    {
+        $id = $user instanceof User ? $user->id : $user;
+
+        return $id !== null && $this->seller_id === $id;
+    }
+
+    /** Celui qui RECOIT l'aide, et qui paie. */
+    public function estLAide(User|string|null $user): bool
+    {
+        $id = $user instanceof User ? $user->id : $user;
+
+        return $id !== null && $this->buyer_id === $id;
     }
 
     /** L'autre partie : celle qui n'a pas propose, donc celle qui decide. */
@@ -195,7 +273,7 @@ class Transaction extends Model
     public function getSubjectAttribute(): string
     {
         if ($this->isDirectConversation()) {
-            return 'Conversation directe';
+            return __('messages.direct_conversation');
         }
 
         if ($this->service) {
@@ -205,20 +283,33 @@ class Transaction extends Model
             return $this->serviceRequest->title;
         }
 
-        return 'Échange #'.substr($this->id, 0, 8);
+        return __('messages.exchange_subject', ['id' => substr($this->id, 0, 8)]);
     }
 
+    /**
+     * TASK-1754 (§3.4, obstacle n°1) — le libelle passe par le systeme de langue.
+     *
+     * ## Le defaut repare
+     *
+     * Ces libelles etaient ecrits EN FRANCAIS, EN DUR, dans le modele — et ils
+     * doublonnaient `lang/{fr,en}/messages.php`, qui disait deja la meme chose.
+     * Deux consequences, toutes deux constatees :
+     *
+     * 1. le renommage du lexique d'entraide aurait du etre fait DEUX FOIS, et
+     *    la seconde aurait ete oubliee ;
+     * 2. l'anglais etait casse la ou cet attribut sert : un anglophone lisait
+     *    « En attente » dans son export CSV et dans ses notifications.
+     *
+     * Le `default` rend le statut brut : une valeur hors des six du `CHECK` de
+     * PostgreSQL ne doit pas devenir une clef de traduction introuvable, qui
+     * s'afficherait « messages.status.xxx » a l'ecran.
+     */
     public function getStatusLabelAttribute(): string
     {
-        return match ($this->status) {
-            'pending' => 'En attente',
-            'accepted' => 'Accepté',
-            'buyer_done' => 'Terminé (acheteur)',
-            'completed' => 'Complété',
-            'refused' => 'Refusé',
-            'cancelled' => 'Annulé',
-            default => $this->status,
-        };
+        $clef = 'messages.status.'.$this->status;
+        $libelle = __($clef);
+
+        return $libelle === $clef ? $this->status : $libelle;
     }
 
     public function getStatusColorAttribute(): string

@@ -8,10 +8,10 @@ use App\Models\LoopMember;
 use App\Models\Referral;
 use App\Models\User;
 use App\Services\Loops\LoopRootDocumentService;
-use App\Support\Loops\LoopRoleRegistry;
-use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Feed\FeedEventEmitter;
+use App\Support\Loops\LoopRoleRegistry;
+use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmissionConflict;
 use App\Support\Notifications\NotificationEmitter;
@@ -511,7 +511,7 @@ class LoopService
 
     public function requestToJoin(Loop $loop, User $user, ?string $message = null): LoopJoinRequest
     {
-        return DB::transaction(function () use ($loop, $user, $message) {
+        $demande = DB::transaction(function () use ($loop, $user, $message) {
             $existingPending = LoopJoinRequest::where('loop_id', $loop->id)
                 ->where('user_id', $user->id)
                 ->where('status', LoopJoinRequest::STATUS_PENDING)
@@ -530,6 +530,79 @@ class LoopService
                 'status' => LoopJoinRequest::STATUS_PENDING,
             ]);
         });
+
+        // TASK-1761 point 1 — APRES la transaction, jamais dedans.
+        //
+        // Emettre a l'interieur ferait porter a une notification le pouvoir
+        // d'annuler la demande : un echec de livraison annulerait l'ecriture.
+        // La demande EST enregistree ; prevenir est une consequence, pas une
+        // condition.
+        $this->notifierDemandeDAdhesion($demande, $loop, $user);
+
+        return $demande;
+    }
+
+    /**
+     * TASK-1761 point 1 — prevenir le ou les PROPRIETAIRES.
+     *
+     * ## Le trou que cela ferme
+     *
+     * `requestToJoin()` ecrivait la ligne et n'emettait RIEN. Personne
+     * n'apprenait qu'on attendait une reponse : la demande restait en attente
+     * jusqu'a ce qu'un proprietaire passe par hasard sur l'ecran de sa Boucle.
+     *
+     * ## TOUS les proprietaires, pas « le » proprietaire
+     *
+     * `Loop::owners()` est un `HasMany` : une Boucle peut en avoir plusieurs —
+     * T1693 bug O a meme livre le transfert de propriete, qui passe par un
+     * instant a deux. N'en prevenir qu'un laisserait la demande invisible pour
+     * les autres, et le choix de CELUI qu'on previent serait arbitraire.
+     *
+     * Le DEMANDEUR est exclu : il peut etre proprietaire d'une autre Boucle,
+     * et rien n'interdit theoriquement qu'il figure dans les deux listes. On ne
+     * se previent pas soi-meme.
+     *
+     * ## L'identifiant d'evenement est DETERMINISTE
+     *
+     * Derive de la cle ET de la demande, comme pour les decisions (T1381) :
+     * rejouer le meme fait ne cree pas une seconde notification, il constate la
+     * premiere. La contrainte `UNIQUE(event_id, recipient_id)` fait le reste —
+     * et comme `recipient_id` en fait partie, chaque proprietaire a bien la
+     * sienne.
+     */
+    private function notifierDemandeDAdhesion(LoopJoinRequest $demande, Loop $loop, User $demandeur): void
+    {
+        $proprietaires = $loop->owners()
+            ->with('user')
+            ->get()
+            ->pluck('user')
+            ->filter()
+            ->reject(fn (User $u) => $u->id === $demandeur->id)
+            ->unique('id');
+
+        foreach ($proprietaires as $proprietaire) {
+            try {
+                app(NotificationEmitter::class)->emit(
+                    notificationKey: NotificationCatalogue::LOOP_JOIN_REQUEST_CREATED,
+                    organization: (string) $demande->organization_id,
+                    recipient: $proprietaire,
+                    eventId: $this->identifiantEvenementDecision($demande, NotificationCatalogue::LOOP_JOIN_REQUEST_CREATED),
+                    objectType: NotificationCatalogue::objectTypeFor(NotificationCatalogue::LOOP_JOIN_REQUEST_CREATED),
+                    objectId: (string) $demande->id,
+                    actor: $demandeur->organization_id === $demande->organization_id ? $demandeur : null,
+                );
+            } catch (NotificationEmissionConflict) {
+                // Deja prevenu de ce fait. Un rejeu n'est pas une anomalie.
+            } catch (\Throwable $echec) {
+                // La demande est enregistree : elle ne se defait pas parce que
+                // l'avis n'a pas pu partir. Meme doctrine qu'en T1381.
+                Log::warning('TASK-1761 notification de demande d\'adhesion non emise', [
+                    'join_request_id' => $demande->id,
+                    'recipient_id' => $proprietaire->id,
+                    'raison' => $echec->getMessage(),
+                ]);
+            }
+        }
     }
 
     public function cancelJoinRequest(LoopJoinRequest $joinRequest): void

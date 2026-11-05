@@ -154,65 +154,36 @@
             </div>
         </div>
 
+        @php
+            // TASK-1755 — l'URL d'une pastille, dans la surface courante. Un
+            // echange ouvert est conserve dans l'URL : changer de filtre ne doit
+            // pas fermer la conversation qu'on lit.
+            $_filtreUrl = function (string $f) use ($_messagesRoute) {
+                $params = $f === 'tous' ? [] : ['filtre' => $f];
+                if (isset($transaction)) {
+                    return $_messagesRoute('messages.show', 'organization.messages.show', array_merge(['transaction' => $transaction], $params));
+                }
+
+                return $_messagesRoute('messages.index', 'organization.messages.index', $params);
+            };
+        @endphp
         <div class="messages-index-container flex flex-col md:flex-row border-0 md:border border-gray-200 dark:border-gray-700 md:rounded-xl overflow-hidden bg-white dark:bg-gray-800">
 
             {{-- Mobile: conversation list when no thread selected --}}
             <div class="md:hidden flex-1 flex flex-col min-h-0 @isset($transaction) hidden @endisset">
+                <x-conversation.filtres :actif="$filtre ?? null" :url="$_filtreUrl" />
                 <div class="flex-1 overflow-y-auto">
                     @forelse($transactions as $conv)
-                        @php
-                            $other = auth()->id() === $conv->buyer_id ? $conv->seller : $conv->buyer;
-                            $lastMsg = $conv->messages->first();
-                            $isActive = isset($transaction) && $transaction->id === $conv->id;
-                            $isDirectConversation = $conv->isDirectConversation();
-                            $unread = $unreadCounts[$conv->id] ?? 0;
-                            $otherDisplayable = $other?->isDisplayableIn(currentOrganization()) ?? false;
-                        @endphp
-                        <a href="{{ $_messagesRoute('messages.show', 'organization.messages.show', ['transaction' => $conv]) }}"
-                            class="flex items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 transition {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-900/30' : '' }}">
-                            <div class="relative flex-shrink-0">
-                                @if($otherDisplayable)
-                                    <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
-                                @else
-                                    <span class="flex w-10 h-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300">?</span>
-                                @endif
-                                @if($unread > 0 && !$isActive)
-                                {{-- TASK-1693 bug V — la valeur BRUTE, pour que
-                                     ce compteur soit mesurable comme celui du
-                                     rail. Sans marqueur, une assertion ne
-                                     pouvait que chercher le chiffre quelque
-                                     part dans la page : un sabotage restait
-                                     vert. --}}
-                                <span data-thread-unread="{{ $conv->id }}:{{ $unread }}"
-                                      class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                                    {{ $unread > 9 ? '9+' : $unread }}
-                                </span>
-                                @endif
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <div class="flex items-center justify-between gap-1">
-                                    <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate {{ $unread > 0 && !$isActive ? 'font-bold' : '' }}">{{ $other?->publicDisplayName() ?? __('profile.deactivated_user') }}</p>
-                                    @unless($isDirectConversation)
-                                        <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
-                                            {{ match($conv->status) {
-                                                'pending' => 'bg-orange-100 text-orange-700',
-                                                'accepted' => 'bg-blue-100 text-blue-700',
-                                                'buyer_done' => 'bg-purple-100 text-purple-700',
-                                                'completed' => 'bg-green-100 text-green-700',
-                                                default => 'bg-gray-100 text-gray-600',
-                                            } }}">
-                                            {{ __('messages.status.' . $conv->status) }}
-                                        </span>
-                                    @endunless
-                                </div>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $conv->subject }}</p>
-                                @if($lastMsg)
-                                <p class="text-xs {{ $unread > 0 && !$isActive ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400' }} truncate mt-0.5">
-                                    {{ Str::limit($lastMsg->body, 40) }}
-                                </p>
-                                @endif
-                            </div>
-                        </a>
+                        {{-- TASK-1755 — UN composant, deux volets. Ce balisage
+                             existait en DEUX exemplaires byte pour byte ; toute
+                             correction devait etre faite deux fois. C'est aussi
+                             le terrain du regroupement par personne (Q4) : une
+                             liste groupee rendra CE composant sous un en-tete. --}}
+                        <x-conversation.list-line
+                            :conv="$conv"
+                            :href="$_messagesRoute('messages.show', 'organization.messages.show', ['transaction' => $conv])"
+                            :actif="isset($transaction) && $transaction->id === $conv->id"
+                            :nonLus="$unreadCounts[$conv->id] ?? 0" />
                     @empty
                         <div class="p-8 text-center text-gray-400 text-sm">{{ __('messages.no_conversations') }}</div>
                     @endforelse
@@ -296,64 +267,22 @@
 
             {{-- Desktop: conversation list sidebar --}}
             <div class="hidden md:flex w-80 flex-shrink-0 flex-col border-r border-gray-200 dark:border-gray-700">
-                <div class="p-4 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('messages.title') }}</h2>
+                <div class="pt-4 border-b border-gray-200 dark:border-gray-700">
+                    <h2 class="px-4 pb-3 font-semibold text-gray-900 dark:text-gray-100">{{ __('messages.title') }}</h2>
+                    <x-conversation.filtres :actif="$filtre ?? null" :url="$_filtreUrl" />
                 </div>
                 <div class="flex-1 overflow-y-auto">
                     @forelse($transactions as $conv)
-                        @php
-                            $other = auth()->id() === $conv->buyer_id ? $conv->seller : $conv->buyer;
-                            $lastMsg = $conv->messages->first();
-                            $isActive = isset($transaction) && $transaction->id === $conv->id;
-                            $isDirectConversation = $conv->isDirectConversation();
-                            $unread = $unreadCounts[$conv->id] ?? 0;
-                            $otherDisplayable = $other?->isDisplayableIn(currentOrganization()) ?? false;
-                        @endphp
-                        <a href="{{ $_messagesRoute('messages.show', 'organization.messages.show', ['transaction' => $conv]) }}"
-                            class="flex items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 transition {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-900/30' : '' }}">
-                            <div class="relative flex-shrink-0">
-                                @if($otherDisplayable)
-                                    <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
-                                @else
-                                    <span class="flex w-10 h-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300">?</span>
-                                @endif
-                                @if($unread > 0 && !$isActive)
-                                {{-- TASK-1693 bug V — la valeur BRUTE, pour que
-                                     ce compteur soit mesurable comme celui du
-                                     rail. Sans marqueur, une assertion ne
-                                     pouvait que chercher le chiffre quelque
-                                     part dans la page : un sabotage restait
-                                     vert. --}}
-                                <span data-thread-unread="{{ $conv->id }}:{{ $unread }}"
-                                      class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                                    {{ $unread > 9 ? '9+' : $unread }}
-                                </span>
-                                @endif
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <div class="flex items-center justify-between gap-1">
-                                    <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate {{ $unread > 0 && !$isActive ? 'font-bold' : '' }}">{{ $other?->publicDisplayName() ?? __('profile.deactivated_user') }}</p>
-                                    @unless($isDirectConversation)
-                                        <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
-                                            {{ match($conv->status) {
-                                                'pending' => 'bg-orange-100 text-orange-700',
-                                                'accepted' => 'bg-blue-100 text-blue-700',
-                                                'buyer_done' => 'bg-purple-100 text-purple-700',
-                                                'completed' => 'bg-green-100 text-green-700',
-                                                default => 'bg-gray-100 text-gray-600',
-                                            } }}">
-                                            {{ __('messages.status.' . $conv->status) }}
-                                        </span>
-                                    @endunless
-                                </div>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $conv->subject }}</p>
-                                @if($lastMsg)
-                                <p class="text-xs {{ $unread > 0 && !$isActive ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400' }} truncate mt-0.5">
-                                    {{ Str::limit($lastMsg->body, 40) }}
-                                </p>
-                                @endif
-                            </div>
-                        </a>
+                        {{-- TASK-1755 — UN composant, deux volets. Ce balisage
+                             existait en DEUX exemplaires byte pour byte ; toute
+                             correction devait etre faite deux fois. C'est aussi
+                             le terrain du regroupement par personne (Q4) : une
+                             liste groupee rendra CE composant sous un en-tete. --}}
+                        <x-conversation.list-line
+                            :conv="$conv"
+                            :href="$_messagesRoute('messages.show', 'organization.messages.show', ['transaction' => $conv])"
+                            :actif="isset($transaction) && $transaction->id === $conv->id"
+                            :nonLus="$unreadCounts[$conv->id] ?? 0" />
                     @empty
                         <div class="p-8 text-center text-gray-400 text-sm">{{ __('messages.no_conversations') }}</div>
                     @endforelse

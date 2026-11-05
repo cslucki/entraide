@@ -26,7 +26,7 @@ return [
     'max_10' => '(max 10)',
     'add_tag_placeholder' => 'Ajouter un tag...',
     'add' => 'Ajouter',
-    'delivery_mode' => 'Mode de prestation',
+    'delivery_mode' => 'Comment se passe l’aide',
     'delivery' => [
         'remote' => '🌐 À distance',
         'onsite' => '📍 Sur site',
@@ -88,7 +88,7 @@ return [
         'title' => 'titre',
         'description' => 'description',
         'category_id' => 'catégorie',
-        'delivery_mode' => 'mode de prestation',
+        'delivery_mode' => 'comment se passe l’aide',
         'points_cost' => 'points demandés',
         'budget_min' => 'budget minimum',
         'budget_max' => 'budget maximum',

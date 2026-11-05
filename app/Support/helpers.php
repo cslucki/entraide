@@ -58,6 +58,92 @@ if (! function_exists('availabilityIsShown')) {
     }
 }
 
+if (! function_exists('billingIsCollected')) {
+    /**
+     * TASK-1762 point 15 — cette Organization recueille-t-elle une adresse
+     * de facturation ?
+     *
+     * ## Pourquoi la question se pose
+     *
+     * Cyril, 05/11 : « si on ne propose pas d'abonnement, pas la peine de
+     * parler de facturation, ça fait peur aux utilisateurs. Puis ainsi on
+     * évite de recueillir des coordonnées pour rien. »
+     *
+     * La section « Informations privées / facturation » du profil — adresse,
+     * complement, code postal — est donc suspendue a « Proposer les
+     * abonnements ». C'est autant une question de minimisation des donnees
+     * que de confiance : demander une adresse postale sans raison visible est
+     * le genre de detail qui fait fermer un formulaire.
+     *
+     * ## La resolution est celle de `structureIsShown()`
+     *
+     * Et pour la meme raison : `currentOrganization()` retombe sur
+     * l'Organization PAR DEFAUT quand l'URL ne porte pas de prefixe de tenant
+     * (bug AI de T1694). S'il y a un tenant dans l'URL, c'est lui qui decide ;
+     * sinon, c'est l'Organization de la personne connectee.
+     *
+     * Une ECRITURE passe l'Organization explicitement : elle se lie a celle de
+     * la personne ecrite, jamais a ce que l'URL raconte.
+     */
+    function billingIsCollected(?\App\Models\Organization $organization = null): bool
+    {
+        if ($organization === null) {
+            $route = request()?->route();
+
+            $organization = $route?->parameter('organization')
+                ? currentOrganization()
+                : (auth()->user()?->organization ?? currentOrganization());
+        }
+
+        // `false` par defaut : on ne demande pas une adresse postale faute de
+        // savoir a qui on a affaire.
+        return (bool) ($organization?->subscriptions_enabled ?? false);
+    }
+}
+
+if (! function_exists('structureIsShown')) {
+    /**
+     * TASK-1762 — cette Organization montre-t-elle le champ « Structure » ?
+     *
+     * ## Une seule definition, parce qu'il y a bientot sept surfaces
+     *
+     * Le drapeau gouverne l'edition du profil, sa validation, les cartes de
+     * l'annuaire, la fiche publique, l'ecran SuperAdmin et deux recherches.
+     * Ecrit sept fois, il finirait par diverger sur celle qu'on regarde le
+     * moins.
+     *
+     * ## La resolution est celle d'`availabilityIsShown()`, et pour la meme raison
+     *
+     * `currentOrganization()` retombe sur l'Organization PAR DEFAUT quand l'URL
+     * ne porte pas de prefixe de tenant — c'est le bug AI de T1694, signale par
+     * Cyril le 24/10 : une case restait visible sur `/profile/edit` alors que
+     * l'Organization concernee l'avait decochee.
+     *
+     * S'il y a un tenant DANS L'URL, c'est lui qui decide — c'est son ecran.
+     * Sinon, c'est l'Organization de la personne connectee.
+     *
+     * ## `$organization` explicite pour les ECRITURES
+     *
+     * Un appelant qui sait de quelle Organization il parle la passe. Une garde
+     * d'ecriture doit se lier a l'Organization de la personne ECRITE, jamais a
+     * ce que l'URL raconte.
+     */
+    function structureIsShown(?\App\Models\Organization $organization = null): bool
+    {
+        if ($organization === null) {
+            $route = request()?->route();
+
+            $organization = $route?->parameter('organization')
+                ? currentOrganization()
+                : (auth()->user()?->organization ?? currentOrganization());
+        }
+
+        // `false` et non `true` par defaut : le champ n'existe que la ou on l'a
+        // VOULU. Sans Organization resolue, on ne montre rien.
+        return (bool) ($organization?->structure_enabled ?? false);
+    }
+}
+
 if (! function_exists('organizationRoute')) {
     /**
      * Generate a URL for an organization route.

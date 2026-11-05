@@ -25,16 +25,26 @@
         <!-- Summary -->
         <div class="grid grid-cols-2 gap-4 mb-8 sm:grid-cols-3 lg:grid-cols-5">
             <div class="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4 text-center border border-indigo-100 dark:border-indigo-800">
-                <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ auth()->user()->points_balance }}</p>
+                {{-- TASK-1759 §9.1 — le grand nombre devient le TEMPS, les points
+                     passent en dessous. Mettre « 2 h 40 · 160 pts » en `text-2xl`
+                     dans une carte d'un cinquieme de large deborderait ; mais
+                     supprimer les points irait contre l'arbitrage Q8 (double
+                     affichage en V1). Les deux tiennent, sur deux lignes. --}}
+                <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400" data-entraide-temps>{{ \App\Support\Entraide\TempsPartage::duree(auth()->user()->points_balance, offertSiZero: false) }}</p>
                 <p class="text-xs text-gray-500 mt-1">{{ __('points.current_balance') }}</p>
+                <p class="text-[11px] text-gray-400">{{ trans_choice('points.en_points', auth()->user()->points_balance, ['count' => auth()->user()->points_balance]) }}</p>
             </div>
             <div class="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 text-center border border-green-100 dark:border-green-800">
-                <p class="text-2xl font-bold text-green-600 dark:text-green-400">+{{ $earned }}</p>
+                <p class="text-2xl font-bold text-green-600 dark:text-green-400" data-entraide-temps>{{ $earned > 0 ? '+' : '' }}{{ \App\Support\Entraide\TempsPartage::duree($earned, offertSiZero: false) }}</p>
                 <p class="text-xs text-gray-500 mt-1">{{ __('points.total_earned') }}</p>
+                <p class="text-[11px] text-gray-400">{{ trans_choice('points.en_points', $earned, ['count' => $earned]) }}</p>
             </div>
             <div class="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 text-center border border-red-100 dark:border-red-800">
-                <p class="text-2xl font-bold text-red-500 dark:text-red-400">-{{ $spent }}</p>
+                {{-- Pas de signe devant un zero : « -0 min » se lit comme un
+                     defaut d'affichage, constate en recette. --}}
+                <p class="text-2xl font-bold text-red-500 dark:text-red-400" data-entraide-temps>{{ $spent > 0 ? '-' : '' }}{{ \App\Support\Entraide\TempsPartage::duree($spent, offertSiZero: false) }}</p>
                 <p class="text-xs text-gray-500 mt-1">{{ __('points.total_spent') }}</p>
+                <p class="text-[11px] text-gray-400">{{ trans_choice('points.en_points', $spent, ['count' => $spent]) }}</p>
             </div>
             <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-center border border-blue-100 dark:border-blue-800">
                 <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ $completedCount }}</p>
@@ -96,8 +106,14 @@
                 </div>
                 <div class="text-right">
                     <p class="font-bold {{ $entry->delta > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400' }}">
-                        {{ $entry->delta > 0 ? '+' : '' }}{{ $entry->delta }} pts
+                        {{-- TASK-1759 §9.1 — l'historique, nommement cite par le CDC.
+                             `abs()` parce que le signe est porte par le texte : sans
+                             lui, un debit rendrait « -30 min » DANS « -30 min », le
+                             formateur bornant deja a zero (`max(0, ...)`) il rendrait
+                             « 0 min » — un mouvement de 30 minutes affiche comme nul. --}}
+                        {{ $entry->delta > 0 ? '+' : '−' }}{{ \App\Support\Entraide\TempsPartage::duree(abs($entry->delta), offertSiZero: false) }}
                     </p>
+                    <p class="text-xs text-gray-400" data-entraide-temps>{{ trans_choice('points.en_points', abs($entry->delta), ['count' => abs($entry->delta)]) }}</p>
                     <p class="text-xs text-gray-400">{{ $entry->created_at->format('d/m/Y H:i') }}</p>
                 </div>
             </div>

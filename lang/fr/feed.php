@@ -15,6 +15,11 @@ return [
         'loop_joined' => ':name a rejoint la Boucle :object',
         'loop_created' => ':name a créé la Boucle :object',
         'loop_event_created' => ':name a créé l\'évènement :object',
+        // TASK-1757 §9.5 — seul l'AIDANT est nomme : jamais « a Barnabe ».
+        // Celui qui coche la case est l'aidant, donc la seule personne
+        // exposee est celle qui a choisi de l'etre.
+        'help_completed' => ':name a donné :temps — :object',
+        'help_category_fallback' => 'Entraide',
         'object_gone' => 'un contenu supprimé',
     ],
 

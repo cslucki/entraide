@@ -64,6 +64,10 @@ final class FeedEventRenderer
             // « Utilisateur desactive » quand il le faut.
             'name' => $post->user?->publicDisplayName() ?? __('feed.member_fallback'),
             'object' => self::nomDeLObjet($post),
+            // TASK-1757 — seul l'evenement d'entraide s'en sert. Les six autres
+            // gabarits ne contiennent pas `:temps`, et `__()` ignore simplement
+            // un parametre qu'aucun gabarit ne reclame.
+            'temps' => self::tempsDeLEntraide($post),
         ]);
     }
 
@@ -113,9 +117,19 @@ final class FeedEventRenderer
             ? '<a href="'.e($objetUrl).'" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">'.e($objetNom).'</a>'
             : '<span class="font-medium">'.e($objetNom).'</span>';
 
-        // `__($clef)` SANS remplacement rend le gabarit, `:name` et `:object`
-        // intacts — aucun caractere que `e()` transformerait.
-        return str_replace([':name', ':object'], [$nomHtml, $objetHtml], e(__($clef)));
+        // `__($clef)` SANS remplacement rend le gabarit, `:name`, `:object` et
+        // `:temps` intacts — aucun caractere que `e()` transformerait.
+        //
+        // TASK-1757 — `:temps` passe par `e()` comme tout le reste. Il vient
+        // d'un entier, donc rien a echapper aujourd'hui ; l'echapper quand meme
+        // est ce qui fait que le contrat de cette methode (« tout ce qui est
+        // dynamique passe par `e()` ») se verifie a la lecture, sans avoir a
+        // remonter a la source de chaque valeur.
+        return str_replace(
+            [':name', ':object', ':temps'],
+            [$nomHtml, $objetHtml, '<span class="font-medium">'.e(self::tempsDeLEntraide($post)).'</span>'],
+            e(__($clef))
+        );
     }
 
     /**
@@ -281,6 +295,43 @@ final class FeedEventRenderer
         return null;
     }
 
+    /**
+     * La categorie de l'annonce qui portait l'entraide.
+     *
+     * Repli NEUTRE et non « un contenu supprime » : une annonce sans categorie
+     * n'est pas une annonce disparue, et afficher « supprime » sur une entraide
+     * bien reelle serait faux.
+     */
+    private static function categorieDeLEntraide(\App\Models\Transaction $echange): string
+    {
+        $annonce = $echange->service ?? $echange->serviceRequest;
+
+        // `displayName('transactions')` et NON `->name` : `categories` n'a pas
+        // de colonne `name` — elle porte `name_b2c` et `name_b2b`, et
+        // l'Organization choisit le registre par `transactions_naming`.
+        //
+        // Defaut trouve par le test de ce lot : `->name` rendait `null` SANS
+        // erreur, et la carte retombait donc toujours sur le libelle neutre.
+        // Une categorie ne se serait jamais affichee, en silence.
+        $categorie = $annonce?->category?->displayName('transactions');
+
+        return $categorie !== null && $categorie !== ''
+            ? (string) $categorie
+            : __('feed.events.help_category_fallback');
+    }
+
+    /** Le temps partage, pour le seul gabarit qui le demande. */
+    private static function tempsDeLEntraide(FeedPost $post): string
+    {
+        $objet = self::objet($post);
+
+        if (! $objet instanceof \App\Models\Transaction) {
+            return '';
+        }
+
+        return \App\Support\Entraide\TempsPartage::duree($objet->points_agreed ?? $objet->points_proposed);
+    }
+
     private static function nomDeLObjet(FeedPost $post): string
     {
         $objet = self::objet($post);
@@ -293,6 +344,13 @@ final class FeedEventRenderer
             $objet instanceof ServiceRequest, $objet instanceof Service => (string) $objet->title,
             $objet instanceof LoopEvent => (string) $objet->title,
             $objet instanceof User => $objet->publicDisplayName(),
+            // TASK-1757 §9.5 — l'objet d'une entraide est sa CATEGORIE, et non
+            // le titre de l'annonce ni le nom du beneficiaire.
+            //
+            // Arbitrage Cyril du 05/11 : seul l'aidant est nomme. La categorie
+            // donne le contexte utile (« Bricolage ») sans designer personne,
+            // et elle reste vraie quand l'annonce a ete retiree depuis.
+            $objet instanceof \App\Models\Transaction => self::categorieDeLEntraide($objet),
             default => __('feed.events.object_gone'),
         };
     }

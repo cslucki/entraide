@@ -289,24 +289,39 @@ class TASK1693ExchangeDecisionMakerTest extends TestCase
         );
     }
 
-    /** Mais la MEME personne ne propose toujours pas deux fois. */
+    /**
+     * La MEME personne ne propose toujours pas deux fois — mais depuis
+     * TASK-1754 (§4.2b) elle est REDIRIGEE vers sa conversation, plus refusee.
+     *
+     * Ce que ce test garde est inchange : aucun doublon. Ce qu'il mesure EN PLUS
+     * desormais, c'est la DESTINATION — l'ancienne version se contentait d'un
+     * `assertSessionHas('error')` et serait restee verte alors meme que
+     * l'utilisateur se retrouvait dans un cul-de-sac, sans chemin vers la
+     * discussion existante. C'est exactement le defaut reproduit en recette.
+     */
     public function test_the_same_helper_still_cannot_propose_twice(): void
     {
         $demande = $this->demandeDAide();
         $this->proposerSurDemande($demande);
+
+        $echange = Transaction::where('request_id', $demande->id)->firstOrFail();
 
         $this->actingAs($this->aidant)
             ->post(route('organization.transactions.store', ['organization' => $this->organization->slug]), [
                 'request_id' => $demande->id,
                 'points_proposed' => 30,
             ])
-            ->assertRedirect()
-            ->assertSessionHas('error');
+            ->assertRedirect(route('organization.messages.show', [
+                'organization' => $this->organization->slug,
+                'transaction' => $echange,
+            ]))
+            ->assertSessionHas('info')
+            ->assertSessionMissing('error');
 
         $this->assertSame(1, Transaction::where('request_id', $demande->id)->count());
     }
 
-    /** Et sur une offre de service, la garde reste identique a elle-meme. */
+    /** Et sur une offre de service, la garde se comporte IDENTIQUEMENT. */
     public function test_the_same_buyer_still_cannot_propose_twice_on_a_service(): void
     {
         $vendeur = $this->membre();
@@ -317,7 +332,17 @@ class TASK1693ExchangeDecisionMakerTest extends TestCase
         $url = route('organization.transactions.store', ['organization' => $this->organization->slug]);
 
         $this->actingAs($acheteur)->post($url, $payload)->assertRedirect();
-        $this->actingAs($acheteur)->post($url, $payload)->assertRedirect()->assertSessionHas('error');
+
+        $echange = Transaction::where('service_id', $service->id)->firstOrFail();
+
+        // TASK-1754 §4.2b — redirection vers la conversation, pas un refus.
+        $this->actingAs($acheteur)->post($url, $payload)
+            ->assertRedirect(route('organization.messages.show', [
+                'organization' => $this->organization->slug,
+                'transaction' => $echange,
+            ]))
+            ->assertSessionHas('info')
+            ->assertSessionMissing('error');
 
         $this->assertSame(1, Transaction::where('service_id', $service->id)->count());
     }

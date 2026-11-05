@@ -129,6 +129,9 @@ return [
     ],
 
     'keys' => [
+        // TASK-1761 — la DEMANDE, cote proprietaire. Ses deux voisines
+        // portent la DECISION et vont au demandeur.
+        'loop_join_request_created' => 'Quelqu’un demande à rejoindre votre Boucle',
         // TASK-1702
         'blog_co_author_added' => 'On vous a ajouté comme co-auteur d’un article',
 
@@ -165,9 +168,18 @@ return [
      * choisit selon ce qu'elle a. `keys` reste la forme sans objet.
      *
      * Les cles ici sont un SOUS-ENSEMBLE de `keys` : seules les notifications
-     * qui portent une Boucle en ont une.
+     * dont l'OBJET peut etre nomme en ont une.
+     *
+     * TASK-1757 — ce n'etait « une Boucle » que jusqu'ici. Une entraide se
+     * nomme aussi (prenom, titre de l'annonce, temps), et le parametre n'est
+     * donc plus toujours `:loop` : la vue passe la carte de parametres que le
+     * controleur a pu resoudre, quelle qu'elle soit.
      */
     'keys_named' => [
+        // TASK-1757 — nommee UNIQUEMENT ici : la liste en-appli est derriere
+        // l'authentification. `push_title` et le sujet d'email restent
+        // generiques (ecran verrouille, apercu de boite mail).
+        'transaction_proposal_created' => ':prenom répond à votre annonce « :titre » — :temps',
         'loop_invitation' => 'Invitation à rejoindre la Boucle « :loop »',
         'loop_member_added' => 'Ajout à la Boucle « :loop »',
         'loop_join_request_accepted' => 'Votre demande d’adhésion à « :loop » a été acceptée',
@@ -199,6 +211,14 @@ return [
     |
     */
     'email' => [
+        'loop_join_request_created' => [
+            'subject' => 'Quelqu’un demande à rejoindre votre Boucle',
+            'body' => '<p>Bonjour,</p>'
+                .'<p>Une personne demande à rejoindre une Boucle dont vous êtes responsable.</p>'
+                .'<p><a href=":url">Voir la demande</a></p>'
+                .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
+                .'<p>À bientôt,<br>L’équipe BouclePro</p>',
+        ],
         // TASK-1751 — REPLI. Le rendu passe normalement par le gabarit
         // administrable `transaction_proposal_created` ; ce texte sert si
         // le gabarit est absent ou désactivé. La suite de cohérence

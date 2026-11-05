@@ -196,7 +196,19 @@
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
                                     {{ $service->category->displayName('transactions') }}
                                 </span>
-                                <span class="text-indigo-600 dark:text-indigo-400 font-bold text-sm">{{ $service->points_cost }} pts</span>
+                                {{-- TASK-1754 §9.1 — les cartes de l'explorateur disent le temps. --}}
+                                <span class="text-indigo-600 dark:text-indigo-400 font-bold text-sm" data-entraide-temps>{{ \App\Support\Entraide\TempsPartage::libelle($service->points_cost) }}</span>
+                                {{-- TASK-1756 — le grand nombre d'un atelier est le temps de
+                                     la SEANCE ENTIERE. Sans cette mention, la carte annonce
+                                     « 45 min » pour une place qui en coute 15 : exactement le
+                                     defaut corrige sur la page d'annonce, sur l'autre surface
+                                     ou le membre decide de cliquer. --}}
+                                @if(\App\Support\Entraide\Atelier::estGroupe($service))
+                                    <span class="block text-[11px] font-normal text-gray-500 dark:text-gray-400"
+                                          data-entraide-atelier-carte>
+                                        {{ __('entraide.atelier.carte', ['temps' => \App\Support\Entraide\TempsPartage::duree(\App\Support\Entraide\Atelier::partMaximale($service), offertSiZero: false)]) }}
+                                    </span>
+                                @endif
                             </div>
                             <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1 line-clamp-1">{{ $service->title }}</h3>
                             <p class="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 mb-3">{{ $service->description }}</p>
@@ -266,7 +278,8 @@
                                     {{ $request->category->displayName('transactions') }}
                                 </span>
                                 <span class="text-green-600 dark:text-green-400 font-bold text-sm">
-                                    {{ $request->budget_min }}{{ $request->budget_max ? '–'.$request->budget_max : '+' }} pts
+                                    {{-- TASK-1754 §9.1 — fourchette formatee en temps. --}}
+                                    <span data-entraide-temps>{{ \App\Support\Entraide\TempsPartage::duree($request->budget_min, offertSiZero: false) }}{{ $request->budget_max ? ' – '.\App\Support\Entraide\TempsPartage::duree($request->budget_max, offertSiZero: false) : '+' }}</span>
                                 </span>
                             </div>
                             <a href="{{ $_orgSlug ? route('organization.requests.show', ['organization' => $_orgSlug, 'request' => $request]) : route('requests.show', $request) }}">

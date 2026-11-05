@@ -1,6 +1,14 @@
 <?php
 
 return [
+    // TASK-1755 §9.6 — le profil comme bilan d'entraide, pas comme solde.
+    'bilan' => [
+        'personnes_aidees' => '{0}person helped|{1}person helped|[2,*]people helped',
+        'fois_aide' => '{0}times helped|{1}time helped|[2,*]times helped',
+        'temps_offert' => 'of time offered',
+        'mercis' => '{0}no thanks yet|{1}:count thank-you received|[2,*]:count thanks received',
+    ],
+
     'back_to_directory' => 'Back to directory',
     'edit_profile' => 'Edit my profile',
     'available' => 'Available',
@@ -47,6 +55,32 @@ return [
     'presentation_section' => 'Introduction',
     'presentation_description' => 'These details introduce your profile to other members.',
     'first_name' => 'First name',
+
+    // TASK-1762 point 1 — the member's company, association or collective.
+    //
+    // NOT "Organisation": that word already names the TENANT everywhere else in
+    // the English interface. Two different things under one label on the same
+    // screen would be a trap.
+    'structure' => 'Company or association',
+
+    // TASK-1762 point 16 — the three sections of the reordered form.
+    'identity_section' => 'Profile information',
+    'identity_description' => 'Who you are, and how to reach you.',
+    'locale_section' => 'Main language',
+    'locale_description' => 'The language the platform speaks to you in.',
+    'slug_on' => 'Your profile address on :organization',
+
+    // TASK-1762 point 3 — the button at the top of the profile edit page.
+    'view_public_profile' => 'View my public profile',
+
+    // TASK-1762 point 16 — the presentation editor's fullscreen mode.
+    'editor_fullscreen' => 'Fullscreen',
+    'editor_exit_fullscreen' => 'Exit fullscreen',
+    'structure_help' => 'Your company, association or collective, if you have one.',
+
+    // TASK-1762 point 17 — the mandatory baseline, "in one sentence".
+    'slogan' => 'Slogan',
+    'slogan_help' => 'What defines you in one sentence.',
     'name' => 'Name',
     'email' => 'Email address',
     'phone' => 'Phone number *',
@@ -85,7 +119,9 @@ return [
     'links_add' => 'Add a link',
     'links_remove' => 'Remove this link',
     'link_type_instagram' => 'Instagram',
-    'link_type_twitter' => 'Twitter',
+    // TASK-1762 point 18 — Cyril's request: the network's name changed.
+    'link_type_twitter' => 'X (formerly Twitter)',
+    'link_type_facebook' => 'Facebook',
     'link_type_website' => 'Website',
     'link_type_blog' => 'Blog',
     'link_type_app' => 'App',
@@ -127,10 +163,15 @@ return [
     // TASK-1693 bug Z — the public profile address.
     'slug' => 'Your profile address',
     'slug_prefix' => '…/profile/',
-    'slug_help' => 'Lowercase letters, digits and hyphens. Between 3 and 60 characters. Leave empty to go back to the technical address.',
-    'slug_change_notice' => 'Your previous address will keep working and stays reserved: no shared link is ever lost.',
+
+    // TASK-1762 point 4 bis — the address in use TODAY, right of the label.
+    'slug_current' => 'Currently:',
+    'slug_help' => 'Pick an address that represents you, for example :exemple or :exemple_court',
     'slug_taken' => 'That address is already taken in your Organization. Please pick another one.',
-    'slug_invalid' => 'That address cannot be used: lowercase letters, digits and hyphens only, and some words are reserved.',
+    // TASK-1762 point 4 — the format rule moved out of the permanent hint and
+    // into this message, the only moment it is of any use. LENGTH comes with
+    // it: a two-letter address would otherwise be refused without a reason.
+    'slug_invalid' => 'That address cannot be used: lowercase letters, digits and hyphens only, between 3 and 60 characters, and some words are reserved.',
     // TASK-1697 — les deux cards ajoutees a la fiche profil
     'loops_section' => 'Loops',
     'loops_count' => ':count Loop|:count Loops',

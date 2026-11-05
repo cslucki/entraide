@@ -30,7 +30,7 @@
                                 {{ $service->category->displayName('transactions') }} · {{ $service->user->fullName }}
                             </p>
                         </div>
-                        <span class="text-indigo-600 dark:text-indigo-400 font-semibold text-sm">{{ $service->points_cost }} pts</span>
+                        <span class="text-indigo-600 dark:text-indigo-400 font-semibold text-sm" data-entraide-temps>{{ \App\Support\Entraide\TempsPartage::libelle($service->points_cost) }}</span>
                     </a>
                     @endforeach
                 </div>

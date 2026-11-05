@@ -66,6 +66,12 @@ class AdminController extends Controller
             'metrics' => $metrics->get(),
             'recentUsers' => $recentUsers,
             'pendingReports' => $pendingReports,
+
+            // TASK-1761 point 2 — TOUTES Organizations confondues, demande
+            // explicite de Cyril. La frontiere n'est pas a la lecture mais a la
+            // DECISION : `LoopPolicy::manageJoinRequests()` autorise un
+            // `is_admin` partout, et une liste qui montre ne decide de rien.
+            'demandesDAdhesion' => \App\Support\Loops\DemandesDAdhesionEnAttente::lister(),
         ]);
     }
 
@@ -280,6 +286,15 @@ class AdminController extends Controller
             'email' => ['required', 'email', 'lowercase', 'max:255',
                 new UniqueEmailInOrganization($user->organization_id, $user->id)],
             'phone' => 'nullable|string|max:30',
+            // TASK-1762 point 17 — « on pourra le modifier via le superadmin »
+            // : la consigne rend le champ EDITABLE ici, pas OBLIGATOIRE.
+            //
+            // `required` casserait tout autre geste de cet ecran (bannir,
+            // approuver, lever un signalement…) tant qu'un compte EXISTANT —
+            // tous, au moment de cette migration — n'a pas de slogan. A
+            // SIGNALER a Cyril : l'obligation du point 17 est tenue sur le
+            // formulaire du membre (`ProfileController`), pas ici.
+            'slogan' => 'nullable|string|max:120',
             'bio' => 'nullable|string|max:500',
             'city' => 'nullable|string|max:255',
             'country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
@@ -321,6 +336,7 @@ class AdminController extends Controller
             'name' => $data['name'],
             'email' => $data['email'],
             'phone' => $data['phone'] ?? null,
+            'slogan' => $data['slogan'] ?? null,
             'bio' => $data['bio'] ?? null,
             'city' => $data['city'] ?? null,
             'country_code' => $data['country_code'] ?? null,
@@ -340,6 +356,21 @@ class AdminController extends Controller
         if ($organization?->membership_enabled) {
             $request->validate(['membership_value' => 'nullable|string|max:255']);
             $update['membership_value'] = $request->input('membership_value');
+        }
+
+        // TASK-1762 point 7 — la structure, modifiable par le SuperAdmin.
+        //
+        // Meme forme que son voisin, et pour la meme raison : la regle n'entre
+        // dans la validation QUE si l'Organization de la personne a ouvert le
+        // champ. Masquer le champ dans la vue ne garderait rien — un PUT forge
+        // ecrirait une structure sur une Organization qui n'en veut pas.
+        //
+        // `$organization` est celle de la personne EDITEE, lue plus haut : une
+        // garde d'ecriture ne se lie jamais a ce que l'URL raconte, et le
+        // SuperAdmin edite ici des comptes de toutes les Organizations.
+        if (structureIsShown($organization)) {
+            $request->validate(['structure' => 'nullable|string|max:255']);
+            $update['structure'] = $request->input('structure');
         }
 
         if ($request->hasFile('avatar')) {

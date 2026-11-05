@@ -90,6 +90,9 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'first_name' => $attributes['first_name'] ?? fake()->firstName(),
+            // TASK-1762 point 17 — un profil « complet » porte desormais un
+            // slogan : le champ est obligatoire sur le formulaire reel.
+            'slogan' => $attributes['slogan'] ?? fake()->sentence(4),
             'bio' => $attributes['bio'] ?? fake()->sentence(6),
             'city' => $attributes['city'] ?? fake()->city(),
             'country_code' => $attributes['country_code'] ?? 'FR',

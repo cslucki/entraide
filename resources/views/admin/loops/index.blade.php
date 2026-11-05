@@ -49,6 +49,14 @@
         </div>
     </div>
 
+    {{-- TASK-1761 point 3 — la MEME carte que sur `/admin/dashboard`, un seul
+         composant. Elle suit le filtre Organization de cette page : sur « toutes
+         les organisations » elle montre tout et affiche la colonne Organization,
+         sous une Organization choisie elle se borne et la colonne disparait. --}}
+    <x-admin.demandes-adhesion :demandes="$demandesDAdhesion"
+                               :organization-id="$selectedOrganization?->id"
+                               class="mb-6" />
+
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <table class="w-full text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
@@ -92,17 +100,69 @@
                                 @endif
                                 <span>{{ $orgLoop->active_members_count }} membre{{ $orgLoop->active_members_count !== 1 ? 's' : '' }}</span>
                                 <span>· {{ $orgLoop->invitations_count }} {{ mb_strtolower(__('loops.invitations_sent_count')) }}@if($orgLoop->pending_invitations_count) ({{ $orgLoop->pending_invitations_count }} en attente)@endif</span>
-                                <span class="cursor-help" title="{{ $orgLoop->cards->where('enabled', true)->map->label()->implode(', ') ?: '—' }}">
-                                    · {{ $orgLoop->enabled_cards_count }} {{ mb_strtolower(__('loops.cards_linked')) }}
-                                </span>
-                                @if($orgLoop->creator)
-                                    <span>· {{ $orgLoop->creator->full_name }}</span>
+                                {{-- TASK-1761 point 4 — « N cards liees » cede la place au
+                                     nombre de demandes en attente. Cyril l'a demande pour
+                                     traiter les demandes vite : un « 0 » repete sur chaque
+                                     ligne rendrait justement les lignes qui comptent plus
+                                     difficiles a reperer. Le chiffre n'apparait donc que
+                                     lorsqu'il y a quelque chose a faire. --}}
+                                @php $enAttente = (int) ($demandesParBoucle[$orgLoop->id] ?? 0); @endphp
+                                @if($enAttente > 0)
+                                    <span class="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                                          data-marqueur="boucle-demandes-en-attente"
+                                          data-boucle="{{ $orgLoop->id }}">
+                                        {{ trans_choice('admin.join_requests_pending_count', $enAttente, ['count' => $enAttente]) }}
+                                    </span>
+                                @endif
+                                {{-- TASK-1761 point 5 — le PROPRIETAIRE, pas le createur :
+                                     les deux se confondaient ici alors que ce sont deux
+                                     notions distinctes (T1679, « Boucle sans owner »). Le
+                                     createur n'est montre que lorsqu'il n'y a AUCUN
+                                     proprietaire, et il est alors nomme comme tel pour
+                                     qu'on ne le prenne pas pour l'un d'eux. --}}
+                                @if($orgLoop->owners->isEmpty() && $orgLoop->creator)
+                                    <span>· {{ __('admin.loop_creator_label') }} {{ $orgLoop->creator->full_name }}</span>
                                 @endif
                                 @php $lastMsg = $orgLoop->messages->first(); @endphp
                                 @if($lastMsg?->created_at)
                                     <span>· {{ $lastMsg->created_at->diffForHumans() }}</span>
                                 @endif
                             </p>
+                            {{-- Hors du <p> ci-dessus, et ce n'est pas un detail : « Se
+                                 connecter sous » est une route POST, donc un <form>, et un
+                                 <form> dans un <p> fait fermer le paragraphe par le
+                                 navigateur — la mise en page se defait sans erreur. --}}
+                            @if($orgLoop->owners->isNotEmpty())
+                                <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400"
+                                   data-marqueur="boucle-proprietaires" data-boucle="{{ $orgLoop->id }}">
+                                    <span class="font-medium">{{ trans_choice('admin.loop_owners_inline', $orgLoop->owners->count()) }}</span>
+                                    @foreach($orgLoop->owners as $proprietaire)
+                                        @continue(! $proprietaire->user)
+                                        <span class="inline-flex items-center gap-1">
+                                            <span data-marqueur="proprietaire-nom">{{ $proprietaire->user->full_name }}</span>
+                                            {{-- Les deux refus de `loginAsUser()` sont connus d'avance :
+                                                 banni, ou autre administrateur. Proposer un bouton qui
+                                                 repondra « impossible » serait une fausse promesse. --}}
+                                            @if(! $proprietaire->user->is_admin && ! $proprietaire->user->banned_at)
+                                                <button type="submit"
+                                                        form="login-as-{{ $orgLoop->id }}-{{ $proprietaire->user->id }}"
+                                                        data-marqueur="se-connecter-sous"
+                                                        class="text-indigo-600 underline underline-offset-2 hover:no-underline dark:text-indigo-400">{{ __('admin.login_as_short') }}</button>
+                                            @endif
+                                        </span>
+                                    @endforeach
+                                </p>
+                                {{-- Les formulaires vivent hors de toute cellule de texte et
+                                     sont relies au bouton par `form="..."` : aucun <form>
+                                     imbrique dans le <form> du selecteur de type. --}}
+                                @foreach($orgLoop->owners as $proprietaire)
+                                    @continue(! $proprietaire->user || $proprietaire->user->is_admin || $proprietaire->user->banned_at)
+                                    <form id="login-as-{{ $orgLoop->id }}-{{ $proprietaire->user->id }}"
+                                          method="POST" action="{{ route('admin.users.login-as', $proprietaire->user) }}" class="hidden">
+                                        @csrf
+                                    </form>
+                                @endforeach
+                            @endif
                         </div>
                     </td>
 

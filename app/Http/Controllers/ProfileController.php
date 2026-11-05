@@ -10,6 +10,7 @@ use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\Entraide\BilanEntraide;
 use App\Rules\NomDePersonneAcceptable;
 use App\Services\UserSlugService;
 use App\Support\Feed\FeedEventCatalogue;
@@ -175,7 +176,15 @@ class ProfileController extends Controller
             'description' => $user->bio,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'blogPosts', 'boucles', 'commentaires', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd', 'memberAiProfile'));
+        // TASK-1755 §9.6 — le profil comme BILAN D'ENTRAIDE, pas comme solde.
+        // Quatre nombres, UNE requete agregee : cette page est publique et lue
+        // bien plus souvent qu'ecrite.
+        // L'Organization est passee EXPLICITEMENT : la frontiere de locataire
+        // d'un avis est portee par sa TRANSACTION, pas par l'avis lui-meme.
+        $bilan = BilanEntraide::pour($user, $organization);
+        $mercis = BilanEntraide::mercis($user, $organization);
+
+        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'blogPosts', 'boucles', 'commentaires', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd', 'memberAiProfile', 'bilan', 'mercis'));
     }
 
     public function aiAgentChat(User $user): View
@@ -289,13 +298,19 @@ class ProfileController extends Controller
             'show_email' => ['nullable', 'boolean'],
             'show_phone' => ['nullable', 'boolean'],
             'avatar' => ['nullable', 'image', 'max:2048'],
-            'bio' => ['nullable', 'string', 'max:500'],
+            // TASK-1762 point 17 — le slogan, OBLIGATOIRE et sans condition
+            // d'Organization (contrairement a `structure`, `address_line1` ou
+            // `preferred_locale` plus bas) : « c'est important que les gens
+            // puissent se definir en une phrase ». 120 caracteres : la limite
+            // qui fait tenir la phrase sur une carte d'annuaire a 3 colonnes.
+            'slogan' => ['required', 'string', 'max:120'],
+            // TASK-1762 point 16 — 2000 et non 500 : la presentation est
+            // desormais du Markdown, et le BALISAGE est compte dans la limite.
+            // « **Auditeur Qualiopi** » coute 24 caracteres pour 18 lisibles,
+            // un lien en coute 31 pour 8.
+            'bio' => ['nullable', 'string', 'max:2000'],
             'city' => ['nullable', 'string', 'max:255'],
             'country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
-            'preferred_locale' => ['nullable', Rule::in(['fr', 'en'])],
-            'address_line1' => ['nullable', 'string', 'max:255'],
-            'address_line2' => ['nullable', 'string', 'max:255'],
-            'postal_code' => ['nullable', 'string', 'max:30'],
             'website' => ['nullable', 'url', 'max:255'],
             'linkedin_url' => ['nullable', 'url', 'max:255'],
             // TASK-1750 — la liste de liens supplementaires.
@@ -319,6 +334,47 @@ class ProfileController extends Controller
 
         if ($organization?->membership_enabled) {
             $rules['membership_value'] = ['nullable', 'string', 'max:255'];
+        }
+
+        // TASK-1762 point 2 — la structure n'existe que si l'Organization l'a
+        // voulu.
+        //
+        // **C'est ici que la garde tient, pas dans la vue.** Masquer le champ
+        // ne garde rien : un `PUT /profile` forge porterait `structure` et il
+        // serait enregistre. Une regle absente du tableau fait que la cle
+        // n'entre jamais dans `$data`, donc jamais dans le `fill()`.
+        //
+        // Une chaine simple, et **pas** `NomDePersonneAcceptable` : cette regle
+        // (T1712) refuse ce qui ne ressemble pas a un nom de personne, et elle
+        // ecarterait « Association Les Amis du Quartier » ou « SCOP Oxalis ».
+        // Le champ decrit justement autre chose qu'une personne.
+        // L'Organization est passee EXPLICITEMENT : une garde d'ecriture se lie
+        // a l'Organization de la personne ecrite, jamais a ce que l'URL raconte.
+        if (structureIsShown($organization)) {
+            $rules['structure'] = ['nullable', 'string', 'max:255'];
+        }
+
+        // TASK-1762 point 15 — l'adresse de facturation n'est recueillie que si
+        // l'Organization propose des abonnements.
+        //
+        // Au SERVEUR, comme la structure : masquer la section ne garde rien,
+        // un `PUT` forge ecrirait les trois champs. Une regle absente du
+        // tableau fait que la cle n'entre jamais dans `$data`.
+        //
+        // Elle n'EFFACE pas pour autant ce qui etait deja saisi : la cle est
+        // simplement absente du `fill()`. Une Organization qui coupe les
+        // abonnements cache les champs, elle ne detruit pas les adresses.
+        // TASK-1762 point 16 — la langue principale n'existe que sur un site
+        // multilingue. Masquer la section ne garde rien : un `PUT` forge
+        // changerait la langue d'un membre sur un site qui n'en a qu'une.
+        if ($organization?->multilingual_enabled) {
+            $rules['preferred_locale'] = ['nullable', Rule::in(['fr', 'en'])];
+        }
+
+        if (billingIsCollected($organization)) {
+            $rules['address_line1'] = ['nullable', 'string', 'max:255'];
+            $rules['address_line2'] = ['nullable', 'string', 'max:255'];
+            $rules['postal_code'] = ['nullable', 'string', 'max:30'];
         }
 
         $data = $request->validate($rules);

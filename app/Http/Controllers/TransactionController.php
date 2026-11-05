@@ -7,9 +7,14 @@ use App\Models\PointLedger;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
-use App\Services\ServiceRequestLifecycle;
 use App\Models\Transaction;
 use App\Notifications\TransactionStatusChanged;
+use App\Services\ServiceRequestLifecycle;
+use App\Support\Entraide\Atelier;
+use App\Support\Entraide\MessageSysteme;
+use App\Support\Entraide\TempsPartage;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmitter;
 use Illuminate\Http\RedirectResponse;
@@ -38,7 +43,11 @@ class TransactionController extends Controller
         $data = $request->validate([
             'service_id' => 'nullable|uuid|exists:services,id',
             'request_id' => 'nullable|uuid|exists:service_requests,id',
-            'points_proposed' => 'required|integer|min:1',
+            // TASK-1754 §9.3 — `min:0`, et c'est LA difference philosophique avec
+            // une place de marche : le don y est impossible, ici il doit etre un
+            // bouton. Arbitrage Q7 de Cyril : partout, pas seulement en reponse a
+            // une demande — une proposition d'aide peut aussi s'offrir.
+            'points_proposed' => 'required|integer|min:0',
         ]);
 
         $buyer = $actor;
@@ -82,12 +91,12 @@ class TransactionController extends Controller
 
         // Prevent self-transaction
         if ($buyer->id === $sellerId) {
-            return back()->with('error', 'Vous ne pouvez pas créer une transaction avec vous-même.');
+            return back()->with('error', __('entraide.flash.soi_meme'));
         }
 
         // Check buyer balance
         if ($buyer->points_balance < $data['points_proposed']) {
-            return back()->with('error', 'Solde insuffisant pour cet échange.');
+            return back()->with('error', __('entraide.flash.solde_insuffisant'));
         }
 
         // TASK-1693 bug S — « VOUS avez deja une transaction en cours » doit
@@ -103,19 +112,70 @@ class TransactionController extends Controller
         //
         // Le proposant est TOUJOURS l'acteur authentifie. On vise donc la
         // colonne qui le porte, cote service comme cote demande.
-        $colonneDuProposant = ! empty($data['service_id']) ? 'buyer_id' : 'seller_id';
+        // TASK-1754 — la MEME methode que les deux pages d'annonce interrogent.
+        // Recopiee ici, elle aurait diverge, et la divergence serait muette :
+        // une vue qui croit qu'il n'y a pas d'echange affiche le formulaire, le
+        // POST part, et la garde le refuse — le cul-de-sac revient.
 
-        $existingQuery = Transaction::where($colonneDuProposant, $actor->id)
-            ->whereIn('status', ['pending', 'accepted']);
-
+        // TASK-1754 (§4.2b) — un doublon n'est plus une ERREUR, c'est une
+        // REDIRECTION vers la conversation qui existe deja.
+        //
+        // ## Le defaut repare
+        //
+        // La garde rendait `back()->with('error', …)` : un toast rouge sur la
+        // page de l'annonce, et AUCUN chemin vers la conversation. Un
+        // cul-de-sac, reproduit en recette le 04/11. L'utilisateur voulait
+        // parler a quelqu'un ; on lui disait qu'il ne pouvait pas, sans lui dire
+        // ou aller.
+        //
+        // ## Pourquoi la garde RESTE malgre le correctif de la vue
+        //
+        // Le lot 3 fait disparaitre le formulaire quand un echange est actif.
+        // Ca ne suffit pas : un second onglet, un bouton de la PWA garde en
+        // cache, un double-submit — le POST en double reste possible. La vue
+        // supprime l'occasion, cette garde supprime la consequence.
+        //
+        // `info` et non `error` : il ne s'est rien passe de mal.
+        // TASK-1756 §6.3 — un atelier COMPLET ne recoit plus de proposition.
+        //
+        // Cette garde-ci est un CONFORT : elle evite a quelqu'un d'ecrire pour
+        // rien. Elle ne suffit pas, et ce n'est pas un defaut — voir
+        // `approve()`, ou la borne tient reellement.
         if (! empty($data['service_id'])) {
-            $existingQuery->where('service_id', $data['service_id']);
-        } else {
-            $existingQuery->where('request_id', $data['request_id']);
+            $annonceVisee = Service::withoutGlobalScope(BelongsToOrganizationScope::class)->find($data['service_id']);
+
+            if ($annonceVisee !== null && Atelier::estComplet($annonceVisee)) {
+                return back()->with('error', __('entraide.atelier.complet'));
+            }
+
+            // TASK-1756, defaut de recette du 05/11 — sur un atelier, le temps
+            // propose n'est pas celui qu'on a tape : c'est la PART.
+            //
+            // La part se calcule, elle ne se negocie pas (voir
+            // `Atelier::tempsNegociable()`). On la pose ICI, avant la garde de
+            // solde, et c'est tout l'enjeu : la vue proposait `points_cost`
+            // entier, si bien qu'un membre a 40 min de solde se voyait refuser
+            // une place a 15 min. Corriger la seule vue aurait laisse la porte
+            // ouverte a un POST forge.
+            //
+            // On pose le MAXIMUM, pas la part du moment : entre la proposition
+            // et l'acceptation l'atelier ne peut que se remplir, donc la part
+            // ne peut que BAISSER. Le participant s'engage sur un plafond qu'il
+            // a vu a l'ecran, et `approve()` arrete le chiffre definitif.
+            if ($annonceVisee !== null && ! Atelier::tempsNegociable($annonceVisee)) {
+                $data['points_proposed'] = Atelier::partMaximale($annonceVisee);
+            }
         }
 
-        if ($existingQuery->exists()) {
-            return back()->with('error', 'Vous avez déjà une transaction en cours pour cette annonce.');
+        $existant = Transaction::echangeActif(
+            $actor->id,
+            $data['service_id'] ?? null,
+            $data['request_id'] ?? null,
+        );
+
+        if ($existant !== null) {
+            return $this->redirectToMessage($existant)
+                ->with('info', __('entraide.deja_en_discussion'));
         }
 
         $transaction = Transaction::create([
@@ -128,7 +188,7 @@ class TransactionController extends Controller
             'status' => 'pending',
         ]);
 
-        $this->addSystemMessage($transaction, 'Nouvel échange envoyé : '.$data['points_proposed'].' points.');
+        MessageSysteme::ecrire($transaction, 'proposition_envoyee', ['points' => (int) $data['points_proposed']]);
 
         // TASK-1751 — prevenir l'auteur de l'annonce.
         //
@@ -169,7 +229,7 @@ class TransactionController extends Controller
         // (`requests/show.blade.php:111`) la montrent sans qu'on ait a les
         // toucher — les deux verrous tombent d'eux-memes.
 
-        return $this->redirectToMessage($transaction)->with('success', 'Échange envoyé !');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.proposition_envoyee'));
     }
 
     public function orgStore(Request $request, string $org): RedirectResponse
@@ -193,12 +253,53 @@ class TransactionController extends Controller
             return back()->with('error', __('requests.lifecycle.insufficient_balance'));
         }
 
+        // TASK-1756 §6.3 — l'atelier est-il COMPLET ?
+        //
+        // ## C'est ICI que la borne tient, pas a `store()`
+        //
+        // Une place est prise par un echange ACCEPTE, pas par une proposition
+        // en attente — sinon trois personnes bloqueraient un atelier de trois
+        // sans que l'aidant ait dit oui a quiconque.
+        //
+        // Consequence : deux propositions en attente pour UNE place restante
+        // sont toutes deux legitimes, et la garde de `store()` les laisse
+        // passer A RAISON. C'est la seconde acceptation qui doit etre refusee.
+        // Une garde posee uniquement a la proposition laisserait donc
+        // sur-reserver, en silence.
+        $annonce = $transaction->service;
+
+        if ($annonce !== null && Atelier::estComplet($annonce)) {
+            return back()->with('error', __('entraide.atelier.complet'));
+        }
+
+        // TASK-1756 §6.3 — sur un ATELIER, la part est calculee et FIGEE ici.
+        //
+        // ## Ce que « figee » achete, et ce qu'elle coute
+        //
+        // Le prix affiche a l'inscription est le prix paye : c'est la promesse
+        // de l'option C, et la tenir vaut qu'on ne rebouge rien ensuite. Le CDC
+        // le recommande aussi (§6.3, points durs) — faire varier la part des
+        // deja-inscrits a chaque nouvelle arrivee rendrait un engagement
+        // instable.
+        //
+        // Consequence assumee : sur 45 min avec un plancher de 3, les trois
+        // premiers paient 15, et un quatrieme ne paie que 12. L'aidant recoit
+        // donc 57 et non 45. L'ecart va TOUJOURS dans ce sens — jamais l'aidant
+        // ne touche moins que son annonce — et il est le prix d'un engagement
+        // qui ne bouge pas sous les pieds de celui qui l'a pris.
+        //
+        // `placesPrises()` compte les deja ACCEPTES ; ce participant-ci n'en
+        // fait pas encore partie, d'ou le `+ 1`.
+        $partConvenue = $annonce !== null && Atelier::estGroupe($annonce)
+            ? Atelier::part($annonce, Atelier::placesPrises($annonce) + 1)
+            : $transaction->points_proposed;
+
         $transaction->update([
             'status' => 'accepted',
-            'points_agreed' => $transaction->points_proposed,
+            'points_agreed' => $partConvenue,
         ]);
 
-        $this->addSystemMessage($transaction, 'Échange accepté. L\'échange est en cours.');
+        MessageSysteme::ecrire($transaction, 'echange_accepte');
 
         // La demande est pourvue, et les propositions concurrentes closes.
         app(ServiceRequestLifecycle::class)->markHandled($transaction);
@@ -215,7 +316,7 @@ class TransactionController extends Controller
             false,
         );
 
-        return $this->redirectToMessage($transaction)->with('success', 'Échange accepté.');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.echange_accepte'));
     }
 
     public function orgApprove(string $org, Transaction $transaction): RedirectResponse
@@ -229,7 +330,7 @@ class TransactionController extends Controller
 
         $transaction->update(['status' => 'refused']);
 
-        $this->addSystemMessage($transaction, 'Échange refusé.');
+        MessageSysteme::ecrire($transaction, 'echange_decline');
 
         rescue(
             fn () => $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh())),
@@ -249,7 +350,7 @@ class TransactionController extends Controller
         // proposition pouvait exister, plus du tout aujourd'hui.
         app(ServiceRequestLifecycle::class)->releaseIfNothingHolds($transaction);
 
-        return $this->redirectToMessage($transaction)->with('success', 'Échange refusé.');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.echange_decline'));
     }
 
     public function orgRefuse(string $org, Transaction $transaction): RedirectResponse
@@ -262,18 +363,33 @@ class TransactionController extends Controller
         $this->authorize('adjust', $transaction);
 
         $data = $request->validate([
-            'points_proposed' => 'required|integer|min:1',
+            // TASK-1754 §9.3 — on doit pouvoir OFFRIR en cours de route, pas
+            // seulement a l'ouverture.
+            'points_proposed' => 'required|integer|min:0',
         ]);
 
         if ($transaction->status !== 'pending') {
-            return back()->with('error', 'Ajustement impossible hors statut "en attente".');
+            return back()->with('error', __('entraide.flash.ajustement_impossible'));
+        }
+
+        // TASK-1756 — on n'ajuste pas sa part d'atelier.
+        //
+        // `approve()` recalcule de toute facon `points_agreed`, donc un
+        // ajustement n'aurait rien preleve de different : il aurait seulement
+        // ecrit au fil « le temps passe a 5 minutes » avant d'en prelever 15.
+        // Un message systeme qui annonce un chiffre que le produit ne tiendra
+        // pas est un defaut a lui seul.
+        $annonce = $transaction->service;
+
+        if ($annonce !== null && ! Atelier::tempsNegociable($annonce)) {
+            return back()->with('error', __('entraide.atelier.temps_non_negociable'));
         }
 
         $transaction->update(['points_proposed' => $data['points_proposed']]);
 
-        $this->addSystemMessage($transaction, 'Points ajustés à '.$data['points_proposed'].' points.');
+        MessageSysteme::ecrire($transaction, 'temps_ajuste', ['points' => (int) $data['points_proposed']]);
 
-        return $this->redirectToMessage($transaction)->with('success', 'Points ajustés.');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.temps_ajuste'));
     }
 
     public function orgAdjust(Request $request, string $org, Transaction $transaction): RedirectResponse
@@ -287,7 +403,7 @@ class TransactionController extends Controller
 
         $transaction->update(['status' => 'cancelled']);
 
-        $this->addSystemMessage($transaction, 'Transaction annulée.');
+        MessageSysteme::ecrire($transaction, 'echange_annule');
 
         // TASK-1693 bug W — ne rouvrir que si AUCUNE autre proposition ne
         // tient la demande. Sans cette condition, relacher une concurrente
@@ -295,7 +411,7 @@ class TransactionController extends Controller
         // proposition pouvait exister, plus du tout aujourd'hui.
         app(ServiceRequestLifecycle::class)->releaseIfNothingHolds($transaction);
 
-        return $this->redirectToMessage($transaction)->with('success', 'Transaction annulée.');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.echange_annule'));
     }
 
     public function orgCancel(string $org, Transaction $transaction): RedirectResponse
@@ -312,7 +428,7 @@ class TransactionController extends Controller
             'buyer_confirmed_at' => now(),
         ]);
 
-        $this->addSystemMessage($transaction, 'L\'acheteur a déclaré la prestation terminée. En attente de confirmation du vendeur.');
+        MessageSysteme::ecrire($transaction, 'aide_recue', ['prenom' => $transaction->buyer?->first_name ?: $transaction->buyer?->name]);
 
         rescue(
             fn () => $transaction->seller->notify(new TransactionStatusChanged($transaction->fresh())),
@@ -326,7 +442,7 @@ class TransactionController extends Controller
             false,
         );
 
-        return $this->redirectToMessage($transaction)->with('success', 'Prestation déclarée terminée.');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.aide_recue', ['prenom' => $transaction->seller?->first_name ?: $transaction->seller?->name]));
     }
 
     public function orgComplete(string $org, Transaction $transaction): RedirectResponse
@@ -334,7 +450,7 @@ class TransactionController extends Controller
         return $this->complete($transaction);
     }
 
-    public function confirm(Transaction $transaction): RedirectResponse
+    public function confirm(Request $request, Transaction $transaction): RedirectResponse
     {
         $this->authorize('confirm', $transaction);
 
@@ -345,26 +461,40 @@ class TransactionController extends Controller
                 return;
             }
 
-            $points = $tx->points_agreed;
+            $points = (int) $tx->points_agreed;
 
-            PointLedger::create([
-                'user_id' => $tx->buyer_id,
-                'transaction_id' => $tx->id,
-                'delta' => -$points,
-                'organization_id' => $tx->organization_id,
-                'reason' => 'exchange_spent',
-            ]);
+            // TASK-1754 §9.3 — un coup de main OFFERT ne touche NI le ledger NI
+            // les soldes.
+            //
+            // Deux lignes a zero seraient du bruit comptable : elles
+            // alourdiraient l'historique de points de chaque membre sans rien
+            // dire, et le ledger est la piece justificative des soldes — y
+            // ecrire des mouvements nuls le rend plus difficile a auditer, pas
+            // plus complet.
+            //
+            // Le reste de la choregraphie est INCHANGE : l'echange passe bien a
+            // `completed`, la demande se clot, le remerciement est propose. Un
+            // don traverse donc tout le cycle, il ne transfere simplement rien.
+            if ($points > 0) {
+                PointLedger::create([
+                    'user_id' => $tx->buyer_id,
+                    'transaction_id' => $tx->id,
+                    'delta' => -$points,
+                    'organization_id' => $tx->organization_id,
+                    'reason' => 'exchange_spent',
+                ]);
 
-            PointLedger::create([
-                'user_id' => $tx->seller_id,
-                'transaction_id' => $tx->id,
-                'delta' => $points,
-                'organization_id' => $tx->organization_id,
-                'reason' => 'exchange_earned',
-            ]);
+                PointLedger::create([
+                    'user_id' => $tx->seller_id,
+                    'transaction_id' => $tx->id,
+                    'delta' => $points,
+                    'organization_id' => $tx->organization_id,
+                    'reason' => 'exchange_earned',
+                ]);
 
-            $tx->buyer()->update(['points_balance' => DB::raw('points_balance - '.$points)]);
-            $tx->seller()->update(['points_balance' => DB::raw('points_balance + '.$points)]);
+                $tx->buyer()->update(['points_balance' => DB::raw('points_balance - '.$points)]);
+                $tx->seller()->update(['points_balance' => DB::raw('points_balance + '.$points)]);
+            }
 
             $tx->update([
                 'status' => 'completed',
@@ -379,10 +509,10 @@ class TransactionController extends Controller
 
         if ($fresh->status !== 'completed') {
             return $this->redirectToMessage($transaction)
-                ->with('error', 'Cette transaction a déjà été traitée.');
+                ->with('error', __('entraide.flash.deja_traite'));
         }
 
-        $this->addSystemMessage($transaction, 'Échange complété ! Les points ont été transférés.');
+        MessageSysteme::ecrire($transaction, 'echange_termine', ['points' => (int) ($transaction->points_agreed ?? $transaction->points_proposed)]);
 
         rescue(
             fn () => $fresh->buyer->notify(new TransactionStatusChanged($fresh)),
@@ -407,12 +537,66 @@ class TransactionController extends Controller
             false,
         );
 
-        return $this->redirectToMessage($transaction)->with('success', 'Échange complété avec succès !');
+        $this->partagerDansLeFlux($request, $fresh);
+
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.echange_termine'));
     }
 
-    public function orgConfirm(string $org, Transaction $transaction): RedirectResponse
+    /**
+     * TASK-1757 (§9.5 du CDC entraide) — l'entraide entre dans le Flux, si on
+     * le demande.
+     *
+     * ## L'opt-in se prend ICI, pas dans un reglage
+     *
+     * Arbitrage Cyril du 05/11. Le §9.5 dit « opt-in » et aucun stockage
+     * n'existait pour ca : T1752 n'offre qu'un interrupteur d'Organization
+     * tout-ou-rien. Les trois autres voies demandaient une colonne nouvelle, et
+     * un reglage a OFF enterre dans une page de reglages est une
+     * fonctionnalite invisible — le Flux serait reste vide.
+     *
+     * La case vit donc dans le formulaire de confirmation, la ou la personne
+     * decide. **Aucune colonne, aucune migration** : si la case n'est pas
+     * cochee, aucune ligne n'est ecrite, et il n'y a rien a retenir.
+     *
+     * ## Seul l'AIDANT est nomme
+     *
+     * La carte dit « 🤝 Ottoline a donne 30 min — Bricolage », jamais « a
+     * Barnabe ». Et c'est ce qui rend l'opt-in coherent : celui qui coche est
+     * l'aidant (`confirm()` est SON geste), donc la seule personne exposee est
+     * celle qui a choisi de l'etre. Un accord de l'aidant ne peut pas engager
+     * le beneficiaire — « Barnabe a RECU 30 min d'aide » l'exposerait sans
+     * qu'il ait rien decide.
+     *
+     * ## `rescue()`, comme les six autres points de bascule
+     *
+     * L'echange EST clos a ce stade, les points sont transferes. La personne ne
+     * doit pas voir une erreur pour une entraide pourtant terminee parce que le
+     * Flux a eu un probleme.
+     */
+    private function partagerDansLeFlux(Request $request, Transaction $echange): void
     {
-        return $this->confirm($transaction);
+        if (! $request->boolean('partager_dans_le_flux')) {
+            return;
+        }
+
+        // Une discussion directe n'a rien a raconter : ni annonce, ni temps.
+        if ($echange->isDirectConversation()) {
+            return;
+        }
+
+        rescue(fn () => app(FeedEventEmitter::class)->emettre(
+            FeedEventCatalogue::ENTRAIDE_TERMINEE,
+            $echange,
+            // L'acteur est l'AIDANT, celui qui vient de confirmer — et celui
+            // que la carte nomme.
+            $echange->seller,
+            $echange->organization_id,
+        ), report: true);
+    }
+
+    public function orgConfirm(Request $request, string $org, Transaction $transaction): RedirectResponse
+    {
+        return $this->confirm($request, $transaction);
     }
 
     public function contest(Transaction $transaction): RedirectResponse
@@ -433,12 +617,12 @@ class TransactionController extends Controller
 
         if ($fresh->status !== 'accepted') {
             return $this->redirectToMessage($transaction)
-                ->with('error', 'Impossible de contester cette transaction.');
+                ->with('error', __('entraide.flash.contestation_impossible'));
         }
 
-        $this->addSystemMessage($transaction, 'La prestation est contestée. L\'échange est remis en cours.');
+        MessageSysteme::ecrire($transaction, 'pas_encore_termine');
 
-        return $this->redirectToMessage($transaction)->with('success', 'Prestation contestée, échange relancé.');
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.pas_encore_termine'));
     }
 
     public function orgContest(string $org, Transaction $transaction): RedirectResponse
@@ -454,25 +638,44 @@ class TransactionController extends Controller
             ->orWhere('seller_id', $user->id)
             ->with(['service', 'serviceRequest', 'buyer', 'seller'])
             ->orderByDesc('created_at')
-            ->get();
+            ->get()
+            // TASK-1754 (§5.4 du CDC, critere d'acceptation n°7) — les
+            // DISCUSSIONS directes sortent de l'export.
+            //
+            // « Ecrire a quelqu'un » cree une Transaction a 0 point
+            // (`MessageController::showWithUser()`). Ces pseudo-echanges
+            // sortaient dans le CSV en « Achat, 0 pts, En attente » —
+            // eternellement, puisque rien ne les termine jamais. Un membre
+            // lisait donc son historique d'entraide pollue par ses simples
+            // conversations.
+            //
+            // Le filtre est pose ICI et non dans la requete : `isDirectConversation()`
+            // est la definition CANONIQUE (ni service, ni demande, ET 0 point),
+            // et la re-deriver en SQL garantirait la divergence le jour ou elle
+            // change.
+            ->reject(fn (Transaction $t) => $t->isDirectConversation());
 
-        $filename = 'entraide-transactions-'.now()->format('Y-m-d').'.csv';
+        $filename = __('entraide.csv.fichier').'-'.now()->format('Y-m-d').'.csv';
 
         return response()->streamDownload(function () use ($transactions, $user) {
             $handle = fopen('php://output', 'w');
             fwrite($handle, "\xEF\xBB\xBF"); // BOM UTF-8 pour Excel
-            fputcsv($handle, ['Date', 'Type', 'Service', 'Contrepartie', 'Points', 'Statut'], ';');
+            fputcsv($handle, (array) __('entraide.csv.entetes'), ';');
 
             foreach ($transactions as $transaction) {
-                $isBuyer = $transaction->buyer_id === $user->id;
-                $contrepartie = $isBuyer ? $transaction->seller->name : $transaction->buyer->name;
+                // `buyer` = celui qui RECOIT l'aide, `seller` = celui qui
+                // l'APPORTE. Les colonnes gardent leurs noms de marketplace en
+                // base ; l'export, lui, parle d'entraide.
+                $recoitLAide = $transaction->buyer_id === $user->id;
+                $avec = $recoitLAide ? $transaction->seller->name : $transaction->buyer->name;
                 $points = $transaction->points_agreed ?? $transaction->points_proposed;
 
                 fputcsv($handle, [
                     $transaction->created_at->format('d/m/Y'),
-                    $isBuyer ? 'Achat' : 'Vente',
+                    $recoitLAide ? __('entraide.csv.aide_recue') : __('entraide.csv.aide_apportee'),
                     $transaction->subject,
-                    $contrepartie,
+                    $avec,
+                    TempsPartage::duree($points),
                     $points,
                     $transaction->status_label,
                 ], ';');
@@ -480,17 +683,6 @@ class TransactionController extends Controller
 
             fclose($handle);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
-    }
-
-    private function addSystemMessage(Transaction $transaction, string $body): void
-    {
-        Message::create([
-            'transaction_id' => $transaction->id,
-            'sender_id' => null,
-            'body' => $body,
-            'type' => 'system',
-            'organization_id' => $transaction->organization_id,
-        ]);
     }
 
     private function redirectToMessage(Transaction $transaction): RedirectResponse

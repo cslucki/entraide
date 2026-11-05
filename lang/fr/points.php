@@ -3,7 +3,7 @@
 return [
     'title' => 'Mes points',
     'history_title' => 'Mes points',
-    'history_intro' => 'Toutes vos transactions de points, du plus récent au plus ancien.',
+    'history_intro' => 'Tout votre temps partagé, du plus récent au plus ancien.',
     'invitation_intro' => 'Depuis cette page, vous pouvez inviter vos pairs et gagner des points.',
     'invite_peers_title' => 'Inviter vos pairs',
     'invite_peers_intro' => 'Partagez votre lien d’invitation, envoyez un email personnalisé et suivez les invitations déjà envoyées.',
@@ -60,4 +60,7 @@ return [
     'status_activated' => 'Activée',
     'sent_to' => 'Envoyée à :email',
     'joined_member' => ':name a rejoint via votre invitation',
+    // TASK-1759 §9.1 — la ligne secondaire : le temps est le grand nombre,
+    // les points restent lisibles juste en dessous (arbitrage Q8).
+    'en_points' => '{0}0 pt|{1}1 pt|[2,*]:count pts',
 ];

@@ -8,29 +8,82 @@ return [
     'no_conversations' => 'No conversations',
     'back_to_conversations' => 'Back to conversations',
     'select_conversation' => 'Select a conversation',
-    'direct_conversation' => 'Direct conversation',
-    'direct_conversation_started' => 'Direct conversation started.',
+    'direct_conversation' => 'Discussion',
+    'direct_conversation_started' => 'Discussion started.',
     'exchange_subject' => 'Exchange #:id',
+
+    // TASK-1754 §3.2 — arbitrage Q2 de Cyril (05/11) : le BADGE reste court et
+    // NEUTRE, c'est la PHRASE qui porte le sens (qui aide qui).
     'status' => [
-        'pending' => 'Pending',
-        'accepted' => 'Accepted',
-        'buyer_done' => 'Completed by buyer',
-        'completed' => 'Completed',
-        'refused' => 'Refused',
+        'pending' => 'Proposal',
+        'accepted' => 'Agreed',
+        'buyer_done' => 'To confirm',
+        'completed' => 'Done',
+        'refused' => 'Declined',
         'cancelled' => 'Cancelled',
     ],
-    'actions' => [
-        'accept' => 'Accept',
-        'refuse' => 'Refuse',
-        'adjust' => 'Adjust',
-        'cancel' => 'Cancel',
-        'mark_done' => 'Mark as done',
-        'confirm' => 'Confirm',
-        'contest' => 'Contest',
+
+    'phrase' => [
+        'pending_decideur' => ':prenom is answering your listing “:titre” — :temps',
+        'pending_proposant' => 'Your offer has been sent. :prenom needs to reply.',
+        'accepted' => 'You agreed on this exchange — :temps',
+        'buyer_done_aidant' => ':prenom says they received your help. Confirm to receive your :temps.',
+        'buyer_done_aide' => 'You said you received the help. :prenom needs to confirm.',
+        'completed' => 'Exchange complete — :temps transferred. Thank you!',
+        'refused_proposant' => ':prenom declined your offer.',
+        'refused_decideur' => 'You declined this offer.',
+        'cancelled' => 'This exchange was cancelled.',
     ],
-    'review_exchange' => 'Rate this exchange',
-    'review_placeholder' => 'Comment (optional)...',
-    'send_review' => 'Send review',
+
+    'actions' => [
+        'accept' => 'Accept the exchange',
+        'refuse' => 'Decline',
+        'adjust' => 'Suggest a different time',
+        'cancel' => 'Cancel',
+        'cancel_withdraw' => 'Withdraw my offer',
+        'cancel_exchange' => 'Cancel the exchange',
+        'mark_done' => 'I received the help',
+        'confirm' => 'Confirm — receive my :temps',
+        'contest' => 'Not finished yet',
+    ],
+
+    // TASK-1754 §9.4 — arbitrage Q6 : la note reste OBLIGATOIRE (colonne NOT
+    // NULL qui nourrit la moyenne du profil), donc discrète et non optionnelle.
+    // TASK-1754 §3.4 — les faits du fil, desormais traduits.
+    'systeme' => [
+        'proposition_envoyee' => '🤝 Offer sent — :temps',
+        'echange_accepte' => '✅ Exchange accepted. The help is under way.',
+        'echange_decline' => 'Offer declined.',
+        'temps_ajuste' => 'Time adjusted: :temps',
+        'echange_annule' => 'Exchange cancelled.',
+        'aide_recue' => ':prenom confirmed receiving the help. Awaiting your confirmation.',
+        'echange_termine' => '🎉 Exchange complete — :temps shared.',
+        'pas_encore_termine' => 'The help is not finished yet: the exchange is active again.',
+    ],
+    // TASK-1755 §5.2 — le SENS de l'aide, sur chaque ligne de la liste.
+    'sens' => [
+        'vous_aidez' => 'You are helping :prenom · :temps',
+        'on_vous_demande' => ':prenom is asking for your help · :temps',
+        'terminee' => 'Exchange complete · :temps shared',
+    ],
+    'etapes' => [
+        'proposition' => 'Offer',
+        'accord' => 'Agreement',
+        'aide' => 'Help',
+        'confirmation' => 'Confirmation',
+    ],
+    'filtres' => [
+        'tous' => 'All',
+        'en_cours' => 'Active',
+        'discussions' => 'Discussions',
+        'termines' => 'Completed',
+    ],
+    'autres_actions' => 'More actions',
+    'review_exchange' => 'Say thank you to :prenom',
+    'review_intro' => 'The exchange is complete — :temps shared. Your thank-you note will appear on their profile.',
+    'review_placeholder' => 'A word of thanks (shown on their profile)…',
+    'review_rating_hint' => 'You can adjust the rating.',
+    'send_review' => 'Send the thank-you',
     'composer_placeholder' => 'Your message...',
     'conversation_closed' => 'This conversation is closed.',
     'empty_thread' => 'No messages yet',
@@ -75,4 +128,21 @@ return [
     'attachment_open' => 'Open',
     'attachment_download' => 'Download',
     'take_photo' => 'Take a photo',
+
+    /*
+     * TASK-1760 — le REPLI de l'email de statut (`emails/transaction_status`).
+     * Le gabarit administrable en base reste le chemin normal ; ces libelles
+     * servent le jour ou il est desactive. La PHRASE de statut, elle, vient
+     * de `CarteEntraide::phrase()` : une seule definition, orientee role.
+     */
+    'email_exchange' => [
+        'title' => 'Your exchange has been updated',
+        'greeting' => 'Hello :prenom,',
+        'intro' => 'Your exchange status has changed: **:statut**.',
+        'label_exchange' => 'Exchange',
+        'label_time' => 'Time shared',
+        'cta' => 'View the conversation',
+        'untitled' => 'Exchange',
+        'subject' => 'Your exchange has been updated — :statut',
+    ],
 ];

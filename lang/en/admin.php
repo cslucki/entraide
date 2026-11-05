@@ -32,6 +32,25 @@ return [
     'feed_type_announcements' => 'Announcements',
     'feed_type_events' => 'Automatic events',
     'feed_filter' => 'Filter',
+    'feed_auto_events_active' => 'Automatic events are ON for this Organization',
+    'feed_auto_events_paused' => 'Automatic events are PAUSED for this Organization',
+    'feed_auto_events_help' => 'Pausing erases nothing: only future emissions stop. To clean up what already exists, use “Remove” below.',
+    'feed_auto_events_pause' => 'Pause',
+    'feed_auto_events_resume' => 'Resume',
+    'feed_auto_events_on' => 'Automatic events resumed for :name.',
+    'feed_auto_events_off' => 'Automatic events paused for :name. Existing history is kept.',
+    'join_requests_card_title' => 'Requests to join a Loop',
+
+    // TASK-1761 points 4 and 5 — on /admin/loops.
+    'join_requests_pending_count' => ':count pending request|:count pending requests',
+    'loop_owners_inline' => 'Owner:|Owners:',
+    'loop_creator_label' => 'Created by',
+    'login_as_short' => 'log in as',
+    'join_requests_card_empty' => 'No pending request.',
+    'join_requests_card_wants_to_join' => 'is asking to join',
+    'join_requests_card_accept' => 'Accept',
+    'join_requests_card_reject' => 'Decline',
+    'join_requests_card_reject_confirm' => 'Decline this request? The person will be notified.',
     'feed_clear' => 'Reset',
     'feed_col_content' => 'Content',
     'feed_col_title' => 'Title',
@@ -590,6 +609,10 @@ return [
     'org_membership_section' => 'Membership',
     'org_membership_section_hint' => 'Set up an optional membership field for member profiles.',
     'org_membership_enabled' => 'Enable membership field',
+
+    // TASK-1762 point 2 — governs whether the "Structure" field appears.
+    'org_structure_enabled_label' => 'Members may state their organisation',
+    'org_structure_enabled_desc' => 'Members can name their company, association or collective on their profile. Unchecked, the field appears nowhere.',
     'org_membership_enabled_hint' => 'When enabled, a « Membership » input field appears in member profiles.',
 
     // TASK-1714 volet 2 — administrator approval of accounts.
