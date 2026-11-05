@@ -58,6 +58,9 @@ return [
 
     // TASK-1762 point 1 — la structure : société, association, collectif.
     'structure' => 'Structure',
+
+    // TASK-1762 point 3 — le bouton en haut de l'edition du profil.
+    'view_public_profile' => 'Voir mon profil public',
     'structure_help' => 'Votre société, association ou collectif, si vous en avez une.',
     'name' => 'Nom',
     'email' => 'Adresse e-mail',

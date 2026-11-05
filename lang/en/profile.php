@@ -62,6 +62,9 @@ return [
     // the English interface. Two different things under one label on the same
     // screen would be a trap.
     'structure' => 'Company or association',
+
+    // TASK-1762 point 3 — the button at the top of the profile edit page.
+    'view_public_profile' => 'View my public profile',
     'structure_help' => 'Your company, association or collective, if you have one.',
     'name' => 'Name',
     'email' => 'Email address',
