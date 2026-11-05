@@ -294,14 +294,6 @@ class ProfileController extends Controller
             // compte, et elle est immuable depuis T1726.
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255',
                 new UniqueEmailInOrganization($request->user()->organization_id, $request->user()->id)],
-            // TASK-1762 point 1 — la structure : societe, association, collectif.
-            //
-            // Une chaine simple, et **pas** `NomDePersonneAcceptable` : cette
-            // regle (T1712) refuse ce qui ne ressemble pas a un nom de
-            // personne, et elle ecarterait « Association Les Amis du Quartier »
-            // ou « SCOP Oxalis ». Le champ decrit justement autre chose qu'une
-            // personne.
-            'structure' => ['nullable', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
             'show_email' => ['nullable', 'boolean'],
             'show_phone' => ['nullable', 'boolean'],
@@ -336,6 +328,22 @@ class ProfileController extends Controller
 
         if ($organization?->membership_enabled) {
             $rules['membership_value'] = ['nullable', 'string', 'max:255'];
+        }
+
+        // TASK-1762 point 2 — la structure n'existe que si l'Organization l'a
+        // voulu.
+        //
+        // **C'est ici que la garde tient, pas dans la vue.** Masquer le champ
+        // ne garde rien : un `PUT /profile` forge porterait `structure` et il
+        // serait enregistre. Une regle absente du tableau fait que la cle
+        // n'entre jamais dans `$data`, donc jamais dans le `fill()`.
+        //
+        // Une chaine simple, et **pas** `NomDePersonneAcceptable` : cette regle
+        // (T1712) refuse ce qui ne ressemble pas a un nom de personne, et elle
+        // ecarterait « Association Les Amis du Quartier » ou « SCOP Oxalis ».
+        // Le champ decrit justement autre chose qu'une personne.
+        if ($organization?->structure_enabled) {
+            $rules['structure'] = ['nullable', 'string', 'max:255'];
         }
 
         $data = $request->validate($rules);

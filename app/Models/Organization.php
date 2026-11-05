@@ -76,6 +76,8 @@ class Organization extends Model
         'default_country_code',
         'show_country',
         'membership_enabled',
+        // TASK-1762 point 2 — « On peut renseigner sa structure ».
+        'structure_enabled',
         // TASK-1714 volet 2 — l'administrateur valide le compte apres l'email.
         'requires_account_approval',
         'membership_label_fr',
@@ -118,6 +120,7 @@ class Organization extends Model
             'multilingual_enabled' => 'boolean',
             'show_country' => 'boolean',
             'membership_enabled' => 'boolean',
+            'structure_enabled' => 'boolean',
             'requires_account_approval' => 'boolean',
             'homepage_settings' => 'array',
         ];

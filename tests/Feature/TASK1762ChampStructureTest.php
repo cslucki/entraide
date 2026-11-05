@@ -26,7 +26,13 @@ class TASK1762ChampStructureTest extends TestCase
     {
         parent::setUp();
 
-        $this->org = Organization::factory()->create(['slug' => 'org-1762', 'is_active' => true, 'locale' => 'fr']);
+        // TASK-1762 point 2 — le champ n'existe que si l'Organization l'a voulu.
+        // Les tests du point 1 decrivent donc une Organization qui l'a voulu ;
+        // le point 2 a sa propre classe pour le cas contraire.
+        $this->org = Organization::factory()->create([
+            'slug' => 'org-1762', 'is_active' => true, 'locale' => 'fr',
+            'structure_enabled' => true,
+        ]);
         app()->instance('current_organization', $this->org);
 
         $this->membre = User::factory()->create([

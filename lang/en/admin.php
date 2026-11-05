@@ -609,6 +609,10 @@ return [
     'org_membership_section' => 'Membership',
     'org_membership_section_hint' => 'Set up an optional membership field for member profiles.',
     'org_membership_enabled' => 'Enable membership field',
+
+    // TASK-1762 point 2 — governs whether the "Structure" field appears.
+    'org_structure_enabled_label' => 'Members may state their organisation',
+    'org_structure_enabled_desc' => 'Members can name their company, association or collective on their profile. Unchecked, the field appears nowhere.',
     'org_membership_enabled_hint' => 'When enabled, a « Membership » input field appears in member profiles.',
 
     // TASK-1714 volet 2 — administrator approval of accounts.

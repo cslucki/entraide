@@ -610,6 +610,10 @@ return [
     'org_membership_section' => 'Appartenance',
     'org_membership_section_hint' => 'Configurez un champ d\'appartenance optionnel pour les profils membres.',
     'org_membership_enabled' => 'Activer le champ d\'appartenance',
+
+    // TASK-1762 point 2 — gouverne l'apparition du champ « Structure ».
+    'org_structure_enabled_label' => 'On peut renseigner sa structure',
+    'org_structure_enabled_desc' => 'Les membres peuvent indiquer leur société, association ou collectif sur leur profil. Décoché, le champ n\'apparaît nulle part.',
     'org_membership_enabled_hint' => 'Quand activé, un champ de saisie « Appartenance » apparaît dans le profil des membres.',
 
     // TASK-1714 volet 2 — approbation des comptes par un administrateur.
