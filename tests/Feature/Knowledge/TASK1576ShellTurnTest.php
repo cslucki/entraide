@@ -333,6 +333,27 @@ class TASK1576ShellTurnTest extends TestCase
             ->where('user_id', $this->membre->id)
             ->where('role', AiShellMessage::ROLE_ASSISTANT)
             ->orderByDesc('created_at')
+            // TASK-1753 — depart d'egalite OBLIGATOIRE, et il n'est pas theorique.
+            //
+            // `ai_shell_messages.created_at` est pose par `->useCurrent()`, donc
+            // par `CURRENT_TIMESTAMP`. Sur PostgreSQL, cette fonction rend l'heure
+            // de debut de TRANSACTION, pas celle de l'instruction — et
+            // `RefreshDatabase` enferme tout le test dans UNE transaction. Toutes
+            // les lignes d'un meme test portent donc le MEME `created_at`,
+            // microsecondes comprises : le tri est une egalite totale et `first()`
+            // rendait une ligne arbitraire.
+            //
+            // Consequence observee en CI (PR #753) :
+            // `test_a2_deux_tours_zero_provider_ont_deux_identites` lisait DEUX
+            // FOIS la meme ligne et rougissait sur
+            // « Failed asserting that two strings are not identical ».
+            // Les 4 shards SQLite passaient : SQLite evalue `CURRENT_TIMESTAMP`
+            // par instruction. Le defaut ne pouvait se voir QUE sur PostgreSQL.
+            //
+            // `id` est un UUID v7 — ordonne dans le temps — donc ce depart
+            // d'egalite est un vrai ordre d'insertion, pas un pis-aller.
+            // Meme famille que le correctif `67f1ef49` de TASK-1748.
+            ->orderByDesc('id')
             ->first();
 
         $this->assertInstanceOf(AiShellMessage::class, $reponse);
