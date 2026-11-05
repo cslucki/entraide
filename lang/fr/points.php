@@ -60,4 +60,7 @@ return [
     'status_activated' => 'Activée',
     'sent_to' => 'Envoyée à :email',
     'joined_member' => ':name a rejoint via votre invitation',
+    // TASK-1759 §9.1 — la ligne secondaire : le temps est le grand nombre,
+    // les points restent lisibles juste en dessous (arbitrage Q8).
+    'en_points' => '{0}0 pt|{1}1 pt|[2,*]:count pts',
 ];
