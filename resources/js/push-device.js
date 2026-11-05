@@ -33,6 +33,7 @@ import {
     jeton,
     libelleAppareil,
     supporte as pushSupporte,
+    supporteNavigateur,
 } from './push-abonnement.js';
 
 const bloc = document.querySelector('[data-push-device]');
@@ -95,12 +96,14 @@ if (bloc) {
             off: textes.textOff,
             denied: textes.textDenied,
             unsupported: textes.textUnsupported,
+            unavailable: textes.textUnavailable,
         };
         const couleurs = {
             on: 'bg-emerald-500',
             off: 'bg-gray-400',
             denied: 'bg-amber-500',
             unsupported: 'bg-gray-300',
+            unavailable: 'bg-gray-300',
         };
 
         elEtat.textContent = libelles[etat];
@@ -122,7 +125,14 @@ if (bloc) {
 
         // Un message d'aide n'apparaît que s'il y a quelque chose à faire.
         const texteAide =
-            aide ?? (etat === 'denied' ? textes.textDeniedHelp : etat === 'unsupported' ? textes.textUnsupportedHelp : null);
+            aide ??
+            (etat === 'denied'
+                ? textes.textDeniedHelp
+                : etat === 'unsupported'
+                  ? textes.textUnsupportedHelp
+                  : etat === 'unavailable'
+                    ? textes.textUnavailableHelp
+                    : null);
         montrer(elAide, texteAide !== null);
         if (texteAide !== null) elAide.querySelector('[data-push-help]').textContent = texteAide;
     };
@@ -207,8 +217,13 @@ if (bloc) {
 
     /** L'état réel, en composant les deux moitiés. */
     const rafraichir = async () => {
+        // TASK-1768 — deux causes, deux messages. `supporte()` compose la
+        // capacite du navigateur ET la disponibilite cote serveur ; quand elle
+        // est fausse, on redemande au navigateur SEUL de quoi il est capable
+        // plutot que de lui imputer la panne. On appelle la MEME fonction que
+        // `supporte()` emploie, pour qu'aucune des deux ne puisse diverger.
         if (!supporte()) {
-            peindre('unsupported');
+            peindre(supporteNavigateur() ? 'unavailable' : 'unsupported');
             return;
         }
 
