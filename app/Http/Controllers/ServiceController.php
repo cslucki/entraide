@@ -6,6 +6,7 @@ use App\Jobs\GenerateServiceThumbnail;
 use App\Models\Category;
 use App\Models\Organization;
 use App\Models\Service;
+use App\Models\Transaction;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Feed\FeedEventEmitter;
 use App\Models\ServiceImage;
@@ -72,7 +73,17 @@ class ServiceController extends Controller
         ViewFacade::share('ogImage', $ogImage);
         ViewFacade::share('jsonLd', $jsonLd);
 
-        return view('services.show', compact('service', 'isFavorited', 'isPaused', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd'));
+        // TASK-1754 (§4.2a) — la vue SAIT qu'un echange est deja en cours.
+        //
+        // Sans cela, la page rendait TOUJOURS le formulaire « Demander cette
+        // aide », le POST partait, et la garde serveur renvoyait un toast rouge
+        // sans aucun chemin vers la conversation existante. Reproduit en recette
+        // le 04/11 : un cul-de-sac.
+        $echangeActif = auth()->check()
+            ? Transaction::echangeActif(auth()->id(), $service->id, null)
+            : null;
+
+        return view('services.show', compact('service', 'isFavorited', 'isPaused', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd', 'echangeActif'));
     }
 
     public function orgShow(string $org, Service $service): View|RedirectResponse

@@ -104,19 +104,39 @@ class TransactionController extends Controller
         //
         // Le proposant est TOUJOURS l'acteur authentifie. On vise donc la
         // colonne qui le porte, cote service comme cote demande.
-        $colonneDuProposant = ! empty($data['service_id']) ? 'buyer_id' : 'seller_id';
+        // TASK-1754 — la MEME methode que les deux pages d'annonce interrogent.
+        // Recopiee ici, elle aurait diverge, et la divergence serait muette :
+        // une vue qui croit qu'il n'y a pas d'echange affiche le formulaire, le
+        // POST part, et la garde le refuse — le cul-de-sac revient.
 
-        $existingQuery = Transaction::where($colonneDuProposant, $actor->id)
-            ->whereIn('status', ['pending', 'accepted']);
+        // TASK-1754 (§4.2b) — un doublon n'est plus une ERREUR, c'est une
+        // REDIRECTION vers la conversation qui existe deja.
+        //
+        // ## Le defaut repare
+        //
+        // La garde rendait `back()->with('error', …)` : un toast rouge sur la
+        // page de l'annonce, et AUCUN chemin vers la conversation. Un
+        // cul-de-sac, reproduit en recette le 04/11. L'utilisateur voulait
+        // parler a quelqu'un ; on lui disait qu'il ne pouvait pas, sans lui dire
+        // ou aller.
+        //
+        // ## Pourquoi la garde RESTE malgre le correctif de la vue
+        //
+        // Le lot 3 fait disparaitre le formulaire quand un echange est actif.
+        // Ca ne suffit pas : un second onglet, un bouton de la PWA garde en
+        // cache, un double-submit — le POST en double reste possible. La vue
+        // supprime l'occasion, cette garde supprime la consequence.
+        //
+        // `info` et non `error` : il ne s'est rien passe de mal.
+        $existant = Transaction::echangeActif(
+            $actor->id,
+            $data['service_id'] ?? null,
+            $data['request_id'] ?? null,
+        );
 
-        if (! empty($data['service_id'])) {
-            $existingQuery->where('service_id', $data['service_id']);
-        } else {
-            $existingQuery->where('request_id', $data['request_id']);
-        }
-
-        if ($existingQuery->exists()) {
-            return back()->with('error', 'Vous avez déjà une transaction en cours pour cette annonce.');
+        if ($existant !== null) {
+            return $this->redirectToMessage($existant)
+                ->with('info', __('entraide.deja_en_discussion'));
         }
 
         $transaction = Transaction::create([

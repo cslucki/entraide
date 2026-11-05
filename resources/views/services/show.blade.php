@@ -6,6 +6,12 @@
         $_serviceReportAction = $_serviceOrgSlug && Route::has('organization.reports.service') ? route('organization.reports.service', ['organization' => $_serviceOrgSlug, 'service' => $service]) : route('reports.service', $service);
         $_serviceTxStoreAction = $_serviceOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_serviceOrgSlug]) : route('transactions.store');
         $_serviceEditHref = $_serviceOrgSlug && Route::has('organization.services.edit') ? route('organization.services.edit', ['organization' => $_serviceOrgSlug, 'service' => $service]) : route('services.edit', $service);
+        // TASK-1754 §4 — la conversation deja ouverte, dans la surface courante.
+        $_serviceConversationHref = ($echangeActif ?? null)
+            ? ($_serviceOrgSlug && Route::has('organization.messages.show')
+                ? route('organization.messages.show', ['organization' => $_serviceOrgSlug, 'transaction' => $echangeActif])
+                : route('messages.show', $echangeActif))
+            : null;
     @endphp
     {{-- Desktop topbar --}}
     <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
@@ -168,18 +174,63 @@
                          l'ecran. `flex-wrap` le fait passer a la ligne
                          au lieu de le pousser dehors ; a partir de `sm`
                          la rangee tient et rien ne change. --}}
-                    <form method="POST" action="{{ $_serviceTxStoreAction }}" class="flex flex-wrap items-center gap-3 sm:gap-4">
+                    @if($echangeActif ?? null)
+                        {{-- TASK-1754 §4.2a (maquette M1-B) — un echange est DEJA
+                             en cours : le formulaire cede la place au chemin vers
+                             la conversation.
+
+                             Avant, la page rendait toujours le formulaire ; le
+                             POST partait, et la garde serveur repondait par un
+                             toast rouge SANS aucun lien vers la discussion
+                             existante. Cul-de-sac reproduit en recette le
+                             04/11. --}}
+                        <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800/60 dark:bg-blue-900/20 dark:text-blue-200"
+                             data-entraide-echange-actif>
+                            {{ __('entraide.echange_en_cours', [
+                                'date' => $echangeActif->created_at->translatedFormat('j F'),
+                                'temps' => \App\Support\Entraide\TempsPartage::libelle($echangeActif->points_agreed ?? $echangeActif->points_proposed),
+                            ]) }}
+                        </div>
+                        <div class="mt-3 flex flex-wrap items-center gap-3">
+                            <a href="{{ $_serviceConversationHref }}"
+                               class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
+                               data-entraide-discuter>
+                                {{ __('entraide.discuter_avec', ['prenom' => $service->user->first_name ?: $service->user->name]) }}
+                            </a>
+                        </div>
+                    @else
+                    {{-- TASK-1707 M1 — sur 390px, `w-32` + un bouton `px-6` + le solde
+                         depassaient la largeur. `flex-wrap` fait passer le solde a la
+                         ligne au lieu de le pousser dehors. --}}
+                    {{-- TASK-1754 §9.2 — la CONVERSATION d'abord, le montant ensuite.
+                         Le champ de negociation etait la premiere chose qu'on voyait :
+                         on marchandait le chiffre avant d'avoir dit bonjour. Il devient
+                         un `hidden` au temps de l'annonce ; qui veut proposer autre
+                         chose deplie le champ. L'ajustement complet reste disponible
+                         dans la conversation. --}}
+                    <form method="POST" action="{{ $_serviceTxStoreAction }}"
+                          x-data="{ autreTemps: false }"
+                          class="flex flex-wrap items-center gap-3 sm:gap-4">
                         @csrf
                         <input type="hidden" name="service_id" value="{{ $service->id }}">
-                        <input type="number" name="points_proposed" value="{{ $service->points_cost }}" min="1"
+                        <input type="number" name="points_proposed" value="{{ $service->points_cost }}" min="0"
+                            x-show="autreTemps" x-cloak
+                            data-entraide-autre-temps-champ
                             class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
                         <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
-                            {{ __('services.show.request_this_help') }}
+                            {{ __('services.show.request_this_help') }} · {{ \App\Support\Entraide\TempsPartage::duree($service->points_cost) }}
+                        </button>
+                        <button type="button" x-show="! autreTemps" x-on:click="autreTemps = true"
+                                class="text-xs text-indigo-600 underline hover:no-underline dark:text-indigo-400"
+                                data-entraide-autre-temps>
+                            {{ __('entraide.proposer_autre_temps') }}
                         </button>
                         <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['temps' => \App\Support\Entraide\TempsPartage::solde(auth()->user()->points_balance)]) }}</span>
                     </form>
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('entraide.conversation_d_abord') }}</p>
                     @if($errors->any())
                     <p class="text-red-500 text-sm mt-2">{{ $errors->first() }}</p>
+                    @endif
                     @endif
                 </div>
                 @else

@@ -10,6 +10,11 @@
  * base de donnees.
  */
 return [
+    'proposer_autre_temps' => 'Suggest a different time',
+    'conversation_d_abord' => 'The exchange starts with a conversation — you will agree on the time together.',
+    'deja_en_discussion' => 'You are already in a discussion about this listing.',
+    'discuter_avec' => 'Chat with :prenom',
+    'echange_en_cours' => 'Your offer from :date is in progress — :temps, awaiting a reply.',
     'csv' => [
         'fichier' => 'mutual-aid',
         'entetes' => ['Date', 'Direction', 'Exchange', 'With', 'Time', 'Points', 'Status'],

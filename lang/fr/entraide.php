@@ -10,6 +10,11 @@
  * base de donnees.
  */
 return [
+    'proposer_autre_temps' => 'Proposer un autre temps',
+    'conversation_d_abord' => 'L’échange commence par une conversation — vous confirmerez le temps ensemble.',
+    'deja_en_discussion' => 'Vous êtes déjà en discussion pour cette annonce.',
+    'discuter_avec' => 'Discuter avec :prenom',
+    'echange_en_cours' => 'Votre proposition du :date est en cours — :temps, en attente de réponse.',
     'csv' => [
         'fichier' => 'entraide',
         'entetes' => ['Date', 'Sens', 'Entraide', 'Avec', 'Temps', 'Points', 'Statut'],
