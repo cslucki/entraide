@@ -58,6 +58,49 @@ if (! function_exists('availabilityIsShown')) {
     }
 }
 
+if (! function_exists('structureIsShown')) {
+    /**
+     * TASK-1762 — cette Organization montre-t-elle le champ « Structure » ?
+     *
+     * ## Une seule definition, parce qu'il y a bientot sept surfaces
+     *
+     * Le drapeau gouverne l'edition du profil, sa validation, les cartes de
+     * l'annuaire, la fiche publique, l'ecran SuperAdmin et deux recherches.
+     * Ecrit sept fois, il finirait par diverger sur celle qu'on regarde le
+     * moins.
+     *
+     * ## La resolution est celle d'`availabilityIsShown()`, et pour la meme raison
+     *
+     * `currentOrganization()` retombe sur l'Organization PAR DEFAUT quand l'URL
+     * ne porte pas de prefixe de tenant — c'est le bug AI de T1694, signale par
+     * Cyril le 24/10 : une case restait visible sur `/profile/edit` alors que
+     * l'Organization concernee l'avait decochee.
+     *
+     * S'il y a un tenant DANS L'URL, c'est lui qui decide — c'est son ecran.
+     * Sinon, c'est l'Organization de la personne connectee.
+     *
+     * ## `$organization` explicite pour les ECRITURES
+     *
+     * Un appelant qui sait de quelle Organization il parle la passe. Une garde
+     * d'ecriture doit se lier a l'Organization de la personne ECRITE, jamais a
+     * ce que l'URL raconte.
+     */
+    function structureIsShown(?\App\Models\Organization $organization = null): bool
+    {
+        if ($organization === null) {
+            $route = request()?->route();
+
+            $organization = $route?->parameter('organization')
+                ? currentOrganization()
+                : (auth()->user()?->organization ?? currentOrganization());
+        }
+
+        // `false` et non `true` par defaut : le champ n'existe que la ou on l'a
+        // VOULU. Sans Organization resolue, on ne montre rien.
+        return (bool) ($organization?->structure_enabled ?? false);
+    }
+}
+
 if (! function_exists('organizationRoute')) {
     /**
      * Generate a URL for an organization route.

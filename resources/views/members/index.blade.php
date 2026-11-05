@@ -99,6 +99,19 @@
                     </div>
                     <div class="min-w-0">
                         <p class="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">{{ $member->fullName }}</p>
+                        {{-- TASK-1762 point 5 — la structure, SOUS le nom et AVANT la
+                             localisation, en gras et dans la couleur vive du theme.
+
+                             `--bp-accent` (« Accent / Loop ») et non `#8A2CFF` :
+                             l'hexadecimal est celui du seul theme Zen, et en mode
+                             sombre ce n'est meme pas celui-la qui s'applique.
+
+                             `structureIsShown()` est l'unique definition du drapeau :
+                             sept surfaces en dependront, et sept copies finiraient par
+                             diverger sur celle qu'on regarde le moins. --}}
+                        @if(structureIsShown() && filled($member->structure))
+                        <p class="truncate text-xs font-bold text-[var(--bp-accent)]" data-member-structure>{{ $member->structure }}</p>
+                        @endif
                         @if($member->public_location)
                         <p class="text-xs text-gray-400 truncate">📍 {{ $member->public_location }}</p>
                         @endif

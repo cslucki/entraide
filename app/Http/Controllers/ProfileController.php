@@ -342,7 +342,9 @@ class ProfileController extends Controller
         // (T1712) refuse ce qui ne ressemble pas a un nom de personne, et elle
         // ecarterait « Association Les Amis du Quartier » ou « SCOP Oxalis ».
         // Le champ decrit justement autre chose qu'une personne.
-        if ($organization?->structure_enabled) {
+        // L'Organization est passee EXPLICITEMENT : une garde d'ecriture se lie
+        // a l'Organization de la personne ecrite, jamais a ce que l'URL raconte.
+        if (structureIsShown($organization)) {
             $rules['structure'] = ['nullable', 'string', 'max:255'];
         }
 

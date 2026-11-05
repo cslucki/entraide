@@ -29,7 +29,7 @@
                  grille a deux colonnes : un nom de structure est long la ou un
                  prenom est court, et le mettre en face du prenom l'aurait
                  tronque des le premier « Association ... ». --}}
-            @if ($organization?->structure_enabled)
+            @if (structureIsShown($organization))
             <div data-profile-structure-field>
                 <x-input-label for="structure" :value="__('profile.structure')" />
                 <x-text-input id="structure" name="structure" type="text" class="mt-1 block w-full"
