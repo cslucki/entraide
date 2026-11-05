@@ -128,4 +128,21 @@ return [
     'attachment_open' => 'Open',
     'attachment_download' => 'Download',
     'take_photo' => 'Take a photo',
+
+    /*
+     * TASK-1760 — le REPLI de l'email de statut (`emails/transaction_status`).
+     * Le gabarit administrable en base reste le chemin normal ; ces libelles
+     * servent le jour ou il est desactive. La PHRASE de statut, elle, vient
+     * de `CarteEntraide::phrase()` : une seule definition, orientee role.
+     */
+    'email_exchange' => [
+        'title' => 'Your exchange has been updated',
+        'greeting' => 'Hello :prenom,',
+        'intro' => 'Your exchange status has changed: **:statut**.',
+        'label_exchange' => 'Exchange',
+        'label_time' => 'Time shared',
+        'cta' => 'View the conversation',
+        'untitled' => 'Exchange',
+        'subject' => 'Your exchange has been updated — :statut',
+    ],
 ];

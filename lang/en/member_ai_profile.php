@@ -28,7 +28,12 @@ return [
         'partager_methode' => 'Share a method',
         'expliquer_outil' => 'Explain a tool',
         'mise_en_relation' => 'Connect with someone',
-        'prestation' => 'Service delivery',
+        // TASK-1760, arbitrage Cyril du 05/11 — « Prestation » fait MARCHAND.
+        // On parle d'ACTIONS d'entraide. La cle reste `prestation` : elle est
+        // stockee dans `help_types` des profils deja remplis et sert d'index
+        // dans `MemberProfileAgentResponder`. La renommer demanderait une
+        // reprise de donnees pour zero gain — l'utilisateur ne voit pas la cle.
+        'prestation' => 'Action',
         'mini_atelier' => 'Mini workshop',
         'accompagnement_duree' => 'Ongoing support',
     ],
