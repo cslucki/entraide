@@ -62,8 +62,16 @@ final class BilanEntraide
             ->where('organization_id', $organization->id)
             ->where('status', 'completed')
             ->where(fn ($q) => $q->where('seller_id', $membre->id)->orWhere('buyer_id', $membre->id))
-            // L'entraide passe par une ANNONCE. Une discussion directe n'en a pas.
-            ->where(fn ($q) => $q->whereNotNull('service_id')->orWhereNotNull('request_id'))
+            // On exclut les DISCUSSIONS directes, en appelant la definition
+            // canonique — `scopeDirectConversation()` — plutot qu'en la
+            // re-derivant.
+            //
+            // Premiere version : « doit avoir une annonce ». C'etait PLUS STRICT
+            // que la definition, qui exige AUSSI zero point. Un echange a 30
+            // points sans annonce — il en existe dans la base de recette —
+            // disparaissait donc du bilan sans raison. Trouve en preparant la
+            // recette, avant meme d'ouvrir le navigateur.
+            ->whereNot(fn ($q) => $q->directConversation())
             ->selectRaw(
                 'count(distinct case when seller_id = ? then buyer_id end) as personnes_aidees,'
                 .' count(case when buyer_id = ? then 1 end) as fois_aide,'

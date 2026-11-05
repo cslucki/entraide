@@ -154,7 +154,10 @@ final class CarteEntraide
         if ($echange->status === 'completed') {
             return [
                 'emoji' => '✓',
-                'texte' => __('messages.sens.terminee', ['temps' => $temps]),
+                // `duree()` et non `libelle()` : « 30 min · 30 pts partagées »
+                // se lisait mal — le double affichage a sa place la ou l'on
+                // decide, pas dans un constat de cloture. Mesure de recette.
+                'texte' => __('messages.sens.terminee', ['temps' => TempsPartage::duree($echange->points_agreed ?? $echange->points_proposed)]),
                 'classe' => 'text-green-600 dark:text-green-400',
             ];
         }

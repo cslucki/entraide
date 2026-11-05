@@ -165,6 +165,35 @@ class TASK1755BilanEntraideTest extends TestCase
     }
 
     /**
+     * Un echange SANS annonce mais AVEC des points compte quand meme.
+     *
+     * Defaut trouve en preparant la recette : le premier filtre exigeait une
+     * annonce (« service_id ou request_id non nul »), ce qui est PLUS STRICT
+     * que la definition d'une discussion directe — laquelle exige AUSSI zero
+     * point. Un echange a 30 points sans annonce, et il en existe dans la base
+     * de recette, disparaissait du bilan sans raison.
+     *
+     * Le filtre appelle desormais `scopeDirectConversation()`, la definition
+     * canonique, au lieu de la re-deriver.
+     */
+    public function test_un_echange_sans_annonce_mais_avec_des_points_compte(): void
+    {
+        $autre = User::factory()->create(['organization_id' => $this->orgA->id]);
+
+        Transaction::factory()->create([
+            'organization_id' => $this->orgA->id,
+            'seller_id' => $this->aidant->id, 'buyer_id' => $autre->id,
+            'service_id' => null, 'request_id' => null,
+            'status' => 'completed', 'points_proposed' => 30, 'points_agreed' => 30,
+        ]);
+
+        $bilan = BilanEntraide::pour($this->aidant, $this->orgA);
+
+        $this->assertSame(1, $bilan['personnes_aidees']);
+        $this->assertSame(30, $bilan['temps_offert']);
+    }
+
+    /**
      * Un bilan VIDE ne s'affiche pas.
      *
      * « 0 personne · 0 fois · 0 min » est un reproche, pas un bilan.
