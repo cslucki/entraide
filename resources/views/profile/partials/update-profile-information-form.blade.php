@@ -229,7 +229,17 @@
             </div>
         </div>
 
-        <div class="space-y-6 border-t border-gray-200 dark:border-gray-700 pt-6">
+        {{-- TASK-1762 point 15 — la section de facturation n'existe que si
+             l'Organization propose des abonnements.
+
+             Cyril : « si on ne propose pas d'abonnement, pas la peine de parler
+             de facturation, ça fait peur aux utilisateurs. Puis ainsi on évite
+             de recueillir des coordonnées pour rien. »
+
+             La garde vaut aussi au SERVEUR (`ProfileController::update`) :
+             masquer trois champs ne garde rien, un `PUT` forge les ecrirait. --}}
+        @if(billingIsCollected($organization))
+        <div class="space-y-6 border-t border-gray-200 dark:border-gray-700 pt-6" data-profile-billing-section>
             <div>
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.private_billing_section') }}</h3>
                 <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ __('profile.private_billing_description') }}</p>
@@ -253,6 +263,7 @@
                 <x-input-error class="mt-2" :messages="$errors->get('postal_code')" />
             </div>
         </div>
+        @endif
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>

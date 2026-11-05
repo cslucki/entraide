@@ -187,7 +187,11 @@ class TASK358Lot2ProfileEditTest extends TestCase
 
     private function createUserForProfile(array $attributes = []): User
     {
-        $organization = Organization::factory()->create();
+        // TASK-1762 point 15 — la section « Informations privées / facturation »
+        // n'existe que si l'Organization propose des abonnements. Ces tests
+        // portent justement sur ces champs : leur terrain doit donc les offrir,
+        // sans quoi ils mesureraient l'absence de la section.
+        $organization = Organization::factory()->create(['subscriptions_enabled' => true]);
         app()->instance('current_organization', $organization);
 
         return User::factory()->create(array_merge([

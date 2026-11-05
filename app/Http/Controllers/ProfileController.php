@@ -302,9 +302,6 @@ class ProfileController extends Controller
             'city' => ['nullable', 'string', 'max:255'],
             'country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
             'preferred_locale' => ['nullable', Rule::in(['fr', 'en'])],
-            'address_line1' => ['nullable', 'string', 'max:255'],
-            'address_line2' => ['nullable', 'string', 'max:255'],
-            'postal_code' => ['nullable', 'string', 'max:30'],
             'website' => ['nullable', 'url', 'max:255'],
             'linkedin_url' => ['nullable', 'url', 'max:255'],
             // TASK-1750 — la liste de liens supplementaires.
@@ -346,6 +343,22 @@ class ProfileController extends Controller
         // a l'Organization de la personne ecrite, jamais a ce que l'URL raconte.
         if (structureIsShown($organization)) {
             $rules['structure'] = ['nullable', 'string', 'max:255'];
+        }
+
+        // TASK-1762 point 15 — l'adresse de facturation n'est recueillie que si
+        // l'Organization propose des abonnements.
+        //
+        // Au SERVEUR, comme la structure : masquer la section ne garde rien,
+        // un `PUT` forge ecrirait les trois champs. Une regle absente du
+        // tableau fait que la cle n'entre jamais dans `$data`.
+        //
+        // Elle n'EFFACE pas pour autant ce qui etait deja saisi : la cle est
+        // simplement absente du `fill()`. Une Organization qui coupe les
+        // abonnements cache les champs, elle ne detruit pas les adresses.
+        if (billingIsCollected($organization)) {
+            $rules['address_line1'] = ['nullable', 'string', 'max:255'];
+            $rules['address_line2'] = ['nullable', 'string', 'max:255'];
+            $rules['postal_code'] = ['nullable', 'string', 'max:30'];
         }
 
         $data = $request->validate($rules);

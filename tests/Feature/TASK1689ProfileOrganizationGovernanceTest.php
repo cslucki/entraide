@@ -307,16 +307,22 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
     /** @return array{0: Organization, 1: Organization} */
     private function deuxOrganizations(bool $sienneActivee, bool $etrangereActivee): array
     {
+        // TASK-1762 point 15 — `subscriptions_enabled` : le test E verifie que
+        // `postal_code` et `address_line1` s'enregistrent encore, et ces champs
+        // n'existent desormais que si l'Organization propose des abonnements.
+        // Sans cela, il mesurerait l'absence de la section, pas l'ecriture.
         $a = Organization::factory()->create([
             'slug' => 'org-1689-a', 'name' => 'Org 1689 A',
             'is_active' => true, 'is_public' => true,
             'membership_enabled' => $sienneActivee,
+            'subscriptions_enabled' => true,
         ]);
 
         $b = Organization::factory()->create([
             'slug' => 'org-1689-b', 'name' => 'Org 1689 B',
             'is_active' => true, 'is_public' => true,
             'membership_enabled' => $etrangereActivee,
+            'subscriptions_enabled' => true,
         ]);
 
         return [$a, $b];
