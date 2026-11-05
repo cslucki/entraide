@@ -56,4 +56,6 @@ return [
     'status_activated' => 'Activated',
     'sent_to' => 'Sent to :email',
     'joined_member' => ':name joined through your invitation',
+    // TASK-1759 §9.1 — the secondary line; see the French file.
+    'en_points' => '{0}0 pt|{1}1 pt|[2,*]:count pts',
 ];
