@@ -146,10 +146,15 @@ return [
     // TASK-1693 bug Z — l'adresse publique du profil.
     'slug' => 'Adresse de votre profil',
     'slug_prefix' => '…/profile/',
-    'slug_help' => 'Lettres minuscules, chiffres et tirets. Entre 3 et 60 caractères. Laissez vide pour revenir à l\'adresse technique.',
-    'slug_change_notice' => 'Votre ancienne adresse continuera de fonctionner et restera réservée : aucun lien déjà partagé ne sera perdu.',
+
+    // TASK-1762 point 4 bis — l'adresse qui sert AUJOURD'HUI, a droite du libelle.
+    'slug_current' => 'Actuellement :',
+    'slug_help' => 'Choisissez une adresse qui vous représente, par exemple :exemple ou :exemple_court',
     'slug_taken' => 'Cette adresse est déjà prise dans votre Organisation. Choisissez-en une autre.',
-    'slug_invalid' => 'Cette adresse n\'est pas utilisable : lettres minuscules, chiffres et tirets uniquement, et certains mots sont réservés.',
+    // TASK-1762 point 4 — la regle de forme a quitte l'aide permanente pour
+    // ce message : c'est le seul moment ou elle sert. La LONGUEUR y entre
+    // aussi, sinon une adresse de deux lettres serait refusee sans raison dite.
+    'slug_invalid' => 'Cette adresse n\'est pas utilisable : lettres minuscules, chiffres et tirets uniquement, entre 3 et 60 caractères, et certains mots sont réservés.',
     // TASK-1697 — les deux cards ajoutees a la fiche profil
     'loops_section' => 'Boucles',
     'loops_count' => ':count Boucle|:count Boucles',

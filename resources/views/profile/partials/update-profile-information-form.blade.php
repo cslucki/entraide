@@ -61,7 +61,37 @@
                  question de discretion : qui tient a la sienne prend un
                  pseudonyme, qui veut etre trouve prend son nom. --}}
             <div class="mt-6" data-profile-slug-field>
-                <x-input-label for="slug" :value="__('profile.slug')" />
+                {{-- TASK-1762 point 4 bis — l'adresse ACTUELLE, a droite du libelle.
+
+                     Demande de Cyril : « ainsi les gens comprennent plus
+                     facilement qu'ils ont interet a personnaliser ». Qui n'a
+                     rien choisi lit son identifiant technique en toutes
+                     lettres, et l'argument se passe de phrase.
+
+                     `profileRouteKey()` et non `$user->slug` : c'est l'adresse
+                     qui SERT aujourd'hui — le slug choisi, ou l'identifiant a
+                     defaut. Afficher le slug seul laisserait un « Actuellement :
+                     …/profile/ » vide a ceux-la memes qu'il s'agit de
+                     convaincre.
+
+                     `break-all` : un UUID fait 36 caracteres et deborderait du
+                     telephone. `flex-wrap` le fait passer sous le libelle quand
+                     la place manque, au lieu de le serrer. --}}
+                <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <x-input-label for="slug" :value="__('profile.slug')" />
+                    <span class="break-all text-xs text-gray-500 dark:text-gray-400" data-profile-slug-current>
+                        {{ __('profile.slug_current') }}
+                        {{-- L'adresse en « Accent / Loop » (`--bp-accent`), la couleur
+                             du theme choisi par l'Organization — #8A2CFF sur Zen.
+                             Ecrire `#8A2CFF` en dur aurait fige la couleur d'UN theme
+                             sur tous les autres.
+
+                             Seule l'ADRESSE est coloree : « Actuellement : » reste
+                             gris, pour que l'oeil tombe sur la valeur et non sur le
+                             mot qui l'introduit. --}}
+                        <span class="font-mono font-semibold text-[var(--bp-accent)]">{{ __('profile.slug_prefix') }}{{ $user->profileRouteKey() }}</span>
+                    </span>
+                </div>
                 <div class="mt-1 flex items-center gap-1">
                     <span class="shrink-0 text-sm text-gray-400">{{ __('profile.slug_prefix') }}</span>
                     <x-text-input id="slug" name="slug" type="text" class="block w-full"
@@ -69,10 +99,33 @@
                                   maxlength="60" autocomplete="off" />
                 </div>
                 <x-input-error class="mt-2" :messages="$errors->get('slug')" />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.slug_help') }}</p>
-                {{-- La consequence, NOMMEE : changer d'adresse inquiete, et
-                     cette phrase dit pourquoi il n'y a pas de quoi. --}}
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.slug_change_notice') }}</p>
+                {{-- TASK-1762 point 4 — une seule phrase, avec de VRAIES adresses.
+
+                     Les trois phrases precedentes recitaient la regle de forme
+                     (« lettres minuscules, chiffres et tirets, entre 3 et 60
+                     caracteres ») et la politique de conservation des anciennes
+                     adresses. Cyril : « Dire juste choisissez une adresse qui
+                     vous represente, par exemple ... ».
+
+                     La regle de forme n'est pas perdue : elle a rejoint le
+                     message d'ERREUR, c'est-a-dire le seul moment ou elle sert.
+                     L'afficher en permanence faisait porter a tout le monde le
+                     prix d'un cas rare.
+
+                     Les exemples sont construits sur l'adresse REELLE de
+                     l'Organization : ecrits en dur, ils auraient menti partout
+                     ailleurs que sur `main`. --}}
+                @php
+                    $_exempleSlugComplet = ($_slugOrg = $organization?->slug) && Route::has('organization.profile.show')
+                        ? route('organization.profile.show', ['organization' => $_slugOrg, 'user' => 'ofsh'])
+                        : route('profile.show', 'ofsh');
+                    $_exempleSlugCourt = ($_slugOrg && Route::has('organization.profile.show'))
+                        ? '/org/'.$_slugOrg.'/profile/camille'
+                        : '/profile/camille';
+                @endphp
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-profile-slug-help>
+                    {{ __('profile.slug_help', ['exemple' => $_exempleSlugComplet, 'exemple_court' => $_exempleSlugCourt]) }}
+                </p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

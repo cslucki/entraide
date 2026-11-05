@@ -146,10 +146,15 @@ return [
     // TASK-1693 bug Z — the public profile address.
     'slug' => 'Your profile address',
     'slug_prefix' => '…/profile/',
-    'slug_help' => 'Lowercase letters, digits and hyphens. Between 3 and 60 characters. Leave empty to go back to the technical address.',
-    'slug_change_notice' => 'Your previous address will keep working and stays reserved: no shared link is ever lost.',
+
+    // TASK-1762 point 4 bis — the address in use TODAY, right of the label.
+    'slug_current' => 'Currently:',
+    'slug_help' => 'Pick an address that represents you, for example :exemple or :exemple_court',
     'slug_taken' => 'That address is already taken in your Organization. Please pick another one.',
-    'slug_invalid' => 'That address cannot be used: lowercase letters, digits and hyphens only, and some words are reserved.',
+    // TASK-1762 point 4 — the format rule moved out of the permanent hint and
+    // into this message, the only moment it is of any use. LENGTH comes with
+    // it: a two-letter address would otherwise be refused without a reason.
+    'slug_invalid' => 'That address cannot be used: lowercase letters, digits and hyphens only, between 3 and 60 characters, and some words are reserved.',
     // TASK-1697 — les deux cards ajoutees a la fiche profil
     'loops_section' => 'Loops',
     'loops_count' => ':count Loop|:count Loops',
