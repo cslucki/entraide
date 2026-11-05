@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -183,6 +184,74 @@ class TASK1762FiltreLocalisationTest extends TestCase
         $html = $this->page(['city' => 'Menton']);
 
         $this->assertMatchesRegularExpression('/<option value="Menton"[^>]*selected/', $html);
+    }
+
+    // ── Point 12 — la largeur du menu ────────────────────────────────────────
+
+    /** L'option par defaut dit « Localisation », pas une phrase. */
+    public function test_l_option_par_defaut_est_courte(): void
+    {
+        $this->membre('Camille', 'MOREAU', 'Marseille');
+        $this->membre('Zoe', 'LEROY', 'Menton');
+
+        $html = $this->page();
+
+        $this->assertStringContainsString('>'.__('directory.city_all').'<', $html);
+        $this->assertStringNotContainsString('Toutes les localisations', $html);
+    }
+
+    /**
+     * 🔴 Une ville de plus de 20 caracteres est ABREGEE a l'affichage.
+     *
+     * « on ne veut pas que le menu soit trop large ».
+     */
+    public function test_une_ville_trop_longue_est_abregee(): void
+    {
+        $this->membre('Camille', 'MOREAU', 'Saint-Remy-de-Provence-les-Alpilles');
+        $this->membre('Zoe', 'LEROY', 'Menton');
+
+        $html = $this->page();
+
+        $this->assertStringNotContainsString('Saint-Remy-de-Provence-les-Alpilles (1)', $html);
+        $this->assertStringContainsString(Str::limit('Saint-Remy-de-Provence-les-Alpilles', 20).' (1)', $html);
+
+        // Le nom entier reste accessible en infobulle : rien n'est perdu.
+        $this->assertStringContainsString('title="Saint-Remy-de-Provence-les-Alpilles"', $html);
+    }
+
+    /**
+     * 🔴 Mais c'est le LIBELLE qui est abrege, pas la VALEUR.
+     *
+     * Un `<option>` soumet son `value` : l'abreger casserait le filtre en
+     * silence, et la ville la plus longue serait la seule introuvable.
+     */
+    public function test_la_valeur_soumise_reste_le_nom_complet(): void
+    {
+        $longue = 'Saint-Remy-de-Provence-les-Alpilles';
+        $this->membre('Camille', 'MOREAU', $longue);
+        $this->membre('Zoe', 'LEROY', 'Menton');
+
+        $html = $this->page();
+
+        $this->assertStringContainsString('value="'.$longue.'"', $html);
+
+        // Et le filtre repond encore sur ce nom-la.
+        $filtree = $this->page(['city' => $longue]);
+
+        $this->assertStringContainsString('Camille MOREAU', $filtree);
+        $this->assertStringNotContainsString('Zoe LEROY', $filtree);
+    }
+
+    /** Une ville courte n'est ni abregee, ni affublee d'une infobulle. */
+    public function test_une_ville_courte_reste_intacte(): void
+    {
+        $this->membre('Camille', 'MOREAU', 'Marseille');
+        $this->membre('Zoe', 'LEROY', 'Menton');
+
+        $html = $this->page();
+
+        $this->assertStringContainsString('Marseille (1)', $html);
+        $this->assertStringNotContainsString('title="Marseille"', $html);
     }
 
     /**

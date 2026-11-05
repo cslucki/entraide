@@ -27,7 +27,9 @@ return [
 
     // TASK-1762 point 10 — the city filter.
     'city_label' => 'Location',
-    'city_all' => 'All locations',
+    // TASK-1762 point 12 — « Location », not « All locations » : it is a menu's
+    // default option, not a sentence, and it was setting the menu's width.
+    'city_all' => 'Location',
 
     // TASK-1762 point 11.4 — the "New arrivals" view.
     'latest_button' => 'New arrivals',

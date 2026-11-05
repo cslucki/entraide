@@ -27,7 +27,9 @@ return [
 
     // TASK-1762 point 10 — le filtre par ville.
     'city_label' => 'Localisation',
-    'city_all' => 'Toutes les localisations',
+    // TASK-1762 point 12 — « Localisation » et non « Toutes les localisations » :
+    // c'est l'option par defaut d'un menu, pas une phrase, et elle en fixait la largeur.
+    'city_all' => 'Localisation',
 
     // TASK-1762 point 11.4 — la vue « Nouveaux arrivés ».
     'latest_button' => 'Nouveaux arrivés',

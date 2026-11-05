@@ -37,7 +37,18 @@
                     class="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
                 <option value="">{{ __('directory.city_all') }}</option>
                 @foreach($villes as $cle => $entree)
-                <option value="{{ $entree['libelle'] }}" @selected(mb_strtolower($ville) === $cle)>{{ $entree['libelle'] }} ({{ $entree['total'] }})</option>
+                {{-- TASK-1762 point 12 — le LIBELLE est abrege, pas la VALEUR.
+
+                     « pour gagner de la place [...] on ne veut pas que le menu
+                     soit trop large ». Un `<option>` soumet son `value` et
+                     affiche son texte : abreger le texte seul raccourcit le
+                     menu sans toucher au filtre, qui compare toujours le nom
+                     complet de la ville.
+
+                     L'infobulle porte le nom entier : rien n'est perdu, c'est
+                     seulement replie. --}}
+                <option value="{{ $entree['libelle'] }}" @selected(mb_strtolower($ville) === $cle)
+                        @if(mb_strlen($entree['libelle']) > 20) title="{{ $entree['libelle'] }}" @endif>{{ Str::limit($entree['libelle'], 20) }} ({{ $entree['total'] }})</option>
                 @endforeach
             </select>
             @endif
