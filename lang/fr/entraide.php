@@ -46,6 +46,7 @@ return [
         'apercu_apres' => 'minutes — moins s’il y a plus de monde.',
         'prix_max' => 'au maximum :temps par personne',
         'temps_non_negociable' => 'Le temps d’un atelier se répartit entre les participants : il ne se négocie pas place par place.',
+        'carte' => 'atelier · :temps / pers.',
         'champ_individuel' => 'Aide individuelle',
     ],
     'csv' => [

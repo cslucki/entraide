@@ -412,4 +412,27 @@ class TASK1756AtelierGroupeTest extends TestCase
         $this->assertSame(20, (int) $echange2->fresh()->points_proposed,
             'Une aide individuelle, elle, reste negociable.');
     }
+
+    /**
+     * La carte de l'explorateur dit elle aussi la PART.
+     *
+     * Meme mecanisme que le defaut de recette, sur l'autre surface ou le membre
+     * decide de cliquer : le grand nombre d'un atelier est le temps de la
+     * SEANCE ENTIERE. La carte annoncait « 45 min » pour une place a 15.
+     *
+     * Et la RECIPROQUE : une aide individuelle ne porte pas cette mention,
+     * sinon « / pers. » apparaitrait sur toutes les annonces du site.
+     */
+    public function test_la_carte_de_l_explorateur_annonce_la_part_pour_un_atelier_seulement(): void
+    {
+        $this->atelier(points: 45, capacite: 3, plancher: 3)->update(['title' => 'ATELIER DE GROUPE']);
+        $this->atelier(points: 30, capacite: null, plancher: null)->update(['title' => 'AIDE INDIVIDUELLE']);
+
+        $page = $this->actingAs($this->participant())->get(route('explorer'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-entraide-atelier-carte', $page);
+        $this->assertStringContainsString('atelier · 15 min / pers.', $page);
+        $this->assertSame(1, substr_count($page, 'data-entraide-atelier-carte'),
+            'Une seule des deux annonces est un atelier.');
+    }
 }
