@@ -57,12 +57,32 @@
         /*
          * Le curseur est DEJA dans la zone de texte a l'ouverture.
          *
-         * Volontairement pas l'attribut `focusable` du composant : il focalise
-         * le PREMIER element focalisable dans l'ordre du DOM, ce qui serait le
-         * bouton de fermeture ou le selecteur de canal si le balisage bouge.
-         * `$refs` nomme la cible, et reste vrai quoi qu'il arrive au balisage.
+         * Volontairement PAS l'attribut `focusable` du composant de modal : il
+         * focalise le PREMIER element focalisable dans l'ordre du DOM, ce qui
+         * serait le bouton « Annuler » ou le selecteur de canal si le balisage
+         * bouge. On nomme la cible par son marqueur.
+         *
+         * ## Pourquoi `$el.querySelector` et NON `$refs`
+         *
+         * Mesure du 05/11, en recette navigateur. Le composant de modal porte
+         * SON PROPRE `x-data` : un `x-ref` pose dans son contenu s'enregistre
+         * sur CE composant-la, pas sur celui-ci. `$refs.corps` valait donc
+         * `undefined` et lachait un `TypeError` a chaque ouverture — le curseur
+         * n'arrivait jamais dans la zone, et rien ne le disait a l'ecran.
+         * C'est exactement pour cette raison que le modal email de T1694
+         * emploie `$el.querySelectorAll()`.
+         *
+         * ## Pourquoi un delai et non `$nextTick`
+         *
+         * La ligne emet `crm-note-context` PUIS `open-modal` : au `$nextTick`,
+         * le modal est encore `display: none` et le focus serait perdu en
+         * silence. 150 ms passe apres l'ouverture, et au-dela des 100 ms que le
+         * composant s'accorde lui-meme.
+         *
+         * L'appel est optionnel (`?.`) : plus jamais de TypeError ici, quoi
+         * qu'il arrive au balisage.
          */
-        $nextTick(() => $refs.corps.focus());
+        setTimeout(() => $el.querySelector('[data-crm-note-body]')?.focus(), 150);
     "
 >
     <x-modal name="crm-note" maxWidth="2xl">
@@ -108,7 +128,7 @@
                 {{-- `Ctrl`/`Cmd` + `Entree` envoie : on tape, on envoie, sans
                      toucher la souris. `Entree` seul reste un retour a la ligne —
                      une note fait souvent plusieurs lignes. --}}
-                <textarea x-ref="corps" name="body" rows="5" required
+                <textarea name="body" rows="5" required
                           maxlength="{{ \App\Services\Crm\CrmTimelineService::MAX_NOTE_LENGTH }}"
                           x-model="corps"
                           x-on:keydown.ctrl.enter="$el.form.requestSubmit()"
