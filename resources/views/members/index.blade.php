@@ -47,7 +47,24 @@
                  est pose : sinon on ne sait plus comment revenir a la liste
                  complete. --}}
             @if($recherche !== '' || $ville !== '')
-            <a href="{{ url()->current() }}" class="text-sm text-gray-500 hover:text-indigo-600">{{ __('directory.search_clear') }}</a>
+            {{-- TASK-1762 point 11.3 — « Effacer » devient un bouton, dans la
+                 couleur « Alerte douce » du theme (`--bp-warning`, #FFB24D sur
+                 Zen). Ecrire l'hexadecimal aurait fige la couleur d'un theme
+                 sur tous les autres.
+
+                 Texte SOMBRE et non blanc : l'ambre est une couleur claire, et
+                 du blanc dessus serait illisible. Le bouton porte son propre
+                 fond, donc le meme texte convient en mode clair comme en mode
+                 sombre.
+
+                 Cela reste une ancre et non un `<button>` : le geste est une
+                 navigation vers la liste sans filtre, et elle doit pouvoir
+                 s'ouvrir dans un onglet. --}}
+            <a href="{{ url()->current() }}" data-directory-clear
+               class="inline-flex items-center gap-1.5 rounded-lg bg-[var(--bp-warning)] px-4 py-2 text-sm font-semibold text-gray-900 transition hover:brightness-95">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                {{ __('directory.search_clear') }}
+            </a>
             @endif
         </form>
 

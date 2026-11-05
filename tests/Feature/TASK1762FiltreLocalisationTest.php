@@ -186,6 +186,37 @@ class TASK1762FiltreLocalisationTest extends TestCase
     }
 
     /**
+     * 🔴 TASK-1762 point 11.3 — « Effacer » est un BOUTON, en « Alerte douce ».
+     *
+     * La couleur vient du jeton `warning` du theme (`#FFB24D` sur Zen).
+     * L'ecrire en dur aurait fige la couleur d'un theme sur tous les autres —
+     * la meme lecon qu'au point 4 pour `--bp-accent`.
+     */
+    public function test_effacer_est_un_bouton_en_alerte_douce(): void
+    {
+        $this->membre('Camille', 'MOREAU', 'Marseille');
+        $this->membre('Zoe', 'LEROY', 'Menton');
+
+        $html = $this->page(['city' => 'Marseille']);
+
+        // La balise ENTIERE, et non « class puis le marqueur » : l'ordre des
+        // attributs dans le HTML n'est pas une propriete du produit, et une
+        // assertion qui en depend rougit a la premiere reecriture de la vue.
+        preg_match('/<a[^>]*data-directory-clear[^>]*>/', $html, $m);
+
+        $this->assertNotEmpty($m, 'Le bouton « Effacer » est introuvable.');
+
+        $balise = $m[0];
+
+        $this->assertStringContainsString('bg-[var(--bp-warning)]', $balise);
+        $this->assertStringNotContainsString('#', $balise, 'La couleur ne doit pas etre ecrite en dur.');
+
+        // Un bouton, pas un lien en texte nu.
+        $this->assertStringContainsString('rounded-lg', $balise);
+        $this->assertStringContainsString('px-4', $balise);
+    }
+
+    /**
      * 🔴 TASK-1762 point 11.1 — TROIS colonnes au maximum sur grand ecran.
      *
      * Demande de Cyril : « ainsi cela sera plus aere ». Le palier `xl` a ete
