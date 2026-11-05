@@ -12,8 +12,14 @@ class TransactionObserver
     public function updated(Transaction $transaction): void
     {
         if ($transaction->wasChanged('status') && $transaction->status === 'completed') {
-            $this->badgeService->checkAndAward($transaction->buyer);
-            $this->badgeService->checkAndAward($transaction->seller);
+            // TASK-1757 — l'Organization vient de la TRANSACTION, pas du
+            // contexte ambiant. Un observateur peut tourner dans une file ou
+            // une commande, ou `currentOrganization()` est nul : les badges
+            // d'entraide seraient alors silencieusement sautes.
+            $organization = $transaction->organization;
+
+            $this->badgeService->checkAndAward($transaction->buyer, $organization);
+            $this->badgeService->checkAndAward($transaction->seller, $organization);
         }
     }
 }
