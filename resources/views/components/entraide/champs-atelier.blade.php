@@ -46,6 +46,12 @@
         lirePoints(champ);
         champ?.addEventListener('input', () => lirePoints(champ));
      "
+     {{-- Baisser la capacite sous le plancher laissait une paire INVALIDE :
+          `min_participants` est valide en `lte:capacity`, donc « a partir de 5,
+          jusqu'a 3 » se faisait refuser au serveur — alors que l'apercu, lui,
+          bornait et affichait un nombre coherent. L'aidant voyait une regle
+          comprise et recevait une erreur. On borne a la SAISIE. --}}
+     x-effect="if (plancher > capacite) plancher = capacite"
      data-entraide-champs-atelier>
 
     <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
