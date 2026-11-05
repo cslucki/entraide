@@ -213,16 +213,30 @@ class TASK1693DashboardSingleExchangeCardTest extends TestCase
         return substr($html, $debut, (int) (strpos($html, '</a>', $debut) - $debut));
     }
 
-    /** L'etat est porte par la ligne, plus par le titre de la card. */
+    /**
+     * L'etat est porte par LA LIGNE, plus par le titre de la card.
+     *
+     * TASK-1754 — deux changements, et le second repare le test lui-meme.
+     *
+     * 1. Les libelles suivent le lexique d'entraide : « En attente » devient
+     *    « Proposition », « Accepté » devient « Entraide convenue » (§3.2).
+     * 2. L'assertion portait sur TOUTE LA PAGE. Elle verifiait que les deux
+     *    chaines existaient quelque part, pas que CHACUNE etait sur SA ligne —
+     *    alors meme que le helper `ligne()` existait deja juste au-dessus. Le
+     *    test serait reste vert si les deux badges avaient atterri sur la meme
+     *    ligne, ce qui est exactement le defaut que son nom annonce.
+     */
     public function test_each_line_carries_its_own_state(): void
     {
-        $this->echange('pending', jeSuisAcheteur: true);
-        $this->echange('accepted', jeSuisAcheteur: false, convenus: 20);
+        $enAttente = $this->echange('pending', jeSuisAcheteur: true);
+        $convenu = $this->echange('accepted', jeSuisAcheteur: false, convenus: 20);
 
         $html = $this->tableauDeBord();
 
-        $this->assertStringContainsString('En attente', $html);
-        $this->assertStringContainsString('Accepté', $html);
+        $this->assertStringContainsString('Proposition', $this->ligne($html, $enAttente->id));
+        $this->assertStringNotContainsString('Entraide convenue', $this->ligne($html, $enAttente->id));
+
+        $this->assertStringContainsString('Entraide convenue', $this->ligne($html, $convenu->id));
     }
 
     /**
