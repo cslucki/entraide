@@ -12,6 +12,7 @@ return [
     'state_off' => 'Non activées sur cet appareil',
     'state_denied' => 'Refusées par votre navigateur',
     'state_unsupported' => 'Non prises en charge par ce navigateur',
+    'state_unavailable' => 'Indisponible pour le moment',
     'state_checking' => 'Vérification…',
 
     'enable' => 'Activer les notifications',
@@ -19,6 +20,7 @@ return [
 
     'denied_help' => 'Votre navigateur a refusé les notifications pour BouclePro. Pour les réactiver, ouvrez les réglages du site dans votre navigateur et autorisez les notifications, puis revenez sur cette page.',
     'unsupported_help' => 'Ce navigateur ne propose pas les notifications web. Sur iPhone, installez d’abord BouclePro sur votre écran d’accueil : les notifications ne sont disponibles que depuis l’application installée.',
+    'unavailable_help' => 'Les notifications ne sont pas encore proposées sur cet espace. Votre navigateur, lui, sait les recevoir : il n’y a rien à faire de votre côté.',
 
     'devices_count' => '{0}Aucun appareil enregistré|{1}1 appareil enregistré|[2,*]:count appareils enregistrés',
 

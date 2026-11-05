@@ -221,8 +221,13 @@
           data-text-off="{{ __('push.state_off') }}"
           data-text-denied="{{ __('push.state_denied') }}"
           data-text-unsupported="{{ __('push.state_unsupported') }}"
+          {{-- TASK-1768 — le 5e etat : le navigateur SAIT faire, mais le
+               produit ne le propose pas encore ici. Distinct de
+               « non prises en charge », qui accuse le navigateur. --}}
+          data-text-unavailable="{{ __('push.state_unavailable') }}"
           data-text-denied-help="{{ __('push.denied_help') }}"
           data-text-unsupported-help="{{ __('push.unsupported_help') }}"
+          data-text-unavailable-help="{{ __('push.unavailable_help') }}"
           {{-- TASK-1744 — le message affiché quand l'appareil est enregistré.
                Il dépend de ce que CETTE personne a coché, pas d'un état
                général du produit : voir le calcul de `$pushActifs` dans
