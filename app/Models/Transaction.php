@@ -232,6 +232,38 @@ class Transaction extends Model
         return $this->request_id !== null ? $this->seller_id : $this->buyer_id;
     }
 
+    /**
+     * TASK-1755 (§1.2 du CDC) — les deux roles HUMAINS, sans colonne nouvelle.
+     *
+     * Le modele parle d'acheteur et de vendeur. Les personnes, elles, aident ou
+     * sont aidees. La correspondance est stable et sans ambiguite — celui qui
+     * ENCAISSE les points est celui qui APPORTE l'aide — mais elle est contre
+     * intuitive a relire : `seller` pour « l'aidant » surprend a chaque lecture,
+     * et c'est ainsi qu'on finit par inverser les deux.
+     *
+     * Ces deux methodes sont la seule traduction du vocabulaire economique vers
+     * le vocabulaire humain. Tout ce qui parle a l'utilisateur passe par elles.
+     *
+     * A ne pas confondre avec `proposerId()` / `decisionMakerId()` : ceux-la
+     * disent qui a PROPOSE et qui DECIDE, ce qui s'inverse selon qu'on repond a
+     * une proposition ou a une demande (T1693 bug S). Le sens de l'aide, lui, ne
+     * s'inverse jamais.
+     */
+    public function estLAidant(User|string|null $user): bool
+    {
+        $id = $user instanceof User ? $user->id : $user;
+
+        return $id !== null && $this->seller_id === $id;
+    }
+
+    /** Celui qui RECOIT l'aide, et qui paie. */
+    public function estLAide(User|string|null $user): bool
+    {
+        $id = $user instanceof User ? $user->id : $user;
+
+        return $id !== null && $this->buyer_id === $id;
+    }
+
     /** L'autre partie : celle qui n'a pas propose, donc celle qui decide. */
     public function decisionMakerId(): string
     {

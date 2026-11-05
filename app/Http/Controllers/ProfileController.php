@@ -10,6 +10,7 @@ use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\Entraide\BilanEntraide;
 use App\Rules\NomDePersonneAcceptable;
 use App\Services\UserSlugService;
 use App\Support\Feed\FeedEventCatalogue;
@@ -175,7 +176,15 @@ class ProfileController extends Controller
             'description' => $user->bio,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'blogPosts', 'boucles', 'commentaires', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd', 'memberAiProfile'));
+        // TASK-1755 §9.6 — le profil comme BILAN D'ENTRAIDE, pas comme solde.
+        // Quatre nombres, UNE requete agregee : cette page est publique et lue
+        // bien plus souvent qu'ecrite.
+        // L'Organization est passee EXPLICITEMENT : la frontiere de locataire
+        // d'un avis est portee par sa TRANSACTION, pas par l'avis lui-meme.
+        $bilan = BilanEntraide::pour($user, $organization);
+        $mercis = BilanEntraide::mercis($user, $organization);
+
+        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'blogPosts', 'boucles', 'commentaires', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd', 'memberAiProfile', 'bilan', 'mercis'));
     }
 
     public function aiAgentChat(User $user): View
