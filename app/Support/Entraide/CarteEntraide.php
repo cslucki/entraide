@@ -41,6 +41,39 @@ final class CarteEntraide
     /** Les quatre etapes de l'entraide, dans l'ordre. */
     public const ETAPES = ['proposition', 'accord', 'aide', 'confirmation'];
 
+    /** Les filtres de la liste (§5.2.2). `tous` n'en est pas vraiment un. */
+    public const FILTRES = ['tous', 'en_cours', 'discussions', 'termines'];
+
+    /**
+     * Un echange entre-t-il dans ce filtre ?
+     *
+     * La definition vit ICI et non dans le controleur ni dans la vue : les deux
+     * en ont besoin — l'un pour filtrer, l'autre pour allumer la bonne pastille
+     * — et une liste qui ne correspondrait pas a sa pastille serait pire que
+     * pas de filtre du tout.
+     *
+     * « En cours » = ce sur quoi quelqu'un attend encore quelque chose. Les
+     * discussions directes en sont EXCLUES : elles n'ont pas d'etat, elles ne
+     * finissent jamais, et les y laisser aurait rempli le filtre de lignes sur
+     * lesquelles il n'y a rien a faire.
+     */
+    public static function correspondAuFiltre(Transaction $echange, ?string $filtre): bool
+    {
+        if ($filtre === null || $filtre === 'tous' || ! in_array($filtre, self::FILTRES, true)) {
+            return true;
+        }
+
+        if ($echange->isDirectConversation()) {
+            return $filtre === 'discussions';
+        }
+
+        return match ($filtre) {
+            'en_cours' => in_array($echange->status, ['pending', 'accepted', 'buyer_done'], true),
+            'termines' => in_array($echange->status, ['completed', 'refused', 'cancelled'], true),
+            default => false,
+        };
+    }
+
     /**
      * La phrase orientee role — c'est ELLE qui porte le sens.
      *

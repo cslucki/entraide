@@ -36,7 +36,14 @@ class TASK1755CarteEntraideTest extends TestCase
     {
         parent::setUp();
 
-        $this->organization = Organization::factory()->create(['slug' => 'org-1755', 'is_active' => true]);
+        // `locale` EXPLICITE. `SetLocale` resout session → compte → ORGANIZATION
+        // → navigateur, et la fabrique d'Organization ne garantit pas le
+        // francais : sans cette ligne, la page sortait en anglais et les
+        // assertions sur les libelles francais echouaient pour une raison qui
+        // n'avait rien a voir avec ce qu'elles mesurent.
+        $this->organization = Organization::factory()->create([
+            'slug' => 'org-1755', 'is_active' => true, 'locale' => 'fr',
+        ]);
         app()->instance('current_organization', $this->organization);
 
         $this->aidant = User::factory()->create([
@@ -236,6 +243,94 @@ class TASK1755CarteEntraideTest extends TestCase
             ->get(route('messages.show', $echange))->assertOk()->getContent();
         $this->assertStringNotContainsString('data-entraide-action="accept"', $autre);
         $this->assertStringContainsString('data-entraide-action="cancel_withdraw"', $autre);
+    }
+
+    // ── Les filtres de la liste (§5.2) ──────────────────────────────────────
+
+    /** Chaque pastille ne ramene QUE ce qu'elle annonce. */
+    public function test_les_filtres_ne_ramenent_que_ce_qu_ils_annoncent(): void
+    {
+        $enCours = $this->echange('accepted');
+        $termine = $this->echange('completed');
+        $decline = $this->echange('refused');
+        $discussion = Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            'buyer_id' => $this->aide->id, 'seller_id' => $this->aidant->id,
+            'service_id' => null, 'request_id' => null, 'points_proposed' => 0,
+        ]);
+
+        $voit = function (?string $filtre, Transaction $t) {
+            $html = $this->actingAs($this->aidant)
+                ->get(route('messages.index', $filtre ? ['filtre' => $filtre] : []))
+                ->assertOk()->getContent();
+
+            return str_contains($html, 'data-conversation-ligne="'.$t->id.'"');
+        };
+
+        $this->assertTrue($voit('en_cours', $enCours));
+        $this->assertFalse($voit('en_cours', $termine));
+        $this->assertFalse($voit('en_cours', $discussion),
+            'Une discussion n\'a pas d\'etat : elle n\'est jamais « en cours ».');
+
+        $this->assertTrue($voit('termines', $termine));
+        // Un echange DECLINE est sorti du parcours : il appartient aux termines.
+        $this->assertTrue($voit('termines', $decline));
+        $this->assertFalse($voit('termines', $enCours));
+
+        $this->assertTrue($voit('discussions', $discussion));
+        $this->assertFalse($voit('discussions', $enCours));
+
+        // Et « tous » ramene tout le monde.
+        foreach ([$enCours, $termine, $decline, $discussion] as $t) {
+            $this->assertTrue($voit(null, $t));
+        }
+    }
+
+    /**
+     * La conversation OUVERTE n'est jamais masquee par un filtre.
+     *
+     * Ouvrir un echange termine depuis « En cours » viderait la liste sous les
+     * pieds du lecteur, qui perdrait son contexte sans comprendre pourquoi.
+     */
+    public function test_la_conversation_ouverte_survit_au_filtre(): void
+    {
+        $termine = $this->echange('completed');
+
+        $html = $this->actingAs($this->aidant)
+            ->get(route('messages.show', ['transaction' => $termine, 'filtre' => 'en_cours']))
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-conversation-ligne="'.$termine->id.'"', $html);
+    }
+
+    /** Un filtre inconnu ne filtre RIEN — il ne vide pas l'ecran en silence. */
+    public function test_un_filtre_inconnu_ne_masque_rien(): void
+    {
+        $echange = $this->echange('accepted');
+
+        $html = $this->actingAs($this->aidant)
+            ->get(route('messages.index', ['filtre' => 'inexistant']))
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-conversation-ligne="'.$echange->id.'"', $html);
+    }
+
+    /**
+     * Le SENS de l'aide sort bien sur la ligne, et il differe selon le lecteur.
+     *
+     * Une assertion sur une seule vue passerait au vert sur un sens fige.
+     */
+    public function test_la_ligne_porte_le_sens_et_il_differe_selon_le_lecteur(): void
+    {
+        $this->echange('accepted');
+
+        $vuAidant = $this->actingAs($this->aidant)->get(route('messages.index'))->getContent();
+        $vuAide = $this->actingAs($this->aide)->get(route('messages.index'))->getContent();
+
+        $this->assertStringContainsString('data-conversation-sens', $vuAidant);
+        $this->assertStringContainsString('Vous aidez', $vuAidant);
+        $this->assertStringNotContainsString('Vous aidez', $vuAide);
+        $this->assertStringContainsString('vous demande', $vuAide);
     }
 
     /** La phrase est TRADUITE — jamais figee en francais. */

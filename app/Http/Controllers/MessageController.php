@@ -5,13 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\Message;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\Entraide\CarteEntraide;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
 class MessageController extends Controller
 {
-    private function loadConversations(): array
+    /**
+     * @param  string|null  $filtre  Pastille active (§5.2.2) ; `null` = toutes.
+     * @param  string|null  $garder  Un echange a NE JAMAIS masquer, meme hors filtre.
+     */
+    private function loadConversations(?string $filtre = null, ?string $garder = null): array
     {
         $user = auth()->user();
         $organization = currentOrganization();
@@ -24,6 +30,23 @@ class MessageController extends Controller
             ->with(['buyer', 'seller', 'service', 'serviceRequest', 'messages' => fn ($q) => $q->latest('created_at')->limit(1)])
             ->orderByDesc('updated_at')
             ->get();
+
+        // TASK-1755 §5.2 — les pastilles de filtre.
+        //
+        // Le filtrage est fait sur la COLLECTION, pas dans la requete : tout
+        // est deja charge, la definition d'un filtre vit dans `CarteEntraide`
+        // (ou la vue la lit aussi), et `isDirectConversation()` n'a pas
+        // d'equivalent SQL fiable — la re-deriver en `where` garantirait qu'un
+        // jour la liste et la pastille ne disent plus la meme chose.
+        //
+        // La conversation OUVERTE n'est jamais masquee : ouvrir un echange
+        // termine depuis « En cours » viderait la liste sous les pieds du
+        // lecteur, qui perdrait son contexte sans comprendre pourquoi.
+        if ($filtre !== null && $filtre !== 'tous') {
+            $transactions = $transactions->filter(
+                fn (Transaction $t) => $t->id === $garder || CarteEntraide::correspondAuFiltre($t, $filtre)
+            )->values();
+        }
 
         // TASK-1693 bug V — meme regle que le badge du rail.
         //
@@ -42,12 +65,21 @@ class MessageController extends Controller
         return [$transactions, $unreadCounts];
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        [$transactions, $unreadCounts] = $this->loadConversations();
+        $filtre = $this->filtreDemande($request);
+        [$transactions, $unreadCounts] = $this->loadConversations($filtre);
         $activeTransaction = null;
 
-        return view('messages.index', compact('transactions', 'activeTransaction', 'unreadCounts'));
+        return view('messages.index', compact('transactions', 'activeTransaction', 'unreadCounts', 'filtre'));
+    }
+
+    /** Un filtre inconnu ne filtre RIEN — il ne vide pas l'ecran en silence. */
+    private function filtreDemande(Request $request): ?string
+    {
+        $filtre = (string) $request->query('filtre', '');
+
+        return in_array($filtre, CarteEntraide::FILTRES, true) ? $filtre : null;
     }
 
     public function show(Transaction $transaction): View|RedirectResponse
@@ -59,9 +91,10 @@ class MessageController extends Controller
             abort(404);
         }
 
-        [$transactions, $unreadCounts] = $this->loadConversations();
+        $filtre = $this->filtreDemande(request());
+        [$transactions, $unreadCounts] = $this->loadConversations($filtre, $transaction->id);
 
-        return view('messages.index', compact('transactions', 'transaction', 'unreadCounts'));
+        return view('messages.index', compact('transactions', 'transaction', 'unreadCounts', 'filtre'));
     }
 
     public function orgShow(string $org, Transaction $transaction): View|RedirectResponse
