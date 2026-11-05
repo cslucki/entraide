@@ -41,7 +41,7 @@ return [
         'heading' => 'Demande d\'aide',
         'description' => 'Description *',
         'category' => 'Catégorie *',
-        'delivery_mode' => 'Mode de prestation *',
+        'delivery_mode' => 'Comment se passe l’aide ? *',
         'remote' => '🌐 À distance',
         'onsite' => '📍 Sur site',
         'both' => '🌐📍 Les deux',

@@ -41,7 +41,7 @@ return [
         'heading' => 'Help request',
         'description' => 'Description *',
         'category' => 'Category *',
-        'delivery_mode' => 'Delivery mode *',
+        'delivery_mode' => 'How does the help happen? *',
         'remote' => '🌐 Remote',
         'onsite' => '📍 On site',
         'both' => '🌐📍 Both',

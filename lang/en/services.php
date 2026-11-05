@@ -5,7 +5,7 @@ return [
         'created' => 'Service published successfully.',
         'updated' => 'Service updated.',
         'deleted' => 'Service deleted.',
-        'delete_blocked' => 'Cannot delete a service with ongoing transactions.',
+        'delete_blocked' => 'Cannot delete a listing while an exchange is under way.',
     ],
 
     'show' => [
@@ -24,7 +24,7 @@ return [
         'report_details' => 'Details (optional)...',
         'report_submit' => 'Send report',
         'request_this_help' => 'Request this help',
-        'your_balance' => 'Your balance: :points pts',
+        'your_balance' => 'Your available time: :temps',
     ],
 
     'edit' => [
@@ -38,7 +38,7 @@ return [
         'images_help' => 'Add images (JPG, PNG, WebP — max 2 MB)',
         'add_tag' => 'Add',
         'add_tag_placeholder' => 'Add a tag...',
-        'delivery_mode' => 'Delivery mode *',
+        'delivery_mode' => 'How does the help happen? *',
         'remote' => '🌐 Remote',
         'onsite' => '📍 On site',
         'both' => '🌐📍 Both',

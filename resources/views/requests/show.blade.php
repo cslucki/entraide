@@ -6,6 +6,12 @@
         $_reqReportAction = $_reqOrgSlug && Route::has('organization.reports.request') ? route('organization.reports.request', ['organization' => $_reqOrgSlug, 'serviceRequest' => $request]) : route('reports.request', $request);
         $_reqTxStoreAction = $_reqOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_reqOrgSlug]) : route('transactions.store');
         $_reqEditHref = $_reqOrgSlug && Route::has('organization.requests.edit') ? route('organization.requests.edit', ['organization' => $_reqOrgSlug, 'request' => $request]) : route('requests.edit', $request);
+        // TASK-1754 §4 — la conversation deja ouverte, dans la surface courante.
+        $_reqConversationHref = ($echangeActif ?? null)
+            ? ($_reqOrgSlug && Route::has('organization.messages.show')
+                ? route('organization.messages.show', ['organization' => $_reqOrgSlug, 'transaction' => $echangeActif])
+                : route('messages.show', $echangeActif))
+            : null;
         // TASK-1749 — la relance passe par le formulaire de CREATION, avec la
         // demande d'origine en parametre. Pas de route dediee : c'est le meme
         // ecran, simplement rempli d'avance.
@@ -33,11 +39,16 @@
                         </span>
                         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ $request->title }}</h1>
                     </div>
+                    {{-- TASK-1754 §9.1 — le TEMPS en premier. La demande porte une
+                         FOURCHETTE : on formate les deux bornes, sinon « 90–120 »
+                         se lirait comme un prix negociable. --}}
                     <div class="text-right ml-4">
-                        <p class="text-2xl font-bold text-green-600 dark:text-green-400">
-                            {{ $request->budget_min }}{{ $request->budget_max ? '–'.$request->budget_max : '+' }}
+                        <p class="text-2xl font-bold text-green-600 dark:text-green-400" data-entraide-temps>
+                            {{ \App\Support\Entraide\TempsPartage::duree($request->budget_min, offertSiZero: false) }}{{ $request->budget_max ? ' – '.\App\Support\Entraide\TempsPartage::duree($request->budget_max, offertSiZero: false) : '+' }}
                         </p>
-                        <p class="text-xs text-gray-500">points</p>
+                        <p class="text-xs text-gray-500">
+                            {{ trans_choice('entraide.temps.sous_titre', (int) ($request->budget_max ?: $request->budget_min), ['points' => $request->budget_max ? $request->budget_min.'–'.$request->budget_max : (int) $request->budget_min]) }}
+                        </p>
                     </div>
                 </div>
 
@@ -128,18 +139,51 @@
                          l'ecran. `flex-wrap` le fait passer a la ligne
                          au lieu de le pousser dehors ; a partir de `sm`
                          la rangee tient et rien ne change. --}}
-                    <form method="POST" action="{{ $_reqTxStoreAction }}" class="flex flex-wrap items-center gap-3 sm:gap-4">
+                    @if($echangeActif ?? null)
+                        {{-- TASK-1754 §4.2a — le MEME defaut existait ici. L'enonce
+                             de Cyril ne citait que le cote propositions ; la recette
+                             du 04/11 a montre que « Proposer mon aide » menait au
+                             meme cul-de-sac. --}}
+                        <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800/60 dark:bg-blue-900/20 dark:text-blue-200"
+                             data-entraide-echange-actif>
+                            {{ __('entraide.echange_en_cours', [
+                                'date' => $echangeActif->created_at->translatedFormat('j F'),
+                                'temps' => \App\Support\Entraide\TempsPartage::libelle($echangeActif->points_agreed ?? $echangeActif->points_proposed),
+                            ]) }}
+                        </div>
+                        <div class="mt-3 flex flex-wrap items-center gap-3">
+                            <a href="{{ $_reqConversationHref }}"
+                               class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
+                               data-entraide-discuter>
+                                {{ __('entraide.discuter_avec', ['prenom' => $request->user->first_name ?: $request->user->name]) }}
+                            </a>
+                        </div>
+                    @else
+                    {{-- TASK-1754 §9.2 — la conversation d'abord, le montant ensuite. --}}
+                    <form method="POST" action="{{ $_reqTxStoreAction }}"
+                          x-data="{ autreTemps: false }"
+                          class="flex flex-wrap items-center gap-3 sm:gap-4">
                         @csrf
                         <input type="hidden" name="request_id" value="{{ $request->id }}">
-                        <input type="number" name="points_proposed" value="{{ $request->budget_min }}" min="1"
+                        <input type="number" name="points_proposed" value="{{ $request->budget_min }}" min="0"
+                            x-show="autreTemps" x-cloak
+                            data-entraide-autre-temps-champ
                             class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
-                        <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
-                            {{ __('requests.show.propose_help') }}
+                        <button type="submit" data-entraide-demander
+                                class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+                            {{ __('requests.show.propose_help') }} · {{ \App\Support\Entraide\TempsPartage::duree($request->budget_min, offertSiZero: false) }}
                         </button>
-                        <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['points' => auth()->user()->points_balance]) }}</span>
+                        <button type="button" x-show="! autreTemps" x-on:click="autreTemps = true"
+                                class="text-xs text-indigo-600 underline hover:no-underline dark:text-indigo-400"
+                                data-entraide-autre-temps>
+                            {{ __('entraide.proposer_autre_temps') }}
+                        </button>
+                        <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['temps' => \App\Support\Entraide\TempsPartage::solde(auth()->user()->points_balance)]) }}</span>
                     </form>
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('entraide.conversation_d_abord') }}</p>
                     @if($errors->any())
                     <p class="text-red-500 text-sm mt-2">{{ $errors->first() }}</p>
+                    @endif
                     @endif
                 </div>
                 @endif

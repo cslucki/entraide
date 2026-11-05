@@ -3,7 +3,7 @@
 return [
     'title' => 'My points',
     'history_title' => 'My points',
-    'history_intro' => 'All your point transactions, from newest to oldest.',
+    'history_intro' => 'All the time you have shared, from newest to oldest.',
     'invitation_intro' => 'From this page, you can invite your peers and earn points.',
     'invite_peers_title' => 'Invite your peers',
     'invite_peers_intro' => 'Share your invitation link, send a personalized email and track invitations already sent.',

@@ -7,6 +7,7 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\RequestAttachment;
 use App\Models\ServiceRequest;
+use App\Models\Transaction;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Feed\FeedEventEmitter;
 use App\Models\User;
@@ -49,7 +50,14 @@ class RequestController extends Controller
         $ogDescription = Str::limit(strip_tags($request->description), 160);
         $ogImage = null;
 
-        return view('requests.show', compact('request', 'ogTitle', 'ogDescription', 'ogImage'));
+        // TASK-1754 (§4.2a) — meme defaut cote DEMANDES (« Proposer mon aide »).
+        // L'enonce de Cyril ne citait que le cote propositions ; la recette a
+        // montre que le cul-de-sac existait identiquement ici.
+        $echangeActif = auth()->check()
+            ? Transaction::echangeActif(auth()->id(), null, $request->id)
+            : null;
+
+        return view('requests.show', compact('request', 'ogTitle', 'ogDescription', 'ogImage', 'echangeActif'));
     }
 
     public function orgShow(string $org, ServiceRequest $request): View
