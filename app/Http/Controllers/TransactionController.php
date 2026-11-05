@@ -145,6 +145,24 @@ class TransactionController extends Controller
             if ($annonceVisee !== null && Atelier::estComplet($annonceVisee)) {
                 return back()->with('error', __('entraide.atelier.complet'));
             }
+
+            // TASK-1756, defaut de recette du 05/11 — sur un atelier, le temps
+            // propose n'est pas celui qu'on a tape : c'est la PART.
+            //
+            // La part se calcule, elle ne se negocie pas (voir
+            // `Atelier::tempsNegociable()`). On la pose ICI, avant la garde de
+            // solde, et c'est tout l'enjeu : la vue proposait `points_cost`
+            // entier, si bien qu'un membre a 40 min de solde se voyait refuser
+            // une place a 15 min. Corriger la seule vue aurait laisse la porte
+            // ouverte a un POST forge.
+            //
+            // On pose le MAXIMUM, pas la part du moment : entre la proposition
+            // et l'acceptation l'atelier ne peut que se remplir, donc la part
+            // ne peut que BAISSER. Le participant s'engage sur un plafond qu'il
+            // a vu a l'ecran, et `approve()` arrete le chiffre definitif.
+            if ($annonceVisee !== null && ! Atelier::tempsNegociable($annonceVisee)) {
+                $data['points_proposed'] = Atelier::partMaximale($annonceVisee);
+            }
         }
 
         $existant = Transaction::echangeActif(
@@ -350,6 +368,19 @@ class TransactionController extends Controller
 
         if ($transaction->status !== 'pending') {
             return back()->with('error', __('entraide.flash.ajustement_impossible'));
+        }
+
+        // TASK-1756 — on n'ajuste pas sa part d'atelier.
+        //
+        // `approve()` recalcule de toute facon `points_agreed`, donc un
+        // ajustement n'aurait rien preleve de different : il aurait seulement
+        // ecrit au fil « le temps passe a 5 minutes » avant d'en prelever 15.
+        // Un message systeme qui annonce un chiffre que le produit ne tiendra
+        // pas est un defaut a lui seul.
+        $annonce = $transaction->service;
+
+        if ($annonce !== null && ! Atelier::tempsNegociable($annonce)) {
+            return back()->with('error', __('entraide.atelier.temps_non_negociable'));
         }
 
         $transaction->update(['points_proposed' => $data['points_proposed']]);

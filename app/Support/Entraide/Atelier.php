@@ -157,6 +157,29 @@ final class Atelier
     }
 
     /**
+     * Le temps est-il NEGOCIABLE sur cette annonce ?
+     *
+     * Non sur un atelier, et ce n'est pas une restriction gratuite : la part se
+     * CALCULE (`ceil(X / max(inscrits, plancher))`). Laisser une personne
+     * negocier la sienne casserait le partage — deux participants paieraient
+     * des prix differents pour le meme atelier, et la somme des parts ne
+     * vaudrait plus ce que l'aidant a annonce.
+     *
+     * Defaut trouve en recette du 05/11 : le formulaire proposait
+     * `points_cost` ENTIER (45 min pour un atelier dont la part valait 15), si
+     * bien qu'un membre a 40 min de solde se faisait refuser une place a 15 par
+     * la garde de solde. Le prix affiche et le prix propose n'etaient pas le
+     * meme nombre.
+     *
+     * La regle vit ici parce que TROIS surfaces en dependent : le formulaire de
+     * l'annonce, `store()` et `adjust()`.
+     */
+    public static function tempsNegociable(Service $annonce): bool
+    {
+        return ! self::estGroupe($annonce);
+    }
+
+    /**
      * Le prix MAXIMUM qu'un participant puisse payer — celui qu'on affiche.
      *
      * C'est tout l'interet du plancher : le participant connait son plafond des

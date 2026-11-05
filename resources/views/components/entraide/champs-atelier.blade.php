@@ -18,9 +18,18 @@
         groupe: {{ $capacite ? 'true' : 'false' }},
         capacite: {{ (int) ($capacite ?? 4) }},
         plancher: {{ (int) ($plancher ?? 2) }},
-        get points() {
-            return parseInt(document.querySelector('[name=points_cost]')?.value || '0', 10) || 0;
-        },
+        /*
+         * `points` est une DONNEE, pas un getter qui lit le DOM.
+         *
+         * Defaut trouve en recette : un getter faisant
+         * `document.querySelector('[name=points_cost]').value` ne declenche
+         * AUCUNE reactivite — Alpine ne recalcule que sur ses propres
+         * proprietes. L'apercu restait donc fige sur la premiere valeur lue :
+         * on passait de 45 a 60 minutes et il annoncait toujours 15.
+         *
+         * Muet, et trompeur : l'aidant croyait avoir compris la regle.
+         */
+        points: 0,
         /* `Math.ceil` : le MEME arrondi que `Atelier::part()` cote serveur. Un
            apercu qui annoncerait 11 la ou le serveur facture 12 serait pire que
            pas d'apercu du tout. */
@@ -28,7 +37,15 @@
             const diviseur = Math.max(1, Math.min(this.plancher, this.capacite));
             return Math.ceil(this.points / diviseur);
         },
+        lirePoints(champ) {
+            this.points = parseInt(champ?.value || '0', 10) || 0;
+        },
      }"
+     x-init="
+        const champ = document.querySelector('[name=points_cost]');
+        lirePoints(champ);
+        champ?.addEventListener('input', () => lirePoints(champ));
+     "
      data-entraide-champs-atelier>
 
     <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">

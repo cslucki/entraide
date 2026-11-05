@@ -301,4 +301,115 @@ class TASK1756AtelierGroupeTest extends TestCase
             'La part d\'un inscrit a bouge sous ses pieds.');
         $this->assertSame(12, (int) $quatrieme->points_agreed, '45 / 4 = 11,25 -> 12.');
     }
+    // ── Le prix PROPOSE : defaut de recette du 05/11 ─────────────────────────
+
+    /**
+     * 🔴 LE DEFAUT QUI BLOQUAIT L'INSCRIPTION.
+     *
+     * Mesure de recette navigateur : l'annonce affichait « au maximum 15 min
+     * par personne » et, deux centimetres plus bas, le bouton disait
+     * « Demander cette aide · 45 minutes » — et proposait reellement 45.
+     *
+     * Consequence, et elle est bloquante : la garde de solde de `store()`
+     * comparait le solde a 45. Un membre avec 40 minutes au compteur se
+     * faisait refuser une place qui lui aurait coute 15. Deux nombres pour une
+     * meme chose, et c'est le mauvais qui partait au serveur.
+     */
+    public function test_le_formulaire_d_un_atelier_propose_la_part_et_non_le_prix_entier(): void
+    {
+        $annonce = $this->atelier(points: 45, capacite: 3, plancher: 3);
+        $pauvre = $this->participant(solde: 40);
+
+        $page = $this->actingAs($pauvre)->get(route('services.show', $annonce))->assertOk()->getContent();
+
+        $this->assertStringContainsString('name="points_proposed" value="15"', $page,
+            'Le formulaire doit proposer la PART, pas le prix de l\'atelier entier.');
+        $this->assertStringNotContainsString('name="points_proposed" value="45"', $page);
+
+        // Et le geste PASSE, alors qu'il etait refuse au solde.
+        $this->actingAs($pauvre)
+            ->post(route('transactions.store'), ['service_id' => $annonce->id, 'points_proposed' => 15])
+            ->assertSessionHasNoErrors()
+            ->assertSessionMissing('error');
+
+        $this->assertDatabaseHas('transactions', [
+            'service_id' => $annonce->id, 'buyer_id' => $pauvre->id, 'points_proposed' => 15,
+        ]);
+    }
+
+    /**
+     * Et la vue ne suffit pas : un POST FORGE est ramene a la part.
+     *
+     * C'est la difference entre « l'ecran n'invite plus a se tromper » et « le
+     * produit ne peut plus se tromper ». Sans cette normalisation, n'importe
+     * qui pouvait s'inscrire a un prix de son choix sur un atelier — et
+     * `approve()` aurait ensuite ecrit un `points_agreed` different du
+     * `points_proposed` annonce au fil.
+     */
+    public function test_un_temps_propose_de_travers_sur_un_atelier_est_ramene_a_la_part(): void
+    {
+        $annonce = $this->atelier(points: 45, capacite: 3, plancher: 3);
+        $malin = $this->participant();
+
+        $this->actingAs($malin)->post(route('transactions.store'), [
+            'service_id' => $annonce->id, 'points_proposed' => 1,
+        ]);
+
+        $echange = Transaction::where('service_id', $annonce->id)->where('buyer_id', $malin->id)->firstOrFail();
+
+        $this->assertSame(15, (int) $echange->points_proposed,
+            'Une part choisie par le demandeur casserait le partage : deux participants paieraient deux prix.');
+    }
+
+    /**
+     * On ne NEGOCIE pas sa part d'atelier — ni par le lien, ni par la route.
+     *
+     * `approve()` recalculant la part de toute facon, un ajustement n'aurait
+     * rien preleve de different : il aurait seulement ecrit au fil « le temps
+     * passe a 5 minutes » avant d'en prelever 15. Un message systeme qui
+     * annonce un chiffre que le produit ne tiendra pas est un defaut a lui
+     * seul.
+     */
+    public function test_on_n_ajuste_pas_sa_part_d_atelier_mais_on_ajuste_une_aide_individuelle(): void
+    {
+        $annonce = $this->atelier(points: 45, capacite: 3, plancher: 3);
+        $participant = $this->participant();
+
+        $this->actingAs($participant)->post(route('transactions.store'), [
+            'service_id' => $annonce->id, 'points_proposed' => 15,
+        ]);
+        $echange = Transaction::where('service_id', $annonce->id)->where('buyer_id', $participant->id)->firstOrFail();
+
+        $this->actingAs($participant)
+            ->patch(route('transactions.adjust', $echange), ['points_proposed' => 5])
+            ->assertSessionHas('error');
+
+        $this->assertSame(15, (int) $echange->fresh()->points_proposed);
+
+        // Le lien d'ajustement disparait aussi de l'annonce.
+        //
+        // Marqueur `data-entraide-negocier` et non `data-entraide-autre-temps` :
+        // ce dernier est un PREFIXE de `data-entraide-autre-temps-champ`, porte
+        // par le champ masque, et l'assertion rougissait sur le mauvais
+        // element. Un marqueur prefixe d'un autre ne se mesure pas.
+        $this->assertStringNotContainsString('data-entraide-negocier',
+            $this->actingAs($this->participant())->get(route('services.show', $annonce))->getContent());
+
+        // 🔴 LA RECIPROQUE — sans elle, ce test passerait si l'ajustement
+        // etait casse PARTOUT, ce qui n'est pas ce qu'on veut mesurer.
+        $individuelle = $this->atelier(points: 30, capacite: null, plancher: null);
+        $autre = $this->participant();
+
+        $this->actingAs($autre)->post(route('transactions.store'), [
+            'service_id' => $individuelle->id, 'points_proposed' => 30,
+        ]);
+        $echange2 = Transaction::where('service_id', $individuelle->id)->where('buyer_id', $autre->id)->firstOrFail();
+
+        $this->actingAs($autre)
+            ->patch(route('transactions.adjust', $echange2), ['points_proposed' => 20])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(20, (int) $echange2->fresh()->points_proposed,
+            'Une aide individuelle, elle, reste negociable.');
+    }
 }

@@ -42,6 +42,7 @@ return [
         'apercu_avant' => 'Each participant will pay at most',
         'apercu_apres' => 'minutes — less if more people join.',
         'prix_max' => 'at most :temps per person',
+        'temps_non_negociable' => 'A workshop’s time is shared between participants: it cannot be negotiated seat by seat.',
         'champ_individuel' => 'One-to-one help',
     ],
     'csv' => [

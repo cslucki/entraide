@@ -230,24 +230,44 @@
                          un `hidden` au temps de l'annonce ; qui veut proposer autre
                          chose deplie le champ. L'ajustement complet reste disponible
                          dans la conversation. --}}
+                    {{-- TASK-1756, defaut de recette du 05/11 — sur un atelier, le
+                         bouton doit annoncer la PART, pas le prix de l'atelier
+                         entier. Il affichait « Demander cette aide · 45 minutes »
+                         juste sous « au maximum 15 min par personne », et
+                         proposait reellement 45 : un membre a 40 min de solde se
+                         faisait refuser une place a 15. Et le temps d'un atelier
+                         ne se negocie pas, donc le lien d'ajustement disparait —
+                         voir `Atelier::tempsNegociable()`. --}}
+                    @php
+                        $_tempsNegociable = \App\Support\Entraide\Atelier::tempsNegociable($service);
+                        $_tempsPropose = $_tempsNegociable
+                            ? (int) $service->points_cost
+                            : \App\Support\Entraide\Atelier::partMaximale($service);
+                    @endphp
                     <form method="POST" action="{{ $_serviceTxStoreAction }}"
                           x-data="{ autreTemps: false }"
                           class="flex flex-wrap items-center gap-3 sm:gap-4">
                         @csrf
                         <input type="hidden" name="service_id" value="{{ $service->id }}">
-                        <input type="number" name="points_proposed" value="{{ $service->points_cost }}" min="0"
-                            x-show="autreTemps" x-cloak
+                        {{-- Un seul attribut `type` : en ecrire deux ferait garder
+                             le PREMIER par le navigateur, et le champ resterait
+                             visible sur un atelier. --}}
+                        <input type="{{ $_tempsNegociable ? 'number' : 'hidden' }}"
+                            name="points_proposed" value="{{ $_tempsPropose }}" min="0"
+                            @if($_tempsNegociable) x-show="autreTemps" x-cloak @endif
                             data-entraide-autre-temps-champ
                             class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
                         <button type="submit" data-entraide-demander
                                 class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
-                            {{ __('services.show.request_this_help') }} · {{ \App\Support\Entraide\TempsPartage::duree($service->points_cost) }}
+                            {{ __('services.show.request_this_help') }} · {{ \App\Support\Entraide\TempsPartage::duree($_tempsPropose) }}
                         </button>
-                        <button type="button" x-show="! autreTemps" x-on:click="autreTemps = true"
-                                class="text-xs text-indigo-600 underline hover:no-underline dark:text-indigo-400"
-                                data-entraide-autre-temps>
-                            {{ __('entraide.proposer_autre_temps') }}
-                        </button>
+                        @if($_tempsNegociable)
+                            <button type="button" x-show="! autreTemps" x-on:click="autreTemps = true"
+                                    class="text-xs text-indigo-600 underline hover:no-underline dark:text-indigo-400"
+                                    data-entraide-negocier>
+                                {{ __('entraide.proposer_autre_temps') }}
+                            </button>
+                        @endif
                         <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['temps' => \App\Support\Entraide\TempsPartage::solde(auth()->user()->points_balance)]) }}</span>
                     </form>
                     <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('entraide.conversation_d_abord') }}</p>
