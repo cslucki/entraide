@@ -295,8 +295,16 @@
                 @if($user->bio)
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
                     <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">{{ __('profile.about') }}</h2>
-                    <div class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed">
-                        {{ $user->bio }}
+                    {{-- TASK-1762 point 16 — la presentation est du Markdown
+                         depuis que l'edition passe par TipTap. Rendue en texte
+                         brut, elle afficherait « **gras** » en clair.
+
+                         `markdown()` est le meme helper que la description des
+                         services (`services/show`), avec le meme reglage de
+                         saut de ligne. `whitespace-pre-line` disparait : le
+                         Markdown gouverne desormais les paragraphes. --}}
+                    <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300" data-profile-bio>
+                        {!! markdown($user->bio, ['renderer' => ['soft_break' => "<br />\n"]]) !!}
                     </div>
                 </div>
                 @endif

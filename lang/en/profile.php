@@ -63,8 +63,19 @@ return [
     // screen would be a trap.
     'structure' => 'Company or association',
 
+    // TASK-1762 point 16 — the three sections of the reordered form.
+    'identity_section' => 'Profile information',
+    'identity_description' => 'Who you are, and how to reach you.',
+    'locale_section' => 'Main language',
+    'locale_description' => 'The language the platform speaks to you in.',
+    'slug_on' => 'Your profile address on :organization',
+
     // TASK-1762 point 3 — the button at the top of the profile edit page.
     'view_public_profile' => 'View my public profile',
+
+    // TASK-1762 point 16 — the presentation editor's fullscreen mode.
+    'editor_fullscreen' => 'Fullscreen',
+    'editor_exit_fullscreen' => 'Exit fullscreen',
     'structure_help' => 'Your company, association or collective, if you have one.',
     'name' => 'Name',
     'email' => 'Email address',

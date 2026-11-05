@@ -316,6 +316,7 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
             'is_active' => true, 'is_public' => true,
             'membership_enabled' => $sienneActivee,
             'subscriptions_enabled' => true,
+            'multilingual_enabled' => true,
         ]);
 
         $b = Organization::factory()->create([
@@ -323,6 +324,7 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
             'is_active' => true, 'is_public' => true,
             'membership_enabled' => $etrangereActivee,
             'subscriptions_enabled' => true,
+            'multilingual_enabled' => true,
         ]);
 
         return [$a, $b];

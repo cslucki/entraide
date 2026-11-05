@@ -298,10 +298,13 @@ class ProfileController extends Controller
             'show_email' => ['nullable', 'boolean'],
             'show_phone' => ['nullable', 'boolean'],
             'avatar' => ['nullable', 'image', 'max:2048'],
-            'bio' => ['nullable', 'string', 'max:500'],
+            // TASK-1762 point 16 — 2000 et non 500 : la presentation est
+            // desormais du Markdown, et le BALISAGE est compte dans la limite.
+            // « **Auditeur Qualiopi** » coute 24 caracteres pour 18 lisibles,
+            // un lien en coute 31 pour 8.
+            'bio' => ['nullable', 'string', 'max:2000'],
             'city' => ['nullable', 'string', 'max:255'],
             'country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
-            'preferred_locale' => ['nullable', Rule::in(['fr', 'en'])],
             'website' => ['nullable', 'url', 'max:255'],
             'linkedin_url' => ['nullable', 'url', 'max:255'],
             // TASK-1750 — la liste de liens supplementaires.
@@ -355,6 +358,13 @@ class ProfileController extends Controller
         // Elle n'EFFACE pas pour autant ce qui etait deja saisi : la cle est
         // simplement absente du `fill()`. Une Organization qui coupe les
         // abonnements cache les champs, elle ne detruit pas les adresses.
+        // TASK-1762 point 16 — la langue principale n'existe que sur un site
+        // multilingue. Masquer la section ne garde rien : un `PUT` forge
+        // changerait la langue d'un membre sur un site qui n'en a qu'une.
+        if ($organization?->multilingual_enabled) {
+            $rules['preferred_locale'] = ['nullable', Rule::in(['fr', 'en'])];
+        }
+
         if (billingIsCollected($organization)) {
             $rules['address_line1'] = ['nullable', 'string', 'max:255'];
             $rules['address_line2'] = ['nullable', 'string', 'max:255'];

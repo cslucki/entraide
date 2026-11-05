@@ -205,8 +205,8 @@
                     {{-- L'INTEGRALITE du texte : c'est le coeur de la demande.
                          `max-w-3xl` borne la ligne a une largeur lisible,
                          `whitespace-pre-line` respecte les retours ecrits. --}}
-                    <p class="mt-3 max-w-3xl whitespace-pre-line text-sm leading-relaxed text-gray-600 dark:text-gray-300"
-                       data-member-bio-complete>{{ $member->bio }}</p>
+                    <div class="prose prose-sm dark:prose-invert mt-3 max-w-3xl text-gray-600 dark:text-gray-300"
+                         data-member-bio-complete>{!! markdown($member->bio, ['renderer' => ['soft_break' => "<br />\n"]]) !!}</div>
                     @endif
 
                     @if($boucles->isNotEmpty())
@@ -292,7 +292,10 @@
 
                 <!-- Bio tronquée -->
                 @if($member->bio)
-                <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-3">{{ $member->bio }}</p>
+                {{-- TASK-1762 point 16 — la vignette rend le Markdown elle aussi,
+                     mais `line-clamp-3` la borne : trois lignes RENDUES, pas
+                     trois lignes de balisage. --}}
+                <div class="prose prose-sm dark:prose-invert max-w-none text-gray-500 dark:text-gray-400 line-clamp-3">{!! markdown($member->bio, ['renderer' => ['soft_break' => "<br />\n"]]) !!}</div>
                 @endif
 
                 <!-- Contact info if public -->

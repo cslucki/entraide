@@ -49,11 +49,15 @@
         @include('partials.profile-reminder')
 
         <div class="space-y-6">
-            <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.update-profile-information-form')
-                </div>
-            </div>
+            {{-- TASK-1762 point 16 — ce partiel porte DESORMAIS ses propres
+                 cartes, et la page ne doit donc plus l'envelopper dans une.
+
+                 Demande de Cyril : « Informations de profil » et
+                 « Présentation » doivent etre deux blocs SEPARES. Imbriques
+                 dans la carte unique de la page, ils se lisaient comme deux
+                 encadres d'un meme bloc. Les partiels voisins — mot de passe,
+                 acces au compte, fermeture — gardent la leur. --}}
+            @include('profile.partials.update-profile-information-form')
 
             <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
                 <div class="max-w-xl">

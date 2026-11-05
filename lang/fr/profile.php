@@ -59,8 +59,19 @@ return [
     // TASK-1762 point 1 — la structure : société, association, collectif.
     'structure' => 'Structure',
 
+    // TASK-1762 point 16 — les trois sections du formulaire remanie.
+    'identity_section' => 'Informations de profil',
+    'identity_description' => 'Qui vous êtes, et comment vous joindre.',
+    'locale_section' => 'Langue principale',
+    'locale_description' => 'La langue dans laquelle la plateforme s\'adresse à vous.',
+    'slug_on' => 'Adresse de votre profil sur :organization',
+
     // TASK-1762 point 3 — le bouton en haut de l'edition du profil.
     'view_public_profile' => 'Voir mon profil public',
+
+    // TASK-1762 point 16 — le plein écran de l'éditeur de présentation.
+    'editor_fullscreen' => 'Plein écran',
+    'editor_exit_fullscreen' => 'Quitter le plein écran',
     'structure_help' => 'Votre société, association ou collectif, si vous en avez une.',
     'name' => 'Nom',
     'email' => 'Adresse e-mail',

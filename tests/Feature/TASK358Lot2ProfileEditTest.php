@@ -191,7 +191,14 @@ class TASK358Lot2ProfileEditTest extends TestCase
         // n'existe que si l'Organization propose des abonnements. Ces tests
         // portent justement sur ces champs : leur terrain doit donc les offrir,
         // sans quoi ils mesureraient l'absence de la section.
-        $organization = Organization::factory()->create(['subscriptions_enabled' => true]);
+        // TASK-1762 points 15 et 16 — ces tests portent sur les champs de
+        // facturation ET sur « Langue principale ». Les deux sont desormais
+        // conditionnels : sans ces deux drapeaux, ils mesureraient l'absence
+        // des sections au lieu de leur contenu.
+        $organization = Organization::factory()->create([
+            'subscriptions_enabled' => true,
+            'multilingual_enabled' => true,
+        ]);
         app()->instance('current_organization', $organization);
 
         return User::factory()->create(array_merge([
