@@ -149,6 +149,46 @@ class AdminFeedController extends Controller
         return back()->with('success', __('admin.feed_replay_done', ['count' => $n, 'name' => $organization->name]));
     }
 
+    /**
+     * TASK-1758 — l'interrupteur des evenements automatiques, par Organization.
+     *
+     * ## Le trou qu'il ferme
+     *
+     * `organizations.feed_auto_events_enabled` existe depuis T1752, la
+     * migration le pose a `true`, et `FeedEventEmitter::activeSur()` le
+     * consulte a chaque emission — mais **aucun ecran ne l'exposait**.
+     * Constate en preparant la release 1.753 : la page de reprise savait
+     * RETIRER les evenements deja ecrits, rien n'arretait les suivants. Le seul
+     * levier etait un changement de code ou une ecriture directe en base.
+     *
+     * Ce n'est pas un confort : les evenements automatiques ecrivent dans le
+     * Flux de toute une communaute. Une fonctionnalite qui ecrit pour tout le
+     * monde doit avoir un bouton d'arret.
+     *
+     * ## Ce que l'interrupteur ne fait PAS
+     *
+     * Il n'efface rien. Couper n'empeche que les emissions FUTURES — c'est
+     * `retirer` qui nettoie l'existant, et les deux gestes sont distincts a
+     * dessein : on peut vouloir arreter sans effacer l'historique deja
+     * constitue, et l'inverse.
+     */
+    public function basculerEvenementsAutomatiques(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'organization_id' => 'required|uuid|exists:organizations,id',
+            'actif' => 'required|boolean',
+        ]);
+
+        $organization = Organization::whereKey($data['organization_id'])->firstOrFail();
+
+        $organization->update(['feed_auto_events_enabled' => $data['actif']]);
+
+        return back()->with('success', __(
+            $data['actif'] ? 'admin.feed_auto_events_on' : 'admin.feed_auto_events_off',
+            ['name' => $organization->name]
+        ));
+    }
+
     public function update(Request $request, string $post): RedirectResponse
     {
         $ligne = $this->resoudre($post);
