@@ -23,7 +23,27 @@ return [
     'article_label' => 'article|articles',
     'articles_title' => 'Published articles',
     'loops_title' => 'Loops',
-    'search_placeholder' => 'Search by first or last name...',
+    'search_placeholder' => 'Search a name, a keyword...',
+
+    // TASK-1762 point 10 — the city filter.
+    'city_label' => 'Location',
+    // TASK-1762 point 12 — « Location », not « All locations » : it is a menu's
+    // default option, not a sentence, and it was setting the menu's width.
+    'city_all' => 'Location',
+
+    // TASK-1762 point 11.4 — the "New arrivals" view.
+    'latest_button' => 'New arrivals',
+
+    // TASK-1762 point 14 — the fold for more than three Loops.
+    'loops_more' => ':count more Loop|:count more Loops',
+    'loops_reduce' => 'collapse',
+    'joined_ago' => 'Joined :when',
+
+    // TASK-1762 point 11.2 — the block that loads the next page.
+    'load_more' => 'See the next member|See the next :count members',
+
+    // TASK-1762 point 9 — used when the Organization has opened the Structure field.
+    'search_placeholder_with_structure' => 'Search a name, an organisation, a keyword...',
     'search_label' => 'Search for a member',
     'search_submit' => 'Search',
     'search_clear' => 'Clear',

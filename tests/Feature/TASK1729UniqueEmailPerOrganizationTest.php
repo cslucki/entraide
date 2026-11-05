@@ -580,6 +580,8 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
             // est redirigee avant d'atteindre la validation, et le test ne
             // mesure rien.
             'phone' => '+33600000000',
+            // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE lui aussi.
+            'slogan' => 'Je resous des problemes, pas des tickets.',
         ], $surcharges);
     }
 }

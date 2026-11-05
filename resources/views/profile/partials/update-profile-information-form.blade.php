@@ -1,27 +1,107 @@
+{{-- TASK-1762 point 16 — l'en-tete « Informations du profil / Mettez à jour
+     les informations de votre compte et votre adresse e-mail » est retire.
+
+     Il titrait un formulaire qui n'a plus un seul sujet : depuis ce point, la
+     page porte DEUX blocs nommes — « Informations de profil » et
+     « Présentation » — et un troisieme titre au-dessus d'eux ne faisait que
+     repeter le premier. --}}
 <section>
-    <header>
-        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-            {{ __('profile.info_title') }}
-        </h2>
-
-        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {{ __('profile.info_description') }}
-        </p>
-    </header>
-
     <form id="send-verification" method="post" action="{{ route('verification.send') }}">
         @csrf
     </form>
 
-    <form method="post" action="{{ route('profile.update') }}" class="mt-6 space-y-6" enctype="multipart/form-data">
+    <form method="post" action="{{ route('profile.update') }}" class="space-y-6" enctype="multipart/form-data">
         @csrf
         @method('put')
 
-        <div class="space-y-6">
+
+        {{-- TASK-1762 point 16 — DEUX blocs distincts, demande de Cyril.
+
+             Chacun porte son propre cadre : la separation doit se VOIR, un
+             simple titre au milieu d'une colonne continue ne la donne pas.
+
+             Les fonds alternent sur les jetons de THEME de l'Organization
+             (jamais une couleur figee) : `--bp-panel` ici, `--bp-surface-soft`
+             pour le bloc suivant — memes jetons que `theme-tokens.blade.php`
+             emet deja en clair ET en sombre pour chaque theme.
+
+             PAS `--bp-surface` : sur le theme par defaut il est quasi
+             identique au fond de page (`--bp-page`), le bloc devenait
+             invisible (recette Cyril, capture a l'appui). --}}
+        <div class="p-4 sm:p-8 bg-[var(--bp-panel)] shadow sm:rounded-lg" data-profile-block="identite">
+        <div class="max-w-xl space-y-6">
+
             <div>
-                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.presentation_section') }}</h3>
-                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ __('profile.presentation_description') }}</p>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.identity_section') }}</h3>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ __('profile.identity_description') }}</p>
             </div>
+
+        {{-- TASK-1749 — meme zone de depot que la fenetre du profil public.
+
+             Le champ gardait la commande NATIVE (« Choisir un fichier / Aucun
+             fichier choisi »), qui ne ressemble a rien d'autre dans ce
+             formulaire et se laisse oublier entre « Profil LinkedIn » et la
+             case de disponibilite. Il reste ici — on modifie bien sa photo en
+             modifiant son profil —, mais il se voit.
+
+             `<label for>` et non un `<div>` au clic simule : le clavier y
+             arrive sans qu'on ait a l'ecrire. L'`<input>` est masque
+             visuellement (`sr-only`), pas `hidden` — un champ `hidden` ne se
+             declenche pas au clavier. --}}
+        <div x-data="{
+                 preview: null,
+                 survol: false,
+                 nom: null,
+                 choisir(fichiers) {
+                     const f = fichiers && fichiers[0];
+                     if (! f) return;
+                     this.nom = f.name;
+                     this.preview = URL.createObjectURL(f);
+                 },
+                 deposer(e) {
+                     this.survol = false;
+                     this.$refs.champ.files = e.dataTransfer.files;
+                     this.choisir(e.dataTransfer.files);
+                 }
+             }">
+            <x-input-label for="avatar" :value="__('profile.avatar')" />
+            <div class="mt-2 flex items-center gap-4">
+                <img :src="preview ?? '{{ $user->avatar_url }}'"
+                     class="w-14 h-14 flex-shrink-0 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600" alt="">
+                <label for="avatar"
+                       @dragover.prevent="survol = true"
+                       @dragleave.prevent="survol = false"
+                       @drop.prevent="deposer($event)"
+                       :class="survol
+                           ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                           : 'border-gray-300 dark:border-gray-600 hover:border-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-700/40'"
+                       class="flex-1 cursor-pointer rounded-xl border-2 border-dashed px-4 py-3 text-center transition">
+                    <span class="block text-sm font-semibold text-indigo-600 dark:text-indigo-400">{{ __('profile.avatar_drop') }}</span>
+                    <span class="mt-0.5 block text-xs text-gray-400" x-text="nom ?? '{{ __('profile.avatar_help') }}'"></span>
+                </label>
+                <input id="avatar" name="avatar" type="file" accept="image/*"
+                    x-ref="champ" @change="choisir($event.target.files)"
+                    class="sr-only">
+            </div>
+            <x-input-error class="mt-2" :messages="$errors->get('avatar')" />
+        </div>
+
+            {{-- TASK-1762 point 1 — la structure, AVANT prenom et nom.
+
+                 Place demandee par Cyril. Sur toute la largeur et non dans la
+                 grille a deux colonnes : un nom de structure est long la ou un
+                 prenom est court, et le mettre en face du prenom l'aurait
+                 tronque des le premier « Association ... ». --}}
+            @if (structureIsShown($organization))
+            <div data-profile-structure-field>
+                <x-input-label for="structure" :value="__('profile.structure')" />
+                <x-text-input id="structure" name="structure" type="text" class="mt-1 block w-full"
+                              :value="old('structure', $user->structure)"
+                              maxlength="255" autocomplete="organization" />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.structure_help') }}</p>
+                <x-input-error class="mt-2" :messages="$errors->get('structure')" />
+            </div>
+            @endif
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -35,27 +115,6 @@
                     <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name', $user->name)" required autofocus autocomplete="family-name" />
                     <x-input-error class="mt-2" :messages="$errors->get('name')" />
                 </div>
-            </div>
-
-            {{-- TASK-1693 bug Z — l'adresse publique, choisie par la personne.
-
-                 Derivee de « prenom-nom » a l'inscription, modifiable ensuite.
-                 La laisser au choix plutot que de l'imposer repond aussi a une
-                 question de discretion : qui tient a la sienne prend un
-                 pseudonyme, qui veut etre trouve prend son nom. --}}
-            <div class="mt-6" data-profile-slug-field>
-                <x-input-label for="slug" :value="__('profile.slug')" />
-                <div class="mt-1 flex items-center gap-1">
-                    <span class="shrink-0 text-sm text-gray-400">{{ __('profile.slug_prefix') }}</span>
-                    <x-text-input id="slug" name="slug" type="text" class="block w-full"
-                                  :value="old('slug', $user->slug)"
-                                  maxlength="60" autocomplete="off" />
-                </div>
-                <x-input-error class="mt-2" :messages="$errors->get('slug')" />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.slug_help') }}</p>
-                {{-- La consequence, NOMMEE : changer d'adresse inquiete, et
-                     cette phrase dit pourquoi il n'y a pas de quoi. --}}
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.slug_change_notice') }}</p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -91,12 +150,27 @@
                 </div>
             </div>
 
-            <div>
-                <x-input-label for="bio" :value="__('profile.bio')" />
-                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.bio_help') }}</p>
-                <textarea id="bio" name="bio" rows="5" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" maxlength="500" placeholder="{{ __('profile.bio_placeholder') }}">{{ old('bio', $user->bio) }}</textarea>
-                <p class="mt-1 text-xs text-gray-400">{{ __('profile.bio_max') }}</p>
-                <x-input-error class="mt-2" :messages="$errors->get('bio')" />
+            {{-- TASK-1762 point 17 (suite) — « Confidentialité » juste en
+                 dessous d'email et telephone : demande de Cyril, « c'est bcp
+                 plus logique » puisque ce bloc gouverne la visibilite de ces
+                 deux champs precis. Vivait auparavant pres du slug, dans le
+                 bloc « Présentation ». --}}
+            <div class="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl space-y-3 border border-gray-200 dark:border-gray-700" data-profile-privacy-section>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.privacy') }}</h3>
+
+                <div class="flex items-center gap-3">
+                    <input id="show_email" name="show_email" type="checkbox" value="1"
+                        {{ old('show_email', $user->show_email) ? 'checked' : '' }}
+                        class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:bg-gray-800">
+                    <x-input-label for="show_email" :value="__('profile.show_email')" class="font-normal text-gray-700 dark:text-gray-300" />
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <input id="show_phone" name="show_phone" type="checkbox" value="1"
+                        {{ old('show_phone', $user->show_phone) ? 'checked' : '' }}
+                        class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:bg-gray-800">
+                    <x-input-label for="show_phone" :value="__('profile.show_phone')" class="font-normal text-gray-700 dark:text-gray-300" />
+                </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -120,69 +194,73 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <x-input-label for="preferred_locale" :value="__('profile.preferred_locale')" />
-                    <select id="preferred_locale" name="preferred_locale" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
-                        <option value="">{{ __('profile.preferred_locale_placeholder') }}</option>
-                        <option value="fr" @selected(old('preferred_locale', $user->preferred_locale) === 'fr')>{{ __('profile.locale_fr') }}</option>
-                        <option value="en" @selected(old('preferred_locale', $user->preferred_locale) === 'en')>{{ __('profile.locale_en') }}</option>
-                    </select>
-                    <x-input-error class="mt-2" :messages="$errors->get('preferred_locale')" />
+            {{-- TASK-1762 point 16 — le champ d'appartenance ne figurait pas
+                 dans la liste de Cyril ; il EXISTE et reste donc ici, avec les
+                 autres informations d'identite. Toujours conditionne au
+                 reglage « Activer le champ d'appartenance ». --}}
+            @if ($organization?->membership_enabled)
+            <div class="md:w-1/2" data-profile-membership-field>
+                <x-input-label for="membership_value" :value="app()->getLocale() === 'en' ? ($organization->membership_label_en ?: __('profile.membership')) : ($organization->membership_label_fr ?: __('profile.membership'))" />
+                <x-text-input id="membership_value" name="membership_value" type="text" class="mt-1 block w-full" :value="old('membership_value', $user->membership_value)" />
+                <x-input-error class="mt-2" :messages="$errors->get('membership_value')" />
+            </div>
+            @endif
+
+        </div>
+        </div>
+
+        {{-- Second bloc : fond "Surface douce" du theme, pour que la
+             separation entre les deux blocs se voie sans etre massive. --}}
+        <div class="p-4 sm:p-8 bg-[var(--bp-surface-soft)] shadow sm:rounded-lg" data-profile-block="presentation">
+        <div class="max-w-xl space-y-6">
+
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.presentation_section') }}</h3>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ __('profile.presentation_description') }}</p>
+            </div>
+
+            {{-- TASK-1762 point 17 — le slogan, AVANT la presentation.
+
+                 Obligatoire (contrairement a tous les champs voisins de ce
+                 formulaire) : c'est la garde SERVEUR dans `ProfileController`
+                 qui le fait respecter, pas le `required` HTML ci-dessous — un
+                 `PUT` force sans slogan est refuse. `maxlength` borne la
+                 saisie a la meme valeur que la regle serveur, pour que la
+                 phrase tienne sur une carte de l'annuaire (3 colonnes). --}}
+            <div>
+                {{-- Demande de Cyril : le libelle EST la phrase d'aide, pas
+                     « Slogan » — « Ce qui vous définit en une phrase. » --}}
+                <x-input-label for="slogan" :value="__('profile.slogan_help')" />
+                <x-text-input id="slogan" name="slogan" type="text" class="mt-1 block w-full"
+                               :value="old('slogan', $user->slogan)" maxlength="120" required />
+                <x-input-error class="mt-2" :messages="$errors->get('slogan')" />
+            </div>
+
+            {{-- TASK-1762 point 16 — la presentation passe en editeur riche.
+
+                 `x-markdown-wysiwyg-editor` est le MEME composant que
+                 `services/create` : une seconde barre d'outils ecrite a la main
+                 aurait diverge de celle-la a la premiere retouche.
+
+                 `tall` et `fullscreen` sont des attributs ADDITIFS du
+                 composant — `services/create`, qui ne les passe pas, rend
+                 exactement comme avant.
+
+                 **Consequence assumee** : la presentation devient du Markdown.
+                 Les trois surfaces qui l'affichent la rendent donc par
+                 `markdown()`, sinon les membres liraient `**gras**` en clair.
+                 La limite passe de 500 a 2000 caracteres : le balisage est
+                 compte dedans. --}}
+            <div>
+                <x-input-label for="bio" :value="__('profile.bio')" />
+                <div class="mt-1">
+                    <x-markdown-wysiwyg-editor name="bio" :value="old('bio', $user->bio)"
+                                               :placeholder="__('profile.bio_placeholder')"
+                                               rows="8" tall fullscreen
+                                               :invalid="$errors->has('bio')" />
                 </div>
-
-                @if ($organization?->membership_enabled)
-                    <div>
-                        <x-input-label for="membership_value" :value="app()->getLocale() === 'en' ? ($organization->membership_label_en ?: __('profile.membership')) : ($organization->membership_label_fr ?: __('profile.membership'))" />
-                        <x-text-input id="membership_value" name="membership_value" type="text" class="mt-1 block w-full" :value="old('membership_value', $user->membership_value)" />
-                        <x-input-error class="mt-2" :messages="$errors->get('membership_value')" />
-                    </div>
-                @endif
+                <x-input-error class="mt-2" :messages="$errors->get('bio')" />
             </div>
-        </div>
-
-        <div class="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl space-y-3 border border-gray-200 dark:border-gray-700">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.privacy') }}</h3>
-
-            <div class="flex items-center gap-3">
-                <input id="show_email" name="show_email" type="checkbox" value="1"
-                    {{ old('show_email', $user->show_email) ? 'checked' : '' }}
-                    class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:bg-gray-800">
-                <x-input-label for="show_email" :value="__('profile.show_email')" class="font-normal text-gray-700 dark:text-gray-300" />
-            </div>
-
-            <div class="flex items-center gap-3">
-                <input id="show_phone" name="show_phone" type="checkbox" value="1"
-                    {{ old('show_phone', $user->show_phone) ? 'checked' : '' }}
-                    class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:bg-gray-800">
-                <x-input-label for="show_phone" :value="__('profile.show_phone')" class="font-normal text-gray-700 dark:text-gray-300" />
-            </div>
-        </div>
-
-        <div class="space-y-6 border-t border-gray-200 dark:border-gray-700 pt-6">
-            <div>
-                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.private_billing_section') }}</h3>
-                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ __('profile.private_billing_description') }}</p>
-            </div>
-
-            <div>
-                <x-input-label for="address_line1" :value="__('profile.address_line1')" />
-                <x-text-input id="address_line1" name="address_line1" type="text" class="mt-1 block w-full" :value="old('address_line1', $user->address_line1)" autocomplete="address-line1" />
-                <x-input-error class="mt-2" :messages="$errors->get('address_line1')" />
-            </div>
-
-            <div>
-                <x-input-label for="address_line2" :value="__('profile.address_line2')" />
-                <x-text-input id="address_line2" name="address_line2" type="text" class="mt-1 block w-full" :value="old('address_line2', $user->address_line2)" autocomplete="address-line2" />
-                <x-input-error class="mt-2" :messages="$errors->get('address_line2')" />
-            </div>
-
-            <div>
-                <x-input-label for="postal_code" :value="__('profile.postal_code')" />
-                <x-text-input id="postal_code" name="postal_code" type="text" class="mt-1 block w-full" :value="old('postal_code', $user->postal_code)" autocomplete="postal-code" />
-                <x-input-error class="mt-2" :messages="$errors->get('postal_code')" />
-            </div>
-        </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -276,55 +354,146 @@
             @endforeach
         </div>
 
-        {{-- TASK-1749 — meme zone de depot que la fenetre du profil public.
+            {{-- TASK-1693 bug Z — l'adresse publique, choisie par la personne.
 
-             Le champ gardait la commande NATIVE (« Choisir un fichier / Aucun
-             fichier choisi »), qui ne ressemble a rien d'autre dans ce
-             formulaire et se laisse oublier entre « Profil LinkedIn » et la
-             case de disponibilite. Il reste ici — on modifie bien sa photo en
-             modifiant son profil —, mais il se voit.
+                 Derivee de « prenom-nom » a l'inscription, modifiable ensuite.
+                 La laisser au choix plutot que de l'imposer repond aussi a une
+                 question de discretion : qui tient a la sienne prend un
+                 pseudonyme, qui veut etre trouve prend son nom. --}}
+            <div class="mt-6" data-profile-slug-field>
+                {{-- TASK-1762 point 4 bis — l'adresse ACTUELLE, a droite du libelle.
 
-             `<label for>` et non un `<div>` au clic simule : le clavier y
-             arrive sans qu'on ait a l'ecrire. L'`<input>` est masque
-             visuellement (`sr-only`), pas `hidden` — un champ `hidden` ne se
-             declenche pas au clavier. --}}
-        <div x-data="{
-                 preview: null,
-                 survol: false,
-                 nom: null,
-                 choisir(fichiers) {
-                     const f = fichiers && fichiers[0];
-                     if (! f) return;
-                     this.nom = f.name;
-                     this.preview = URL.createObjectURL(f);
-                 },
-                 deposer(e) {
-                     this.survol = false;
-                     this.$refs.champ.files = e.dataTransfer.files;
-                     this.choisir(e.dataTransfer.files);
-                 }
-             }">
-            <x-input-label for="avatar" :value="__('profile.avatar')" />
-            <div class="mt-2 flex items-center gap-4">
-                <img :src="preview ?? '{{ $user->avatar_url }}'"
-                     class="w-14 h-14 flex-shrink-0 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600" alt="">
-                <label for="avatar"
-                       @dragover.prevent="survol = true"
-                       @dragleave.prevent="survol = false"
-                       @drop.prevent="deposer($event)"
-                       :class="survol
-                           ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                           : 'border-gray-300 dark:border-gray-600 hover:border-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-700/40'"
-                       class="flex-1 cursor-pointer rounded-xl border-2 border-dashed px-4 py-3 text-center transition">
-                    <span class="block text-sm font-semibold text-indigo-600 dark:text-indigo-400">{{ __('profile.avatar_drop') }}</span>
-                    <span class="mt-0.5 block text-xs text-gray-400" x-text="nom ?? '{{ __('profile.avatar_help') }}'"></span>
-                </label>
-                <input id="avatar" name="avatar" type="file" accept="image/*"
-                    x-ref="champ" @change="choisir($event.target.files)"
-                    class="sr-only">
+                     Demande de Cyril : « ainsi les gens comprennent plus
+                     facilement qu'ils ont interet a personnaliser ». Qui n'a
+                     rien choisi lit son identifiant technique en toutes
+                     lettres, et l'argument se passe de phrase.
+
+                     `profileRouteKey()` et non `$user->slug` : c'est l'adresse
+                     qui SERT aujourd'hui — le slug choisi, ou l'identifiant a
+                     defaut. Afficher le slug seul laisserait un « Actuellement :
+                     …/profile/ » vide a ceux-la memes qu'il s'agit de
+                     convaincre.
+
+                     `break-all` : un UUID fait 36 caracteres et deborderait du
+                     telephone. `flex-wrap` le fait passer sous le libelle quand
+                     la place manque, au lieu de le serrer. --}}
+                <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    {{-- TASK-1762 point 16 — « Adresse de votre profil sur <Organization> ».
+                     Le nom du tenant retire l'ambiguite : cette adresse vaut ICI,
+                     pas sur la plateforme entiere. Repli sur l'ancien libelle
+                     quand il n'y a pas d'Organization resolue. --}}
+                <x-input-label for="slug" :value="$organization ? __('profile.slug_on', ['organization' => $organization->name]) : __('profile.slug')" />
+                    <span class="break-all text-xs text-gray-500 dark:text-gray-400" data-profile-slug-current>
+                        {{ __('profile.slug_current') }}
+                        {{-- L'adresse en « Accent / Loop » (`--bp-accent`), la couleur
+                             du theme choisi par l'Organization — #8A2CFF sur Zen.
+                             Ecrire `#8A2CFF` en dur aurait fige la couleur d'UN theme
+                             sur tous les autres.
+
+                             Seule l'ADRESSE est coloree : « Actuellement : » reste
+                             gris, pour que l'oeil tombe sur la valeur et non sur le
+                             mot qui l'introduit. --}}
+                        <span class="font-mono font-semibold text-[var(--bp-accent)]">{{ __('profile.slug_prefix') }}{{ $user->profileRouteKey() }}</span>
+                    </span>
+                </div>
+                <div class="mt-1 flex items-center gap-1">
+                    <span class="shrink-0 text-sm text-gray-400">{{ __('profile.slug_prefix') }}</span>
+                    <x-text-input id="slug" name="slug" type="text" class="block w-full"
+                                  :value="old('slug', $user->slug)"
+                                  maxlength="60" autocomplete="off" />
+                </div>
+                <x-input-error class="mt-2" :messages="$errors->get('slug')" />
+                {{-- TASK-1762 point 4 — une seule phrase, avec de VRAIES adresses.
+
+                     Les trois phrases precedentes recitaient la regle de forme
+                     (« lettres minuscules, chiffres et tirets, entre 3 et 60
+                     caracteres ») et la politique de conservation des anciennes
+                     adresses. Cyril : « Dire juste choisissez une adresse qui
+                     vous represente, par exemple ... ».
+
+                     La regle de forme n'est pas perdue : elle a rejoint le
+                     message d'ERREUR, c'est-a-dire le seul moment ou elle sert.
+                     L'afficher en permanence faisait porter a tout le monde le
+                     prix d'un cas rare.
+
+                     Les exemples sont construits sur l'adresse REELLE de
+                     l'Organization : ecrits en dur, ils auraient menti partout
+                     ailleurs que sur `main`. --}}
+                @php
+                    $_exempleSlugComplet = ($_slugOrg = $organization?->slug) && Route::has('organization.profile.show')
+                        ? route('organization.profile.show', ['organization' => $_slugOrg, 'user' => 'ofsh'])
+                        : route('profile.show', 'ofsh');
+                    $_exempleSlugCourt = ($_slugOrg && Route::has('organization.profile.show'))
+                        ? '/org/'.$_slugOrg.'/profile/camille'
+                        : '/profile/camille';
+                @endphp
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-profile-slug-help>
+                    {{ __('profile.slug_help', ['exemple' => $_exempleSlugComplet, 'exemple_court' => $_exempleSlugCourt]) }}
+                </p>
             </div>
-            <x-input-error class="mt-2" :messages="$errors->get('avatar')" />
+
+            {{-- TASK-1762 point 16 — « Langue principale » devient sa propre
+                 section, et elle disparait sur un site MONOLINGUE.
+
+                 Cyril : « si c'est décoché, donc le site web n'a qu'une langue,
+                 donc logique de ne pas afficher Langue principale ». Proposer
+                 un choix qui n'en est pas un est pire que ne rien proposer.
+
+                 La garde vaut aussi au SERVEUR : voir `ProfileController`. --}}
+            @if($organization?->multilingual_enabled)
+            <div class="space-y-6 border-t border-gray-200 dark:border-gray-700 pt-6" data-profile-locale-section>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.locale_section') }}</h3>
+                    <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ __('profile.locale_description') }}</p>
+                </div>
+
+                <div class="md:w-1/2">
+                    <x-input-label for="preferred_locale" :value="__('profile.preferred_locale')" />
+                    <select id="preferred_locale" name="preferred_locale" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
+                        <option value="">{{ __('profile.preferred_locale_placeholder') }}</option>
+                        <option value="fr" @selected(old('preferred_locale', $user->preferred_locale) === 'fr')>{{ __('profile.locale_fr') }}</option>
+                        <option value="en" @selected(old('preferred_locale', $user->preferred_locale) === 'en')>{{ __('profile.locale_en') }}</option>
+                    </select>
+                    <x-input-error class="mt-2" :messages="$errors->get('preferred_locale')" />
+                </div>
+            </div>
+            @endif
+
+        {{-- TASK-1762 point 15 — la section de facturation n'existe que si
+             l'Organization propose des abonnements.
+
+             Cyril : « si on ne propose pas d'abonnement, pas la peine de parler
+             de facturation, ça fait peur aux utilisateurs. Puis ainsi on évite
+             de recueillir des coordonnées pour rien. »
+
+             La garde vaut aussi au SERVEUR (`ProfileController::update`) :
+             masquer trois champs ne garde rien, un `PUT` forge les ecrirait. --}}
+        @if(billingIsCollected($organization))
+        <div class="space-y-6 border-t border-gray-200 dark:border-gray-700 pt-6" data-profile-billing-section>
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.private_billing_section') }}</h3>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ __('profile.private_billing_description') }}</p>
+            </div>
+
+            <div>
+                <x-input-label for="address_line1" :value="__('profile.address_line1')" />
+                <x-text-input id="address_line1" name="address_line1" type="text" class="mt-1 block w-full" :value="old('address_line1', $user->address_line1)" autocomplete="address-line1" />
+                <x-input-error class="mt-2" :messages="$errors->get('address_line1')" />
+            </div>
+
+            <div>
+                <x-input-label for="address_line2" :value="__('profile.address_line2')" />
+                <x-text-input id="address_line2" name="address_line2" type="text" class="mt-1 block w-full" :value="old('address_line2', $user->address_line2)" autocomplete="address-line2" />
+                <x-input-error class="mt-2" :messages="$errors->get('address_line2')" />
+            </div>
+
+            <div>
+                <x-input-label for="postal_code" :value="__('profile.postal_code')" />
+                <x-text-input id="postal_code" name="postal_code" type="text" class="mt-1 block w-full" :value="old('postal_code', $user->postal_code)" autocomplete="postal-code" />
+                <x-input-error class="mt-2" :messages="$errors->get('postal_code')" />
+            </div>
         </div>
+        @endif
 
         {{-- TASK-1694 bug AE — cinquieme surface, trouvee a l'inventaire : le
              reglage de son propre profil. Le retirer avec la fonctionnalite evite
@@ -361,6 +530,8 @@
                     class="text-sm text-gray-600 dark:text-gray-400"
                 >{{ __('profile.saved') }}</p>
             @endif
+        </div>
+        </div>
         </div>
     </form>
 </section>

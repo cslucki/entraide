@@ -55,6 +55,28 @@ return [
     'presentation_section' => 'Présentation',
     'presentation_description' => 'Ces informations servent à présenter votre profil aux autres membres.',
     'first_name' => 'Prénom',
+
+    // TASK-1762 point 1 — la structure : société, association, collectif.
+    'structure' => 'Structure',
+
+    // TASK-1762 point 16 — les trois sections du formulaire remanie.
+    'identity_section' => 'Informations de profil',
+    'identity_description' => 'Qui vous êtes, et comment vous joindre.',
+    'locale_section' => 'Langue principale',
+    'locale_description' => 'La langue dans laquelle la plateforme s\'adresse à vous.',
+    'slug_on' => 'Adresse de votre profil sur :organization',
+
+    // TASK-1762 point 3 — le bouton en haut de l'edition du profil.
+    'view_public_profile' => 'Voir mon profil public',
+
+    // TASK-1762 point 16 — le plein écran de l'éditeur de présentation.
+    'editor_fullscreen' => 'Plein écran',
+    'editor_exit_fullscreen' => 'Quitter le plein écran',
+    'structure_help' => 'Votre société, association ou collectif, si vous en avez une.',
+
+    // TASK-1762 point 17 — la baseline obligatoire, « en une phrase ».
+    'slogan' => 'Slogan',
+    'slogan_help' => 'Ce qui vous définit en une phrase.',
     'name' => 'Nom',
     'email' => 'Adresse e-mail',
     'phone' => 'Numéro de téléphone *',
@@ -93,7 +115,9 @@ return [
     'links_add' => 'Ajouter un lien',
     'links_remove' => 'Retirer ce lien',
     'link_type_instagram' => 'Instagram',
-    'link_type_twitter' => 'Twitter',
+    // TASK-1762 point 18 — demande de Cyril : le reseau a change de nom.
+    'link_type_twitter' => 'X (ex Twitter)',
+    'link_type_facebook' => 'Facebook',
     'link_type_website' => 'Site web',
     'link_type_blog' => 'Blog',
     'link_type_app' => 'Application',
@@ -139,10 +163,15 @@ return [
     // TASK-1693 bug Z — l'adresse publique du profil.
     'slug' => 'Adresse de votre profil',
     'slug_prefix' => '…/profile/',
-    'slug_help' => 'Lettres minuscules, chiffres et tirets. Entre 3 et 60 caractères. Laissez vide pour revenir à l\'adresse technique.',
-    'slug_change_notice' => 'Votre ancienne adresse continuera de fonctionner et restera réservée : aucun lien déjà partagé ne sera perdu.',
+
+    // TASK-1762 point 4 bis — l'adresse qui sert AUJOURD'HUI, a droite du libelle.
+    'slug_current' => 'Actuellement :',
+    'slug_help' => 'Choisissez une adresse qui vous représente, par exemple :exemple ou :exemple_court',
     'slug_taken' => 'Cette adresse est déjà prise dans votre Organisation. Choisissez-en une autre.',
-    'slug_invalid' => 'Cette adresse n\'est pas utilisable : lettres minuscules, chiffres et tirets uniquement, et certains mots sont réservés.',
+    // TASK-1762 point 4 — la regle de forme a quitte l'aide permanente pour
+    // ce message : c'est le seul moment ou elle sert. La LONGUEUR y entre
+    // aussi, sinon une adresse de deux lettres serait refusee sans raison dite.
+    'slug_invalid' => 'Cette adresse n\'est pas utilisable : lettres minuscules, chiffres et tirets uniquement, entre 3 et 60 caractères, et certains mots sont réservés.',
     // TASK-1697 — les deux cards ajoutees a la fiche profil
     'loops_section' => 'Boucles',
     'loops_count' => ':count Boucle|:count Boucles',

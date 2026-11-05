@@ -123,10 +123,20 @@ class TASK1697DirectoryEnrichmentTest extends TestCase
         $this->assertStringNotContainsString(e($etranger->fullName), $html);
     }
 
-    /** La recherche survit a la pagination : l'URL la porte. */
+    /**
+     * La recherche survit a la pagination : l'URL la porte.
+     *
+     * TASK-1762 point 11.2 — la page est passee de 16 a 36 membres, et les
+     * liens numerotes ont cede la place au bloc « Voir les N suivants ». Il
+     * faut donc desormais DEPASSER 36 pour qu'il y ait une suite : avec 20
+     * membres, ce test mesurait l'absence de pagination en croyant mesurer la
+     * conservation de la recherche.
+     *
+     * Ce qu'il garde est inchange : l'URL de la page suivante porte `q`.
+     */
     public function test_la_recherche_est_portee_par_les_liens_de_pagination(): void
     {
-        foreach (range(1, 20) as $i) {
+        foreach (range(1, 40) as $i) {
             $this->membre(['first_name' => 'Ariane', 'name' => 'Nom'.$i]);
         }
 

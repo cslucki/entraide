@@ -70,6 +70,12 @@
             </div>
             @endif
 
+            {{-- TASK-1762 point 6 — la structure, a deux endroits selon la largeur.
+
+                 La condition est calculee UNE fois : les deux exemplaires ne
+                 peuvent pas diverger sur « faut-il l'afficher ». --}}
+            @php $afficheStructure = structureIsShown() && filled($user->structure); @endphp
+
             <div class="flex flex-col gap-5 sm:flex-row sm:gap-6">
                 <!-- Avatar -->
                 <div class="relative flex-shrink-0 mx-auto sm:mx-0">
@@ -110,6 +116,35 @@
                         </span>
                         @endif
                     </div>
+
+                    {{-- TASK-1762 point 6 — sous le prenom et le nom, a TOUTES les
+                         largeurs.
+
+                         Premiere version : a droite de la carte sur bureau, a la
+                         taille du nom. Cyril, en recette : « le placement sur la
+                         droite n'est pas bon, fait en dessous du prenom nom, un peu
+                         comme la card de l'annuaire ». Un seul exemplaire, donc —
+                         ce qui supprime au passage tout risque de divergence entre
+                         deux copies.
+
+                         Plus grande que sur la carte de l'annuaire (`text-xs`) :
+                         ici c'est l'en-tete de la fiche, pas une vignette. Mais
+                         sous la taille du nom, qui reste le premier mot de la page.
+
+                         Le bloc d'identite est centre sous `sm` et aligne a gauche
+                         au-dela : la structure suit, sans rien declarer. --}}
+                    @if($afficheStructure)
+                    <p class="mt-1 text-base sm:text-lg font-bold text-[var(--bp-accent)] break-words"
+                       data-profile-structure>{{ $user->structure }}</p>
+                    @endif
+
+                    {{-- TASK-1762 point 17 — le slogan, EN DESSOUS de la
+                         structure (qu'elle s'affiche ou non — le slogan, lui,
+                         est obligatoire pour tout le monde). --}}
+                    @if(filled($user->slogan))
+                    <p class="mt-1 text-sm sm:text-base italic text-gray-600 dark:text-gray-300 break-words"
+                       data-profile-slogan>{{ $user->slogan }}</p>
+                    @endif
 
                     <!-- Stats chips -->
                     <div class="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
@@ -213,12 +248,21 @@
                         {{-- Les liens supplementaires. `ProfileLinks::hote()`
                              retombe sur l'URL complete quand `parse_url()` ne
                              rend pas d'hote, pour ne jamais afficher une
-                             pastille sans texte. --}}
+                             pastille sans texte.
+
+                             TASK-1762 point 18 — chaque TYPE porte desormais
+                             son propre pictogramme (demande de Cyril : « pour
+                             Instagram, l'icone d'Instagram »), plus seulement
+                             sa couleur. `iconeRemplie()` choisit le mode de
+                             rendu : un logo de marque est plein, une icone de
+                             trait (site web, blog, app) garde le gabarit
+                             Heroicons du reste de l'application. --}}
                         @foreach($_liensDeclares as $_lien)
+                        @php($_remplie = \App\Support\ProfileLinks::iconeRemplie($_lien['type']))
                         <a href="{{ $_lien['url'] }}" target="_blank" rel="noopener noreferrer"
                            data-profile-link="{{ $_lien['type'] }}"
                            class="inline-flex items-center gap-1 text-xs hover:underline {{ \App\Support\ProfileLinks::couleur($_lien['type']) }}">
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m4.5-4.5l1.5-1.5a4 4 0 015.656 5.656l-3 3a4 4 0 01-5.656 0"/></svg>
+                            <svg class="w-3.5 h-3.5" fill="{{ $_remplie ? 'currentColor' : 'none' }}" viewBox="0 0 24 24" @unless($_remplie) stroke="currentColor" @endunless>{!! \App\Support\ProfileLinks::icone($_lien['type']) !!}</svg>
                             <span class="sr-only">{{ \App\Support\ProfileLinks::libelle($_lien['type']) }} —</span>
                             {{ \App\Support\ProfileLinks::hote($_lien['url']) }}
                         </a>
@@ -254,6 +298,7 @@
                     </div>
                     @endif
                 </div>
+
             </div>
         </div>
 
@@ -267,8 +312,16 @@
                 @if($user->bio)
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
                     <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">{{ __('profile.about') }}</h2>
-                    <div class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed">
-                        {{ $user->bio }}
+                    {{-- TASK-1762 point 16 — la presentation est du Markdown
+                         depuis que l'edition passe par TipTap. Rendue en texte
+                         brut, elle afficherait « **gras** » en clair.
+
+                         `markdown()` est le meme helper que la description des
+                         services (`services/show`), avec le meme reglage de
+                         saut de ligne. `whitespace-pre-line` disparait : le
+                         Markdown gouverne desormais les paragraphes. --}}
+                    <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300" data-profile-bio>
+                        {!! markdown($user->bio, ['renderer' => ['soft_break' => "<br />\n"]]) !!}
                     </div>
                 </div>
                 @endif

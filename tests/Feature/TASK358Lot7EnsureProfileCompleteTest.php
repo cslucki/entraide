@@ -131,6 +131,8 @@ class TASK358Lot7EnsureProfileCompleteTest extends TestCase
                 'city' => $user->city,
                 'country_code' => $user->country_code,
                 'bio' => $user->bio,
+                // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE.
+                'slogan' => 'Je resous des problemes, pas des tickets.',
             ])
             ->assertSessionDoesntHaveErrors()
             ->assertRedirect();

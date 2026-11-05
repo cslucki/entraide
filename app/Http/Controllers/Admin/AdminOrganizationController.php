@@ -195,6 +195,8 @@ class AdminOrganizationController extends Controller
             'default_country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
             'show_country' => 'nullable|boolean',
             'membership_enabled' => 'nullable|boolean',
+            // TASK-1762 point 2 — gouverne l'apparition du champ « Structure ».
+            'structure_enabled' => 'nullable|boolean',
             // TASK-1714 volet 2 — l'administrateur valide le compte apres l'email.
             'requires_account_approval' => 'nullable|boolean',
             'membership_label_fr' => 'nullable|string|max:255',
@@ -235,6 +237,7 @@ class AdminOrganizationController extends Controller
         $data['locale'] = $data['locale'] ?? $organization->locale ?? 'fr';
         $data['show_country'] = ($data['show_country'] ?? '1') === '1';
         $data['membership_enabled'] = ($data['membership_enabled'] ?? '0') === '1';
+        $data['structure_enabled'] = ($data['structure_enabled'] ?? '0') === '1';
         // Meme normalisation : une case non cochee n'envoie que le champ cache
         // `value="0"`, et une absence totale doit valoir `false`, jamais `null`
         // — la colonne est NOT NULL.
