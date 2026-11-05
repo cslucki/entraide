@@ -127,6 +127,25 @@ return [
     'users_send_email_sent' => '“:template” sent to :name.',
     'users_send_email_failed' => 'Sending to :name failed. See the email logs.',
     'users_send_email_inactive' => 'No email sent: the account :name is banned or inactive.',
+    // TASK-1753 — « Ajouter au suivi » et « Saisir une note » depuis /admin/users.
+    // Les libellés déjà traduits sont réutilisés tels quels (`crm.follow_member`,
+    // `crm.member_picker.already_followed`, `crm.note_placeholder`,
+    // `crm.show.channel_hint`, `crm.channel.*`) : seul ce qui n'existait pas est ici.
+    'crm_note_action' => 'Add a note',
+    'crm_note_modal_title' => 'Add a note',
+    // Décision N1 (Cyril, 04/11) : la note ajoute la personne au suivi si besoin.
+    // Le pop-up doit DIRE cette écriture implicite — une écriture silencieuse
+    // dans le tenant d'autrui n'est pas acceptable.
+    'crm_note_implicit_follow' => 'This note will add this person to their organization\'s CRM if they are not followed yet.',
+    'crm_note_submit' => 'Add the note',
+    'crm_note_enter_key' => 'Enter',
+    'crm_note_shortcut' => 'to submit',
+    'crm_see_contact' => 'View the contact',
+    // Les trois issues réelles du geste, distinguées : le CDC l'exige parce
+    // qu'une restauration de fiche supprimée serait autrement invisible.
+    'crm_note_added_and_followed' => 'Note added, and this person is now followed in Relations.',
+    'crm_note_added_and_restored' => 'Note added, and their deleted contact has been restored.',
+    'crm_followed_and_restored' => 'Their deleted contact has been restored: the member is followed again.',
     // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
     // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
     // pas un tout-cocher : « Partout » se lisait comme une selection globale.

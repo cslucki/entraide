@@ -864,6 +864,22 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/relations/{organization}/contacts/{contact}/email/{template}', [AdminCrmController::class, 'previewEmail'])->name('crm.contacts.email.preview');
     Route::post('/relations/{organization}/contacts/{contact}/email/{template}', [AdminCrmController::class, 'sendEmail'])->name('crm.contacts.email.send');
     Route::get('/relations/{organization}/contacts/{contact}/emails/{log}', [AdminCrmController::class, 'showEmail'])->name('crm.contacts.emails.show');
+    // TASK-1753 — « Ajouter au suivi » et « Saisir une note » depuis /admin/users.
+    //
+    // `crm.members.follow` repare un OUBLI de TASK-1431 : des 14 actions portees
+    // cote plateforme, celle-ci seule etait restee sans route alors que
+    // `AdminCrmController::followMember()` existait deja par heritage. Elle etait
+    // publique, testee, et INATTEIGNABLE.
+    //
+    // L'Organization reste DANS l'URL, en miroir exact de la route org
+    // (`organization.admin.crm.members.follow`) : `CrmContact` n'a AUCUN scope
+    // global, c'est l'URL qui porte la frontiere de locataire et le controleur
+    // qui la verifie (`abort_unless(…, 404)` — jamais 403, rien a reveler).
+    Route::post('/relations/{organization}/users/{user}/follow', [AdminCrmController::class, 'followMember'])->name('crm.members.follow');
+    // Note sur un MEMBRE (et non sur un Contact deja existant) : decision N1 de
+    // Cyril au §11 du CDC — un seul geste, la note ajoute la personne au suivi si
+    // besoin. Distincte de `crm.contacts.notes.store`, qui exige un CrmContact.
+    Route::post('/relations/{organization}/users/{user}/notes', [AdminCrmController::class, 'storeMemberNote'])->name('crm.members.notes.store');
     Route::get('/organizations/create', [AdminOrganizationController::class, 'create'])->name('organizations.create');
     Route::post('/organizations', [AdminOrganizationController::class, 'store'])->name('organizations.store');
     Route::get('/organizations/{organization}/edit', [AdminOrganizationController::class, 'edit'])->name('organizations.edit');
