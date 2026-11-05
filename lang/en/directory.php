@@ -33,6 +33,10 @@ return [
 
     // TASK-1762 point 11.4 — the "New arrivals" view.
     'latest_button' => 'New arrivals',
+
+    // TASK-1762 point 14 — the fold for more than three Loops.
+    'loops_more' => ':count more Loop|:count more Loops',
+    'loops_reduce' => 'collapse',
     'joined_ago' => 'Joined :when',
 
     // TASK-1762 point 11.2 — the block that loads the next page.

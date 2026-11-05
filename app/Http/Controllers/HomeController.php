@@ -263,7 +263,33 @@ class HomeController extends Controller
             ->with(['loop' => fn ($q) => $q->select('id', 'name', 'slug', 'organization_id', 'status')])
             ->get()
             ->groupBy('user_id')
-            ->map(fn ($lignes) => $lignes->pluck('loop')->filter()->unique('id')->sortBy('name')->values());
+            // TASK-1762 point 14 — les plus REPRESENTATIVES d'abord.
+            //
+            // La carte ne montre que les trois premieres et replie le reste :
+            // l'ordre cesse d'etre cosmetique, il decide de ce qu'on voit. Une
+            // Boucle qu'on ANIME dit davantage de quelqu'un qu'une Boucle dont
+            // il est l'un des trente membres.
+            //
+            // Le nom reste le second critere : sans lui, deux Boucles de meme
+            // role rendraient l'ordre de la base, qui n'est garanti par rien.
+            ->map(function ($lignes) {
+                $rang = ['owner' => 0, 'facilitator' => 1, 'moderator' => 1, 'member' => 2];
+
+                return $lignes
+                    ->filter(fn ($ligne) => $ligne->loop !== null)
+                    ->unique(fn ($ligne) => $ligne->loop->id)
+                    // Une clef COMPOSITE, et non un tableau de fermetures :
+                    // `sortBy()` traite un tableau comme des paires
+                    // [colonne, sens], pas comme une suite de criteres — il ne
+                    // triait donc rien du tout, et la base rendait son ordre.
+                    ->sortBy(fn ($ligne) => sprintf(
+                        '%d-%s',
+                        $rang[$ligne->role] ?? 3,
+                        mb_strtolower((string) $ligne->loop->name),
+                    ))
+                    ->pluck('loop')
+                    ->values();
+            });
 
         return view('members.index', compact('members', 'recherche', 'articleCounts', 'loopsByUser', 'villes', 'ville', 'vueNouveaux'));
     }

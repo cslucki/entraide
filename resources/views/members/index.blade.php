@@ -210,16 +210,11 @@
                     @endif
 
                     @if($boucles->isNotEmpty())
-                    <div class="mt-3 flex flex-wrap gap-1.5">
-                        @foreach($boucles as $boucle)
-                        {{-- Le MEME constructeur d'URL que la carte, garde
-                             `Route::has` comprise : deux fabriques divergeraient. --}}
-                        <a href="{{ $orgParamAnnuaire && Route::has('organization.loops.show')
-                                ? route('organization.loops.show', ['organization' => $orgParamAnnuaire, 'loop' => $boucle->slug ?: $boucle->getKey()])
-                                : route('loops.show', $boucle->slug ?: $boucle->getKey()) }}"
-                           data-member-loop="{{ $boucle->id }}"
-                           class="rounded bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/40">{{ $boucle->name }}</a>
-                        @endforeach
+                    {{-- TASK-1762 point 14 — le MEME partiel que la carte. Les
+                         deux blocs etaient deja identiques au gap pres : les
+                         garder separes aurait fait ecrire le pli deux fois. --}}
+                    <div class="mt-3">
+                        @include('members.partials.boucles-membre', ['gap' => 'gap-1.5'])
                     </div>
                     @endif
                 </div>
@@ -407,17 +402,7 @@
                      controleur. Nommer une Boucle ne revele rien de plus que
                      le catalogue (TASK-1075). --}}
                 @if($boucles->isNotEmpty())
-                <div class="flex flex-wrap gap-1" title="{{ __('directory.loops_title') }}">
-                    @foreach($boucles as $boucle)
-                    <a href="{{ $orgParamAnnuaire && Route::has('organization.loops.show')
-                            ? route('organization.loops.show', ['organization' => $orgParamAnnuaire, 'loop' => $boucle->slug ?: $boucle->getKey()])
-                            : route('loops.show', $boucle->slug ?: $boucle->getKey()) }}"
-                       data-member-loop="{{ $boucle->id }}"
-                       class="px-2 py-0.5 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded text-xs font-medium hover:bg-violet-100 dark:hover:bg-violet-900/40 transition">
-                        {{ $boucle->name }}
-                    </a>
-                    @endforeach
-                </div>
+                @include('members.partials.boucles-membre', ['gap' => 'gap-1'])
                 @endif
 
                 <!-- Top skills -->

@@ -33,6 +33,10 @@ return [
 
     // TASK-1762 point 11.4 — la vue « Nouveaux arrivés ».
     'latest_button' => 'Nouveaux arrivés',
+
+    // TASK-1762 point 14 — le pli des Boucles au-dela de trois.
+    'loops_more' => ':count autre Boucle|:count autres Boucles',
+    'loops_reduce' => 'réduire',
     'joined_ago' => 'A rejoint :when',
 
     // TASK-1762 point 11.2 — le bloc qui charge la suite.
