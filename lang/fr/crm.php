@@ -90,6 +90,10 @@ return [
         'member_followed' => 'Le membre est maintenant suivi dans Relations.',
         'member_already_followed' => 'Ce membre était déjà suivi.',
         'follow_conflict' => 'Impossible d\'ajouter ce membre au suivi : un contact portant cet email est déjà relié à un autre compte.',
+        // TASK-1753 (§3.5) — la cause QUI MANQUAIT. Ce `catch` annonçait un
+        // conflit d'email quelle que soit la panne ; un pipeline entièrement
+        // désactivé à la main envoyait donc chercher au mauvais endroit.
+        'follow_no_active_status' => 'Impossible d\'ajouter ce membre au suivi : cette organisation n\'a aucun statut actif dans Relations. Réactivez-en un, puis réessayez.',
     ],
     // TASK-1417 — CRM-5 : la fiche Contact.
     'show' => [

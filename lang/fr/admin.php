@@ -1,6 +1,55 @@
 <?php
 
 return [
+    // TASK-1752 — l'outil de reprise d'historique, par Organization.
+    'feed_replay_pick_organization' => 'Choisissez une organisation dans le filtre ci-dessus pour générer ou retirer son historique de flux.',
+    'feed_replay_title' => 'Historique du flux — :name',
+    'feed_replay_help' => 'Génère des lignes de flux à partir des faits déjà survenus (Boucles créées, adhésions, propositions, demandes, présentations), datées à leur date réelle. N\'écrit jamais deux fois le même fait.',
+    'feed_replay_generate' => 'Générer l\'historique',
+    'feed_replay_source_loops_created' => 'Boucles créées',
+    'feed_replay_source_memberships' => 'Adhésions à une Boucle',
+    'feed_replay_source_services' => 'Propositions d\'aide',
+    'feed_replay_source_requests' => 'Demandes d\'aide',
+    'feed_replay_source_events' => 'Évènements créés',
+    'feed_replay_source_presentations' => 'Présentations terminées',
+    'feed_replay_total' => ':count ligne(s) à écrire au total.',
+    'feed_replay_nothing' => 'Rien à générer — tout est déjà à jour',
+    'feed_replay_run' => 'Générer :count ligne(s)',
+    'feed_replay_remove' => 'Supprimer des évènements',
+    'feed_replay_remove_warning' => 'Suppression DÉFINITIVE. Les commentaires des lignes retirées sont effacés avec elles ; leurs réactions aussi. Les annonces écrites à la main ne sont jamais concernées.',
+    'feed_replay_remove_confirm' => 'Supprimer définitivement les types cochés ? Leurs commentaires et réactions seront effacés avec eux.',
+    'feed_replay_remove_action' => 'Supprimer les types cochés',
+    'feed_replay_pick_a_type' => 'Cochez au moins un type à supprimer.',
+    'feed_replay_done' => ':count ligne(s) générée(s) pour :name.',
+    'feed_replay_removed' => ':count ligne(s) supprimée(s) pour :name.',
+    // TASK-1752 — la page SuperAdmin du Flux.
+    'feed_nav' => 'Flux',
+    'feed_title' => 'Flux des organisations',
+    'feed_filter_organization' => 'Organisation',
+    'feed_all_organizations' => 'Toutes les organisations',
+    'feed_filter_type' => 'Type',
+    'feed_all_types' => 'Tous les types',
+    'feed_type_announcements' => 'Annonces',
+    'feed_type_events' => 'Évènements automatiques',
+    'feed_filter' => 'Filtrer',
+    'feed_clear' => 'Réinitialiser',
+    'feed_col_content' => 'Contenu',
+    'feed_col_title' => 'Titre',
+    'feed_col_organization' => 'Organisation',
+    'feed_col_author' => 'Auteur',
+    'feed_col_audience' => 'Audience',
+    'feed_col_engagement' => 'Réactions',
+    'feed_col_actions' => 'Actions',
+    'feed_audience_organization' => 'Organisation',
+    'feed_audience_loop' => 'Boucle',
+    'feed_engagement' => ':comments commentaires · :reactions réactions',
+    'feed_save' => 'Enregistrer',
+    'feed_delete' => 'Supprimer',
+    'feed_delete_confirm' => 'Supprimer DÉFINITIVEMENT cette ligne ? Ses commentaires et ses réactions seront effacés avec elle.',
+    'feed_empty' => 'Aucun contenu pour ce filtre.',
+    'feed_updated' => 'Ligne de flux mise à jour.',
+    'feed_deleted' => 'Ligne de flux supprimée définitivement.',
+    'feed_comment_toggled' => 'Visibilité du commentaire modifiée.',
     'dashboard' => 'Administration',
     'organizations' => 'Organisations',
     'users' => 'Utilisateurs',
@@ -78,6 +127,25 @@ return [
     'users_send_email_sent' => '« :template » envoyé à :name.',
     'users_send_email_failed' => 'L\'envoi à :name a échoué. Voir les journaux d\'emails.',
     'users_send_email_inactive' => 'Aucun email envoyé : le compte :name est banni ou inactif.',
+    // TASK-1753 — « Ajouter au suivi » et « Saisir une note » depuis /admin/users.
+    // Les libellés déjà traduits sont réutilisés tels quels (`crm.follow_member`,
+    // `crm.member_picker.already_followed`, `crm.note_placeholder`,
+    // `crm.show.channel_hint`, `crm.channel.*`) : seul ce qui n'existait pas est ici.
+    'crm_note_action' => 'Saisir une note',
+    'crm_note_modal_title' => 'Ajouter une note',
+    // Décision N1 (Cyril, 04/11) : la note ajoute la personne au suivi si besoin.
+    // Le pop-up doit DIRE cette écriture implicite — une écriture silencieuse
+    // dans le tenant d'autrui n'est pas acceptable.
+    'crm_note_implicit_follow' => 'Cette note ajoutera cette personne au suivi de son organisation si elle ne l\'est pas déjà.',
+    'crm_note_submit' => 'Ajouter la note',
+    'crm_note_enter_key' => 'Entrée',
+    'crm_note_shortcut' => 'pour envoyer',
+    'crm_see_contact' => 'Voir la fiche',
+    // Les trois issues réelles du geste, distinguées : le CDC l'exige parce
+    // qu'une restauration de fiche supprimée serait autrement invisible.
+    'crm_note_added_and_followed' => 'Note ajoutée, et cette personne est maintenant suivie dans Relations.',
+    'crm_note_added_and_restored' => 'Note ajoutée, et sa fiche supprimée a été restaurée.',
+    'crm_followed_and_restored' => 'Sa fiche supprimée a été restaurée : le membre est de nouveau suivi.',
     // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
     // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
     // pas un tout-cocher : « Partout » se lisait comme une selection globale.

@@ -77,8 +77,27 @@ return [
     'postal_code' => 'Code postal',
     'website' => 'Site web',
     'linkedin' => 'Profil LinkedIn',
+
+    // TASK-1750 — « Autres liens » : plusieurs URL typees, sous les deux
+    // champs ci-dessus.
+    'links_heading' => 'Autres liens',
+    'links_help' => 'Ajoutez vos autres adresses. Elles apparaitront sur votre profil public.',
+    'links_add' => 'Ajouter un lien',
+    'links_remove' => 'Retirer ce lien',
+    'link_type_instagram' => 'Instagram',
+    'link_type_twitter' => 'Twitter',
+    'link_type_website' => 'Site web',
+    'link_type_blog' => 'Blog',
+    'link_type_app' => 'Application',
     'avatar' => 'Avatar',
     'avatar_help' => 'JPG, PNG ou GIF — max 2 Mo',
+    // TASK-1749 — la fenetre « changer ma photo », ouverte par le crayon de
+    // l'avatar sur le profil public.
+    'avatar_change' => 'Changer ma photo',
+    'avatar_modal_help' => 'Elle apparaît sur votre profil, vos messages et vos Boucles.',
+    'avatar_drop' => 'Glissez une photo ici, ou cliquez pour la choisir',
+    'avatar_save' => 'Enregistrer la photo',
+    'avatar_updated' => 'Votre photo a été mise à jour.',
     'available_label' => 'Je suis disponible pour des échanges',
     'save' => 'Enregistrer',
     'saved' => 'Enregistré.',

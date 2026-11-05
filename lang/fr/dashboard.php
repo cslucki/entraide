@@ -2,6 +2,7 @@
 
 return [
     'title_with_tenant' => 'Tableau de bord - :name',
+    'title_of' => 'Tableau de bord de :name',
     'hello' => 'Bonjour, :name 👋',
     'summary' => 'Voici un résumé de votre activité',
     'available' => 'Disponible',
@@ -97,6 +98,8 @@ return [
     // TASK-1693 bug U — l'etat d'une demande, porte par la pastille.
     'request_open' => 'Ouverte',
     'request_in_progress' => 'Prise en charge',
+    // TASK-1749 — une demande dont la prestation est terminée.
+    'request_fulfilled' => 'Pourvue',
     'ask_help' => 'Demander de l\'aide',
     'my_current_exchanges' => 'Mes échanges en cours',
     'current_exchanges' => 'Échanges en cours',
@@ -105,7 +108,7 @@ return [
     'no_current_exchange' => 'Aucun échange en cours.',
     // TASK-1693 bug T — la card unique qui remplace les deux precedentes.
     // TASK-1694 bug A — card du tableau de bord.
-    'exchanges' => 'Entraide',
+    'exchanges' => 'Entraide en cours',
     'no_exchange' => 'Aucun échange en cours.',
     'my_announcements' => 'Mes annonces',
     'untitled' => 'Sans titre',
@@ -194,6 +197,7 @@ return [
     'create_request' => 'Créer une demande',
     'create_service_link' => 'Créer une proposition',
     'back_to_dashboard' => 'Retour au tableau de bord',
+    'back_to_home' => 'Retour à l\'accueil',
     'back_to_requests' => 'Retour à mes demandes',
     'back_to_services' => 'Retour à mes propositions',
     'edit_service' => 'Modifier',

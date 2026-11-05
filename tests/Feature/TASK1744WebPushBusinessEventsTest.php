@@ -205,6 +205,18 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         // decision a ete prise la-bas — in-app ON et configurable, Web Push
         // declare mais ETEINT (arbitrage MASTER du 03/11), aucun canal email.
         // Cette ligne n'affaiblit pas la garde : elle l'acquitte.
+        //
+        // TASK-1751 : SECONDE fois, et la garde a de nouveau fait son travail.
+        // `transaction.proposal_created` est l'evenement « quelqu'un repond a
+        // votre annonce », decide dans sa propre TASK a partir du CDC
+        // `261104-Notification-entraide.md` : in-app ON et NON configurable
+        // (on ne se desabonne pas d'une decision a prendre), email ON
+        // configurable, Web Push ON configurable — aligne sur
+        // `LOOP_INVITATION` parce que l'evenement est PERSONNEL, et non sur
+        // `LOOP_HELP_REQUEST_CREATED` qui est collectif et reste eteint.
+        //
+        // La garde reste donc ce qu'elle est : un inventaire qui force la
+        // decision a se prendre AILLEURS, dans la TASK qui introduit la cle.
         $attendues = [
             NotificationCatalogue::LOOP_INVITATION,
             NotificationCatalogue::LOOP_MEMBER_ADDED,
@@ -213,6 +225,7 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             NotificationCatalogue::BLOG_COMMENT_CREATED,
             NotificationCatalogue::BLOG_CO_AUTHOR_ADDED,
             NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
+            NotificationCatalogue::TRANSACTION_PROPOSAL_CREATED,
         ];
 
         sort($attendues);

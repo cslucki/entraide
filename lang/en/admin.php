@@ -1,6 +1,55 @@
 <?php
 
 return [
+    // TASK-1752 — the history replay tool, per Organization.
+    'feed_replay_pick_organization' => 'Choose an organization in the filter above to generate or remove its feed history.',
+    'feed_replay_title' => 'Feed history — :name',
+    'feed_replay_help' => 'Generates feed lines from things that already happened (Loops created, memberships, offers, requests, presentations), dated to their real date. Never writes the same fact twice.',
+    'feed_replay_generate' => 'Generate history',
+    'feed_replay_source_loops_created' => 'Loops created',
+    'feed_replay_source_memberships' => 'Loop memberships',
+    'feed_replay_source_services' => 'Offers of help',
+    'feed_replay_source_requests' => 'Requests for help',
+    'feed_replay_source_events' => 'Events created',
+    'feed_replay_source_presentations' => 'Completed presentations',
+    'feed_replay_total' => ':count line(s) to write in total.',
+    'feed_replay_nothing' => 'Nothing to generate — already up to date',
+    'feed_replay_run' => 'Generate :count line(s)',
+    'feed_replay_remove' => 'Remove events',
+    'feed_replay_remove_warning' => 'PERMANENT deletion. Comments on removed lines are erased with them; so are their reactions. Hand-written announcements are never affected.',
+    'feed_replay_remove_confirm' => 'Permanently delete the checked types? Their comments and reactions will be erased with them.',
+    'feed_replay_remove_action' => 'Delete checked types',
+    'feed_replay_pick_a_type' => 'Check at least one type to delete.',
+    'feed_replay_done' => ':count line(s) generated for :name.',
+    'feed_replay_removed' => ':count line(s) deleted for :name.',
+    // TASK-1752 — the SuperAdmin feed page.
+    'feed_nav' => 'Feed',
+    'feed_title' => 'Organization feeds',
+    'feed_filter_organization' => 'Organization',
+    'feed_all_organizations' => 'All organizations',
+    'feed_filter_type' => 'Type',
+    'feed_all_types' => 'All types',
+    'feed_type_announcements' => 'Announcements',
+    'feed_type_events' => 'Automatic events',
+    'feed_filter' => 'Filter',
+    'feed_clear' => 'Reset',
+    'feed_col_content' => 'Content',
+    'feed_col_title' => 'Title',
+    'feed_col_organization' => 'Organization',
+    'feed_col_author' => 'Author',
+    'feed_col_audience' => 'Audience',
+    'feed_col_engagement' => 'Engagement',
+    'feed_col_actions' => 'Actions',
+    'feed_audience_organization' => 'Organization',
+    'feed_audience_loop' => 'Loop',
+    'feed_engagement' => ':comments comments · :reactions reactions',
+    'feed_save' => 'Save',
+    'feed_delete' => 'Delete',
+    'feed_delete_confirm' => 'PERMANENTLY delete this entry? Its comments and reactions will be erased with it.',
+    'feed_empty' => 'No content for this filter.',
+    'feed_updated' => 'Feed entry updated.',
+    'feed_deleted' => 'Feed entry permanently deleted.',
+    'feed_comment_toggled' => 'Comment visibility changed.',
     'dashboard' => 'Administration',
     'organizations' => 'Organizations',
     'users' => 'Users',
@@ -78,6 +127,25 @@ return [
     'users_send_email_sent' => '“:template” sent to :name.',
     'users_send_email_failed' => 'Sending to :name failed. See the email logs.',
     'users_send_email_inactive' => 'No email sent: the account :name is banned or inactive.',
+    // TASK-1753 — « Ajouter au suivi » et « Saisir une note » depuis /admin/users.
+    // Les libellés déjà traduits sont réutilisés tels quels (`crm.follow_member`,
+    // `crm.member_picker.already_followed`, `crm.note_placeholder`,
+    // `crm.show.channel_hint`, `crm.channel.*`) : seul ce qui n'existait pas est ici.
+    'crm_note_action' => 'Add a note',
+    'crm_note_modal_title' => 'Add a note',
+    // Décision N1 (Cyril, 04/11) : la note ajoute la personne au suivi si besoin.
+    // Le pop-up doit DIRE cette écriture implicite — une écriture silencieuse
+    // dans le tenant d'autrui n'est pas acceptable.
+    'crm_note_implicit_follow' => 'This note will add this person to their organization\'s CRM if they are not followed yet.',
+    'crm_note_submit' => 'Add the note',
+    'crm_note_enter_key' => 'Enter',
+    'crm_note_shortcut' => 'to submit',
+    'crm_see_contact' => 'View the contact',
+    // Les trois issues réelles du geste, distinguées : le CDC l'exige parce
+    // qu'une restauration de fiche supprimée serait autrement invisible.
+    'crm_note_added_and_followed' => 'Note added, and this person is now followed in Relations.',
+    'crm_note_added_and_restored' => 'Note added, and their deleted contact has been restored.',
+    'crm_followed_and_restored' => 'Their deleted contact has been restored: the member is followed again.',
     // TASK-1693 bug AW — les surfaces du tableau Organizations x surfaces.
     // TASK-1693 bug AW — « Active » est l'INTERRUPTEUR GENERAL de la ligne,
     // pas un tout-cocher : « Partout » se lisait comme une selection globale.

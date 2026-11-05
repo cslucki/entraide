@@ -8,14 +8,26 @@
                 : route($name, $params);
         };
     @endphp
-    <div class="max-w-7xl mx-auto px-4 py-8">
-        <div class="flex items-center justify-between mb-6">
-            <div class="hidden md:block">
-                <a href="{{ $_dashRoute('dashboard') }}" class="text-sm text-indigo-600 hover:underline">&larr; {{ __('dashboard.back_to_dashboard') }}</a>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ __('dashboard.my_services_page_title') }}</h1>
-            </div>
-            <a href="{{ $_dashRoute('services.create') }}" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">+ {{ __('dashboard.new') }}</a>
-        </div>
+    {{-- TASK-1749 — la barre du haut standard, servie par `x-page-topbar`.
+
+         Ces deux pages portaient un en-tete a elles : lien texte
+         « ← Retour au tableau de bord » surmontant un titre de 24px, A
+         L'INTERIEUR du conteneur. Le reste du produit porte une barre
+         collante en pleine largeur.
+
+         Le bouton « + Nouveau » monte DANS la barre : c'est le geste principal
+         de la page, et le laisser plus bas l'aurait decroche du titre auquel
+         il se rapporte. --}}
+    <x-page-topbar :back="$_dashRoute('dashboard')"
+                   :title="__('dashboard.my_services_page_title')"
+                   :label="__('dashboard.back_to_dashboard')"
+                   data-dashboard-topbar="services">
+        <x-slot:action>
+            <a href="{{ $_dashRoute('services.create') }}" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700">+ {{ __('dashboard.new') }}</a>
+        </x-slot:action>
+    </x-page-topbar>
+
+    <x-page-container width="7xl">
 
         @if($services->isEmpty())
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
@@ -72,5 +84,5 @@
                 {{ $services->links() }}
             </div>
         @endif
-    </div>
+    </x-page-container>
 </x-app-layout>

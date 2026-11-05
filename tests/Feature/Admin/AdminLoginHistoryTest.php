@@ -16,7 +16,9 @@ class AdminLoginHistoryTest extends TestCase
 
     private function makeOrgAdmin(): array
     {
-        $org = Organization::factory()->create(['is_active' => true]);
+        // TASK-1749 — `is_public` explicite : le selecteur de `/login` ne
+        // propose que du public et de l'actif, et le defaut d'usine est FALSE.
+        $org = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         $admin = User::factory()->create(['is_admin' => false, 'organization_id' => $org->id]);
         $org->admin_id = $admin->id;
         $org->save();
@@ -198,7 +200,9 @@ class AdminLoginHistoryTest extends TestCase
 
     public function test_login_creates_log_entry(): void
     {
-        $org = Organization::factory()->create(['is_active' => true]);
+        // TASK-1749 — `is_public` explicite : selection obligatoire sur
+        // `/login`, et le selecteur ne propose que du public et de l'actif.
+        $org = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         $user = User::factory()->create([
             'organization_id' => $org->id,
             'password' => bcrypt('password'),
@@ -207,6 +211,7 @@ class AdminLoginHistoryTest extends TestCase
         $this->post(route('login'), [
             'email' => $user->email,
             'password' => 'password',
+            'organization' => $org->slug,
         ]);
 
         $this->assertDatabaseHas('login_logs', [
@@ -222,6 +227,9 @@ class AdminLoginHistoryTest extends TestCase
             'password' => bcrypt('password'),
         ]);
 
+        // TASK-1749 — un compte DETACHE n'entre plus : la selection est
+        // obligatoire et il n'a rien a nommer. Aucun journal n'est donc ecrit,
+        // ce que ce test mesurait deja.
         $this->post(route('login'), [
             'email' => $user->email,
             'password' => 'password',
@@ -243,6 +251,7 @@ class AdminLoginHistoryTest extends TestCase
         $this->post(route('login'), [
             'email' => $user->email,
             'password' => 'wrong_password',
+            'organization' => $org->slug,
         ]);
 
         $this->assertDatabaseMissing('login_logs', [

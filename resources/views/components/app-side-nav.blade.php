@@ -438,7 +438,25 @@
                             <img src="{{ Auth::user()->avatar_url }}" class="h-10 w-10 rounded-full object-cover" alt="{{ Auth::user()->full_name }}">
                             <div class="min-w-0">
                                 <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ Auth::user()->full_name }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ Auth::user()->points_balance }} pts</p>
+                                {{-- TASK-1749 (demande Cyril, 04/11) — sous le nom, l'Organization
+                                     et non plus le solde de points. Le solde a deja sa porte
+                                     dediee (« Mes points ») ; ce que la ligne doit lever, c'est
+                                     le doute sur le locataire ou l'on se trouve.
+
+                                     `$organizationDuRail` et PAS `currentOrganization()` : c'est
+                                     la precedence deja retenue plus haut pour le selecteur de
+                                     langue et la garde IA — le parametre d'URL s'il existe, sinon
+                                     l'Organization du membre. `currentOrganization()` en premier
+                                     rendrait l'Organization PAR DEFAUT de la plateforme sur une
+                                     page sans prefixe, et ce menu annoncerait « main » a un
+                                     membre d'un autre locataire : exactement le doute qu'on
+                                     cherche a lever.
+
+                                     `truncate` : un nom d'Organization est bien plus long que
+                                     « 100 pts », et cette ligne n'etait pas tronquee. --}}
+                                @if($organizationDuRail?->name)
+                                    <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ $organizationDuRail->name }}</p>
+                                @endif
                             </div>
                         </div>
 

@@ -208,17 +208,120 @@
             </div>
         </div>
 
-        <div x-data="{ preview: null }">
+        {{-- TASK-1750 — « Autres liens », EN DESSOUS des deux champs ci-dessus.
+
+            Les deux champs du haut restent les liens mis en avant : ce bloc les
+            complete, il ne les remplace pas.
+
+            Alpine porte l'ajout et le retrait de lignes. Il EST disponible
+            ici — c'est ce qui fait marcher la modale photo de T1749 — a ne pas
+            confondre avec `layouts/guest`, qui ne l'embarque pas.
+
+            L'index de chaque ligne vient d'un compteur PROPRE (`suivant`) et
+            non de la position dans le tableau : apres un retrait, reutiliser la
+            position ferait porter a deux lignes le meme `name`, et la seconde
+            ecraserait la premiere a l'envoi.
+        --}}
+        <div class="mt-6"
+             x-data="{
+                liens: @js(old('profile_links', $user->liensDeProfil())),
+                suivant: {{ count(old('profile_links', $user->liensDeProfil())) }},
+                ajouter() {
+                    if (this.liens.length >= {{ \App\Support\ProfileLinks::MAXIMUM }}) return;
+                    this.liens.push({ type: '{{ \App\Support\ProfileLinks::clefs()[0] }}', url: '', _k: this.suivant++ });
+                },
+                retirer(i) { this.liens.splice(i, 1); },
+             }"
+             data-profile-links>
+            <div class="flex items-center justify-between">
+                <x-input-label :value="__('profile.links_heading')" />
+                <span class="text-xs text-gray-500 dark:text-gray-400" x-text="liens.length + ' / {{ \App\Support\ProfileLinks::MAXIMUM }}'"></span>
+            </div>
+
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.links_help') }}</p>
+
+            <template x-for="(lien, i) in liens" :key="lien._k ?? i">
+                <div class="mt-2 flex items-start gap-2" data-profile-link-row>
+                    <select :name="'profile_links[' + i + '][type]'" x-model="lien.type"
+                            class="w-40 shrink-0 rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm">
+                        @foreach(\App\Support\ProfileLinks::types() as $clef => $type)
+                            <option value="{{ $clef }}">{{ __($type['label']) }}</option>
+                        @endforeach
+                    </select>
+
+                    <div class="min-w-0 flex-1">
+                        <input type="url" :name="'profile_links[' + i + '][url]'" x-model="lien.url"
+                               placeholder="https://..."
+                               class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm" />
+                    </div>
+
+                    <button type="button" @click="retirer(i)" data-profile-link-remove
+                            class="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+                            :aria-label="'{{ __('profile.links_remove') }}'">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            </template>
+
+            <button type="button" @click="ajouter()" data-profile-link-add
+                    x-show="liens.length < {{ \App\Support\ProfileLinks::MAXIMUM }}"
+                    class="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-sm text-gray-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                {{ __('profile.links_add') }}
+            </button>
+
+            <x-input-error class="mt-2" :messages="$errors->get('profile_links')" />
+            @foreach($errors->get('profile_links.*.url') as $messages)
+                <x-input-error class="mt-2" :messages="$messages" />
+            @endforeach
+        </div>
+
+        {{-- TASK-1749 — meme zone de depot que la fenetre du profil public.
+
+             Le champ gardait la commande NATIVE (« Choisir un fichier / Aucun
+             fichier choisi »), qui ne ressemble a rien d'autre dans ce
+             formulaire et se laisse oublier entre « Profil LinkedIn » et la
+             case de disponibilite. Il reste ici — on modifie bien sa photo en
+             modifiant son profil —, mais il se voit.
+
+             `<label for>` et non un `<div>` au clic simule : le clavier y
+             arrive sans qu'on ait a l'ecrire. L'`<input>` est masque
+             visuellement (`sr-only`), pas `hidden` — un champ `hidden` ne se
+             declenche pas au clavier. --}}
+        <div x-data="{
+                 preview: null,
+                 survol: false,
+                 nom: null,
+                 choisir(fichiers) {
+                     const f = fichiers && fichiers[0];
+                     if (! f) return;
+                     this.nom = f.name;
+                     this.preview = URL.createObjectURL(f);
+                 },
+                 deposer(e) {
+                     this.survol = false;
+                     this.$refs.champ.files = e.dataTransfer.files;
+                     this.choisir(e.dataTransfer.files);
+                 }
+             }">
             <x-input-label for="avatar" :value="__('profile.avatar')" />
             <div class="mt-2 flex items-center gap-4">
                 <img :src="preview ?? '{{ $user->avatar_url }}'"
-                     class="w-14 h-14 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600" alt="">
-                <div class="flex-1">
-                    <input id="avatar" name="avatar" type="file" accept="image/*"
-                        @change="preview = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null"
-                        class="block w-full text-sm text-gray-600 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-300 hover:file:bg-indigo-100">
-                    <p class="text-xs text-gray-400 mt-1">{{ __('profile.avatar_help') }}</p>
-                </div>
+                     class="w-14 h-14 flex-shrink-0 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600" alt="">
+                <label for="avatar"
+                       @dragover.prevent="survol = true"
+                       @dragleave.prevent="survol = false"
+                       @drop.prevent="deposer($event)"
+                       :class="survol
+                           ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                           : 'border-gray-300 dark:border-gray-600 hover:border-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-700/40'"
+                       class="flex-1 cursor-pointer rounded-xl border-2 border-dashed px-4 py-3 text-center transition">
+                    <span class="block text-sm font-semibold text-indigo-600 dark:text-indigo-400">{{ __('profile.avatar_drop') }}</span>
+                    <span class="mt-0.5 block text-xs text-gray-400" x-text="nom ?? '{{ __('profile.avatar_help') }}'"></span>
+                </label>
+                <input id="avatar" name="avatar" type="file" accept="image/*"
+                    x-ref="champ" @change="choisir($event.target.files)"
+                    class="sr-only">
             </div>
             <x-input-error class="mt-2" :messages="$errors->get('avatar')" />
         </div>

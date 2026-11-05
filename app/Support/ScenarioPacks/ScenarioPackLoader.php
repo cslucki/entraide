@@ -5,6 +5,7 @@ namespace App\Support\ScenarioPacks;
 use App\Models\Organization;
 use App\Models\ScenarioPackEntity;
 use App\Models\ScenarioPackLoad;
+use App\Support\Feed\FeedEventEmitter;
 use App\Support\ScenarioPacks\Contracts\ScenarioPackDefinition;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Traits\Localizable;
@@ -62,7 +63,23 @@ class ScenarioPackLoader
             // `setLocale()` pose puis rendu a la main.
             $this->withLocale($organization->locale, function () use ($pack, $organization, $registrar) {
                 try {
-                    $pack->apply($organization, $registrar);
+                    // TASK-1752 — un chargement de pack n'ecrit AUCUNE ligne de
+                    // Flux.
+                    //
+                    // Les packs appellent les primitives canoniques du produit
+                    // (`LoopService::createLoopForOrg()`, `addMemberByUserId()`),
+                    // et c'est delibere. Mais ces primitives emettent desormais
+                    // des evenements, et un pack en produirait des dizaines qui
+                    // ne racontent rien : une sandbox n'a pas d'histoire a
+                    // raconter, elle a un etat a reproduire.
+                    //
+                    // La suspension est posee ICI, au point de passage oblige des
+                    // QUATRE packs, et non dans chacun d'eux — sinon le cinquieme
+                    // pack ecrit un jour l'oublierait, en silence.
+                    //
+                    // `flux:reprendre-historique` reste le SEUL chemin d'ecriture
+                    // en masse, et il est explicite.
+                    FeedEventEmitter::sansEmission(fn () => $pack->apply($organization, $registrar));
                 } catch (Throwable $e) {
                     // La transaction DB s'annule ; le storage, non. Efface ce
                     // que ce passage a ecrit sur des chemins qui etaient

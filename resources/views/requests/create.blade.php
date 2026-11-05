@@ -9,7 +9,12 @@
     $pointHelpContext = ['organization' => $organization->name, 'min' => $pointMin, 'max' => $pointMax];
 @endphp
 
-<x-page :heading="__('marketplace.request_create_heading', ['request' => $requestTerm])" width="3xl">
+{{-- TASK-1749 — `back` fait rendre la barre du haut standard a la place de
+     l'en-tete d'origine. Le retour va au tableau de bord, scope sur
+     l'Organization par `organizationScopedUrl()`. --}}
+<x-page :heading="__('marketplace.request_create_heading', ['request' => $requestTerm])" width="3xl"
+        :back="organizationScopedUrl('dashboard', 'organization.dashboard')"
+        :back-label="__('dashboard.back_to_dashboard')">
 
         <!-- Note pédagogique -->
         <div class="mb-6 flex gap-3 bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-sm text-green-700 dark:text-green-300">
@@ -210,6 +215,23 @@
         <form method="POST" action="{{ $_reqStoreAction }}" enctype="multipart/form-data" data-marketplace-validation
               x-data="{ selectedCategory: '{{ old('category_id', '') }}', files: [] }">
             @csrf
+
+            {{-- TASK-1749 — la demande que l'on relance.
+
+                 Les champs texte sont deja pre-remplis par `flashInput()` cote
+                 controleur. Ce jeton ne sert qu'aux PIECES JOINTES : aucun
+                 navigateur n'autorise a pre-remplir un champ `file`, elles sont
+                 donc copiees a l'enregistrement.
+
+                 Il est revalide dans `store()` — Organization courante, auteur,
+                 statut `closed` — parce qu'un champ cache se modifie. --}}
+            @if(($relance ?? null) !== null)
+                <input type="hidden" name="relancer_de" value="{{ $relance->id }}">
+                <div data-request-relaunch-notice
+                     class="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200">
+                    {{ __('requests.relaunch_notice', ['title' => $relance->title]) }}
+                </div>
+            @endif
 
             <div class="mb-5">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.title') }} {{ __('marketplace.required') }}</label>

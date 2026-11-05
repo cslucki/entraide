@@ -85,7 +85,11 @@ class Theme extends Model
 
         $themes['_meta'] = ['default' => $defaultKey];
 
-        $cachePath = storage_path('app/bouclepro-themes.php');
+        // TASK-1749 — MEME resolution que `bp_themes()`, qui lit ce fichier.
+        // Elle etait ecrite en dur des deux cotes : le banc de test republiait
+        // donc le cache du poste de travail depuis SA base, et les themes
+        // absents des seeders disparaissaient. Voir `bp_themes_cache_path()`.
+        $cachePath = bp_themes_cache_path();
         $export = var_export($themes, true);
         $content = "<?php return {$export};".PHP_EOL;
 

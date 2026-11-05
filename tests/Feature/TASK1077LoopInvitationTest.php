@@ -23,10 +23,14 @@ class TASK1077LoopInvitationTest extends TestCase
 
     private function org(array $overrides = []): Organization
     {
+        // TASK-1749 — `is_public` explicite (defaut d'usine FALSE) : la
+        // selection d'Organization est obligatoire sur `/login`, et le
+        // selecteur ne propose que du public et de l'actif.
         return Organization::factory()->create(array_merge([
             'loops_enabled' => true,
             'members_can_create_loops' => true,
             'loop_mode' => 'multi',
+            'is_public' => true,
         ], $overrides));
     }
 
@@ -465,7 +469,7 @@ class TASK1077LoopInvitationTest extends TestCase
 
         $this->post(route('loop-invitations.prepare', $invitation->token), ['intent' => 'login']);
 
-        $this->post(route('login'), ['email' => 'comeback@example.com', 'password' => 'password-1234'])
+        $this->post(route('login'), ['email' => 'comeback@example.com', 'password' => 'password-1234', 'organization' => $org->slug])
             // TASK-1281 : l'acceptation atterrit dans l'Organization de la Boucle,
             // plus sur la route courte (qui resout l'Organization par defaut).
             ->assertRedirect(route('organization.loops.show', ['organization' => $org->slug, 'loop' => $loop->id]));
@@ -492,7 +496,7 @@ class TASK1077LoopInvitationTest extends TestCase
         $this->withCurrentOrganization($org);
 
         $this->post(route('loop-invitations.prepare', $invitation->token), ['intent' => 'login']);
-        $this->post(route('login'), ['email' => 'someone.else@example.com', 'password' => 'password-1234']);
+        $this->post(route('login'), ['email' => 'someone.else@example.com', 'password' => 'password-1234', 'organization' => $org->slug]);
 
         $this->assertDatabaseMissing('loop_members', ['loop_id' => $loop->id, 'user_id' => $other->id]);
         $this->assertSame(LoopInvitation::STATUS_PENDING, $invitation->fresh()->status);

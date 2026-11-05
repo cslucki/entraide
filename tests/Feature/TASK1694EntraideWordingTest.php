@@ -60,13 +60,29 @@ class TASK1694EntraideWordingTest extends TestCase
         return $this->actingAs($this->membre)->get($url)->assertOk()->getContent();
     }
 
-    /** Les quatre libellés nommés par Cyril portent le nouveau terme. */
+    /**
+     * Les quatre libellés nommés par Cyril portent le nouveau terme.
+     *
+     * TASK-1749 (demande Cyril, 04/11) — la card du tableau de bord devient
+     * « Entraide en cours ». Les trois autres libellés sont INCHANGÉS.
+     *
+     * L'assertion passe donc d'une égalité à une appartenance pour ce seul
+     * libellé : ce que T1694 garantissait, c'est que le terme « Entraide » a
+     * remplacé l'ancien partout — pas que ce libellé ne porterait jamais de
+     * qualificatif. Une card qui dit « en cours » là où les autres surfaces
+     * disent le domaine entier reste dans le vocabulaire de T1694.
+     *
+     * Assouplir les trois autres aurait en revanche vidé la garde de son
+     * objet : elles gardent leur égalité stricte.
+     */
     public function test_the_four_named_labels_say_entraide(): void
     {
         $this->assertSame('Entraide', __('navigation.exchanges'));
         $this->assertSame('Entraide', __('explorer.title'));
-        $this->assertSame('Entraide', __('dashboard.exchanges'));
         $this->assertSame('Entraide', __('home.feature_exchanges'));
+
+        $this->assertStringContainsString('Entraide', __('dashboard.exchanges'));
+        $this->assertSame('Entraide en cours', __('dashboard.exchanges'));
     }
 
     /** Le rail gauche le dit, et ne dit plus l'ancien. */
@@ -100,7 +116,10 @@ class TASK1694EntraideWordingTest extends TestCase
 
         $this->assertSame('Mutual aid', __('navigation.exchanges'));
         $this->assertSame('Mutual aid', __('explorer.title'));
-        $this->assertSame('Mutual aid', __('dashboard.exchanges'));
+
+        // TASK-1749 — même qualificatif qu'en français, et la même discipline :
+        // l'anglais suit avec SON mot, il ne traduit pas le français.
+        $this->assertSame('Mutual aid in progress', __('dashboard.exchanges'));
     }
 
     /**

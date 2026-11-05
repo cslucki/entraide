@@ -12,6 +12,9 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Rules\NomDePersonneAcceptable;
 use App\Services\UserSlugService;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
+use App\Support\ProfileLinks;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use App\Rules\UniqueEmailInOrganization;
@@ -295,6 +298,20 @@ class ProfileController extends Controller
             'postal_code' => ['nullable', 'string', 'max:30'],
             'website' => ['nullable', 'url', 'max:255'],
             'linkedin_url' => ['nullable', 'url', 'max:255'],
+            // TASK-1750 — la liste de liens supplementaires.
+            //
+            // `url:http,https` et pas `url` seul : ces adresses sortent dans
+            // un `href` rendu a des visiteurs, et `url` accepte `javascript:`
+            // comme `data:`. La liste BLANCHE est la seule forme qui tienne —
+            // interdire au cas par cas laisserait passer le schema suivant.
+            //
+            // Les lignes VIDES ne sont pas refusees : le formulaire renvoie
+            // celles que la personne a ajoutees puis abandonnees, et les
+            // refuser transformerait un geste anodin en message d'erreur.
+            // Elles sont ecartees plus bas, a l'assainissement.
+            'profile_links' => ['nullable', 'array', 'max:'.ProfileLinks::MAXIMUM],
+            'profile_links.*.type' => ['nullable', Rule::in(ProfileLinks::clefs())],
+            'profile_links.*.url' => ['nullable', 'url:'.implode(',', ProfileLinks::SCHEMAS), 'max:255'],
             // TASK-1693 bug Z — l'adresse publique. `nullable` : la laisser
             // vide revient a l'adresse technique, ce qui doit rester possible.
             'slug' => ['nullable', 'string', 'max:60'],
@@ -330,14 +347,20 @@ class ProfileController extends Controller
         }
 
         if ($request->hasFile('avatar')) {
-            $file = $request->file('avatar');
-            $filename = time().'_'.$file->getClientOriginalName();
+            $data['avatar'] = $this->stockerAvatar($request->file('avatar'));
+        }
 
-            $img = Image::decode($file);
-            $img->cover(300, 300);
-
-            Storage::disk('public')->put('avatars/'.$filename, (string) $img->encode());
-            $data['avatar'] = 'avatars/'.$filename;
+        // TASK-1750 — on n'enregistre que les lignes COMPLETES, et seulement
+        // si le formulaire a reellement porte le champ.
+        //
+        // Le test sur `has()` compte : le formulaire de profil n'est pas le
+        // seul a passer ici, et un `PUT` qui n'envoie pas `profile_links`
+        // demande de ne RIEN changer — assigner un tableau vide effacerait
+        // silencieusement la liste de la personne.
+        if ($request->has('profile_links')) {
+            $data['profile_links'] = ProfileLinks::assainir($data['profile_links'] ?? null);
+        } else {
+            unset($data['profile_links']);
         }
 
         // Handle booleans (checkboxes are not sent if unchecked)
@@ -359,6 +382,25 @@ class ProfileController extends Controller
         // non sur l'URL — elle est immuable depuis TASK-1726.
         $moiAEnregistrer = $request->user();
 
+        // TASK-1752 — « presentation terminee » est une TRANSITION.
+        //
+        // La definition du produit est unique et tient en une ligne :
+        // `MemberOnboardingSteps::doneFor()` dit `filled($user->bio)`. Il n'y
+        // a pas de colonne `presentation_completed_at`, pas d'etat persiste —
+        // et le docblock de cette classe explique pourquoi : elle existe pour
+        // qu'il n'y ait PAS de seconde verite d'onboarding. En inventer une
+        // ici la contredirait.
+        //
+        // Il faut donc observer le PASSAGE de vide a rempli, et le capturer
+        // AVANT le `save()` : apres, `getOriginal()` a deja bascule et la
+        // transition est invisible.
+        //
+        // Un `PUT /profile` ordinaire — changer son telephone — ne doit rien
+        // emettre. Et vider puis remplir a nouveau sa bio ne doit pas
+        // reannoncer : c'est la contrainte d'unicite qui l'achete, pas ce test.
+        $presentationVientDEtreEcrite = blank($moiAEnregistrer->getOriginal('bio'))
+            && filled($data['bio'] ?? null);
+
         DB::transaction(function () use ($moiAEnregistrer, $data) {
             UserWriteLock::acquire();
 
@@ -374,6 +416,15 @@ class ProfileController extends Controller
 
             $moiAEnregistrer->save();
         });
+
+        if ($presentationVientDEtreEcrite) {
+            rescue(fn () => app(FeedEventEmitter::class)->emettre(
+                FeedEventCatalogue::PRESENTATION_TERMINEE,
+                $moiAEnregistrer,
+                $moiAEnregistrer,
+                (string) $moiAEnregistrer->organization_id,
+            ), report: true);
+        }
 
         // TASK-1693 / bug A — destination DETERMINISTE, jamais `intended()`.
         //
@@ -417,6 +468,73 @@ class ProfileController extends Controller
 
         return redirect()->route('profile.show', ['user' => $moi->profileRouteKey()])
             ->with('status', 'profile-updated');
+    }
+
+    /**
+     * TASK-1749 (demande Cyril, 04/11) — changer sa photo SANS traverser le
+     * formulaire de profil.
+     *
+     * ## Pourquoi une route a elle seule
+     *
+     * Le geste existait deja, mais il coutait quatre etapes : crayon ->
+     * `/profile/edit` -> chercher le champ au milieu d'une vingtaine d'autres
+     * -> « Enregistrer ». Le champ se trouve entre « Profil LinkedIn » et la
+     * case de disponibilite, et rien ne le signale.
+     *
+     * Reemployer `profile.update` n'etait PAS possible, et c'est la raison
+     * concrete de cette methode : ses regles declarent `name`, `email` et
+     * `phone` en `required`. Un envoi qui ne porte qu'une photo y serait
+     * refuse. Il aurait fallu soit assouplir ces trois regles — on y perdrait
+     * la garde de TASK-1712 sur le nom et celle de TASK-1729 sur l'unicite de
+     * l'adresse —, soit faire porter au formulaire modal une copie cachee de
+     * tout le profil, qui ecraserait silencieusement les champs modifies
+     * ailleurs entre-temps. Les deux sont pires que la route dediee.
+     *
+     * ## Ce qu'elle ne touche pas
+     *
+     * Une seule colonne, `avatar`. Ni le nom, ni l'adresse, ni le telephone,
+     * ni le slug : aucun verrou `UserWriteLock` n'est donc requis ici, a la
+     * difference de `update()`, dont la transaction protege l'unicite de
+     * l'adresse. Rien a serialiser quand on n'ecrit qu'un chemin de fichier.
+     *
+     * `required` et non `nullable` : on arrive ici en ayant choisi une photo.
+     * Un envoi vide est une erreur a signaler, pas un no-op silencieux.
+     */
+    public function updateAvatar(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'avatar' => ['required', 'image', 'max:2048'],
+        ]);
+
+        $moi = $request->user();
+        $moi->update(['avatar' => $this->stockerAvatar($request->file('avatar'))]);
+
+        return back()->with('success', __('profile.avatar_updated'));
+    }
+
+    /**
+     * TASK-1749 — le redimensionnement et l'ecriture sur disque, en UN
+     * exemplaire.
+     *
+     * Ce bloc vivait en ligne dans `update()`. Il est desormais appele par
+     * deux chemins : le formulaire complet et la fenetre « changer ma photo ».
+     * Le recopier aurait garanti qu'ils divergent — au premier changement de
+     * dimension, de disque ou de format.
+     *
+     * Le comportement est repris A L'IDENTIQUE, y compris le nom de fichier
+     * prefixe par `time()` : le modifier aurait change l'adresse des avatars
+     * sans que personne ne l'ait demande.
+     */
+    private function stockerAvatar(\Illuminate\Http\UploadedFile $file): string
+    {
+        $filename = time().'_'.$file->getClientOriginalName();
+
+        $img = Image::decode($file);
+        $img->cover(300, 300);
+
+        Storage::disk('public')->put('avatars/'.$filename, (string) $img->encode());
+
+        return 'avatars/'.$filename;
     }
 
     public function toggleAvailability(Request $request): RedirectResponse

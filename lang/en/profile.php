@@ -77,8 +77,27 @@ return [
     'postal_code' => 'Postal code',
     'website' => 'Website',
     'linkedin' => 'LinkedIn profile',
+
+    // TASK-1750 — "Other links": several typed URLs, below the two fields
+    // above.
+    'links_heading' => 'Other links',
+    'links_help' => 'Add your other addresses. They will appear on your public profile.',
+    'links_add' => 'Add a link',
+    'links_remove' => 'Remove this link',
+    'link_type_instagram' => 'Instagram',
+    'link_type_twitter' => 'Twitter',
+    'link_type_website' => 'Website',
+    'link_type_blog' => 'Blog',
+    'link_type_app' => 'App',
     'avatar' => 'Avatar',
     'avatar_help' => 'JPG, PNG or GIF — max 2 MB',
+    // TASK-1749 — the "change my photo" window, opened by the pencil on the
+    // avatar of the public profile.
+    'avatar_change' => 'Change my photo',
+    'avatar_modal_help' => 'It appears on your profile, your messages and your Loops.',
+    'avatar_drop' => 'Drop a photo here, or click to choose one',
+    'avatar_save' => 'Save photo',
+    'avatar_updated' => 'Your photo has been updated.',
     'available_label' => 'I am available for exchanges',
     'save' => 'Save',
     'saved' => 'Saved.',

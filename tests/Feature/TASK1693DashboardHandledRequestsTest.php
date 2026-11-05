@@ -128,14 +128,31 @@ class TASK1693DashboardHandledRequestsTest extends TestCase
      * Son auteur l'a close deliberement : la faire revenir serait defaire son
      * geste.
      */
-    public function test_a_closed_request_stays_out(): void
+    /**
+     * TASK-1749 (demande Cyril, 04/11) — cette garantie est RETOURNEE, et le
+     * test l'est avec elle plutot que supprime.
+     *
+     * Il affirmait qu'une demande `closed` restait HORS de la card, au motif
+     * que « son auteur l'a fermee deliberement ». Le motif ne tient pas pour le
+     * cas principal : `ServiceRequestLifecycle::close()` ferme la demande quand
+     * la PRESTATION EST TERMINEE. Son auteur ne l'a alors pas fermee — elle a
+     * abouti, et elle disparaissait au moment ou elle meritait le plus d'etre
+     * vue.
+     *
+     * Elle est desormais rendue, avec sa pastille « Pourvue ». Le supprimer
+     * aurait laisse un trou : plus rien ne dirait ce qu'une demande close
+     * devient dans cette card. Les gardes de forme — pastille, absence du
+     * bouton « Fermer », ordre — vivent dans
+     * `TASK1749DashboardFulfilledRequestsTest`.
+     */
+    public function test_a_closed_request_is_now_shown_as_fulfilled(): void
     {
         $fermee = $this->demande('closed', 'Demande fermee');
 
-        $this->assertStringNotContainsString(
-            'data-dashboard-request="'.$fermee->id.'"',
-            $this->tableauDeBord(),
-        );
+        $html = $this->tableauDeBord();
+
+        $this->assertStringContainsString('data-dashboard-request="'.$fermee->id.'"', $html);
+        $this->assertStringContainsString('data-dashboard-request-state="closed"', $html);
     }
 
     /**

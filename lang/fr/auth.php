@@ -70,9 +70,18 @@ return [
 
     // TASK-1728 (A3) — le selecteur d'Organization du formulaire global,
     // et la sortie de secours du parcours d'Organization.
-    'login_organization_label' => "Organisation (facultatif)",
-    'login_organization_any' => "— Toutes les organisations —",
-    'login_organization_hint' => "Utile seulement si votre adresse est rattachée à plusieurs organisations. Laissez vide sinon.",
+    // TASK-1749 (décision Cyril, 04/11) — le choix devient OBLIGATOIRE.
+    //
+    // « (facultatif) » et « — Toutes les organisations — » disparaissent :
+    // laisser vide élargissait la recherche à TOUS les locataires, et le libellé
+    // invitait à le faire. La justification de T1728 — « tant que l'email est
+    // globalement unique, la sélection n'a rien à départager » — est périmée
+    // depuis T1729 : l'index est `(organization_id, lower(email))`.
+    //
+    // `login_organization_any` est RETIRÉE plutôt que laissée en place : une
+    // clef qui nomme une option qui n'existe plus finit par être réemployée.
+    'login_organization_label' => "Organisation",
+    'login_organization_hint' => "Choisissez l'organisation à laquelle votre compte appartient.",
     'login_try_global' => "Votre compte appartient à une autre organisation ? Connectez-vous ici.",
 
     // TASK-1730 (A5a) — la bascule entre comptes d'Organizations differentes.
@@ -140,5 +149,21 @@ return [
     'myorg_mail_linked_subject' => 'Vos comptes sont maintenant liés',
     'myorg_mail_linked_line' => 'Votre compte et votre compte de :other sont maintenant liés. Vous pouvez révoquer ce lien à tout moment, depuis l\'un ou l\'autre compte.',
     'myorg_mail_linked_action' => 'Gérer mes comptes liés',
-    'login_switch_organization' => 'Se connecter à une autre organisation :',
+    // TASK-1749 — le sélecteur d'Organization de la porte d'une Organization.
+    //
+    // Libellé DISTINCT de `login_organization_label`, qui dit « (facultatif) » :
+    // ici le choix n'est pas facultatif, il est déjà fait — par l'URL. Réutiliser
+    // la même clef aurait annoncé une option là où il n'y en a pas.
+    //
+    // L'ancienne clef `login_switch_organization` (« Se connecter à une autre
+    // organisation : ») est RETIREE : c'est elle qui se lisait comme la consigne
+    // d'une étape du formulaire, et plus rien ne l'appelle.
+    // Le libellé d'ouverture est NEUTRE et à valeur vide (demande Cyril, 04/11) :
+    // afficher l'organisation courante en option sélectionnée disait « rien à
+    // faire ici » à quelqu'un arrivé par la marque la plus connue alors que son
+    // compte vit ailleurs.
+    'login_organization_nav_label' => 'Organisation',
+    'login_organization_nav_placeholder' => 'Rejoignez votre organisation',
+    'login_organization_nav_hint' => 'Choisissez l\'organisation à laquelle votre compte appartient.',
+    'login_organization_nav_first' => 'Choisissez d\'abord votre organisation : les champs ci-dessous s\'activeront ensuite.',
 ];

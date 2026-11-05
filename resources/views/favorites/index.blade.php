@@ -2,8 +2,21 @@
     @php $_favoritesOrgSlug = request()->route('organization'); @endphp
     <x-slot name="title">{{ __('favorites.title') }}</x-slot>
 
+    {{-- TASK-1749 — la barre du haut standard (`x-page-topbar`).
+
+         Le gros `<h1>` qui vivait DANS le conteneur est retire : la barre
+         porte desormais le titre, et les garder tous les deux l'aurait affiche
+         deux fois sur la meme page. Les paragraphes d'introduction restent —
+         ce sont du CONTENU, pas un titre.
+
+         `organizationScopedUrl()` et pas `route('dashboard')` : le retour doit
+         rester dans le locataire. C'est le defaut que TASK-1697 a corrige neuf
+         fois sur la seule fiche profil. --}}
+    <x-page-topbar :back="organizationScopedUrl('dashboard', 'organization.dashboard')"
+                   :title="__('favorites.title')"
+                   :label="__('dashboard.back_to_dashboard')" />
+
     <x-page-container>
-        <h1 class="mb-8 hidden text-3xl font-bold text-gray-900 dark:text-gray-100 sm:block">{{ __('favorites.title') }}</h1>
         <x-user-dashboard-nav class="mb-8" />
 
         @if($favorites->isEmpty())

@@ -554,6 +554,11 @@ Route::middleware('auth')->group(function () {
     // TASK-1229 : « Voir les offres » — page d'information (aucun paiement).
     Route::get('/profile/ai-usage/offers', [UserAiUsageController::class, 'offers'])->name('profile.ai-offers');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    // TASK-1749 — changer sa photo sans traverser le formulaire complet.
+    // Declaree ici ET dans la forme prefixee par l'Organization, comme ses
+    // voisines : la fenetre s'ouvre depuis le profil public, qui existe sous
+    // les deux formes.
+    Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
     Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
     // TASK-1716 — `profile.destroy` a DISPARU, ici et dans la forme prefixee
     // par l'Organization. Elle appelait `$user->delete()` nu, ce qui levait un
@@ -723,6 +728,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/roadmap/{item}', [AdminRoadmapController::class, 'update'])->name('roadmap.update');
     Route::delete('/roadmap/{item}', [AdminRoadmapController::class, 'destroy'])->name('roadmap.destroy');
 
+    // TASK-1752 — le Flux, toutes Organizations. Meme groupe `['auth','admin']`
+    // que la Roadmap : surface PLATEFORME, jamais un administrateur d'Org.
+    Route::get('/flux', [\App\Http\Controllers\Admin\AdminFeedController::class, 'index'])->name('feed');
+    Route::put('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'update'])->name('feed.update');
+    Route::delete('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'destroy'])->name('feed.destroy');
+    Route::put('/flux/commentaire/{comment}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'basculerCommentaire'])->name('feed.comment.toggle');
+    Route::post('/flux/reprendre-historique', [\App\Http\Controllers\Admin\AdminFeedController::class, 'reprendreHistorique'])->name('feed.replay');
+
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
     Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');
     // TASK-1716 — la reouverture d'un compte ferme par son proprietaire.
@@ -851,6 +864,22 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/relations/{organization}/contacts/{contact}/email/{template}', [AdminCrmController::class, 'previewEmail'])->name('crm.contacts.email.preview');
     Route::post('/relations/{organization}/contacts/{contact}/email/{template}', [AdminCrmController::class, 'sendEmail'])->name('crm.contacts.email.send');
     Route::get('/relations/{organization}/contacts/{contact}/emails/{log}', [AdminCrmController::class, 'showEmail'])->name('crm.contacts.emails.show');
+    // TASK-1753 — « Ajouter au suivi » et « Saisir une note » depuis /admin/users.
+    //
+    // `crm.members.follow` repare un OUBLI de TASK-1431 : des 14 actions portees
+    // cote plateforme, celle-ci seule etait restee sans route alors que
+    // `AdminCrmController::followMember()` existait deja par heritage. Elle etait
+    // publique, testee, et INATTEIGNABLE.
+    //
+    // L'Organization reste DANS l'URL, en miroir exact de la route org
+    // (`organization.admin.crm.members.follow`) : `CrmContact` n'a AUCUN scope
+    // global, c'est l'URL qui porte la frontiere de locataire et le controleur
+    // qui la verifie (`abort_unless(…, 404)` — jamais 403, rien a reveler).
+    Route::post('/relations/{organization}/users/{user}/follow', [AdminCrmController::class, 'followMember'])->name('crm.members.follow');
+    // Note sur un MEMBRE (et non sur un Contact deja existant) : decision N1 de
+    // Cyril au §11 du CDC — un seul geste, la note ajoute la personne au suivi si
+    // besoin. Distincte de `crm.contacts.notes.store`, qui exige un CrmContact.
+    Route::post('/relations/{organization}/users/{user}/notes', [AdminCrmController::class, 'storeMemberNote'])->name('crm.members.notes.store');
     Route::get('/organizations/create', [AdminOrganizationController::class, 'create'])->name('organizations.create');
     Route::post('/organizations', [AdminOrganizationController::class, 'store'])->name('organizations.store');
     Route::get('/organizations/{organization}/edit', [AdminOrganizationController::class, 'edit'])->name('organizations.edit');
@@ -1371,7 +1400,17 @@ $organizationConstraint = '(?!login|register|admin|api|sitemap|search|explorer|p
 
 // Organization-prefixed routes (/org/{organization}/...) — en parallèle des routes legacy /{community}
 Route::prefix('/org/{organization}')
-    ->middleware(['web', 'organization', 'auth', 'organization.member'])
+    // TASK-1749 — `organization.maintenance` est pose JUSTE APRES `organization`,
+    // qui resout le tenant, et AVANT `auth` : une Organization fermee doit le
+    // dire aussi a un visiteur anonyme, pas l'envoyer d'abord se connecter.
+    //
+    // Il reste donc actif sur `organization.home`, la vitrine publique, qui
+    // retire `auth` et `organization.member` mais garde ces deux-la.
+    //
+    // `/org/{slug}/login` n'est PAS dans ce groupe (il vit avec les routes
+    // d'invites) : il reste joignable, sans quoi un SuperAdmin non connecte ne
+    // pourrait pas s'authentifier pour venir voir.
+    ->middleware(['web', 'organization', 'organization.maintenance', 'auth', 'organization.member'])
     ->where(['organization' => $organizationConstraint])
     ->name('organization.')
     ->group(function () {
@@ -1521,8 +1560,20 @@ Route::prefix('/org/{organization}')
               ->withoutMiddleware(['auth', 'organization.member'])
               ->name('mycelium');
 
+        // TASK-1749 — les portes d'AUTHENTIFICATION sortent de la garde de
+        // maintenance, et c'est necessaire.
+        //
+        // Sans cette exemption, une Organization en maintenance rendait 503 sur
+        // sa propre page de connexion : un SuperAdmin non connecte ne pouvait
+        // plus s'authentifier pour venir voir ce qui s'y passe. Mesure du 04/11,
+        // trouvee en eprouvant le correctif — j'avais cru a tort que ce
+        // sous-groupe vivait hors du groupe prefixe.
+        //
+        // Un membre ordinaire peut donc s'y connecter aussi. Il rencontrera la
+        // page de maintenance a la premiere surface qu'il demandera, ce qui dit
+        // la meme chose au bon moment.
         Route::middleware('guest')
-            ->withoutMiddleware(['auth', 'organization.member'])
+            ->withoutMiddleware(['auth', 'organization.member', 'organization.maintenance'])
             ->group(function () {
             Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
             Route::post('/login', [AuthenticatedSessionController::class, 'store']);
@@ -1642,6 +1693,9 @@ Route::prefix('/org/{organization}')
             Route::get('/profile/ai-usage', [UserAiUsageController::class, 'index'])->name('profile.ai-usage');
             Route::get('/profile/ai-usage/offers', [UserAiUsageController::class, 'offers'])->name('profile.ai-offers');
             Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+            // TASK-1749 — jumelle prefixee de `profile.avatar`. Voir la note
+            // sur la forme nue.
+            Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar');
             Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
             // TASK-1716 — voir la note sur la forme nue, ligne ~446 : cette
             // declaration est remplacee par la route globale `account.close`

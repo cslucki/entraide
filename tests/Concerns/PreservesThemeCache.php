@@ -69,8 +69,19 @@ trait PreservesThemeCache
         }
     }
 
+    /**
+     * TASK-1749 — le chemin vient de `bp_themes_cache_path()`, comme pour le
+     * lecteur et l'ecrivain.
+     *
+     * Il etait ecrit en dur ici. Depuis que le banc de test ecrit son propre
+     * fichier (`bouclepro-themes.testing.php`, pour ne plus ecraser le cache du
+     * poste de travail), un chemin fige aurait fait garder a ce trait un
+     * fichier que PLUS AUCUN test ne touche : il aurait continue a passer, sans
+     * rien proteger, et la pollution entre tests que TASK-1705 a fermee serait
+     * revenue en silence.
+     */
     private function cheminDuCacheDeThemes(): string
     {
-        return storage_path('app/bouclepro-themes.php');
+        return bp_themes_cache_path();
     }
 }

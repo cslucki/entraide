@@ -1,0 +1,159 @@
+/* TASK-1749 (demande Cyril, 04/11) — les portes heritent du fond de LEUR vitrine.
+ *
+ * ## Pourquoi un fichier, et pas trois copies dans le layout
+ *
+ * Les pages de connexion, d'inscription et de mot de passe oublie partagent un
+ * seul gabarit (`layouts/guest`). Chaque Organization, elle, a sa vitrine et sa
+ * feuille : `bouclepro-hero.css`, `ofsh-hero.css`, `artscilab-hero.css`. Entrer
+ * sur une porte doit se voir comme on voit sa vitrine.
+ *
+ * Charger la feuille de la vitrine sur la porte n'etait PAS possible : ces trois
+ * feuilles habillent une page entiere — typographie, grilles, cartes en orbite —
+ * et auraient demoli la carte du formulaire. Seul le FOND est repris.
+ *
+ * ## La cle est `homepage_template`, pas le theme
+ *
+ * C'est `OrganizationLandingController` qui choisit la vitrine, sur
+ * `organizations.homepage_template`. Deux Organizations peuvent partager un
+ * theme et servir deux vitrines differentes : indexer sur le theme aurait donne
+ * le mauvais fond au premier cas venu.
+ *
+ * ## Ces valeurs sont COPIEES, et un test interdit la derive
+ *
+ * Chaque bloc ci-dessous reproduit la declaration `background` de la feuille de
+ * vitrine citee. Une copie finit toujours par diverger de son original — sauf
+ * si quelque chose le mesure. `TASK1749DoorBackgroundTest` lit les deux
+ * fichiers et rougit des qu'une valeur n'est plus la meme.
+ */
+
+/* --- bouclepro_hero_v2 — copie de `bouclepro-hero.css`, regle `body.bp-hero-v2`.
+       `--cream` y vaut #FAF7F0 ; resolu ici, la porte n'important pas le reste
+       des variables de la vitrine. ---------------------------------------- */
+body[data-bp-door="bouclepro_hero_v2"] {
+  background: #FAF7F0;
+  background-image: radial-gradient(120% 120% at 88% 8%, #FFFFFF 0%, #FAF7F0 52%);
+}
+
+/* La « ring » de la vitrine — `hero-v2.blade.php`, `<img class="rings-img">`,
+ * fichier `/img/boucle-rings.svg`.
+ *
+ * Demande Cyril, 04/11 : la porte reprend le halo concentrique que la homepage
+ * porte a droite de son orbite. Le degrade creme seul est presque uni ; ce halo
+ * est ce qui rend la page reconnaissable.
+ *
+ * ## Une IMAGE, et donc un pseudo-element
+ *
+ * Les deux autres portes n'avaient que des degrades CSS, posables en
+ * `background`. Ici la vitrine pose une BALISE `<img>` dans son orbite. On ne
+ * peut pas la recopier dans `layouts/guest` sans y ajouter du balisage
+ * decoratif pour une seule Organization : le pseudo-element fait le meme effet
+ * et ne laisse aucune trace dans le HTML partage.
+ *
+ * ## `z-index:-1`, et c'est ce qui le met SOUS le formulaire
+ *
+ * Demande explicite : « ceci en dessous du formulaire ». Un enfant a z-index
+ * negatif se peint AU-DESSUS du fond de son parent mais SOUS le contenu dans le
+ * flux — la carte est donc toujours devant, lisible, sans qu'on ait a lui poser
+ * un z-index. Cela ne tient que parce que `body` ne cree aucun contexte
+ * d'empilement : ni `transform`, ni `opacity`, ni `z-index`. Verifie.
+ *
+ * `fixed` : le halo reste en place quand la carte defile sur un petit ecran,
+ * comme la bande d'OFSH.
+ *
+ * L'opacite descend a .55 : sur la vitrine, le halo est en partie masque par
+ * les quatre cartes de l'orbite. Seul derriere un formulaire, a pleine force,
+ * il reprenait le dessus sur la carte. */
+body[data-bp-door="bouclepro_hero_v2"]::before {
+  content: "";
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: min(118vmin, 980px);
+  aspect-ratio: 640 / 660;
+  transform: translate(-50%, -50%);
+  background: url('/img/boucle-rings.svg') center / contain no-repeat;
+  opacity: .55;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* --- ofsh_hero — copie de `ofsh-hero.css`, SECONDE regle `body` (ligne 166).
+       La premiere, ligne 59, est ecrasee par celle-ci : c'est la surcharge qui
+       gouverne, et c'est donc elle qu'il fallait reprendre. ----------------- */
+body[data-bp-door="ofsh_hero"] {
+  background:
+    radial-gradient(ellipse 40% 50% at 102% 17%, rgba(69,165,242,.18),transparent 80%),
+    radial-gradient(ellipse 37% 46% at 94% 57%, rgba(255,180,57,.15),transparent 80%),
+    radial-gradient(ellipse 38% 60% at -9% 76%,rgba(59,179,134,.09),transparent 78%),
+    linear-gradient(180deg,#FCFEFC 0%,#F9FCFB 54%,#F7FAF8 100%);
+}
+
+/* La bande arc-en-ciel du haut — `ofsh-hero.css`, `body::before` (ligne 174).
+ *
+ * Recette Cyril du 04/11 : le degrade etait deja identique a celui de la
+ * vitrine (le test de non-derive le prouve), mais la porte ne ressemblait
+ * toujours pas a la homepage. C'est cette bande qui manquait : sur un fond
+ * quasi blanc, les trois radiales d'OFSH sont tres discretes, et elle est le
+ * seul element franchement colore de l'identite.
+ *
+ * `fixed` et non `absolute` comme sur la vitrine : la carte de connexion peut
+ * depasser la hauteur de l'ecran sur un petit telephone, et la bande doit
+ * rester visible en defilant plutot que de partir vers le haut. */
+body[data-bp-door="ofsh_hero"]::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 5px;
+  background: linear-gradient(90deg,#0E91E4 0%,#08A7B3 30%,#24A76E 54%,#FFBD43 77%,#F66C3B 100%);
+  z-index: 80;
+  pointer-events: none;
+}
+
+/* --- artscilab_hero — copie de `artscilab-hero.css`, regle `body.bp-artscilab`.
+       Les variables de la vitrine sont resolues : --magenta #FF0A5C,
+       --red #FF3A2E, --orange #FF7A1C, --gold #FFB200. ---------------------- */
+body[data-bp-door="artscilab_hero"] {
+  background: #FF3A2E;
+  background-image:
+    radial-gradient(78% 66% at 90% 6%, rgba(255,200,40,.62), transparent 55%),
+    radial-gradient(72% 82% at 4% 98%, rgba(255,8,92,.66), transparent 56%),
+    linear-gradient(118deg, #FF0A5C 0%, #FF3A2E 38%, #FF7A1C 70%, #FFB200 100%);
+  background-attachment: fixed;
+}
+
+/* Ce fond-la est VIF, et sa vitrine ecrit `color:#fff` pour cette raison.
+ *
+ * Le mobilier de la porte — nom de l'Organization, accroche, pied de page — est
+ * dessine en gris fonce, lisible sur les deux fonds pales mais pas sur celui-ci.
+ * Il passe donc en blanc, avec une ombre portee qui le detache du degrade.
+ *
+ * La CARTE du formulaire n'est pas touchee : elle est blanche, son texte est
+ * fonce, et le contraste y reste celui d'origine.
+ *
+ * Le pied de page est vise par son ELEMENT et non par un marqueur :
+ * `partials/footer` est partage avec les layouts applicatifs, et y poser un
+ * attribut pour le seul besoin d'une porte aurait fait porter a tout le produit
+ * la trace d'un cas particulier. La regle est de toute facon deja bornee au
+ * `body` d'une porte.
+ *
+ * `!important` sur la couleur : le nom porte `text-gray-900` et l'accroche
+ * `text-gray-500`, deux utilitaires Tailwind. Les deux selecteurs sont plus
+ * specifiques, mais la feuille de Tailwind est chargee dans la meme passe et
+ * l'ordre des `@layer` lui donne le dernier mot sur `color`. Mesure du 04/11 :
+ * sans lui, le titre restait noir et l'accroche grise sur le degrade vif. */
+body[data-bp-door="artscilab_hero"] [data-guest-brand] > div > div,
+body[data-bp-door="artscilab_hero"] footer,
+body[data-bp-door="artscilab_hero"] footer * {
+  color: #FFFFFF !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,.28);
+}
+
+/* L'accroche etait `text-gray-500` — la poser en blanc PUR lui ferait perdre sa
+   hierarchie avec le nom, qui est en gras juste au-dessus. Elle garde donc son
+   retrait, exprime en opacite plutot qu'en gris : lisible sur le degrade, et
+   toujours secondaire. */
+body[data-bp-door="artscilab_hero"] [data-guest-brand] > div > div:last-child {
+  opacity: .82;
+}

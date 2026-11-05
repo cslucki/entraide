@@ -80,9 +80,9 @@ return [
 
     // TASK-1728 (A3) — le selecteur d'Organization du formulaire global,
     // et la sortie de secours du parcours d'Organization.
-    'login_organization_label' => "Organization (optional)",
-    'login_organization_any' => "— All organizations —",
-    'login_organization_hint' => "Only needed if your address belongs to several organizations. Leave empty otherwise.",
+    // TASK-1749 — the choice becomes MANDATORY. See the French file.
+    'login_organization_label' => "Organization",
+    'login_organization_hint' => "Pick the organization your account belongs to.",
     'login_try_global' => "Is your account in another organization? Sign in here.",
 
     // TASK-1730 (A5a) — la bascule entre comptes d'Organizations differentes.
@@ -147,5 +147,10 @@ return [
     'myorg_mail_linked_subject' => 'Your accounts are now linked',
     'myorg_mail_linked_line' => 'Your account and your :other account are now linked. You can revoke this link at any time, from either account.',
     'myorg_mail_linked_action' => 'Manage my linked accounts',
-    'login_switch_organization' => 'Sign in to another organisation:',
+    // TASK-1749 — the organisation selector on an organisation's own door.
+    // See the French file for the reasoning.
+    'login_organization_nav_label' => 'Organisation',
+    'login_organization_nav_placeholder' => 'Join your organisation',
+    'login_organization_nav_hint' => 'Pick the organisation your account belongs to.',
+    'login_organization_nav_first' => 'Pick your organisation first — the fields below will then unlock.',
 ];

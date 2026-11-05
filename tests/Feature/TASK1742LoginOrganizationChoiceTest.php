@@ -162,10 +162,13 @@ class TASK1742LoginOrganizationChoiceTest extends TestCase
         }
 
         // Sans choix : refus, et AUCUN mot de passe teste.
+        // TASK-1749 — sans selection, la validation refuse AVANT le resolveur,
+        // et sur `organization`. L'ambiguite reste mesuree la ou elle vit
+        // encore : sur le resolveur et sur l'API, qui n'ont pas ce champ.
         $this->post(route('login'), [
             'email' => 'ambigu@exemple.test',
             'password' => 'mot-de-passe-de-recette',
-        ])->assertSessionHasErrors('email');
+        ])->assertSessionHasErrors('organization');
         $this->assertGuest();
 
         // Avec choix : la bonne porte s'ouvre.

@@ -149,7 +149,19 @@ class UserDataLifecycleRegistry
             ['key' => 'password_reset_tokens', 'type' => 'sql', 'table' => 'password_reset_tokens', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'A password reset token is a live credential tied to one account (TASK-1727): it must die with the account, never outlive it under an email key.'],
             ['key' => 'feed_post_comments', 'type' => 'sql', 'table' => 'feed_post_comments', 'column' => 'user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'Comment authorship is never transferred; retained feed discussion needs anonymized attribution.'],
             ['key' => 'feed_posts_pinned_by_id', 'type' => 'sql', 'table' => 'feed_posts', 'column' => 'pinned_by_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Pin attribution can be detached.'],
-            ['key' => 'feed_posts', 'type' => 'sql', 'table' => 'feed_posts', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run considered feed posts transferable.'],
+            // TASK-1752 — DEUX politiques, parce qu'il y a desormais deux
+            // sortes de lignes dans cette table.
+            //
+            // Une ANNONCE ecrite a la main reste transferable : c'est un texte
+            // qui garde son sens sans son auteur.
+            //
+            // Un EVENEMENT AUTOMATIQUE, non. Transferer « Jean a fini sa
+            // presentation » a quelqu'un d'autre produit une phrase FAUSSE :
+            // la nouvelle personne n'a jamais termine cette presentation. Et
+            // comme le libelle est rendu depuis `$post->user`, l'ecran
+            // afficherait le nom du repreneur. Un fait dont l'acteur disparait
+            // n'a plus de sujet : il se supprime.
+            ['key' => 'feed_posts', 'type' => 'sql', 'table' => 'feed_posts', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Hand-written announcements keep their meaning without their author.'],
             ['key' => 'likes', 'type' => 'sql', 'table' => 'likes', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'Likes are user-specific signals.'],
             ['key' => 'login_logs', 'type' => 'sql', 'table' => 'login_logs', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Login history is security audit data.'],
             // TASK-1635 : DETACH -> DELETE. « Detacher » une adhesion voudrait dire

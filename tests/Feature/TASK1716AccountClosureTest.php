@@ -234,7 +234,7 @@ class TASK1716AccountClosureTest extends TestCase
     {
         $user = $this->dejaFerme();
 
-        $this->post('/login', ['email' => $user->email, 'password' => 'mot-de-passe-valide'])
+        $this->post('/login', ['organization' => $this->organisation->slug, 'email' => $user->email, 'password' => 'mot-de-passe-valide'])
             ->assertSessionHasErrors('email');
 
         $this->assertGuest();
@@ -244,7 +244,7 @@ class TASK1716AccountClosureTest extends TestCase
     {
         $this->dejaFerme(['email' => 'ferme@1716.test']);
 
-        $this->post('/login', ['email' => 'ferme@1716.test', 'password' => 'mot-de-passe-valide'])
+        $this->post('/login', ['organization' => $this->organisation->slug, 'email' => 'ferme@1716.test', 'password' => 'mot-de-passe-valide'])
             ->assertSessionHasErrors(['email' => trans('auth.closed_by_owner')]);
     }
 
@@ -255,7 +255,7 @@ class TASK1716AccountClosureTest extends TestCase
         $banni = $this->membre(['email' => 'banni@1716.test', 'banned_at' => now()]);
         $this->assertFalse($banni->estFermeVolontairement());
 
-        $this->post('/login', ['email' => 'banni@1716.test', 'password' => 'mot-de-passe-valide'])
+        $this->post('/login', ['organization' => $this->organisation->slug, 'email' => 'banni@1716.test', 'password' => 'mot-de-passe-valide'])
             ->assertSessionHasErrors(['email' => trans('auth.deactivated')]);
     }
 

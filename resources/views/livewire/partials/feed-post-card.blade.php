@@ -6,6 +6,10 @@
     $lastComment = $post->comments->first();
     $preview = $post->url_preview;
     $authorName = $post->user?->publicDisplayName() ?? __('feed.member_fallback');
+
+    // TASK-1752 (design A, choix Cyril) — un evenement n'est pas une annonce :
+    // il n'a ni titre, ni image, ni paragraphe. Sa carte est une LIGNE.
+    $estEvenement = \App\Support\Feed\FeedEventCatalogue::connait($post->type);
 @endphp
 
 <article id="feed-post-{{ $post->id }}" class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900" x-data="{ showComments: false, showReactions: false }">
@@ -13,11 +17,12 @@
         <img src="{{ $post->imageUrl() }}" alt="" class="h-56 w-full object-cover sm:h-72">
     @endif
 
-    <div class="space-y-4 p-4 sm:p-5">
+    <div class="{{ $estEvenement ? 'space-y-3 px-4 py-3 sm:px-5' : 'space-y-4 p-4 sm:p-5' }}">
+        @unless($estEvenement)
         <header class="flex items-start justify-between gap-3">
             <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
-                    <span class="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">{{ __('feed.post_badge') }}</span>
+                    <span class="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">{{ \App\Support\Feed\FeedEventCatalogue::connait($post->type) ? __('feed.events.badge') : __('feed.post_badge') }}</span>
                     @if($post->isPinned())
                         <span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">{{ __('feed.pinned_badge') }}</span>
                     @endif
@@ -35,10 +40,76 @@
                 </p>
             </div>
         </header>
+        @endunless
 
-        <div class="prose prose-sm max-w-none text-gray-800 dark:prose-invert dark:text-gray-100">
-            {!! markdown($post->content) !!}
-        </div>
+        {{-- TASK-1752 — DEUX rendus, et la separation n'est pas cosmetique.
+
+            Un evenement automatique ne passe JAMAIS par `markdown()`. Le
+            filtre est sur : `html_input => escape`, donc pas de faille HTML.
+            Mais la syntaxe Markdown reste active, et un nom contenant
+            `[texte](url)` produirait un lien. `{{ }}` echappe, point.
+
+            Le libelle est CALCULE : la langue et le nom sont resolus
+            maintenant, pas au moment ou la ligne a ete ecrite. --}}
+        @if($estEvenement)
+            {{-- La ligne : avatar cliquable, phrase ou le NOM et l'OBJET sont
+                des liens, date courte a droite.
+
+                `ligneHtml()` rend du HTML dont TOUTES les parties dynamiques
+                sont echappees par `e()` — c'est son contrat, ecrit dans son
+                docblock. Jamais `markdown()` ici : la syntaxe resterait
+                active et un nom contenant `[texte](url)` produirait un lien. --}}
+            @php($_slugOrganization = currentOrganization()?->slug)
+            @php($_lienProfil = \App\Support\Feed\FeedEventRenderer::lienProfil($post->user, $_slugOrganization))
+            <div class="flex items-center gap-3" data-feed-event="{{ $post->type }}">
+                @if($_lienProfil)
+                    <a href="{{ $_lienProfil }}" class="shrink-0 rounded-full transition hover:ring-2 hover:ring-indigo-300 dark:hover:ring-indigo-600" aria-label="{{ $authorName }}">
+                        <x-user-avatar :user="$post->user" size="sm" />
+                    </a>
+                @else
+                    <x-user-avatar :user="$post->user" size="sm" class="shrink-0" />
+                @endif
+
+                <p class="min-w-0 flex-1 text-sm leading-snug text-gray-700 dark:text-gray-200">
+                    {!! \App\Support\Feed\FeedEventRenderer::ligneHtml($post, $_slugOrganization) !!}
+                </p>
+
+                <span class="shrink-0 text-xs text-gray-400 dark:text-gray-500">
+                    {{ ($post->published_at ?? $post->created_at)->isoFormat('ll') }}
+                </span>
+            </div>
+
+            {{-- La PIECE JOINTE graphique (demande Cyril) : extrait de
+                presentation + photo pour une personne, couverture pour une
+                Boucle, extrait du texte pour une demande ou une proposition.
+                Resolue a l'affichage comme le libelle — jamais gelee.
+                `ms-10` = la largeur de l'avatar sm + l'ecart, pour que la
+                boite s'aligne sous la phrase. --}}
+            @php($_apercu = \App\Support\Feed\FeedEventRenderer::apercu($post, $_slugOrganization))
+            @if($_apercu !== null)
+                @php($_balise = $_apercu['url'] ? 'a' : 'div')
+                <{{ $_balise }} @if($_apercu['url']) href="{{ $_apercu['url'] }}" @endif
+                    class="ms-10 flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 transition dark:border-gray-800 dark:bg-gray-800/50 {{ $_apercu['url'] ? 'hover:bg-gray-100 dark:hover:bg-gray-800' : '' }}"
+                    data-feed-event-apercu>
+                    @if($_apercu['image'])
+                        <img src="{{ $_apercu['image'] }}" alt=""
+                             class="{{ $_apercu['ronde'] ? 'h-14 w-14 rounded-full' : 'h-14 w-20 rounded-xl' }} shrink-0 object-cover">
+                    @endif
+                    <span class="min-w-0 flex-1">
+                        @if($_apercu['titre'])
+                            <span class="block truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $_apercu['titre'] }}</span>
+                        @endif
+                        @if($_apercu['texte'])
+                            <span class="mt-0.5 block text-xs leading-relaxed text-gray-500 line-clamp-2 dark:text-gray-400">{{ $_apercu['texte'] }}</span>
+                        @endif
+                    </span>
+                </{{ $_balise }}>
+            @endif
+        @elseif(filled($post->content))
+            <div class="prose prose-sm max-w-none text-gray-800 dark:prose-invert dark:text-gray-100">
+                {!! markdown($post->content) !!}
+            </div>
+        @endif
 
         @if(is_array($preview))
             <a href="{{ $preview['url'] ?? '#' }}" target="_blank" rel="noopener noreferrer" class="flex gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-3 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/70 dark:hover:bg-gray-800">

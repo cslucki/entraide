@@ -75,11 +75,27 @@
                 <div class="relative flex-shrink-0 mx-auto sm:mx-0">
                     <img src="{{ $user->avatar_url }}" class="h-20 w-20 sm:h-24 sm:w-24 rounded-full object-cover ring-2 ring-gray-200 dark:ring-gray-600" alt="">
                     @if(auth()->check() && auth()->id() === $user->id)
-                    <a href="{{ $urlOrg('profile.edit') }}" data-profile-edit
-                       class="absolute bottom-0 right-0 w-6 h-6 bg-indigo-600 hover:bg-indigo-700 rounded-full flex items-center justify-center shadow-md transition"
-                       title="{{ __('profile.edit_profile') }}">
+                    {{-- TASK-1749 (demande Cyril, 04/11) — le crayon de l'avatar ouvre
+                         la fenetre « changer ma photo », il ne part plus vers le
+                         formulaire complet.
+
+                         Il PARAISSAIT deja promettre ce geste : il est pose sur la
+                         photo, pas sur la carte. Il menait pourtant vers
+                         `/profile/edit`, ou le champ Avatar se trouve entre « Profil
+                         LinkedIn » et la case de disponibilite, sans rien qui le
+                         signale. Le bouton « Modifier le profil » en haut a droite,
+                         lui, garde sa destination : c'est LUI qui promet le
+                         formulaire.
+
+                         Le crayon devient donc un `<button>` et non plus un lien :
+                         il n'a plus de destination, il ouvre. --}}
+                    <button type="button" x-data @click="$dispatch('open-modal', 'photo-profil')"
+                            data-avatar-edit
+                            class="absolute bottom-0 right-0 w-6 h-6 bg-indigo-600 hover:bg-indigo-700 rounded-full flex items-center justify-center shadow-md transition"
+                            title="{{ __('profile.avatar_change') }}">
                         <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                    </a>
+                        <span class="sr-only">{{ __('profile.avatar_change') }}</span>
+                    </button>
                     @endif
                 </div>
 
@@ -117,8 +133,14 @@
                         @endif
                     </div>
 
+                    {{-- TASK-1750 — les liens declares s'ajoutent a la rangee
+                         existante. La condition les prend en compte, sinon la
+                         rangee resterait invisible pour qui n'aurait rempli que
+                         la liste et aucun des deux champs du haut. --}}
+                    @php($_liensDeclares = $user->liensDeProfil())
+
                     <!-- Links row -->
-                    @if($user->website || $user->linkedin_url)
+                    @if($user->website || $user->linkedin_url || $_liensDeclares)
                     <div class="flex flex-wrap justify-center sm:justify-start gap-3 mt-3">
                         @if($user->website)
                         <a href="{{ $user->website }}" target="_blank" rel="noopener noreferrer"
@@ -134,6 +156,20 @@
                             LinkedIn
                         </a>
                         @endif
+
+                        {{-- Les liens supplementaires. `ProfileLinks::hote()`
+                             retombe sur l'URL complete quand `parse_url()` ne
+                             rend pas d'hote, pour ne jamais afficher une
+                             pastille sans texte. --}}
+                        @foreach($_liensDeclares as $_lien)
+                        <a href="{{ $_lien['url'] }}" target="_blank" rel="noopener noreferrer"
+                           data-profile-link="{{ $_lien['type'] }}"
+                           class="inline-flex items-center gap-1 text-xs hover:underline {{ \App\Support\ProfileLinks::couleur($_lien['type']) }}">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m4.5-4.5l1.5-1.5a4 4 0 015.656 5.656l-3 3a4 4 0 01-5.656 0"/></svg>
+                            <span class="sr-only">{{ \App\Support\ProfileLinks::libelle($_lien['type']) }} —</span>
+                            {{ \App\Support\ProfileLinks::hote($_lien['url']) }}
+                        </a>
+                        @endforeach
                     </div>
                     @endif
 
@@ -487,4 +523,85 @@
 
         </div>
     </x-page-container>
+
+    {{-- TASK-1749 — « changer ma photo », en UN geste.
+
+         Le composant `x-modal` du depot est reemploye tel quel : il porte deja
+         le piege a focus, la fermeture a Echap et au clic exterieur. En ecrire
+         un autre ici aurait donne deux fenetres a maintenir.
+
+         Le formulaire poste sur `profile.avatar`, route dediee : `profile.update`
+         exige `name`, `email` et `phone`, et aurait refuse un envoi qui ne porte
+         qu'une photo (voir la note du controleur).
+
+         La zone de depot n'est PAS un `<div>` avec un `click` simule : c'est un
+         `<label for>`. Le clavier et les lecteurs d'ecran y arrivent donc sans
+         qu'on ait a le prevoir, et l'`<input type=file>` reste la vraie
+         commande — simplement masque visuellement, pas `hidden` (un champ
+         `hidden` ne se declenche pas au clavier). --}}
+    @if(auth()->check() && auth()->id() === $user->id)
+    <x-modal name="photo-profil" :show="false" focusable maxWidth="md">
+        <form method="POST" action="{{ $urlOrg('profile.avatar') }}" enctype="multipart/form-data"
+              x-data="{
+                  apercu: null,
+                  survol: false,
+                  nom: null,
+                  choisir(fichiers) {
+                      const f = fichiers && fichiers[0];
+                      if (! f) return;
+                      this.nom = f.name;
+                      this.apercu = URL.createObjectURL(f);
+                  },
+                  deposer(e) {
+                      this.survol = false;
+                      /* Le champ doit RECEVOIR le fichier depose : sans cela
+                         l'apercu changerait et l'envoi partirait vide. */
+                      this.$refs.champ.files = e.dataTransfer.files;
+                      this.choisir(e.dataTransfer.files);
+                  }
+              }"
+              class="p-6">
+            @csrf
+
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('profile.avatar_change') }}</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('profile.avatar_modal_help') }}</p>
+
+            <div class="mt-5 flex flex-col items-center">
+                <img :src="apercu ?? '{{ $user->avatar_url }}'"
+                     class="h-28 w-28 rounded-full object-cover ring-4 ring-indigo-100 dark:ring-indigo-900/40" alt="">
+
+                <label for="avatar-modal"
+                       @dragover.prevent="survol = true"
+                       @dragleave.prevent="survol = false"
+                       @drop.prevent="deposer($event)"
+                       :class="survol
+                           ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                           : 'border-gray-300 dark:border-gray-600 hover:border-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-700/40'"
+                       class="mt-5 w-full cursor-pointer rounded-xl border-2 border-dashed px-4 py-6 text-center transition">
+                    <svg class="mx-auto h-7 w-7 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5V18a2 2 0 002 2h14a2 2 0 002-2v-1.5M12 15V4m0 0L8 8m4-4l4 4"/></svg>
+                    <span class="mt-2 block text-sm font-semibold text-indigo-600 dark:text-indigo-400">{{ __('profile.avatar_drop') }}</span>
+                    <span class="mt-0.5 block text-xs text-gray-400" x-text="nom ?? '{{ __('profile.avatar_help') }}'"></span>
+                </label>
+
+                <input id="avatar-modal" name="avatar" type="file" accept="image/*" required
+                       x-ref="champ" @change="choisir($event.target.files)"
+                       class="sr-only">
+            </div>
+
+            <x-input-error class="mt-3" :messages="$errors->get('avatar')" />
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" x-on:click="$dispatch('close')"
+                        class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                    {{ __('profile.cancel') }}
+                </button>
+                <button type="submit"
+                        class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="! apercu">
+                    {{ __('profile.avatar_save') }}
+                </button>
+            </div>
+        </form>
+    </x-modal>
+    @endif
 </x-app-layout>
