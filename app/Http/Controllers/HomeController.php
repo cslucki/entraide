@@ -178,6 +178,23 @@ class HomeController extends Controller
                     if ($chercheLaStructure) {
                         $w->orWhere('structure', $like, $motif);
                     }
+
+                    // TASK-1762 point 13 — le CONTENU de la presentation.
+                    //
+                    // « la personne dit dans sa présentation "Je suis auditeur
+                    // Qualiopi", on doit pouvoir le trouver en tapant
+                    // "Qualiopi" ». La recherche cesse d'etre un annuaire de
+                    // noms pour devenir un annuaire de COMPETENCES.
+                    //
+                    // Aucune donnee nouvelle n'est exposee : la bio est deja
+                    // affichee sur la carte et, en entier, dans la vue
+                    // « Nouveaux arrivés ». Chercher dedans ne rend trouvable
+                    // que ce qui etait deja lisible.
+                    //
+                    // Pas de garde d'Organization ici, contrairement a la
+                    // structure : la bio n'a pas de drapeau, elle fait partie
+                    // du profil depuis toujours.
+                    $w->orWhere('bio', $like, $motif);
                 });
             })
             // TASK-1762 point 10 — la comparaison ignore la casse, pour la

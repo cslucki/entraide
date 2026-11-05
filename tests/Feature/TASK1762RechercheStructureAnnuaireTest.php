@@ -121,6 +121,81 @@ class TASK1762RechercheStructureAnnuaireTest extends TestCase
         $this->assertStringNotContainsString(__('directory.search_placeholder_with_structure'), $sans);
     }
 
+    // ── Point 13 — le contenu de la presentation ─────────────────────────────
+
+    /**
+     * 🔴 L'exemple meme de Cyril : « Qualiopi » dans la presentation.
+     *
+     * « la personne dit dans sa présentation "Je suis auditeur Qualiopi", on
+     * doit pouvoir le trouver en tapant "Qualiopi" ».
+     */
+    public function test_on_trouve_par_un_mot_de_la_presentation(): void
+    {
+        $this->membre([
+            'first_name' => 'Camille', 'name' => 'MOREAU',
+            'bio' => 'Je suis auditeur Qualiopi depuis huit ans.',
+        ]);
+        $this->membre(['first_name' => 'Jean', 'name' => 'DUPONT', 'bio' => 'Charpentier.']);
+
+        $html = $this->chercher('Qualiopi');
+
+        $this->assertStringContainsString('Camille MOREAU', $html);
+        $this->assertStringNotContainsString('Jean DUPONT', $html);
+    }
+
+    /** Insensible a la casse, et sur un fragment de mot. */
+    public function test_la_recherche_dans_la_presentation_est_souple(): void
+    {
+        $this->membre([
+            'first_name' => 'Camille', 'name' => 'MOREAU',
+            'bio' => 'Je suis auditeur Qualiopi depuis huit ans.',
+        ]);
+
+        $this->assertStringContainsString('Camille MOREAU', $this->chercher('qualiopi'));
+        $this->assertStringContainsString('Camille MOREAU', $this->chercher('AUDITEUR'));
+        $this->assertStringContainsString('Camille MOREAU', $this->chercher('quali'));
+    }
+
+    /**
+     * 🔴 Elle n'expose RIEN de nouveau.
+     *
+     * La bio est deja affichee sur la carte et, en entier, dans la vue
+     * « Nouveaux arrivés ». Chercher dedans ne rend trouvable que ce qui etait
+     * deja lisible — ce test fixe cette propriete, pour qu'on y repense si la
+     * bio devenait un jour masquable.
+     */
+    public function test_la_presentation_cherchee_est_celle_qui_est_affichee(): void
+    {
+        $this->membre([
+            'first_name' => 'Camille', 'name' => 'MOREAU',
+            'bio' => 'Je suis auditeur Qualiopi depuis huit ans.',
+        ]);
+
+        $html = $this->chercher('Qualiopi');
+
+        $this->assertStringContainsString('Qualiopi', $html, 'Le mot cherche doit etre VISIBLE sur la carte trouvee.');
+    }
+
+    /** Et elle se combine avec les autres criteres au lieu de les remplacer. */
+    public function test_elle_se_combine_avec_le_filtre_de_ville(): void
+    {
+        $this->membre([
+            'first_name' => 'Camille', 'name' => 'MOREAU',
+            'bio' => 'Auditeur Qualiopi.', 'city' => 'Marseille',
+        ]);
+        $this->membre([
+            'first_name' => 'Jean', 'name' => 'DUPONT',
+            'bio' => 'Auditeur Qualiopi.', 'city' => 'Menton',
+        ]);
+
+        $html = $this->actingAs($this->visiteur)
+            ->get(route('organization.members.index', $this->org).'?q=Qualiopi&city=Marseille')
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString('Camille MOREAU', $html);
+        $this->assertStringNotContainsString('Jean DUPONT', $html);
+    }
+
     /** 🔴 La recherche ne traverse pas les Organizations. */
     public function test_la_recherche_ne_traverse_pas_les_organizations(): void
     {

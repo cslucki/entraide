@@ -23,7 +23,7 @@ return [
     'article_label' => 'article|articles',
     'articles_title' => 'Published articles',
     'loops_title' => 'Loops',
-    'search_placeholder' => 'Search by first or last name...',
+    'search_placeholder' => 'Search a name, a keyword...',
 
     // TASK-1762 point 10 — the city filter.
     'city_label' => 'Location',
@@ -39,7 +39,7 @@ return [
     'load_more' => 'See the next member|See the next :count members',
 
     // TASK-1762 point 9 — used when the Organization has opened the Structure field.
-    'search_placeholder_with_structure' => 'Search by first name, last name or organisation...',
+    'search_placeholder_with_structure' => 'Search a name, an organisation, a keyword...',
     'search_label' => 'Search for a member',
     'search_submit' => 'Search',
     'search_clear' => 'Clear',
