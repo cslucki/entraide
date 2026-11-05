@@ -29,6 +29,9 @@ return [
     'city_label' => 'Localisation',
     'city_all' => 'Toutes les localisations',
 
+    // TASK-1762 point 11.2 — le bloc qui charge la suite.
+    'load_more' => 'Voir le membre suivant|Voir les :count membres suivants',
+
     // TASK-1762 point 9 — employé quand l'Organization a ouvert le champ Structure.
     'search_placeholder_with_structure' => 'Rechercher par prénom, nom ou structure…',
     'search_label' => 'Rechercher un membre',

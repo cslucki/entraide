@@ -29,6 +29,9 @@ return [
     'city_label' => 'Location',
     'city_all' => 'All locations',
 
+    // TASK-1762 point 11.2 — the block that loads the next page.
+    'load_more' => 'See the next member|See the next :count members',
+
     // TASK-1762 point 9 — used when the Organization has opened the Structure field.
     'search_placeholder_with_structure' => 'Search by first name, last name or organisation...',
     'search_label' => 'Search for a member',

@@ -60,7 +60,7 @@
              Demande de Cyril : « ainsi cela sera plus aere ». Le palier `xl`
              est simplement retire : au-dela de 1024 px la grille reste a trois
              colonnes, qui s'elargissent au lieu de se multiplier. --}}
-        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5" data-directory-grid>
             @foreach($members as $member)
             {{-- TASK-1693 bug AA — l'annuaire fabriquait son URL A LA MAIN, avec
                  l'identifiant, en contournant `route()`. C'est pour cela qu'il
@@ -122,7 +122,12 @@
                  imbrique corrige en T1668. Le lien vers le profil se resserre
                  donc sur l'avatar et le nom, et le bouton « ecrire » reste
                  pose A COTE, en superposition. --}}
-            <div class="relative h-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition flex flex-col gap-3">
+            <div class="relative h-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition flex flex-col gap-3"
+                 {{-- TASK-1762 — un marqueur sur la CARTE. Mes selecteurs de
+                      recette et de test se rabattaient sur `div.relative`, qui
+                      attrape aussi des conteneurs voisins : trois mesures
+                      fausses en une journee. --}}
+                 data-member-card="{{ $member->id }}">
 
                 <!-- Avatar + nom -->
                 <a href="{{ $profileRoute }}" class="flex items-center gap-3 group">
@@ -292,9 +297,120 @@
             @endforeach
         </div>
 
-        <div class="mt-8">
-            {{ $members->links() }}
+        {{-- TASK-1762 point 11.2 — la suite se charge au defilement.
+
+             `{{ $members->links() }}` est retire : c'etait le gabarit Laravel
+             par defaut, d'ou la phrase anglaise « Showing 1 to 16 of 17
+             results ». Le compte vit deja dans le titre de la page.
+
+             ## Ce n'est PAS du defilement infini
+
+             Arbitrage du 05/11. L'annuaire est une surface de RECHERCHE, pas un
+             flux : on y vient pour trouver quelqu'un, et deux filtres sont la
+             pour cela. Le defilement infini pur rend le pied de page
+             inatteignable, perd la position au retour arriere et coupe l'acces
+             au clavier.
+
+             Ce bloc est donc un VRAI LIEN vers la page suivante — il fonctionne
+             sans JavaScript, au clavier, et le clic droit « ouvrir dans un
+             onglet » marche. Le script ne fait qu'ANTICIPER ce clic quand le
+             lien entre dans l'ecran. --}}
+        @if($members->hasMorePages())
+        <div class="mt-10 flex justify-center" data-directory-more
+             data-next-url="{{ $members->nextPageUrl() }}">
+            <a href="{{ $members->nextPageUrl() }}"
+               class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-600 shadow-sm transition hover:border-[var(--bp-accent)] hover:text-[var(--bp-accent)] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+               data-directory-more-link>
+                <svg class="h-4 w-4 animate-spin opacity-0 transition-opacity" data-directory-more-spinner
+                     fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                </svg>
+                <span data-directory-more-label>{{ trans_choice('directory.load_more', $members->total() - $members->lastItem(), ['count' => $members->total() - $members->lastItem()]) }}</span>
+            </a>
         </div>
+
+        @once
+        @push('scripts')
+        <script>
+            // TASK-1762 point 11.2 — anticiper le clic, pas le remplacer.
+            //
+            // Le bloc reste un lien : sans ce script, il fonctionne. Avec lui,
+            // la page suivante est recuperee et ses cartes ajoutees a la
+            // grille des que le lien approche de l'ecran.
+            //
+            // On relit la page rendue plutot que d'ajouter une route JSON : la
+            // carte d'un membre est du Blade, et la redecrire en JavaScript
+            // aurait garanti que les deux versions divergent.
+            document.addEventListener('DOMContentLoaded', () => {
+                const grille = document.querySelector('[data-directory-grid]');
+                let bloc = document.querySelector('[data-directory-more]');
+
+                if (! grille || ! bloc || ! ('IntersectionObserver' in window)) return;
+
+                let enCours = false;
+
+                const charger = async () => {
+                    if (enCours || ! bloc) return;
+
+                    const url = bloc.dataset.nextUrl;
+                    if (! url) return;
+
+                    enCours = true;
+                    bloc.querySelector('[data-directory-more-spinner]')?.classList.remove('opacity-0');
+
+                    try {
+                        const reponse = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                        if (! reponse.ok) throw new Error(reponse.status);
+
+                        const doc = new DOMParser().parseFromString(await reponse.text(), 'text/html');
+                        const suivantes = doc.querySelector('[data-directory-grid]');
+
+                        if (suivantes) {
+                            grille.append(...suivantes.children);
+                        }
+
+                        // Le bloc de la page suivante remplace le notre, ou
+                        // disparait s'il n'y a plus rien apres.
+                        const blocSuivant = doc.querySelector('[data-directory-more]');
+
+                        if (blocSuivant) {
+                            bloc.replaceWith(blocSuivant);
+                            bloc = blocSuivant;
+                            observateur.observe(bloc);
+                        } else {
+                            bloc.remove();
+                            bloc = null;
+                        }
+                    } catch (e) {
+                        // Echec reseau : on rend au lien son apparence normale.
+                        // Il reste cliquable, et il mene a la vraie page.
+                        bloc?.querySelector('[data-directory-more-spinner]')?.classList.add('opacity-0');
+                    } finally {
+                        enCours = false;
+                    }
+                };
+
+                const observateur = new IntersectionObserver((entrees) => {
+                    if (entrees.some((e) => e.isIntersecting)) charger();
+                }, { rootMargin: '300px' });
+
+                observateur.observe(bloc);
+
+                // Le clic garde son sens : il charge ici plutot que de changer
+                // de page, mais seulement parce que le script est la pour le
+                // faire.
+                document.addEventListener('click', (e) => {
+                    const lien = e.target.closest('[data-directory-more-link]');
+                    if (! lien) return;
+                    e.preventDefault();
+                    charger();
+                });
+            });
+        </script>
+        @endpush
+        @endonce
+        @endif
 
     </x-page-container>
 </x-app-layout>

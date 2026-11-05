@@ -43,6 +43,26 @@ class TASK1762StructureAnnuaireTest extends TestCase
         ], $surcharge));
     }
 
+    /**
+     * Le HTML d'UNE carte, isole par son marqueur.
+     *
+     * Les assertions de position doivent porter sur la carte et non sur le
+     * document : le menu « Localisation » (point 10) liste les villes AVANT la
+     * grille, et une recherche sur la page entiere attrapait l'option du menu.
+     */
+    private function carteDe(string $html, User $membre): string
+    {
+        $debut = strpos($html, 'data-member-card="'.$membre->id.'"');
+
+        $this->assertNotFalse($debut, 'La carte de ce membre est introuvable.');
+
+        $suivante = strpos($html, 'data-member-card=', $debut + 20);
+
+        return $suivante === false
+            ? substr($html, $debut)
+            : substr($html, $debut, $suivante - $debut);
+    }
+
     private function annuaire(): string
     {
         return $this->actingAs($this->visiteur)
@@ -67,17 +87,27 @@ class TASK1762StructureAnnuaireTest extends TestCase
      */
     public function test_elle_est_sous_le_nom_et_avant_la_localisation(): void
     {
-        $this->membre(['structure' => 'SCOP Oxalis', 'city' => 'Marseille', 'country_code' => 'FR']);
+        $membre = $this->membre(['structure' => 'SCOP Oxalis', 'city' => 'Marseille', 'country_code' => 'FR']);
 
         $html = $this->annuaire();
 
-        $positionNom = strpos($html, 'Camille MOREAU');
-        $positionStructure = strpos($html, 'data-member-structure');
-        $positionLieu = strpos($html, 'Marseille');
+        // Les positions sont cherchees dans LA CARTE, et non dans la page.
+        //
+        // Le menu « Localisation » (point 10) a fait rougir ce test a juste
+        // titre : il liste « Marseille » AVANT la grille, et `strpos` sur le
+        // document entier attrapait l'option du menu au lieu de la ligne de la
+        // carte. Une assertion de position sur un document entier est a la
+        // merci de n'importe quel ajout ailleurs dans la page.
+        $carte = $this->carteDe($html, $membre);
+
+        $positionNom = strpos($carte, 'Camille MOREAU');
+        $positionStructure = strpos($carte, 'data-member-structure');
+        $positionLieu = strpos($carte, '📍');
 
         $this->assertNotFalse($positionNom);
         $this->assertNotFalse($positionStructure);
         $this->assertNotFalse($positionLieu, 'La localisation doit etre affichee pour que ce test mesure quelque chose.');
+        $this->assertStringContainsString('📍 Marseille', $carte);
 
         $this->assertLessThan($positionStructure, $positionNom, 'La structure doit suivre le nom.');
         $this->assertLessThan($positionLieu, $positionStructure, 'La structure doit preceder la localisation.');

@@ -178,7 +178,16 @@ class HomeController extends Controller
             ])
             ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->active()->where('organization_id', $organizationId)->with('skills', 'category')])
             ->orderByDesc('created_at')
-            ->paginate(16)
+            // TASK-1762 point 11.2 — 36 et non 16.
+            //
+            // Mesure du 05/11 : les Organizations du parc comptent 6, 9 et 35
+            // membres. A 16 par page, la plus grande se coupait en trois pour
+            // rien. A 36, aucune ne pagine aujourd'hui — et le chargement au
+            // defilement prend le relais le jour ou l'une d'elles grandira.
+            //
+            // 36 et pas 30 : la grille fait trois colonnes (point 11.1), donc
+            // un multiple de trois remplit toujours la derniere rangee.
+            ->paginate(36)
             ->withQueryString();
 
         $identifiants = $members->getCollection()->pluck('id');
