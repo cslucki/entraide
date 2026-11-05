@@ -173,7 +173,9 @@
                 </a>
 
                 <div class="min-w-0 flex-1">
-                    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 pr-10">
+                    {{-- `pr-24` et non `pr-10` : le coin porte desormais jusqu'a DEUX
+                         boutons (Entraide + Messagerie), et le nom passerait dessous. --}}
+                    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 pr-24">
                         <a href="{{ $profileRoute }}"
                            class="text-lg font-bold text-gray-900 transition hover:text-[var(--bp-accent)] dark:text-gray-100">{{ $member->fullName }}</a>
                         <span class="rounded-full bg-[var(--bp-accent)]/10 px-2.5 py-0.5 text-xs font-semibold text-[var(--bp-accent)]"
@@ -211,17 +213,30 @@
                     @endif
                 </div>
 
-                @auth
-                @if(auth()->id() !== $member->id)
-                <a href="{{ $ecrireUrl }}"
-                   data-member-write="{{ $member->id }}"
-                   title="{{ __('directory.write_to', ['name' => $member->fullName]) }}"
-                   aria-label="{{ __('directory.write_to', ['name' => $member->fullName]) }}"
-                   class="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white/90 text-gray-500 shadow-sm transition hover:border-[var(--bp-accent)] hover:text-[var(--bp-accent)] sm:right-7 sm:top-7 dark:border-gray-600 dark:bg-gray-800/90 dark:text-gray-400">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                </a>
-                @endif
-                @endauth
+                {{-- TASK-1762 point 11.5 — les memes icones de rail que sur la
+                     carte : deux presentations, UN langage. --}}
+                <div class="absolute right-5 top-5 flex gap-1.5 sm:right-7 sm:top-7">
+                    @if($lienPropositions)
+                    <a href="{{ $lienPropositions }}"
+                       data-member-entraide="{{ $member->id }}"
+                       title="{{ __('directory.active_services_title') }}"
+                       aria-label="{{ __('directory.active_services_title') }}"
+                       class="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white/90 text-gray-500 shadow-sm transition hover:border-[var(--bp-accent)] hover:text-[var(--bp-accent)] dark:border-gray-600 dark:bg-gray-800/90 dark:text-gray-400">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ config('navigation_icons.exchanges') }}"/></svg>
+                    </a>
+                    @endif
+                    @auth
+                    @if(auth()->id() !== $member->id)
+                    <a href="{{ $ecrireUrl }}"
+                       data-member-write="{{ $member->id }}"
+                       title="{{ __('directory.write_to', ['name' => $member->fullName]) }}"
+                       aria-label="{{ __('directory.write_to', ['name' => $member->fullName]) }}"
+                       class="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white/90 text-gray-500 shadow-sm transition hover:border-[var(--bp-accent)] hover:text-[var(--bp-accent)] dark:border-gray-600 dark:bg-gray-800/90 dark:text-gray-400">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ config('navigation_icons.messaging') }}"/></svg>
+                    </a>
+                    @endif
+                    @endauth
+                </div>
             </article>
             @else
             {{-- TASK-1697 correctif 15 — la carte n'est PLUS un seul lien.
@@ -333,15 +348,29 @@
                     {{-- Un `<a>` sans `href` est valide et se rend en texte :
                          une seule structure pour les deux cas, plutot que le
                          balisage duplique dans un @if/@else. --}}
-                    <a @if($lienPropositions) href="{{ $lienPropositions }}" data-member-services="{{ $member->id }}" class="hover:text-indigo-600 dark:hover:text-indigo-400" @endif
+                    {{-- TASK-1762 point 11.5 — un compteur a ZERO disparait,
+                         individuellement. « 0 proposition · 1 demande » faisait
+                         lire un zero a la moitie des cartes ; chaque compteur ne
+                         s'affiche plus que s'il a quelque chose a compter, et le
+                         separateur ne vient que si les DEUX sont la. Les liens
+                         sont desormais toujours porteurs d'un href : ils ne se
+                         rendent que la ou `$lienPropositions`/`$lienDemandes`
+                         existent, par construction. --}}
+                    @if($member->active_services_count > 0)
+                    <a href="{{ $lienPropositions }}" data-member-services="{{ $member->id }}" class="hover:text-indigo-600 dark:hover:text-indigo-400"
                        title="{{ __('directory.active_services_title') }}">
                         <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $member->active_services_count }}</span> {{ trans_choice('directory.service_label', $member->active_services_count) }}
                     </a>
+                    @endif
+                    @if($member->active_services_count > 0 && $member->open_requests_count > 0)
                     <span class="text-gray-300 dark:text-gray-600">·</span>
-                    <a @if($lienDemandes) href="{{ $lienDemandes }}" data-member-requests="{{ $member->id }}" class="hover:text-indigo-600 dark:hover:text-indigo-400" @endif
+                    @endif
+                    @if($member->open_requests_count > 0)
+                    <a href="{{ $lienDemandes }}" data-member-requests="{{ $member->id }}" class="hover:text-indigo-600 dark:hover:text-indigo-400"
                        title="{{ __('directory.open_requests') }}">
                         <span class="font-semibold text-green-600 dark:text-green-400">{{ $member->open_requests_count }}</span> {{ trans_choice('directory.request_label', $member->open_requests_count) }}
                     </a>
+                    @endif
                     @endif
                     {{-- TASK-1697 correctif 15 — articles publies, et le lien
                          qui y mene. Le produit n'a AUCUNE page « articles de
@@ -392,17 +421,39 @@
                 </div>
                 @endif
 
-            @auth
-            @if(auth()->id() !== $member->id)
-            <a href="{{ $ecrireUrl }}"
-               data-member-write="{{ $member->id }}"
-               title="{{ __('directory.write_to', ['name' => $member->fullName]) }}"
-               aria-label="{{ __('directory.write_to', ['name' => $member->fullName]) }}"
-               class="absolute top-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white/90 text-gray-500 shadow-sm transition hover:border-indigo-300 hover:text-indigo-600 dark:border-gray-600 dark:bg-gray-800/90 dark:text-gray-400 dark:hover:text-indigo-400">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-            </a>
-            @endif
-            @endauth
+            {{-- TASK-1762 point 11.5 — les icones du coin sont celles du RAIL.
+
+                 Deux gestes, deux icones, et les MEMES chemins `d=` que la
+                 navigation de gauche (`config/navigation_icons.php`) : une
+                 icone d'Entraide qui ne ressemble pas a l'entree « Entraide »
+                 du rail n'apprend rien a personne.
+
+                 L'icone Entraide ne vient que s'il y a au moins UNE
+                 proposition : `$lienPropositions` est nul a zero, par
+                 construction, et un bouton vers une liste vide ne promettrait
+                 rien. --}}
+            <div class="absolute top-3 right-3 z-10 flex gap-1.5">
+                @if($lienPropositions)
+                <a href="{{ $lienPropositions }}"
+                   data-member-entraide="{{ $member->id }}"
+                   title="{{ __('directory.active_services_title') }}"
+                   aria-label="{{ __('directory.active_services_title') }}"
+                   class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white/90 text-gray-500 shadow-sm transition hover:border-[var(--bp-accent)] hover:text-[var(--bp-accent)] dark:border-gray-600 dark:bg-gray-800/90 dark:text-gray-400">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ config('navigation_icons.exchanges') }}"/></svg>
+                </a>
+                @endif
+                @auth
+                @if(auth()->id() !== $member->id)
+                <a href="{{ $ecrireUrl }}"
+                   data-member-write="{{ $member->id }}"
+                   title="{{ __('directory.write_to', ['name' => $member->fullName]) }}"
+                   aria-label="{{ __('directory.write_to', ['name' => $member->fullName]) }}"
+                   class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white/90 text-gray-500 shadow-sm transition hover:border-indigo-300 hover:text-indigo-600 dark:border-gray-600 dark:bg-gray-800/90 dark:text-gray-400 dark:hover:text-indigo-400">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ config('navigation_icons.messaging') }}"/></svg>
+                </a>
+                @endif
+                @endauth
+            </div>
             </div>
             @endif
             @endforeach
