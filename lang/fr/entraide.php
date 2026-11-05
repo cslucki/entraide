@@ -40,6 +40,11 @@ return [
         'groupe' => 'Atelier de groupe · :n personnes maximum',
         'champ_label' => 'Pour un groupe ?',
         'champ_aide' => 'Laissez vide pour une aide individuelle. De 2 à 6 personnes pour un atelier — le temps annoncé est réparti entre les participants.',
+        'champ_capacite' => 'Jusqu’à',
+        'champ_plancher' => 'À partir de',
+        'apercu_avant' => 'Chaque participant paiera au maximum',
+        'apercu_apres' => 'minutes — moins s’il y a plus de monde.',
+        'prix_max' => 'au maximum :temps par personne',
         'champ_individuel' => 'Aide individuelle',
     ],
     'csv' => [

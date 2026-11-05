@@ -37,6 +37,11 @@ return [
         'groupe' => 'Group workshop · :n people maximum',
         'champ_label' => 'For a group?',
         'champ_aide' => 'Leave empty for one-to-one help. From 2 to 6 people for a workshop — the announced time is shared between participants.',
+        'champ_capacite' => 'Up to',
+        'champ_plancher' => 'From',
+        'apercu_avant' => 'Each participant will pay at most',
+        'apercu_apres' => 'minutes — less if more people join.',
+        'prix_max' => 'at most :temps per person',
         'champ_individuel' => 'One-to-one help',
     ],
     'csv' => [

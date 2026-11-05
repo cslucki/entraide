@@ -71,6 +71,19 @@
                                     {{ trans_choice('entraide.temps.sous_titre', (int) $service->points_cost, ['points' => (int) $service->points_cost]) }}
                                 @endif
                             </p>
+                            {{-- TASK-1756 §6.3 — sur un ATELIER, le temps annonce est
+                                 celui de la SEANCE ENTIERE : il faut dire ce que chacun
+                                 paiera, sinon le grand nombre se lit comme un prix
+                                 individuel et effraie pour rien. --}}
+                            @if(\App\Support\Entraide\Atelier::estGroupe($service))
+                                <p class="mt-1 text-xs font-medium text-indigo-600 dark:text-indigo-400" data-entraide-atelier-prix>
+                                    {{ __('entraide.atelier.prix_max', ['temps' => \App\Support\Entraide\TempsPartage::duree(\App\Support\Entraide\Atelier::partMaximale($service), offertSiZero: false)]) }}
+                                </p>
+                                <p class="mt-0.5 text-xs {{ \App\Support\Entraide\Atelier::estComplet($service) ? 'text-rose-600 dark:text-rose-400 font-medium' : 'text-gray-500' }}"
+                                   data-entraide-atelier-places>
+                                    {{ trans_choice('entraide.atelier.places_restantes', \App\Support\Entraide\Atelier::placesRestantes($service), ['count' => \App\Support\Entraide\Atelier::placesRestantes($service)]) }}
+                                </p>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -174,7 +187,16 @@
                          l'ecran. `flex-wrap` le fait passer a la ligne
                          au lieu de le pousser dehors ; a partir de `sm`
                          la rangee tient et rien ne change. --}}
-                    @if($echangeActif ?? null)
+                    @if(\App\Support\Entraide\Atelier::estComplet($service) && ! ($echangeActif ?? null))
+                        {{-- Atelier COMPLET : le formulaire disparait. La garde
+                             serveur reste (deux onglets, cache PWA), mais un
+                             bouton qui ne peut que refuser est une promesse
+                             qu'on ne tient pas. --}}
+                        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-800/60 dark:bg-rose-900/20 dark:text-rose-200"
+                             data-entraide-atelier-complet>
+                            {{ __('entraide.atelier.complet') }}
+                        </div>
+                    @elseif($echangeActif ?? null)
                         {{-- TASK-1754 §4.2a (maquette M1-B) — un echange est DEJA
                              en cours : le formulaire cede la place au chemin vers
                              la conversation.

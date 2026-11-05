@@ -241,6 +241,45 @@ class TASK1756AtelierGroupeTest extends TestCase
     }
 
     /**
+     * L'annonce DIT ce que chacun paiera, et combien il reste de places.
+     *
+     * Sur un atelier, le grand nombre est le temps de la SEANCE ENTIERE : sans
+     * cette mention il se lit comme un prix individuel et effraie pour rien.
+     */
+    public function test_l_annonce_dit_le_prix_par_personne_et_les_places(): void
+    {
+        $annonce = $this->atelier(45, capacite: 3, plancher: 3);
+
+        $html = $this->actingAs($this->participant())
+            ->get(route('services.show', $annonce))->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-entraide-atelier-prix', $html);
+        $this->assertStringContainsString('15 min', $html, 'Le prix par personne doit etre affiche.');
+        $this->assertStringContainsString('3 places restantes', $html);
+
+        // Une annonce INDIVIDUELLE ne porte rien de tout cela.
+        $individuelle = $this->atelier(30, capacite: null, plancher: null);
+        $htmlIndiv = $this->actingAs($this->participant())
+            ->get(route('services.show', $individuelle))->assertOk()->getContent();
+        $this->assertStringNotContainsString('data-entraide-atelier-places', $htmlIndiv);
+    }
+
+    /** Atelier COMPLET : le formulaire cede la place a un message clair. */
+    public function test_un_atelier_complet_n_affiche_plus_le_formulaire(): void
+    {
+        $annonce = $this->atelier(60, capacite: 2, plancher: 2);
+        $this->inscrire($annonce, $this->participant());
+        $this->inscrire($annonce, $this->participant());
+
+        $html = $this->actingAs($this->participant())
+            ->get(route('services.show', $annonce))->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-entraide-atelier-complet', $html);
+        $this->assertStringNotContainsString('data-entraide-demander', $html,
+            'Un bouton qui ne peut que refuser est une promesse qu\'on ne tient pas.');
+    }
+
+    /**
      * La part d'un inscrit NE BOUGE PAS quand un autre arrive.
      *
      * C'est la promesse de l'option C — le prix affiche a l'inscription est le
