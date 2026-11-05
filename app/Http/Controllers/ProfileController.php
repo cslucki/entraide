@@ -294,6 +294,14 @@ class ProfileController extends Controller
             // compte, et elle est immuable depuis T1726.
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255',
                 new UniqueEmailInOrganization($request->user()->organization_id, $request->user()->id)],
+            // TASK-1762 point 1 — la structure : societe, association, collectif.
+            //
+            // Une chaine simple, et **pas** `NomDePersonneAcceptable` : cette
+            // regle (T1712) refuse ce qui ne ressemble pas a un nom de
+            // personne, et elle ecarterait « Association Les Amis du Quartier »
+            // ou « SCOP Oxalis ». Le champ decrit justement autre chose qu'une
+            // personne.
+            'structure' => ['nullable', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
             'show_email' => ['nullable', 'boolean'],
             'show_phone' => ['nullable', 'boolean'],

@@ -55,6 +55,10 @@ return [
     'presentation_section' => 'Présentation',
     'presentation_description' => 'Ces informations servent à présenter votre profil aux autres membres.',
     'first_name' => 'Prénom',
+
+    // TASK-1762 point 1 — la structure : société, association, collectif.
+    'structure' => 'Structure',
+    'structure_help' => 'Votre société, association ou collectif, si vous en avez une.',
     'name' => 'Nom',
     'email' => 'Adresse e-mail',
     'phone' => 'Numéro de téléphone *',

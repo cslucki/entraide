@@ -23,6 +23,21 @@
                 <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ __('profile.presentation_description') }}</p>
             </div>
 
+            {{-- TASK-1762 point 1 — la structure, AVANT prenom et nom.
+
+                 Place demandee par Cyril. Sur toute la largeur et non dans la
+                 grille a deux colonnes : un nom de structure est long la ou un
+                 prenom est court, et le mettre en face du prenom l'aurait
+                 tronque des le premier « Association ... ». --}}
+            <div data-profile-structure-field>
+                <x-input-label for="structure" :value="__('profile.structure')" />
+                <x-text-input id="structure" name="structure" type="text" class="mt-1 block w-full"
+                              :value="old('structure', $user->structure)"
+                              maxlength="255" autocomplete="organization" />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.structure_help') }}</p>
+                <x-input-error class="mt-2" :messages="$errors->get('structure')" />
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <x-input-label for="first_name" :value="__('profile.first_name')" />

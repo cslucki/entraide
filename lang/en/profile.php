@@ -55,6 +55,14 @@ return [
     'presentation_section' => 'Introduction',
     'presentation_description' => 'These details introduce your profile to other members.',
     'first_name' => 'First name',
+
+    // TASK-1762 point 1 — the member's company, association or collective.
+    //
+    // NOT "Organisation": that word already names the TENANT everywhere else in
+    // the English interface. Two different things under one label on the same
+    // screen would be a trap.
+    'structure' => 'Company or association',
+    'structure_help' => 'Your company, association or collective, if you have one.',
     'name' => 'Name',
     'email' => 'Email address',
     'phone' => 'Phone number *',

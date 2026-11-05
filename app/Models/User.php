@@ -169,6 +169,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'organization_id',
         'name',
         'first_name',
+        // TASK-1762 point 1 — le nom de la societe ou de l'association.
+        'structure',
         'email',
         'password',
         'avatar',
