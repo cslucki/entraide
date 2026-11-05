@@ -56,8 +56,9 @@
                         } }}">
                         {{ __('messages.status.' . $transaction->status) }}
                     </span>
-                    <span class="text-sm text-gray-600 dark:text-gray-400">
-                        {{ $transaction->points_agreed ?? $transaction->points_proposed }} pts
+                    {{-- TASK-1754 §9.1 — « 30 min · 30 pts » et non « 30 pts ». --}}
+                    <span class="text-sm text-gray-600 dark:text-gray-400" data-entraide-temps>
+                        {{ \App\Support\Entraide\TempsPartage::libelle($transaction->points_agreed ?? $transaction->points_proposed) }}
                     </span>
                 @endif
             </div>

@@ -24,7 +24,7 @@ return [
         'report_details' => 'Détails (optionnel)...',
         'report_submit' => 'Envoyer le signalement',
         'request_this_help' => 'Demander cette aide',
-        'your_balance' => 'Votre solde : :points pts',
+        'your_balance' => 'Votre temps disponible : :temps',
     ],
 
     'edit' => [

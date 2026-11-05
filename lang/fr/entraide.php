@@ -25,5 +25,9 @@ return [
         // Le coup de main offert (§9.3) : jamais « 0 min ».
         'offert' => 'Offert 🎁',
         'solde' => 'Votre temps disponible : :temps',
+        // Le sous-titre du grand nombre : c'est lui qui porte les points, pour
+        // que le TEMPS reste la premiere chose qu'on lit (arbitrage Q8).
+        'sous_titre' => '{1}de temps partagé · :points pt|[2,*]de temps partagé · :points pts',
+        'sous_titre_offert' => 'un coup de main offert',
     ],
 ];

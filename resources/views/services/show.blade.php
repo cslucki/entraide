@@ -49,9 +49,22 @@
                         </form>
                         @endif
                         @endauth
+                        {{-- TASK-1754 §9.1 — le TEMPS en premier, les points en
+                             sous-titre. « 1 point = 1 minute » est la regle du
+                             produit depuis toujours ; l'ecran, lui, affichait un
+                             prix. Arbitrage Q8 de Cyril : double affichage, les
+                             membres gardent leurs reperes. --}}
                         <div class="text-right">
-                            <p class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ $service->points_cost }}</p>
-                            <p class="text-xs text-gray-500">{{ __('services.show.points') }}</p>
+                            <p class="text-3xl font-bold text-indigo-600 dark:text-indigo-400" data-entraide-temps>
+                                {{ \App\Support\Entraide\TempsPartage::duree($service->points_cost) }}
+                            </p>
+                            <p class="text-xs text-gray-500">
+                                @if(\App\Support\Entraide\TempsPartage::estOffert($service->points_cost))
+                                    {{ __('entraide.temps.sous_titre_offert') }}
+                                @else
+                                    {{ trans_choice('entraide.temps.sous_titre', (int) $service->points_cost, ['points' => (int) $service->points_cost]) }}
+                                @endif
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -163,7 +176,7 @@
                         <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
                             {{ __('services.show.request_this_help') }}
                         </button>
-                        <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['points' => auth()->user()->points_balance]) }}</span>
+                        <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['temps' => \App\Support\Entraide\TempsPartage::solde(auth()->user()->points_balance)]) }}</span>
                     </form>
                     @if($errors->any())
                     <p class="text-red-500 text-sm mt-2">{{ $errors->first() }}</p>

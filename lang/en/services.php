@@ -24,7 +24,7 @@ return [
         'report_details' => 'Details (optional)...',
         'report_submit' => 'Send report',
         'request_this_help' => 'Request this help',
-        'your_balance' => 'Your balance: :points pts',
+        'your_balance' => 'Your available time: :temps',
     ],
 
     'edit' => [

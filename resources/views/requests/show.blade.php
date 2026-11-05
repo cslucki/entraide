@@ -33,11 +33,16 @@
                         </span>
                         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ $request->title }}</h1>
                     </div>
+                    {{-- TASK-1754 §9.1 — le TEMPS en premier. La demande porte une
+                         FOURCHETTE : on formate les deux bornes, sinon « 90–120 »
+                         se lirait comme un prix negociable. --}}
                     <div class="text-right ml-4">
-                        <p class="text-2xl font-bold text-green-600 dark:text-green-400">
-                            {{ $request->budget_min }}{{ $request->budget_max ? '–'.$request->budget_max : '+' }}
+                        <p class="text-2xl font-bold text-green-600 dark:text-green-400" data-entraide-temps>
+                            {{ \App\Support\Entraide\TempsPartage::duree($request->budget_min, offertSiZero: false) }}{{ $request->budget_max ? ' – '.\App\Support\Entraide\TempsPartage::duree($request->budget_max, offertSiZero: false) : '+' }}
                         </p>
-                        <p class="text-xs text-gray-500">points</p>
+                        <p class="text-xs text-gray-500">
+                            {{ trans_choice('entraide.temps.sous_titre', (int) ($request->budget_max ?: $request->budget_min), ['points' => $request->budget_max ? $request->budget_min.'–'.$request->budget_max : (int) $request->budget_min]) }}
+                        </p>
                     </div>
                 </div>
 
@@ -136,7 +141,7 @@
                         <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
                             {{ __('requests.show.propose_help') }}
                         </button>
-                        <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['points' => auth()->user()->points_balance]) }}</span>
+                        <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['temps' => \App\Support\Entraide\TempsPartage::solde(auth()->user()->points_balance)]) }}</span>
                     </form>
                     @if($errors->any())
                     <p class="text-red-500 text-sm mt-2">{{ $errors->first() }}</p>
