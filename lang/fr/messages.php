@@ -74,6 +74,27 @@ return [
         'echange_termine' => '🎉 Entraide terminée — :temps partagées.',
         'pas_encore_termine' => 'L’aide n’est pas encore terminée : l’échange est remis en cours.',
     ],
+    // TASK-1755 §5.2 — le SENS de l'aide, sur chaque ligne de la liste.
+    // C'est ce qui manquait le plus : la meme personne apparaissait N fois et
+    // seul un badge les distinguait.
+    'sens' => [
+        'vous_aidez' => 'Vous aidez :prenom · :temps',
+        'on_vous_demande' => ':prenom vous demande de l’aide · :temps',
+        'terminee' => 'Entraide terminée · :temps partagées',
+    ],
+    'etapes' => [
+        'proposition' => 'Proposition',
+        'accord' => 'Accord',
+        'aide' => 'Aide',
+        'confirmation' => 'Confirmation',
+    ],
+    'filtres' => [
+        'tous' => 'Tous',
+        'en_cours' => 'En cours',
+        'discussions' => 'Discussions',
+        'termines' => 'Terminés',
+    ],
+    'autres_actions' => 'Autres actions',
     'review_exchange' => 'Dites merci à :prenom',
     'review_intro' => 'L\'entraide est terminée — :temps partagées. Votre mot de remerciement sera affiché sur son profil.',
     'review_placeholder' => 'Un mot de remerciement (affiché sur son profil)…',

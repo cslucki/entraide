@@ -60,6 +60,25 @@ return [
         'echange_termine' => '🎉 Exchange complete — :temps shared.',
         'pas_encore_termine' => 'The help is not finished yet: the exchange is active again.',
     ],
+    // TASK-1755 §5.2 — le SENS de l'aide, sur chaque ligne de la liste.
+    'sens' => [
+        'vous_aidez' => 'You are helping :prenom · :temps',
+        'on_vous_demande' => ':prenom is asking for your help · :temps',
+        'terminee' => 'Exchange complete · :temps shared',
+    ],
+    'etapes' => [
+        'proposition' => 'Offer',
+        'accord' => 'Agreement',
+        'aide' => 'Help',
+        'confirmation' => 'Confirmation',
+    ],
+    'filtres' => [
+        'tous' => 'All',
+        'en_cours' => 'Active',
+        'discussions' => 'Discussions',
+        'termines' => 'Completed',
+    ],
+    'autres_actions' => 'More actions',
     'review_exchange' => 'Say thank you to :prenom',
     'review_intro' => 'The exchange is complete — :temps shared. Your thank-you note will appear on their profile.',
     'review_placeholder' => 'A word of thanks (shown on their profile)…',
