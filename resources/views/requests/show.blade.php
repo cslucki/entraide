@@ -169,7 +169,8 @@
                             x-show="autreTemps" x-cloak
                             data-entraide-autre-temps-champ
                             class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
-                        <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+                        <button type="submit" data-entraide-demander
+                                class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
                             {{ __('requests.show.propose_help') }} · {{ \App\Support\Entraide\TempsPartage::duree($request->budget_min, offertSiZero: false) }}
                         </button>
                         <button type="button" x-show="! autreTemps" x-on:click="autreTemps = true"
