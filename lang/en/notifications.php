@@ -147,9 +147,14 @@ return [
      * a sentence with a hole fed an empty string would read « Added to the Loop
      * "" ». Both forms coexist; the view picks according to what it has.
      *
-     * These keys are a SUBSET of `keys`: only notifications carrying a Loop.
+     * These keys are a SUBSET of `keys`: only notifications whose OBJECT can be
+     * named. TASK-1757 — that meant "a Loop" until now; a help exchange is
+     * named too (first name, listing title, time), so the placeholder is no
+     * longer always `:loop`.
      */
     'keys_named' => [
+        // TASK-1757 — see the French file for why this surface only.
+        'transaction_proposal_created' => ':prenom replies to your listing “:titre” — :temps',
         'loop_invitation' => 'Invitation to join the :loop Loop',
         'loop_member_added' => 'Added to the :loop Loop',
         'loop_join_request_accepted' => 'Your request to join :loop was accepted',

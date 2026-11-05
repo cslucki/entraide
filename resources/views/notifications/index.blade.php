@@ -58,15 +58,25 @@
     // `Lang::has()` garde donc le pas, sans repli de locale pour la meme raison
     // que ci-dessus — une cle presente dans une seule langue ne doit pas
     // s'afficher dans l'autre.
-    $libelleNomme = function (string $cle, ?string $nomDeBoucle) use ($libelle) {
-        if ($nomDeBoucle === null || $nomDeBoucle === '') {
+    //
+    // TASK-1757 — le sujet peut desormais etre une CHAINE (le nom d'une Boucle,
+    // forme T1725) ou un TABLEAU de parametres (une entraide : prenom, titre,
+    // temps). On normalise ici plutot que d'ajouter une seconde fermeture : les
+    // deux cas partagent exactement la meme discipline de repli, et la
+    // dupliquer, c'est la laisser diverger.
+    $libelleNomme = function (string $cle, string|array|null $sujet) use ($libelle) {
+        $params = is_array($sujet)
+            ? $sujet
+            : (($sujet !== null && $sujet !== '') ? ['loop' => $sujet] : []);
+
+        if ($params === []) {
             return $libelle($cle);
         }
 
         $traduction = 'notifications.keys_named.'.str_replace('.', '_', $cle);
 
         return \Illuminate\Support\Facades\Lang::has($traduction, null, false)
-            ? __($traduction, ['loop' => $nomDeBoucle])
+            ? __($traduction, $params)
             : $libelle($cle);
     };
 

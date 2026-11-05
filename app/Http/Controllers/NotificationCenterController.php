@@ -2,12 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Loop;
+use App\Models\LoopInvitation;
+use App\Models\LoopJoinRequest;
 use App\Models\MemberNotification;
 use App\Models\Organization;
+use App\Models\Transaction;
 use App\Models\User;
+use App\Support\Entraide\TempsPartage;
+use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationTargetResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -103,7 +110,13 @@ class NotificationCenterController extends Controller
 
         return view('notifications.index', [
             // TASK-1725 — le NOM de la Boucle concernee, par notification.
-            'sujets' => $this->sujetsDesBoucles($notifications->getCollection(), (string) $organization->id),
+            // TASK-1725 — le NOM de la Boucle concernee, par notification.
+            // TASK-1757 — et, pour une entraide, le prenom + le titre de
+            // l'annonce. Les deux cartes sont indexees par identifiant de
+            // notification et portent sur des `object_type` DISJOINTS : leur
+            // union ne peut pas se recouvrir.
+            'sujets' => $this->sujetsDesBoucles($notifications->getCollection(), (string) $organization->id)
+                + $this->sujetsDEntraide($notifications->getCollection(), (string) $organization->id, $user),
             'notifications' => $notifications,
             'filtre' => $filtre,
             'nonLues' => $user->unreadNotificationsCount((string) $organization->id),
@@ -116,6 +129,106 @@ class NotificationCenterController extends Controller
             // qu'aucune vue ne pointe dessus.
             'routePreferences' => $slug ? 'organization.notifications.preferences.edit' : 'notifications.preferences.edit',
         ]);
+    }
+
+    /**
+     * TASK-1757 (§7 du CDC entraide) — nommer la personne et l'annonce.
+     *
+     * ## Pourquoi SEULEMENT sur cette surface
+     *
+     * Le §7 demande « titre de notif T1751 avec prenom + annonce ». T1751 avait
+     * garde le titre generique a dessein, et pour une bonne raison, ecrite dans
+     * `lang/fr/notifications.php` : un Push s'affiche sur un ECRAN VERROUILLE
+     * (CDC notifications §6.4/6.5). Nommer la personne et l'annonce y exposerait
+     * l'entraide de quelqu'un a qui passe devant le telephone.
+     *
+     * Les deux CDC ne se contredisent qu'en apparence : les SURFACES sont
+     * differentes. `push_title`, `push_body` et le sujet d'email restent
+     * generiques ; la liste en-appli, elle, n'est lisible qu'une fois
+     * authentifie — c'est la que le fait se raconte en entier.
+     *
+     * ## Meme doctrine que T1725, sans y deroger
+     *
+     * Resolu AU RENDU (le stockage ne retient aucun texte), EN LOT (une requete
+     * pour la page, pas une par ligne), et borne au tenant par un
+     * `where('organization_id')` EXPLICITE apres `withoutGlobalScopes()` —
+     * jamais l'un sans l'autre, lecon de T1755.
+     *
+     * ## Et le lecteur doit etre PARTIE a l'echange
+     *
+     * C'est la version entraide de « le nom n'est montre que si la cible est
+     * joignable ». Une notification peut survivre a bien des changements ; si le
+     * lecteur n'est plus ni l'aidant ni l'aide, la ligne retombe sur la forme
+     * generique, qui reste vraie.
+     *
+     * @param  Collection<int, MemberNotification>  $notifications
+     * @return array<string, array{prenom: string, titre: string, temps: string}>
+     */
+    private function sujetsDEntraide($notifications, string $organizationId, User $lecteur): array
+    {
+        $lignes = $notifications->groupBy('object_type')
+            ->get(NotificationCatalogue::OBJECT_TRANSACTION);
+
+        if ($lignes === null || $lignes->isEmpty()) {
+            return [];
+        }
+
+        $identifiants = $lignes->pluck('object_id')->filter()->unique()->all();
+
+        if ($identifiants === []) {
+            return [];
+        }
+
+        $echanges = Transaction::query()
+            ->withoutGlobalScopes()
+            ->whereIn('id', $identifiants)
+            ->where('organization_id', $organizationId)
+            ->with(['buyer', 'seller', 'service', 'serviceRequest'])
+            ->get()
+            ->keyBy('id');
+
+        $sujets = [];
+
+        foreach ($lignes as $notification) {
+            $echange = $echanges[(string) $notification->object_id] ?? null;
+
+            if ($echange === null) {
+                continue;
+            }
+
+            // Le lecteur doit etre partie a l'echange, et l'echange doit porter
+            // une annonce : une discussion directe n'a ni titre ni temps a dire.
+            if (! $echange->estLAidant($lecteur) && ! $echange->estLAide($lecteur)) {
+                continue;
+            }
+
+            if ($echange->isDirectConversation()) {
+                continue;
+            }
+
+            // Celui qui a PROPOSE, c'est-a-dire celui qui n'a pas recu cette
+            // notification. `proposerId()` et non une deduction sur buyer/seller :
+            // le sens s'inverse entre une proposition et une demande (T1693 bug S).
+            $proposant = $echange->proposerId() === $echange->buyer_id
+                ? $echange->buyer
+                : $echange->seller;
+
+            $prenom = $proposant?->first_name ?: ($proposant?->name ?: null);
+
+            if ($prenom === null || $prenom === '') {
+                continue;
+            }
+
+            $sujets[(string) $notification->id] = [
+                'prenom' => $prenom,
+                'titre' => $echange->subject,
+                'temps' => TempsPartage::libelle(
+                    $echange->points_agreed ?? $echange->points_proposed
+                ),
+            ];
+        }
+
+        return $sujets;
     }
 
     /**
@@ -177,8 +290,8 @@ class NotificationCenterController extends Controller
      * la Boucle est reverifiee quand meme, parce qu'une garde qui ne s'applique
      * qu'une fois n'est pas une garde.
      *
-     * @param  \Illuminate\Support\Collection<int, MemberNotification>  $notifications
-     * @return array<string, string>  identifiant de notification => nom de la Boucle
+     * @param  Collection<int, MemberNotification>  $notifications
+     * @return array<string, string> identifiant de notification => nom de la Boucle
      */
     private function sujetsDesBoucles($notifications, string $organizationId): array
     {
@@ -189,7 +302,7 @@ class NotificationCenterController extends Controller
 
         $parType = $notifications->groupBy('object_type');
 
-        $direct = $parType->get(\App\Support\Notifications\NotificationCatalogue::OBJECT_LOOP);
+        $direct = $parType->get(NotificationCatalogue::OBJECT_LOOP);
         foreach ($direct ?? [] as $notification) {
             if ($notification->object_id !== null) {
                 $boucleParNotification[(string) $notification->id] = (string) $notification->object_id;
@@ -197,8 +310,8 @@ class NotificationCenterController extends Controller
         }
 
         $indirects = [
-            \App\Support\Notifications\NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST => \App\Models\LoopJoinRequest::class,
-            \App\Support\Notifications\NotificationCatalogue::OBJECT_LOOP_INVITATION => \App\Models\LoopInvitation::class,
+            NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST => LoopJoinRequest::class,
+            NotificationCatalogue::OBJECT_LOOP_INVITATION => LoopInvitation::class,
         ];
 
         foreach ($indirects as $type => $modele) {
@@ -233,7 +346,7 @@ class NotificationCenterController extends Controller
             return [];
         }
 
-        $noms = \App\Models\Loop::query()
+        $noms = Loop::query()
             ->withoutGlobalScopes()
             ->whereIn('id', array_values(array_unique($boucleParNotification)))
             ->where('organization_id', $organizationId)

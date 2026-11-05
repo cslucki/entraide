@@ -165,9 +165,18 @@ return [
      * choisit selon ce qu'elle a. `keys` reste la forme sans objet.
      *
      * Les cles ici sont un SOUS-ENSEMBLE de `keys` : seules les notifications
-     * qui portent une Boucle en ont une.
+     * dont l'OBJET peut etre nomme en ont une.
+     *
+     * TASK-1757 — ce n'etait « une Boucle » que jusqu'ici. Une entraide se
+     * nomme aussi (prenom, titre de l'annonce, temps), et le parametre n'est
+     * donc plus toujours `:loop` : la vue passe la carte de parametres que le
+     * controleur a pu resoudre, quelle qu'elle soit.
      */
     'keys_named' => [
+        // TASK-1757 — nommee UNIQUEMENT ici : la liste en-appli est derriere
+        // l'authentification. `push_title` et le sujet d'email restent
+        // generiques (ecran verrouille, apercu de boite mail).
+        'transaction_proposal_created' => ':prenom répond à votre annonce « :titre » — :temps',
         'loop_invitation' => 'Invitation à rejoindre la Boucle « :loop »',
         'loop_member_added' => 'Ajout à la Boucle « :loop »',
         'loop_join_request_accepted' => 'Votre demande d’adhésion à « :loop » a été acceptée',
