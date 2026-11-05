@@ -195,7 +195,7 @@ class Transaction extends Model
     public function getSubjectAttribute(): string
     {
         if ($this->isDirectConversation()) {
-            return 'Conversation directe';
+            return __('messages.direct_conversation');
         }
 
         if ($this->service) {
@@ -205,20 +205,33 @@ class Transaction extends Model
             return $this->serviceRequest->title;
         }
 
-        return 'Échange #'.substr($this->id, 0, 8);
+        return __('messages.exchange_subject', ['id' => substr($this->id, 0, 8)]);
     }
 
+    /**
+     * TASK-1754 (§3.4, obstacle n°1) — le libelle passe par le systeme de langue.
+     *
+     * ## Le defaut repare
+     *
+     * Ces libelles etaient ecrits EN FRANCAIS, EN DUR, dans le modele — et ils
+     * doublonnaient `lang/{fr,en}/messages.php`, qui disait deja la meme chose.
+     * Deux consequences, toutes deux constatees :
+     *
+     * 1. le renommage du lexique d'entraide aurait du etre fait DEUX FOIS, et
+     *    la seconde aurait ete oubliee ;
+     * 2. l'anglais etait casse la ou cet attribut sert : un anglophone lisait
+     *    « En attente » dans son export CSV et dans ses notifications.
+     *
+     * Le `default` rend le statut brut : une valeur hors des six du `CHECK` de
+     * PostgreSQL ne doit pas devenir une clef de traduction introuvable, qui
+     * s'afficherait « messages.status.xxx » a l'ecran.
+     */
     public function getStatusLabelAttribute(): string
     {
-        return match ($this->status) {
-            'pending' => 'En attente',
-            'accepted' => 'Accepté',
-            'buyer_done' => 'Terminé (acheteur)',
-            'completed' => 'Complété',
-            'refused' => 'Refusé',
-            'cancelled' => 'Annulé',
-            default => $this->status,
-        };
+        $clef = 'messages.status.'.$this->status;
+        $libelle = __($clef);
+
+        return $libelle === $clef ? $this->status : $libelle;
     }
 
     public function getStatusColorAttribute(): string

@@ -8,29 +8,65 @@ return [
     'no_conversations' => 'Aucune conversation',
     'back_to_conversations' => 'Retour aux conversations',
     'select_conversation' => 'Sélectionnez une conversation',
-    'direct_conversation' => 'Conversation directe',
-    'direct_conversation_started' => 'Conversation directe démarrée.',
+    'direct_conversation' => 'Discussion',
+    'direct_conversation_started' => 'Discussion démarrée.',
     'exchange_subject' => 'Échange #:id',
+
+    // TASK-1754 §3.2 — arbitrage Q2 de Cyril (05/11) : le BADGE reste court et
+    // NEUTRE, c'est la PHRASE qui porte le sens (qui aide qui). Deux fois moins
+    // de libellés à maintenir, et c'est la phrase qui supprime la confusion
+    // constatée en recette — un badge, aussi bien écrit soit-il, ne dira jamais
+    // « Ottoline dit avoir reçu l'aide, confirmez pour recevoir vos 30 min ».
     'status' => [
-        'pending' => 'En attente',
-        'accepted' => 'Accepté',
-        'buyer_done' => 'Terminé (acheteur)',
-        'completed' => 'Complété',
-        'refused' => 'Refusé',
+        'pending' => 'Proposition',
+        'accepted' => 'Entraide convenue',
+        'buyer_done' => 'À confirmer',
+        'completed' => 'Terminé',
+        'refused' => 'Déclinée',
         'cancelled' => 'Annulé',
     ],
-    'actions' => [
-        'accept' => 'Accepter',
-        'refuse' => 'Refuser',
-        'adjust' => 'Ajuster',
-        'cancel' => 'Annuler',
-        'mark_done' => 'Déclarer terminé',
-        'confirm' => 'Confirmer',
-        'contest' => 'Contester',
+
+    // Les phrases orientées rôle. `:temps` reçoit le double affichage
+    // (« 30 min · 30 pts »), jamais un nombre de points nu.
+    'phrase' => [
+        'pending_decideur' => ':prenom répond à votre annonce « :titre » — :temps',
+        'pending_proposant' => 'Votre proposition est partie. :prenom doit répondre.',
+        'accepted' => 'Vous avez convenu de cet échange — :temps',
+        'buyer_done_aidant' => ':prenom dit avoir reçu l\'aide. Confirmez pour recevoir vos :temps.',
+        'buyer_done_aide' => 'Vous avez dit avoir reçu l\'aide. :prenom doit confirmer.',
+        'completed' => 'Échange terminé — :temps transférés. Merci !',
+        'refused_proposant' => ':prenom a décliné votre proposition.',
+        'refused_decideur' => 'Vous avez décliné cette proposition.',
+        'cancelled' => 'Cet échange a été annulé.',
     ],
-    'review_exchange' => 'Évaluez cet échange',
-    'review_placeholder' => 'Commentaire (optionnel)...',
-    'send_review' => 'Envoyer l\'évaluation',
+
+    // TASK-1754 §3.3 — des verbes d'entraide. `cancel` se dédouble : retirer SA
+    // proposition n'est pas annuler un échange déjà convenu, et les confondre
+    // sous « Annuler » cachait ce qui se passe vraiment.
+    'actions' => [
+        'accept' => 'Accepter l\'échange',
+        'refuse' => 'Décliner',
+        'adjust' => 'Proposer un autre temps',
+        'cancel' => 'Annuler',
+        'cancel_withdraw' => 'Retirer ma proposition',
+        'cancel_exchange' => 'Annuler l\'échange',
+        'mark_done' => 'J\'ai bien reçu l\'aide',
+        'confirm' => 'Confirmer — recevoir mes :temps',
+        // « Contester » était un mot de litige pour dire « l'aide n'est pas
+        // encore finie ». Même route `contest()`, geste dédramatisé.
+        'contest' => 'Pas encore terminé',
+    ],
+
+    // TASK-1754 §9.4 — le MOT devient le geste principal, la note passe au
+    // second plan. Arbitrage Q6 de Cyril : la note reste OBLIGATOIRE (la colonne
+    // `reviews.rating` est NOT NULL et nourrit la moyenne du profil ainsi que
+    // les badges) — elle est donc discrète, pas optionnelle, et le libellé le
+    // dit honnêtement.
+    'review_exchange' => 'Dites merci à :prenom',
+    'review_intro' => 'L\'entraide est terminée — :temps partagées. Votre mot de remerciement sera affiché sur son profil.',
+    'review_placeholder' => 'Un mot de remerciement (affiché sur son profil)…',
+    'review_rating_hint' => 'Vous pouvez ajuster la note.',
+    'send_review' => 'Envoyer le merci',
     'composer_placeholder' => 'Votre message...',
     'conversation_closed' => 'Cette conversation est terminée.',
     'empty_thread' => 'Aucun message pour le moment',

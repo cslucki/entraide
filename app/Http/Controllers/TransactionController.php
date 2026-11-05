@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Services\ServiceRequestLifecycle;
 use App\Models\Transaction;
+use App\Support\Entraide\TempsPartage;
 use App\Notifications\TransactionStatusChanged;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmitter;
@@ -454,25 +455,44 @@ class TransactionController extends Controller
             ->orWhere('seller_id', $user->id)
             ->with(['service', 'serviceRequest', 'buyer', 'seller'])
             ->orderByDesc('created_at')
-            ->get();
+            ->get()
+            // TASK-1754 (§5.4 du CDC, critere d'acceptation n°7) — les
+            // DISCUSSIONS directes sortent de l'export.
+            //
+            // « Ecrire a quelqu'un » cree une Transaction a 0 point
+            // (`MessageController::showWithUser()`). Ces pseudo-echanges
+            // sortaient dans le CSV en « Achat, 0 pts, En attente » —
+            // eternellement, puisque rien ne les termine jamais. Un membre
+            // lisait donc son historique d'entraide pollue par ses simples
+            // conversations.
+            //
+            // Le filtre est pose ICI et non dans la requete : `isDirectConversation()`
+            // est la definition CANONIQUE (ni service, ni demande, ET 0 point),
+            // et la re-deriver en SQL garantirait la divergence le jour ou elle
+            // change.
+            ->reject(fn (Transaction $t) => $t->isDirectConversation());
 
-        $filename = 'entraide-transactions-'.now()->format('Y-m-d').'.csv';
+        $filename = __('entraide.csv.fichier').'-'.now()->format('Y-m-d').'.csv';
 
         return response()->streamDownload(function () use ($transactions, $user) {
             $handle = fopen('php://output', 'w');
             fwrite($handle, "\xEF\xBB\xBF"); // BOM UTF-8 pour Excel
-            fputcsv($handle, ['Date', 'Type', 'Service', 'Contrepartie', 'Points', 'Statut'], ';');
+            fputcsv($handle, (array) __('entraide.csv.entetes'), ';');
 
             foreach ($transactions as $transaction) {
-                $isBuyer = $transaction->buyer_id === $user->id;
-                $contrepartie = $isBuyer ? $transaction->seller->name : $transaction->buyer->name;
+                // `buyer` = celui qui RECOIT l'aide, `seller` = celui qui
+                // l'APPORTE. Les colonnes gardent leurs noms de marketplace en
+                // base ; l'export, lui, parle d'entraide.
+                $recoitLAide = $transaction->buyer_id === $user->id;
+                $avec = $recoitLAide ? $transaction->seller->name : $transaction->buyer->name;
                 $points = $transaction->points_agreed ?? $transaction->points_proposed;
 
                 fputcsv($handle, [
                     $transaction->created_at->format('d/m/Y'),
-                    $isBuyer ? 'Achat' : 'Vente',
+                    $recoitLAide ? __('entraide.csv.aide_recue') : __('entraide.csv.aide_apportee'),
                     $transaction->subject,
-                    $contrepartie,
+                    $avec,
+                    TempsPartage::duree($points),
                     $points,
                     $transaction->status_label,
                 ], ';');

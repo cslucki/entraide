@@ -121,25 +121,63 @@ class TransactionStateMachineTest extends TestCase
         $this->assertNotNull($t->completed_at);
     }
 
-    public function test_status_labels(): void
+    /**
+     * TASK-1754 (§3.1/§3.2) — les badges disent l'ENTRAIDE, plus la marketplace.
+     *
+     * Les litteraux sont GARDES a dessein : ce sont eux que le membre lit, et
+     * c'est le seul endroit ou une reecriture involontaire du lexique rougira.
+     * Les remplacer par `__('messages.status.…')` rendrait ce test
+     * tautologique — il repeterait l'implementation au lieu de la mesurer.
+     *
+     * « Terminé (acheteur) » etait le cas le plus visible du vocabulaire
+     * e-commerce : il sortait a la fois dans le badge, dans le message systeme
+     * et dans le toast.
+     */
+    public function test_les_badges_portent_le_lexique_d_entraide(): void
     {
         $transaction = Transaction::factory()->forBuyer($this->buyer)->forSeller($this->seller)->create();
-        $this->assertEquals('En attente', $transaction->status_label);
+        $this->assertEquals('Proposition', $transaction->status_label);
 
-        $transaction->update(['status' => 'accepted']);
-        $this->assertEquals('Accepté', $transaction->fresh()->status_label);
+        foreach ([
+            'accepted' => 'Entraide convenue',
+            'buyer_done' => 'À confirmer',
+            'completed' => 'Terminé',
+            'refused' => 'Déclinée',
+            'cancelled' => 'Annulé',
+        ] as $statut => $attendu) {
+            $transaction->update(['status' => $statut]);
+            $this->assertEquals($attendu, $transaction->fresh()->status_label, "Badge du statut [{$statut}].");
+        }
+    }
 
-        $transaction->update(['status' => 'buyer_done']);
-        $this->assertEquals('Terminé (acheteur)', $transaction->fresh()->status_label);
+    /**
+     * TASK-1754 (§3.4, obstacle n°1) — le defaut que l'ancien test NE VOYAIT PAS.
+     *
+     * Les libelles etaient ecrits en francais EN DUR dans le modele : un
+     * anglophone lisait « En attente » dans son export CSV et dans ses
+     * notifications. L'ancien test, qui n'assertait que le francais, passait au
+     * vert sur ce defaut.
+     */
+    public function test_le_badge_est_traduit_et_non_fige_en_francais(): void
+    {
+        $transaction = Transaction::factory()->forBuyer($this->buyer)->forSeller($this->seller)->create();
 
-        $transaction->update(['status' => 'completed']);
-        $this->assertEquals('Complété', $transaction->fresh()->status_label);
+        $this->app->setLocale('en');
 
-        $transaction->update(['status' => 'refused']);
-        $this->assertEquals('Refusé', $transaction->fresh()->status_label);
+        $this->assertEquals('Proposal', $transaction->status_label);
+    }
 
-        $transaction->update(['status' => 'cancelled']);
-        $this->assertEquals('Annulé', $transaction->fresh()->status_label);
+    /**
+     * Un statut hors des six du `CHECK` rend le statut BRUT, jamais une clef.
+     *
+     * Sans ce repli, `__()` renverrait « messages.status.xxx », et c'est cette
+     * chaine-la qui s'afficherait a l'ecran — pire qu'un mot technique.
+     */
+    public function test_un_statut_hors_catalogue_ne_sort_pas_une_clef_de_traduction(): void
+    {
+        $transaction = new Transaction(['status' => 'statut_invente']);
+
+        $this->assertSame('statut_invente', $transaction->status_label);
     }
 
     public function test_status_colors(): void
