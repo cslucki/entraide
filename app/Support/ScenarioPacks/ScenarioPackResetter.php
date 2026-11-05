@@ -5,6 +5,7 @@ namespace App\Support\ScenarioPacks;
 use App\Models\Organization;
 use App\Models\ScenarioPackEntity;
 use App\Models\ScenarioPackLoad;
+use App\Support\Feed\FeedEventEmitter;
 use App\Support\ScenarioPacks\Contracts\ScenarioPackDefinition;
 use App\Support\ScenarioPacks\Exceptions\ScenarioPackNotLoadedException;
 use App\Support\ScenarioPacks\Exceptions\ScenarioPackOwnershipUnknownException;
@@ -120,7 +121,23 @@ class ScenarioPackResetter
 
             $registrar = new ScenarioPackEntityRegistrar($load);
             try {
-                $pack->apply($organization, $registrar);
+                // TASK-1752 — un chargement de pack n'ecrit AUCUNE ligne de
+                // Flux.
+                //
+                // Les packs appellent les primitives canoniques du produit
+                // (`LoopService::createLoopForOrg()`, `addMemberByUserId()`),
+                // et c'est delibere. Mais ces primitives emettent desormais
+                // des evenements, et un pack en produirait des dizaines qui
+                // ne racontent rien : une sandbox n'a pas d'histoire a
+                // raconter, elle a un etat a reproduire.
+                //
+                // La suspension est posee ICI, au point de passage oblige des
+                // QUATRE packs, et non dans chacun d'eux — sinon le cinquieme
+                // pack ecrit un jour l'oublierait, en silence.
+                //
+                // `flux:reprendre-historique` reste le SEUL chemin d'ecriture
+                // en masse, et il est explicite.
+                FeedEventEmitter::sansEmission(fn () => $pack->apply($organization, $registrar));
             } catch (Throwable $e) {
                 // Meme raison que dans ScenarioPackLoader : le storage ne
                 // suit pas le rollback de la transaction.

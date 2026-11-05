@@ -7,6 +7,7 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -53,6 +54,56 @@ use Illuminate\Support\Facades\DB;
 final class FeedEventEmitter
 {
     /**
+     * TASK-1752 — l'emission est SUSPENDUE pendant un chargement en masse.
+     *
+     * ## Le defaut que cela ferme, trouve par la CI
+     *
+     * Les packs de scenarios appellent `LoopService::createLoopForOrg()` et
+     * `addMemberByUserId()` — les primitives canoniques du produit, et c'est
+     * voulu. Mais chaque appel emettait donc une ligne de Flux : charger un
+     * pack remplissait le Flux de dizaines de lignes qui ne racontent rien.
+     *
+     * Pire, et c'est ce que la CI a montre :
+     * `ScenarioLifecycleTest::test_reinitialiser_restaure_EXACTEMENT_le_monde`
+     * supprime un compte de la sandbox par `User::query()->whereKey()->delete()`.
+     * Un `delete()` de QUERY BUILDER ne declenche AUCUN evenement de modele —
+     * la regle posee sur `User::deleting` ne s'y applique donc pas — et
+     * `feed_posts.user_id` est en RESTRICT : la suppression echouait.
+     *
+     * Le CDC l'avait annonce (§2.3, §2.4) : « a neutraliser explicitement ».
+     * J'avais ecrit a tort que les packs ne passaient pas par `LoopService`.
+     *
+     * ## Pourquoi un drapeau et pas `withoutEvents()`
+     *
+     * `withoutEvents()` couperait TOUS les evenements de modele, y compris
+     * ceux dont le pack depend. Ce drapeau ne coupe que l'emission de Flux,
+     * nommement, et il est RETABLI dans un `finally` — une exception pendant
+     * le chargement ne doit pas laisser le produit muet pour la suite du
+     * processus.
+     */
+    private static bool $suspendu = false;
+
+    /**
+     * Execute `$travail` sans qu'aucune ligne de Flux ne soit ecrite.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $travail
+     * @return T
+     */
+    public static function sansEmission(callable $travail): mixed
+    {
+        $precedent = self::$suspendu;
+        self::$suspendu = true;
+
+        try {
+            return $travail();
+        } finally {
+            self::$suspendu = $precedent;
+        }
+    }
+
+    /**
      * Ecrit — ou retrouve — la ligne de Flux d'un evenement.
      *
      * @param  string  $type  une clef du registre ; tout autre valeur est refusee
@@ -68,6 +119,10 @@ final class FeedEventEmitter
         ?Loop $boucle = null,
         \DateTimeInterface|string|null $publieLe = null,
     ): ?FeedPost {
+        if (self::$suspendu) {
+            return null;
+        }
+
         if (! FeedEventCatalogue::connait($type)) {
             return null;
         }
@@ -95,7 +150,7 @@ final class FeedEventEmitter
 
         $audience = FeedEventCatalogue::audiencePour($type, $objet, $boucle);
 
-        $quand = $publieLe !== null ? \Illuminate\Support\Carbon::parse($publieLe) : now();
+        $quand = $publieLe !== null ? Carbon::parse($publieLe) : now();
 
         // JAMAIS dans le futur. Une ligne a venir disparaitrait des listes ou
         // flotterait en tete sans raison.
