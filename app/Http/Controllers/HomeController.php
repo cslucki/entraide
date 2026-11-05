@@ -195,6 +195,11 @@ class HomeController extends Controller
                     // structure : la bio n'a pas de drapeau, elle fait partie
                     // du profil depuis toujours.
                     $w->orWhere('bio', $like, $motif);
+
+                    // TASK-1762 point 17 — le slogan, meme raisonnement que la
+                    // bio : deja affiche sur la carte et la fiche publique,
+                    // aucune garde d'Organization puisqu'il n'en a pas.
+                    $w->orWhere('slogan', $like, $motif);
                 });
             })
             // TASK-1762 point 10 — la comparaison ignore la casse, pour la

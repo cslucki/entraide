@@ -56,6 +56,8 @@ class TASK1762DrapeauStructureTest extends TestCase
             'name' => $u->name,
             'email' => $u->email,
             'phone' => $u->phone,
+            // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE.
+            'slogan' => 'Je resous des problemes, pas des tickets.',
         ], $surcharge);
     }
 

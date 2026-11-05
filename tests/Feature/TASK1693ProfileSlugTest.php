@@ -187,6 +187,7 @@ class TASK1693ProfileSlugTest extends TestCase
                 'name' => $this->membre->name,
                 'email' => $this->membre->email,
                 'phone' => '+33600000000',
+                'slogan' => 'Je resous des problemes, pas des tickets.',
                 'slug' => 'donald',
             ])
             ->assertSessionHasNoErrors();
@@ -208,6 +209,7 @@ class TASK1693ProfileSlugTest extends TestCase
                 'name' => $this->membre->name,
                 'email' => $this->membre->email,
                 'phone' => '+33600000000',
+                'slogan' => 'Je resous des problemes, pas des tickets.',
                 'slug' => 'marie',
             ])
             ->assertSessionHasNoErrors();
@@ -225,6 +227,7 @@ class TASK1693ProfileSlugTest extends TestCase
                 'name' => $paul->name,
                 'email' => $paul->email,
                 'phone' => '+33600000000',
+                'slogan' => 'Je resous des problemes, pas des tickets.',
                 'slug' => 'marie-dupont',
             ])
             ->assertSessionHasErrors('slug');
@@ -243,6 +246,7 @@ class TASK1693ProfileSlugTest extends TestCase
                 'name' => $paul->name,
                 'email' => $paul->email,
                 'phone' => '+33600000000',
+                'slogan' => 'Je resous des problemes, pas des tickets.',
                 'slug' => 'marie-dupont',
             ])
             ->assertSessionHasErrors(['slug' => __('profile.slug_taken')]);
@@ -263,6 +267,7 @@ class TASK1693ProfileSlugTest extends TestCase
                     'name' => $this->membre->name,
                     'email' => $this->membre->email,
                     'phone' => '+33600000000',
+                    'slogan' => 'Je resous des problemes, pas des tickets.',
                     'slug' => $reserve,
                 ])
                 ->assertSessionHasErrors(['slug' => __('profile.slug_invalid')]);
@@ -281,6 +286,7 @@ class TASK1693ProfileSlugTest extends TestCase
                     'name' => $this->membre->name,
                     'email' => $this->membre->email,
                     'phone' => '+33600000000',
+                    'slogan' => 'Je resous des problemes, pas des tickets.',
                     'slug' => $mauvais,
                 ])
                 ->assertSessionHasErrors(['slug' => __('profile.slug_invalid')]);

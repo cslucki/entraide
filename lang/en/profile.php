@@ -77,6 +77,10 @@ return [
     'editor_fullscreen' => 'Fullscreen',
     'editor_exit_fullscreen' => 'Exit fullscreen',
     'structure_help' => 'Your company, association or collective, if you have one.',
+
+    // TASK-1762 point 17 — the mandatory baseline, "in one sentence".
+    'slogan' => 'Slogan',
+    'slogan_help' => 'What defines you in one sentence.',
     'name' => 'Name',
     'email' => 'Email address',
     'phone' => 'Phone number *',

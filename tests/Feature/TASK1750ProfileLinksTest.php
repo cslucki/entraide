@@ -66,6 +66,8 @@ class TASK1750ProfileLinksTest extends TestCase
             'name' => $this->membre->name,
             'email' => $this->membre->email,
             'phone' => '+33600000000',
+            // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE lui aussi.
+            'slogan' => 'Je resous des problemes, pas des tickets.',
             'website' => $this->membre->website,
             'linkedin_url' => $this->membre->linkedin_url,
         ], $extra));

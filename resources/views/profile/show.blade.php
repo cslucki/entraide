@@ -138,6 +138,14 @@
                        data-profile-structure>{{ $user->structure }}</p>
                     @endif
 
+                    {{-- TASK-1762 point 17 — le slogan, EN DESSOUS de la
+                         structure (qu'elle s'affiche ou non — le slogan, lui,
+                         est obligatoire pour tout le monde). --}}
+                    @if(filled($user->slogan))
+                    <p class="mt-1 text-sm sm:text-base italic text-gray-600 dark:text-gray-300 break-words"
+                       data-profile-slogan>{{ $user->slogan }}</p>
+                    @endif
+
                     <!-- Stats chips -->
                     <div class="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
                         @if($user->rating)

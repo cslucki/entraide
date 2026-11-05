@@ -18,7 +18,8 @@
                         la moitie de ce qu'elle sait faire ; l'annoncer quand le
                         champ est ferme promettrait l'inverse. --}}
                    placeholder="{{ structureIsShown() ? __('directory.search_placeholder_with_structure') : __('directory.search_placeholder') }}"
-                   class="w-full sm:w-80 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                   {{-- Demande de Cyril, en recette : plus large sur ordinateur. --}}
+                   class="w-full sm:w-[28rem] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
             {{-- TASK-1762 point 10 — le filtre « Localisation ».
 
                  Un MENU et non un second champ libre : arbitrage de Cyril,
@@ -33,9 +34,12 @@
                  se combinent au lieu de s'annuler. --}}
             @if($villes->count() > 1)
             <label for="directory-city" class="sr-only">{{ __('directory.city_label') }}</label>
+            {{-- Demande de Cyril, en recette : le menu etait trop etroit, le
+                 libelle « Localisation » serrait contre la fleche. --}}
             <select id="directory-city" name="city" onchange="this.form.submit()" data-directory-city
-                    class="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
-                <option value="">{{ __('directory.city_all') }}</option>
+                    class="min-w-[11rem] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                {{-- Demande de Cyril : l'icone 📍, la meme que sur les cartes. --}}
+                <option value="">📍 {{ __('directory.city_all') }}</option>
                 @foreach($villes as $cle => $entree)
                 {{-- TASK-1762 point 12 — le LIBELLE est abrege, pas la VALEUR.
 
@@ -201,6 +205,14 @@
                     <p class="mt-0.5 text-xs text-gray-400">📍 {{ $member->public_location }}</p>
                     @endif
 
+                    {{-- TASK-1762 point 17 — « il faudra aussi la mettre bien
+                         en avant » : pas tronque, et dans la couleur vive du
+                         theme comme la structure juste au-dessus, pour que
+                         la phrase se voie sans se confondre avec la bio. --}}
+                    @if(filled($member->slogan))
+                    <p class="mt-1.5 text-base font-semibold text-[var(--bp-accent)]" data-member-slogan>{{ $member->slogan }}</p>
+                    @endif
+
                     @if($member->bio)
                     {{-- L'INTEGRALITE du texte : c'est le coeur de la demande.
                          `max-w-3xl` borne la ligne a une largeur lisible,
@@ -289,6 +301,18 @@
                         @endif
                     </div>
                 </a>
+
+                {{-- TASK-1762 point 17 — le slogan, AVANT le texte de
+                     presentation. Couleur du theme, pas en italique — demande
+                     de Cyril, meme traitement que sur « Nouveaux arrivés ».
+                     `line-clamp-2` par securite : la limite de 120 caracteres
+                     au formulaire vise UNE ligne sur la carte, mais un slogan
+                     ecrit par le SuperAdmin (meme limite, mais sans le rendu
+                     visuel du formulaire sous les yeux) ou sur une carte plus
+                     etroite peut occuper une seconde ligne. --}}
+                @if(filled($member->slogan))
+                <p class="text-sm font-semibold text-[var(--bp-accent)] line-clamp-2" data-member-slogan>{{ $member->slogan }}</p>
+                @endif
 
                 <!-- Bio tronquée -->
                 @if($member->bio)

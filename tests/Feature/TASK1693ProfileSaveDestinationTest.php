@@ -56,6 +56,8 @@ class TASK1693ProfileSaveDestinationTest extends TestCase
             'name' => $user->name,
             'email' => $user->email,
             'phone' => '+33600000000',
+            // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE lui aussi.
+            'slogan' => $user->slogan ?: 'Je resous des problemes, pas des tickets.',
         ];
     }
 

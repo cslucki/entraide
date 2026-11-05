@@ -94,6 +94,8 @@ class TASK1762AideAdresseProfilTest extends TestCase
             'name' => $this->membre->name,
             'email' => $this->membre->email,
             'phone' => $this->membre->phone,
+            // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE lui aussi.
+            'slogan' => $this->membre->slogan ?: 'Je resous des problemes, pas des tickets.',
             'slug' => 'ab',
         ]);
 

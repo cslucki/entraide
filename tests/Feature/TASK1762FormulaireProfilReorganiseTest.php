@@ -164,6 +164,7 @@ class TASK1762FormulaireProfilReorganiseTest extends TestCase
         $this->actingAs($membre)->put(route('profile.update'), [
             'first_name' => $membre->first_name, 'name' => $membre->name,
             'email' => $membre->email, 'phone' => $membre->phone,
+            'slogan' => 'Mon slogan de test.',
             'bio' => str_repeat('a', 2000),
         ])->assertSessionHasNoErrors();
 
@@ -172,6 +173,7 @@ class TASK1762FormulaireProfilReorganiseTest extends TestCase
         $this->actingAs($membre)->put(route('profile.update'), [
             'first_name' => $membre->first_name, 'name' => $membre->name,
             'email' => $membre->email, 'phone' => $membre->phone,
+            'slogan' => 'Mon slogan de test.',
             'bio' => str_repeat('a', 2001),
         ])->assertSessionHasErrors('bio');
     }
@@ -213,6 +215,7 @@ class TASK1762FormulaireProfilReorganiseTest extends TestCase
         $this->actingAs($membre)->put(route('profile.update'), [
             'first_name' => $membre->first_name, 'name' => $membre->name,
             'email' => $membre->email, 'phone' => $membre->phone,
+            'slogan' => 'Mon slogan de test.',
             'preferred_locale' => 'en',
         ])->assertSessionHasNoErrors();
 

@@ -73,6 +73,10 @@ return [
     'editor_fullscreen' => 'Plein écran',
     'editor_exit_fullscreen' => 'Quitter le plein écran',
     'structure_help' => 'Votre société, association ou collectif, si vous en avez une.',
+
+    // TASK-1762 point 17 — la baseline obligatoire, « en une phrase ».
+    'slogan' => 'Slogan',
+    'slogan_help' => 'Ce qui vous définit en une phrase.',
     'name' => 'Nom',
     'email' => 'Adresse e-mail',
     'phone' => 'Numéro de téléphone *',

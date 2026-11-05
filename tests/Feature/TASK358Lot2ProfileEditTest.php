@@ -213,6 +213,9 @@ class TASK358Lot2ProfileEditTest extends TestCase
             'name' => $user?->name ?? 'Dupont',
             'email' => $user?->email ?? 'jean.dupont@example.test',
             'phone' => '0612345678',
+            // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE :
+            // sans lui, `ProfileController::update()` refuse tout le reste.
+            'slogan' => 'Je resous des problemes, pas des tickets.',
             'bio' => 'A short profile biography.',
             'city' => 'Paris',
             'country_code' => Country::query()->whereKey('FR')->exists() ? 'FR' : null,

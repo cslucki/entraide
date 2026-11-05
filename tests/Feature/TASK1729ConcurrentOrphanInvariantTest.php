@@ -575,6 +575,8 @@ class TASK1729ConcurrentOrphanInvariantTest extends TestCase
             'first_name' => $user->first_name ?? 'Camille',
             'email' => $user->email,
             'phone' => '+33600000000',
+            // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE.
+            'slogan' => 'Je resous des problemes, pas des tickets.',
         ], $surcharges);
     }
 }

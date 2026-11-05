@@ -298,6 +298,12 @@ class ProfileController extends Controller
             'show_email' => ['nullable', 'boolean'],
             'show_phone' => ['nullable', 'boolean'],
             'avatar' => ['nullable', 'image', 'max:2048'],
+            // TASK-1762 point 17 — le slogan, OBLIGATOIRE et sans condition
+            // d'Organization (contrairement a `structure`, `address_line1` ou
+            // `preferred_locale` plus bas) : « c'est important que les gens
+            // puissent se definir en une phrase ». 120 caracteres : la limite
+            // qui fait tenir la phrase sur une carte d'annuaire a 3 colonnes.
+            'slogan' => ['required', 'string', 'max:120'],
             // TASK-1762 point 16 — 2000 et non 500 : la presentation est
             // desormais du Markdown, et le BALISAGE est compte dans la limite.
             // « **Auditeur Qualiopi** » coute 24 caracteres pour 18 lisibles,

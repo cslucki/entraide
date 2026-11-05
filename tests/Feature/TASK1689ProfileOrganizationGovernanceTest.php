@@ -349,6 +349,8 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
             'name' => $user->name,
             'email' => $user->email,
             'phone' => '0612345678',
+            // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE.
+            'slogan' => 'Je resous des problemes, pas des tickets.',
             'bio' => 'Une biographie.',
             'city' => 'Paris',
             'country_code' => Country::query()->whereKey('FR')->exists() ? 'FR' : null,

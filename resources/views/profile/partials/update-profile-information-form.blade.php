@@ -150,6 +150,29 @@
                 </div>
             </div>
 
+            {{-- TASK-1762 point 17 (suite) — « Confidentialité » juste en
+                 dessous d'email et telephone : demande de Cyril, « c'est bcp
+                 plus logique » puisque ce bloc gouverne la visibilite de ces
+                 deux champs precis. Vivait auparavant pres du slug, dans le
+                 bloc « Présentation ». --}}
+            <div class="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl space-y-3 border border-gray-200 dark:border-gray-700" data-profile-privacy-section>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.privacy') }}</h3>
+
+                <div class="flex items-center gap-3">
+                    <input id="show_email" name="show_email" type="checkbox" value="1"
+                        {{ old('show_email', $user->show_email) ? 'checked' : '' }}
+                        class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:bg-gray-800">
+                    <x-input-label for="show_email" :value="__('profile.show_email')" class="font-normal text-gray-700 dark:text-gray-300" />
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <input id="show_phone" name="show_phone" type="checkbox" value="1"
+                        {{ old('show_phone', $user->show_phone) ? 'checked' : '' }}
+                        class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:bg-gray-800">
+                    <x-input-label for="show_phone" :value="__('profile.show_phone')" class="font-normal text-gray-700 dark:text-gray-300" />
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <x-input-label for="city" :value="__('profile.city')" />
@@ -194,6 +217,23 @@
             <div>
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.presentation_section') }}</h3>
                 <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ __('profile.presentation_description') }}</p>
+            </div>
+
+            {{-- TASK-1762 point 17 — le slogan, AVANT la presentation.
+
+                 Obligatoire (contrairement a tous les champs voisins de ce
+                 formulaire) : c'est la garde SERVEUR dans `ProfileController`
+                 qui le fait respecter, pas le `required` HTML ci-dessous — un
+                 `PUT` force sans slogan est refuse. `maxlength` borne la
+                 saisie a la meme valeur que la regle serveur, pour que la
+                 phrase tienne sur une carte de l'annuaire (3 colonnes). --}}
+            <div>
+                {{-- Demande de Cyril : le libelle EST la phrase d'aide, pas
+                     « Slogan » — « Ce qui vous définit en une phrase. » --}}
+                <x-input-label for="slogan" :value="__('profile.slogan_help')" />
+                <x-text-input id="slogan" name="slogan" type="text" class="mt-1 block w-full"
+                               :value="old('slogan', $user->slogan)" maxlength="120" required />
+                <x-input-error class="mt-2" :messages="$errors->get('slogan')" />
             </div>
 
             {{-- TASK-1762 point 16 — la presentation passe en editeur riche.
@@ -391,24 +431,6 @@
                     {{ __('profile.slug_help', ['exemple' => $_exempleSlugComplet, 'exemple_court' => $_exempleSlugCourt]) }}
                 </p>
             </div>
-
-        <div class="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl space-y-3 border border-gray-200 dark:border-gray-700">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.privacy') }}</h3>
-
-            <div class="flex items-center gap-3">
-                <input id="show_email" name="show_email" type="checkbox" value="1"
-                    {{ old('show_email', $user->show_email) ? 'checked' : '' }}
-                    class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:bg-gray-800">
-                <x-input-label for="show_email" :value="__('profile.show_email')" class="font-normal text-gray-700 dark:text-gray-300" />
-            </div>
-
-            <div class="flex items-center gap-3">
-                <input id="show_phone" name="show_phone" type="checkbox" value="1"
-                    {{ old('show_phone', $user->show_phone) ? 'checked' : '' }}
-                    class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:bg-gray-800">
-                <x-input-label for="show_phone" :value="__('profile.show_phone')" class="font-normal text-gray-700 dark:text-gray-300" />
-            </div>
-        </div>
 
             {{-- TASK-1762 point 16 — « Langue principale » devient sa propre
                  section, et elle disparait sur un site MONOLINGUE.

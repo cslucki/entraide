@@ -61,6 +61,9 @@ class TASK1762StructureSuperAdminTest extends TestCase
             'first_name' => $u->first_name,
             'name' => $u->name,
             'email' => $u->email,
+            // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE, y
+            // compris sur cet ecran.
+            'slogan' => 'Je resous des problemes, pas des tickets.',
         ], $surcharge);
     }
 

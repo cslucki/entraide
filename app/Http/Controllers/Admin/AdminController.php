@@ -286,6 +286,15 @@ class AdminController extends Controller
             'email' => ['required', 'email', 'lowercase', 'max:255',
                 new UniqueEmailInOrganization($user->organization_id, $user->id)],
             'phone' => 'nullable|string|max:30',
+            // TASK-1762 point 17 — « on pourra le modifier via le superadmin »
+            // : la consigne rend le champ EDITABLE ici, pas OBLIGATOIRE.
+            //
+            // `required` casserait tout autre geste de cet ecran (bannir,
+            // approuver, lever un signalement…) tant qu'un compte EXISTANT —
+            // tous, au moment de cette migration — n'a pas de slogan. A
+            // SIGNALER a Cyril : l'obligation du point 17 est tenue sur le
+            // formulaire du membre (`ProfileController`), pas ici.
+            'slogan' => 'nullable|string|max:120',
             'bio' => 'nullable|string|max:500',
             'city' => 'nullable|string|max:255',
             'country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
@@ -327,6 +336,7 @@ class AdminController extends Controller
             'name' => $data['name'],
             'email' => $data['email'],
             'phone' => $data['phone'] ?? null,
+            'slogan' => $data['slogan'] ?? null,
             'bio' => $data['bio'] ?? null,
             'city' => $data['city'] ?? null,
             'country_code' => $data['country_code'] ?? null,
