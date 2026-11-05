@@ -70,6 +70,12 @@
             </div>
             @endif
 
+            {{-- TASK-1762 point 6 — la structure, a deux endroits selon la largeur.
+
+                 La condition est calculee UNE fois : les deux exemplaires ne
+                 peuvent pas diverger sur « faut-il l'afficher ». --}}
+            @php $afficheStructure = structureIsShown() && filled($user->structure); @endphp
+
             <div class="flex flex-col gap-5 sm:flex-row sm:gap-6">
                 <!-- Avatar -->
                 <div class="relative flex-shrink-0 mx-auto sm:mx-0">
@@ -110,6 +116,27 @@
                         </span>
                         @endif
                     </div>
+
+                    {{-- TASK-1762 point 6 — sous le prenom et le nom, a TOUTES les
+                         largeurs.
+
+                         Premiere version : a droite de la carte sur bureau, a la
+                         taille du nom. Cyril, en recette : « le placement sur la
+                         droite n'est pas bon, fait en dessous du prenom nom, un peu
+                         comme la card de l'annuaire ». Un seul exemplaire, donc —
+                         ce qui supprime au passage tout risque de divergence entre
+                         deux copies.
+
+                         Plus grande que sur la carte de l'annuaire (`text-xs`) :
+                         ici c'est l'en-tete de la fiche, pas une vignette. Mais
+                         sous la taille du nom, qui reste le premier mot de la page.
+
+                         Le bloc d'identite est centre sous `sm` et aligne a gauche
+                         au-dela : la structure suit, sans rien declarer. --}}
+                    @if($afficheStructure)
+                    <p class="mt-1 text-base sm:text-lg font-bold text-[var(--bp-accent)] break-words"
+                       data-profile-structure>{{ $user->structure }}</p>
+                    @endif
 
                     <!-- Stats chips -->
                     <div class="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
@@ -254,6 +281,7 @@
                     </div>
                     @endif
                 </div>
+
             </div>
         </div>
 
