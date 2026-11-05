@@ -34,6 +34,13 @@ return [
         'contestation_impossible' => 'Cet échange ne peut pas être relancé.',
         'pas_encore_termine' => 'C’est noté : l’échange est remis en cours.',
     ],
+    'flux' => [
+        // TASK-1757 §9.5 — dit ce qui sera publie ET ce qui ne le sera pas.
+        // Une case « Partager dans le Flux » sans cette precision laisserait
+        // croire que le nom du beneficiaire y passe aussi.
+        'partager' => 'Partager cette entraide dans le Flux (votre prénom et le temps donné ; le nom de la personne aidée n’apparaît pas)',
+    ],
+
     'atelier' => [
         'complet' => 'Cet atelier est complet.',
         'places_restantes' => '{0}Complet|{1}1 place restante|[2,*]:count places restantes',

@@ -116,6 +116,22 @@
                 @if($_carteActions['principale'])
                     <form method="POST" action="{{ $_carteUrl($_carteActions['principale']) }}">
                         @csrf @method('PATCH')
+                        {{-- TASK-1757 §9.5 — l'opt-in du Flux se prend ICI.
+                             Arbitrage Cyril du 05/11 : plutot qu'un reglage a OFF
+                             enterre dans une page que personne n'ouvre — donc une
+                             fonctionnalite invisible —, la question se pose au moment
+                             ou l'on decide. Decochee, aucune ligne n'est ecrite : il
+                             n'y a rien a retenir, donc AUCUNE colonne nouvelle.
+                             Seul l'aidant voit ce bouton (`CarteEntraide::actions()`),
+                             et seul l'aidant est nomme sur la carte. --}}
+                        @if($_carteActions['principale']['marqueur'] === 'confirm')
+                            <label class="mb-2 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
+                                <input type="checkbox" name="partager_dans_le_flux" value="1"
+                                       data-entraide-partager-flux
+                                       class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600">
+                                <span>{{ __('entraide.flux.partager') }}</span>
+                            </label>
+                        @endif
                         <button data-entraide-action="{{ $_carteActions['principale']['marqueur'] }}"
                                 class="px-4 py-1.5 text-sm font-medium text-white rounded-lg transition
                                     {{ ($_carteActions['principale']['ton'] ?? '') === 'vert' ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700' }}">
