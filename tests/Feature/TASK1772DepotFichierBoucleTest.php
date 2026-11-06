@@ -59,8 +59,14 @@ class TASK1772DepotFichierBoucleTest extends TestCase
             'role' => 'owner',
             'status' => 'active',
         ]);
+        // `dossiers_holder_xor` : un Dossier appartient a UN SEUL porteur —
+        // `owner_id` XOR `loop_id`. La fabrique pose un `owner_id` par defaut ;
+        // le laisser avec un `loop_id` viole la contrainte. Invisible en
+        // SQLite, qui n'applique AUCUN CHECK — et c'est PostgreSQL, en CI, qui
+        // l'a dit.
         $this->dossier = Dossier::factory()->create([
             'organization_id' => $this->organization->id,
+            'owner_id' => null,
             'loop_id' => $this->loop->id,
         ]);
     }
