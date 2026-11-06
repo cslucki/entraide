@@ -166,11 +166,12 @@
 
             <div class="mb-8">
                 <div class="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl text-sm text-amber-800 dark:text-amber-200">
-                    <p class="font-semibold mb-1">{{ __('marketplace.points_help_title') }}</p>
-                    <p class="mb-2 opacity-90">{{ __('marketplace.points_service_body', ['organization' => $organization->name]) }}</p>
+                    <p class="font-semibold mb-1">{{ __('marketplace.service_points_help_title') }}</p>
+                    <p class="mb-2 opacity-90">{{ __('marketplace.service_points_help_share', ['organization' => $organization->name]) }}</p>
+                    <p class="mb-2 opacity-90">{{ __('marketplace.service_points_help_count') }}</p>
+                    <p class="mb-3 opacity-90">{{ __('marketplace.service_points_help_reuse') }}</p>
                     <ul class="space-y-0.5 ml-2 opacity-90">
-                        <li>{{ __('marketplace.points_one_minute') }}</li>
-                        @if($pointMin !== null)
+                                                @if($pointMin !== null)
                             <li>{{ __('marketplace.points_minimum_allowed', $pointHelpContext) }}</li>
                         @endif
                         @if($pointMax !== null)
@@ -179,9 +180,21 @@
                     </ul>
                 </div>
 
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('services.edit.points_requested') }}</label>
-                <input type="number" name="points_cost" value="{{ old('points_cost', $service->points_cost) }}" @if($pointMin !== null) min="{{ $pointMin }}" @endif @if($pointMax !== null) max="{{ $pointMax }}" @endif required
-                    class="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                {{-- TASK-1773 — meme presentation qu'a la creation : une duree en
+                     minutes, et l'equivalence en points rappelee dessous. Le champ
+                     lui-meme ne bouge pas (`points_cost`, bornes, validation). --}}
+                <label for="points_cost" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('services.edit.points_requested') }}</label>
+                <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">{{ __('marketplace.service_duration_help') }}</p>
+                <div x-data="{ minutes: {{ (int) old('points_cost', $service->points_cost) }} }">
+                    <div class="flex items-center gap-2">
+                        <input type="number" id="points_cost" name="points_cost" value="{{ old('points_cost', $service->points_cost) }}" x-model.number="minutes" @if($pointMin !== null) min="{{ $pointMin }}" @endif @if($pointMax !== null) max="{{ $pointMax }}" @endif required
+                            class="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ __('marketplace.service_duration_unit') }}</span>
+                    </div>
+                    <p data-duration-equivalent x-show="Number(minutes) > 0" x-cloak
+                       class="mt-1 text-xs font-medium text-indigo-600 dark:text-indigo-300"
+                       x-text="@js(__('marketplace.service_duration_equivalent')).replace(':points', Number(minutes) || 0)"></p>
+                </div>
 
                 <x-entraide.champs-atelier :capacite="$service->capacity" :plancher="$service->min_participants" />
             </div>

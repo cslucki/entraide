@@ -5,8 +5,8 @@ return [
     'request_term' => 'help request',
     'service_create_heading' => 'Offer my help',
     'request_create_heading' => 'Ask for help',
-    'service_intro_title' => 'A service is a skill you offer in exchange for points.',
-    'service_intro_body' => 'Describe exactly what you do, how you do it, and what the member will receive. This is not a job-search post — create a help request and choose the "Find work" category for that kind of need.',
+    'service_intro_title' => 'What you would like to bring to the community',
+    'service_intro_body' => 'Share your skills, your experience, your knowledge or simply your time to help other members. Describe what you are offering, how you would like to contribute and how your help can be useful.',
     'request_intro_title' => 'A help request is a need you publish to find help from members.',
     'request_intro_body' => 'Describe exactly what you need, the expected outcome, and your point budget. Interested members will propose an exchange.',
     'title' => 'Title',
@@ -32,6 +32,29 @@ return [
         'onsite' => '📍 On site',
         'both' => '🌐📍 Both',
     ],
+    // TASK-1773 — dedicated keys for the « offer help » form. The generic
+    // ones (title, description, images, tags, delivery_mode,
+    // points_requested, points_help_title) are ALSO used by the help REQUEST
+    // form, which must not change.
+    'service_title_label' => 'What would you like to offer?',
+    'service_description_label' => 'Describe what you are offering',
+    'service_images_label' => 'Illustrations (optional)',
+    'service_tags_label' => 'Keywords (optional)',
+    'service_delivery_mode' => 'How would you like to help?',
+
+    'service_duration_label' => 'Estimated time for this help',
+    'service_duration_help' => 'Enter the time you expect to spend on this help.',
+    'service_duration_equivalent' => 'Equivalent: :points points',
+    'service_duration_unit' => 'minutes',
+
+    // TASK-1773 (recette Cyril) — meme phrase, version « vous devez ».
+    // Dediee : `profile_tip_before`/`_after` servent aussi la demande d'aide.
+    'service_profile_tip_before' => '✨ Remember that you must present your activity on your',
+    'service_profile_tip_after' => 'so that it appears in the directory.',
+    'service_points_help_title' => '💡 How does exchanging time work?',
+    'service_points_help_share' => 'On :organization, everyone can share their time, their skills and their experience with other members.',
+    'service_points_help_count' => 'To acknowledge everyone\'s contribution, the time spent helping is counted in points: 1 minute = 1 point.',
+    'service_points_help_reuse' => 'Those points in turn let you benefit from other members\' help.',
     'points_help_title' => '💡 How does the point scale work?',
     'points_service_body' => ':organization uses points as an exchange unit to estimate the value of a proposal between members.',
     'points_request_body' => ':organization uses points as an exchange unit to estimate the value of a help request between members.',
@@ -53,7 +76,7 @@ return [
     'points_requested' => 'Requested points',
     'recommended_ranges_category' => 'Recommended ranges for this category:',
     'indicative_ranges_level' => 'Indicative ranges by level:',
-    'publish_service' => 'Validate',
+    'publish_service' => 'Publish my offer',
     'publish_request' => 'Validate',
     'toolbar_bold' => 'Bold',
     'toolbar_bold_title' => 'Bold (select text)',

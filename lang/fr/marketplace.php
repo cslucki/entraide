@@ -5,8 +5,8 @@ return [
     'request_term' => 'demande d\'aide',
     'service_create_heading' => 'Proposer de l\'aide',
     'request_create_heading' => 'Demander de l\'aide',
-    'service_intro_title' => 'Un service, c\'est une compétence que vous proposez en échange de points.',
-    'service_intro_body' => 'Décrivez précisément ce que vous faites, comment, et ce que le membre obtiendra. Ce n\'est pas une annonce de recherche d\'emploi — faites une demande d\'aide et choisissez la catégorie "Trouver du travail" pour ce type de besoin.',
+    'service_intro_title' => 'Ce que vous souhaitez apporter au collectif',
+    'service_intro_body' => 'Partagez vos compétences, votre expérience, vos connaissances ou simplement votre temps pour aider d\'autres membres. Décrivez ce que vous proposez, comment vous souhaitez contribuer et en quoi votre aide peut être utile.',
     'request_intro_title' => 'Une demande d\'aide, c\'est un besoin que vous publiez pour trouver de l\'aide parmi les membres.',
     'request_intro_body' => 'Décrivez précisément ce dont vous avez besoin, le résultat attendu, et votre budget en points. Les membres intéressés vous proposeront un échange.',
     'title' => 'Titre',
@@ -32,6 +32,43 @@ return [
         'onsite' => '📍 Sur site',
         'both' => '🌐📍 Les deux',
     ],
+    // =====================================================================
+    // TASK-1773 — LES TEXTES DU FORMULAIRE « PROPOSER DE L'AIDE ».
+    // =====================================================================
+    // Des cles DEDIEES, et non la modification des cles generiques
+    // (`title`, `description`, `images`, `tags`, `delivery_mode`,
+    // `points_requested`, `points_help_title`) : celles-la servent AUSSI le
+    // formulaire de DEMANDE d'aide, que la consigne interdit de toucher.
+    // Les modifier aurait change les deux surfaces d'un coup, sans la moindre
+    // erreur nulle part — un degat qui ne se voit qu'en recette.
+    //
+    // `service_intro_*` et `publish_service` sont, eux, propres a cette
+    // surface : ils sont donc modifies sur place.
+    'service_title_label' => 'Que souhaitez-vous proposer ?',
+    'service_description_label' => 'Décrivez votre proposition d\'aide',
+    'service_images_label' => 'Illustrations (facultatif)',
+    'service_tags_label' => 'Mots-clés (facultatif)',
+    'service_delivery_mode' => 'Comment souhaitez-vous aider ?',
+
+    // Le champ de duree. La REGLE METIER ne bouge pas : la colonne reste
+    // `points_cost`, la validation et les bornes de l'Organization aussi.
+    // Seule la PRESENTATION change — 1 minute = 1 point, donc le nombre saisi
+    // se lit indifferemment en minutes ou en points.
+    'service_duration_label' => 'Temps estimé pour cette aide',
+    'service_duration_help' => 'Indiquez le temps que vous prévoyez de consacrer à cette aide.',
+    'service_duration_equivalent' => 'Équivalent : :points points',
+    'service_duration_unit' => 'minutes',
+
+    // L'encadre d'explication. Le lien vers le profil public et son texte
+    // d'accompagnement (`profile_tip_*`, `public_profile`) sont CONSERVES.
+    // TASK-1773 (recette Cyril) — meme phrase, version « vous devez ».
+    // Dediee : `profile_tip_before`/`_after` servent aussi la demande d'aide.
+    'service_profile_tip_before' => '✨ N\'oubliez pas que vous devez présenter votre activité sur votre',
+    'service_profile_tip_after' => 'pour qu\'ils apparaissent dans l\'annuaire.',
+    'service_points_help_title' => '💡 Comment fonctionne l\'échange de temps ?',
+    'service_points_help_share' => 'Sur :organization, chacun peut partager son temps, ses compétences et son expérience avec les autres membres.',
+    'service_points_help_count' => 'Pour reconnaître les contributions de chacun, le temps consacré à l\'entraide est comptabilisé en points : 1 minute = 1 point.',
+    'service_points_help_reuse' => 'Ces points permettent à leur tour de bénéficier de l\'aide d\'autres membres.',
     'points_help_title' => '💡 Comment fonctionne le barème de points ?',
     'points_service_body' => ':organization utilise les points comme unité d\'échange pour évaluer la valeur d\'une proposition entre membres.',
     'points_request_body' => ':organization utilise les points comme unité d\'échange pour évaluer la valeur d\'une demande d\'aide entre membres.',
@@ -53,7 +90,7 @@ return [
     'points_requested' => 'Points demandés',
     'recommended_ranges_category' => 'Fourchettes recommandées pour cette catégorie :',
     'indicative_ranges_level' => 'Fourchettes indicatives par niveau :',
-    'publish_service' => 'Valider',
+    'publish_service' => 'Publier ma proposition',
     'publish_request' => 'Valider',
     'toolbar_bold' => 'Gras',
     'toolbar_bold_title' => 'Gras (sélectionnez du texte)',

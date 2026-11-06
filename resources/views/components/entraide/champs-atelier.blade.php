@@ -60,12 +60,35 @@
         {{ __('entraide.atelier.champ_label') }}
     </label>
 
-    <p x-show="! groupe" class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('entraide.atelier.champ_individuel') }}</p>
+    {{-- TASK-1773 (recette Cyril, 06/11) — la mention « Aide individuelle »
+         est RETIREE. Case decochee = aide individuelle : l'ecrire sous la
+         case disait a voix haute ce que la case dit deja.
+         La cle `entraide.atelier.champ_individuel` est CONSERVEE dans les deux
+         langues : rien d'autre ne l'emploie aujourd'hui, mais la supprimer
+         serait un geste de nettoyage, et cette TASK est un changement de
+         TEXTES — pas un menage de lexique. --}}
 
     <div x-show="groupe" x-cloak class="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-800/60 dark:bg-indigo-900/20">
         <p class="text-xs text-indigo-800 dark:text-indigo-200">{{ __('entraide.atelier.champ_aide') }}</p>
 
         <div class="mt-3 flex flex-wrap items-end gap-4">
+            {{-- TASK-1773 (recette Cyril, 06/11) — « A partir de » AVANT
+                 « Jusqu'a » : on lit une fourchette dans le sens ou on la dit.
+                 Seul l'ORDRE D'AFFICHAGE change ; les deux `select` gardent
+                 leur `name`, leur `x-model` et leurs marqueurs de test. --}}
+            <label class="block">
+                <span class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('entraide.atelier.champ_plancher') }}</span>
+                {{-- Borne a la capacite : « a partir de 8 » sur un atelier de 6
+                     rendrait le prix maximum inatteignable. --}}
+                <select x-model.number="plancher" x-bind:name="groupe ? 'min_participants' : ''"
+                        data-entraide-atelier-plancher
+                        class="mt-1 w-28 rounded-lg border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                    @for($i = 1; $i <= \App\Support\Entraide\Atelier::CAPACITE_MAX; $i++)
+                        <option value="{{ $i }}" x-show="{{ $i }} <= capacite">{{ $i }}</option>
+                    @endfor
+                </select>
+            </label>
+
             <label class="block">
                 <span class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('entraide.atelier.champ_capacite') }}</span>
                 {{-- `x-bind:name` vide quand on repasse en individuel : sans
@@ -76,19 +99,6 @@
                         class="mt-1 w-28 rounded-lg border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                     @for($i = \App\Support\Entraide\Atelier::CAPACITE_MIN; $i <= \App\Support\Entraide\Atelier::CAPACITE_MAX; $i++)
                         <option value="{{ $i }}">{{ $i }}</option>
-                    @endfor
-                </select>
-            </label>
-
-            <label class="block">
-                <span class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('entraide.atelier.champ_plancher') }}</span>
-                {{-- Borne a la capacite : « a partir de 8 » sur un atelier de 6
-                     rendrait le prix maximum inatteignable. --}}
-                <select x-model.number="plancher" x-bind:name="groupe ? 'min_participants' : ''"
-                        data-entraide-atelier-plancher
-                        class="mt-1 w-28 rounded-lg border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-                    @for($i = 1; $i <= \App\Support\Entraide\Atelier::CAPACITE_MAX; $i++)
-                        <option value="{{ $i }}" x-show="{{ $i }} <= capacite">{{ $i }}</option>
                     @endfor
                 </select>
             </label>
