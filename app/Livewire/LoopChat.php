@@ -444,6 +444,11 @@ class LoopChat extends Component
         $this->loop = $loop;
         $this->refreshMembership();
         $this->loadInitialMessages();
+
+        // TASK-1772 — calculee ICI, et pas dans `render()` : `wire:poll.3s`
+        // la recalculerait toutes les trois secondes, par spectateur, pour
+        // une liste qui ne change presque jamais.
+        $this->rafraichirMentionables();
     }
 
     /**
@@ -903,6 +908,149 @@ class LoopChat extends Component
             && app(LoopLifecycleService::class)->isWritable($this->loop);
     }
 
+    /**
+     * TASK-1772 — le plafond de mentions par message.
+     *
+     * Arbitrage Cyril : **dix**, et un refus EXPLICITE au-dela, jamais une
+     * troncature. Tronquer ne previendrait pas quelqu'un que l'auteur croit
+     * avoir prevenu — un silence pire que l'erreur.
+     *
+     * Une Boucle de quinze personnes ne doit pas pouvoir produire quinze
+     * courriels d'un seul geste : ce serait `@tous` deguise, que le CDC a
+     * ecarte (D6).
+     */
+    public const MENTIONS_MAX = 10;
+
+    /**
+     * Les personnes mentionnables, calculees UNE FOIS au montage.
+     *
+     * `#[Locked]` : le navigateur ne doit pas pouvoir y ajouter quelqu'un. Et
+     * la calculer dans `render()` couterait une requete TOUTES LES TROIS
+     * SECONDES par spectateur (`wire:poll.3s`), pour une liste qui ne change
+     * presque jamais. Elle est donc rafraichie sur l'evenement qui existe
+     * deja : `loop-members-changed`, emis par `LoopMembersCard` et jusqu'ici
+     * ecoute par personne.
+     *
+     * @var list<array{id: string, nom: string}>
+     */
+    #[Locked]
+    public array $mentionables = [];
+
+    /**
+     * Ce que le navigateur PRETEND avoir mentionne.
+     *
+     * Volontairement NON verrouillee : c'est une saisie. Elle est re-cadree
+     * au serveur a l'envoi, et rien de ce qui vient d'ici n'est cru sur
+     * parole — voir `mentionsRecadrees()`.
+     *
+     * @var list<string>
+     */
+    public array $mentionsSelectionnees = [];
+
+    /**
+     * Re-cadrage SERVEUR de ce que le navigateur a envoye.
+     *
+     * Deux gardes, et la seconde est la moins evidente :
+     *
+     * 1. **Intersection avec les membres ACTIFS de CETTE Boucle**, dans SON
+     *    Organization. Precedent explicite : `LoopMembersCard::add()` —
+     *    « quoi qu'ait envoye le navigateur, seuls les candidats reels de
+     *    CETTE Organization sont retenus ».
+     * 2. **Le nom doit reellement figurer dans le corps.** Sans elle, un POST
+     *    forge notifierait n'importe quel co-membre sans qu'aucun `@`
+     *    n'apparaisse dans le message — la personne recevrait un courriel
+     *    disant qu'on l'a mentionnee, et ne trouverait rien. La regle vit au
+     *    SERVEUR et pas dans la vue : corriger la seule vue laisse passer un
+     *    POST forge.
+     *
+     * @return list<string>
+     */
+    private function mentionsRecadrees(string $corps): array
+    {
+        $demandes = array_values(array_unique(array_filter(
+            array_map(fn ($id) => is_string($id) ? $id : null, $this->mentionsSelectionnees),
+        )));
+
+        if ($demandes === []) {
+            return [];
+        }
+
+        $reels = collect($this->mentionablesReels())->keyBy('id');
+
+        return array_values(array_filter($demandes, function (string $id) use ($reels, $corps): bool {
+            $candidat = $reels->get($id);
+
+            if ($candidat === null) {
+                return false;
+            }
+
+            return str_contains($corps, '@'.$candidat['nom']);
+        }));
+    }
+
+    /**
+     * Les membres actifs de la Boucle, hors l'auteur, lisibles.
+     *
+     * Trois exclusions, toutes deja portees par le modele : compte desactive,
+     * non affichable dans l'Organization, et soi-meme — on ne se mentionne
+     * pas (meme regle que `notifierAjoutDirect()` en T1761, qui ne notifie
+     * pas l'acteur de son propre geste).
+     *
+     * @return list<array{id: string, nom: string}>
+     */
+    private function mentionablesReels(): array
+    {
+        $moi = auth()->id();
+
+        return User::query()
+            ->whereIn(
+                'id',
+                LoopMember::query()
+                    ->where('loop_id', $this->loop->id)
+                    ->where('organization_id', $this->loop->organization_id)
+                    ->where('status', 'active')
+                    ->pluck('user_id'),
+            )
+            ->whereKeyNot($moi)
+            ->get()
+            ->reject(fn (User $u) => $u->isDeactivated())
+            // `publicDisplayName()` et non une concatenation maison : c'est
+            // la MEME fonction que `LoopMembersCard` emploie pour afficher ces
+            // personnes. Un test qui re-derive la regle d'une vue finit par
+            // diverger d'elle — et ici, c'est pire : le nom sert de garde.
+            ->map(fn (User $u) => ['id' => (string) $u->getKey(), 'nom' => trim($u->publicDisplayName())])
+            ->reject(fn (array $m) => $m['nom'] === '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Les mentions candidates a l'edition d'un message.
+     *
+     * Celles deja enregistrees, PLUS tous les mentionnables : une edition peut
+     * en ajouter. Le filtrage reel est fait par `mentionsRecadrees()`, qui ne
+     * garde que les noms presents dans le nouveau corps.
+     *
+     * @return list<string>
+     */
+    private function mentionsDejaEnregistrees(LoopMessage $message): array
+    {
+        $deja = $message->metadata['mentions'] ?? [];
+        $deja = is_array($deja) ? array_values(array_filter($deja, 'is_string')) : [];
+
+        return array_values(array_unique(array_merge(
+            $deja,
+            array_column($this->mentionables, 'id'),
+        )));
+    }
+
+    /** Rafraichir la liste quand la composition de la Boucle change. */
+    #[On('loop-members-changed')]
+    public function rafraichirMentionables(): void
+    {
+        $this->mentionables = $this->mentionablesReels();
+    }
+
     public function sendMessage(LoopMessageService $service): void
     {
         $this->validate([
@@ -922,6 +1070,15 @@ class LoopChat extends Component
         // auto-detection du parent (`continuationParent()` retiree). Une
         // Boucle agent exclut les deux moteurs : son agent (T-2) repond deja
         // a chaque message — une seconde IA serait une seconde depense.
+        // TASK-1772 — le plafond, verifie AVANT d'ecrire quoi que ce soit.
+        // Un refus explicite, jamais une troncature : tronquer ne previendrait
+        // pas quelqu'un que l'auteur croit avoir prevenu.
+        if (count(array_unique($this->mentionsSelectionnees)) > self::MENTIONS_MAX) {
+            $this->addError('body', __('loops.mentions_too_many', ['max' => self::MENTIONS_MAX]));
+
+            return;
+        }
+
         $mode = $this->loop->isAiAgent() ? 'normal' : $this->composerMode;
 
         if ($mode !== 'normal' && trim($this->body) === '') {
@@ -957,8 +1114,13 @@ class LoopChat extends Component
 
                 $question = trim($this->body);
 
-                $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
+                // TASK-1772 — re-cadrage SERVEUR : rien de ce que le
+                // navigateur a envoye n'est cru sur parole.
+                $mentions = $this->mentionsRecadrees($this->body);
+
+                $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath, $mentions);
                 $this->body = '';
+                $this->mentionsSelectionnees = [];
                 $this->cancelReply();
             } catch (\RuntimeException) {
                 $this->addError('body', 'Impossible d\'envoyer le message.');
@@ -2466,7 +2628,22 @@ class LoopChat extends Component
             $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
             $metadata = $preview !== null ? ['url_preview' => $preview] : null;
 
+            // TASK-1772 — les mentions sont RECALCULEES sur le nouveau corps,
+            // et non reprises de la saisie : a l'edition, le navigateur
+            // n'envoie pas de selection. On repart donc des mentions deja
+            // enregistrees, on ne garde que celles dont le nom figure encore
+            // dans le texte, et on ajoute celles que l'edition introduit.
+            //
+            // Le service FUSIONNE desormais les metadonnees (il ne les ecrase
+            // plus) : ce que l'on ne nomme pas ici survit — `requested_mode`
+            // le premier, qui etait perdu a chaque correction de faute de
+            // frappe depuis toujours.
+            $this->mentionsSelectionnees = $this->mentionsDejaEnregistrees($message);
+            $mentions = $this->mentionsRecadrees($this->editingBody);
+            $metadata = ($metadata ?? []) + ['mentions' => $mentions];
+
             app(LoopMessageService::class)->updateUserMessage($this->loop, $message, $user, $this->editingBody, $metadata);
+            $this->mentionsSelectionnees = [];
             $this->cancelEdit();
         } catch (\RuntimeException) {
             $this->addError('editingBody', __('messages.edit_failed'));

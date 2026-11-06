@@ -13,10 +13,14 @@ use App\Models\User;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmitter;
 use Illuminate\Support\Facades\DB;
+use Ramsey\Uuid\Uuid;
 
 class LoopMessageService
 {
-    public function sendUserMessage(Loop $loop, User $sender, string $body, ?array $metadata = null, ?string $replyToId = null, ?string $imagePath = null): LoopMessage
+    /**
+     * @param  list<string>  $mentions  identifiants DEJA re-cadres par l'appelant
+     */
+    public function sendUserMessage(Loop $loop, User $sender, string $body, ?array $metadata = null, ?string $replyToId = null, ?string $imagePath = null, array $mentions = []): LoopMessage
     {
         $this->assertCanSend($loop, $sender);
 
@@ -30,7 +34,13 @@ class LoopMessageService
             }
         }
 
-        return DB::transaction(function () use ($loop, $sender, $body, $metadata, $replyToId, $imagePath) {
+        return DB::transaction(function () use ($loop, $sender, $body, $metadata, $replyToId, $imagePath, $mentions) {
+            // TASK-1772 — les mentions vivent dans `metadata`, aux cotes de
+            // `url_preview` et `requested_mode` (D4 : pas de migration en V1).
+            if ($mentions !== []) {
+                $metadata = ($metadata ?? []) + ['mentions' => array_values($mentions)];
+            }
+
             $message = LoopMessage::create([
                 'loop_id' => $loop->id,
                 'sender_id' => $sender->id,
@@ -41,6 +51,10 @@ class LoopMessageService
                 'metadata' => $metadata,
                 'organization_id' => $loop->organization_id,
             ]);
+
+            if ($mentions !== []) {
+                $this->notifierLesMentions($loop, $sender, $message, $mentions);
+            }
 
             event(new LoopMessageCreated($message));
 
@@ -123,6 +137,76 @@ class LoopMessageService
                 actor: $auteur,
             );
         }
+    }
+
+    /**
+     * TASK-1772 — prevenir les personnes NOMMEMENT appelees dans un message.
+     *
+     * ## Pourquoi ici, et pas dans un ecouteur de `LoopMessageCreated`
+     *
+     * La raison est ecrite dans le docblock de `notifierLaDemandeDAide()` et
+     * elle vaut mot pour mot : un ecouteur qui filtre le type finit par
+     * notifier TOUS les messages le jour ou quelqu'un ajoute un type.
+     * L'emission vit la ou le fait est DECIDE.
+     *
+     * ## L'identifiant d'evenement est derive du NOM DE LA CLE
+     *
+     * Surtout pas `$message->getKey()` nu : `LOOP_HELP_REQUEST_CREATED`
+     * l'emploie deja tel quel (plus haut dans ce fichier), et la contrainte
+     * est `UNIQUE(event_id, recipient_id)`. Deux faits differents sous le meme
+     * identifiant pour la meme personne font lever
+     * `NotificationEmissionConflict` — qui descend de `RuntimeException`, donc
+     * est attrape par le `catch` de l'envoi, donc **annule la transaction et
+     * le message n'est pas publie**, avec pour seul indice « Impossible
+     * d'envoyer le message. »
+     *
+     * Le `uuid5` nomme par la cle est l'idiome deja en place
+     * (`LoopService::identifiantEvenementDecision()`, `BlogComments`) et il
+     * rend le rejeu idempotent : re-emettre le meme fait pour la meme
+     * personne ne cree pas de seconde notification. C'est ce qui donne
+     * gratuitement la regle d'edition « une mention inchangee ne re-notifie
+     * pas ».
+     *
+     * @param  list<string>  $destinatairesIds  deja re-cadres par l'appelant
+     */
+    private function notifierLesMentions(Loop $loop, User $auteur, LoopMessage $message, array $destinatairesIds): void
+    {
+        $destinataires = User::query()
+            ->whereIn('id', $destinatairesIds)
+            ->whereKeyNot($auteur->getKey())
+            ->get();
+
+        if ($destinataires->isEmpty()) {
+            return;
+        }
+
+        $emetteur = app(NotificationEmitter::class);
+
+        foreach ($destinataires as $destinataire) {
+            $emetteur->emit(
+                notificationKey: NotificationCatalogue::LOOP_MENTION_CREATED,
+                organization: (string) $loop->organization_id,
+                recipient: $destinataire,
+                eventId: self::identifiantEvenementMention($message),
+                // Le MESSAGE, pas la Boucle : la notification mene a LA PHRASE
+                // ou l'on a ete nomme (arbitrage Cyril, D5 du CDC).
+                objectType: NotificationCatalogue::OBJECT_LOOP_MESSAGE,
+                objectId: (string) $message->getKey(),
+                actor: $auteur,
+            );
+        }
+    }
+
+    /** L'identifiant d'evenement d'une mention, nomme par sa cle. */
+    public static function identifiantEvenementMention(LoopMessage $message): string
+    {
+        // Meme idiome que `LoopService::identifiantEvenementDecision()` :
+        // `Ramsey\Uuid\Uuid`, pas le helper d'Illuminate (qui n'expose pas
+        // cette constante).
+        return (string) Uuid::uuid5(
+            Uuid::NAMESPACE_URL,
+            'bouclepro:notification:'.NotificationCatalogue::LOOP_MENTION_CREATED.':'.$message->getKey(),
+        );
     }
 
     public function sendHelpRequestMessage(
@@ -317,11 +401,36 @@ class LoopMessageService
             throw new \RuntimeException('Message body is required.');
         }
 
+        // TASK-1772 — FUSION, et non ecrasement. Arbitrage Cyril du 06/11.
+        //
+        // `forceFill(['metadata' => $metadata])` remplacait le tableau ENTIER.
+        // Corriger une faute de frappe perdait donc `requested_mode` — le
+        // badge « IA » / « Dossiers » de la bulle — en silence, et aurait
+        // perdu `mentions` de la meme facon. Le defaut etait PREEXISTANT et
+        // n'avait jamais ete signale parce qu'il ne fait rien planter.
+        //
+        // La fusion est faite ici, au seul endroit qui ecrit, plutot que chez
+        // chaque appelant : une regle qui vit a un seul endroit ne peut pas
+        // diverger. L'appelant garde le dernier mot sur les cles qu'il
+        // fournit — `array_merge` le lui donne — et tout ce qu'il ne nomme
+        // PAS survit.
+        $metadataFusionnee = array_merge($message->metadata ?? [], $metadata ?? []);
+
         $message->forceFill([
             'body' => $body,
-            'metadata' => $metadata,
+            'metadata' => $metadataFusionnee === [] ? null : $metadataFusionnee,
             'edited_at' => now(),
         ])->save();
+
+        // TASK-1772 — une mention AJOUTEE par l'edition notifie la nouvelle
+        // personne ; une mention retiree ne de-notifie pas (c'est deja parti,
+        // et un email ne se reprend pas) ; une mention inchangee ne re-notifie
+        // pas — l'identifiant d'evenement deterministe le donne gratuitement.
+        $mentions = $metadataFusionnee['mentions'] ?? [];
+
+        if (is_array($mentions) && $mentions !== []) {
+            $this->notifierLesMentions($loop, $user, $message, array_values($mentions));
+        }
 
         $loop->touch();
 

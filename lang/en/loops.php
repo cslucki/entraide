@@ -849,6 +849,8 @@ return [
     'hybrid_button' => 'AI + Folders',
     'composer_mode_clear' => 'Back to a normal message',
     'composer_more_actions' => 'More actions',
+    // TASK-1772 — refus explicite, jamais une troncature.
+    'mentions_too_many' => 'You can only mention :max people in a single message.',
     'composer_add_image' => 'Add an image',
     // TASK-1684: the file goes to the Loop Dossier, not to the message.
     'composer_add_file' => 'Add a file',

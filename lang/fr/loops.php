@@ -851,6 +851,8 @@ return [
     'hybrid_button' => 'IA + Dossiers',
     'composer_mode_clear' => 'Revenir au message normal',
     'composer_more_actions' => 'Plus d\'actions',
+    // TASK-1772 — refus explicite, jamais une troncature.
+    'mentions_too_many' => 'Vous ne pouvez mentionner que :max personnes dans un même message.',
     'composer_add_image' => 'Ajouter une image',
     // TASK-1684 : le fichier va dans le Dossier de la Boucle, pas dans le message.
     'composer_add_file' => 'Ajouter un fichier',
