@@ -270,5 +270,16 @@ return [
                 .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
                 .'<p>See you soon,<br>The BouclePro team</p>',
         ],
+
+        // TASK-1775 (CDC C3) — ultimate fallback for "a help request was
+        // published". Same reasoning as the entries above.
+        'loop_help_request_created' => [
+            'subject' => 'A help request was published in a Loop',
+            'body' => '<p>Hello,</p>'
+                .'<p>A help request was published in a Loop you are a member of.</p>'
+                .'<p><a href=":url">Open the Loop</a></p>'
+                .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
+                .'<p>See you soon,<br>The BouclePro team</p>',
+        ],
     ],
 ];

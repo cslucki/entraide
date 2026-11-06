@@ -309,5 +309,19 @@ return [
                 .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
                 .'<p>À bientôt,<br>L\'équipe BouclePro</p>',
         ],
+
+        // TASK-1775 (CDC C3) — ultime repli pour « une demande d'aide a ete
+        // publiee ». Meme doctrine que ses voisines : volontairement neutre,
+        // car a ce niveau ni la Boucle ni l'auteur ne sont plus connus. Exige
+        // par la suite de coherence TASK-1379 des que le canal EMAIL est
+        // declare.
+        'loop_help_request_created' => [
+            'subject' => 'Une demande d’aide a été publiée dans une Boucle',
+            'body' => '<p>Bonjour,</p>'
+                .'<p>Une demande d’aide a été publiée dans une Boucle dont vous êtes membre.</p>'
+                .'<p><a href=":url">Ouvrir la Boucle</a></p>'
+                .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
+                .'<p>À bientôt,<br>L\'équipe BouclePro</p>',
+        ],
     ],
 ];

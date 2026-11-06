@@ -671,9 +671,16 @@ final class NotificationCatalogue
                 // n'ait a bouger.
                 self::CHANNEL_WEB_PUSH => ['default' => false, 'configurable' => true],
 
-                // PAS de canal EMAIL, et c'est delibere : un courriel par
-                // demande d'aide collective serait exactement le bruit de
-                // masse que le §7 combat. Rien ne le reclame.
+                // TASK-1775 (CDC C3) — le canal EMAIL, OUVERT mais ETEINT par
+                // defaut. Le §7B promis ci-dessus est arrive : la sourdine
+                // par Boucle (`LoopNotificationPreference`) existe desormais,
+                // et c'est PRECISEMENT elle qui rend ce canal sur tenable —
+                // avant elle, l'ouvrir aurait ete le bruit de masse que ce
+                // docblock refusait. Activer ce canal ici ne reveille PERSONNE
+                // : aucune ligne historique ne peut exister pour un canal qui
+                // n'existait pas, donc chaque membre demarre au defaut
+                // (eteint) et doit l'allumer Boucle par Boucle, lui-meme.
+                self::CHANNEL_EMAIL => ['default' => false, 'configurable' => true],
             ],
         ],
 

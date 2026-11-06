@@ -279,6 +279,22 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        // TASK-1775 (CDC C3) — un gabarit pose par migration doit entrer au
+        // catalogue du seeder, sinon une base reconstruite de zero ne
+        // l'aurait pas (lecon deja payee sur ce fichier).
+        'loop_help_request_created' => [
+            'name_fr' => 'Demande d’aide publiée dans une Boucle',
+            'name_en' => 'Help request published in a Loop',
+            'subject_fr' => 'Une demande d’aide dans « {{ loop_name }} »',
+            'subject_en' => 'A help request in “{{ loop_name }}”',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> a publié une demande d’aide dans la Boucle <strong>{{ loop_name }}</strong>, dont vous êtes membre.</p><p><a href="{{ request_url }}">Ouvrir la Boucle</a></p><p>Rien ne presse : la demande vous attend, vous la lirez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> published a help request in the Loop <strong>{{ loop_name }}</strong>, which you are a member of.</p><p><a href="{{ request_url }}">Open the Loop</a></p><p>No rush: the request will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'organization_name',
+                'loop_name', 'requester_name', 'request_url', 'app_name',
+            ],
+        ],
+
         'loop_invitation' => [
             'name_fr' => 'Invitation à rejoindre une Boucle',
             'name_en' => 'Invitation to join a Loop',
