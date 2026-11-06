@@ -2,6 +2,16 @@
     'type' => 'received',
     'time' => null,
     'avatar' => null,
+    // TASK-1772 (recette Cyril, 06/11) — l'avatar sort de la bulle et prend
+    // sa gouttiere a gauche, comme WhatsApp. Une PROPRIETE et non un choix
+    // impose : ce composant sert aussi la Messagerie, qui est un fil a DEUX
+    // et ou un avatar par message serait du bruit. Le ChatLoop l'allume, la
+    // Messagerie garde sa mise en page.
+    'detachedAvatar' => false,
+    // L'identite derriere l'avatar, pour l'apercu d'annuaire au clic. `null`
+    // laisse l'avatar purement decoratif — c'est le cas quand l'auteur n'est
+    // pas affichable dans l'Organization courante.
+    'avatarUserId' => null,
     'name' => null,
     'subtitle' => null,
     'isAi' => false,
@@ -82,9 +92,19 @@
 
 @php
 $isSent = $type === 'sent';
+
+// TASK-1772 — `items-start` et `gap` servent la gouttiere d'avatar. Ils sont
+// poses dans les DEUX cas : une rangee sans gouttiere n'a rien a aligner ni a
+// espacer, et deux listes de classes divergentes finiraient par diverger pour
+// de bon.
 $containerClasses = $isSent
-    ? 'flex justify-end'
-    : 'flex justify-start';
+    ? 'flex items-start gap-2 justify-end'
+    : 'flex items-start gap-2 justify-start';
+
+// L'avatar ne se detache que du cote RECU. Sur ses propres messages, on sait
+// qui parle — WhatsApp ne les decore pas davantage, et la gouttiere y mangerait
+// de la largeur de texte pour ne rien dire.
+$_avatarDetache = $detachedAvatar && ! $isSent && ($avatar !== null || $isAi);
 
 // TASK-1621 — les bulles « Pour / Contre » ont LEUR couleur.
 //
@@ -488,6 +508,35 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          sur deux lignes (constate en recette mobile). Ici, le pourcentage se
          resout contre le fil (pleine largeur) : une bulle courte garde sa
          ligne, une longue plafonne a 90% / md / lg. --}}
+    {{-- TASK-1772 (recette Cyril, 06/11) — LA GOUTTIERE D'AVATAR.
+
+         « Je voudrais que cela ressemble plus a WhatsApp : que l'avatar du
+         pseudo soit detache de la bulle de chat. Et que quand on clique sur
+         cet avatar on puisse avoir un pop-up. »
+
+         Aligne en HAUT (`items-start` sur la rangee) : c'est ce que fait
+         WhatsApp Web, et c'est ce qui place la pastille en face du nom plutot
+         qu'en face de la derniere ligne d'un long message.
+
+         Bouton SEULEMENT quand on sait qui c'est. Sans `avatarUserId`, la
+         pastille reste une image decorative : un bouton qui n'ouvre rien est
+         pire qu'une image, il promet un geste qui ne vient pas. --}}
+    @if($_avatarDetache)
+        @if($avatarUserId)
+        <button type="button"
+                data-member-avatar="{{ $avatarUserId }}"
+                x-on:click.stop="$dispatch('apercu-membre', { userId: @js((string) $avatarUserId) })"
+                aria-label="{{ __('messages.member_preview_open', ['name' => $name ?? '']) }}"
+                class="mt-0.5 shrink-0 rounded-full ring-0 transition hover:ring-2 hover:ring-[var(--bp-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bp-accent)]">
+            <x-conversation.avatar-mark :avatar="$avatar" :is-ai="$isAi" size="h-8 w-8" icon-size="h-5 w-5" />
+        </button>
+        @else
+        <div class="mt-0.5 shrink-0">
+            <x-conversation.avatar-mark :avatar="$avatar" :is-ai="$isAi" size="h-8 w-8" icon-size="h-5 w-5" />
+        </div>
+        @endif
+    @endif
+
     <div class="relative min-w-0 {{ $widthClass }}">
     {{-- TASK-1771 — `select-none` et `-webkit-touch-callout: none` sur
          telephone : sans eux, un appui long sur le texte lance la selection
@@ -516,26 +565,12 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
         @if($avatar || $name || $subtitle || $requestedBy || $time || $isEdited || $isAi)
         <div class="mb-1 flex items-start justify-between gap-3">
             <div class="flex min-w-0 items-center gap-2">
-                @if($avatar)
-                <img src="{{ $avatar }}" alt="" class="h-5 w-5 rounded-full">
-                @elseif($isAi)
-                {{-- TASK-1340 : symbole de marque (design/brand/bouclepro-symbol.svg)
-                     en monochrome blanc, meme traitement que le bouton FAB
-                     BouclePro IA — plus l'etincelle generique. --}}
-                <span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm shadow-violet-500/20 ring-1 ring-white/60 dark:ring-violet-300/20" aria-hidden="true">
-                    <svg class="h-3 w-3" viewBox="0 0 512 512" fill="none" stroke="white" stroke-width="46" stroke-linecap="round" stroke-opacity="0.92">
-                        <path d="M 213.1 142 A 56 56 0 1 1 298.9 142"/>
-                        <path d="M 306.28 145.05 A 56 56 0 1 1 366.95 205.72"/>
-                        <path d="M 370 213.1 A 56 56 0 1 1 370 298.9"/>
-                        <path d="M 366.95 306.28 A 56 56 0 1 1 306.28 366.95"/>
-                        <path d="M 298.9 370 A 56 56 0 1 1 213.1 370"/>
-                        <path d="M 205.72 366.95 A 56 56 0 1 1 145.05 306.28"/>
-                        <path d="M 142 298.9 A 56 56 0 1 1 142 213.1"/>
-                        <path d="M 145.05 205.72 A 56 56 0 1 1 205.72 145.05"/>
-                        <path d="M 213.1 142 A 56 56 0 0 1 213.1 70"/>
-                    </svg>
-                </span>
-                @endif
+                {{-- TASK-1772 — quand l'avatar est detache, la pastille vit
+                     dans la gouttiere de gauche : la laisser ici AUSSI la
+                     montrerait deux fois sur la meme rangee. --}}
+                @unless($_avatarDetache)
+                <x-conversation.avatar-mark :avatar="$avatar" :is-ai="$isAi" />
+                @endunless
                 <div class="min-w-0">
                     @if($name || $aiModeBadge)
                     {{-- TASK-1312 : l'identite tenant (le nom) et le MOTEUR (le

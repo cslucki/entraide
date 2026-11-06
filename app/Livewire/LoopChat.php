@@ -70,6 +70,17 @@ class LoopChat extends Component
     #[Locked]
     public bool $isMember = false;
 
+    /**
+     * TASK-1772 — l'identifiant de la fiche d'annuaire ouverte, ou `null`.
+     *
+     * `#[Locked]` : elle voyage dans le snapshot, et sans verrou le client
+     * pourrait la reecrire directement, sans passer par `ouvrirApercuMembre()`
+     * et ses quatre portes. C'est la lecon de `$isMember` deux lignes plus
+     * haut — une propriete publique est une ENTREE, pas une conclusion.
+     */
+    #[Locked]
+    public ?string $apercuMembreId = null;
+
     public ?string $replyToMessageId = null;
 
     public ?array $replyingTo = null;
@@ -1074,6 +1085,160 @@ class LoopChat extends Component
             $deja,
             array_column($this->mentionables, 'id'),
         )));
+    }
+
+    /**
+     * TASK-1772 (recette Cyril, 06/11) — L'APERCU D'ANNUAIRE, AU CLIC SUR
+     * L'AVATAR.
+     *
+     * « Quand on clique sur cet avatar on puisse avoir un pop-up, qui va
+     * permettre de voir un apercu de sa card d'annuaire. »
+     *
+     * ## Pourquoi un identifiant et pas la fiche entiere
+     *
+     * Cette propriete voyage dans le snapshot Livewire, donc dans le HTML de
+     * la page, a chaque `wire:poll.3s`. Y ranger la bio, la structure et le
+     * slogan de quelqu'un, c'est les faire voyager trente fois par minute pour
+     * un panneau ferme. On ne garde que l'identifiant ; la fiche se relit au
+     * rendu, sous les permissions du moment.
+     *
+     * C'est la meme discipline que `NotificationTargetResolver` : une
+     * notification ne porte qu'un `object_id`, et la cible est reconstruite au
+     * clic. Rien d'ancien ne se reaffiche.
+     *
+     * ## Les quatre portes, et pourquoi aucune n'est de trop
+     *
+     * 1. **lire ce fil** — sans adhesion, cette Boucle ne se lit pas ;
+     * 2. **la personne existe et n'est pas desactivee** ;
+     * 3. **elle est AFFICHABLE dans l'Organization courante** — exactement la
+     *    porte que l'avatar franchit deja dans la vue. Si l'avatar est
+     *    decoratif, l'apercu n'existe pas non plus ;
+     * 4. **elle a un lien avec CETTE Boucle** — membre actif, ou auteur d'un
+     *    message. Sans elle, un identifiant forge ouvrirait la fiche de
+     *    n'importe qui de l'Organization. L'annuaire les montre deja, certes,
+     *    mais une surface ne doit pas offrir plus que ce qu'elle affiche :
+     *    c'est ce qui la rend verifiable.
+     *
+     * Un refus est SILENCIEUX et ferme le panneau. Il n'y a rien a dire a
+     * quelqu'un qui forge un identifiant, et un message d'erreur distinguerait
+     * « inconnu » de « non affichable » — soit exactement l'information qu'on
+     * ne veut pas donner.
+     */
+    public function ouvrirApercuMembre(string $userId): void
+    {
+        $this->apercuMembreId = null;
+
+        if (! $this->isMember) {
+            return;
+        }
+
+        $organisation = currentOrganization();
+
+        if ($organisation === null) {
+            return;
+        }
+
+        $membre = User::query()->whereKey($userId)->first();
+
+        if ($membre === null || $membre->isDeactivated() || ! $membre->isDisplayableIn($organisation)) {
+            return;
+        }
+
+        $lieAuFil = LoopMember::query()
+            ->where('loop_id', $this->loop->id)
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('user_id', $membre->getKey())
+            ->where('status', 'active')
+            ->exists()
+            || LoopMessage::query()
+                ->withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('loop_id', $this->loop->id)
+                ->where('organization_id', $this->loop->organization_id)
+                ->where('sender_id', $membre->getKey())
+                ->exists();
+
+        if (! $lieAuFil) {
+            return;
+        }
+
+        $this->apercuMembreId = (string) $membre->getKey();
+    }
+
+    /**
+     * Les deux liens de l'apercu, et le fait que la fiche soit VIDE.
+     *
+     * ## Pourquoi ce calcul n'est pas reste dans la vue
+     *
+     * Deux raisons, et la seconde est un defaut silencieux.
+     *
+     * 1. L'annuaire bati ses liens sur `request()->route('organization')`.
+     *    Dans une page rendue, c'est juste. Dans un RE-RENDU Livewire, la
+     *    route courante est celle de `/livewire/update` : le parametre est
+     *    `null`, la route retombe sur sa forme SANS prefixe, et
+     *    `ResolveUrlOrganization` lie alors l'Organization PAR DEFAUT. Le lien
+     *    « Ecrire » menait donc ailleurs des le premier rafraichissement —
+     *    sans erreur, sans rien signaler. Le repli sur l'Organization de la
+     *    Boucle, lui, ne change pas d'une requete a l'autre : c'est le meme
+     *    choix que `loopAiUrl()` plus haut.
+     * 2. Le bloc `@php … @endphp` qu'il aurait fallu dans la vue a casse le
+     *    gabarit entier — voir le commentaire de `loop-chat.blade.php`.
+     *
+     * @return array{profil: string, ecrire: string, vide: bool}|null
+     */
+    public function apercuMembreLiens(): ?array
+    {
+        $membre = $this->apercuMembre;
+
+        if ($membre === null) {
+            return null;
+        }
+
+        $organization = request()->route('organization') ?? $this->loop->organization?->slug;
+        $cle = $membre->profileRouteKey();
+
+        return [
+            'profil' => $organization && Route::has('organization.profile.show')
+                ? route('organization.profile.show', ['organization' => $organization, 'user' => $cle])
+                : route('profile.show', $cle),
+            'ecrire' => $organization && Route::has('organization.messages.with')
+                ? route('organization.messages.with', ['organization' => $organization, 'user' => $cle])
+                : route('messages.with', $cle),
+            // « Rien a montrer » n'est pas « pas de bio » : une fiche sans bio
+            // mais avec une structure et un slogan dit deja quelque chose.
+            'vide' => blank($membre->bio)
+                && blank($membre->slogan)
+                && blank($membre->public_location)
+                && ! (structureIsShown() && filled($membre->structure)),
+        ];
+    }
+
+    public function fermerApercuMembre(): void
+    {
+        $this->apercuMembreId = null;
+    }
+
+    /**
+     * La fiche a afficher, relue a CHAQUE rendu.
+     *
+     * Elle repasse par `ouvrirApercuMembre()` — la meme porte, les memes
+     * quatre controles — plutot que de faire confiance a l'identifiant deja
+     * pose : entre l'ouverture du panneau et le `wire:poll` suivant, la
+     * personne peut avoir quitte la Boucle ou l'Organization. Le panneau se
+     * referme alors tout seul, au lieu de continuer a montrer une fiche a
+     * laquelle le lecteur n'a plus droit.
+     */
+    public function getApercuMembreProperty(): ?User
+    {
+        if ($this->apercuMembreId === null) {
+            return null;
+        }
+
+        $identifiant = $this->apercuMembreId;
+        $this->ouvrirApercuMembre($identifiant);
+
+        return $this->apercuMembreId === null
+            ? null
+            : User::query()->whereKey($identifiant)->first();
     }
 
     /** Rafraichir la liste quand la composition de la Boucle change. */

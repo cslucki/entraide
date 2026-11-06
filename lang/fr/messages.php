@@ -168,4 +168,13 @@ return [
         'untitled' => 'Échange',
         'subject' => 'Mise à jour de votre échange — :statut',
     ],
+
+    // TASK-1772 (recette Cyril, 06/11) — l'apercu d'annuaire au clic sur
+    // l'avatar detache de la bulle.
+    'member_preview_open' => 'Voir la fiche de :name',
+    'member_preview_close' => 'Fermer',
+    'member_preview_title' => 'Fiche d’annuaire',
+    'member_preview_full' => 'Voir le profil complet',
+    'member_preview_write' => 'Écrire un message',
+    'member_preview_empty' => 'Cette personne n’a pas encore renseigné sa fiche.',
 ];

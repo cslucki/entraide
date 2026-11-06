@@ -150,4 +150,12 @@ return [
         'untitled' => 'Exchange',
         'subject' => 'Your exchange has been updated — :statut',
     ],
+
+    // TASK-1772 — the directory preview opened by the detached avatar.
+    'member_preview_open' => 'See :name’s profile card',
+    'member_preview_close' => 'Close',
+    'member_preview_title' => 'Directory card',
+    'member_preview_full' => 'See full profile',
+    'member_preview_write' => 'Send a message',
+    'member_preview_empty' => 'This person has not filled in their card yet.',
 ];

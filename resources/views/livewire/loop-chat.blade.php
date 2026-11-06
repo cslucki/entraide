@@ -1,4 +1,9 @@
-<div wire:poll.3s class="flex-1 flex flex-col min-h-0" x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)">
+{{-- TASK-1772 (recette Cyril, 06/11) — `apercu-membre` est emis par la
+     gouttiere d'avatar de chaque bulle. L'ecoute est posee ICI, une fois, et
+     non sur chaque bulle : trente ecouteurs pour un seul panneau. --}}
+<div wire:poll.3s class="flex-1 flex flex-col min-h-0"
+     x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)"
+     x-on:apercu-membre.window="$wire.ouvrirApercuMembre($event.detail.userId)">
     <x-conversation.pinned-message-banner
         :pinned-message="$pinnedMessage"
         :can-unpin="$isMember"
@@ -517,6 +522,18 @@
                             :time="$msg->created_at->diffForHumans()"
                             :name="$isOwn ? __('messages.me') : $senderName"
                             :avatar="$senderDisplayable ? $msg->sender?->avatar_url : null"
+                            {{-- TASK-1772 (recette Cyril, 06/11) — l'avatar sort
+                                 de la bulle, facon WhatsApp. Allume ICI et pas
+                                 dans le composant : la Messagerie partage cette
+                                 bulle, et un avatar par message n'a pas de sens
+                                 dans un fil a deux. --}}
+                            detached-avatar="true"
+                            {{-- L'identite n'est donnee que si l'auteur est
+                                 AFFICHABLE dans l'Organization courante — la
+                                 meme porte que l'avatar juste au-dessus. Sans
+                                 elle, la pastille reste decorative et n'ouvre
+                                 aucun apercu. --}}
+                            :avatar-user-id="$senderDisplayable ? $msg->sender?->id : null"
                             :requested-mode="$msg->metadata['requested_mode'] ?? null"
                             {{-- TASK-1772 — les noms des personnes mentionnees,
                                  resolus ICI sans requete : `$nomsPourMentions`
@@ -1559,4 +1576,110 @@
     {{-- TASK-1771 — la barre du mode selection. Teleportee en haut de
          l'ecran, telephone uniquement. Rendue UNE fois par fil. --}}
     <x-conversation.selection-bar />
+
+    {{-- ==================================================================
+         TASK-1772 (recette Cyril, 06/11) — L'APERCU D'ANNUAIRE.
+
+         « Quand on clique sur cet avatar on puisse avoir un pop-up, qui va
+         permettre de voir un apercu de sa card d'annuaire. »
+
+         APERCU et non fiche complete : les memes champs que la rangee
+         d'annuaire (T1762), bio BORNEE, et un lien vers la vraie fiche. Le
+         but est de savoir a qui on parle sans quitter le fil — pas de
+         recopier l'annuaire dans la ChatLoop.
+
+         Rendu UNE fois par fil, et seulement quand il est ouvert : le
+         composant repasse ici a chaque `wire:poll.3s`, et trente fiches
+         latentes dans le DOM couteraient a chaque battement.
+         ================================================================== --}}
+    {{-- ATTENTION — AUCUN bloc « php … endphp » dans ce gabarit.
+
+         (Pas un seul sigle d'arobase dans ce commentaire : Blade compile les
+         directives ECRITES DANS un commentaire. Les nommer en clair ici a
+         casse la vue, deux fois.)
+
+         Blade range les blocs bruts AVANT de compiler les directives, avec
+         une expression qui ne distingue pas la directive de sa variante
+         PARENTHESEE. Or ce gabarit en contient deja une, bien plus haut
+         (`whyMemory`). Elle y est inoffensive tant que rien ne la suit qui
+         ressemble a une fermeture — mais le premier bloc ajoute en dessous
+         lui sert de fin : tout ce qui est entre les deux part en PHP brut, le
+         `if` d'ouverture compris.
+
+         Symptome : « syntax error, unexpected end of file, expecting elseif
+         or else or endif », a quatre-vingts lignes de la vraie cause. Et
+         `view:cache` ne le dit pas — il compile sans executer. C'est un test
+         qui REND la vue qui l'a trouve.
+
+         Les liens sont donc calcules dans le composant
+         (`LoopChat::apercuMembreLiens()`), ce qui vaut mieux de toute
+         facon : la vue n'a plus a deviner l'Organization. --}}
+    @php($_apercu = $this->apercuMembre)
+    @php($_liens = $this->apercuMembreLiens())
+    @if($_apercu && $_liens)
+    <div class="fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-center sm:p-4"
+         x-on:keydown.escape.window="$wire.fermerApercuMembre()"
+         role="dialog" aria-modal="true" data-member-preview="{{ $_apercu->getKey() }}">
+        {{-- Le voile ferme au clic. Un frere du panneau et non son parent :
+             un `click.outside` sur le panneau se declencherait aussi sur les
+             clics partis d'un element qui dispparait pendant le clic. --}}
+        <div class="absolute inset-0 bg-black/50" wire:click="fermerApercuMembre"></div>
+
+        <div class="relative w-full max-w-lg overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl dark:bg-gray-800">
+            <div class="flex items-start gap-4 p-5">
+                <a href="{{ $_liens['profil'] }}" class="relative shrink-0">
+                    <img src="{{ $_apercu->avatar_url }}" alt=""
+                         class="h-20 w-20 rounded-2xl object-cover ring-1 ring-gray-200 dark:ring-gray-600">
+                    @if(availabilityIsShown() && $_apercu->is_available)
+                    <span class="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-green-500 dark:border-gray-800"></span>
+                    @endif
+                </a>
+
+                <div class="min-w-0 flex-1">
+                    <a href="{{ $_liens['profil'] }}"
+                       data-member-preview-name
+                       class="text-lg font-bold text-gray-900 transition hover:text-[var(--bp-accent)] dark:text-gray-100">{{ $_apercu->publicDisplayName() }}</a>
+
+                    @if(structureIsShown() && filled($_apercu->structure))
+                    <p class="mt-0.5 text-sm font-bold text-[var(--bp-accent)]" data-member-preview-structure>{{ $_apercu->structure }}</p>
+                    @endif
+
+                    @if($_apercu->public_location)
+                    <p class="mt-0.5 text-xs text-gray-400">📍 {{ $_apercu->public_location }}</p>
+                    @endif
+
+                    @if(filled($_apercu->slogan))
+                    <p class="mt-1.5 text-sm font-semibold text-[var(--bp-accent)]">{{ $_apercu->slogan }}</p>
+                    @endif
+                </div>
+
+                <button type="button" wire:click="fermerApercuMembre"
+                        aria-label="{{ __('messages.member_preview_close') }}"
+                        class="-mr-1 -mt-1 shrink-0 rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            @if(filled($_apercu->bio))
+            {{-- `line-clamp-5` : c'est un APERCU. L'annuaire, lui, rend la bio
+                 ENTIERE — c'etait la demande explicite de T1762 point 17, et
+                 elle vaut pour l'annuaire, pas pour une fenetre posee sur un
+                 fil de discussion. Le lien dessous mene au texte complet. --}}
+            <div class="prose prose-sm dark:prose-invert line-clamp-5 max-w-none border-t border-gray-100 px-5 py-4 text-gray-600 dark:border-gray-700 dark:text-gray-300"
+                 data-member-preview-bio>{!! markdown($_apercu->bio, ['renderer' => ['soft_break' => "<br />\n"]]) !!}</div>
+            @elseif($_liens['vide'])
+            <p class="border-t border-gray-100 px-5 py-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{{ __('messages.member_preview_empty') }}</p>
+            @endif
+
+            <div class="flex flex-wrap gap-2 border-t border-gray-100 bg-gray-50 px-5 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+                <a href="{{ $_liens['profil'] }}" data-member-preview-profile
+                   class="inline-flex items-center gap-1.5 rounded-lg bg-[var(--bp-accent)] px-3 py-2 text-sm font-semibold text-white transition hover:brightness-95">{{ __('messages.member_preview_full') }}</a>
+                @if(auth()->id() !== $_apercu->getKey())
+                <a href="{{ $_liens['ecrire'] }}" data-member-preview-write
+                   class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-[var(--bp-accent)] hover:text-[var(--bp-accent)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">{{ __('messages.member_preview_write') }}</a>
+                @endif
+            </div>
+        </div>
+    </div>
+    @endif
 </div>
