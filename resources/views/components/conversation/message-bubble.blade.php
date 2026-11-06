@@ -247,52 +247,56 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          WhatsApp teinte la RANGEE entiere, pas la seule bulle : c'est ce qui
          rend la selection lisible d'un coup d'oeil sur un fil dense. L'anneau
          de la bulle, lui, dit lequel exactement. --}}
-    x-bind:class="$store.bpSelection.id === @js((string) $messageId) && 'bg-[var(--bp-primary)]/10'"
+    {{-- TASK-1771 — la teinte de la rangee passe par un STYLE EN LIGNE.
+         `bg-[var(--bp-primary)]/10` paraissait juste et ne peignait RIEN :
+         Tailwind ne sait pas appliquer un modificateur d'opacite a une
+         variable CSS, il produit une couleur invalide — donc transparente.
+         Mesure au navigateur : la classe etait bien posee sur l'element, et
+         sa couleur calculee valait `rgba(0, 0, 0, 0)`. C'est le piege deja
+         paye en TASK-1475 : une valeur arbitraire batie sur un jeton rend
+         transparent, SANS AUCUNE ERREUR.
+         `color-mix` fait le melange dans le navigateur, avec le jeton tel
+         quel, et ne depend d'aucune purge. Verifie : il rend bien
+         `color(srgb 0.32 0.49 1 / 0.16)` sur ce theme. --}}
+    x-bind:style="$store.bpSelection.id === @js((string) $messageId)
+        ? 'background-color: color-mix(in srgb, var(--bp-primary) 16%, transparent)'
+        : ''"
+    {{-- =================================================================
+         TASK-1771 — SELECTION PAR SIMPLE APPUI. Rien d'autre.
+         =================================================================
+         Demande de Cyril apres trois recettes : « je prefere un mecanisme
+         rudimentaire, mais au moins qui marche ».
+
+         L'appui long est retire ENTIEREMENT — minuteur, seuil de mouvement,
+         `contextmenu`, drapeau de `click` de synthese. Chaque piece fermait
+         le defaut de la precedente et en ouvrait un autre :
+
+           450 ms  -> le defilement declenchait le menu ;
+           + gardes de mouvement -> corrige, mais 500 ms courait contre la
+             selection de texte d'iOS, qui emet `touchcancel` et gagnait ;
+           400 ms  -> corrige, mais le `click` de synthese qui suit un appui
+             long deselectionnait aussitot : « le menu s'affiche et repart ».
+
+         Un `click` n'a aucun de ces problemes. Le navigateur ne l'emet PAS
+         apres un geste de defilement — c'est LUI qui fait le tri, et il le
+         fait mieux que n'importe quel seuil en pixels. Aucun minuteur, donc
+         aucune course avec le systeme.
+
+         Le geste vit sur la RANGEE et non sur la bulle : « les messages ne
+         sont pas faciles a attraper avec le pouce, il faut le faire avec
+         l'index ». Une bulle courte n'offre qu'une cible etroite, posee du
+         cote oppose au pouce pour la moitie des messages. La rangee fait
+         toute la largeur — et c'est la LIGNE qui se surligne, comme sur
+         WhatsApp. --}}
+    @if($_menuAppuiLong)
+    x-on:click="if (! $event.target.closest('a,button,input,textarea,select,[role=button]')) selectionner()"
+    x-on:bp-selection-action.window="if ($event.detail.id === id) executerAction($event.detail.action)"
+    @endif
     x-data="{
         id: @js((string) $messageId),
         open: false,
         hover: false,
         showMore: false,
-        pressTimer: null,
-        // TASK-1770 (recette Cyril, 06/11) — « quand on scrolle, sans faire
-        // expres, on appuie sur les messages et on declenche le menu ».
-        // Un minuteur annule par `touchmove` ne suffit PAS, pour deux raisons
-        // mesurables :
-        //   1. le navigateur emet `contextmenu` de lui-meme sur un appui
-        //      prolonge, et ce handler-la n'avait AUCUNE condition : il
-        //      ouvrait la feuille meme quand le doigt avait bouge ;
-        //   2. le fil defile dans un conteneur, donc un `scroll` ne passe pas
-        //      par `touchmove` du tout une fois l'inertie lancee.
-        // `pressAnnule` est la reponse unique aux deux chemins : des qu'un
-        // doigt bouge de plus de 10 px OU qu'une surface defile, l'appui en
-        // cours n'est plus un appui long, et il ne le redeviendra pas avant
-        // le prochain `touchstart`.
-        pressX: 0,
-        pressY: 0,
-        pressAnnule: false,
-        demarrerAppui(e) {
-            if (e.target.closest('button,a,input,textarea,select')) return;
-            const t = e.touches && e.touches[0];
-            this.pressX = t ? t.clientX : 0;
-            this.pressY = t ? t.clientY : 0;
-            this.pressAnnule = false;
-            clearTimeout(this.pressTimer);
-            // TASK-1771 (recette Cyril) — 400 ms, et PAS 500.
-            //
-            // iOS declenche sa PROPRE selection de texte aux alentours de
-            // 500 ms. Quand le systeme prend la main, il emet `touchcancel` —
-            // que notre garde lit, a juste titre, comme « le geste n'est plus
-            // a nous ». A 500 ms on courait donc contre le systeme, et il
-            // gagnait : l'appui long ne faisait plus rien du tout.
-            // On passe DEVANT lui. (Android n'a pas ce seuil.)
-            this.pressTimer = setTimeout(() => {
-                if (! this.pressAnnule) this.selectionner();
-            }, 400);
-        },
-        annulerAppui() {
-            this.pressAnnule = true;
-            clearTimeout(this.pressTimer);
-        },
         /**
          * TASK-1771 — entrer (ou sortir) du mode selection.
          *
@@ -334,15 +338,6 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
             }
 
             this.$store.bpSelection.fermer();
-        },
-        suivreAppui(e) {
-            const t = e.touches && e.touches[0];
-            if (! t) return this.annulerAppui();
-            // 10 px : en dessous, c'est le tremblement normal d'un doigt pose.
-            // Au-dessus, c'est une intention de defiler.
-            if (Math.abs(t.clientX - this.pressX) > 10 || Math.abs(t.clientY - this.pressY) > 10) {
-                this.annulerAppui();
-            }
         },
         copied: false,
         deleteOpen: false,
@@ -410,46 +405,13 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          clavier-souris, personne ne fait d'appui long. --}}
     <div
         class="{{ $bubbleClasses }} px-3 py-2 select-none [-webkit-touch-callout:none] md:select-auto"
-        {{-- TASK-1770 — le meme appui long, elargi.
-             La garde `closest('button,a,input,...')` est conservee TELLE
-             QUELLE : sans elle, un appui long sur un lien du message ouvrirait
-             la feuille au lieu de laisser le navigateur faire son travail.
-             `touchmove` est la garde qui compte le plus — sans elle, un
-             defilement un peu lent ouvre la feuille toutes les deux secondes.
-             `contextmenu.prevent` supprime le menu natif du navigateur, qui
-             sinon s'ouvrirait PAR-DESSUS le notre. --}}
-        @if($_menuAppuiLong)
-        x-on:touchstart.passive="demarrerAppui($event)"
-        x-on:touchend="annulerAppui()"
-        x-on:touchmove.passive="suivreAppui($event)"
-        x-on:touchcancel="annulerAppui()"
-        {{-- Le defilement, sur N'IMPORTE QUELLE surface. `scroll` ne remonte
-             pas : il faut la phase de CAPTURE pour l'attraper depuis la
-             fenetre. C'est la garde que la recette du 06/11 a reclamee — le
-             fil defile dans un conteneur, donc un defilement lance ne passe
-             plus par `touchmove`. --}}
-        x-on:scroll.window.capture.passive="annulerAppui()"
-        {{-- `contextmenu` est emis par le NAVIGATEUR sur un appui prolonge, et
-             il arrive meme quand le doigt a bouge. On le neutralise toujours
-             (sinon le menu natif s'ouvre par-dessus le notre), mais on
-             n'ouvre la feuille que si l'appui est encore valide. --}}
-        x-on:contextmenu.prevent="if (! pressAnnule) selectionner()"
-        {{-- TASK-1771 — une fois le mode selection OUVERT, un simple appui
-             suffit a deplacer la selection : c'est la regle du « contextual
-             action bar » d'Android, et c'est ce que fait WhatsApp. Hors mode
-             selection, un appui reste un appui : il ne doit rien declencher,
-             sans quoi on ne pourrait plus toucher un message sans le
-             selectionner.
-             `click` et non `touchend` : le navigateur n'emet PAS de `click`
-             apres un geste de defilement — c'est lui qui fait le tri, et il
-             le fait mieux qu'un seuil en pixels. --}}
-        x-on:click="if ($store.bpSelection.ouvert && ! $event.target.closest('button,a,input,textarea,select')) { selectionner() }"
-        {{-- Ce que la barre demande, quand c'est bien NOUS qui sommes
-             selectionnes. --}}
-        x-on:bp-selection-action.window="if ($event.detail.id === id) executerAction($event.detail.action)"
-        {{-- Le surlignage : « le message change de couleur ». --}}
-        x-bind:class="$store.bpSelection.id === id && 'ring-2 ring-[var(--bp-primary)] ring-offset-2 ring-offset-[var(--bp-page)]'"
-        @endif
+        {{-- TASK-1771 — la rangee se teinte (plus haut), la bulle porte
+             l'anneau. Deux marques et non une : sur un fil dense, la teinte se
+             voit d'un coup d'oeil mais ne dit pas LEQUEL des deux messages
+             colles l'un a l'autre est pris ; l'anneau, lui, le dit. --}}
+        {{-- Meme raison que la teinte de la rangee : `ring-[var(--bp-primary)]`
+             rendait un `box-shadow` INVALIDE, donc aucun. Style en ligne. --}}
+        x-bind:style="$store.bpSelection.id === id ? 'box-shadow: inset 0 0 0 2px var(--bp-primary)' : ''"
     >
         @if($avatar || $name || $subtitle || $requestedBy || $time || $isEdited || $isAi)
         <div class="mb-1 flex items-start justify-between gap-3">

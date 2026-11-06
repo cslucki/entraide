@@ -83,6 +83,37 @@ class TASK1771ModeSelectionTest extends TestCase
         }
     }
 
+    /**
+     * Le geste est RUDIMENTAIRE, et c'est tout l'interet.
+     *
+     * Trois recettes ont echoue sur l'appui long, chaque correctif fermant le
+     * defaut du precedent et en ouvrant un autre : le defilement declenchait
+     * le menu ; puis 500 ms courait contre la selection de texte d'iOS, qui
+     * emet `touchcancel` et gagnait ; puis le `click` de synthese qui suit un
+     * appui long deselectionnait aussitot.
+     *
+     * Un `click` n'a aucun de ces problemes : le navigateur ne l'emet pas
+     * apres un defilement. Ce test interdit le retour de l'appareillage.
+     */
+    public function test_aucun_appareillage_d_appui_long_ne_revient(): void
+    {
+        $html = $this->blade(
+            '<x-conversation.message-bubble type="received" :message-id="$id" :show-reply-button="true">Bonjour</x-conversation.message-bubble>',
+            ['id' => 'msg-1771'],
+        )->__toString();
+
+        // Pas `setTimeout` en general : la copie en emploie un legitimement
+        // (le « Copie ! » qui s'efface). On nomme les pieces de l'appui long.
+        foreach (['touchstart', 'touchmove', 'touchcancel', 'contextmenu', 'pressTimer'] as $piece) {
+            $this->assertStringNotContainsString($piece, $html,
+                "« {$piece} » appartient a l'appui long : il ne doit pas revenir");
+        }
+
+        $this->assertStringContainsString('x-on:click=', $html, 'la selection se fait au clic');
+        $this->assertStringContainsString("closest('a,button,input,textarea,select,[role=button]')", $html,
+            'un lien dans un message doit rester un lien');
+    }
+
     /** « On clique sur un message, il change de couleur. » */
     public function test_le_message_selectionne_change_de_couleur(): void
     {
@@ -91,9 +122,15 @@ class TASK1771ModeSelectionTest extends TestCase
             ['id' => 'msg-1771'],
         )->__toString();
 
-        $this->assertStringContainsString('bg-[var(--bp-primary)]/10', $html,
-            'la RANGEE entiere se teinte, comme WhatsApp');
-        $this->assertStringContainsString('ring-2 ring-[var(--bp-primary)]', $html,
+        // En STYLE EN LIGNE, et c'est le coeur du test : une classe Tailwind
+        // batie sur un jeton (`bg-[var(--bp-primary)]/10`) rend une couleur
+        // INVALIDE — donc transparente — sans lever la moindre erreur. Elle
+        // avait ete livree telle quelle et le surlignage ne se voyait pas.
+        $this->assertStringContainsString('color-mix(in srgb, var(--bp-primary)', $html,
+            'la RANGEE se teinte par style en ligne, hors de portee de la purge');
+        $this->assertStringContainsString('box-shadow: inset 0 0 0 2px var(--bp-primary)', $html,
             'et la bulle porte l\'anneau, pour dire lequel exactement');
+        $this->assertStringNotContainsString('bg-[var(--bp-primary)]/', $html,
+            'aucune opacite Tailwind sur un jeton : elle ne peint rien (T1475)');
     }
 }

@@ -1087,6 +1087,30 @@
                                         </span>
                                         <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.composer_add_image') }}</span>
                                     </button>
+                                    {{-- TASK-1771 (demande Cyril) — « Prendre une
+                                         photo » revient dans la feuille, avec
+                                         « Ajouter un fichier » et « Ajouter une
+                                         image ». T1769 l'avait retiree parce
+                                         qu'elle doublait la poignee de la pilule ;
+                                         la poignee vient de partir, le doublon
+                                         n'existe plus, et la feuille redevient la
+                                         SEULE porte.
+                                         `capture` ouvre directement l'appareil
+                                         photo — meme upload, meme pipeline que la
+                                         galerie (`$refs.cameraInput`).
+                                         `data-composer-camera` est porte ici :
+                                         c'est le marqueur que lit
+                                         `TASK1693MobileMessagingTest`, et il ne
+                                         doit pas disparaitre du ChatLoop. --}}
+                                    <button type="button" x-on:click="$refs.cameraInput?.click(); sheetOpen = false"
+                                        data-composer-take-photo
+                                        data-composer-camera
+                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>
+                                        </span>
+                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.composer_take_photo') }}</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
