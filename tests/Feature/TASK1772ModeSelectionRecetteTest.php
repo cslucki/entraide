@@ -72,4 +72,17 @@ class TASK1772ModeSelectionRecetteTest extends TestCase
         $composeur = file_get_contents(resource_path('views/components/conversation/composer.blade.php'));
         $this->assertStringContainsString('data-composer-input', $composeur, 'le champ que le focus vise existe');
     }
+
+    /**
+     * Recette telephone : « on peut scroller horizontalement, ce n'est pas
+     * normal ». Le bouton de reaction, en absolu a 1,75 rem hors de la bulle,
+     * depasse du bord sur une bulle recue a sa largeur maximale (402 px de
+     * contenu pour 390). Le fil ne defile que verticalement, par contrat.
+     */
+    public function test_le_fil_ne_defile_pas_horizontalement(): void
+    {
+        $html = $this->blade('<x-conversation.message-list :has-messages="true" :auto-scroll="false">x</x-conversation.message-list>')->__toString();
+
+        $this->assertMatchesRegularExpression('/class="[^"]*\boverflow-y-auto\b[^"]*\boverflow-x-hidden\b/', $html);
+    }
 }
