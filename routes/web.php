@@ -417,6 +417,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/services/create', [ServiceController::class, 'create'])->name('services.create');
         Route::post('/services', [ServiceController::class, 'store'])->name('services.store');
         Route::post('/services/ai-formulate', [ServiceController::class, 'formulate'])->name('services.ai-formulate');
+        // TASK-1773 — l'ecran de confirmation. Une page en GET, et non un
+        // simple message flash : elle survit au rafraichissement sans rien
+        // recreer, et c'est la condition posee par la demande.
+        Route::get('/services/{service}/publiee', [ServiceController::class, 'created'])->name('services.created')->whereUuid('service');
     });
     Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->name('services.edit');
     Route::put('/services/{service}', [ServiceController::class, 'update'])->name('services.update');
@@ -1617,6 +1621,7 @@ Route::prefix('/org/{organization}')
                 Route::get('/services/create', [ServiceController::class, 'create'])->name('services.create');
                 Route::post('/services', [ServiceController::class, 'store'])->name('services.store');
                 Route::post('/services/ai-formulate', [ServiceController::class, 'formulate'])->name('services.ai-formulate');
+                Route::get('/services/{service}/publiee', [ServiceController::class, 'created'])->middleware('consume.org')->name('services.created')->whereUuid('service');
             });
             Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->middleware('consume.org')->name('services.edit');
             Route::put('/services/{service}', [ServiceController::class, 'update'])->middleware('consume.org')->name('services.update');

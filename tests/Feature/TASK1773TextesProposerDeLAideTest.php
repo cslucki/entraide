@@ -133,20 +133,25 @@ class TASK1773TextesProposerDeLAideTest extends TestCase
     }
 
     /**
-     * LA GARDE QUI COMPTE : le formulaire de DEMANDE d'aide n'a pas bouge.
+     * LA GARDE QUI COMPTE : les deux formulaires ne se melangent pas.
      *
      * Il partage avec « Proposer » les cles generiques. Si une TASK future
      * reecrit l'une d'elles au lieu d'en creer une dediee, c'est ici que ca
      * rougira — et nulle part ailleurs, puisque rien ne leve d'erreur.
      */
-    public function test_le_formulaire_de_demande_d_aide_est_intact(): void
+    public function test_le_formulaire_de_demande_d_aide_reste_distinct(): void
     {
         $reponse = $this->actingAs($this->membre)->get(route('requests.create'))->assertOk();
 
-        $reponse->assertSee('barème de points');
-        $reponse->assertSee('1 minute = 1 point.');
+        // TASK-1773, second temps : Cyril a demande d'harmoniser AUSSI la
+        // demande d'aide. Les deux formulaires parlent donc le meme langage —
+        // mais ils restent DISTINCTS, et c'est cela qu'on mesure : aucun
+        // libelle de « Proposer » ne doit avoir contamine « Demander ».
+        $reponse->assertSee('Ce que vous souhaitez demander au collectif');
+        $reponse->assertSee('De quelle aide avez-vous besoin ?');
+        $reponse->assertSee('Publier ma demande');
 
-        foreach (['Que souhaitez-vous proposer ?', 'Publier ma proposition', 'Temps estimé pour cette aide'] as $texteDeProposer) {
+        foreach (['Que souhaitez-vous proposer ?', 'Publier ma proposition', 'Temps estimé pour cette aide', 'Proposer cette action sous forme d\'atelier'] as $texteDeProposer) {
             $reponse->assertDontSee($texteDeProposer);
         }
     }

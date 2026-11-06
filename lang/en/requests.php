@@ -8,9 +8,9 @@ return [
         'closed' => 'Request closed.',
     ],
 
-    'relay_loop_label' => 'Relay in a Loop',
-    'relay_loop_none' => 'Do not relay this request',
-    'relay_loop_help' => 'The announcement is created only after the request is published.',
+    'relay_loop_label' => 'Also share in a Loop',
+    'relay_loop_none' => 'Do not share in a Loop',
+    'relay_loop_help' => 'Your request will be shared in the selected Loop once it is published.',
     'relay_loop_invalid' => 'This Loop is not an authorized relay destination.',
     'relay_failed' => 'The request was created, but its Loop announcement could not be published.',
     'chat_projection_body' => 'New help request: :title',

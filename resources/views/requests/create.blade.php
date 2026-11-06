@@ -234,7 +234,7 @@
             @endif
 
             <div class="mb-5">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.title') }} {{ __('marketplace.required') }}</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.request_title_label') }} {{ __('marketplace.required') }}</label>
                 <input type="text" name="title" value="{{ old('title') }}" required minlength="10" maxlength="255"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
             </div>
@@ -267,7 +267,7 @@
             </div>
 
             <div class="mb-5">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('marketplace.delivery_mode') }} {{ __('marketplace.required') }}</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('marketplace.request_delivery_mode') }} {{ __('marketplace.required') }}</label>
                 <div class="flex gap-3">
                     @foreach(__('marketplace.delivery') as $val => $label)
                     <label class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border rounded-lg cursor-pointer text-sm font-medium hover:border-indigo-400 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 dark:text-gray-300 border-gray-200 dark:border-gray-600 transition">
@@ -282,8 +282,13 @@
             <div class="mb-5 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl text-sm text-amber-800 dark:text-amber-200">
                 <p class="font-semibold mb-1">{{ __('marketplace.points_help_title') }}</p>
                 <p class="mb-2 opacity-90">{{ __('marketplace.points_request_body', ['organization' => $organization->name]) }}</p>
+                {{-- TASK-1773 — le meme recit que sur « Proposer de l'aide » :
+                     on y parle de temps partage, plus d'un bareme. Les bornes
+                     de l'Organization restent en liste : elles sont du fait,
+                     pas du discours. --}}
+                <p class="mb-2 opacity-90">{{ __('marketplace.request_points_help_count') }}</p>
+                <p class="mb-2 opacity-90">{{ __('marketplace.request_points_help_estimate') }}</p>
                 <ul class="space-y-0.5 mb-2 ml-2 opacity-90">
-                    <li>{{ __('marketplace.points_one_minute') }}</li>
                     @if($pointMin !== null)
                         <li>{{ __('marketplace.points_minimum_allowed', $pointHelpContext) }}</li>
                     @endif
@@ -291,7 +296,6 @@
                         <li>{{ __('marketplace.points_maximum_allowed', $pointHelpContext) }}</li>
                     @endif
                 </ul>
-                <p class="opacity-90 mb-3">{{ __('marketplace.request_points_hint') }}</p>
 
                 <hr class="border-amber-200 dark:border-amber-700/50 my-3">
                 
@@ -313,6 +317,11 @@
                     <input type="number" name="budget_max" value="{{ old('budget_max') }}" @if($pointMin !== null) min="{{ $pointMin }}" @endif @if($pointMax !== null) max="{{ $pointMax }}" @endif
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
                 </div>
+                {{-- TASK-1773 — les champs se LISENT en minutes, et la valeur
+                     envoyee est inchangee. Ce rappel discret est ce qui relie
+                     les deux lectures ; sans lui, « 45 minutes » dans un champ
+                     nomme budget ne voudrait plus rien dire. --}}
+                <p class="col-span-2 -mt-2 text-xs text-gray-500 dark:text-gray-400" data-request-duration-hint>{{ __('marketplace.request_duration_hint') }}</p>
             </div>
 
             {{-- Fourchettes indicatives — TASK-1707 F1.
