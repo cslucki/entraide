@@ -500,7 +500,11 @@ final class NotificationEmailDeliverer
 
             $mentionMailer = app(LoopMentionMailer::class);
             $reel = $mentionMailer->compose($message, $destinataire, $auteur, $cible, $locale);
-            $expurge = $mentionMailer->compose($message, $destinataire, $auteur, self::LIEN_EXPURGE, $locale);
+            // Le sixieme argument expurge AUSSI l'extrait du message : le
+            // courriel porte desormais la phrase ecrite par un membre, et
+            // `email_logs` n'a pas a archiver une conversation de Boucle
+            // privee (cf. `LoopMentionMailer::EXTRAIT_EXPURGE`).
+            $expurge = $mentionMailer->compose($message, $destinataire, $auteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
 
             return [
                 'subject' => $reel['subject'],

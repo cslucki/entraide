@@ -179,6 +179,10 @@ return [
 
     // Fallback when a catalogue key has no label yet. It must never show the
     // technical key: that means nothing to a member.
+    // TASK-1772 — a message can be a photo only: `loop_messages.body` is
+    // then empty, and the quote block would look broken.
+    'mention_email_excerpt_empty' => '(message with no text)',
+
     'key_fallback' => 'Notification',
 
     /*
@@ -202,7 +206,9 @@ return [
         // gabarit est desactive ou absent.
         'loop_mention_created' => [
             'subject' => 'You were mentioned in a Loop',
-            'body' => '<p>Hello,</p><p>Someone mentioned you in a message from a Loop.</p><p><a href=":url">Read the message</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>See you soon,<br>The BouclePro team</p>',
+            // TASK-1772 — see the French file: both the excerpt and the
+            // settings link stay placeholders, never hardcoded addresses.
+            'body' => '<p>Hello,</p><p>Someone mentioned you in a message from a Loop.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">Read the message</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>No rush: the message will wait for you.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
         ],
         'loop_join_request_created' => [
             'subject' => 'Someone is asking to join your Loop',

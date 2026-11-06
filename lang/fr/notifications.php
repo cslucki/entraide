@@ -204,6 +204,10 @@ return [
 
     // Repli quand une cle du catalogue n'a pas encore de libelle. Il ne doit
     // jamais afficher la cle technique : elle ne veut rien dire pour un membre.
+    // TASK-1772 — un message peut n'etre QU'une photo : `loop_messages.body`
+    // est alors vide, et le bloc de citation du courriel aurait l'air casse.
+    'mention_email_excerpt_empty' => '(message sans texte)',
+
     'key_fallback' => 'Notification',
 
     /*
@@ -227,7 +231,12 @@ return [
         // gabarit est desactive ou absent.
         'loop_mention_created' => [
             'subject' => 'On vous a mentionné dans une Boucle',
-            'body' => '<p>Bonjour,</p><p>Une personne vous a mentionné dans un message d’une Boucle.</p><p><a href=":url">Lire le message</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>À bientôt,<br>L’équipe BouclePro</p>',
+            // TASK-1772 (recette 06/11) — `:extrait` porte le message, et
+            // `:reglages` le lien de desabonnement. Les DEUX restent des
+            // jetons : une adresse en dur ici echapperait a l'expurgation du
+            // livreur et finirait telle quelle dans `email_logs` (garde
+            // `TASK1379…::test_every_email_body_uses_the_url_placeholder`).
+            'body' => '<p>Bonjour,</p><p>Une personne vous a mentionné dans un message d’une Boucle.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">Lire le message</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
         ],
         'loop_join_request_created' => [
             'subject' => 'Quelqu’un demande à rejoindre votre Boucle',

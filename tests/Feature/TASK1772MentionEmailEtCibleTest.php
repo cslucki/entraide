@@ -69,6 +69,30 @@ class TASK1772MentionEmailEtCibleTest extends TestCase
             ->call('sendMessage');
     }
 
+    /**
+     * Rejoue la mention avec un corps choisi, apres avoir efface la trace de
+     * celle de `setUp()`.
+     *
+     * L'`event_id` de la mention est un UUID v5 derive de l'id du MESSAGE
+     * (T1772) : un second message produit donc bien une seconde notification,
+     * mais `notification()` exige qu'il n'y en ait qu'une.
+     */
+    private function rementionnerAvec(string $corps): void
+    {
+        MemberNotification::query()
+            ->where('notification_key', NotificationCatalogue::LOOP_MENTION_CREATED)
+            ->delete();
+        LoopMessage::query()->where('loop_id', $this->loop->id)->where('type', 'user')->delete();
+
+        $nom = $this->cible->fresh()->publicDisplayName();
+
+        Livewire::actingAs($this->auteur)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->set('body', str_replace('@MENTION', '@'.$nom, $corps))
+            ->set('mentionsSelectionnees', [$this->cible->id])
+            ->call('sendMessage');
+    }
+
     private function notification(): MemberNotification
     {
         return MemberNotification::query()
@@ -169,5 +193,116 @@ class TASK1772MentionEmailEtCibleTest extends TestCase
             ->update(['status' => 'removed']);
 
         $this->assertNull(app(NotificationTargetResolver::class)->resolve($notification->fresh()));
+    }
+
+    /**
+     * TASK-1772 recette 06/11 — LE MESSAGE EST DANS LE COURRIEL.
+     *
+     * ## Pourquoi c'est une exigence, et pas une commodite
+     *
+     * Demande de Cyril, avec sa raison : « cela reduit le FOMO, et on ne
+     * stresse pas les membres. Ils peuvent lire le message sur la Boucle, mais
+     * ils ont le temps de le faire quand ils veulent car ils ont eu l'info dans
+     * l'email. » Un courriel qui dit seulement « on vous a mentionne » OBLIGE a
+     * ouvrir l'application pour savoir si c'est urgent. Celui-ci repond a la
+     * question sur place.
+     *
+     * Et le lien de desabonnement, exige par la meme demande, mene aux reglages
+     * DE L'ORGANIZATION : les preferences sont par tenant.
+     */
+    public function test_le_courriel_porte_le_message_et_le_lien_de_desabonnement(): void
+    {
+        $this->rementionnerAvec('Coucou @MENTION, le local est libre jeudi soir');
+
+        $contenu = $this->rendre();
+
+        $this->assertStringContainsString('le local est libre jeudi soir', $contenu['body'],
+            'Le courriel ne reprend pas le message : la personne doit ouvrir l\'application '
+            .'pour savoir de quoi il s\'agit — c\'est exactement le FOMO qu\'on voulait retirer.');
+
+        $this->assertStringContainsString(
+            route('organization.notifications.preferences.edit', ['organization' => $this->org]),
+            $contenu['body'],
+            'Aucun lien vers les reglages de notifications : le seul recours serait de chercher '
+            .'dans l\'application, ou de ne plus lire nos courriels.');
+    }
+
+    /**
+     * Le message est ECHAPPE, parce qu'il est ecrit par un membre.
+     *
+     * C'est la premiere fois que ce courriel porte du texte libre. Le chemin du
+     * gabarit est couvert par `EmailerService::interpolate()`, qui passe chaque
+     * variable par `e()` ; le chemin du REPLI ne le traverse pas et echappe a
+     * la main. Les deux sont mesures ici, parce qu'un seul des deux l'etait
+     * suffirait a laisser passer l'autre.
+     */
+    public function test_le_message_repris_est_echappe_sur_les_deux_chemins(): void
+    {
+        $this->rementionnerAvec('Coucou @MENTION <script>alert(1)</script>');
+
+        $gabarit = $this->rendre();
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $gabarit['body'],
+            'Le gabarit a injecte du balisage ecrit par un membre dans un courriel HTML.');
+        $this->assertStringContainsString('alert(1)', $gabarit['body'],
+            'Temoin positif : le texte doit bien etre la, echappe — sans lui, '
+            .'cette assertion passerait aussi sur un courriel qui ne reprend RIEN.');
+
+        SystemEmailTemplate::query()->where('slug', 'loop_mention_created')->update(['enabled' => false]);
+
+        $repli = $this->rendre();
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $repli['body'],
+            'Le REPLI de langue ne traverse pas `interpolate()` : il doit echapper lui-meme.');
+        $this->assertStringContainsString('alert(1)', $repli['body']);
+    }
+
+    /**
+     * La copie ARCHIVEE n'emporte pas la conversation.
+     *
+     * `body_for_log` finit dans `email_logs`, que le SuperAdmin peut relire. Le
+     * lien y etait deja expurge parce qu'il OUVRE une porte ; l'extrait l'est
+     * parce qu'il porte la parole d'un membre dans une Boucle privee. Le
+     * journal prouve toujours que le courriel est parti, et avec quelle
+     * structure.
+     */
+    public function test_la_copie_journalisee_n_archive_pas_le_message(): void
+    {
+        $this->rementionnerAvec('Coucou @MENTION, mon code de porte est 4821B');
+
+        $contenu = $this->rendre();
+
+        $this->assertStringContainsString('4821B', $contenu['body'],
+            'Temoin : le courriel reellement envoye porte bien le message.');
+        $this->assertStringNotContainsString('4821B', $contenu['body_for_log'],
+            'La conversation est archivee dans `email_logs`.');
+        $this->assertStringContainsString(
+            \App\Services\Loops\LoopMentionMailer::EXTRAIT_EXPURGE,
+            $contenu['body_for_log'],
+            'Le journal doit DIRE qu\'un extrait a ete expurge, pas laisser un trou.');
+        $this->assertStringNotContainsString(
+            route('organization.notifications.preferences.edit', ['organization' => $this->org]),
+            $contenu['body_for_log']);
+    }
+
+    /**
+     * Un message sans texte — une photo seule — ne laisse pas un bloc vide.
+     *
+     * `loop_messages.body` peut etre vide : le composeur accepte une image
+     * seule. Sans ce repli, le courriel afficherait une citation vide, et le
+     * membre lirait « on vous a mentionne » suivi de rien.
+     */
+    public function test_un_message_sans_texte_affiche_une_mention_neutre(): void
+    {
+        $this->rementionnerAvec('@MENTION');
+
+        LoopMessage::query()
+            ->where('loop_id', $this->loop->id)
+            ->where('type', 'user')
+            ->update(['body' => '']);
+
+        $contenu = $this->rendre();
+
+        $this->assertStringContainsString(
+            (string) __('notifications.mention_email_excerpt_empty', [], 'fr'),
+            $contenu['body']);
     }
 }

@@ -251,11 +251,18 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Mention in a Loop',
             'subject_fr' => '{{ author_name }} vous a mentionné dans « {{ loop_name }} »',
             'subject_en' => '{{ author_name }} mentioned you in “{{ loop_name }}”',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> vous a mentionné dans un message de la Boucle <strong>{{ loop_name }}</strong>.</p><p><a href="{{ message_url }}">Lire le message</a></p><p>À bientôt,<br>L’équipe {{ app_name }}</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned you in a message from the Loop <strong>{{ loop_name }}</strong>.</p><p><a href="{{ message_url }}">Read the message</a></p><p>See you soon,<br>The {{ app_name }} team</p>',
+            // Le contenu suit la migration
+            // `2026_11_06_150000_add_message_and_preferences_to_mention_email` :
+            // une base reconstruite de zero recoit directement la version
+            // qui porte l'extrait et le lien de desabonnement, sans passer
+            // par la precedente. La suite TASK-1772 verifie que ces deux
+            // chaines ne divergent pas.
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> vous a mentionné dans un message de la Boucle <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Lire le message dans la Boucle</a></p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned you in a message from the Loop <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Read the message in the Loop</a></p><p>No rush: the message will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'organization_name',
-                'loop_name', 'author_name', 'message_url', 'app_name',
+                'loop_name', 'author_name', 'message_url', 'message_excerpt',
+                'preferences_url', 'app_name',
             ],
         ],
 
