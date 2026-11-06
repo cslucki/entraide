@@ -90,13 +90,15 @@ function registerAlpineStores() {
         id: null,
         actions: {},
         texte: '',
+        /** Qui a ecrit le message selectionne (« Moi » ou le nom affiche). */
+        auteur: '',
 
         get ouvert() {
             return this.id !== null;
         },
 
         /** Selectionner, ou DESELECTIONNER si c'est deja celui-la. */
-        basculer(id, actions, texte) {
+        basculer(id, actions, texte, auteur) {
             if (this.id === id) {
                 return this.fermer();
             }
@@ -104,12 +106,37 @@ function registerAlpineStores() {
             this.id = id;
             this.actions = actions || {};
             this.texte = texte || '';
+            this.auteur = auteur || '';
         },
 
         fermer() {
             this.id = null;
             this.actions = {};
             this.texte = '';
+            this.auteur = '';
+        },
+
+        /**
+         * TASK-1772 (recette Cyril) — un appui EN DEHORS de tout message sort
+         * du mode selection, comme on referme un menu en touchant a cote.
+         *
+         * Appele depuis un `click` de fenetre : la rangee a deja traite le
+         * sien (le `click` remonte de la rangee vers la fenetre), donc un
+         * appui sur une AUTRE rangee a deja bascule la selection quand on
+         * arrive ici — et il est ignore, puisqu'il vient d'une rangee.
+         * Seuls comptent les appuis qui ne viennent ni d'une rangee
+         * selectionnable, ni de la barre elle-meme.
+         */
+        fermerSiDehors(cible) {
+            if (! this.ouvert || ! (cible instanceof Element)) {
+                return;
+            }
+
+            if (cible.closest('[data-bp-selectable], [data-selection-bar]')) {
+                return;
+            }
+
+            this.fermer();
         },
 
         /**

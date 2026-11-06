@@ -1,0 +1,75 @@
+<?php
+
+namespace Tests\Feature;
+
+use Tests\TestCase;
+
+/**
+ * TASK-1772 (recette Cyril du 06/11, telephone) — trois defauts du mode
+ * selection de T1771, et le modele WhatsApp qui les tranche.
+ *
+ *   1. « si on clique en dehors du message, le message est deselectionne » ;
+ *   2. « les outils du haut sont toujours relatifs au premier message » :
+ *      la barre doit dire DE QUI est le message selectionne ;
+ *   3. « le bouton repondre ne fonctionne pas » : la citation se posait a
+ *      l'autre bout de l'ecran, sans clavier. Repondre = le champ prend le
+ *      focus, DANS le geste (hors du geste, Android n'ouvre pas le clavier).
+ */
+class TASK1772ModeSelectionRecetteTest extends TestCase
+{
+    private function bulle(array $vars = []): string
+    {
+        return $this->blade(
+            '<x-conversation.message-bubble type="received" :message-id="$id" :name="$nom" :show-reply-button="true">Bonjour</x-conversation.message-bubble>',
+            ['id' => 'msg-1772', 'nom' => 'Habiba Ounaha'] + $vars,
+        )->__toString();
+    }
+
+    public function test_un_appui_hors_de_toute_rangee_sort_de_la_selection(): void
+    {
+        $barre = $this->blade('<x-conversation.selection-bar />')->__toString();
+        $bulle = $this->bulle();
+
+        $this->assertStringContainsString('x-on:click.window="$store.bpSelection.fermerSiDehors($event.target)"', $barre,
+            'la barre ecoute la FENETRE : un appui qui ne vient ni d\'une rangee ni d\'elle ferme');
+        $this->assertStringContainsString('data-selection-bar', $barre);
+        $this->assertStringContainsString('data-bp-selectable', $bulle,
+            'la rangee se declare selectionnable : le store ignore les appuis qui en viennent');
+
+        $js = file_get_contents(base_path('resources/js/app.js'));
+        $this->assertStringContainsString("closest('[data-bp-selectable], [data-selection-bar]')", $js);
+    }
+
+    public function test_la_barre_nomme_l_auteur_du_message_selectionne(): void
+    {
+        $barre = $this->blade('<x-conversation.selection-bar />')->__toString();
+        $bulle = $this->bulle();
+
+        $this->assertMatchesRegularExpression('/data-selection-author[^>]*x-text="\$store\.bpSelection\.auteur/', $barre);
+        // La bulle TRANSMET son nom au store, en 4e argument de `basculer`.
+        $this->assertMatchesRegularExpression('/basculer\(\s*this\.id,.*?\'Habiba Ounaha\'/s', $bulle,
+            'sans le nom, passer d\'un message a l\'autre ne change que l\'anneau');
+    }
+
+    public function test_repondre_depuis_la_barre_donne_le_focus_au_composeur_dans_le_geste(): void
+    {
+        $bulle = $this->bulle();
+
+        $this->assertMatchesRegularExpression(
+            "/if \(action === 'reply'\) \{.*?\\\$dispatch\('reply-to-message'.*?document\.querySelector\('\[data-composer-input\]'\)\?\.focus\(\)/s",
+            $bulle,
+            'le focus est SYNCHRONE dans la branche reply, pas dans un $nextTick'
+        );
+        // Et la selection est refermee AVANT l'action : un echec en route ne
+        // laisse plus la barre « scotchee ».
+        $corps = substr($bulle, strpos($bulle, 'executerAction(action) {'));
+        $this->assertLessThan(
+            strpos($corps, "if (action === 'reply')"),
+            strpos($corps, '$store.bpSelection.fermer()'),
+            'fermer() vient AVANT la premiere branche d\'action'
+        );
+
+        $composeur = file_get_contents(resource_path('views/components/conversation/composer.blade.php'));
+        $this->assertStringContainsString('data-composer-input', $composeur, 'le champ que le focus vise existe');
+    }
+}

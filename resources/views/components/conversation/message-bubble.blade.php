@@ -403,6 +403,7 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          toute la largeur — et c'est la LIGNE qui se surligne, comme sur
          WhatsApp. --}}
     @if($_menuAppuiLong)
+    data-bp-selectable
     x-on:click="if (! $event.target.closest('a,button,input,textarea,select,[role=button]')) selectionner()"
     x-on:bp-selection-action.window="if ($event.detail.id === id) executerAction($event.detail.action)"
     @endif
@@ -429,6 +430,7 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
                     'delete' => (bool) $showDeleteButton,
                 ]),
                 (this.$refs.copyContent?.innerText || '').replace(/\n{3,}/g, '\n\n').trim(),
+                @js((string) ($name ?? '')),
             );
         },
         /**
@@ -441,8 +443,22 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          * les composants Livewire n'exposent PAS les memes methodes.
          */
         executerAction(action) {
+            // TASK-1772 (recette Cyril) — on SORT du mode selection AVANT
+            // d'executer : si l'action echoue en route, la barre ne reste pas
+            // « scotchee » sur le message. L'identifiant est deja dans `this.id`.
+            this.$store.bpSelection.fermer();
+
             if (action === 'reply') {
                 this.$dispatch('reply-to-message', { messageId: this.id });
+                // TASK-1772 (recette Cyril) — « le bouton repondre ne
+                // fonctionne pas » : la citation se posait bien dans le
+                // composeur, mais a l'autre bout de l'ecran, et sans clavier.
+                // Sur telephone, repondre = le clavier s'ouvre sur la citation,
+                // comme sur WhatsApp. Le `focus()` doit etre SYNCHRONE dans le
+                // geste : hors de l'appui, Android n'ouvre pas le clavier.
+                // Le champ est `wire:ignore.self`, le re-rendu ne le lui
+                // reprend pas.
+                document.querySelector('[data-composer-input]')?.focus();
             } else if (action === 'pin') {
                 @if($isPinned) this.$wire.unpinMessage(); @else this.$wire.pinMessage(this.id); @endif
             } else if (action === 'edit') {
@@ -450,8 +466,6 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
             } else if (action === 'delete') {
                 this.deleteOpen = true;
             }
-
-            this.$store.bpSelection.fermer();
         },
         copied: false,
         deleteOpen: false,
@@ -852,7 +866,8 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
             <div class="ml-auto hidden items-center gap-1 md:flex">
                 @if($showReplyButton)
                 <button
-                    x-on:click="$dispatch('reply-to-message', { messageId: '{{ $messageId }}' })"
+                    {{-- TASK-1772 — meme contrat que la barre de selection : repondre, c'est ecrire. --}}
+                    x-on:click="$dispatch('reply-to-message', { messageId: '{{ $messageId }}' }); document.querySelector('[data-composer-input]')?.focus()"
                     class="inline-flex h-6 w-6 items-center justify-center rounded-full transition {{ $isSent ? 'text-indigo-200 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-white/70 hover:text-indigo-600 dark:hover:bg-gray-800 dark:hover:text-indigo-300' }}"
                     title="{{ __('messages.reply') }}"
                     aria-label="{{ __('messages.reply') }}"

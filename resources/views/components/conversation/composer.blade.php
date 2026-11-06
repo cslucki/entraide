@@ -339,6 +339,7 @@
                  un canal distinct du morph d'attributs. --}}
             <textarea
                 wire:ignore.self
+                data-composer-input
                 x-data="{ resize() { $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 176) + 'px'; $el.scrollTop = $el.scrollHeight } }"
                 x-init="resize(); hasText = $el.value.trim().length > 0"
                 x-on:input="resize(); hasText = $el.value.trim().length > 0; @if($mentionables !== []) mentionDetecter($el) @endif"
