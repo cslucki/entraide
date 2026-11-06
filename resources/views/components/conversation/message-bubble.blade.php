@@ -250,6 +250,46 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
         showMore: false,
         pressTimer: null,
         sheetOpen: false,
+        // TASK-1770 (recette Cyril, 06/11) — « quand on scrolle, sans faire
+        // expres, on appuie sur les messages et on declenche le menu ».
+        // Un minuteur annule par `touchmove` ne suffit PAS, pour deux raisons
+        // mesurables :
+        //   1. le navigateur emet `contextmenu` de lui-meme sur un appui
+        //      prolonge, et ce handler-la n'avait AUCUNE condition : il
+        //      ouvrait la feuille meme quand le doigt avait bouge ;
+        //   2. le fil defile dans un conteneur, donc un `scroll` ne passe pas
+        //      par `touchmove` du tout une fois l'inertie lancee.
+        // `pressAnnule` est la reponse unique aux deux chemins : des qu'un
+        // doigt bouge de plus de 10 px OU qu'une surface defile, l'appui en
+        // cours n'est plus un appui long, et il ne le redeviendra pas avant
+        // le prochain `touchstart`.
+        pressX: 0,
+        pressY: 0,
+        pressAnnule: false,
+        demarrerAppui(e) {
+            if (e.target.closest('button,a,input,textarea,select')) return;
+            const t = e.touches && e.touches[0];
+            this.pressX = t ? t.clientX : 0;
+            this.pressY = t ? t.clientY : 0;
+            this.pressAnnule = false;
+            clearTimeout(this.pressTimer);
+            this.pressTimer = setTimeout(() => {
+                if (! this.pressAnnule) this.sheetOpen = true;
+            }, 500);
+        },
+        annulerAppui() {
+            this.pressAnnule = true;
+            clearTimeout(this.pressTimer);
+        },
+        suivreAppui(e) {
+            const t = e.touches && e.touches[0];
+            if (! t) return this.annulerAppui();
+            // 10 px : en dessous, c'est le tremblement normal d'un doigt pose.
+            // Au-dessus, c'est une intention de defiler.
+            if (Math.abs(t.clientX - this.pressX) > 10 || Math.abs(t.clientY - this.pressY) > 10) {
+                this.annulerAppui();
+            }
+        },
         copied: false,
         deleteOpen: false,
         copyTimer: null,
@@ -317,11 +357,21 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
              `contextmenu.prevent` supprime le menu natif du navigateur, qui
              sinon s'ouvrirait PAR-DESSUS le notre. --}}
         @if($_menuAppuiLong)
-        x-on:touchstart.passive="if (!$event.target.closest('button,a,input,textarea,select')) { pressTimer = setTimeout(() => { sheetOpen = true }, 450) }"
-        x-on:touchend="clearTimeout(pressTimer)"
-        x-on:touchmove="clearTimeout(pressTimer)"
-        x-on:touchcancel="clearTimeout(pressTimer)"
-        x-on:contextmenu.prevent="sheetOpen = true"
+        x-on:touchstart.passive="demarrerAppui($event)"
+        x-on:touchend="annulerAppui()"
+        x-on:touchmove.passive="suivreAppui($event)"
+        x-on:touchcancel="annulerAppui()"
+        {{-- Le defilement, sur N'IMPORTE QUELLE surface. `scroll` ne remonte
+             pas : il faut la phase de CAPTURE pour l'attraper depuis la
+             fenetre. C'est la garde que la recette du 06/11 a reclamee — le
+             fil defile dans un conteneur, donc un defilement lance ne passe
+             plus par `touchmove`. --}}
+        x-on:scroll.window.capture.passive="annulerAppui()"
+        {{-- `contextmenu` est emis par le NAVIGATEUR sur un appui prolonge, et
+             il arrive meme quand le doigt a bouge. On le neutralise toujours
+             (sinon le menu natif s'ouvre par-dessus le notre), mais on
+             n'ouvre la feuille que si l'appui est encore valide. --}}
+        x-on:contextmenu.prevent="if (! pressAnnule) sheetOpen = true"
         @endif
     >
         @if($avatar || $name || $subtitle || $requestedBy || $time || $isEdited || $isAi)
