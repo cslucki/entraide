@@ -9,6 +9,7 @@ use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopMessageService;
+use App\Support\Files\TypesDeFichiersAcceptes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -151,5 +152,53 @@ class TASK1772DepotFichierBoucleTest extends TestCase
         )->assertCreated();
 
         $this->assertSame(0, LoopMessage::where('type', 'dossier_file')->count());
+    }
+
+    /**
+     * Recette Cyril du 06/11, PWA Android : « on ne peut pas envoyer de PDF
+     * depuis le telephone ; sur Desktop, PDF passe. »
+     *
+     * Le serveur, lui, n'a jamais refuse un PDF — c'est le champ qui n'avait
+     * AUCUN `accept`. Sur un ordinateur cela veut dire « tous les fichiers » ;
+     * sur Android, le selecteur choisit alors ses fournisseurs et, dans une
+     * PWA installee, ouvre volontiers la seule galerie. Les deux moities sont
+     * donc mesurees : le champ PROPOSE les documents, et le serveur les
+     * ACCEPTE.
+     */
+    public function test_le_champ_de_depot_propose_les_documents_et_le_serveur_les_accepte(): void
+    {
+        $vue = file_get_contents(resource_path('views/livewire/loop-chat.blade.php'));
+
+        // Le champ porte un `accept`, et il le tient de la MEME source que la
+        // regle serveur : une liste recopiee se perimerait d'un seul cote —
+        // c'etait le motif pour lequel il n'y en avait AUCUN.
+        $this->assertMatchesRegularExpression(
+            '/x-ref="fichierBoucle"[\s\S]{0,200}?accept="\{\{[^"]*pourAttributAccept\(\)[^"]*\}\}"/',
+            $vue,
+            'sans `accept`, le selecteur Android peut n\'offrir que la galerie'
+        );
+        $this->assertStringContainsString('application/pdf', TypesDeFichiersAcceptes::pourAttributAccept());
+
+        $this->actingAs($this->membre);
+        app()->instance('current_organization', $this->organization);
+
+        $this->postJson(
+            route('organization.dossiers.files.store', [
+                'organization' => $this->organization->slug,
+                'dossier' => $this->dossier->id,
+            ]),
+            ['files' => [UploadedFile::fake()->create('contrat.pdf', 40, 'application/pdf')]],
+        )->assertCreated();
+    }
+
+    /** Un refus doit DIRE pourquoi : un echec muet fait chercher du mauvais cote. */
+    public function test_un_refus_de_depot_porte_sa_raison(): void
+    {
+        $vue = file_get_contents(resource_path('views/livewire/loop-chat.blade.php'));
+
+        $this->assertStringContainsString('raison = donnees?.errors', $vue,
+            'le detail d\'un 422 vit dans `errors`, le resume dans `message`');
+        $this->assertStringContainsString("raison || @js(__('loops.composer_file_failed'))", $vue,
+            'le bandeau affiche la raison du serveur, et retombe sur le message generique');
     }
 }

@@ -1128,10 +1128,26 @@
                                             </span>
                                             <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.composer_add_file') }}</span>
                                         </button>
-                                        {{-- Aucun `accept` : c'est le serveur qui decide des types
-                                             recevables (`StoreDossierFileRequest`), une liste en dur
-                                             ici se perimerait sans que personne ne le voie. --}}
+                                        {{-- TASK-1772 (recette Cyril, 06/11, PWA Android) — « on ne
+                                             peut pas envoyer de PDF depuis le telephone ; sur
+                                             Desktop, PDF passe ».
+
+                                             Ce champ n'avait AUCUN `accept`, au motif que le
+                                             serveur decide seul des types recevables. Sur un
+                                             ordinateur, pas d'`accept` veut dire « tous les
+                                             fichiers ». Sur Android, c'est autre chose : le
+                                             selecteur choisit alors lui-meme ses fournisseurs, et
+                                             dans une PWA installee il ouvre volontiers la seule
+                                             galerie — un PDF n'y est pas atteignable, donc
+                                             « on ne peut pas l'envoyer », sans le moindre refus
+                                             serveur.
+
+                                             L'`accept` vient de la MEME source que la regle
+                                             serveur (`TypesDeFichiersAcceptes`), jamais d'une
+                                             liste recopiee : c'etait le motif de l'absence
+                                             d'`accept`, et il est respecte. --}}
                                         <input type="file" x-ref="fichierBoucle" multiple class="hidden"
+                                            accept="{{ \App\Support\Files\TypesDeFichiersAcceptes::pourAttributAccept() }}"
                                             x-on:change="deposer($event); sheetOpen = false">
                                     </div>
                                     @endif
@@ -1556,6 +1572,14 @@
                         fichiers.forEach((f) => corps.append('files[]', f, f.name));
 
                         let ok = false;
+                        // TASK-1772 — on remonte la RAISON du refus. Un depot
+                        // qui echoue affichait « L'envoi a echoue » et rien
+                        // d'autre : le serveur disait pourtant lequel des
+                        // quatre refus c'etait (type, poids, doublon, quota),
+                        // et ce message etait jete. Un echec muet fait
+                        // chercher du mauvais cote — c'est ce qui vient
+                        // d'arriver avec le PDF.
+                        let raison = '';
                         try {
                             const r = await fetch(this.endpoint, {
                                 method: 'POST',
@@ -1567,13 +1591,22 @@
                                 body: corps,
                             });
                             ok = r.ok;
+
+                            if (! ok) {
+                                const donnees = await r.json().catch(() => null);
+                                // 422 de validation : le detail est dans
+                                // `errors`, le resume dans `message`.
+                                raison = donnees?.errors
+                                    ? Object.values(donnees.errors).flat().join(' ')
+                                    : (donnees?.message || '');
+                            }
                         } catch (err) {
                             ok = false;
                         }
 
                         this.envoi = false;
                         window.dispatchEvent(new CustomEvent('bp-depot-fichier', {
-                            detail: { ok: ok, nombre: fichiers.length },
+                            detail: { ok: ok, nombre: fichiers.length, raison: raison },
                         }));
 
                         // La Card Dossiers est deja montee et ne voit PAS ce
@@ -1591,15 +1624,15 @@
 
     {{-- Retour visible du depot : sans lui, le geste reussit en silence et le
          membre ne sait pas si son fichier est parti. --}}
-    <div x-data="{ vu: false, ok: false, nombre: 0 }"
-        x-on:bp-depot-fichier.window="ok = $event.detail.ok; nombre = $event.detail.nombre; vu = true; setTimeout(() => vu = false, 4000)"
+    <div x-data="{ vu: false, ok: false, nombre: 0, raison: '' }"
+        x-on:bp-depot-fichier.window="ok = $event.detail.ok; nombre = $event.detail.nombre; raison = $event.detail.raison || ''; vu = true; setTimeout(() => vu = false, 6000)"
         x-show="vu" x-cloak style="display: none"
         class="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
         <p class="rounded-full px-4 py-2 text-xs font-medium shadow-lg"
             x-bind:class="ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'"
             x-text="ok
                 ? @js(__('loops.composer_file_uploaded'))
-                : @js(__('loops.composer_file_failed'))"></p>
+                : (raison || @js(__('loops.composer_file_failed')))"></p>
     </div>
     {{-- TASK-1771 — la barre du mode selection. Teleportee en haut de
          l'ecran, telephone uniquement. Rendue UNE fois par fil. --}}
