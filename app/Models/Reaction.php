@@ -30,9 +30,11 @@ class Reaction extends Model
      * La laisser dans l'une et pas dans l'autre rendrait une pastille vide
      * ici, ou un choix fantome la-bas.
      *
-     * Mesure avant retrait : 0 ligne de reaction en base sur le jumeau, tous
-     * types confondus. Une reaction de ce type creee en PROD depuis le
-     * dernier dump cesserait donc d'etre AFFICHEE — la ligne, elle, reste.
+     * Mesure avant retrait, sur la base REELLEMENT servie
+     * (`bouclepro_prod_work`, et non `bouclepro_ai_validation` que lit
+     * `APP_ENV=ai-validation`) : 4 reactions en base — thumbs_up 2, heart 1,
+     * thanks 1 — et AUCUNE du type retire. Une reaction de ce type creee en
+     * PROD cesserait d'etre AFFICHEE ; la ligne, elle, reste en base.
      */
     public const REACTION_TYPES = [
         'thumbs_up',
