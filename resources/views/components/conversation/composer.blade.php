@@ -295,7 +295,21 @@
                 <template x-for="(personne, i) in mentionResultats" :key="personne.id">
                     <button type="button"
                             x-bind:data-mention-option="personne.id"
-                            x-on:click="mentionChoisir($refs.champMessage, personne)"
+                            {{-- TASK-1772 (recette Cyril) — `$el.closest(...)` et
+                                 NON `$refs.champMessage`.
+                                 Le `<textarea>` porte son PROPRE `x-data`
+                                 (`resize()`), donc son `x-ref` s'enregistre sur
+                                 lui-meme et pas sur le formulaire. Depuis ce
+                                 bouton, `$refs.champMessage` valait `undefined`
+                                 et le clic levait « Cannot read properties of
+                                 undefined (reading 'value') » — le menu
+                                 s'ouvrait et rien ne se passait au clic.
+                                 Mesure : les refs visibles ici sont
+                                 `uploadInput` et `cameraInput`, pas le champ.
+                                 C'est le piege deja ecrit dans les regles du
+                                 depot : « `$refs` ne traverse pas un composant
+                                 Alpine, passer par `$el.querySelector()` ». --}}
+                            x-on:click="mentionChoisir($el.closest('form').querySelector('textarea'), personne)"
                             x-bind:class="i === mentionIndex ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''"
                             class="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm text-gray-800 transition hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
                         <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200"
@@ -324,7 +338,6 @@
                  saisie et le reset apres envoi passent par `wire:model`,
                  un canal distinct du morph d'attributs. --}}
             <textarea
-                x-ref="champMessage"
                 wire:ignore.self
                 x-data="{ resize() { $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 176) + 'px'; $el.scrollTop = $el.scrollHeight } }"
                 x-init="resize(); hasText = $el.value.trim().length > 0"
@@ -349,9 +362,18 @@
                      le message. `mentionClavier()` rend `true` quand il a
                      consomme la touche. --}}
                 @if($mentionables !== [])
-                x-on:keydown="if (mentionClavier($event, $el)) { $event.stopPropagation() }"
+                {{-- TASK-1772 (recette Cyril) — `stopImmediatePropagation` et
+                     NON `stopPropagation`.
+                     `stopPropagation` arrete la REMONTEE vers les ancetres ;
+                     elle ne dit rien des autres ecouteurs poses sur LE MEME
+                     element. Le `@keydown.enter` ci-dessous s'executait donc
+                     juste apres, et comme `mentionChoisir()` venait de
+                     refermer le menu, sa garde `mentionOuvert` ne voyait plus
+                     rien : le message partait a la seconde ou l'on choisissait
+                     la personne, sans laisser le temps d'ecrire. --}}
+                x-on:keydown="if (mentionClavier($event, $el)) { $event.stopImmediatePropagation() }"
                 @endif
-                @keydown.enter="if (mentionOuvert ?? false) { return } if (enterEnvoie && !$event.shiftKey) { $event.preventDefault(); if (!uploading) { $wire.sendMessage() } }"
+                @keydown.enter="if (mentionOuvert ?? false) { return } /* ceinture : la bretelle est le stopImmediatePropagation ci-dessus */ if (enterEnvoie && !$event.shiftKey) { $event.preventDefault(); if (!uploading) { $wire.sendMessage() } }"
                 {{-- TASK-1769 — deux listes ENTIERES plutot qu'une liste avec
                      des `md:` greffes : la liste de droite est celle d'avant,
                      octet pour octet, donc la Messagerie et le chat agent sont

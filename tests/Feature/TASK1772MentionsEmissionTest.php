@@ -246,6 +246,42 @@ class TASK1772MentionsEmissionTest extends TestCase
             'un @mot qui n\'est pas une mention retenue reste du texte ordinaire');
     }
 
+    /**
+     * Les deux défauts de la recette du 06/11, et leurs gardes.
+     *
+     * Aucun des deux ne se voyait au banc, et les deux sont des pièges déjà
+     * écrits dans les règles du dépôt :
+     *
+     * 1. **`$refs` ne traverse pas un composant Alpine.** Le `<textarea>`
+     *    porte son propre `x-data` (`resize()`), donc son `x-ref`
+     *    s'enregistre sur lui-même et non sur le formulaire. Depuis le bouton
+     *    du menu, `$refs.champMessage` valait `undefined` : le menu s'ouvrait
+     *    et le clic ne faisait RIEN, en levant une erreur que personne ne
+     *    regarde. Mesuré : les refs visibles depuis ce scope sont
+     *    `uploadInput` et `cameraInput`.
+     *
+     * 2. **`stopPropagation` n'arrête pas les écouteurs du MÊME élément.**
+     *    Elle arrête la remontée vers les ancêtres, c'est tout. Le
+     *    `@keydown.enter` du champ s'exécutait donc juste après le menu — et
+     *    comme choisir referme le menu, sa garde ne voyait plus rien : le
+     *    message partait à la seconde où l'on choisissait la personne.
+     */
+    public function test_le_menu_ne_depend_pas_d_un_ref_inatteignable_ni_ne_laisse_partir_le_message(): void
+    {
+        $html = $this->blade(
+            '<x-conversation.composer model="body" :mentionables="$m"><x-slot:leading><span>+</span></x-slot:leading></x-conversation.composer>',
+            ['m' => [['id' => 'u1', 'nom' => 'Habiba Ounaha']]],
+        )->__toString();
+
+        $this->assertStringNotContainsString('$refs.champMessage', $html,
+            'le champ n\'est PAS atteignable par `$refs` depuis le menu : il a son propre x-data');
+        $this->assertStringContainsString("closest('form').querySelector('textarea')", $html,
+            'le menu doit retrouver le champ par le DOM');
+
+        $this->assertStringContainsString('stopImmediatePropagation', $html,
+            '`stopPropagation` laisserait le `@keydown.enter` du meme element envoyer le message');
+    }
+
     /** Une mention AJOUTÉE par l'édition notifie la nouvelle personne. */
     public function test_une_mention_ajoutee_par_l_edition_notifie(): void
     {
