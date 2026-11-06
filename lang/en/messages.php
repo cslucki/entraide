@@ -90,7 +90,6 @@ return [
     'composer_more_actions' => 'More actions',
     'composer_add_image' => 'Add an image',
     'composer_add_file' => 'Add a file',
-    'composer_camera' => 'Camera',
     'composer_take_photo' => 'Take a photo',
     'conversation_closed' => 'This conversation is closed.',
     'empty_thread' => 'No messages yet',

@@ -380,10 +380,6 @@
                  qu'une image : elle seule elargit le selecteur. --}}
             :upload-accept="\App\Support\Files\TypesDeFichiersAcceptes::pourAttributAccept()"
             :upload-label="__('messages.send_file')"
-            {{-- TASK-1772 (recette Cyril, 06/11) — « partager une video ».
-                 Seule la Messagerie l'active : elle seule valide les types
-                 video cote serveur (`TypesDeFichiersAcceptes::VIDEO`). --}}
-            :show-video-upload="true"
         >
             {{-- TASK-1772 (recette Cyril, 06/11) — LA MEME PILULE QUE LE CHATLOOP.
                  =====================================================================
@@ -456,7 +452,7 @@
                                         <span class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">
                                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>
                                         </span>
-                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('messages.composer_camera') }}</span>
+                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('messages.composer_take_photo') }}</span>
                                     </button>
                                     {{-- `uploadInput` porte la liste ELARGIE de la Messagerie :
                                          c'est la tuile qui ouvre tout ce que le serveur sait

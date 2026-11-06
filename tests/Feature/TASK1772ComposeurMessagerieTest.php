@@ -56,16 +56,26 @@ class TASK1772ComposeurMessagerieTest extends TestCase
             'la camera filme et le selecteur de fichiers prend une video deja enregistree : un troisieme champ ne sert rien');
     }
 
-    /** L'appareil photo doit pouvoir FILMER, et seulement la ou le serveur suit. */
-    public function test_l_appareil_photo_filme_la_ou_le_serveur_accepte_les_videos(): void
+    /**
+     * L'appareil photo doit ouvrir L'APPAREIL PHOTO.
+     *
+     * Recette Cyril du 06/11, PWA Android : avec `accept="image/*,video/*"`,
+     * le bouton ouvrait la GALERIE. Chrome Android n'honore `capture` que sur
+     * un `accept` d'un seul type. La video se joint par le selecteur de
+     * fichiers, dont la liste elargie la contient.
+     */
+    public function test_l_appareil_photo_ouvre_l_appareil_photo(): void
     {
         $composant = file_get_contents(resource_path('views/components/conversation/composer.blade.php'));
 
-        $this->assertStringContainsString("\$showVideoUpload ? 'image/*,video/*' : 'image/*'", $composant,
-            'photo+video quand le serveur valide les videos, image seule sinon (regle T1684)');
-        $this->assertStringContainsString(':show-video-upload="true"', $this->composeur());
+        $this->assertMatchesRegularExpression(
+            '/x-ref="cameraInput"[^>]*accept="image\/\*"[^>]*capture="environment"/',
+            $composant,
+            'un accept a deux types fait ignorer `capture` : le selecteur generique s\'ouvre'
+        );
+        $this->assertStringNotContainsString('image/*,video/*', $composant);
 
-        // La moitie SERVEUR de la promesse : la messagerie valide bien les videos.
+        // Et la video reste joignable : le selecteur de fichiers la propose.
         $this->assertContains('video/mp4', TypesDeFichiersAcceptes::tous());
     }
 

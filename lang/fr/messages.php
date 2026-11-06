@@ -107,7 +107,6 @@ return [
     'composer_more_actions' => 'Plus d\'actions',
     'composer_add_image' => 'Ajouter une image',
     'composer_add_file' => 'Ajouter un fichier',
-    'composer_camera' => 'Appareil photo',
     'composer_take_photo' => 'Prendre une photo',
     'conversation_closed' => 'Cette conversation est terminée.',
     'empty_thread' => 'Aucun message pour le moment',

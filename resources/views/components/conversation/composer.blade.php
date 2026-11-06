@@ -24,22 +24,6 @@
     // cliche.
     'uploadAccept' => 'image/*',
     'uploadLabel' => null,
-    // TASK-1772 (recette Cyril, 06/11) — LA CAMERA PEUT-ELLE FILMER ?
-    //
-    // « Sur WhatsApp, quand on clique sur l'icone, cela appelle un ecran qui
-    // permet de faire les deux, soit photo, soit video. »
-    //
-    // Ce que le web sait faire : `accept="image/*,video/*" capture` ouvre la
-    // camera NATIVE. Sur iOS elle porte la bascule Photo/Video ; sur Android
-    // elle s'ouvre en photo et c'est l'appli camera qui offre le passage en
-    // video. Un ecran de prise de vue MAISON (appui = photo, appui long =
-    // video) demande `getUserMedia` + `MediaRecorder` : c'est un chantier a
-    // part, pas un attribut.
-    //
-    // OPT-IN, comme `uploadAccept` en T1704 : seule la Messagerie valide les
-    // types video cote serveur. Offrir « filmer » la ou la regle refuse une
-    // video, c'est le defaut exact de T1684.
-    'showVideoUpload' => false,
     // TASK-1308 : moteur du prochain tour ('ia'|'dossiers'|null), affiche en
     // chip compact au-dessus du composeur — jamais un verrou (voir $onClearMode).
     // TASK-1309 : quatrieme etat 'ia_dossiers' (IA + Dossiers).
@@ -247,7 +231,18 @@
              lieu de la galerie. Aucun pipeline nouveau : le fichier suit
              exactement le meme chemin que la galerie. Inerte tant qu'aucun
              bouton ne l'invoque (`$refs.cameraInput`, menu mobile T1308). --}}
-        <input type="file" x-ref="cameraInput" wire:model.live="photo" accept="{{ $showVideoUpload ? 'image/*,video/*' : 'image/*' }}" capture="environment" class="hidden">
+        {{-- TASK-1772 (recette Cyril, 06/11, PWA Android) — `accept="image/*"`
+             ET RIEN D'AUTRE.
+             J'avais elargi l'accept aux deux types (images ET videos) pour
+             obtenir la bascule Photo/Video de WhatsApp. Mesure de Cyril sur son Android : le
+             bouton « ouvre la galerie photo et non l'appareil ». C'est le
+             comportement connu de Chrome Android — `capture` n'est honore
+             que sur un `accept` d'UN SEUL type ; avec deux, l'attribut est
+             ignore et le selecteur generique s'ouvre.
+             Une camera qui ouvre la galerie est pire que pas de camera : la
+             promesse du libelle est fausse. Une video se joint donc par
+             « Ajouter un fichier », dont la liste elargie les contient. --}}
+        <input type="file" x-ref="cameraInput" wire:model.live="photo" accept="image/*" capture="environment" class="hidden">
 
         {{-- TASK-1772 — la GALERIE D'IMAGES, distincte de `uploadInput`.
              Dans la Messagerie, `uploadInput` porte la liste elargie (images,

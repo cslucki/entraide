@@ -361,21 +361,18 @@ class TASK1704MessagerieFileAttachmentTest extends TestCase
         );
         $this->assertStringContainsString('application/pdf', html_entity_decode($m[1]), 'Le selecteur ne propose pas les PDF.');
 
-        // TASK-1772 (arbitrage Cyril, 06/11) — l'APPAREIL PHOTO FILME AUSSI.
+        // Le bouton APPAREIL PHOTO reste aux images.
         //
-        // T1704 bornait ce champ aux images (« `capture` n'a de sens que pour
-        // un cliche »). Cyril a tranche l'inverse : « sur WhatsApp, quand on
-        // clique sur l'icone, cela appelle un ecran qui permet de faire les
-        // deux ». `image/*,video/*` + `capture` ouvre la camera native, qui
-        // porte la bascule Photo/Video.
-        //
-        // La moitie SERVEUR de la promesse ne bouge pas : la Messagerie
-        // valide deja les types video (`TypesDeFichiersAcceptes::VIDEO`).
-        // C'est pour cela que ce champ peut filmer ICI et nulle part ailleurs.
+        // TASK-1772 a tente `image/*,video/*` pour obtenir la bascule
+        // Photo/Video de WhatsApp. Recette de Cyril sur son Android : le
+        // bouton « appelle la galerie photo et non l'appareil ». Chrome
+        // Android n'honore `capture` que sur un `accept` d'UN SEUL type.
+        // La promesse « prendre une photo » passe donc avant l'ambition
+        // « filmer » — une video se joint par le selecteur de fichiers.
         $this->assertSame(
             1,
-            preg_match('/<input[^>]*x-ref="cameraInput"[^>]*accept="image\/\*,video\/\*"[^>]*capture="environment"/', $html),
-            'L\'appareil photo de la messagerie doit proposer photo ET video.'
+            preg_match('/<input[^>]*x-ref="cameraInput"[^>]*accept="image\/\*"[^>]*capture="environment"/', $html),
+            'Le bouton appareil photo doit ouvrir l\'appareil photo, donc un accept d\'un seul type.'
         );
     }
 
