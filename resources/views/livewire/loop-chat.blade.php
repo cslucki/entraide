@@ -266,6 +266,23 @@
                             </button>
                             <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
                         </div>
+                    @elseif($msg->type === 'dossier_file')
+                        {{-- TASK-1772 (demande Cyril) — un depot dans la Card
+                             Dossiers. Meme forme discrete que l'Evenement et le
+                             Sondage : un reperage dans la conversation, pas une
+                             prise de parole. Le bouton ouvre la Card, la ou le
+                             fichier se trouve vraiment — le message ne le porte
+                             pas, il l'annonce. --}}
+                        <div data-dossier-file-event class="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 dark:border-emerald-800/50 dark:bg-emerald-900/20">
+                            <svg class="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                            <span class="min-w-0 flex-1 text-xs leading-5 text-emerald-900 dark:text-emerald-100">{{ $msg->body }}</span>
+                            <button type="button"
+                                    x-on:click="$dispatch('bp-open-loop-card', { card: 'core.dossiers' })"
+                                    class="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-700">
+                                {{ __('loops.chat_dossier_open_card') }}
+                            </button>
+                            <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                        </div>
                     @elseif($msg->type === 'poll_event')
                         {{-- Un Sondage pose ou clos. Une ligne discrete, pas une
                              bulle : c'est un reperage dans la conversation, pas

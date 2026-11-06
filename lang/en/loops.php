@@ -33,6 +33,10 @@ return [
     'help_request_publish_cta' => 'Publish in this Loop',
     'help_request_no_loop_option' => '— Choose a Loop —',
     'help_request_badge' => 'Help request',
+    // TASK-1772 — the ChatLoop trace of an upload into the Dossiers card.
+    'chat_dossier_file_deposited' => ':name has just added the file « :file » to the Loop.',
+    'chat_dossier_files_deposited' => ':name has just added :count files to the Loop.',
+    'chat_dossier_open_card' => 'Open',
     'expected_help' => 'Expected help: :type',
     'no_messages' => 'No messages yet',
     'no_messages_hint' => 'Be the first to write!',

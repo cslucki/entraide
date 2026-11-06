@@ -386,6 +386,63 @@ class LoopMessageService
         });
     }
 
+    /**
+     * TASK-1772 (demande Cyril, 06/11) — ANNONCER UN DEPOT DE FICHIER.
+     *
+     * « Quand on upload un fichier dans Dossiers, il manque un message dans la
+     * Boucle disant X vient de deposer le fichier Y. »
+     *
+     * Meme motif que `sendEventMessage()` : ChatLoop est le centre vivant de la
+     * Boucle, donc ce qui se passe dans ses Cards doit y laisser une trace
+     * lisible. UN message par depot, jamais un par fichier — deposer dix pieces
+     * ne doit pas produire dix lignes.
+     *
+     * La garde `assertCanSend()` n'est PAS appelee ici, et c'est delibere : le
+     * droit en jeu est celui de DEPOSER dans le Dossier, deja tranche par
+     * `DossierPolicy` avant d'arriver ici. Un administrateur d'Organization qui
+     * depose sans etre membre actif de la Boucle doit quand meme y laisser la
+     * trace — sinon le fichier apparait dans la Card sans que personne ne
+     * sache d'ou il vient. Ce n'est pas une prise de parole : le message est
+     * de type `dossier_file`, rendu comme un reperage, pas comme une bulle.
+     *
+     * @param  list<string>  $noms  les noms des fichiers deposes, dans l'ordre
+     */
+    public function sendDossierFileMessage(Loop $loop, User $sender, array $noms): ?LoopMessage
+    {
+        $noms = array_values(array_filter(array_map('trim', $noms), fn ($n) => $n !== ''));
+
+        if ($noms === []) {
+            return null;
+        }
+
+        $body = count($noms) === 1
+            ? __('loops.chat_dossier_file_deposited', ['name' => $sender->publicDisplayName(), 'file' => $noms[0]])
+            : __('loops.chat_dossier_files_deposited', ['name' => $sender->publicDisplayName(), 'count' => count($noms)]);
+
+        return DB::transaction(function () use ($loop, $sender, $noms, $body) {
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => $sender->id,
+                'body' => $body,
+                'type' => 'dossier_file',
+                'metadata' => [
+                    'event' => 'uploaded',
+                    // Les noms sont bornes : une Card peut recevoir cinquante
+                    // pieces d'un coup, et `metadata` n'est pas un journal.
+                    'files' => array_slice($noms, 0, 10),
+                    'count' => count($noms),
+                ],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+
+            return $message;
+        });
+    }
+
     public function updateUserMessage(Loop $loop, LoopMessage $message, User $user, string $body, ?array $metadata = null): LoopMessage
     {
         $this->assertCanSend($loop, $user);
