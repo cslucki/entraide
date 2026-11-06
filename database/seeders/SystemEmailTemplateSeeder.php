@@ -242,6 +242,23 @@ class SystemEmailTemplateSeeder extends Seeder
          * doivent dire la meme chose : un gabarit pose par migration entre au
          * catalogue du seeder, sinon une base reconstruite de zero ne l'a pas.
          */
+        // TASK-1772 — meme contenu que la migration
+        // `2026_11_06_090000_add_loop_mention_created_email_template`.
+        // Un gabarit pose par migration doit entrer ICI aussi : sans quoi une
+        // base reconstruite de zero ne l'aurait pas.
+        'loop_mention_created' => [
+            'name_fr' => 'Mention dans une Boucle',
+            'name_en' => 'Mention in a Loop',
+            'subject_fr' => '{{ author_name }} vous a mentionné dans « {{ loop_name }} »',
+            'subject_en' => '{{ author_name }} mentioned you in “{{ loop_name }}”',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> vous a mentionné dans un message de la Boucle <strong>{{ loop_name }}</strong>.</p><p><a href="{{ message_url }}">Lire le message</a></p><p>À bientôt,<br>L’équipe {{ app_name }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned you in a message from the Loop <strong>{{ loop_name }}</strong>.</p><p><a href="{{ message_url }}">Read the message</a></p><p>See you soon,<br>The {{ app_name }} team</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'organization_name',
+                'loop_name', 'author_name', 'message_url', 'app_name',
+            ],
+        ],
+
         'loop_join_request_created' => [
             'name_fr' => 'Demande pour rejoindre une Boucle',
             'name_en' => 'Request to join a Loop',

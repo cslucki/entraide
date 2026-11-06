@@ -6,11 +6,13 @@ use App\Models\EmailLog;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
+use App\Models\LoopMessage;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Loops\LoopInvitationMailer;
+use App\Services\Loops\LoopMentionMailer;
 use App\Services\Transactions\TransactionProposalMailer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Lang;
@@ -459,6 +461,46 @@ final class NotificationEmailDeliverer
 
             $reel = $mailer->composeForMember($loop, $destinataire, $acteur, $cible, $locale);
             $expurge = $mailer->composeForMember($loop, $destinataire, $acteur, self::LIEN_EXPURGE, $locale);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
+        // TASK-1772 — LA MENTION.
+        //
+        // Cette branche est la piece qu'on oublie, et le depot l'a oubliee
+        // DEUX FOIS : T1751 (branche `OBJECT_TRANSACTION` manquante) et T1761
+        // (cle et gabarit poses, aucune branche). Le symptome est le meme et
+        // il est silencieux : `rendreDepuisGabarit()` rend `null`, l'email
+        // **part quand meme** par le repli de langue — sans nom de Boucle ni
+        // de personne — et rien ne le signale.
+        //
+        // L'objet est le MESSAGE (D5) : c'est lui qu'on relit, et c'est de lui
+        // qu'on tire la Boucle. Scopes retires puis frontiere de tenant
+        // reposee a la main, parce que ce code tourne sous worker.
+        if ($cle === NotificationCatalogue::LOOP_MENTION_CREATED) {
+            $message = LoopMessage::query()
+                ->withoutGlobalScopes()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($message === null) {
+                return null;
+            }
+
+            // L'AUTEUR du message est l'acteur de la notification — pas le
+            // destinataire, qui est la personne mentionnee.
+            $auteur = $notification->actor_id
+                ? User::find((string) $notification->actor_id)
+                : User::find((string) $message->sender_id);
+
+            $mentionMailer = app(LoopMentionMailer::class);
+            $reel = $mentionMailer->compose($message, $destinataire, $auteur, $cible, $locale);
+            $expurge = $mentionMailer->compose($message, $destinataire, $auteur, self::LIEN_EXPURGE, $locale);
 
             return [
                 'subject' => $reel['subject'],

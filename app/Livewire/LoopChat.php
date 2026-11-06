@@ -449,6 +449,21 @@ class LoopChat extends Component
         // la recalculerait toutes les trois secondes, par spectateur, pour
         // une liste qui ne change presque jamais.
         $this->rafraichirMentionables();
+
+        // TASK-1772 — on arrive depuis une notification de mention : l'URL
+        // porte `?message={uuid}`. Aucune mecanique nouvelle ici —
+        // `showMessageInThread()` existe depuis T1548 : elle charge les
+        // messages AUTOUR de la cible (donc meme si elle est hors de la
+        // fenetre de trente) puis emet `scroll-to-message`, que la liste
+        // ecoute deja en surlignant la bulle.
+        //
+        // La methode borne elle-meme sur la Boucle ET l'Organization : un
+        // identifiant forge dans l'URL ne montre rien.
+        $cible = request()->query('message');
+
+        if (is_string($cible) && $cible !== '') {
+            $this->showMessageInThread($cible);
+        }
     }
 
     /**
