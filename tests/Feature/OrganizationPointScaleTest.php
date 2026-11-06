@@ -20,7 +20,13 @@ class OrganizationPointScaleTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('services.store'), $this->servicePayload($category, 25))
-            ->assertRedirect(route('organization.dashboard.services', [$organization]));
+        // TASK-1773 : la publication mene desormais a l'ecran de
+        // confirmation. Ce qui est defendu ici reste le meme — la
+        // destination porte l'Organization RESOLUE, pas une autre.
+            ->assertRedirect(route('organization.services.created', [
+                'organization' => $organization,
+                'service' => \App\Models\Service::where('user_id', $user->id)->latest()->firstOrFail()->id,
+            ]));
 
         $this->assertDatabaseHas('services', [
             'organization_id' => $organization->id,

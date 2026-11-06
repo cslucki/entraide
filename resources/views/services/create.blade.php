@@ -155,12 +155,12 @@
             <div x-show="suggestion" x-transition class="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-700">
                 <h4 class="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2">{{ __('ai.service_suggestion_title') }}</h4>
                 <div class="text-sm text-indigo-700 dark:text-indigo-300 space-y-1">
-                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.title') }} :</strong> <span x-text="suggestion?.title"></span></p>
-                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.description') }} :</strong></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.service_title_label') }} :</strong> <span x-text="suggestion?.title"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.service_description_label') }} :</strong></p>
                     <div x-show="suggestion?.description_preview_html" class="prose prose-sm dark:prose-invert max-w-none max-h-64 overflow-y-auto mt-1 border border-indigo-100 dark:border-indigo-800 rounded p-3" x-html="suggestion?.description_preview_html"></div>
                     <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.category') }} :</strong> <span x-text="categoryLabel"></span></p>
-                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.delivery_mode') }} :</strong> <span x-text="suggestion?.delivery_mode"></span></p>
-                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.points_requested') }} :</strong> <span x-text="suggestion?.points_cost"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.service_delivery_mode') }} :</strong> <span x-text="suggestion?.delivery_mode"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.service_duration_label') }} :</strong> <span x-text="suggestion?.points_cost"></span></p>
                 </div>
                 <div class="flex gap-2 mt-3">
                     <button type="button" @click="applySuggestion()"
@@ -242,7 +242,7 @@
 
             <!-- Titre -->
             <div class="mb-5">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.title') }} <span class="text-red-500">{{ __('marketplace.required') }}</span></label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.service_title_label') }} <span class="text-red-500">{{ __('marketplace.required') }}</span></label>
                 <input type="text" name="title" value="{{ old('title') }}" required minlength="10" maxlength="255"
                     placeholder="{{ __('marketplace.title_service_placeholder') }}"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
@@ -251,7 +251,7 @@
             <!-- Description -->
             <div class="mb-5">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {{ __('marketplace.description') }} <span class="text-red-500">{{ __('marketplace.required') }}</span>
+                    {{ __('marketplace.service_description_label') }} <span class="text-red-500">{{ __('marketplace.required') }}</span>
                     <span class="text-gray-400 font-normal">{{ __('marketplace.min_chars', ['count' => 100]) }}</span>
                 </label>
                 <x-markdown-wysiwyg-editor name="description" :value="old('description')" :placeholder="__('marketplace.service_description_placeholder')" required minLength="100" rows="6" :invalid="$errors->has('description')" />
@@ -312,7 +312,7 @@
                  deviner. Le serveur garde sa regle `max:5` : ceci est une
                  commodite, pas une garde. --}}
             <div class="mb-5" x-data="{ images: [], ecartees: 0, LIMITE: 5 }">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.images') }}</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.service_images_label') }}</label>
                 <input type="file" name="images[]" multiple accept="image/*"
                     data-images-input
                     @change="
@@ -341,7 +341,7 @@
 
             <!-- Tags -->
             <div class="mb-5">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.tags') }} <span class="text-gray-400">{{ __('marketplace.max_10') }}</span></label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.service_tags_label') }}</label>
                 <input type="hidden" name="tags" x-bind:value="tags">
                 <div class="flex flex-wrap gap-2 mb-2">
                     <template x-for="(tag, i) in tagList" :key="i">
@@ -362,7 +362,7 @@
 
             <!-- Mode de prestation -->
             <div class="mb-5">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('marketplace.delivery_mode') }} {{ __('marketplace.required') }}</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('marketplace.service_delivery_mode') }} {{ __('marketplace.required') }}</label>
                 <div class="flex gap-3">
                     @foreach(__('marketplace.delivery') as $val => $label)
                     <label class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border rounded-lg cursor-pointer text-sm font-medium hover:border-indigo-400 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 dark:text-gray-300 border-gray-200 dark:border-gray-600 transition">
@@ -377,10 +377,14 @@
             <div class="mb-8">
                 <!-- Explication du système de points -->
                 <div class="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl text-sm text-amber-800 dark:text-amber-200">
-                    <p class="font-semibold mb-1">{{ __('marketplace.points_help_title') }}</p>
-                    <p class="mb-2 opacity-90">{{ __('marketplace.points_service_body', ['organization' => $organization->name]) }}</p>
+                    {{-- TASK-1773 — cles DEDIEES a cette surface : les generiques
+                         (`points_help_title`, `points_one_minute`) servent aussi le
+                         formulaire de DEMANDE d'aide, qui ne doit pas changer. --}}
+                    <p class="font-semibold mb-1">{{ __('marketplace.service_points_help_title') }}</p>
+                    <p class="mb-2 opacity-90">{{ __('marketplace.service_points_help_share', ['organization' => $organization->name]) }}</p>
+                    <p class="mb-2 opacity-90">{{ __('marketplace.service_points_help_count') }}</p>
+                    <p class="mb-3 opacity-90">{{ __('marketplace.service_points_help_reuse') }}</p>
                     <ul class="space-y-0.5 mb-3 ml-2 opacity-90">
-                        <li>{{ __('marketplace.points_one_minute') }}</li>
                         @if($pointMin !== null)
                             <li>{{ __('marketplace.points_minimum_allowed', $pointHelpContext) }}</li>
                         @endif
@@ -392,15 +396,32 @@
                     <hr class="border-amber-200 dark:border-amber-700/50 my-3">
                     
                     <p class="opacity-90 text-xs">
-                        {{ __('marketplace.profile_tip_before') }}
+                        {{ __('marketplace.service_profile_tip_before') }}
                         <a href="{{ route('profile.edit') }}" class="font-semibold underline decoration-2 underline-offset-2 hover:text-amber-900 dark:hover:text-amber-100">{{ __('marketplace.public_profile') }}</a>
-                        {{ __('marketplace.profile_tip_after') }}
+                        {{ __('marketplace.service_profile_tip_after') }}
                     </p>
                 </div>
 
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.points_requested') }} {{ __('marketplace.required') }}</label>
-                <input type="number" name="points_cost" value="{{ old('points_cost') }}" @if($pointMin !== null) min="{{ $pointMin }}" @endif @if($pointMax !== null) max="{{ $pointMax }}" @endif required
-                    class="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                {{-- TASK-1773 — le champ se PRESENTE comme une duree. Rien d'autre
+                     ne change : meme `name="points_cost"`, memes bornes de
+                     l'Organization, meme validation serveur, meme colonne. La
+                     regle « 1 minute = 1 point » rend le nombre saisi lisible
+                     indifferemment en minutes ou en points — c'est pourquoi
+                     l'equivalence est un simple RAPPEL, et non un calcul. --}}
+                <label for="points_cost" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.service_duration_label') }} {{ __('marketplace.required') }}</label>
+                <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">{{ __('marketplace.service_duration_help') }}</p>
+                <div x-data="{ minutes: {{ (int) old('points_cost') }} }">
+                    <div class="flex items-center gap-2">
+                        <input type="number" id="points_cost" name="points_cost" value="{{ old('points_cost') }}" x-model.number="minutes" @if($pointMin !== null) min="{{ $pointMin }}" @endif @if($pointMax !== null) max="{{ $pointMax }}" @endif required
+                            class="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ __('marketplace.service_duration_unit') }}</span>
+                    </div>
+                    {{-- L'equivalence ne s'affiche qu'une fois une duree saisie :
+                         « Equivalent : 0 points » sur un champ vide n'apprend rien. --}}
+                    <p data-duration-equivalent x-show="Number(minutes) > 0" x-cloak
+                       class="mt-1 text-xs font-medium text-indigo-600 dark:text-indigo-300"
+                       x-text="@js(__('marketplace.service_duration_equivalent')).replace(':points', Number(minutes) || 0)"></p>
+                </div>
 
                 <x-entraide.champs-atelier />
 

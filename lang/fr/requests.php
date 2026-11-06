@@ -8,9 +8,9 @@ return [
         'closed' => 'Demande fermée.',
     ],
 
-    'relay_loop_label' => 'Relais dans une Boucle',
-    'relay_loop_none' => 'Ne pas relayer cette demande',
-    'relay_loop_help' => 'L’annonce ne sera créée qu’après la publication de la demande.',
+    'relay_loop_label' => 'Partager aussi dans une Boucle',
+    'relay_loop_none' => 'Ne pas partager dans une Boucle',
+    'relay_loop_help' => 'Votre demande sera partagée dans la Boucle sélectionnée après sa publication.',
     'relay_loop_invalid' => 'Cette Boucle n’est pas une destination de relais autorisée.',
     'relay_failed' => 'La demande a bien été créée, mais son annonce dans la Boucle n’a pas pu être publiée.',
     'chat_projection_body' => 'Nouvelle demande d’aide : :title',

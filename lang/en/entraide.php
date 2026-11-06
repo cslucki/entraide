@@ -39,7 +39,7 @@ return [
         'complet' => 'This workshop is full.',
         'places_restantes' => '{0}Full|{1}1 seat left|[2,*]:count seats left',
         'groupe' => 'Group workshop · :n people maximum',
-        'champ_label' => 'For a group?',
+        'champ_label' => 'Offer this as a workshop',
         'champ_aide' => 'Leave empty for one-to-one help. From 2 to 6 people for a workshop — the announced time is shared between participants.',
         'champ_capacite' => 'Up to',
         'champ_plancher' => 'From',
