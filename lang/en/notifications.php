@@ -182,6 +182,10 @@ return [
         'loop_member_added' => 'Added to the :loop Loop',
         'loop_join_request_accepted' => 'Your request to join :loop was accepted',
         'loop_join_request_rejected' => 'Your request to join :loop was not accepted',
+
+        // TASK-1775 (CDC C4) — named ONLY here, same reasoning as the entries
+        // above.
+        'loop_help_request_created' => 'A help request was published in the :loop Loop',
     ],
 
     // TASK-1725 — « Open » did not say what. The label now follows the object.

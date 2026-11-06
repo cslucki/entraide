@@ -207,6 +207,11 @@ return [
         'loop_member_added' => 'Ajout à la Boucle « :loop »',
         'loop_join_request_accepted' => 'Votre demande d’adhésion à « :loop » a été acceptée',
         'loop_join_request_rejected' => 'Votre demande d’adhésion à « :loop » n’a pas été retenue',
+
+        // TASK-1775 (CDC C4) — nommee UNIQUEMENT ici, meme doctrine que ses
+        // voisines : le Centre est derriere l'authentification, `push_title`
+        // reste generique (ecran verrouille).
+        'loop_help_request_created' => 'Une demande d’aide a été publiée dans la Boucle « :loop »',
     ],
 
     // TASK-1725 — « Ouvrir » ne disait pas quoi. Le libelle depend donc de
