@@ -1568,41 +1568,21 @@
                         if (!fichiers.length) { return; }
 
                         this.envoi = true;
-                        const corps = new FormData();
-                        fichiers.forEach((f) => corps.append('files[]', f, f.name));
 
-                        let ok = false;
-                        // TASK-1772 — on remonte la RAISON du refus. Un depot
-                        // qui echoue affichait « L'envoi a echoue » et rien
-                        // d'autre : le serveur disait pourtant lequel des
-                        // quatre refus c'etait (type, poids, doublon, quota),
-                        // et ce message etait jete. Un echec muet fait
-                        // chercher du mauvais cote — c'est ce qui vient
-                        // d'arriver avec le PDF.
-                        let raison = '';
-                        try {
-                            const r = await fetch(this.endpoint, {
-                                method: 'POST',
-                                headers: {
-                                    'Accept': 'application/json',
-                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                },
-                                body: corps,
-                            });
-                            ok = r.ok;
+                        // TASK-1772 (recette Cyril) — LA MIRE. Le depot passe
+                        // par `bpTeleverserFichiers`, qui rapporte la
+                        // progression REELLE de l'envoi (`xhr.upload`) ; la
+                        // feuille, elle, se referme aussitot, donc la seule
+                        // chose que le membre voit est le bandeau du bas. Sans
+                        // lui, un envoi de 20 Mo en 4G ne montrait RIEN.
+                        const progression = (pourcent) => window.dispatchEvent(
+                            new CustomEvent('bp-depot-progression', {
+                                detail: { pourcent: pourcent, nombre: fichiers.length },
+                            }),
+                        );
+                        progression(0);
 
-                            if (! ok) {
-                                const donnees = await r.json().catch(() => null);
-                                // 422 de validation : le detail est dans
-                                // `errors`, le resume dans `message`.
-                                raison = donnees?.errors
-                                    ? Object.values(donnees.errors).flat().join(' ')
-                                    : (donnees?.message || '');
-                            }
-                        } catch (err) {
-                            ok = false;
-                        }
+                        const { ok, raison } = await window.bpTeleverserFichiers(this.endpoint, fichiers, progression);
 
                         this.envoi = false;
                         window.dispatchEvent(new CustomEvent('bp-depot-fichier', {
@@ -1624,11 +1604,28 @@
 
     {{-- Retour visible du depot : sans lui, le geste reussit en silence et le
          membre ne sait pas si son fichier est parti. --}}
-    <div x-data="{ vu: false, ok: false, nombre: 0, raison: '' }"
-        x-on:bp-depot-fichier.window="ok = $event.detail.ok; nombre = $event.detail.nombre; raison = $event.detail.raison || ''; vu = true; setTimeout(() => vu = false, 6000)"
+    <div x-data="{ vu: false, ok: false, nombre: 0, raison: '', enCours: false, pourcent: 0 }"
+        {{-- TASK-1772 (recette Cyril, 06/11) — « ajouter une mire de
+             televersement, sinon on a l'impression que rien ne se passe ».
+             La feuille se referme des l'appui : son propre indicateur
+             d'activite n'est donc JAMAIS visible. Le seul endroit ou la mire
+             peut vivre est ici, au-dessus du composeur. --}}
+        x-on:bp-depot-progression.window="enCours = true; vu = true; pourcent = $event.detail.pourcent; nombre = $event.detail.nombre"
+        x-on:bp-depot-fichier.window="enCours = false; ok = $event.detail.ok; nombre = $event.detail.nombre; raison = $event.detail.raison || ''; vu = true; setTimeout(() => vu = false, 6000)"
         x-show="vu" x-cloak style="display: none"
         class="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
-        <p class="rounded-full px-4 py-2 text-xs font-medium shadow-lg"
+        <div x-show="enCours" class="w-full max-w-sm rounded-2xl bg-gray-900/90 px-4 py-3 text-white shadow-lg backdrop-blur dark:bg-gray-800/95" role="status" aria-live="polite">
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-xs font-semibold" x-text="nombre > 1
+                    ? @js(__('loops.composer_file_uploading_many')).replace(':count', nombre)
+                    : @js(__('dossiers.file_uploading'))"></span>
+                <span class="text-xs font-bold tabular-nums" x-text="pourcent + ' %'"></span>
+            </div>
+            <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+                <div class="h-full rounded-full bg-emerald-400 transition-all duration-200" x-bind:style="'width: ' + pourcent + '%'" aria-hidden="true"></div>
+            </div>
+        </div>
+        <p x-show="! enCours" class="rounded-full px-4 py-2 text-xs font-medium shadow-lg"
             x-bind:class="ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'"
             x-text="ok
                 ? @js(__('loops.composer_file_uploaded'))

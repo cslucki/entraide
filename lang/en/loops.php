@@ -37,6 +37,8 @@ return [
     'chat_dossier_file_deposited' => ':name has just added the file « :file » to the Loop.',
     'chat_dossier_files_deposited' => ':name has just added :count files to the Loop.',
     'chat_dossier_open_card' => 'Open',
+    // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.
+    'composer_file_uploading_many' => 'Uploading :count files…',
     'expected_help' => 'Expected help: :type',
     'no_messages' => 'No messages yet',
     'no_messages_hint' => 'Be the first to write!',

@@ -12,6 +12,79 @@ window.FilePond = FilePond;
 window.createBlogEditor = createEditor;
 
 /**
+ * TASK-1772 (recette Cyril, 06/11) — TELEVERSER EN MONTRANT LA PROGRESSION.
+ *
+ * « Il faudrait ajouter une mire de televersement, car sinon on a
+ * l'impression que rien ne se passe. Ceci sur desktop et smartphone. »
+ *
+ * Pourquoi `XMLHttpRequest` et non `fetch` : `fetch` ne rapporte AUCUNE
+ * progression d'ENVOI. Son `ReadableStream` de requete n'est pas disponible
+ * partout, et `response.body` ne decrit que la descente. `xhr.upload.progress`
+ * est le seul mecanisme fiable, aujourd'hui encore, pour dire ou en est un
+ * depot de 20 Mo depuis un telephone en 4G.
+ *
+ * La progression est BORNEE A 99 % tant que le serveur n'a pas repondu : les
+ * octets sont partis, mais il reste la validation, le calcul d'empreinte et
+ * l'ecriture sur le disque. Afficher 100 % puis attendre trois secondes est le
+ * meme defaut que de ne rien afficher — la mire mentirait sur la fin.
+ *
+ * Rend toujours `{ ok, raison }`, jamais une exception : l'appelant affiche la
+ * raison du serveur (le type refuse, le doublon, le quota) au lieu d'un
+ * « echec » muet.
+ *
+ * @param {string} endpoint
+ * @param {File[]} fichiers
+ * @param {(pourcent: number) => void} [surProgression]
+ * @returns {Promise<{ok: boolean, raison: string}>}
+ */
+window.bpTeleverserFichiers = function (endpoint, fichiers, surProgression) {
+    return new Promise((resolve) => {
+        const corps = new FormData();
+        fichiers.forEach((f) => corps.append('files[]', f, f.name));
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', endpoint);
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.setRequestHeader('X-CSRF-TOKEN', document.querySelector('meta[name="csrf-token"]')?.content ?? '');
+
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable && typeof surProgression === 'function') {
+                surProgression(Math.min(99, Math.round((e.loaded / e.total) * 100)));
+            }
+        });
+
+        xhr.addEventListener('load', () => {
+            const ok = xhr.status >= 200 && xhr.status < 300;
+            let raison = '';
+
+            if (! ok) {
+                try {
+                    const donnees = JSON.parse(xhr.responseText || '{}');
+                    // 422 : le detail est dans `errors`, le resume dans `message`.
+                    raison = donnees.errors
+                        ? Object.values(donnees.errors).flat().join(' ')
+                        : (donnees.message || '');
+                } catch (e) {
+                    raison = '';
+                }
+            }
+
+            if (typeof surProgression === 'function') {
+                surProgression(ok ? 100 : 0);
+            }
+
+            resolve({ ok, raison });
+        });
+
+        xhr.addEventListener('error', () => resolve({ ok: false, raison: '' }));
+        xhr.addEventListener('abort', () => resolve({ ok: false, raison: '' }));
+
+        xhr.send(corps);
+    });
+};
+
+/**
  * TASK-1684 — ouvrir le selecteur natif des champs de date au toucher.
  *
  * Defaut rapporte en recette mobile : sur la Card Roadmap, toucher le champ

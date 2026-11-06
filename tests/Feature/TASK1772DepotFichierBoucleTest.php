@@ -196,9 +196,52 @@ class TASK1772DepotFichierBoucleTest extends TestCase
     {
         $vue = file_get_contents(resource_path('views/livewire/loop-chat.blade.php'));
 
-        $this->assertStringContainsString('raison = donnees?.errors', $vue,
+        // TASK-1772 — la lecture du refus a DEMENAGE dans `bpTeleverserFichiers`
+        // quand les deux surfaces se sont mises a partager le meme
+        // televerseur. La promesse n'a pas bouge : c'est elle qu'on mesure,
+        // des deux cotes du deplacement.
+        $js = file_get_contents(base_path('resources/js/app.js'));
+
+        $this->assertStringContainsString('donnees.errors', $js,
             'le detail d\'un 422 vit dans `errors`, le resume dans `message`');
+        $this->assertStringContainsString('donnees.message', $js);
         $this->assertStringContainsString("raison || @js(__('loops.composer_file_failed'))", $vue,
             'le bandeau affiche la raison du serveur, et retombe sur le message generique');
+    }
+
+    /**
+     * Recette Cyril du 06/11 : « ajouter une mire de televersement, car sinon
+     * on a l'impression que rien ne se passe. Ceci sur desktop et smartphone. »
+     *
+     * Deux surfaces deposent dans une Boucle — la tuile du composeur et la
+     * Card Dossiers — et les deux passaient par `fetch`, qui ne rapporte
+     * AUCUNE progression d'envoi. Elles partagent desormais le meme
+     * televerseur, et c'est ce partage qu'on mesure : une seule facon de
+     * televerser dans le produit, donc une seule a corriger.
+     */
+    public function test_les_deux_surfaces_de_depot_montrent_la_progression(): void
+    {
+        $js = file_get_contents(base_path('resources/js/app.js'));
+
+        $this->assertStringContainsString('window.bpTeleverserFichiers', $js);
+        $this->assertStringContainsString('xhr.upload.addEventListener(\'progress\'', $js,
+            '`fetch` ne rapporte pas la progression d\'un ENVOI : seul XHR le fait');
+        $this->assertStringContainsString('Math.min(99,', $js,
+            'borner a 99 % tant que le serveur n\'a pas repondu : la validation et l\'ecriture restent a faire');
+
+        $fil = file_get_contents(resource_path('views/livewire/loop-chat.blade.php'));
+        $card = file_get_contents(resource_path('views/livewire/loop-dossiers-card.blade.php'));
+
+        foreach (['loop-chat' => $fil, 'loop-dossiers-card' => $card] as $nom => $vue) {
+            $this->assertStringContainsString('bpTeleverserFichiers', $vue,
+                "{$nom} doit televerser par le chemin partage");
+            $this->assertStringNotContainsString("fetch(@js(\$urls['upload'])", $vue,
+                "{$nom} ne doit plus televerser par `fetch` : aucune progression");
+        }
+
+        // La mire du fil vit HORS de la feuille : celle-ci se referme des
+        // l'appui, son propre indicateur ne serait jamais visible.
+        $this->assertStringContainsString('bp-depot-progression', $fil);
+        $this->assertStringContainsString('data-depot-progression', $card);
     }
 }

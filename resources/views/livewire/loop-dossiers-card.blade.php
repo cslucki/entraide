@@ -74,7 +74,7 @@
                  stockage. --}}
             @if($urls && ($canCreateArticle || $canUploadFile))
                 <div class="mt-3 border-t border-[var(--bp-border)] pt-3"
-                     x-data="{ writing: false, uploading: false, uploadError: '' }">
+                     x-data="{ writing: false, uploading: false, uploadError: '', pourcent: 0 }">
                     <div class="flex flex-wrap gap-2">
                         @if($canCreateArticle)
                             <button type="button" @click="writing = ! writing; uploadError = ''"
@@ -86,28 +86,38 @@
                         @if($canUploadFile)
                             <label class="{{ $quiet }} cursor-pointer" :class="uploading && 'pointer-events-none opacity-50'">
                                 <input type="file" class="hidden" multiple
+                                       {{-- TASK-1772 (recette Cyril, 06/11) — LA MIRE, ici aussi.
+                                            « Sinon on a l'impression que rien ne se passe, sur desktop
+                                            et smartphone. » Le depot passait par `fetch`, qui ne
+                                            rapporte AUCUNE progression d'envoi : le seul retour etait
+                                            le libelle du bouton qui changeait de mot. Il passe par
+                                            `bpTeleverserFichiers` (XHR), partage avec le composeur de
+                                            la Boucle — une seule facon de televerser dans le produit,
+                                            et une seule a corriger. --}}
                                        @change="
                                             const fichiers = [...$event.target.files].slice(0, 5);
+                                            $event.target.value = '';
                                             if (! fichiers.length) return;
-                                            uploading = true; uploadError = '';
-                                            const fd = new FormData();
-                                            fichiers.forEach(f => fd.append('files[]', f));
-                                            fetch(@js($urls['upload']), {
-                                                method: 'POST',
-                                                headers: { 'X-CSRF-TOKEN': @js(csrf_token()), 'Accept': 'application/json' },
-                                                body: fd,
-                                            }).then(async r => {
-                                                if (r.ok) { $wire.$refresh(); }
-                                                else {
-                                                    const j = await r.json().catch(() => ({}));
-                                                    uploadError = j.message || @js(__('loops.cards.dossiers.upload_failed'));
-                                                }
-                                            }).catch(() => { uploadError = @js(__('loops.cards.dossiers.upload_failed')); })
-                                              .finally(() => { uploading = false; $event.target.value = ''; });
+                                            uploading = true; uploadError = ''; pourcent = 0;
+                                            const r = await window.bpTeleverserFichiers(
+                                                @js($urls['upload']),
+                                                fichiers,
+                                                (p) => { pourcent = p; },
+                                            );
+                                            uploading = false;
+                                            if (r.ok) { $wire.$refresh(); }
+                                            else { uploadError = r.raison || @js(__('loops.cards.dossiers.upload_failed')); }
                                        ">
                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z"/></svg>
-                                <span x-text="uploading ? @js(__('loops.cards.dossiers.uploading')) : @js(__('loops.cards.dossiers.upload_file'))"></span>
+                                <span x-text="uploading
+                                    ? @js(__('dossiers.file_upload_progress')).replace(':percent', pourcent)
+                                    : @js(__('loops.cards.dossiers.upload_file'))"></span>
                             </label>
+                            {{-- La barre, a cote du bouton : le pourcentage dit
+                                 « ca avance », la barre dit « de combien ». --}}
+                            <div x-show="uploading" x-cloak data-depot-progression class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--bp-border)]" role="progressbar" x-bind:aria-valuenow="pourcent" aria-valuemin="0" aria-valuemax="100">
+                                <div class="h-full rounded-full bg-[var(--bp-primary)] transition-all duration-200" x-bind:style="'width: ' + pourcent + '%'"></div>
+                            </div>
                         @endif
                     </div>
 

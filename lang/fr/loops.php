@@ -38,6 +38,8 @@ return [
     'chat_dossier_file_deposited' => ':name vient de déposer le fichier « :file » dans la Boucle.',
     'chat_dossier_files_deposited' => ':name vient de déposer :count fichiers dans la Boucle.',
     'chat_dossier_open_card' => 'Voir',
+    // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.
+    'composer_file_uploading_many' => ':count fichiers en cours d\'envoi…',
     'expected_help' => 'Aide attendue : :type',
     'no_messages' => 'Aucun message pour le moment',
     'no_messages_hint' => 'Soyez le premier à écrire !',
