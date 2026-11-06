@@ -111,6 +111,9 @@ return [
     'reply' => 'Répondre',
     // TASK-1770 — nom accessible de la feuille d'actions (appui long).
     'message_actions' => 'Actions sur ce message',
+    // TASK-1771 — le mode selection (barre d'actions en haut).
+    'selection_exit' => 'Quitter la sélection',
+    'selection_one' => '1 message sélectionné',
     'pin' => 'Épingler',
     'unpin' => 'Désépingler',
     'edit' => 'Modifier',

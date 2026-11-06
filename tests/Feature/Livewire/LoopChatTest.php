@@ -1584,10 +1584,28 @@ class LoopChatTest extends TestCase
             'deleted_by' => $this->member->id,
         ]);
 
-        Livewire::actingAs($this->member)
+        $html = Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
             ->assertSee(__('messages.deleted_message_placeholder'))
-            ->assertDontSeeHtml('aria-label="'.__('messages.copy').'"');
+            ->html();
+
+        // TASK-1771 — la promesse n'a pas bouge : un message supprime n'offre
+        // PAS « Copier ». Le MOYEN de la verifier, si.
+        //
+        // La barre du mode selection est rendue une fois par fil et porte en
+        // dur l'intitule de chaque action, dans un `<template x-if>` qui ne
+        // produit un bouton que si la bulle selectionnee a declare l'action.
+        // Chercher `aria-label="Copier"` dans la page entiere repondrait donc
+        // « present » meme quand aucun message ne permet de copier — ce qui
+        // ne mesurerait plus rien.
+        //
+        // On lit ce que la BULLE declare : c'est elle qui connait les droits.
+        // `@js()` echappe les guillemets en `\u0022` : chercher `&quot;` ici
+        // passerait A VIDE, et le test annoncerait vert sans rien mesurer.
+        $this->assertStringContainsString('copy\u0022:false', $html,
+            'la bulle supprimee doit declarer qu\'elle ne permet pas de copier');
+        $this->assertSame(0, substr_count($html, 'copy\u0022:true'),
+            'et aucune bulle de ce fil ne doit declarer l\'action « copier »');
     }
 
     public function test_pinned_message_scroll_targets_the_start_of_the_bubble(): void

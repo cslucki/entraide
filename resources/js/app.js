@@ -70,6 +70,78 @@ function registerAlpineStores() {
         confirm() { if (this._form) this._form.submit(); this.close(); },
     });
 
+    /**
+     * TASK-1771 — le MODE SELECTION d'un message.
+     *
+     * Modele du « contextual action bar » d'Android, celui que WhatsApp
+     * applique : un appui long SELECTIONNE, la barre du haut est REMPLACEE
+     * par une barre d'actions, et le message selectionne est surligne.
+     *
+     * Pourquoi un store et pas un `x-data` de page : la bulle, la barre et
+     * les deux fils (ChatLoop et Messagerie) sont trois portees Alpine
+     * distinctes. Un etat de page obligerait a le recopier des deux cotes —
+     * et deux copies divergent toujours.
+     *
+     * UNE SEULE selection a la fois (arbitrage Cyril du 06/11) : le compteur
+     * et les actions par lot de WhatsApp demanderaient un etat SERVEUR dans
+     * les deux fils, et que chaque action sache traiter un lot.
+     */
+    window.Alpine.store('bpSelection', {
+        id: null,
+        actions: {},
+        texte: '',
+
+        get ouvert() {
+            return this.id !== null;
+        },
+
+        /** Selectionner, ou DESELECTIONNER si c'est deja celui-la. */
+        basculer(id, actions, texte) {
+            if (this.id === id) {
+                return this.fermer();
+            }
+
+            this.id = id;
+            this.actions = actions || {};
+            this.texte = texte || '';
+        },
+
+        fermer() {
+            this.id = null;
+            this.actions = {};
+            this.texte = '';
+        },
+
+        /**
+         * Le presse-papier, depuis la BARRE et non depuis la bulle.
+         *
+         * `navigator.clipboard` n'existe pas hors contexte sécurisé et refuse
+         * parfois sans lever : le repli `execCommand` reste nécessaire, c'est
+         * le meme que celui de la bulle depuis T1704.
+         */
+        async copier() {
+            const texte = (this.texte || '').trim();
+
+            if (! texte) {
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(texte);
+            } catch {
+                const zone = document.createElement('textarea');
+                zone.value = texte;
+                zone.setAttribute('readonly', '');
+                zone.style.position = 'fixed';
+                zone.style.opacity = '0';
+                document.body.appendChild(zone);
+                zone.select();
+                try { document.execCommand('copy'); } catch { /* rien de plus a tenter */ }
+                document.body.removeChild(zone);
+            }
+        },
+    });
+
     window.Alpine.store('darkMode', {
         on: document.documentElement.classList.contains('dark'),
 

@@ -243,52 +243,101 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
 
 <div
     {{ $attributes->merge(['class' => $containerClasses . ' group ' . $class]) }}
+    {{-- TASK-1771 — « on clique sur un message, il change de couleur ».
+         WhatsApp teinte la RANGEE entiere, pas la seule bulle : c'est ce qui
+         rend la selection lisible d'un coup d'oeil sur un fil dense. L'anneau
+         de la bulle, lui, dit lequel exactement. --}}
+    {{-- TASK-1771 — la teinte de la rangee passe par un STYLE EN LIGNE.
+         `bg-[var(--bp-primary)]/10` paraissait juste et ne peignait RIEN :
+         Tailwind ne sait pas appliquer un modificateur d'opacite a une
+         variable CSS, il produit une couleur invalide — donc transparente.
+         Mesure au navigateur : la classe etait bien posee sur l'element, et
+         sa couleur calculee valait `rgba(0, 0, 0, 0)`. C'est le piege deja
+         paye en TASK-1475 : une valeur arbitraire batie sur un jeton rend
+         transparent, SANS AUCUNE ERREUR.
+         `color-mix` fait le melange dans le navigateur, avec le jeton tel
+         quel, et ne depend d'aucune purge. Verifie : il rend bien
+         `color(srgb 0.32 0.49 1 / 0.16)` sur ce theme. --}}
+    x-bind:style="$store.bpSelection.id === @js((string) $messageId)
+        ? 'background-color: color-mix(in srgb, var(--bp-primary) 16%, transparent)'
+        : ''"
+    {{-- =================================================================
+         TASK-1771 — SELECTION PAR SIMPLE APPUI. Rien d'autre.
+         =================================================================
+         Demande de Cyril apres trois recettes : « je prefere un mecanisme
+         rudimentaire, mais au moins qui marche ».
+
+         L'appui long est retire ENTIEREMENT — minuteur, seuil de mouvement,
+         `contextmenu`, drapeau de `click` de synthese. Chaque piece fermait
+         le defaut de la precedente et en ouvrait un autre :
+
+           450 ms  -> le defilement declenchait le menu ;
+           + gardes de mouvement -> corrige, mais 500 ms courait contre la
+             selection de texte d'iOS, qui emet `touchcancel` et gagnait ;
+           400 ms  -> corrige, mais le `click` de synthese qui suit un appui
+             long deselectionnait aussitot : « le menu s'affiche et repart ».
+
+         Un `click` n'a aucun de ces problemes. Le navigateur ne l'emet PAS
+         apres un geste de defilement — c'est LUI qui fait le tri, et il le
+         fait mieux que n'importe quel seuil en pixels. Aucun minuteur, donc
+         aucune course avec le systeme.
+
+         Le geste vit sur la RANGEE et non sur la bulle : « les messages ne
+         sont pas faciles a attraper avec le pouce, il faut le faire avec
+         l'index ». Une bulle courte n'offre qu'une cible etroite, posee du
+         cote oppose au pouce pour la moitie des messages. La rangee fait
+         toute la largeur — et c'est la LIGNE qui se surligne, comme sur
+         WhatsApp. --}}
+    @if($_menuAppuiLong)
+    x-on:click="if (! $event.target.closest('a,button,input,textarea,select,[role=button]')) selectionner()"
+    x-on:bp-selection-action.window="if ($event.detail.id === id) executerAction($event.detail.action)"
+    @endif
     x-data="{
         id: @js((string) $messageId),
         open: false,
         hover: false,
         showMore: false,
-        pressTimer: null,
-        sheetOpen: false,
-        // TASK-1770 (recette Cyril, 06/11) — « quand on scrolle, sans faire
-        // expres, on appuie sur les messages et on declenche le menu ».
-        // Un minuteur annule par `touchmove` ne suffit PAS, pour deux raisons
-        // mesurables :
-        //   1. le navigateur emet `contextmenu` de lui-meme sur un appui
-        //      prolonge, et ce handler-la n'avait AUCUNE condition : il
-        //      ouvrait la feuille meme quand le doigt avait bouge ;
-        //   2. le fil defile dans un conteneur, donc un `scroll` ne passe pas
-        //      par `touchmove` du tout une fois l'inertie lancee.
-        // `pressAnnule` est la reponse unique aux deux chemins : des qu'un
-        // doigt bouge de plus de 10 px OU qu'une surface defile, l'appui en
-        // cours n'est plus un appui long, et il ne le redeviendra pas avant
-        // le prochain `touchstart`.
-        pressX: 0,
-        pressY: 0,
-        pressAnnule: false,
-        demarrerAppui(e) {
-            if (e.target.closest('button,a,input,textarea,select')) return;
-            const t = e.touches && e.touches[0];
-            this.pressX = t ? t.clientX : 0;
-            this.pressY = t ? t.clientY : 0;
-            this.pressAnnule = false;
-            clearTimeout(this.pressTimer);
-            this.pressTimer = setTimeout(() => {
-                if (! this.pressAnnule) this.sheetOpen = true;
-            }, 500);
+        /**
+         * TASK-1771 — entrer (ou sortir) du mode selection.
+         *
+         * La bulle publie CE QU'ELLE SAIT FAIRE. C'est elle qui connait les
+         * droits — la barre, elle, ne fait qu'afficher ce qu'on lui donne.
+         */
+        selectionner() {
+            this.$store.bpSelection.basculer(
+                this.id,
+                @js([
+                    'reply' => (bool) $showReplyButton,
+                    'pin' => (bool) $showPinButton,
+                    'pinned' => (bool) $isPinned,
+                    'copy' => (bool) $showCopyButton,
+                    'edit' => (bool) $showEditButton,
+                    'delete' => (bool) $showDeleteButton,
+                ]),
+                (this.$refs.copyContent?.innerText || '').replace(/\n{3,}/g, '\n\n').trim(),
+            );
         },
-        annulerAppui() {
-            this.pressAnnule = true;
-            clearTimeout(this.pressTimer);
-        },
-        suivreAppui(e) {
-            const t = e.touches && e.touches[0];
-            if (! t) return this.annulerAppui();
-            // 10 px : en dessous, c'est le tremblement normal d'un doigt pose.
-            // Au-dessus, c'est une intention de defiler.
-            if (Math.abs(t.clientX - this.pressX) > 10 || Math.abs(t.clientY - this.pressY) > 10) {
-                this.annulerAppui();
+        /**
+         * La barre dit QUOI ; la bulle sait COMMENT.
+         *
+         * Chaque branche reutilise le gestionnaire qui marchait deja dans la
+         * rangee de bureau — y compris `deleteOpen`, qui ouvre la
+         * confirmation existante au lieu de supprimer sechement. C'est ce qui
+         * permet a la meme barre de servir le ChatLoop et la Messagerie, dont
+         * les composants Livewire n'exposent PAS les memes methodes.
+         */
+        executerAction(action) {
+            if (action === 'reply') {
+                this.$dispatch('reply-to-message', { messageId: this.id });
+            } else if (action === 'pin') {
+                @if($isPinned) this.$wire.unpinMessage(); @else this.$wire.pinMessage(this.id); @endif
+            } else if (action === 'edit') {
+                this.$wire.editMessage(this.id);
+            } else if (action === 'delete') {
+                this.deleteOpen = true;
             }
+
+            this.$store.bpSelection.fermer();
         },
         copied: false,
         deleteOpen: false,
@@ -346,33 +395,23 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          resout contre le fil (pleine largeur) : une bulle courte garde sa
          ligne, une longue plafonne a 90% / md / lg. --}}
     <div class="relative min-w-0 {{ $widthClass }}">
+    {{-- TASK-1771 — `select-none` et `-webkit-touch-callout: none` sur
+         telephone : sans eux, un appui long sur le texte lance la selection
+         native d'iOS et sa bulle « Copier / Tout selectionner », qui recouvre
+         la notre ET annule notre geste. WhatsApp fait le meme choix — le
+         texte ne se selectionne pas au doigt, c'est « Copier » qui s'en
+         charge, et il est dans la barre.
+         A partir de `md`, la selection de texte redevient normale : au
+         clavier-souris, personne ne fait d'appui long. --}}
     <div
-        class="{{ $bubbleClasses }} px-3 py-2"
-        {{-- TASK-1770 — le meme appui long, elargi.
-             La garde `closest('button,a,input,...')` est conservee TELLE
-             QUELLE : sans elle, un appui long sur un lien du message ouvrirait
-             la feuille au lieu de laisser le navigateur faire son travail.
-             `touchmove` est la garde qui compte le plus — sans elle, un
-             defilement un peu lent ouvre la feuille toutes les deux secondes.
-             `contextmenu.prevent` supprime le menu natif du navigateur, qui
-             sinon s'ouvrirait PAR-DESSUS le notre. --}}
-        @if($_menuAppuiLong)
-        x-on:touchstart.passive="demarrerAppui($event)"
-        x-on:touchend="annulerAppui()"
-        x-on:touchmove.passive="suivreAppui($event)"
-        x-on:touchcancel="annulerAppui()"
-        {{-- Le defilement, sur N'IMPORTE QUELLE surface. `scroll` ne remonte
-             pas : il faut la phase de CAPTURE pour l'attraper depuis la
-             fenetre. C'est la garde que la recette du 06/11 a reclamee — le
-             fil defile dans un conteneur, donc un defilement lance ne passe
-             plus par `touchmove`. --}}
-        x-on:scroll.window.capture.passive="annulerAppui()"
-        {{-- `contextmenu` est emis par le NAVIGATEUR sur un appui prolonge, et
-             il arrive meme quand le doigt a bouge. On le neutralise toujours
-             (sinon le menu natif s'ouvre par-dessus le notre), mais on
-             n'ouvre la feuille que si l'appui est encore valide. --}}
-        x-on:contextmenu.prevent="if (! pressAnnule) sheetOpen = true"
-        @endif
+        class="{{ $bubbleClasses }} px-3 py-2 select-none [-webkit-touch-callout:none] md:select-auto"
+        {{-- TASK-1771 — la rangee se teinte (plus haut), la bulle porte
+             l'anneau. Deux marques et non une : sur un fil dense, la teinte se
+             voit d'un coup d'oeil mais ne dit pas LEQUEL des deux messages
+             colles l'un a l'autre est pris ; l'anneau, lui, le dit. --}}
+        {{-- Meme raison que la teinte de la rangee : `ring-[var(--bp-primary)]`
+             rendait un `box-shadow` INVALIDE, donc aucun. Style en ligne. --}}
+        x-bind:style="$store.bpSelection.id === id ? 'box-shadow: inset 0 0 0 2px var(--bp-primary)' : ''"
     >
         @if($avatar || $name || $subtitle || $requestedBy || $time || $isEdited || $isAi)
         <div class="mb-1 flex items-start justify-between gap-3">
@@ -888,111 +927,10 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
         </div>
         @endif
 
-    {{-- ==================================================================
-         TASK-1770 — LA FEUILLE DES ACTIONS, sur telephone.
-         ==================================================================
-         Teleportee dans `body` : la bulle vit dans un conteneur qui defile et
-         qui ROGNE tout element en absolu (constat T1124). Meme motif que la
-         feuille du « + » du composeur, et meme raison de rester EN BAS : elle
-         prolonge le doigt qui vient d'appuyer, elle ne surgit pas au centre.
-
-         Chaque action porte son libelle EN TOUTES LETTRES. La rangee qu'elle
-         remplace etait faite de cinq icones muettes de 24 px, a l'etroit : on
-         gagne la place ET on gagne les mots.
-
-         Les reactions entrent en tete. Elles etaient jusqu'ici derriere un
-         `hover` — donc, sur un telephone qui n'a pas de survol, pratiquement
-         inatteignables. Ce n'est pas une perte deguisee en gain : c'est une
-         surface rendue au tactile. --}}
-    @if($_menuAppuiLong)
-    <template x-teleport="body">
-        <div x-show="sheetOpen" x-cloak class="fixed inset-0 z-[60] flex items-end justify-center"
-             x-effect="document.body.style.overflow = sheetOpen ? 'hidden' : ''"
-             x-on:keydown.escape.window="sheetOpen = false"
-             role="dialog" aria-modal="true" aria-label="{{ __('messages.message_actions') }}">
-            <div x-show="sheetOpen" class="fixed inset-0 bg-black/50" x-on:click="sheetOpen = false"></div>
-            <div x-show="sheetOpen"
-                 x-transition:enter="transition ease-out duration-200"
-                 x-transition:enter-start="translate-y-full opacity-0"
-                 x-transition:enter-end="translate-y-0 opacity-100"
-                 {{-- Bornee sur le viewport VISIBLE : sur un petit ecran en
-                      paysage, cinq actions plus la rangee de reactions
-                      depassent, et une feuille qui deborde par le haut ne
-                      montre plus sa poignee. --}}
-                 class="relative w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-3 shadow-2xl dark:bg-gray-800"
-                 style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)); max-height: calc(var(--bp-vvh, 100dvh) - 3rem)">
-                <div class="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-
-                @if($showReactions && $messageId)
-                <div class="mb-2 flex items-center justify-around gap-1 border-b border-gray-100 pb-3 dark:border-gray-700">
-                    @foreach($primaryReactionTypes as $type)
-                        @php $emoji = $reactionEmojis[$type] ?? null; @endphp
-                        @if($emoji)
-                        <button type="button"
-                                wire:click="toggleReaction('{{ $messageId }}', '{{ $type }}')"
-                                x-on:click="sheetOpen = false"
-                                class="inline-flex h-11 w-11 items-center justify-center rounded-full text-xl transition hover:bg-gray-100 dark:hover:bg-gray-700 {{ $myReaction === $type ? 'bg-indigo-100 ring-1 ring-indigo-300 dark:bg-indigo-900/40 dark:ring-indigo-600' : '' }}"
-                                aria-label="{{ __('messages.react_with', ['type' => $type]) }}">{{ $emoji }}</button>
-                        @endif
-                    @endforeach
-                </div>
-                @endif
-
-                @if($showReplyButton)
-                <button type="button" x-on:click="sheetOpen = false; $dispatch('reply-to-message', { messageId: '{{ $messageId }}' })"
-                        class="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
-                    <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
-                    {{ __('messages.reply') }}
-                </button>
-                @endif
-
-                @if($showPinButton)
-                <button type="button" wire:click="{{ $isPinned ? 'unpinMessage' : "pinMessage('".$messageId."')" }}" x-on:click="sheetOpen = false"
-                        class="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
-                    {{-- L'icone vient de la rangee de bureau du meme composant :
-                         une epingle dessinee a part aurait diverge d'elle au
-                         premier ajustement. --}}
-                    <svg class="h-5 w-5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        @if($isPinned)
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m3 3 18 18M8 6.5V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v7l2 3H8.5M12 18v3"/>
-                        @else
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 3h8a2 2 0 0 1 2 2v7l2 3H4l2-3V5a2 2 0 0 1 2-2Zm4 12v6"/>
-                        @endif
-                    </svg>
-                    {{ $isPinned ? __('messages.unpin') : __('messages.pin') }}
-                </button>
-                @endif
-
-                @if($showCopyButton)
-                <button type="button" x-on:click="copyMessage(); sheetOpen = false"
-                        class="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
-                    <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="4" width="11" height="11" rx="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    {{ __('messages.copy') }}
-                </button>
-                @endif
-
-                @if($showEditButton)
-                <button type="button" wire:click="editMessage('{{ $messageId }}')" x-on:click="sheetOpen = false"
-                        class="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
-                    <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487a2.1 2.1 0 1 1 2.97 2.97L8.63 18.66l-4.243.53.53-4.243L16.862 4.487Z"/></svg>
-                    {{ __('messages.edit') }}
-                </button>
-                @endif
-
-                @if($showDeleteButton)
-                {{-- Separe, et en rouge : c'est le seul geste de cette feuille
-                     qui ne se defait pas. Il ouvre la confirmation existante,
-                     il ne supprime pas directement. --}}
-                <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                <button type="button" x-on:click="sheetOpen = false; deleteOpen = true"
-                        class="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/25">
-                    <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M19.228 5.79 18.16 19.673A2.25 2.25 0 0 1 15.916 21H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
-                    {{ __('messages.delete') }}
-                </button>
-                @endif
-            </div>
-        </div>
-    </template>
-    @endif
+    {{-- TASK-1771 — la feuille basse de T1770 est remplacee par la BARRE DU
+         HAUT (`<x-conversation.selection-bar />`), sur le modele du
+         « contextual action bar » d'Android que WhatsApp applique. La bulle
+         ne rend donc plus de menu du tout : elle SELECTIONNE, et c'est la
+         barre qui propose. --}}
     </div>
 </div>

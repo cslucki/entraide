@@ -115,10 +115,21 @@ class TASK1769ComposeurEtOutilsMobileTest extends TestCase
     {
         $html = $this->page();
 
+        // TASK-1771 — la promesse n'a pas bouge : UNE seule porte vers
+        // l'appareil photo. Le cote d'ou elle sort, si.
+        //
+        // T1769 avait garde la poignee de la pilule et retire la tuile de la
+        // feuille. Cyril a tranche dans l'autre sens le 06/11 : la poignee
+        // disparait du composeur, et la feuille du « + » redevient la seule
+        // porte, aux cotes de « Ajouter un fichier » et « Ajouter une image ».
+        // Les deux marqueurs vivent donc desormais sur le MEME bouton.
         $this->assertSame(1, substr_count($html, 'data-composer-camera'),
             'une seule porte vers l\'appareil photo');
-        $this->assertStringNotContainsString('data-composer-take-photo', $html,
-            'la tuile de la feuille du « + » a disparu');
+        $this->assertSame(1, substr_count($html, 'data-composer-take-photo'),
+            'et elle est dans la feuille du « + », pas dans la pilule');
+        $this->assertSame(1, preg_match(
+            '/data-composer-take-photo\s+data-composer-camera/', $html,
+        ), 'les deux marqueurs designent le meme bouton : sans quoi il y en aurait deux');
     }
 
     /**

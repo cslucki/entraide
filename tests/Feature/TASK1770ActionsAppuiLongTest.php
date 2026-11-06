@@ -55,86 +55,44 @@ class TASK1770ActionsAppuiLongTest extends TestCase
      * La feuille existe, elle se nomme, et chaque action y est en TOUTES
      * LETTRES. La rangee qu'elle remplace etait cinq icones muettes de 24 px.
      */
-    public function test_la_feuille_nomme_ses_actions(): void
-    {
-        $html = $this->bulle();
-
-        $this->assertStringContainsString(e(__('messages.message_actions')), $html,
-            'la feuille porte un nom accessible');
-
-        foreach (['messages.reply', 'messages.copy', 'messages.pin'] as $cle) {
-            $this->assertStringContainsString(e(__($cle)), $html,
-                "l'action {$cle} doit etre nommee, pas reduite a une icone");
-        }
-
-        // Elle est teleportee : la bulle vit dans un conteneur qui defile et
-        // qui ROGNE tout element en absolu (constat T1124).
-        $this->assertStringContainsString('x-teleport="body"', $html);
-    }
-
     /**
-     * Les quatre gardes de l'appui long, et la cinquieme qui compte autant.
+     * TASK-1771 a remplace la feuille basse par la BARRE DU HAUT, sur le
+     * modele du « contextual action bar » d'Android que WhatsApp applique.
      *
-     * `touchmove` est celle dont l'absence se paierait le plus cher : sans
-     * elle, un defilement un peu lent ouvre la feuille toutes les deux
-     * secondes. Et la garde `closest(...)` laisse un lien du message etre un
-     * lien — sans elle, un appui long dessus ouvrirait notre feuille au lieu
-     * du menu du navigateur.
+     * Ce que ce test defend n'a pas bouge : la bulle doit DECLARER ce qu'elle
+     * permet, sinon la barre n'a rien a proposer. Le MOYEN, lui, a change —
+     * et c'est la bulle qui porte desormais la declaration, pas un menu.
      */
-    public function test_l_appui_long_porte_toutes_ses_gardes(): void
+    public function test_la_bulle_declare_ce_qu_elle_permet(): void
     {
         $html = $this->bulle();
 
-        foreach (['x-on:touchstart', 'x-on:touchend', 'x-on:touchmove', 'x-on:touchcancel'] as $garde) {
-            $this->assertStringContainsString($garde, $html, "la garde {$garde} manque");
+        // `@js()` echappe les guillemets en `\u0022` : chercher `&quot;`
+        // passerait A VIDE et ce test annoncerait vert sans rien mesurer.
+        foreach (['reply', 'copy', 'pin'] as $action) {
+            $this->assertStringContainsString($action.'\u0022:true', $html,
+                "la bulle doit declarer l'action « {$action} » a la barre");
         }
+        $this->assertStringContainsString('edit\u0022:false', $html,
+            'et declarer FAUX ce qu\'elle ne permet pas, plutot que de l\'omettre');
 
-        $this->assertStringContainsString("closest('button,a,input,textarea,select')", $html,
-            'un appui long sur un lien du message doit rester un appui long sur un lien');
+        $this->assertStringContainsString('selectionner()', $html,
+            'l\'appui long entre en mode selection');
     }
 
-    /**
-     * Les deux gardes nees de la RECETTE du 06/11.
-     *
-     * Constat de Cyril : « quand on scrolle, sans faire expres, on appuie sur
-     * les messages et on declenche le menu ». Un minuteur annule par
-     * `touchmove` ne suffisait pas, pour deux raisons distinctes :
-     *
-     *  1. le navigateur emet `contextmenu` DE LUI-MEME sur un appui prolonge,
-     *     et ce handler n'avait aucune condition : il ouvrait la feuille meme
-     *     quand le doigt avait bouge ;
-     *  2. le fil defile dans un conteneur — une fois l'inertie lancee, le
-     *     defilement ne passe plus par `touchmove` du tout. Et `scroll` ne
-     *     remonte pas : il faut la phase de CAPTURE pour l'attraper.
-     *
-     * Les deux chemins repondent au meme drapeau, `pressAnnule`.
-     */
-    public function test_un_defilement_annule_l_appui_en_cours(): void
-    {
-        $html = $this->bulle();
 
-        $this->assertStringContainsString('x-on:scroll.window.capture', $html,
-            'sans la phase de capture, un defilement de conteneur n\'est jamais vu');
 
-        $this->assertStringContainsString('if (! pressAnnule) sheetOpen = true', $html,
-            '`contextmenu` ne doit ouvrir la feuille que si l\'appui est encore valide');
-        $this->assertStringContainsString('contextmenu.prevent', $html,
-            'mais il reste TOUJOURS neutralise : sinon le menu natif s\'ouvre par-dessus le notre');
-
-        // Le seuil de mouvement : en dessous c'est un doigt pose qui tremble,
-        // au-dessus c'est une intention de defiler.
-        $this->assertStringContainsString('> 10 || Math.abs', $html,
-            'le seuil de 10 px doit exister : annuler au moindre pixel rendrait l\'appui long inatteignable');
-    }
-
-    /** Une bulle sans aucune action n'embarque ni geste ni feuille. */
+    /** Une bulle sans aucune action n'embarque aucun geste. */
     public function test_une_bulle_sans_action_n_embarque_rien(): void
     {
         $html = $this->blade(
             '<x-conversation.message-bubble type="received">Bonjour</x-conversation.message-bubble>',
         )->__toString();
 
-        $this->assertStringNotContainsString('x-teleport="body"', $html);
+        // `selectionner()` reste DEFINIE dans le `x-data` — une methode qui
+        // existe ne coute rien. Ce qui compte, c'est qu'aucun evenement ne
+        // l'appelle : ni geste, ni ecoute de la barre.
         $this->assertStringNotContainsString('x-on:touchstart', $html);
+        $this->assertStringNotContainsString('bp-selection-action.window', $html);
     }
 }
