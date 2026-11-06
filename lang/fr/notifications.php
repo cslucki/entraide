@@ -12,6 +12,7 @@ return [
     // Les actions
     'mark_read' => 'Marquer comme lu',
     'mark_all_read' => 'Tout marquer comme lu',
+    'mark_unread' => 'Marquer comme non lue',
 
     // Les etats vides — DEUX, et c'est voulu. Une page vide et un filtre vide
     // ne disent pas la meme chose : la premiere dit « rien ne vous attend »,

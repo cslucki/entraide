@@ -310,31 +310,74 @@ class TASK1373NotificationCenterTest extends TestCase
     }
 
     /**
-     * Un filtre inconnu retombe sur « toutes » — il n'est pas une erreur.
+     * TASK-1775 — l'ABSENCE de `?filtre` montre desormais les non-lues, pas
+     * tout l'historique : un membre qui ouvre le centre doit voir d'abord ce
+     * qui reclame son attention.
      *
-     * La valeur vient du client : elle passe par une liste blanche plutot que
-     * d'atteindre la requete.
+     * Ancien contrat (T1373) : le defaut etait « toutes ». La promesse mesuree
+     * ici reste la meme qu'avant — « le filtre courant gouverne ce qui
+     * s'affiche » — seul le MOYEN change : quelle valeur le defaut applique.
      */
-    public function test_an_unknown_filter_falls_back_to_all(): void
+    public function test_without_any_filter_only_unread_notifications_show(): void
     {
         $lue = $this->emettre(destinataire: $this->alice);
         $lue->markAsReadFor((string) $this->orgMembre->id, (string) $this->alice->id);
+        $nonLue = $this->emettre(destinataire: $this->alice);
+
+        $reponse = $this->actingAs($this->alice)->get(route('notifications.index'))
+            ->assertOk()
+            ->assertSee('data-notification-id="'.$nonLue->id.'"', false)
+            ->assertDontSee('data-notification-id="'.$lue->id.'"', false);
+
+        // Et l'onglet « Non lues » est bien celui que l'ecran montre comme
+        // courant — l'absence de parametre doit se comporter EXACTEMENT comme
+        // `?filtre=non-lues`, pas seulement filtrer la meme chose en silence.
+        $reponse->assertSee('data-notifications-filter="non-lues"', false);
+    }
+
+    /** `?filtre=toutes` demande EXPLICITEMENT tout l'historique, lues comprises. */
+    public function test_the_all_filter_shows_read_and_unread(): void
+    {
+        $lue = $this->emettre(destinataire: $this->alice);
+        $lue->markAsReadFor((string) $this->orgMembre->id, (string) $this->alice->id);
+        $nonLue = $this->emettre(destinataire: $this->alice);
+
+        $this->actingAs($this->alice)->get(route('notifications.index', ['filtre' => 'toutes']))
+            ->assertOk()
+            ->assertSee('data-notification-id="'.$lue->id.'"', false)
+            ->assertSee('data-notification-id="'.$nonLue->id.'"', false);
+    }
+
+    /**
+     * Un filtre inconnu retombe sur « non-lues » — il n'est pas une erreur.
+     *
+     * TASK-1775 — ce test s'appelait `test_an_unknown_filter_falls_back_to_all`
+     * et verrouillait le repli vers « toutes ». Le defaut lui-meme a change
+     * (voir `test_without_any_filter_only_unread_notifications_show`) : une
+     * valeur inconnue doit se comporter comme l'absence de parametre, pas
+     * comme une troisieme regle a part. La valeur vient du client : elle passe
+     * par une liste blanche plutot que d'atteindre la requete.
+     */
+    public function test_an_unknown_filter_falls_back_to_unread(): void
+    {
+        $lue = $this->emettre(destinataire: $this->alice);
+        $lue->markAsReadFor((string) $this->orgMembre->id, (string) $this->alice->id);
+        $nonLue = $this->emettre(destinataire: $this->alice);
 
         foreach (['<script>alert(1)</script>', 'n_importe_quoi', ''] as $bidon) {
             $reponse = $this->actingAs($this->alice)->get(route('notifications.index', ['filtre' => $bidon]))
                 ->assertOk()
-                ->assertSee('data-notification-id="'.$lue->id.'"', false);
+                ->assertSee('data-notification-id="'.$nonLue->id.'"', false)
+                ->assertDontSee('data-notification-id="'.$lue->id.'"', false);
 
-            // Et l'ecran le DIT : « Toutes » redevient l'onglet courant. Sans la
-            // liste blanche, la valeur brute traverserait et aucun onglet ne
+            // Et l'ecran le DIT : « Non lues » redevient l'onglet courant. Sans
+            // la liste blanche, la valeur brute traverserait et aucun onglet ne
             // serait marque — l'utilisateur ne saurait plus ce qu'il regarde.
-            // C'est cette assertion qui mesure la garde ; le contenu de la liste,
-            // lui, serait identique dans les deux cas.
-            $reponse->assertSee('data-notifications-filter="toutes"', false);
+            $reponse->assertSee('data-notifications-filter="non-lues"', false);
             $this->assertStringContainsString(
                 'aria-current="page"',
-                $this->extraireOngletToutes($reponse->getContent()),
-                'Un filtre inconnu doit rendre « Toutes » courant.'
+                $this->extraireOngletNonLues($reponse->getContent()),
+                'Un filtre inconnu doit rendre « Non lues » courant.'
             );
         }
     }
@@ -462,6 +505,98 @@ class TASK1373NotificationCenterTest extends TestCase
 
         $this->assertNotNull($premiere);
         $this->assertEquals($premiere, $sienne->fresh()->read_at, 'La premiere lecture fait foi.');
+    }
+
+    // =====================================================================
+    // 5bis. Marquer comme NON lue (TASK-1775)
+    // =====================================================================
+
+    /** Marquer non lue remet bien la sienne dans la file des non-lues. */
+    public function test_a_member_can_mark_their_own_notification_as_unread(): void
+    {
+        $sienne = $this->emettre(destinataire: $this->alice);
+        $sienne->markAsReadFor((string) $this->orgMembre->id, (string) $this->alice->id);
+
+        $this->actingAs($this->alice)
+            ->from(route('notifications.index'))
+            ->post(route('notifications.unread', ['notification' => $sienne->id]))
+            ->assertRedirect();
+
+        $this->assertNull($sienne->fresh()->read_at);
+    }
+
+    /** Idempotent : deja non lue, le geste ne touche a rien. */
+    public function test_marking_unread_twice_stays_idempotent(): void
+    {
+        $sienne = $this->emettre(destinataire: $this->alice);
+
+        $this->actingAs($this->alice)->post(route('notifications.unread', ['notification' => $sienne->id]));
+        $this->actingAs($this->alice)->post(route('notifications.unread', ['notification' => $sienne->id]));
+
+        $this->assertNull($sienne->fresh()->read_at);
+    }
+
+    /** Connaitre l'identifiant de la notification de Bob n'est pas un droit sur elle. */
+    public function test_a_member_cannot_mark_another_members_notification_as_unread(): void
+    {
+        $celleDeBob = $this->emettre(destinataire: $this->bob);
+        $celleDeBob->markAsReadFor((string) $this->orgMembre->id, (string) $this->bob->id);
+
+        $this->actingAs($this->alice)
+            ->post(route('notifications.unread', ['notification' => $celleDeBob->id]))
+            ->assertNotFound();
+
+        $this->assertNotNull($celleDeBob->fresh()->read_at, 'La notification de Bob reste lue.');
+    }
+
+    /** Ni celle d'une autre Organization, meme si elle lui est adressee. */
+    public function test_a_member_cannot_mark_a_notification_from_another_organization_as_unread(): void
+    {
+        $ailleurs = User::factory()->create(['organization_id' => $this->orgDefaut->id]);
+        $autreTenant = $this->emettre(organisation: $this->orgDefaut, destinataire: $ailleurs);
+        $autreTenant->markAsReadFor((string) $this->orgDefaut->id, (string) $ailleurs->id);
+
+        $this->actingAs($this->alice)
+            ->post(route('notifications.unread', ['notification' => $autreTenant->id]))
+            ->assertNotFound();
+
+        $this->assertNotNull($autreTenant->fresh()->read_at);
+    }
+
+    /**
+     * Le badge remonte apres la redirection : une notification remise en
+     * non-lue doit se compter de nouveau, immediatement, sans rechargement
+     * supplementaire.
+     */
+    public function test_the_badge_counts_a_notification_marked_unread_again(): void
+    {
+        $sienne = $this->emettre(destinataire: $this->alice);
+        $sienne->markAsReadFor((string) $this->orgMembre->id, (string) $this->alice->id);
+
+        $this->actingAs($this->alice)->post(route('notifications.unread', ['notification' => $sienne->id]));
+
+        $this->actingAs($this->alice)->get(route('notifications.index', ['filtre' => 'toutes']))
+            ->assertOk()
+            ->assertSee('data-nav-badge-notifications="1"', false);
+    }
+
+    /**
+     * L'action n'est proposee que sur une notification DEJA lue, et seulement
+     * dans le filtre « Toutes » — « Non lues » ne contient par construction
+     * aucune ligne lue, donc le bouton n'y a jamais l'occasion d'apparaitre.
+     */
+    public function test_mark_as_unread_is_only_offered_on_already_read_notifications(): void
+    {
+        $lue = $this->emettre(destinataire: $this->alice);
+        $lue->markAsReadFor((string) $this->orgMembre->id, (string) $this->alice->id);
+        $nonLue = $this->emettre(destinataire: $this->alice);
+
+        $html = $this->actingAs($this->alice)->get(route('notifications.index', ['filtre' => 'toutes']))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-notification-mark-unread="'.$lue->id.'"', $html);
+        $this->assertStringNotContainsString('data-notification-mark-unread="'.$nonLue->id.'"', $html);
     }
 
     // =====================================================================
@@ -655,7 +790,18 @@ class TASK1373NotificationCenterTest extends TestCase
     /** Le fragment HTML de l'onglet « Toutes », pour y chercher `aria-current`. */
     private function extraireOngletToutes(string $html): string
     {
-        $debut = strpos($html, 'data-notifications-filter="toutes"');
+        return $this->extraireOnglet($html, 'toutes');
+    }
+
+    /** TASK-1775 — meme extraction que ci-dessus, pour l'onglet « Non lues ». */
+    private function extraireOngletNonLues(string $html): string
+    {
+        return $this->extraireOnglet($html, 'non-lues');
+    }
+
+    private function extraireOnglet(string $html, string $valeur): string
+    {
+        $debut = strpos($html, 'data-notifications-filter="'.$valeur.'"');
 
         if ($debut === false) {
             return '';

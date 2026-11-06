@@ -84,6 +84,26 @@ class NotificationCenterController extends Controller
 
         $notifications = $query->paginate(self::PAR_PAGE)->withQueryString();
 
+        // TASK-1775 — distinguer « rien n'est jamais arrive » de « tout est
+        // deja lu » exige desormais une mesure separee du filtre affiche.
+        //
+        // Avant cette TASK, le defaut etait « toutes » : une boite vide s'y
+        // voyait directement, sans requete de plus. Le defaut etant devenu
+        // « non-lues », une boite jamais alimentee ET une boite entierement
+        // lue produisent exactement la MEME liste filtree vide — seule une
+        // question posee EN DEHORS du filtre les distingue. Sans elle, un
+        // membre qui n'a jamais rien recu lirait « Tout est lu », qui laisse
+        // croire a un historique qu'il n'a pas.
+        //
+        // La requete ne part QUE quand elle peut changer la reponse : sur le
+        // filtre « toutes », la liste vide EST deja la preuve qu'il n'y a
+        // rien eu.
+        $dejaUneNotification = $filtre === self::FILTRE_NON_LUES && $notifications->isEmpty()
+            ? MemberNotification::query()
+                ->forRecipient((string) $organization->id, (string) $user->id)
+                ->exists()
+            : false;
+
         // TASK-1382 — une page hors borne ne doit pas se faire passer pour un
         // etat vide.
         //
@@ -132,9 +152,11 @@ class NotificationCenterController extends Controller
                 + $this->sujetsDesMentions($notifications->getCollection(), (string) $organization->id),
             'notifications' => $notifications,
             'filtre' => $filtre,
+            'dejaUneNotification' => $dejaUneNotification,
             'nonLues' => $user->unreadNotificationsCount((string) $organization->id),
             'routeParams' => $slug ? ['organization' => $slug] : [],
             'routeRead' => $slug ? 'organization.notifications.read' : 'notifications.read',
+            'routeUnread' => $slug ? 'organization.notifications.unread' : 'notifications.unread',
             'routeOpen' => $slug ? 'organization.notifications.open' : 'notifications.open',
             'routeReadAll' => $slug ? 'organization.notifications.read-all' : 'notifications.read-all',
             // TASK-1739 — l'acces aux reglages depuis le centre. Il manquait :
@@ -483,6 +505,27 @@ class NotificationCenterController extends Controller
     }
 
     /**
+     * TASK-1775 — l'inverse symmetrique de `read()` : remettre une
+     * notification deja lue dans la file des non-lues.
+     *
+     * Meme forme que `read()` — meme resolution tenant+destinataire, meme
+     * redirection — par symetrie avec le reste de l'ecran. `resoudre()` ne
+     * distingue pas lu/non lu : le controle « seulement sur une notification
+     * deja lue » appartient a la vue (l'action n'est proposee que la ou elle a
+     * un sens), et `markAsUnreadFor()` reste idempotent si elle est quand meme
+     * appelee sur une ligne deja non lue.
+     */
+    public function markUnread(Request $request): RedirectResponse
+    {
+        [$user, $organization] = $this->acteur($request);
+
+        $this->resoudre($this->identifiant($request), (string) $organization->id, (string) $user->id)
+            ->markAsUnreadFor((string) $organization->id, (string) $user->id);
+
+        return back();
+    }
+
+    /**
      * Ouvrir une notification : la marquer lue, PUIS resoudre sa cible.
      *
      * ## Un POST, pas un lien
@@ -577,17 +620,20 @@ class NotificationCenterController extends Controller
     /**
      * Le filtre vient du client : il passe par une liste blanche.
      *
-     * Toute autre valeur retombe sur « toutes » plutot que d'atteindre la
-     * requete — un filtre inconnu n'est pas une erreur a signaler, c'est une
-     * valeur a ignorer.
+     * TASK-1775 — le defaut (absence de `?filtre`) devient « non-lues » : un
+     * membre qui ouvre le centre doit voir ce qui reclame son attention, pas
+     * tout son historique. Toute autre valeur, y compris une valeur inconnue,
+     * retombe aussi sur « non-lues » plutot que d'atteindre la requete — un
+     * filtre inconnu n'est pas une erreur a signaler, c'est une valeur a
+     * ignorer. Seule la demande EXPLICITE de « toutes » montre tout.
      */
     private function filtre(Request $request): string
     {
-        $demande = (string) $request->query('filtre', self::FILTRE_TOUTES);
+        $demande = (string) $request->query('filtre', self::FILTRE_NON_LUES);
 
-        return in_array($demande, [self::FILTRE_TOUTES, self::FILTRE_NON_LUES], true)
-            ? $demande
-            : self::FILTRE_TOUTES;
+        return $demande === self::FILTRE_TOUTES
+            ? self::FILTRE_TOUTES
+            : self::FILTRE_NON_LUES;
     }
 
     /**

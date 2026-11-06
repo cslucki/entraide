@@ -12,6 +12,7 @@ return [
     // Actions
     'mark_read' => 'Mark as read',
     'mark_all_read' => 'Mark all as read',
+    'mark_unread' => 'Mark as unread',
 
     // Empty states — TWO, deliberately. An empty page and an empty filter do
     // not say the same thing: the first says "nothing awaits you", the second

@@ -479,6 +479,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'edit'])->name('notifications.preferences.edit');
     Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
     Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
+    Route::post('/notifications/{notification}/unread', [NotificationCenterController::class, 'markUnread'])->middleware('throttle:60,1')->name('notifications.unread');
     Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
 
     // TASK-1739 — abonnements Web Push, un par APPAREIL.
@@ -1678,6 +1679,7 @@ Route::prefix('/org/{organization}')
             Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'edit'])->name('notifications.preferences.edit');
             Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
             Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
+            Route::post('/notifications/{notification}/unread', [NotificationCenterController::class, 'markUnread'])->middleware('throttle:60,1')->name('notifications.unread');
             Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
 
             // TASK-1739 — meme trio que la forme globale ci-dessus. Declaree
