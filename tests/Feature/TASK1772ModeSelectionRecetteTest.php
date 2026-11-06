@@ -85,4 +85,21 @@ class TASK1772ModeSelectionRecetteTest extends TestCase
 
         $this->assertMatchesRegularExpression('/class="[^"]*\boverflow-y-auto\b[^"]*\boverflow-x-hidden\b/', $html);
     }
+
+    /**
+     * Recette (7) : « agrandir la police, reduire l'interlignage, aerer les
+     * bulles ». Le corps passe a 16 px / 20 px au telephone (WhatsApp), le
+     * bureau garde `text-sm`. Et `whitespace-pre-wrap` disparait : il doublait
+     * les retours a la ligne du Markdown (`<br />\n`) et laissait une ligne
+     * blanche de 20 px au bas de CHAQUE bulle (le `\n` final de CommonMark).
+     */
+    public function test_le_corps_de_la_bulle_est_a_16_px_sur_20_au_telephone_et_sans_pre_wrap(): void
+    {
+        $bulle = $this->bulle();
+        $corps = substr($bulle, strpos($bulle, 'bp-bulle-markdown') - 200, 500);
+
+        $this->assertMatchesRegularExpression('/class="[^"]*\bbp-bulle-markdown\b[^"]*\btext-\[16px\] leading-5 md:text-sm\b/', $corps);
+        $this->assertStringNotContainsString('whitespace-pre-wrap', $corps,
+            'le Markdown porte deja ses <br> et ses <p> : pre-wrap les doublait');
+    }
 }

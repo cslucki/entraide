@@ -133,15 +133,21 @@ $bubbleClasses = $isSent
             ? 'bg-violet-50 dark:bg-violet-900 ring-1 ring-violet-200 dark:ring-violet-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm'
             : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm'));
 
+// TASK-1772 (recette Cyril, telephone) — le nom passe a 13 px semi-gras sur
+// telephone, comme WhatsApp ; le bureau garde ses 12 px (`md:`). Le nom d'un
+// humain RECU prend en plus la couleur d'action du theme (`bp-bulle-nom`,
+// app.css, sous 768 px seulement) : c'est ce qui, sur WhatsApp, fait
+// reconnaitre qui parle avant meme de lire.
+$_nom = 'text-[13px] font-semibold md:text-xs md:font-medium';
 $nameClasses = $isSent
-    ? 'text-xs font-medium text-indigo-200'
+    ? $_nom.' text-indigo-200'
     : ($isPourContre
         ? ($roleContre
-            ? 'text-xs font-medium text-rose-700 dark:text-rose-300'
-            : 'text-xs font-medium text-emerald-700 dark:text-emerald-300')
+            ? $_nom.' text-rose-700 dark:text-rose-300'
+            : $_nom.' text-emerald-700 dark:text-emerald-300')
         : ($isAi
-            ? 'text-xs font-medium text-violet-600 dark:text-violet-300'
-            : 'text-xs font-medium text-gray-500 dark:text-gray-400'));
+            ? $_nom.' text-violet-600 dark:text-violet-300'
+            : $_nom.' bp-bulle-nom text-gray-500 dark:text-gray-400'));
 
 // Le modele, reduit a ce qui se lit. `inclusionai/ling-3.0-flash-vl:free`
 // devient `ling-3.0-flash-vl` : le fournisseur et le palier tarifaire sont du
@@ -561,7 +567,10 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          A partir de `md`, la selection de texte redevient normale : au
          clavier-souris, personne ne fait d'appui long. --}}
     <div
-        class="{{ $bubbleClasses }} px-3 py-2 select-none [-webkit-touch-callout:none] md:select-auto"
+        {{-- TASK-1772 (recette Cyril, telephone) — la bulle respire comme
+             WhatsApp : 6 x 10 px de marge interne au lieu de 8 x 12, pour
+             un corps passe de 14 a 16 px. Le bureau ne bouge pas (`md:`). --}}
+        class="{{ $bubbleClasses }} px-2.5 py-1.5 md:px-3 md:py-2 select-none [-webkit-touch-callout:none] md:select-auto"
         {{-- TASK-1772 — la bulle ENVOYEE a un fond indigo-600 plein, dans les
              deux themes. Une mention en indigo y serait illisible : la regle
              CSS a besoin de savoir de quel cote de la conversation elle est.
@@ -577,7 +586,7 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
         x-bind:style="$store.bpSelection.id === id ? 'box-shadow: inset 0 0 0 2px var(--bp-primary)' : ''"
     >
         @if($avatar || $name || $subtitle || $requestedBy || $time || $isEdited || $isAi)
-        <div class="mb-1 flex items-start justify-between gap-3">
+        <div class="mb-0.5 md:mb-1 flex items-start justify-between gap-3">
             <div class="flex min-w-0 items-center gap-2">
                 {{-- TASK-1772 — quand l'avatar est detache, la pastille vit
                      dans la gouttiere de gauche : la laisser ici AUSSI la
@@ -649,7 +658,7 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
             @if($time || $isEdited)
             <div class="shrink-0 text-right leading-none">
                 @if($time)
-                <span class="block text-[10px] {{ $timeClasses }}">{{ $time }}</span>
+                <span class="block text-[11px] md:text-[10px] {{ $timeClasses }}">{{ $time }}</span>
                 @endif
                 @if($isEdited)
                 <span class="mt-0.5 block text-[10px] {{ $timeClasses }}">{{ __('messages.edited') }}</span>
@@ -682,7 +691,15 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
              paragraphes espaces SANS marqueurs (capture Cyril, 22/09). La
              regle vit dans app.css et redonne aux listes leurs puces et un
              interligne compact, sans toucher au reste du texte. --}}
-        <div x-ref="copyContent" class="bp-bulle-markdown min-w-0 max-w-full cursor-default overflow-hidden whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! $_teindreLesMentions(markdown($renderableBody)) !!}</div>
+        {{-- TASK-1772 (recette Cyril, telephone) — `whitespace-pre-wrap` RETIRE.
+             CommonMark termine chaque rendu par « \n » et ecrit un saut de
+             ligne logiciel « <br />\n » : en pre-wrap, le premier faisait une
+             LIGNE VIDE au bas de CHAQUE bulle (20 px mesures, bulle de 60 px
+             pour 40 de texte), le second DOUBLAIT tout retour a la ligne.
+             C'est le Markdown qui porte les sauts (`<br>`, `<p>`), et app.css
+             qui espace les paragraphes. Le corps passe a 16 px / 22 px sur
+             telephone — la taille de WhatsApp — et garde 14 px au bureau. --}}
+        <div x-ref="copyContent" class="bp-bulle-markdown min-w-0 max-w-full cursor-default overflow-hidden break-words text-[16px] leading-5 md:text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! $_teindreLesMentions(markdown($renderableBody)) !!}</div>
 
         @if($attachment)
             <x-conversation.file-attachment-card

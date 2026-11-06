@@ -412,3 +412,19 @@
 .dark [data-bulle-envoyee] .bp-bulle-markdown .bp-mention {
     color: #c7d2fe; /* indigo-200, lisible sur l'aplat indigo-600 */
 }
+
+/* TASK-1772 (recette Cyril, telephone) — le corps d'une bulle n'est plus en
+   `pre-wrap` : les paragraphes Markdown s'espacent ici, d'une demi-ligne,
+   et un `<br>` vaut UN retour. */
+.bp-bulle-markdown > :where(p, ul, ol, pre, blockquote) + :where(p, ul, ol, pre, blockquote) {
+    margin-top: 0.5em;
+}
+
+/* Le nom d'un humain recu, en couleur d'action du theme sur telephone
+   (WhatsApp colore le nom par auteur). Au bureau il reste gris : la rangee y
+   est plus dense et la couleur y crierait. */
+@media (max-width: 767px) {
+    .bp-bulle-nom {
+        color: var(--bp-primary);
+    }
+}

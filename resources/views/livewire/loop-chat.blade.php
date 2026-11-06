@@ -200,9 +200,20 @@
 
                     // Ce message humain a-t-il ouvert un debat ?
                     $debatDeCeMessage = $debats[(string) $msg->id] ?? null;
+
+                    // TASK-1772 (recette Cyril, telephone) — WhatsApp serre les
+                    // messages d'un MEME auteur et aere ceux de deux auteurs
+                    // differents. L'auteur precedent est memorise d'un tour de
+                    // boucle a l'autre ; un message IA compte comme un auteur.
+                    // En PADDING et non en marge : `space-y-1` de la liste pose
+                    // deja une marge haute sur chaque enfant, avec une
+                    // specificite superieure a `mt-*` — elle aurait gagne.
+                    $_signatureAuteur = ($msg->type === 'ai' ? 'ai' : (string) $msg->sender_id);
+                    $_changeAuteur = $_signatureAuteur !== ($_auteurPrecedent ?? null);
+                    $_auteurPrecedent = $_signatureAuteur;
                 @endphp
 
-                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="transition-all duration-300 {{ $estRegroupee ? 'md:hidden' : '' }}">
+                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="transition-all duration-300 {{ $estRegroupee ? 'md:hidden' : '' }} {{ $_changeAuteur ? 'pt-1.5 md:pt-0' : '' }}">
                     @if($isDeleted)
                         <x-conversation.message-bubble
                             :type="$isOwn ? 'sent' : 'received'"
