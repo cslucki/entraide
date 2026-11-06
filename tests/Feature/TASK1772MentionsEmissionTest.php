@@ -223,6 +223,29 @@ class TASK1772MentionsEmissionTest extends TestCase
             'une mention inchangee ne RE-notifie pas — l\'identifiant deterministe le donne');
     }
 
+    /**
+     * D3 — la mention est mise en GRAS, et seulement celle qui a été retenue.
+     *
+     * Une expression régulière qui devinerait ce qu'est une mention mettrait
+     * en valeur n'importe quel `@mot`. On ne met en gras que ce que le
+     * SERVEUR a enregistré : un `@Nom` qui n'a pas été retenu reste du texte
+     * ordinaire, et c'est ce que ce test mesure.
+     */
+    public function test_seule_une_mention_reellement_enregistree_passe_en_gras(): void
+    {
+        $nom = $this->nom($this->cible);
+        $this->envoyer('Salut @'.$nom.' et aussi @PersonneInventee', [$this->cible->id]);
+
+        $html = Livewire::actingAs($this->auteur)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->html();
+
+        $this->assertStringContainsString('<strong>@'.e($nom).'</strong>', $html,
+            'la mention retenue doit etre mise en valeur');
+        $this->assertStringNotContainsString('<strong>@PersonneInventee</strong>', $html,
+            'un @mot qui n\'est pas une mention retenue reste du texte ordinaire');
+    }
+
     /** Une mention AJOUTÉE par l'édition notifie la nouvelle personne. */
     public function test_une_mention_ajoutee_par_l_edition_notifie(): void
     {

@@ -30,6 +30,13 @@
     'mode' => null,
     'modeLabel' => null,
     'onClearMode' => null,
+    // TASK-1772 — les personnes mentionnables, OPT-IN.
+    //
+    // Defaut vide, et SEUL le ChatLoop la passe : la Messagerie et le chat
+    // agent gardent leur comportement a l'octet. Meme discipline que
+    // `uploadAccept` en T1704, et c'est tout l'interet d'un composant
+    // partage — on ajoute pour un appelant sans toucher les deux autres.
+    'mentionables' => [],
 ])
 
 @php
@@ -123,7 +130,86 @@
              etroite sur un portable garde son clavier et doit garder l'envoi
              par Entree. Evalue une fois au montage ; sur mobile l'envoi passe
              par le bouton, qui est a cote du pouce. --}}
-        x-data="{ hasText: false, uploading: false, enterEnvoie: ! window.matchMedia('(hover: none) and (pointer: coarse)').matches }"
+        x-data="{
+            hasText: false,
+            uploading: false,
+            enterEnvoie: ! window.matchMedia('(hover: none) and (pointer: coarse)').matches,
+
+            /* ===== TASK-1772 — le menu predictif des mentions =====
+               Tout est CLIENT : la Boucle la plus peuplee compte quinze
+               membres actifs, une recherche serveur par frappe n'a aucune
+               justification a cette echelle. */
+            mentionables: @js(array_values($mentionables)),
+            mentionOuvert: false,
+            mentionFiltre: '',
+            mentionIndex: 0,
+            mentionsChoisies: [],
+
+            get mentionResultats() {
+                if (! this.mentionOuvert) return [];
+                const f = this.mentionFiltre.toLowerCase();
+                return this.mentionables
+                    .filter((m) => f === '' || m.nom.toLowerCase().includes(f))
+                    .slice(0, 8);
+            },
+
+            /* Le `@` en cours de frappe, lu AVANT le curseur. On n'ouvre que
+               sur un `@` precede d'un debut de ligne ou d'une espace : sans
+               cela, une adresse email ouvrirait le menu a chaque frappe. */
+            mentionDetecter(el) {
+                const avant = el.value.slice(0, el.selectionStart);
+                const m = avant.match(/(^|\s)@([^\s@]{0,30})$/);
+
+                if (m === null) { this.mentionOuvert = false; return; }
+
+                this.mentionOuvert = true;
+                this.mentionFiltre = m[2];
+                this.mentionIndex = 0;
+            },
+
+            mentionChoisir(el, personne) {
+                const avant = el.value.slice(0, el.selectionStart);
+                const apres = el.value.slice(el.selectionStart);
+                const remplace = avant.replace(/(^|\s)@([^\s@]{0,30})$/, '$1@' + personne.nom + ' ');
+
+                el.value = remplace + apres;
+                const curseur = remplace.length;
+                el.setSelectionRange(curseur, curseur);
+
+                if (! this.mentionsChoisies.includes(personne.id)) {
+                    this.mentionsChoisies.push(personne.id);
+                }
+
+                this.mentionOuvert = false;
+                this.mentionFiltre = '';
+
+                /* PIEGE P1 — `wire:model` est DIFFERE. Sans cet evenement, le
+                   texte est a l'ecran et le serveur recevra la valeur d'AVANT
+                   l'insertion ; `hasText` resterait faux et le bouton
+                   d'envoi paraitrait mort. Defaut deja paye en T1622, qui a
+                   du ajouter l'ecouteur `composer-filled` pour la meme
+                   raison : une ecriture qui ne vient pas du clavier ne
+                   declenche ni `input` ni la mise a jour de `hasText`. */
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.focus();
+
+                /* Deferee : pas de requete immediate. Le serveur re-cadrera
+                   de toute facon cette liste a l'envoi — rien de ce qui part
+                   d'ici n'est cru sur parole. */
+                $wire.set('mentionsSelectionnees', this.mentionsChoisies, false);
+            },
+
+            mentionClavier(e, el) {
+                if (! this.mentionOuvert || this.mentionResultats.length === 0) return false;
+
+                if (e.key === 'ArrowDown') { e.preventDefault(); this.mentionIndex = (this.mentionIndex + 1) % this.mentionResultats.length; return true; }
+                if (e.key === 'ArrowUp') { e.preventDefault(); this.mentionIndex = (this.mentionIndex - 1 + this.mentionResultats.length) % this.mentionResultats.length; return true; }
+                if (e.key === 'Enter') { e.preventDefault(); this.mentionChoisir(el, this.mentionResultats[this.mentionIndex]); return true; }
+                if (e.key === 'Escape') { e.preventDefault(); this.mentionOuvert = false; return true; }
+
+                return false;
+            },
+        }"
         x-on:livewire-upload-start="uploading = true"
         x-on:livewire-upload-finish="uploading = false"
         x-on:livewire-upload-error="uploading = false"
@@ -193,6 +279,32 @@
         <div class="relative min-w-0 flex-1 {{ isset($leading)
             ? 'flex items-end gap-1 rounded-[23px] border border-gray-300 bg-white px-[5px] py-[4px] shadow-sm transition focus-within:border-indigo-500 dark:border-gray-600 dark:bg-gray-900 md:block md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:focus-within:border-transparent'
             : '' }}">
+            @if($mentionables !== [])
+            {{-- TASK-1772 — LE MENU PREDICTIF.
+                 Pose dans le conteneur du champ, en ABSOLU au-dessus : il doit
+                 couvrir la conversation, jamais pousser le composeur — sinon
+                 le fil sauterait a chaque `@`.
+                 `data-mention-*` sont les ancrages de test, convention du
+                 depot (vingt et un `data-*` vivent deja dans
+                 `loop-chat.blade.php`). --}}
+            <div data-mention-menu
+                 x-show="mentionOuvert && mentionResultats.length > 0"
+                 x-cloak
+                 x-on:click.outside="mentionOuvert = false"
+                 class="absolute bottom-full left-0 z-30 mb-2 max-h-64 w-full overflow-y-auto overscroll-contain rounded-2xl border border-gray-200 bg-white p-1.5 shadow-2xl dark:border-gray-700 dark:bg-gray-800">
+                <template x-for="(personne, i) in mentionResultats" :key="personne.id">
+                    <button type="button"
+                            x-bind:data-mention-option="personne.id"
+                            x-on:click="mentionChoisir($refs.champMessage, personne)"
+                            x-bind:class="i === mentionIndex ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''"
+                            class="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm text-gray-800 transition hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
+                        <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200"
+                              x-text="personne.nom.trim().split(/\s+/).slice(0, 2).map((m) => m[0]).join('').toUpperCase()"></span>
+                        <span class="truncate" x-text="personne.nom"></span>
+                    </button>
+                </template>
+            </div>
+            @endif
             @isset($leading)
             {{-- TASK-1769 — la gauche de la pilule. L'appelant y met ce qu'il
                  veut : le ChatLoop y met le « + » ET sa porte vers l'IA. Le
@@ -212,10 +324,11 @@
                  saisie et le reset apres envoi passent par `wire:model`,
                  un canal distinct du morph d'attributs. --}}
             <textarea
+                x-ref="champMessage"
                 wire:ignore.self
                 x-data="{ resize() { $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 176) + 'px'; $el.scrollTop = $el.scrollHeight } }"
                 x-init="resize(); hasText = $el.value.trim().length > 0"
-                x-on:input="resize(); hasText = $el.value.trim().length > 0"
+                x-on:input="resize(); hasText = $el.value.trim().length > 0; @if($mentionables !== []) mentionDetecter($el) @endif"
                 x-on:message-sent.window="$nextTick(() => { resize(); hasText = $el.value.trim().length > 0 })"
                 {{-- TASK-1622 — une ecriture SERVEUR de la valeur (une
                      reformulation posee dans le composeur) ne declenche ni
@@ -231,7 +344,14 @@
                 {{-- TASK-1684 — la touche Entree est un SECOND chemin d'envoi, qui
                      ne passe pas par le bouton : la garde `uploading` doit y etre
                      aussi, sinon la course reste ouverte au clavier. --}}
-                @keydown.enter="if (enterEnvoie && !$event.shiftKey) { $event.preventDefault(); if (!uploading) { $wire.sendMessage() } }"
+                {{-- TASK-1772 — le menu prend le clavier EN PREMIER quand il
+                     est ouvert : Entree choisit la personne au lieu d'envoyer
+                     le message. `mentionClavier()` rend `true` quand il a
+                     consomme la touche. --}}
+                @if($mentionables !== [])
+                x-on:keydown="if (mentionClavier($event, $el)) { $event.stopPropagation() }"
+                @endif
+                @keydown.enter="if (mentionOuvert ?? false) { return } if (enterEnvoie && !$event.shiftKey) { $event.preventDefault(); if (!uploading) { $wire.sendMessage() } }"
                 {{-- TASK-1769 — deux listes ENTIERES plutot qu'une liste avec
                      des `md:` greffes : la liste de droite est celle d'avant,
                      octet pour octet, donc la Messagerie et le chat agent sont

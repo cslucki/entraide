@@ -952,6 +952,23 @@ class LoopChat extends Component
     public array $mentionables = [];
 
     /**
+     * TASK-1772 — la carte `identifiant => nom`, pour le RENDU des bulles.
+     *
+     * Distincte de `$mentionables`, et ce n'est pas un doublon : celle-la
+     * EXCLUT le lecteur (on ne se mentionne pas soi-meme), tandis que
+     * celle-ci l'INCLUT — sinon ma propre mention serait la seule a ne pas
+     * etre mise en valeur pour moi, c'est-a-dire precisement celle qui
+     * compte le plus.
+     *
+     * Elle evite aussi un N+1 : la bulle ne va pas chercher les noms, on les
+     * lui donne.
+     *
+     * @var array<string, string>
+     */
+    #[Locked]
+    public array $nomsPourMentions = [];
+
+    /**
      * Ce que le navigateur PRETEND avoir mentionne.
      *
      * Volontairement NON verrouillee : c'est une saisie. Elle est re-cadree
@@ -1064,6 +1081,15 @@ class LoopChat extends Component
     public function rafraichirMentionables(): void
     {
         $this->mentionables = $this->mentionablesReels();
+
+        $moi = auth()->user();
+        $noms = collect($this->mentionables)->pluck('nom', 'id')->all();
+
+        if ($moi !== null) {
+            $noms[(string) $moi->getKey()] = trim($moi->publicDisplayName());
+        }
+
+        $this->nomsPourMentions = $noms;
     }
 
     public function sendMessage(LoopMessageService $service): void

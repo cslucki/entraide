@@ -23,6 +23,10 @@
     'isPinned' => false,
     'isEdited' => false,
     'showReactions' => false,
+    // TASK-1772 — les noms EXACTS mentionnes dans ce message, deja resolus
+    // par l'appelant. La bulle ne cherche aucun nom : on les lui donne, sans
+    // quoi chaque bulle ferait sa requete (N+1 sur un fil de trente).
+    'mentionNames' => [],
     'reactionCounts' => [],
     'myReaction' => null,
     'sources' => null,
@@ -216,6 +220,37 @@ $renderableBody = preg_replace_callback(
     },
     $renderableBody,
 ) ?? $renderableBody;
+
+// TASK-1772 — les mentions en GRAS (arbitrage Cyril, D3 option B).
+//
+// APRES les trois passes de neutralisation ci-dessus, et AVANT `markdown()` :
+// l'ordre n'est pas indifferent. Avant les neutralisations, un `@Nom` ecrit
+// dans un bloc de code aurait ete transforme puis re-echappe ; apres
+// `markdown()`, il faudrait injecter du HTML, ce que `html_input => 'escape'`
+// interdit — et c'est tant mieux.
+//
+// `str_replace` sur les noms REELLEMENT enregistres, et aucune expression
+// reguliere qui devinerait ce qu'est une mention : on ne met en valeur que ce
+// que le serveur a retenu. Un nom non mentionne, meme precede d'un `@`, reste
+// du texte ordinaire.
+//
+// Effet de bord assume et mineur, nomme au CDC : un `@Nom` ecrit dans un bloc
+// de code sera gras lui aussi.
+$_mentionNames = array_values(array_filter(array_map('strval', (array) $mentionNames)));
+
+if ($_mentionNames !== []) {
+    // Du plus long au plus court : sans cela, « @Anne » mis en gras en
+    // premier couperait « @Anne Agricola » en deux.
+    usort($_mentionNames, static fn (string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+
+    foreach ($_mentionNames as $_nom) {
+        if ($_nom === '') {
+            continue;
+        }
+
+        $renderableBody = str_replace('@'.$_nom, '**@'.$_nom.'**', $renderableBody);
+    }
+}
 
 // =====================================================================
 // TASK-1770 — les actions passent derriere un appui long, sur telephone.

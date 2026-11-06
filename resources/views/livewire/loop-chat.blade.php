@@ -518,6 +518,13 @@
                             :name="$isOwn ? __('messages.me') : $senderName"
                             :avatar="$senderDisplayable ? $msg->sender?->avatar_url : null"
                             :requested-mode="$msg->metadata['requested_mode'] ?? null"
+                            {{-- TASK-1772 — les noms des personnes mentionnees,
+                                 resolus ICI sans requete : `$nomsPourMentions`
+                                 est deja en memoire. La bulle ne cherche rien,
+                                 sinon chaque message ferait sa requete. --}}
+                            :mention-names="collect($msg->metadata['mentions'] ?? [])
+                                ->map(fn ($id) => $nomsPourMentions[$id] ?? null)
+                                ->filter()->values()->all()"
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
@@ -914,6 +921,9 @@
             :replying-to="$replyingTo"
             on-cancel-reply="cancelReply"
             show-upload="true"
+            {{-- TASK-1772 — SEUL le ChatLoop passe cette prop : la Messagerie
+                 et le chat agent n'ont pas de menu `@`, et c'est voulu. --}}
+            :mentionables="$mentionables"
             :photo="$photo ?? null"
             {{-- TASK-1621 — le composeur ne rend PLUS de pastille de mode, pour
                  AUCUN moteur.
