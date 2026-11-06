@@ -83,8 +83,38 @@ class TASK1773EcranConfirmationPropositionTest extends TestCase
             ->assertSee('Merci de contribuer à l\'entraide sur BouclePro.')
             ->assertSee('Et si vous partagiez d\'autres savoir-faire ?')
             ->assertSee('Proposer une autre proposition d\'entraide')
-            ->assertSee('Voir mes propositions')
-            ->assertSee($service->title);
+            // TASK-1773 (recette Cyril) — le titre de la proposition est
+            // RETIRE : il coutait une ligne et poussait le bouton hors du
+            // champ sur un ecran de telephone.
+            ->assertDontSee($service->title)
+            ->assertSee('Voir mes propositions');
+    }
+
+    /**
+     * L'INVITATION PASSE AVANT L'EXPLICATION.
+     *
+     * Recette Cyril : « on met le bouton juste avant le bloc d'explication
+     * pour que la personne soit poussee a cliquer ». Un ecran ou il faut
+     * defiler pour voir le bouton n'invite personne — on mesure donc l'ORDRE
+     * dans le document, pas la simple presence des deux.
+     */
+    public function test_le_bouton_precede_le_bloc_d_explication(): void
+    {
+        $service = Service::factory()->forUser($this->membre)->forCategory($this->categorie)
+            ->create(['organization_id' => $this->organization->id, 'status' => 'active']);
+
+        $html = $this->actingAs($this->membre)
+            ->get(route('services.created', ['service' => $service->id]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertLessThan(
+            strpos($html, 'service_created_more_title') !== false
+                ? strpos($html, 'service_created_more_title')
+                : strpos($html, 'Et si vous partagiez'),
+            strpos($html, 'data-service-created-again'),
+            'le bouton doit venir AVANT le bloc d\'explication',
+        );
     }
 
     /** Le bouton principal ramene au formulaire VIERGE. */
