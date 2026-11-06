@@ -743,7 +743,17 @@
              empilees auraient mange trois lignes de conversation a chaque
              ouverture. A partir de `md`, le retour a la ligne reprend son
              comportement d'avant. --}}
-        <div class="flex flex-shrink-0 flex-nowrap items-center gap-2 overflow-x-auto px-3 pt-2 md:flex-wrap md:overflow-visible" x-data="{ askOpen: false, asking: false }"
+        {{-- TASK-1769 — la rangee passe au BUREAU seulement.
+             Elle etait visible sur mobile depuis T1621, et c'etait juste : sans
+             elle, la seule porte vers l'IA etait un « + » gris qui ne nommait
+             rien. La promesse de T1621 n'est pas levee, elle DEMENAGE : la
+             porte nommee « Demander a l'IA » entre dans la pilule du composeur,
+             juste a droite du « + » (voir le slot `leading` plus bas). Elle
+             reste donc visible sans ouvrir quoi que ce soit — ce que
+             TASK1475LoopMobileAiVisibleTest exige, et continue de verifier.
+             La rangee reste dans le DOM : elle porte l'ecouteur
+             `bp-open-ask-ai` du FAB global, que le masquage ne touche pas. --}}
+        <div class="hidden flex-shrink-0 flex-nowrap items-center gap-2 overflow-x-auto px-3 pt-2 md:flex md:flex-wrap md:overflow-visible" x-data="{ askOpen: false, asking: false }"
              @bp-open-ask-ai.window="askOpen = true; $nextTick(() => $refs.askQuestion?.focus())">
             @if($aiEnginesAvailable)
             <button
@@ -953,7 +963,7 @@
                              avaient ete retires.
                              Il porte desormais un fond, comme un bouton — ce
                              qu'il est — au lieu d'un glyphe gris sur gris. --}}
-                        class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200 hover:text-indigo-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:hover:text-indigo-300"
+                        class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200 hover:text-indigo-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:hover:text-indigo-300"
                         aria-label="{{ __('loops.composer_more_actions') }}"
                         aria-haspopup="true"
                     >
@@ -1077,22 +1087,71 @@
                                         </span>
                                         <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.composer_add_image') }}</span>
                                     </button>
-                                    {{-- TASK-1329 : `capture` ouvre directement l'appareil
-                                         photo — meme upload, meme pipeline que la galerie
-                                         (`$refs.cameraInput`, composer.blade.php). --}}
-                                    <button type="button" x-on:click="$refs.cameraInput?.click(); sheetOpen = false"
-                                        data-composer-take-photo
-                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
-                                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">
-                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>
-                                        </span>
-                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.composer_take_photo') }}</span>
-                                    </button>
                                 </div>
                             </div>
                         </div>
                     </template>
                 </div>
+
+                {{-- TASK-1769 — LA PORTE NOMMEE VERS L'IA, dans la pilule.
+                     ===================================================
+                     C'est la piece qui tient la promesse de TASK-1475, celle
+                     que TASK-1621 avait deplacee une premiere fois : sous
+                     768 px, une action IA NOMMEE doit etre visible sans
+                     ouvrir quoi que ce soit. La rangee des modes la portait ;
+                     elle passe au bureau, donc la porte demenage ici, a
+                     trente-quatre pixels plus bas, juste a droite du « + ».
+
+                     Le defaut de T1621 etait un GLYPHE MUET (« je n'arrive pas
+                     a comprendre a quoi sert l'icone »). Ce bouton porte un
+                     mot — « IA » — et son intitule complet en `aria-label`.
+                     Le mot court est deliberе : la pilule doit garder de la
+                     place pour ce qu'on ecrit.
+
+                     Deux etats, jamais les deux a la fois :
+                     - mode normal   -> le bouton qui ARME l'IA ;
+                     - mode arme     -> la pastille qui le DIT, avec sa croix.
+                     Le second remplace le premier, donc la pilule ne porte
+                     jamais deux commandes pour un meme etat — c'est la lecon
+                     de T1621, et elle vaut encore ici. --}}
+                @if($composerMode === 'normal')
+                    @if($aiEnginesAvailable)
+                    <button
+                        type="button"
+                        wire:click="toggleComposerEngine('ia')"
+                        data-engine-toggle="ia"
+                        data-composer-ai-door
+                        aria-pressed="false"
+                        aria-label="{{ __('loops.ask_ai_button') }}"
+                        title="{{ __('loops.ask_ai_button') }}"
+                        class="inline-flex h-9 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-violet-100 px-2.5 text-[11px] font-semibold text-violet-700 transition hover:bg-violet-200 dark:bg-violet-900/40 dark:text-violet-200 dark:hover:bg-violet-900/60"
+                    >
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
+                        {{ __('loops.ia_mode_label') }}
+                    </button>
+                    @endif
+                {{-- TASK-1769 — la garde de T1621, conservee telle quelle.
+                     `$composerModeLabel` vaut `null` pour `multi_ai` : sans ce
+                     test, la pastille sortirait VIDE, reduite a son bouton ×,
+                     a cote du badge nomme « Pour / Contre » qui dit deja
+                     l'etat. C'est le constat exact de Cyril en recette, et
+                     c'est pour lui que la pastille avait ete retiree. Un mode
+                     sans libelle n'a pas de pastille — il a son badge. --}}
+                @elseif($composerModeLabel !== null)
+                    <span data-composer-mode="{{ $composerMode }}"
+                          class="inline-flex h-9 max-w-[42vw] shrink items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-[11px] font-semibold {{ match ($composerMode) {
+                              'dossiers' => 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200',
+                              'ia_dossiers' => 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200',
+                              default => 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200',
+                          } }}">
+                        <span class="truncate">{{ $composerModeLabel }}</span>
+                        <button type="button" wire:click="setComposerMode('normal')"
+                                class="-mr-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-current transition hover:bg-black/10 dark:hover:bg-white/10"
+                                aria-label="{{ __('loops.composer_mode_clear') }}">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </span>
+                @endif
             </x-slot:leading>
 
             @error('body')
