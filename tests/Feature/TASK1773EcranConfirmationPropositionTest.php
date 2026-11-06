@@ -149,15 +149,15 @@ class TASK1773EcranConfirmationPropositionTest extends TestCase
     /**
      * LA FETE, et surtout : ce qu'elle ne doit pas casser.
      *
-     * « Faire un effet avec plein de coeurs qui traversent la page », puis
-     * « melange avec des likes et des reactions positives ». La garde ne
-     * mesure pas la joie — elle mesure les trois choses qu'une animation
-     * posee sur un ecran d'action peut abimer :
+     * « Faire un effet avec plein de coeurs qui traversent la page. » Le
+     * melange avec des likes a ete essaye, puis ecarte. La garde ne mesure
+     * pas la joie — elle mesure les trois choses qu'une animation posee sur
+     * un ecran d'action peut abimer :
      *   - avaler un clic (`pointer-events`) ;
      *   - faire defiler la page (`fixed`, et non `absolute`) ;
      *   - parler aux lecteurs d'ecran, qui n'ont que faire de confettis.
      */
-    public function test_la_pluie_de_reactions_ne_gene_ni_le_clic_ni_la_lecture(): void
+    public function test_la_pluie_de_coeurs_ne_gene_ni_le_clic_ni_la_lecture(): void
     {
         $service = Service::factory()->forUser($this->membre)->forCategory($this->categorie)
             ->create(['organization_id' => $this->organization->id, 'status' => 'active']);
@@ -169,9 +169,15 @@ class TASK1773EcranConfirmationPropositionTest extends TestCase
             ->assertSee('aria-hidden="true"', false)
             ->getContent();
 
-        // Pas que des coeurs : la demande parle de likes et de reactions.
-        foreach (['❤️', '👍', '🎉', '👏'] as $glyphe) {
-            $this->assertStringContainsString($glyphe, $html);
+        // QUE des coeurs : le melange avec des pouces et des
+        // applaudissements a ete essaye, puis ecarte par Cyril.
+        foreach (['❤️', '💜', '💚', '🧡', '💛'] as $coeur) {
+            $this->assertStringContainsString($coeur, $html);
+        }
+
+        foreach (['👍', '🎉', '👏', '🙌', '⭐'] as $autreReaction) {
+            $this->assertStringNotContainsString($autreReaction, $html,
+                'un seul symbole : le melange ressemblait a une barre de reactions');
         }
 
         $css = file_get_contents(resource_path('css/app.css'));

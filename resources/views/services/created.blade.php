@@ -39,15 +39,15 @@
 
                 this.coeurs = Array.from({ length: 24 }, (_, i) => ({
                     id: i,
-                    /* TASK-1773 (demande Cyril) — pas que des coeurs : des
-                       pouces, des applaudissements, des etincelles. Le geste
-                       qu'on fete est une CONTRIBUTION, et une contribution se
-                       salue de plusieurs facons. Aucune reaction negative ni
-                       ambigue dans la liste : c'est une felicitation.
-                       La repartition suit l'ordre de la liste (`i % n`) plutot
-                       qu'un tirage : un tirage laisse parfois dix coeurs
-                       d'affilee, et l'effet rate son melange. */
-                    glyphe: ['❤️', '👍', '🎉', '💜', '👏', '✨', '🧡', '🙌', '💚', '⭐', '💛', '🤝'][i % 12],
+/* TASK-1773 (arbitrage Cyril, 06/11) — QUE DES COEURS.
+                       Le melange (pouces, applaudissements, etincelles) a ete
+                       essaye puis ecarte : un seul symbole, decline en
+                       couleurs, dit l'elan sans ressembler a une barre de
+                       reactions. La repartition suit l'ordre de la liste
+                       (`i % 5`) et non un tirage — un tirage laisse parfois
+                       six coeurs identiques d'affilee, et les couleurs
+                       cessent de se melanger. */
+                    glyphe: ['❤️', '💜', '💚', '🧡', '💛'][i % 5],
                     gauche: Math.round(Math.random() * 92) + 2,
                     taille: (Math.random() * 1.4 + 1).toFixed(2),
                     retard: (Math.random() * 1.8).toFixed(2),
