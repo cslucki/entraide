@@ -1142,6 +1142,12 @@ return [
     'tools_overflow_count' => '{1} 1 autre|[2,*] :count autres',
     'tools_others_title' => 'Autres outils',
     'manage_loop' => 'Gérer la Boucle',
+    // TASK-1769 — en-tetes de section du menu ⋮ sur telephone.
+    // Distinctes de `manage_loop`, qui est un LIBELLE DE BOUTON : une
+    // section et un bouton qui divergeront un jour ne doivent pas
+    // partager une cle.
+    'menu_tools_section' => 'Outils de la Boucle',
+    'menu_manage_section' => 'Gérer la Boucle',
     'manage_loop_title' => 'Gérer cette Boucle',
     'owner_tools_title' => 'Personnaliser ma Boucle',
     'owner_tools_intro' => 'Choisissez les outils de cette Boucle et ceux que vous voulez mettre en avant.',

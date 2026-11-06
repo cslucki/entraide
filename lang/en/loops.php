@@ -1138,6 +1138,12 @@ return [
     'tools_overflow_count' => '{1} 1 more|[2,*] :count more',
     'tools_others_title' => 'Other tools',
     'manage_loop' => 'Manage this Loop',
+    // TASK-1769 — en-tetes de section du menu ⋮ sur telephone.
+    // Distinctes de `manage_loop`, qui est un LIBELLE DE BOUTON : une
+    // section et un bouton qui divergeront un jour ne doivent pas
+    // partager une cle.
+    'menu_tools_section' => 'Loop tools',
+    'menu_manage_section' => 'Manage this Loop',
     'manage_loop_title' => 'Manage this Loop',
     'owner_tools_title' => 'Customise my Loop',
     'owner_tools_intro' => 'Choose this Loop\'s tools, and which ones to feature.',
