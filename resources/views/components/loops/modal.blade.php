@@ -18,7 +18,20 @@
 <div
     x-data
     x-on:keydown.escape.window="$wire.{{ $close }}()"
-    class="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+    {{-- TASK-1769 — au CENTRE, sur tous les formats.
+         `sm:items-center` ne centrait qu'a partir de 640 px : aucun telephone
+         n'y arrive, et la fenetre s'ouvrait collee en bas, sous le pouce
+         plutot que sous l'oeil.
+         `--bp-vvh` et non `100dvh` : un `fixed inset-0` se cale sur le
+         viewport de MISE EN PAGE. Android le retrecit avec le clavier, donc
+         `items-center` recentre tout seul — iOS NE LE RETRECIT PAS, le clavier
+         recouvre le bas de l'ecran et une fenetre centree dans 844 px se
+         retrouve a moitie dessous. La variable est posee par
+         `<x-visual-viewport-height>`, deja montee sur cette page. C'est le
+         seul endroit de cette TASK ou une erreur ne se verrait pas en recette
+         de bureau. --}}
+    class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
+    style="height: var(--bp-vvh, 100dvh)"
     role="dialog"
     aria-modal="true"
     aria-label="{{ $title }}"
@@ -31,7 +44,8 @@
             tabindex="-1"
             aria-label="{{ __('loops.modal_close') }}"></button>
 
-    <div class="relative flex max-h-[85dvh] w-full {{ $width }} flex-col overflow-hidden rounded-t-3xl border border-[var(--bp-border)] bg-[var(--bp-panel)] shadow-2xl sm:rounded-3xl">
+    <div class="relative flex w-full {{ $width }} flex-col overflow-hidden rounded-3xl border border-[var(--bp-border)] bg-[var(--bp-panel)] shadow-2xl"
+         style="max-height: calc(var(--bp-vvh, 85dvh) - 2rem)">
         <div class="flex shrink-0 items-center gap-3 border-b border-[var(--bp-border)] px-4 py-3">
             <h2 class="min-w-0 flex-1 truncate text-sm font-bold text-[var(--bp-text)]">{{ $title }}</h2>
             <button type="button" wire:click="{{ $close }}"

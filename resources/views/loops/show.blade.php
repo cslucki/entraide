@@ -307,18 +307,11 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                 </svg>
             </a>
-            {{-- TASK-1769 — la vignette d'identite, telephone uniquement.
-                 Deux initiales au plus, prises sur les mots du nom. Elle donne
-                 au fil une identite visuelle la ou le nom est tronque, et elle
-                 occupe la place que le sous-titre vient de liberer. --}}
-            @php
-                $_initiales = collect(preg_split('/\s+/', trim($currentLoop->name), -1, PREG_SPLIT_NO_EMPTY))
-                    ->take(2)
-                    ->map(fn ($mot) => mb_strtoupper(mb_substr($mot, 0, 1)))
-                    ->implode('');
-            @endphp
-            <span aria-hidden="true"
-                  class="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[var(--bp-primary)] text-[11px] font-semibold text-white sm:hidden">{{ $_initiales }}</span>
+            {{-- TASK-1769 — pas de vignette d'initiales.
+                 Elle avait ete arbitree « oui » le 06/11 puis RETIREE le meme
+                 jour, a la lecture de l'ecran : sur une barre ramenee a 44 px,
+                 28 px de pastille prenaient la largeur que le nom de la Boucle
+                 reclame — et le nom, lui, identifie. --}}
             <div class="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
                 <div class="min-w-0 flex-1">
                     <div class="flex min-w-0 items-start gap-2">
