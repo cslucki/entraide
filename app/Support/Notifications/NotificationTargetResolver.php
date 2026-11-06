@@ -8,6 +8,7 @@ use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
+use App\Models\LoopMessage;
 use App\Models\MemberNotification;
 use App\Models\Organization;
 use App\Models\Scopes\BelongsToOrganizationScope;
@@ -53,12 +54,102 @@ class NotificationTargetResolver
             NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST => $this->loopJoinRequest($notification),
             // TASK-1719 — l'ajout direct mene a la Boucle elle-meme.
             NotificationCatalogue::OBJECT_LOOP => $this->loop($notification),
+            // TASK-1772 — une mention mene a LA PHRASE ou l'on a ete nomme.
+            NotificationCatalogue::OBJECT_LOOP_MESSAGE => $this->loopMessage($notification),
             NotificationCatalogue::OBJECT_BLOG_COMMENT => $this->blogComment($notification),
             NotificationCatalogue::OBJECT_BLOG_POST => $this->blogPost($notification),
             // TASK-1751 — un echange mene a SA conversation.
             NotificationCatalogue::OBJECT_TRANSACTION => $this->transaction($notification),
             default => null,
         };
+    }
+
+    /**
+     * TASK-1772 — une mention mene au MESSAGE, pas seulement a la Boucle.
+     *
+     * L'URL porte `?message={uuid}` : `LoopChat::mount()` le lit et appelle la
+     * mecanique DEJA ecrite (`showMessageInThread()`), qui charge les messages
+     * AUTOUR de la cible — donc meme si elle est hors de la fenetre de trente —
+     * puis emet `scroll-to-message`, que la liste ecoute deja en surlignant la
+     * bulle.
+     *
+     * Quatre cas rendent `null`, et ils sont tous ORDINAIRES. Rendre une URL
+     * dans ces cas-la enverrait le membre sur une page qui ne lui montrerait
+     * rien, ou pire, sur une Boucle dont il n'est plus :
+     *
+     *   1. le message a ete supprime — attention, `loop_messages` n'a PAS de
+     *      trait `SoftDeletes`, c'est un drapeau `deleted_at` manuel, donc
+     *      aucun scope ne le filtre pour nous ;
+     *   2. le destinataire n'est plus dans l'Organization (`organization_id`
+     *      est mutable, et il se lit hors Eloquent pour ne dependre d'aucun
+     *      scope) ;
+     *   3. il n'est plus membre ACTIF de la Boucle ;
+     *   4. la Boucle ou l'Organization a disparu.
+     *
+     * Et comme partout sur ce chemin : scope global RETIRE puis borne de
+     * tenant posee a la main. Ce code tourne sous worker, ou le fail-closed du
+     * scope rendrait l'objet introuvable EN SILENCE (T1720 volet A).
+     */
+    private function loopMessage(MemberNotification $notification): ?string
+    {
+        if ($notification->object_id === null) {
+            return null;
+        }
+
+        $message = LoopMessage::query()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->whereKey($notification->object_id)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if ($message === null) {
+            return null;
+        }
+
+        $boucle = Loop::query()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->whereKey($message->loop_id)
+            ->where('organization_id', $notification->organization_id)
+            ->first();
+
+        if ($boucle === null) {
+            return null;
+        }
+
+        $tenantDuDestinataire = DB::table('users')
+            ->where('id', $notification->recipient_id)
+            ->value('organization_id');
+
+        if ($tenantDuDestinataire !== $notification->organization_id) {
+            return null;
+        }
+
+        $estMembreActif = LoopMember::query()
+            ->where('loop_id', $boucle->id)
+            ->where('user_id', $notification->recipient_id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $estMembreActif) {
+            return null;
+        }
+
+        $organisation = Organization::query()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->whereKey($notification->organization_id)
+            ->first();
+
+        if ($organisation === null) {
+            return null;
+        }
+
+        // Le SLUG dans l'URL, l'identifiant en repli : cette adresse part dans
+        // un COURRIEL, on la lit et on la colle (meme raison qu'en T1720).
+        return route('organization.loops.show', [
+            'organization' => $organisation,
+            'loop' => $boucle->slug ?: $boucle->getKey(),
+            'message' => $message->getKey(),
+        ]);
     }
 
     /**

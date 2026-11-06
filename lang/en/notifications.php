@@ -85,6 +85,7 @@ return [
      * is what the person is looking for.
      */
     'push_body' => [
+        'loop_mention_created' => 'Open BouclePro to read the message.',
         'loop_invitation' => 'Open BouclePro to reply.',
         'loop_member_added' => 'You can now take part.',
         'loop_join_request_accepted' => 'You can now take part.',
@@ -100,6 +101,11 @@ return [
     ],
 
     'push_title' => [
+        // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
+        // ce texte s'affiche sur un ecran VERROUILLE. Le corps sera
+        // complete du nom de la Boucle si elle est PUBLIQUE, par
+        // `nomDeBouclePublique()`, et seulement dans ce cas.
+        'loop_mention_created' => 'You were mentioned',
         'loop_invitation' => 'An invitation is waiting',
         'loop_member_added' => 'You have joined a Boucle',
         'loop_join_request_accepted' => 'Your request was accepted',
@@ -119,6 +125,7 @@ return [
     ],
 
     'keys' => [
+        'loop_mention_created' => 'You were mentioned in a Loop',
         // TASK-1761 — the REQUEST, owner side.
         'loop_join_request_created' => 'Someone is asking to join your Loop',
         // TASK-1747 (CDC §8.1)
@@ -155,6 +162,10 @@ return [
      * longer always `:loop`.
      */
     'keys_named' => [
+        // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere
+        // l'authentification. `push_title` et le sujet d'email restent
+        // generiques (ecran verrouille, apercu de boite mail).
+        'loop_mention_created' => '“:prenom” mentioned you in the Loop “:loop”',
         // TASK-1757 — see the French file for why this surface only.
         'transaction_proposal_created' => ':prenom replies to your listing “:titre” — :temps',
         'loop_invitation' => 'Invitation to join the :loop Loop',
@@ -186,6 +197,13 @@ return [
     |
     */
     'email' => [
+        // TASK-1772 — REPLI. Le rendu passe normalement par le gabarit
+        // administrable `loop_mention_created` ; ceci ne sert que si le
+        // gabarit est desactive ou absent.
+        'loop_mention_created' => [
+            'subject' => 'You were mentioned in a Loop',
+            'body' => '<p>Hello,</p><p>Someone mentioned you in a message from a Loop.</p><p><a href=":url">Read the message</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>See you soon,<br>The BouclePro team</p>',
+        ],
         'loop_join_request_created' => [
             'subject' => 'Someone is asking to join your Loop',
             'body' => '<p>Hello,</p>'

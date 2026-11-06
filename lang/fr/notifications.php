@@ -94,6 +94,7 @@ return [
      * place, qui est ce que la personne cherche.
      */
     'push_body' => [
+        'loop_mention_created' => 'Ouvrez BouclePro pour lire le message.',
         'loop_invitation' => 'Ouvrez BouclePro pour répondre.',
         'loop_member_added' => 'Vous pouvez maintenant y participer.',
         'loop_join_request_accepted' => 'Vous pouvez maintenant y participer.',
@@ -109,6 +110,11 @@ return [
     ],
 
     'push_title' => [
+        // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
+        // ce texte s'affiche sur un ecran VERROUILLE. Le corps sera
+        // complete du nom de la Boucle si elle est PUBLIQUE, par
+        // `nomDeBouclePublique()`, et seulement dans ce cas.
+        'loop_mention_created' => 'On vous a mentionné',
         'loop_invitation' => 'Une invitation vous attend',
 
         // TASK-1751 — ni le nom de la personne, ni le titre de l'annonce :
@@ -129,6 +135,7 @@ return [
     ],
 
     'keys' => [
+        'loop_mention_created' => 'On vous a mentionné dans une Boucle',
         // TASK-1761 — la DEMANDE, cote proprietaire. Ses deux voisines
         // portent la DECISION et vont au demandeur.
         'loop_join_request_created' => 'Quelqu’un demande à rejoindre votre Boucle',
@@ -176,6 +183,10 @@ return [
      * controleur a pu resoudre, quelle qu'elle soit.
      */
     'keys_named' => [
+        // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere
+        // l'authentification. `push_title` et le sujet d'email restent
+        // generiques (ecran verrouille, apercu de boite mail).
+        'loop_mention_created' => '« :prenom » vous a mentionné dans la Boucle « :loop »',
         // TASK-1757 — nommee UNIQUEMENT ici : la liste en-appli est derriere
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).
@@ -211,6 +222,13 @@ return [
     |
     */
     'email' => [
+        // TASK-1772 — REPLI. Le rendu passe normalement par le gabarit
+        // administrable `loop_mention_created` ; ceci ne sert que si le
+        // gabarit est desactive ou absent.
+        'loop_mention_created' => [
+            'subject' => 'On vous a mentionné dans une Boucle',
+            'body' => '<p>Bonjour,</p><p>Une personne vous a mentionné dans un message d’une Boucle.</p><p><a href=":url">Lire le message</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>À bientôt,<br>L’équipe BouclePro</p>',
+        ],
         'loop_join_request_created' => [
             'subject' => 'Quelqu’un demande à rejoindre votre Boucle',
             'body' => '<p>Bonjour,</p>'
