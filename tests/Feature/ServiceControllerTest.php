@@ -73,7 +73,17 @@ class ServiceControllerTest extends TestCase
             'points_cost' => 100,
         ]);
 
-        $response->assertRedirect(route('organization.dashboard.services', [$this->testOrganization]));
+        // TASK-1773 : publier mene desormais a l'ecran de confirmation, qui
+        // invite a en proposer une autre. La promesse de ce test ne bouge
+        // pas — un proprietaire cree bien sa proposition — seule la
+        // destination a change.
+        $service = Service::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->where('title', 'Test Service')->firstOrFail();
+
+        $response->assertRedirect(route('organization.services.created', [
+            'organization' => $this->testOrganization,
+            'service' => $service->id,
+        ]));
         $this->assertDatabaseHas('services', ['title' => 'Test Service', 'user_id' => $user->id]);
     }
 
@@ -165,8 +175,12 @@ class ServiceControllerTest extends TestCase
             'tags' => 'urgent, python, web',
         ]);
 
-        $response->assertRedirect(route('organization.dashboard.services', [$this->testOrganization]));
         $service = Service::withoutGlobalScope(BelongsToOrganizationScope::class)->where('title', 'Service with tags')->first();
+        // TASK-1773 : meme deplacement de destination que ci-dessus.
+        $response->assertRedirect(route('organization.services.created', [
+            'organization' => $this->testOrganization,
+            'service' => $service->id,
+        ]));
         $this->assertEquals(3, $service->tags()->count());
     }
 }
