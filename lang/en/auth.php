@@ -51,7 +51,9 @@ return [
     'login_title' => 'Sign in',
     'login_subtitle_org' => 'Sign in to :name',
     'login_button' => 'Sign in',
-    'remember_me' => 'Remember me',
+    'remember_me' => 'Stay signed in on this device',
+    // TASK-1774 — the box is checked by default, so say where NOT to leave it.
+    'remember_me_shared_device' => 'Uncheck this on a shared computer.',
     'forgot_password_link' => 'Forgot your password?',
     'no_account' => 'Don\'t have an account yet?',
     'register_link' => 'Create an account',

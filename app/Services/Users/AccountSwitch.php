@@ -44,11 +44,33 @@ class AccountSwitch
      */
     public function versLeCompte(User $cible): string
     {
+        /*
+         * TASK-1774 — LA PERSISTANCE SUIT LA PERSONNE, PAS LE COMPTE.
+         *
+         * `Auth::logout()` detruit le cookie de reconnexion ET fait tourner le
+         * `remember_token` ; `Auth::login()` sans second argument n'en repose
+         * aucun. Sans la ligne ci-dessous, basculer vers son compte frere
+         * RETROGRADE donc silencieusement une connexion persistante en session
+         * de deux heures — l'inverse exact de ce que la personne avait demande,
+         * et sans le moindre signe a l'ecran.
+         *
+         * La question est lue AVANT la deconnexion : apres, le cookie n'existe
+         * plus. On ne consulte pas `viaRemember()`, qui dit seulement comment
+         * la REQUETE COURANTE a ete authentifiee — une requete servie par une
+         * session encore valide repondrait `false` alors que le cookie est bien
+         * la, et la bascule degraderait quand meme.
+         *
+         * Ce n'est pas un elargissement de droit : les comptes freres sont
+         * deja autorises avant d'arriver ici, et on ne fait que reporter sur le
+         * compte d'arrivee le choix que la personne avait fait au depart.
+         */
+        $persistante = request()->cookies->has(Auth::guard('web')->getRecallerName());
+
         Auth::logout();
         session()->invalidate();
         session()->regenerateToken();
 
-        Auth::login($cible);
+        Auth::login($cible, $persistante);
         session()->regenerate();
 
         return canonicalHome($cible->organization);

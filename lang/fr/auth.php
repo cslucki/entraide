@@ -42,7 +42,10 @@ return [
     'login_title' => 'Connexion',
     'login_subtitle_org' => 'Connectez-vous à :name',
     'login_button' => 'Se connecter',
-    'remember_me' => 'Se souvenir de moi',
+    'remember_me' => 'Rester connecté sur cet appareil',
+    // TASK-1774 — la case est cochee par defaut : il faut dire ou ne PAS
+    // la laisser cochee. Une phrase, pas un mecanisme.
+    'remember_me_shared_device' => 'À décocher sur un ordinateur partagé.',
     'forgot_password_link' => 'Mot de passe oublié ?',
     'no_account' => 'Pas encore de compte ?',
     'register_link' => 'Créer un compte',
