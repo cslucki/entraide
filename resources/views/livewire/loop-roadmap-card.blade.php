@@ -160,10 +160,16 @@
 
         {{-- Create action modal (premium "+") --}}
         <template x-if="createOpen">
-            <div class="fixed inset-0 z-[65] flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="{{ __('loops.roadmap_create_title') }}">
+            {{-- TASK-1769 — mesure du 05/11 a 390x844 : `{y: 509, h: 336}`.
+                 La fenetre occupait le tiers BAS de l'ecran, et les 509 px du
+                 dessus montraient un tableau vide. Meme correctif qu'au
+                 composant de Membres, meme raison pour `--bp-vvh` (piege iOS,
+                 voir components/loops/modal.blade.php). --}}
+            <div class="fixed inset-0 z-[65] flex items-center justify-center p-3 sm:p-4" style="height: var(--bp-vvh, 100dvh)" role="dialog" aria-modal="true" aria-label="{{ __('loops.roadmap_create_title') }}">
                 <div class="absolute inset-0 bg-black/50" x-on:click="createOpen = false"></div>
                 <form wire:submit="createAction"
-                      class="relative w-full rounded-t-2xl bg-white p-5 shadow-xl dark:bg-gray-900 sm:max-w-md sm:rounded-2xl"
+                      style="max-height: calc(var(--bp-vvh, 85dvh) - 2rem)"
+                      class="relative w-full overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900 sm:max-w-md"
                       x-on:keydown.escape.window="createOpen = false">
                     <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('loops.roadmap_create_title') }}</h3>
                     <div class="mt-4 space-y-3">
@@ -213,10 +219,17 @@
 
     {{-- Archives panel --}}
     @if($canManage)
-        <div x-show="archivesOpen" x-cloak class="fixed inset-0 z-[66] flex items-stretch justify-center sm:items-center sm:p-4"
+        {{-- TASK-1769 — les archives sont une LISTE LONGUE : le plein ecran
+             leur allait, et le CDC la donnait comme le point le moins
+             important des trois. On la centre quand meme, pour que les trois
+             fenetres de Roadmap se comportent pareil, mais bornee en hauteur
+             plutot qu'etiree : une liste qui touche les deux bords n'a plus
+             de bouton de sortie visible au pouce. --}}
+        <div x-show="archivesOpen" x-cloak class="fixed inset-0 z-[66] flex items-center justify-center p-3 sm:p-4" style="height: var(--bp-vvh, 100dvh)"
              role="dialog" aria-modal="true" aria-label="{{ __('loops.roadmap_archives') }}" x-on:keydown.escape.window="archivesOpen = false">
             <div class="absolute inset-0 bg-black/50" x-on:click="archivesOpen = false"></div>
-            <div class="relative flex h-full max-h-full w-full flex-col overflow-hidden bg-white shadow-2xl dark:bg-gray-900 sm:h-auto sm:max-h-[80dvh] sm:max-w-lg sm:rounded-2xl">
+            <div class="relative flex w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900 sm:max-w-lg"
+                 style="max-height: calc(var(--bp-vvh, 80dvh) - 2rem)">
                 <div class="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-800">
                     <p class="inline-flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/></svg>

@@ -156,6 +156,7 @@
              camera en facade. Sur un ordinateur, le bouton ouvrirait un
              selecteur de fichiers identique au premier, donc deux boutons pour
              un meme geste. --}}
+        @if(! isset($leading))
         <button type="button"
                 data-composer-camera
                 x-on:click="$refs.cameraInput.click()"
@@ -168,6 +169,7 @@
             </svg>
         </button>
         @endif
+        @endif
 
         {{-- TASK-1329 : le declencheur du menu mobile (`$leading`, le « + »)
              vit DANS le cadre du champ, plus a cote de lui — un bouton rond
@@ -178,9 +180,25 @@
              wrapper garde ~4px de descendante sous la ligne de base, le champ
              remonte d'autant et le bouton envoyer comme le « + » paraissent
              cales trop bas. --}}
-        <div class="relative min-w-0 flex-1">
+        {{-- TASK-1769 — la PILULE. Sous 768 px, le cadre n'est plus le
+             `<textarea>` lui-meme : c'est ce conteneur, qui porte la bordure,
+             le fond et le rayon, et qui range ses poignees EN FLUX a cote du
+             champ. L'absolu d'avant ne pouvait pas tenir : la pastille de mode
+             a une largeur variable (« IA », « IA + Dossiers »), et un texte
+             qui passe dessous se lit par-dessus elle.
+             A partir de `md` le conteneur redevient transparent et le
+             `<textarea>` reprend sa bordure : le bureau ne bouge pas d'un
+             pixel, la Messagerie et le chat agent non plus (ils n'ont pas
+             `$leading`). --}}
+        <div class="relative min-w-0 flex-1 {{ isset($leading)
+            ? 'flex items-end gap-1 rounded-[23px] border border-gray-300 bg-white px-[5px] py-[4px] shadow-sm transition focus-within:border-indigo-500 dark:border-gray-600 dark:bg-gray-900 md:block md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:focus-within:border-transparent'
+            : '' }}">
             @isset($leading)
-            <div class="absolute bottom-1.5 left-1.5 z-10 flex md:hidden">
+            {{-- TASK-1769 — la gauche de la pilule. L'appelant y met ce qu'il
+                 veut : le ChatLoop y met le « + » ET sa porte vers l'IA. Le
+                 composeur, lui, reste ignorant des modes — il est partage avec
+                 la Messagerie et le chat agent. --}}
+            <div class="flex min-w-0 shrink-0 items-end gap-1 md:hidden">
                 {{ $leading }}
             </div>
             @endisset
@@ -214,10 +232,40 @@
                      ne passe pas par le bouton : la garde `uploading` doit y etre
                      aussi, sinon la course reste ouverte au clavier. --}}
                 @keydown.enter="if (enterEnvoie && !$event.shiftKey) { $event.preventDefault(); if (!uploading) { $wire.sendMessage() } }"
-                class="block max-h-44 min-h-11 w-full resize-none overflow-y-hidden rounded-2xl border border-gray-300 bg-white px-4 py-3 {{ isset($leading) ? 'pl-11 md:pl-4' : '' }} text-sm text-gray-900 placeholder-gray-400 shadow-sm transition [scrollbar-width:none] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 [&::-webkit-scrollbar]:hidden"
+                {{-- TASK-1769 — deux listes ENTIERES plutot qu'une liste avec
+                     des `md:` greffes : la liste de droite est celle d'avant,
+                     octet pour octet, donc la Messagerie et le chat agent sont
+                     prouves inchanges par simple lecture du diff. --}}
+                class="{{ isset($leading)
+                    ? 'block max-h-44 min-h-9 w-full resize-none overflow-y-hidden border-0 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 shadow-none transition [scrollbar-width:none] focus:outline-none focus:ring-0 dark:text-gray-100 [&::-webkit-scrollbar]:hidden md:min-h-11 md:rounded-2xl md:border md:border-gray-300 md:bg-white md:px-4 md:py-3 md:shadow-sm md:focus:border-indigo-500 md:focus:ring-2 md:focus:ring-indigo-500/20 md:dark:border-gray-600 md:dark:bg-gray-900'
+                    : 'block max-h-44 min-h-11 w-full resize-none overflow-y-hidden rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 shadow-sm transition [scrollbar-width:none] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 [&::-webkit-scrollbar]:hidden' }}"
                 placeholder="{{ $placeholder }}"
                 @if($disabled || $loading) disabled @endif
             ></textarea>
+            @isset($leading)
+            {{-- TASK-1769 — l'appareil photo, DANS la pilule et a droite. Il
+                 etait une pastille ronde detachee a GAUCHE, et la feuille du
+                 « + » proposait en plus une tuile « Prendre une photo » qui
+                 declenchait le MEME `$refs.cameraInput` : deux portes pour un
+                 geste, a 40 px l'une de l'autre. La tuile part (loop-chat),
+                 la poignee reste — donc le geste devient PLUS accessible,
+                 pas moins : il ne demande plus d'ouvrir quoi que ce soit.
+                 `data-composer-camera` est INCHANGE : `TASK1693MobileMessagingTest`
+                 le lit. --}}
+            @if($showUpload)
+            <button type="button"
+                    data-composer-camera
+                    x-on:click="$refs.cameraInput.click()"
+                    aria-label="{{ __('messages.take_photo') }}"
+                    title="{{ __('messages.take_photo') }}"
+                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200 md:hidden">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+            </button>
+            @endif
+            @endisset
         </div>
 
         {{-- TASK-1329 : `mb-1` cale le bouton (36px) sur l'axe du champ
@@ -231,7 +279,11 @@
              cliquable, le serveur valide. --}}
         <button
             type="submit"
-            class="mb-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition-all duration-200 ease-out active:scale-90 disabled:opacity-50"
+            {{-- TASK-1769 — 46 px sur telephone, a l'axe exact de la pilule
+                 (46 px aussi), donc `mb-0` : `mb-1` servait a caler un bouton
+                 de 36 px sur un champ de 44. Au-dessus de `md`, les cotes
+                 d'avant reviennent. --}}
+            class="{{ isset($leading) ? 'mb-0 h-[46px] w-[46px] md:mb-1 md:h-9 md:w-9' : 'mb-1 h-9 w-9' }} flex flex-shrink-0 items-center justify-center rounded-full transition-all duration-200 ease-out active:scale-90 disabled:opacity-50"
             {{-- TASK-1365 : la couleur active vient du THEME (--bp-primary, « Action
                  principale » de /admin/themes) et non plus d'un indigo en dur. Le Shell
                  utilise exactement le meme token : les deux composers changent ensemble
@@ -271,7 +323,7 @@
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <svg x-show="!uploading" class="w-4 h-4 rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg x-show="!uploading" class="{{ isset($leading) ? 'h-5 w-5 md:h-4 md:w-4' : 'w-4 h-4' }} rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19V5m0 0l-7 7m7-7l7 7"/>
                 </svg>
             @endif
