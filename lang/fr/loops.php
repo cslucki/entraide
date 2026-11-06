@@ -33,6 +33,16 @@ return [
     'help_request_publish_cta' => 'Publier dans cette Boucle',
     'help_request_no_loop_option' => '— Choisir une Boucle —',
     'help_request_badge' => 'Demande d\'aide',
+    // TASK-1772 (demande Cyril, 06/11) — la trace, dans ChatLoop, d'un depot
+    // dans la Card Dossiers. Un seul message par depot, jamais un par fichier.
+    'chat_dossier_file_deposited' => ':name vient de déposer le fichier « :file » dans la Boucle.',
+    'chat_dossier_files_deposited' => ':name vient de déposer :count fichiers dans la Boucle.',
+    'chat_dossier_open_card' => 'Voir',
+    // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.
+    'composer_file_uploading_many' => ':count fichiers en cours d\'envoi…',
+    // TASK-1772 — la seconde phase : les octets sont partis, le serveur valide,
+    // calcule l'empreinte et ecrit. Pour un gros fichier, c'est la que le temps passe.
+    'composer_file_processing' => 'Traitement en cours…',
     'expected_help' => 'Aide attendue : :type',
     'no_messages' => 'Aucun message pour le moment',
     'no_messages_hint' => 'Soyez le premier à écrire !',
@@ -851,6 +861,8 @@ return [
     'hybrid_button' => 'IA + Dossiers',
     'composer_mode_clear' => 'Revenir au message normal',
     'composer_more_actions' => 'Plus d\'actions',
+    // TASK-1772 — refus explicite, jamais une troncature.
+    'mentions_too_many' => 'Vous ne pouvez mentionner que :max personnes dans un même message.',
     'composer_add_image' => 'Ajouter une image',
     // TASK-1684 : le fichier va dans le Dossier de la Boucle, pas dans le message.
     'composer_add_file' => 'Ajouter un fichier',

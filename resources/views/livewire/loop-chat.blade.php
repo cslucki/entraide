@@ -1,4 +1,9 @@
-<div wire:poll.3s class="flex-1 flex flex-col min-h-0" x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)">
+{{-- TASK-1772 (recette Cyril, 06/11) — `apercu-membre` est emis par la
+     gouttiere d'avatar de chaque bulle. L'ecoute est posee ICI, une fois, et
+     non sur chaque bulle : trente ecouteurs pour un seul panneau. --}}
+<div wire:poll.3s class="flex-1 flex flex-col min-h-0"
+     x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)"
+     x-on:apercu-membre.window="$wire.ouvrirApercuMembre($event.detail.userId)">
     <x-conversation.pinned-message-banner
         :pinned-message="$pinnedMessage"
         :can-unpin="$isMember"
@@ -195,9 +200,20 @@
 
                     // Ce message humain a-t-il ouvert un debat ?
                     $debatDeCeMessage = $debats[(string) $msg->id] ?? null;
+
+                    // TASK-1772 (recette Cyril, telephone) — WhatsApp serre les
+                    // messages d'un MEME auteur et aere ceux de deux auteurs
+                    // differents. L'auteur precedent est memorise d'un tour de
+                    // boucle a l'autre ; un message IA compte comme un auteur.
+                    // En PADDING et non en marge : `space-y-1` de la liste pose
+                    // deja une marge haute sur chaque enfant, avec une
+                    // specificite superieure a `mt-*` — elle aurait gagne.
+                    $_signatureAuteur = ($msg->type === 'ai' ? 'ai' : (string) $msg->sender_id);
+                    $_changeAuteur = $_signatureAuteur !== ($_auteurPrecedent ?? null);
+                    $_auteurPrecedent = $_signatureAuteur;
                 @endphp
 
-                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="transition-all duration-300 {{ $estRegroupee ? 'md:hidden' : '' }}">
+                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="transition-all duration-300 {{ $estRegroupee ? 'md:hidden' : '' }} {{ $_changeAuteur ? 'pt-1.5 md:pt-0' : '' }}">
                     @if($isDeleted)
                         <x-conversation.message-bubble
                             :type="$isOwn ? 'sent' : 'received'"
@@ -247,6 +263,23 @@
                                     x-on:click="$dispatch('bp-open-loop-card', { card: 'core.events' })"
                                     class="shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-white transition {{ $evCancelled ? 'bg-gray-500 hover:bg-gray-600' : 'bg-sky-600 hover:bg-sky-700' }}">
                                 {{ __('events.chat_open_card') }}
+                            </button>
+                            <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                        </div>
+                    @elseif($msg->type === 'dossier_file')
+                        {{-- TASK-1772 (demande Cyril) — un depot dans la Card
+                             Dossiers. Meme forme discrete que l'Evenement et le
+                             Sondage : un reperage dans la conversation, pas une
+                             prise de parole. Le bouton ouvre la Card, la ou le
+                             fichier se trouve vraiment — le message ne le porte
+                             pas, il l'annonce. --}}
+                        <div data-dossier-file-event class="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 dark:border-emerald-800/50 dark:bg-emerald-900/20">
+                            <svg class="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                            <span class="min-w-0 flex-1 text-xs leading-5 text-emerald-900 dark:text-emerald-100">{{ $msg->body }}</span>
+                            <button type="button"
+                                    x-on:click="$dispatch('bp-open-loop-card', { card: 'core.dossiers' })"
+                                    class="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-700">
+                                {{ __('loops.chat_dossier_open_card') }}
                             </button>
                             <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
                         </div>
@@ -517,7 +550,26 @@
                             :time="$msg->created_at->diffForHumans()"
                             :name="$isOwn ? __('messages.me') : $senderName"
                             :avatar="$senderDisplayable ? $msg->sender?->avatar_url : null"
+                            {{-- TASK-1772 (recette Cyril, 06/11) — l'avatar sort
+                                 de la bulle, facon WhatsApp. Allume ICI et pas
+                                 dans le composant : la Messagerie partage cette
+                                 bulle, et un avatar par message n'a pas de sens
+                                 dans un fil a deux. --}}
+                            detached-avatar="true"
+                            {{-- L'identite n'est donnee que si l'auteur est
+                                 AFFICHABLE dans l'Organization courante — la
+                                 meme porte que l'avatar juste au-dessus. Sans
+                                 elle, la pastille reste decorative et n'ouvre
+                                 aucun apercu. --}}
+                            :avatar-user-id="$senderDisplayable ? $msg->sender?->id : null"
                             :requested-mode="$msg->metadata['requested_mode'] ?? null"
+                            {{-- TASK-1772 — les noms des personnes mentionnees,
+                                 resolus ICI sans requete : `$nomsPourMentions`
+                                 est deja en memoire. La bulle ne cherche rien,
+                                 sinon chaque message ferait sa requete. --}}
+                            :mention-names="collect($msg->metadata['mentions'] ?? [])
+                                ->map(fn ($id) => $nomsPourMentions[$id] ?? null)
+                                ->filter()->values()->all()"
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
@@ -914,6 +966,9 @@
             :replying-to="$replyingTo"
             on-cancel-reply="cancelReply"
             show-upload="true"
+            {{-- TASK-1772 — SEUL le ChatLoop passe cette prop : la Messagerie
+                 et le chat agent n'ont pas de menu `@`, et c'est voulu. --}}
+            :mentionables="$mentionables"
             :photo="$photo ?? null"
             {{-- TASK-1621 — le composeur ne rend PLUS de pastille de mode, pour
                  AUCUN moteur.
@@ -1073,10 +1128,26 @@
                                             </span>
                                             <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.composer_add_file') }}</span>
                                         </button>
-                                        {{-- Aucun `accept` : c'est le serveur qui decide des types
-                                             recevables (`StoreDossierFileRequest`), une liste en dur
-                                             ici se perimerait sans que personne ne le voie. --}}
+                                        {{-- TASK-1772 (recette Cyril, 06/11, PWA Android) — « on ne
+                                             peut pas envoyer de PDF depuis le telephone ; sur
+                                             Desktop, PDF passe ».
+
+                                             Ce champ n'avait AUCUN `accept`, au motif que le
+                                             serveur decide seul des types recevables. Sur un
+                                             ordinateur, pas d'`accept` veut dire « tous les
+                                             fichiers ». Sur Android, c'est autre chose : le
+                                             selecteur choisit alors lui-meme ses fournisseurs, et
+                                             dans une PWA installee il ouvre volontiers la seule
+                                             galerie — un PDF n'y est pas atteignable, donc
+                                             « on ne peut pas l'envoyer », sans le moindre refus
+                                             serveur.
+
+                                             L'`accept` vient de la MEME source que la regle
+                                             serveur (`TypesDeFichiersAcceptes`), jamais d'une
+                                             liste recopiee : c'etait le motif de l'absence
+                                             d'`accept`, et il est respecte. --}}
                                         <input type="file" x-ref="fichierBoucle" multiple class="hidden"
+                                            accept="{{ \App\Support\Files\TypesDeFichiersAcceptes::pourAttributAccept() }}"
                                             x-on:change="deposer($event); sheetOpen = false">
                                     </div>
                                     @endif
@@ -1497,28 +1568,36 @@
                         if (!fichiers.length) { return; }
 
                         this.envoi = true;
-                        const corps = new FormData();
-                        fichiers.forEach((f) => corps.append('files[]', f, f.name));
 
-                        let ok = false;
-                        try {
-                            const r = await fetch(this.endpoint, {
-                                method: 'POST',
-                                headers: {
-                                    'Accept': 'application/json',
-                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-                                    'X-Requested-With': 'XMLHttpRequest',
+                        // TASK-1772 (recette Cyril) — LA MIRE. Le depot passe
+                        // par `bpTeleverserFichiers`, qui rapporte la
+                        // progression REELLE de l'envoi (`xhr.upload`) ; la
+                        // feuille, elle, se referme aussitot, donc la seule
+                        // chose que le membre voit est le bandeau du bas. Sans
+                        // lui, un envoi de 20 Mo en 4G ne montrait RIEN.
+                        const progression = (pourcent, phase) => window.dispatchEvent(
+                            new CustomEvent('bp-depot-progression', {
+                                detail: {
+                                    pourcent: pourcent,
+                                    // La PHASE, et pas seulement le chiffre :
+                                    // les octets d'abord, le serveur ensuite.
+                                    // Sans elle, la mire reste « Ajout en
+                                    // cours » pendant tout le traitement.
+                                    phase: phase || 'envoi',
+                                    nombre: fichiers.length,
+                                    // Le nom du PREMIER fichier : la mire en
+                                    // montre un, et le compteur dit le reste.
+                                    nom: fichiers[0]?.name ?? '',
                                 },
-                                body: corps,
-                            });
-                            ok = r.ok;
-                        } catch (err) {
-                            ok = false;
-                        }
+                            }),
+                        );
+                        progression(0, 'envoi');
+
+                        const { ok, raison } = await window.bpTeleverserFichiers(this.endpoint, fichiers, progression);
 
                         this.envoi = false;
                         window.dispatchEvent(new CustomEvent('bp-depot-fichier', {
-                            detail: { ok: ok, nombre: fichiers.length },
+                            detail: { ok: ok, nombre: fichiers.length, raison: raison },
                         }));
 
                         // La Card Dossiers est deja montee et ne voit PAS ce
@@ -1536,17 +1615,149 @@
 
     {{-- Retour visible du depot : sans lui, le geste reussit en silence et le
          membre ne sait pas si son fichier est parti. --}}
-    <div x-data="{ vu: false, ok: false, nombre: 0 }"
-        x-on:bp-depot-fichier.window="ok = $event.detail.ok; nombre = $event.detail.nombre; vu = true; setTimeout(() => vu = false, 4000)"
+    <div x-data="{ vu: false, ok: false, nombre: 0, raison: '', enCours: false, pourcent: 0 }"
+        {{-- TASK-1772 (recette Cyril, 06/11) — « ajouter une mire de
+             televersement, sinon on a l'impression que rien ne se passe ».
+             La feuille se referme des l'appui : son propre indicateur
+             d'activite n'est donc JAMAIS visible. Le seul endroit ou la mire
+             peut vivre est ici, au-dessus du composeur. --}}
+        x-on:bp-depot-progression.window="enCours = true; vu = true; pourcent = $event.detail.pourcent; nombre = $event.detail.nombre"
+        x-on:bp-depot-fichier.window="enCours = false; ok = $event.detail.ok; nombre = $event.detail.nombre; raison = $event.detail.raison || ''; vu = true; setTimeout(() => vu = false, 6000)"
         x-show="vu" x-cloak style="display: none"
-        class="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
-        <p class="rounded-full px-4 py-2 text-xs font-medium shadow-lg"
+        {{-- TASK-1772 — `hidden md:flex` : au telephone, `x-conversation.depot-mire`
+             couvre l'ecran et dit la meme chose, en mieux place. Ce bandeau
+             vivait a `bottom-24`, dans la zone que le composeur, la barre
+             d'onglets et la zone sure se disputent. --}}
+        class="pointer-events-none fixed inset-x-0 bottom-24 z-50 hidden justify-center px-4 md:flex">
+        <div x-show="enCours" class="w-full max-w-sm rounded-2xl bg-gray-900/90 px-4 py-3 text-white shadow-lg backdrop-blur dark:bg-gray-800/95" role="status" aria-live="polite">
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-xs font-semibold" x-text="nombre > 1
+                    ? @js(__('loops.composer_file_uploading_many')).replace(':count', nombre)
+                    : @js(__('dossiers.file_uploading'))"></span>
+                <span class="text-xs font-bold tabular-nums" x-text="pourcent + ' %'"></span>
+            </div>
+            <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+                <div class="h-full rounded-full bg-emerald-400 transition-all duration-200" x-bind:style="'width: ' + pourcent + '%'" aria-hidden="true"></div>
+            </div>
+        </div>
+        <p x-show="! enCours" class="rounded-full px-4 py-2 text-xs font-medium shadow-lg"
             x-bind:class="ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'"
             x-text="ok
                 ? @js(__('loops.composer_file_uploaded'))
-                : @js(__('loops.composer_file_failed'))"></p>
+                : (raison || @js(__('loops.composer_file_failed')))"></p>
     </div>
     {{-- TASK-1771 — la barre du mode selection. Teleportee en haut de
          l'ecran, telephone uniquement. Rendue UNE fois par fil. --}}
     <x-conversation.selection-bar />
+
+    {{-- TASK-1772 (recette Cyril) — la mire de televersement du telephone.
+         Elle n'est liee a aucune surface de depot : elle ecoute les
+         evenements que toutes emettent. --}}
+    <x-conversation.depot-mire />
+
+    {{-- ==================================================================
+         TASK-1772 (recette Cyril, 06/11) — L'APERCU D'ANNUAIRE.
+
+         « Quand on clique sur cet avatar on puisse avoir un pop-up, qui va
+         permettre de voir un apercu de sa card d'annuaire. »
+
+         APERCU et non fiche complete : les memes champs que la rangee
+         d'annuaire (T1762), bio BORNEE, et un lien vers la vraie fiche. Le
+         but est de savoir a qui on parle sans quitter le fil — pas de
+         recopier l'annuaire dans la ChatLoop.
+
+         Rendu UNE fois par fil, et seulement quand il est ouvert : le
+         composant repasse ici a chaque `wire:poll.3s`, et trente fiches
+         latentes dans le DOM couteraient a chaque battement.
+         ================================================================== --}}
+    {{-- ATTENTION — AUCUN bloc « php … endphp » dans ce gabarit.
+
+         (Pas un seul sigle d'arobase dans ce commentaire : Blade compile les
+         directives ECRITES DANS un commentaire. Les nommer en clair ici a
+         casse la vue, deux fois.)
+
+         Blade range les blocs bruts AVANT de compiler les directives, avec
+         une expression qui ne distingue pas la directive de sa variante
+         PARENTHESEE. Or ce gabarit en contient deja une, bien plus haut
+         (`whyMemory`). Elle y est inoffensive tant que rien ne la suit qui
+         ressemble a une fermeture — mais le premier bloc ajoute en dessous
+         lui sert de fin : tout ce qui est entre les deux part en PHP brut, le
+         `if` d'ouverture compris.
+
+         Symptome : « syntax error, unexpected end of file, expecting elseif
+         or else or endif », a quatre-vingts lignes de la vraie cause. Et
+         `view:cache` ne le dit pas — il compile sans executer. C'est un test
+         qui REND la vue qui l'a trouve.
+
+         Les liens sont donc calcules dans le composant
+         (`LoopChat::apercuMembreLiens()`), ce qui vaut mieux de toute
+         facon : la vue n'a plus a deviner l'Organization. --}}
+    @php($_apercu = $this->apercuMembre)
+    @php($_liens = $this->apercuMembreLiens())
+    @if($_apercu && $_liens)
+    <div class="fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-center sm:p-4"
+         x-on:keydown.escape.window="$wire.fermerApercuMembre()"
+         role="dialog" aria-modal="true" data-member-preview="{{ $_apercu->getKey() }}">
+        {{-- Le voile ferme au clic. Un frere du panneau et non son parent :
+             un `click.outside` sur le panneau se declencherait aussi sur les
+             clics partis d'un element qui dispparait pendant le clic. --}}
+        <div class="absolute inset-0 bg-black/50" wire:click="fermerApercuMembre"></div>
+
+        <div class="relative w-full max-w-lg overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl dark:bg-gray-800">
+            <div class="flex items-start gap-4 p-5">
+                <a href="{{ $_liens['profil'] }}" class="relative shrink-0">
+                    <img src="{{ $_apercu->avatar_url }}" alt=""
+                         class="h-20 w-20 rounded-2xl object-cover ring-1 ring-gray-200 dark:ring-gray-600">
+                    @if(availabilityIsShown() && $_apercu->is_available)
+                    <span class="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-green-500 dark:border-gray-800"></span>
+                    @endif
+                </a>
+
+                <div class="min-w-0 flex-1">
+                    <a href="{{ $_liens['profil'] }}"
+                       data-member-preview-name
+                       class="text-lg font-bold text-gray-900 transition hover:text-[var(--bp-accent)] dark:text-gray-100">{{ $_apercu->publicDisplayName() }}</a>
+
+                    @if(structureIsShown() && filled($_apercu->structure))
+                    <p class="mt-0.5 text-sm font-bold text-[var(--bp-accent)]" data-member-preview-structure>{{ $_apercu->structure }}</p>
+                    @endif
+
+                    @if($_apercu->public_location)
+                    <p class="mt-0.5 text-xs text-gray-400">📍 {{ $_apercu->public_location }}</p>
+                    @endif
+
+                    @if(filled($_apercu->slogan))
+                    <p class="mt-1.5 text-sm font-semibold text-[var(--bp-accent)]">{{ $_apercu->slogan }}</p>
+                    @endif
+                </div>
+
+                <button type="button" wire:click="fermerApercuMembre"
+                        aria-label="{{ __('messages.member_preview_close') }}"
+                        class="-mr-1 -mt-1 shrink-0 rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            @if(filled($_apercu->bio))
+            {{-- `line-clamp-5` : c'est un APERCU. L'annuaire, lui, rend la bio
+                 ENTIERE — c'etait la demande explicite de T1762 point 17, et
+                 elle vaut pour l'annuaire, pas pour une fenetre posee sur un
+                 fil de discussion. Le lien dessous mene au texte complet. --}}
+            <div class="prose prose-sm dark:prose-invert line-clamp-5 max-w-none border-t border-gray-100 px-5 py-4 text-gray-600 dark:border-gray-700 dark:text-gray-300"
+                 data-member-preview-bio>{!! markdown($_apercu->bio, ['renderer' => ['soft_break' => "<br />\n"]]) !!}</div>
+            @elseif($_liens['vide'])
+            <p class="border-t border-gray-100 px-5 py-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{{ __('messages.member_preview_empty') }}</p>
+            @endif
+
+            <div class="flex flex-wrap gap-2 border-t border-gray-100 bg-gray-50 px-5 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+                <a href="{{ $_liens['profil'] }}" data-member-preview-profile
+                   class="inline-flex items-center gap-1.5 rounded-lg bg-[var(--bp-accent)] px-3 py-2 text-sm font-semibold text-white transition hover:brightness-95">{{ __('messages.member_preview_full') }}</a>
+                @if(auth()->id() !== $_apercu->getKey())
+                <a href="{{ $_liens['ecrire'] }}" data-member-preview-write
+                   class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-[var(--bp-accent)] hover:text-[var(--bp-accent)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">{{ __('messages.member_preview_write') }}</a>
+                @endif
+            </div>
+        </div>
+    </div>
+    @endif
 </div>

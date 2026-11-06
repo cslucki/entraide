@@ -94,6 +94,7 @@ return [
      * place, qui est ce que la personne cherche.
      */
     'push_body' => [
+        'loop_mention_created' => 'Ouvrez BouclePro pour lire le message.',
         'loop_invitation' => 'Ouvrez BouclePro pour répondre.',
         'loop_member_added' => 'Vous pouvez maintenant y participer.',
         'loop_join_request_accepted' => 'Vous pouvez maintenant y participer.',
@@ -109,6 +110,11 @@ return [
     ],
 
     'push_title' => [
+        // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
+        // ce texte s'affiche sur un ecran VERROUILLE. Le corps sera
+        // complete du nom de la Boucle si elle est PUBLIQUE, par
+        // `nomDeBouclePublique()`, et seulement dans ce cas.
+        'loop_mention_created' => 'On vous a mentionné',
         'loop_invitation' => 'Une invitation vous attend',
 
         // TASK-1751 — ni le nom de la personne, ni le titre de l'annonce :
@@ -129,6 +135,7 @@ return [
     ],
 
     'keys' => [
+        'loop_mention_created' => 'On vous a mentionné dans une Boucle',
         // TASK-1761 — la DEMANDE, cote proprietaire. Ses deux voisines
         // portent la DECISION et vont au demandeur.
         'loop_join_request_created' => 'Quelqu’un demande à rejoindre votre Boucle',
@@ -176,6 +183,10 @@ return [
      * controleur a pu resoudre, quelle qu'elle soit.
      */
     'keys_named' => [
+        // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere
+        // l'authentification. `push_title` et le sujet d'email restent
+        // generiques (ecran verrouille, apercu de boite mail).
+        'loop_mention_created' => '« :prenom » vous a mentionné dans la Boucle « :loop »',
         // TASK-1757 — nommee UNIQUEMENT ici : la liste en-appli est derriere
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).
@@ -193,6 +204,10 @@ return [
 
     // Repli quand une cle du catalogue n'a pas encore de libelle. Il ne doit
     // jamais afficher la cle technique : elle ne veut rien dire pour un membre.
+    // TASK-1772 — un message peut n'etre QU'une photo : `loop_messages.body`
+    // est alors vide, et le bloc de citation du courriel aurait l'air casse.
+    'mention_email_excerpt_empty' => '(message sans texte)',
+
     'key_fallback' => 'Notification',
 
     /*
@@ -211,6 +226,18 @@ return [
     |
     */
     'email' => [
+        // TASK-1772 — REPLI. Le rendu passe normalement par le gabarit
+        // administrable `loop_mention_created` ; ceci ne sert que si le
+        // gabarit est desactive ou absent.
+        'loop_mention_created' => [
+            'subject' => 'On vous a mentionné dans une Boucle',
+            // TASK-1772 (recette 06/11) — `:extrait` porte le message, et
+            // `:reglages` le lien de desabonnement. Les DEUX restent des
+            // jetons : une adresse en dur ici echapperait a l'expurgation du
+            // livreur et finirait telle quelle dans `email_logs` (garde
+            // `TASK1379…::test_every_email_body_uses_the_url_placeholder`).
+            'body' => '<p>Bonjour,</p><p>Une personne vous a mentionné dans un message d’une Boucle.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">Lire le message</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
+        ],
         'loop_join_request_created' => [
             'subject' => 'Quelqu’un demande à rejoindre votre Boucle',
             'body' => '<p>Bonjour,</p>'

@@ -29,6 +29,12 @@
          x-show="$store.bpSelection.ouvert"
          x-cloak
          x-on:keydown.escape.window="$store.bpSelection.fermer()"
+         {{-- TASK-1772 (recette Cyril) — « si on clique en dehors du message,
+              le message est deselectionne ». Ecoute de FENETRE : la rangee
+              traite son propre appui avant que celui-ci n'arrive ici, et le
+              store ignore tout appui venu d'une rangee ou de cette barre. --}}
+         x-on:click.window="$store.bpSelection.fermerSiDehors($event.target)"
+         data-selection-bar
          {{-- TASK-1771 (demande Cyril) — la barre CHANGE DE COULEUR.
               Elle recouvre la barre du haut : si elle lui ressemble, on ne
               voit pas qu'on a change de mode, et on cherche le nom de la
@@ -54,7 +60,16 @@
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
         </button>
 
-        <span class="min-w-0 flex-1 truncate text-sm font-semibold text-white">{{ __('messages.selection_one') }}</span>
+        {{-- TASK-1772 (recette Cyril) — la barre NOMME l'auteur du message
+             selectionne (« Moi », ou le nom affiche). Avec « 1 message
+             selectionne », passer d'un message a un autre ne changeait
+             visiblement que l'anneau de la bulle : les trois premieres icones
+             sont les memes pour tous, et la barre semblait « scotchee » au
+             premier message. Le nom change a chaque appui, et dit tout de
+             suite qu'on agit sur SON message ou sur celui d'un autre. --}}
+        <span class="min-w-0 flex-1 truncate text-sm font-semibold text-white"
+              data-selection-author
+              x-text="$store.bpSelection.auteur || @js(__('messages.selection_one'))"></span>
 
         {{-- Les actions. Chacune ne s'affiche que si la bulle selectionnee l'a
              declaree : c'est elle qui connait les droits, pas cette barre. --}}

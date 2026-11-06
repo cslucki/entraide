@@ -226,9 +226,22 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         // qu'une demande recue arrive sans qu'on l'attende. CDC 6.2,
         // anti-bruit, meme raisonnement que pour « refusee ».
         //
+        // TASK-1772 : QUATRIEME fois. `loop.mention.created` est le fait
+        // « on m'a nommement appele dans une ChatLoop », decide dans sa propre
+        // TASK a partir du CDC `261105-Mentions.md` et des arbitrages de Cyril
+        // du 06/11 : in-app ON et NON configurable (on ne se desabonne pas
+        // d'apprendre qu'on vous parle), email ON configurable (le fait reste
+        // lisible dans le Centre, couper l'email ne fait rien perdre), Web
+        // Push ON configurable — aligne sur `LOOP_INVITATION`, evenement
+        // PERSONNEL, et non sur `LOOP_HELP_REQUEST_CREATED` qui est collectif.
+        //
+        // Le NOM de la cle est lui-meme une decision, prise sous la contrainte
+        // de la garde anti-bruit ci-dessous : voir son acquittement.
+        //
         // La garde reste donc ce qu'elle est : un inventaire qui force la
         // decision a se prendre AILLEURS, dans la TASK qui introduit la cle.
         $attendues = [
+            NotificationCatalogue::LOOP_MENTION_CREATED,
             NotificationCatalogue::LOOP_INVITATION,
             NotificationCatalogue::LOOP_MEMBER_ADDED,
             NotificationCatalogue::LOOP_JOIN_REQUEST_CREATED,
@@ -249,6 +262,24 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
 
     public function test_aucun_message_ordinaire_de_chatloop_ne_pousse(): void
     {
+        // TASK-1772 — ACQUITTEMENT.
+        //
+        // `loop.mention.created` pousse, et elle franchit cette garde telle
+        // quelle. Ce n'est pas un contournement : la §6.2 du CDC notifications
+        // que cette garde porte vise la diffusion de TOUT message a TOUS les
+        // membres — le bruit de masse. Une mention est l'inverse exact : elle
+        // est adressee a UNE personne nommement designee, qui l'a vue ecrire
+        // son nom.
+        //
+        // Mais la garde teste une SOUS-CHAINE, pas une intention. C'est
+        // pourquoi la cle nomme le FAIT (`mention`) et non le support
+        // (`message`). `loop.message.mentioned` ou `chatloop.mention` auraient
+        // fait rougir la CI pour une raison sans rapport avec la decision
+        // produit, et quelqu'un aurait passe une heure a comprendre pourquoi.
+        //
+        // La garde n'est donc PAS affaiblie, et elle continue de proteger ce
+        // qu'elle protegeait : le jour ou quelqu'un voudra pousser un message
+        // ordinaire de ChatLoop, elle rougira encore.
         // CDC 6.2 : « Message ordinaire de ChatLoop → Non par defaut »,
         // au titre de l'anti-bruit. Le produit ne doit pas devenir une
         // sollicitation permanente. Aucune cle de ce domaine n'existe, et la

@@ -85,6 +85,7 @@ return [
      * is what the person is looking for.
      */
     'push_body' => [
+        'loop_mention_created' => 'Open BouclePro to read the message.',
         'loop_invitation' => 'Open BouclePro to reply.',
         'loop_member_added' => 'You can now take part.',
         'loop_join_request_accepted' => 'You can now take part.',
@@ -100,6 +101,11 @@ return [
     ],
 
     'push_title' => [
+        // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
+        // ce texte s'affiche sur un ecran VERROUILLE. Le corps sera
+        // complete du nom de la Boucle si elle est PUBLIQUE, par
+        // `nomDeBouclePublique()`, et seulement dans ce cas.
+        'loop_mention_created' => 'You were mentioned',
         'loop_invitation' => 'An invitation is waiting',
         'loop_member_added' => 'You have joined a Boucle',
         'loop_join_request_accepted' => 'Your request was accepted',
@@ -119,6 +125,7 @@ return [
     ],
 
     'keys' => [
+        'loop_mention_created' => 'You were mentioned in a Loop',
         // TASK-1761 — the REQUEST, owner side.
         'loop_join_request_created' => 'Someone is asking to join your Loop',
         // TASK-1747 (CDC §8.1)
@@ -155,6 +162,10 @@ return [
      * longer always `:loop`.
      */
     'keys_named' => [
+        // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere
+        // l'authentification. `push_title` et le sujet d'email restent
+        // generiques (ecran verrouille, apercu de boite mail).
+        'loop_mention_created' => '“:prenom” mentioned you in the Loop “:loop”',
         // TASK-1757 — see the French file for why this surface only.
         'transaction_proposal_created' => ':prenom replies to your listing “:titre” — :temps',
         'loop_invitation' => 'Invitation to join the :loop Loop',
@@ -168,6 +179,10 @@ return [
 
     // Fallback when a catalogue key has no label yet. It must never show the
     // technical key: that means nothing to a member.
+    // TASK-1772 — a message can be a photo only: `loop_messages.body` is
+    // then empty, and the quote block would look broken.
+    'mention_email_excerpt_empty' => '(message with no text)',
+
     'key_fallback' => 'Notification',
 
     /*
@@ -186,6 +201,15 @@ return [
     |
     */
     'email' => [
+        // TASK-1772 — REPLI. Le rendu passe normalement par le gabarit
+        // administrable `loop_mention_created` ; ceci ne sert que si le
+        // gabarit est desactive ou absent.
+        'loop_mention_created' => [
+            'subject' => 'You were mentioned in a Loop',
+            // TASK-1772 — see the French file: both the excerpt and the
+            // settings link stay placeholders, never hardcoded addresses.
+            'body' => '<p>Hello,</p><p>Someone mentioned you in a message from a Loop.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">Read the message</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>No rush: the message will wait for you.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
         'loop_join_request_created' => [
             'subject' => 'Someone is asking to join your Loop',
             'body' => '<p>Hello,</p>'

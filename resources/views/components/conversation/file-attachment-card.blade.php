@@ -19,12 +19,35 @@
 
 @php
     $estApercevable = $previewUrl !== null;
+    // TASK-1772 (arbitrage Cyril, 06/11) — « le lecteur video dans la bulle,
+    // maintenant ». Une video se REGARDE sur place ; la carte reste dessous
+    // pour le nom, le poids et le telechargement — c'est elle qui dit ce
+    // qu'on s'apprete a consommer en donnees mobiles.
+    $estUneVideo = is_string($mime) && str_starts_with($mime, 'video/') && $estApercevable;
     $cadre = $isSent
         ? 'bg-indigo-500/20 border-indigo-400/30 hover:bg-indigo-500/30'
         : 'bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500 hover:bg-gray-300 dark:hover:bg-gray-500';
     $texte = $isSent ? 'text-white' : 'text-gray-900 dark:text-gray-100';
     $secondaire = $isSent ? 'text-indigo-200' : 'text-gray-500 dark:text-gray-400';
 @endphp
+
+@if($estUneVideo)
+{{-- TASK-1772 — `preload="metadata"` et non `auto` : sur un telephone en
+     donnees mobiles, precharger la video entiere de chaque message du fil
+     couterait le forfait de celui qui lit. On ne charge que de quoi connaitre
+     la duree et afficher la premiere image.
+     `playsinline` : sans lui, iOS passe en plein ecran des la lecture, et
+     quitte la conversation.
+     La source est la route GARDEE (meme policy que le fil) — jamais une URL
+     publique : le disque `message_files` n'en a aucune. --}}
+<video data-message-video
+       controls
+       playsinline
+       preload="metadata"
+       class="mt-1.5 w-full max-h-72 rounded-lg bg-black"
+       src="{{ $previewUrl }}">
+</video>
+@endif
 
 <div data-message-attachment class="mt-1.5 flex items-center gap-2 rounded-lg border {{ $cadre }} p-2 transition">
     <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded {{ $isSent ? 'bg-indigo-500/30' : 'bg-gray-300 dark:bg-gray-500' }}">

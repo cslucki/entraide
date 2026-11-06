@@ -361,12 +361,18 @@ class TASK1704MessagerieFileAttachmentTest extends TestCase
         );
         $this->assertStringContainsString('application/pdf', html_entity_decode($m[1]), 'Le selecteur ne propose pas les PDF.');
 
-        // Le bouton APPAREIL PHOTO reste aux images : `capture` n'a de sens
-        // que pour un cliche.
+        // Le bouton APPAREIL PHOTO reste aux images.
+        //
+        // TASK-1772 a tente `image/*,video/*` pour obtenir la bascule
+        // Photo/Video de WhatsApp. Recette de Cyril sur son Android : le
+        // bouton « appelle la galerie photo et non l'appareil ». Chrome
+        // Android n'honore `capture` que sur un `accept` d'UN SEUL type.
+        // La promesse « prendre une photo » passe donc avant l'ambition
+        // « filmer » — une video se joint par le selecteur de fichiers.
         $this->assertSame(
             1,
-            preg_match('/<input[^>]*x-ref="cameraInput"[^>]*accept="image\/\*"/', $html),
-            'Le bouton appareil photo ne devrait proposer que des images.'
+            preg_match('/<input[^>]*x-ref="cameraInput"[^>]*accept="image\/\*"[^>]*capture="environment"/', $html),
+            'Le bouton appareil photo doit ouvrir l\'appareil photo, donc un accept d\'un seul type.'
         );
     }
 

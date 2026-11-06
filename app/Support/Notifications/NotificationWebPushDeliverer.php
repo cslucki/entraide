@@ -553,6 +553,12 @@ class NotificationWebPushDeliverer
             NotificationCatalogue::OBJECT_LOOP => $objetId,
             NotificationCatalogue::OBJECT_LOOP_INVITATION => DB::table('loop_invitations')->where('id', $objetId)->value('loop_id'),
             NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST => DB::table('loop_join_requests')->where('id', $objetId)->value('loop_id'),
+            // TASK-1772 — sans cette ligne, le Push d'une mention perdrait le
+            // nom de la Boucle PUBLIQUE : le corps retomberait sur son texte
+            // generique, alors qu'il a le droit de nommer une Boucle publique.
+            // `DB::table` et non Eloquent : aucun scope global ne doit
+            // intervenir, ce code tourne sous worker.
+            NotificationCatalogue::OBJECT_LOOP_MESSAGE => DB::table('loop_messages')->where('id', $objetId)->value('loop_id'),
 
             // Un article co-ecrit est le plus souvent un BROUILLON : son titre
             // n'a rien a faire sur un ecran verrouille.

@@ -2,6 +2,16 @@
     'type' => 'received',
     'time' => null,
     'avatar' => null,
+    // TASK-1772 (recette Cyril, 06/11) — l'avatar sort de la bulle et prend
+    // sa gouttiere a gauche, comme WhatsApp. Une PROPRIETE et non un choix
+    // impose : ce composant sert aussi la Messagerie, qui est un fil a DEUX
+    // et ou un avatar par message serait du bruit. Le ChatLoop l'allume, la
+    // Messagerie garde sa mise en page.
+    'detachedAvatar' => false,
+    // L'identite derriere l'avatar, pour l'apercu d'annuaire au clic. `null`
+    // laisse l'avatar purement decoratif — c'est le cas quand l'auteur n'est
+    // pas affichable dans l'Organization courante.
+    'avatarUserId' => null,
     'name' => null,
     'subtitle' => null,
     'isAi' => false,
@@ -23,6 +33,10 @@
     'isPinned' => false,
     'isEdited' => false,
     'showReactions' => false,
+    // TASK-1772 — les noms EXACTS mentionnes dans ce message, deja resolus
+    // par l'appelant. La bulle ne cherche aucun nom : on les lui donne, sans
+    // quoi chaque bulle ferait sa requete (N+1 sur un fil de trente).
+    'mentionNames' => [],
     'reactionCounts' => [],
     'myReaction' => null,
     'sources' => null,
@@ -63,7 +77,14 @@
     // Dans la carte de debat « Pour / Contre », elle occupe au contraire une
     // COLONNE de grille : le plafond la raboterait a l'interieur d'un espace
     // deja borne. Une prop, pas un refactor.
-    'widthClass' => 'max-w-[90%] sm:max-w-md md:max-w-lg',
+    // TASK-1772 (recette Cyril, 06/11) — « les bulles sont trop larges et du
+    // coup, dans certains cas, on ne voit plus l'icone pour les reactions ».
+    // Le bouton ☺ est pose 1,75 rem HORS de la bulle, et la liste coupe ce qui
+    // deborde depuis la recette 6 (`overflow-x-hidden`) : une bulle a 90 % du
+    // fil, dans une rangee qui porte deja la gouttiere d'avatar, le poussait
+    // hors champ. 78 % lui laisse sa place sur tout telephone ; au-dela de
+    // `sm`, les bornes fixes gouvernent deja et ne changent pas.
+    'widthClass' => 'max-w-[78%] sm:max-w-md md:max-w-lg',
     // TASK-1316 : l'humain qui a demande cette reponse IA — ['id' => ..., 'name' => ...],
     // lu depuis `metadata.requested_by`, JAMAIS reconstruit en analysant un texte.
     // `null` sur toute bulle qui n'est pas une reponse IA a une demande nommee.
@@ -78,9 +99,19 @@
 
 @php
 $isSent = $type === 'sent';
+
+// TASK-1772 — `items-start` et `gap` servent la gouttiere d'avatar. Ils sont
+// poses dans les DEUX cas : une rangee sans gouttiere n'a rien a aligner ni a
+// espacer, et deux listes de classes divergentes finiraient par diverger pour
+// de bon.
 $containerClasses = $isSent
-    ? 'flex justify-end'
-    : 'flex justify-start';
+    ? 'flex items-start gap-2 justify-end'
+    : 'flex items-start gap-2 justify-start';
+
+// L'avatar ne se detache que du cote RECU. Sur ses propres messages, on sait
+// qui parle — WhatsApp ne les decore pas davantage, et la gouttiere y mangerait
+// de la largeur de texte pour ne rien dire.
+$_avatarDetache = $detachedAvatar && ! $isSent && ($avatar !== null || $isAi);
 
 // TASK-1621 — les bulles « Pour / Contre » ont LEUR couleur.
 //
@@ -109,15 +140,21 @@ $bubbleClasses = $isSent
             ? 'bg-violet-50 dark:bg-violet-900 ring-1 ring-violet-200 dark:ring-violet-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm'
             : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm'));
 
+// TASK-1772 (recette Cyril, telephone) — le nom passe a 13 px semi-gras sur
+// telephone, comme WhatsApp ; le bureau garde ses 12 px (`md:`). Le nom d'un
+// humain RECU prend en plus la couleur d'action du theme (`bp-bulle-nom`,
+// app.css, sous 768 px seulement) : c'est ce qui, sur WhatsApp, fait
+// reconnaitre qui parle avant meme de lire.
+$_nom = 'text-[13px] font-semibold md:text-xs md:font-medium';
 $nameClasses = $isSent
-    ? 'text-xs font-medium text-indigo-200'
+    ? $_nom.' text-indigo-200'
     : ($isPourContre
         ? ($roleContre
-            ? 'text-xs font-medium text-rose-700 dark:text-rose-300'
-            : 'text-xs font-medium text-emerald-700 dark:text-emerald-300')
+            ? $_nom.' text-rose-700 dark:text-rose-300'
+            : $_nom.' text-emerald-700 dark:text-emerald-300')
         : ($isAi
-            ? 'text-xs font-medium text-violet-600 dark:text-violet-300'
-            : 'text-xs font-medium text-gray-500 dark:text-gray-400'));
+            ? $_nom.' text-violet-600 dark:text-violet-300'
+            : $_nom.' bp-bulle-nom text-gray-500 dark:text-gray-400'));
 
 // Le modele, reduit a ce qui se lit. `inclusionai/ling-3.0-flash-vl:free`
 // devient `ling-3.0-flash-vl` : le fournisseur et le palier tarifaire sont du
@@ -132,6 +169,10 @@ $timeClasses = $isSent
     ? 'text-indigo-200'
     : 'text-gray-400';
 
+// TASK-1772 (recette Cyril) — l'infobulle `title` qui suivait la souris sur
+// chaque pastille est retiree : elle affichait la CLE brute (« seen »,
+// « thumbs_up »), jamais traduite. `aria-label` reste, lui : il nomme le
+// geste pour un lecteur d'ecran sans rien peindre a l'ecran.
 $reactionTypes = App\Models\Reaction::REACTION_TYPES;
 $primaryReactionTypes = ['thumbs_up', 'heart', 'thanks', 'surprised', 'sad'];
 $secondaryReactionTypes = array_values(array_diff($reactionTypes, $primaryReactionTypes));
@@ -217,6 +258,96 @@ $renderableBody = preg_replace_callback(
     $renderableBody,
 ) ?? $renderableBody;
 
+// TASK-1772 — les mentions en GRAS (arbitrage Cyril, D3 option B).
+//
+// APRES les trois passes de neutralisation ci-dessus, et AVANT `markdown()` :
+// l'ordre n'est pas indifferent. Avant les neutralisations, un `@Nom` ecrit
+// dans un bloc de code aurait ete transforme puis re-echappe ; apres
+// `markdown()`, il faudrait injecter du HTML, ce que `html_input => 'escape'`
+// interdit — et c'est tant mieux.
+//
+// `str_replace` sur les noms REELLEMENT enregistres, et aucune expression
+// reguliere qui devinerait ce qu'est une mention : on ne met en valeur que ce
+// que le serveur a retenu. Un nom non mentionne, meme precede d'un `@`, reste
+// du texte ordinaire.
+//
+// Effet de bord assume et mineur, nomme au CDC : un `@Nom` ecrit dans un bloc
+// de code sera gras lui aussi.
+//
+// TASK-1772 (recette Cyril, 06/11) — « changer l'apparence du pseudo de la
+// personne mentionnee : changer de couleur pour qu'on voit que c'est une
+// mention ». Le gras seul ne suffisait pas : dans un fil, il se confond avec
+// un simple appui de ton.
+//
+// ## Pourquoi des SENTINELLES et pas une classe posee directement
+//
+// `markdown()` tourne avec `html_input => 'escape'` : tout HTML ecrit ici
+// ressortirait en `&lt;span&gt;`. Et le faire APRES le rendu demanderait de
+// retrouver le nom dans la sortie — or CommonMark n'echappe pas comme `e()`
+// (l'apostrophe, notamment), donc un `str_replace` sur `e($nom)` raterait
+// « L'Hopital » EN SILENCE.
+//
+// On encadre donc la mention de deux caracteres de la zone a usage prive
+// d'Unicode, que CommonMark traverse sans y toucher, et on les convertit en
+// balise APRES le rendu. Le contenu entre les deux n'a plus besoin d'etre
+// devine : quel qu'il soit, c'est la mention.
+//
+// Zone a usage prive d'Unicode (U+E000 / U+E001) : aucun caractere assigne,
+// donc rien de legitime ne les porte, et CommonMark les laisse passer.
+$_mentionDebut = "\u{E000}";
+$_mentionFin = "\u{E001}";
+
+$_mentionNames = array_values(array_filter(array_map('strval', (array) $mentionNames)));
+
+if ($_mentionNames !== []) {
+    // Un membre pourrait coller ces caracteres dans son message. Ils sont
+    // retires AVANT la passe : sans cela, une sentinelle orpheline ferait
+    // teindre tout le texte jusqu'a la mention suivante.
+    $renderableBody = str_replace([$_mentionDebut, $_mentionFin], '', $renderableBody);
+
+    // Du plus long au plus court : sans cela, « @Anne » mis en gras en
+    // premier couperait « @Anne Agricola » en deux.
+    usort($_mentionNames, static fn (string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+
+    foreach ($_mentionNames as $_nom) {
+        if ($_nom === '') {
+            continue;
+        }
+
+        $renderableBody = str_replace(
+            '@'.$_nom,
+            // Les sentinelles vont DEDANS, pas autour. CommonMark exige
+            // qu'un `**` ouvrant soit precede d'une espace ou d'une
+            // ponctuation ; un caractere de la zone privee compte comme une
+            // LETTRE, et le gras ne se formait pas — mesure du 06/11, le
+            // message rendait « **@Bob Durand** » en clair.
+            '**'.$_mentionDebut.'@'.$_nom.$_mentionFin.'**',
+            $renderableBody,
+        );
+    }
+}
+
+/**
+ * Convertit les sentinelles en balise, APRES `markdown()`.
+ *
+ * Le contenu entre les deux sentinelles est deja echappe par CommonMark : on
+ * ne le touche pas, on ne fait que l'envelopper. Aucune donnee de membre
+ * n'entre dans un attribut — la classe est une constante.
+ *
+ * Le `str_replace` final retire toute sentinelle restee seule (corps tronque,
+ * mention coupee par une balise). Mieux vaut un gras sans couleur qu'un
+ * caractere invisible dans le presse-papier.
+ */
+$_teindreLesMentions = static function (string $html) use ($_mentionDebut, $_mentionFin): string {
+    $html = preg_replace(
+        '/'.preg_quote($_mentionDebut, '/').'(.*?)'.preg_quote($_mentionFin, '/').'/us',
+        '<span class="bp-mention">$1</span>',
+        $html,
+    ) ?? $html;
+
+    return str_replace([$_mentionDebut, $_mentionFin], '', $html);
+};
+
 // =====================================================================
 // TASK-1770 — les actions passent derriere un appui long, sur telephone.
 //
@@ -243,24 +374,21 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
 
 <div
     {{ $attributes->merge(['class' => $containerClasses . ' group ' . $class]) }}
-    {{-- TASK-1771 — « on clique sur un message, il change de couleur ».
-         WhatsApp teinte la RANGEE entiere, pas la seule bulle : c'est ce qui
-         rend la selection lisible d'un coup d'oeil sur un fil dense. L'anneau
-         de la bulle, lui, dit lequel exactement. --}}
-    {{-- TASK-1771 — la teinte de la rangee passe par un STYLE EN LIGNE.
-         `bg-[var(--bp-primary)]/10` paraissait juste et ne peignait RIEN :
-         Tailwind ne sait pas appliquer un modificateur d'opacite a une
-         variable CSS, il produit une couleur invalide — donc transparente.
-         Mesure au navigateur : la classe etait bien posee sur l'element, et
-         sa couleur calculee valait `rgba(0, 0, 0, 0)`. C'est le piege deja
-         paye en TASK-1475 : une valeur arbitraire batie sur un jeton rend
-         transparent, SANS AUCUNE ERREUR.
-         `color-mix` fait le melange dans le navigateur, avec le jeton tel
-         quel, et ne depend d'aucune purge. Verifie : il rend bien
-         `color(srgb 0.32 0.49 1 / 0.16)` sur ce theme. --}}
-    x-bind:style="$store.bpSelection.id === @js((string) $messageId)
-        ? 'background-color: color-mix(in srgb, var(--bp-primary) 16%, transparent)'
-        : ''"
+    {{-- TASK-1772 (recette Cyril, 06/11) — LA SELECTION TIENT A LA BULLE.
+
+         « Quand on selectionne un message, c'est toute la ligne qui est
+         selectionnee. Du coup, on ne peut pas deselectionner en cliquant en
+         dehors de la bulle. Il faut vraiment qu'on copie WhatsApp. »
+
+         T1771 teintait la RANGEE entiere et posait le geste dessus : la
+         gouttiere vide a cote d'une bulle courte faisait donc partie de la
+         cible, et un appui a cet endroit — le geste naturel pour « sortir de
+         la » — RESELECTIONNAIT le message. Plus aucun endroit du fil ne
+         deselectionnait.
+
+         Le geste et la marque descendent sur la COLONNE de la bulle. Ce qui
+         est a cote d'elle est desormais « dehors », et `fermerSiDehors` y
+         rend la main. --}}
     {{-- =================================================================
          TASK-1771 — SELECTION PAR SIMPLE APPUI. Rien d'autre.
          =================================================================
@@ -289,12 +417,57 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          toute la largeur — et c'est la LIGNE qui se surligne, comme sur
          WhatsApp. --}}
     @if($_menuAppuiLong)
-    x-on:click="if (! $event.target.closest('a,button,input,textarea,select,[role=button]')) selectionner()"
     x-on:bp-selection-action.window="if ($event.detail.id === id) executerAction($event.detail.action)"
     @endif
     x-data="{
         id: @js((string) $messageId),
         open: false,
+        /**
+         * TASK-1772 (recette Cyril, 06/11) — LE MENU DE REACTIONS AU TELEPHONE.
+         *
+         * « Le menu reaction doit etre centre, car quand on l'affiche il est
+         * tronque car trop sur le cote. »
+         *
+         * Le panneau etait ancre au bouton ☺, lui-meme pose HORS de la bulle
+         * (`right: -1.75rem`), puis decale de la moitie de sa largeur : sur un
+         * ecran de 390 px il debordait forcement, et le debordement etait
+         * COUPE depuis que la liste porte `overflow-x-hidden` (recette 6).
+         *
+         * Au telephone, il quitte donc l'ancrage : `position: fixed`, centre
+         * sur l'ecran, pose juste au-dessus de la bulle. A partir de `md`,
+         * rien ne change — la souris survole une bulle precise, et le panneau
+         * doit rester attache a elle.
+         */
+        menuStyleBureau: @js($isSent
+            ? 'top: 50%; left: -1rem; transform: translate(-50%, calc(-100% - 1rem));'
+            : 'top: 50%; right: -1rem; transform: translate(50%, calc(-100% - 1rem));'),
+        menuStyle: '',
+        surTelephone() {
+            return ! window.matchMedia('(min-width: 768px)').matches;
+        },
+        ouvrirReactions() {
+            if (this.open) { this.open = false; this.showMore = false; return; }
+            this.$dispatch('reaction-menu-opened', { id: this.id });
+            this.open = true;
+            this.$nextTick(() => this.placerMenuReactions());
+        },
+        placerMenuReactions() {
+            const panneau = this.$refs.menuReactions;
+            if (! panneau) { return; }
+
+            if (! this.surTelephone()) { this.menuStyle = this.menuStyleBureau; return; }
+
+            // La bulle, mesuree A L'ECRAN : c'est le parent positionne du
+            // panneau, donc exactement la colonne du message.
+            const bulle = panneau.parentElement.getBoundingClientRect();
+            const hauteur = panneau.offsetHeight || 44;
+            // Au-dessus de la bulle ; si elle touche le haut du fil, dessous.
+            let haut = bulle.top - hauteur - 8;
+            if (haut < 8) { haut = Math.min(bulle.bottom + 8, window.innerHeight - hauteur - 8); }
+
+            this.menuStyle = 'position: fixed; z-index: 50; left: 50%; right: auto; '
+                + 'top: ' + Math.round(haut) + 'px; transform: translateX(-50%);';
+        },
         hover: false,
         showMore: false,
         /**
@@ -315,6 +488,7 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
                     'delete' => (bool) $showDeleteButton,
                 ]),
                 (this.$refs.copyContent?.innerText || '').replace(/\n{3,}/g, '\n\n').trim(),
+                @js((string) ($name ?? '')),
             );
         },
         /**
@@ -327,8 +501,22 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          * les composants Livewire n'exposent PAS les memes methodes.
          */
         executerAction(action) {
+            // TASK-1772 (recette Cyril) — on SORT du mode selection AVANT
+            // d'executer : si l'action echoue en route, la barre ne reste pas
+            // « scotchee » sur le message. L'identifiant est deja dans `this.id`.
+            this.$store.bpSelection.fermer();
+
             if (action === 'reply') {
                 this.$dispatch('reply-to-message', { messageId: this.id });
+                // TASK-1772 (recette Cyril) — « le bouton repondre ne
+                // fonctionne pas » : la citation se posait bien dans le
+                // composeur, mais a l'autre bout de l'ecran, et sans clavier.
+                // Sur telephone, repondre = le clavier s'ouvre sur la citation,
+                // comme sur WhatsApp. Le `focus()` doit etre SYNCHRONE dans le
+                // geste : hors de l'appui, Android n'ouvre pas le clavier.
+                // Le champ est `wire:ignore.self`, le re-rendu ne le lui
+                // reprend pas.
+                document.querySelector('[data-composer-input]')?.focus();
             } else if (action === 'pin') {
                 @if($isPinned) this.$wire.unpinMessage(); @else this.$wire.pinMessage(this.id); @endif
             } else if (action === 'edit') {
@@ -336,8 +524,6 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
             } else if (action === 'delete') {
                 this.deleteOpen = true;
             }
-
-            this.$store.bpSelection.fermer();
         },
         copied: false,
         deleteOpen: false,
@@ -374,6 +560,15 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
     x-on:mouseleave="hover = false"
     x-on:reaction-menu-opened.window="if ($event.detail.id !== id) { open = false; showMore = false }"
     x-on:keydown.escape.window="open = false; showMore = false"
+    {{-- TASK-1772 — au telephone le panneau est FIXE : il ne suit pas le fil
+         qui defile, donc un defilement du fil le ferme. `.capture`, parce
+         qu'un `scroll` d'element ne remonte pas jusqu'a la fenetre.
+
+         MAIS le panneau defile LUI AUSSI, horizontalement (c'est la demande
+         de Cyril). Sans cette garde, faire glisser le rang d'emojis fermait
+         le menu aussitot — mesure a 320 px, ou le rang deborde vraiment.
+         Le defilement NE du panneau ne le ferme donc pas. --}}
+    x-on:scroll.window.capture="if (open && surTelephone() && ! ($event.target instanceof Element && $event.target.closest('[x-ref=menuReactions]'))) { open = false; showMore = false }"
     x-on:click.outside="open = false; showMore = false"
     @endif
 >
@@ -394,7 +589,45 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          sur deux lignes (constate en recette mobile). Ici, le pourcentage se
          resout contre le fil (pleine largeur) : une bulle courte garde sa
          ligne, une longue plafonne a 90% / md / lg. --}}
-    <div class="relative min-w-0 {{ $widthClass }}">
+    {{-- TASK-1772 (recette Cyril, 06/11) — LA GOUTTIERE D'AVATAR.
+
+         « Je voudrais que cela ressemble plus a WhatsApp : que l'avatar du
+         pseudo soit detache de la bulle de chat. Et que quand on clique sur
+         cet avatar on puisse avoir un pop-up. »
+
+         Aligne en HAUT (`items-start` sur la rangee) : c'est ce que fait
+         WhatsApp Web, et c'est ce qui place la pastille en face du nom plutot
+         qu'en face de la derniere ligne d'un long message.
+
+         Bouton SEULEMENT quand on sait qui c'est. Sans `avatarUserId`, la
+         pastille reste une image decorative : un bouton qui n'ouvre rien est
+         pire qu'une image, il promet un geste qui ne vient pas. --}}
+    @if($_avatarDetache)
+        @if($avatarUserId)
+        <button type="button"
+                data-member-avatar="{{ $avatarUserId }}"
+                x-on:click.stop="$dispatch('apercu-membre', { userId: @js((string) $avatarUserId) })"
+                aria-label="{{ __('messages.member_preview_open', ['name' => $name ?? '']) }}"
+                class="mt-0.5 shrink-0 rounded-full ring-0 transition hover:ring-2 hover:ring-[var(--bp-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bp-accent)]">
+            <x-conversation.avatar-mark :avatar="$avatar" :is-ai="$isAi" size="h-8 w-8" icon-size="h-5 w-5" />
+        </button>
+        @else
+        <div class="mt-0.5 shrink-0">
+            <x-conversation.avatar-mark :avatar="$avatar" :is-ai="$isAi" size="h-8 w-8" icon-size="h-5 w-5" />
+        </div>
+        @endif
+    @endif
+
+    <div class="relative min-w-0 {{ $widthClass }}"
+        {{-- TASK-1772 — la cible du geste, et la frontiere du « dehors ».
+             Cette colonne se reduit a la largeur de la bulle (elle est un
+             element flex a largeur automatique) : elle est donc exactement ce
+             que l'oeil appelle « le message », gouttiere exclue. --}}
+        @if($_menuAppuiLong)
+        data-bp-selectable
+        x-on:click="if (! $event.target.closest('a,button,input,textarea,select,[role=button]')) selectionner()"
+        @endif
+    >
     {{-- TASK-1771 — `select-none` et `-webkit-touch-callout: none` sur
          telephone : sans eux, un appui long sur le texte lance la selection
          native d'iOS et sa bulle « Copier / Tout selectionner », qui recouvre
@@ -404,38 +637,38 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          A partir de `md`, la selection de texte redevient normale : au
          clavier-souris, personne ne fait d'appui long. --}}
     <div
-        class="{{ $bubbleClasses }} px-3 py-2 select-none [-webkit-touch-callout:none] md:select-auto"
-        {{-- TASK-1771 — la rangee se teinte (plus haut), la bulle porte
-             l'anneau. Deux marques et non une : sur un fil dense, la teinte se
-             voit d'un coup d'oeil mais ne dit pas LEQUEL des deux messages
-             colles l'un a l'autre est pris ; l'anneau, lui, le dit. --}}
-        {{-- Meme raison que la teinte de la rangee : `ring-[var(--bp-primary)]`
-             rendait un `box-shadow` INVALIDE, donc aucun. Style en ligne. --}}
-        x-bind:style="$store.bpSelection.id === id ? 'box-shadow: inset 0 0 0 2px var(--bp-primary)' : ''"
+        {{-- TASK-1772 (recette Cyril, telephone) — la bulle respire comme
+             WhatsApp : 6 x 10 px de marge interne au lieu de 8 x 12, pour
+             un corps passe de 14 a 16 px. Le bureau ne bouge pas (`md:`). --}}
+        class="{{ $bubbleClasses }} px-2.5 py-1.5 md:px-3 md:py-2 select-none [-webkit-touch-callout:none] md:select-auto"
+        {{-- TASK-1772 — la bulle ENVOYEE a un fond indigo-600 plein, dans les
+             deux themes. Une mention en indigo y serait illisible : la regle
+             CSS a besoin de savoir de quel cote de la conversation elle est.
+             Un attribut explicite plutot qu'un selecteur sur `.bg-indigo-600` :
+             le jour ou la couleur de bulle change, le marqueur reste juste. --}}
+        @if($isSent) data-bulle-envoyee @endif
+        {{-- TASK-1772 — deux marques, toutes deux sur la bulle : l'anneau
+             interieur dit LEQUEL des deux messages colles l'un a l'autre est
+             pris, le halo exterieur le fait voir d'un coup d'oeil sur un fil
+             dense. C'est ce que la teinte de rangee de T1771 apportait, sans
+             manger la gouttiere. --}}
+        {{-- Style EN LIGNE : `ring-[var(--bp-primary)]` et
+             `bg-[var(--bp-primary)]/10` rendent une couleur INVALIDE, donc
+             rien du tout — Tailwind ne sait pas appliquer un modificateur
+             d'opacite a une variable CSS (piege paye en T1475, remesure en
+             T1771 : couleur calculee `rgba(0, 0, 0, 0)`). `color-mix` fait le
+             melange dans le navigateur, avec le jeton tel quel. --}}
+        x-bind:style="$store.bpSelection.id === id ? 'box-shadow: inset 0 0 0 2px var(--bp-primary), 0 0 0 4px color-mix(in srgb, var(--bp-primary) 22%, transparent)' : ''"
     >
         @if($avatar || $name || $subtitle || $requestedBy || $time || $isEdited || $isAi)
-        <div class="mb-1 flex items-start justify-between gap-3">
+        <div class="mb-0.5 md:mb-1 flex items-start justify-between gap-3">
             <div class="flex min-w-0 items-center gap-2">
-                @if($avatar)
-                <img src="{{ $avatar }}" alt="" class="h-5 w-5 rounded-full">
-                @elseif($isAi)
-                {{-- TASK-1340 : symbole de marque (design/brand/bouclepro-symbol.svg)
-                     en monochrome blanc, meme traitement que le bouton FAB
-                     BouclePro IA — plus l'etincelle generique. --}}
-                <span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm shadow-violet-500/20 ring-1 ring-white/60 dark:ring-violet-300/20" aria-hidden="true">
-                    <svg class="h-3 w-3" viewBox="0 0 512 512" fill="none" stroke="white" stroke-width="46" stroke-linecap="round" stroke-opacity="0.92">
-                        <path d="M 213.1 142 A 56 56 0 1 1 298.9 142"/>
-                        <path d="M 306.28 145.05 A 56 56 0 1 1 366.95 205.72"/>
-                        <path d="M 370 213.1 A 56 56 0 1 1 370 298.9"/>
-                        <path d="M 366.95 306.28 A 56 56 0 1 1 306.28 366.95"/>
-                        <path d="M 298.9 370 A 56 56 0 1 1 213.1 370"/>
-                        <path d="M 205.72 366.95 A 56 56 0 1 1 145.05 306.28"/>
-                        <path d="M 142 298.9 A 56 56 0 1 1 142 213.1"/>
-                        <path d="M 145.05 205.72 A 56 56 0 1 1 205.72 145.05"/>
-                        <path d="M 213.1 142 A 56 56 0 0 1 213.1 70"/>
-                    </svg>
-                </span>
-                @endif
+                {{-- TASK-1772 — quand l'avatar est detache, la pastille vit
+                     dans la gouttiere de gauche : la laisser ici AUSSI la
+                     montrerait deux fois sur la meme rangee. --}}
+                @unless($_avatarDetache)
+                <x-conversation.avatar-mark :avatar="$avatar" :is-ai="$isAi" />
+                @endunless
                 <div class="min-w-0">
                     @if($name || $aiModeBadge)
                     {{-- TASK-1312 : l'identite tenant (le nom) et le MOTEUR (le
@@ -500,7 +733,7 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
             @if($time || $isEdited)
             <div class="shrink-0 text-right leading-none">
                 @if($time)
-                <span class="block text-[10px] {{ $timeClasses }}">{{ $time }}</span>
+                <span class="block text-[11px] md:text-[10px] {{ $timeClasses }}">{{ $time }}</span>
                 @endif
                 @if($isEdited)
                 <span class="mt-0.5 block text-[10px] {{ $timeClasses }}">{{ __('messages.edited') }}</span>
@@ -533,7 +766,15 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
              paragraphes espaces SANS marqueurs (capture Cyril, 22/09). La
              regle vit dans app.css et redonne aux listes leurs puces et un
              interligne compact, sans toucher au reste du texte. --}}
-        <div x-ref="copyContent" class="bp-bulle-markdown min-w-0 max-w-full cursor-default overflow-hidden whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! markdown($renderableBody) !!}</div>
+        {{-- TASK-1772 (recette Cyril, telephone) — `whitespace-pre-wrap` RETIRE.
+             CommonMark termine chaque rendu par « \n » et ecrit un saut de
+             ligne logiciel « <br />\n » : en pre-wrap, le premier faisait une
+             LIGNE VIDE au bas de CHAQUE bulle (20 px mesures, bulle de 60 px
+             pour 40 de texte), le second DOUBLAIT tout retour a la ligne.
+             C'est le Markdown qui porte les sauts (`<br>`, `<p>`), et app.css
+             qui espace les paragraphes. Le corps passe a 16 px / 22 px sur
+             telephone — la taille de WhatsApp — et garde 14 px au bureau. --}}
+        <div x-ref="copyContent" class="bp-bulle-markdown min-w-0 max-w-full cursor-default overflow-hidden break-words text-[16px] leading-5 md:text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! $_teindreLesMentions(markdown($renderableBody)) !!}</div>
 
         @if($attachment)
             <x-conversation.file-attachment-card
@@ -717,7 +958,8 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
             <div class="ml-auto hidden items-center gap-1 md:flex">
                 @if($showReplyButton)
                 <button
-                    x-on:click="$dispatch('reply-to-message', { messageId: '{{ $messageId }}' })"
+                    {{-- TASK-1772 — meme contrat que la barre de selection : repondre, c'est ecrire. --}}
+                    x-on:click="$dispatch('reply-to-message', { messageId: '{{ $messageId }}' }); document.querySelector('[data-composer-input]')?.focus()"
                     class="inline-flex h-6 w-6 items-center justify-center rounded-full transition {{ $isSent ? 'text-indigo-200 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-white/70 hover:text-indigo-600 dark:hover:bg-gray-800 dark:hover:text-indigo-300' }}"
                     title="{{ __('messages.reply') }}"
                     aria-label="{{ __('messages.reply') }}"
@@ -818,7 +1060,6 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
                         {{ $myReaction === $type
                             ? ($isSent ? 'bg-indigo-500/30 ring-1 ring-indigo-300/50' : 'bg-indigo-100 dark:bg-indigo-900/40 ring-1 ring-indigo-300 dark:ring-indigo-600')
                             : ($isSent ? 'bg-indigo-500/20 hover:bg-indigo-500/30' : 'bg-white/70 hover:bg-white dark:bg-gray-800/60 dark:hover:bg-gray-800') }}"
-                    title="{{ $type }}"
                 >
                     <span class="text-xs leading-none">{{ $emoji }}</span>
                     <span class="{{ $isSent ? 'text-indigo-200' : 'text-gray-500 dark:text-gray-400' }}">{{ $visibleReactionCounts[$type] }}</span>
@@ -866,7 +1107,7 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
         @if($showReactions && $messageId)
         <button
             type="button"
-            x-on:click.stop="if (open) { open = false; showMore = false } else { $dispatch('reaction-menu-opened', { id }); open = true }"
+            x-on:click.stop="ouvrirReactions()"
             x-bind:style="'top: 50%; transform: translateY(-50%); {{ $isSent ? 'left: -1.75rem;' : 'right: -1.75rem;' }} ' + ((hover || open) ? 'opacity: 1;' : 'opacity: 0; pointer-events: none;')"
             x-bind:tabindex="(hover || open) ? 0 : -1"
             x-on:focus="hover = true"
@@ -880,9 +1121,26 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
         <div
             x-show="open"
             x-cloak
-            style="top: 50%; {{ $isSent ? 'left: -1rem; transform: translate(-50%, calc(-100% - 1rem));' : 'right: -1rem; transform: translate(50%, calc(-100% - 1rem));' }}"
-            class="absolute z-30 flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1.5 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            x-ref="menuReactions"
+            {{-- TASK-1772 — le placement est calcule a l'ouverture : ancre a la
+                 bulle au bureau, centre sur l'ecran au telephone. --}}
+            x-bind:style="menuStyle || menuStyleBureau"
+            {{-- TASK-1772 (recette Cyril) — « une fois deplie, le menu devient
+                 une espece de bulle tres tres haute. Il faut qu'on puisse
+                 scroller horizontalement le type de reaction, comme sur
+                 WhatsApp. »
+                 Donc UN SEUL RANG, toujours : trop large pour l'ecran, il
+                 DEFILE au doigt au lieu de s'empiler. La barre de defilement
+                 est masquee — WhatsApp ne la montre pas, et sur un panneau de
+                 44 px de haut elle en mangerait le tiers. --}}
+            class="absolute z-30 max-w-[calc(100vw-1rem)] overflow-x-auto overscroll-x-contain rounded-full border border-gray-200 bg-white px-2 py-1.5 shadow-lg [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:max-w-none md:overflow-visible dark:border-gray-700 dark:bg-gray-800"
         >
+            {{-- `mx-auto` + `w-max` : le rang se CENTRE tant qu'il tient, et
+                 reste atteignable d'un bout a l'autre quand il deborde.
+                 `justify-center` sur le conteneur qui defile rendrait le DEBUT
+                 du rang inatteignable — le debordement se ferait des deux
+                 cotes, et rien ne ramene a gauche. --}}
+            <div class="mx-auto flex w-max items-center gap-1">
             @foreach($primaryReactionTypes as $type)
                 @php $emoji = $reactionEmojis[$type] ?? null; @endphp
                 @if($emoji)
@@ -890,8 +1148,7 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
                     type="button"
                     wire:click="toggleReaction('{{ $messageId }}', '{{ $type }}')"
                     x-on:click="open = false"
-                    class="inline-flex h-7 w-7 items-center justify-center rounded-full text-sm transition hover:scale-110 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:hover:bg-gray-700 {{ $myReaction === $type ? 'bg-indigo-100 ring-1 ring-indigo-300 dark:bg-indigo-900/40 dark:ring-indigo-600' : '' }}"
-                    title="{{ $type }}"
+                    class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm transition hover:scale-110 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:hover:bg-gray-700 {{ $myReaction === $type ? 'bg-indigo-100 ring-1 ring-indigo-300 dark:bg-indigo-900/40 dark:ring-indigo-600' : '' }}"
                     aria-label="{{ __('messages.react_with', ['type' => $type]) }}"
                 >
                     {{ $emoji }}
@@ -901,8 +1158,8 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
             @if(!empty($secondaryReactionTypes))
             <button
                 type="button"
-                x-on:click.stop="showMore = !showMore"
-                class="inline-flex h-7 w-7 items-center justify-center rounded-full text-base text-gray-900 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:text-white dark:hover:bg-gray-700"
+                x-on:click.stop="showMore = !showMore; $nextTick(() => placerMenuReactions())"
+                class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base text-gray-900 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:text-white dark:hover:bg-gray-700"
                 aria-label="{{ __('messages.more_reactions') }}"
             >
                 ›
@@ -916,14 +1173,14 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
                     type="button"
                     wire:click="toggleReaction('{{ $messageId }}', '{{ $type }}')"
                     x-on:click="open = false; showMore = false"
-                    class="inline-flex h-7 w-7 items-center justify-center rounded-full text-sm transition hover:scale-110 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:hover:bg-gray-700 {{ $myReaction === $type ? 'bg-indigo-100 ring-1 ring-indigo-300 dark:bg-indigo-900/40 dark:ring-indigo-600' : '' }}"
-                    title="{{ $type }}"
+                    class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm transition hover:scale-110 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:hover:bg-gray-700 {{ $myReaction === $type ? 'bg-indigo-100 ring-1 ring-indigo-300 dark:bg-indigo-900/40 dark:ring-indigo-600' : '' }}"
                     aria-label="{{ __('messages.react_with', ['type' => $type]) }}"
                 >
                     {{ $emoji }}
                 </button>
                 @endif
             @endforeach
+            </div>
         </div>
         @endif
 

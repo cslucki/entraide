@@ -1629,7 +1629,14 @@ class LoopChatTest extends TestCase
             ->assertSeeHtml('rows="1"')
             // TASK-1329 : `x-on:input` porte aussi `hasText` (cinematique du
             // bouton envoyer) en plus de l'appel a `resize()` verifie ici.
-            ->assertSeeHtml('x-on:input="resize(); hasText = $el.value.trim().length > 0"')
+            //
+            // TASK-1772 — mesure EN MORCEAUX et non en chaine figee, pour la
+            // meme raison que le `@keydown.enter` ci-dessous : le gestionnaire
+            // a gagne un troisieme appel (la detection du `@`), et une chaine
+            // figee rougissait sur un ajout qui ne touche a RIEN de ce que ce
+            // test defend. Ce qui compte est que `resize()` tourne a chaque
+            // frappe — sans lui le champ ne grandit plus.
+            ->assertSeeHtml('x-on:input="resize(); hasText = $el.value.trim().length > 0')
             ->assertSeeHtml('overflow-y-hidden')
             // TASK-1684 : Maj+Entree garde la ligne — contrat INCHANGE sur un
             // clavier physique. Deux conditions s'y sont ajoutees, chacune pour

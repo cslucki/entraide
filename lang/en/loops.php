@@ -33,6 +33,15 @@ return [
     'help_request_publish_cta' => 'Publish in this Loop',
     'help_request_no_loop_option' => '— Choose a Loop —',
     'help_request_badge' => 'Help request',
+    // TASK-1772 — the ChatLoop trace of an upload into the Dossiers card.
+    'chat_dossier_file_deposited' => ':name has just added the file « :file » to the Loop.',
+    'chat_dossier_files_deposited' => ':name has just added :count files to the Loop.',
+    'chat_dossier_open_card' => 'Open',
+    // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.
+    'composer_file_uploading_many' => 'Uploading :count files…',
+    // TASK-1772 — la seconde phase : les octets sont partis, le serveur valide,
+    // calcule l'empreinte et ecrit. Pour un gros fichier, c'est la que le temps passe.
+    'composer_file_processing' => 'Processing…',
     'expected_help' => 'Expected help: :type',
     'no_messages' => 'No messages yet',
     'no_messages_hint' => 'Be the first to write!',
@@ -849,6 +858,8 @@ return [
     'hybrid_button' => 'AI + Folders',
     'composer_mode_clear' => 'Back to a normal message',
     'composer_more_actions' => 'More actions',
+    // TASK-1772 — refus explicite, jamais une troncature.
+    'mentions_too_many' => 'You can only mention :max people in a single message.',
     'composer_add_image' => 'Add an image',
     // TASK-1684: the file goes to the Loop Dossier, not to the message.
     'composer_add_file' => 'Add a file',

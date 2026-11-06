@@ -85,6 +85,12 @@ return [
     'review_rating_hint' => 'You can adjust the rating.',
     'send_review' => 'Send the thank-you',
     'composer_placeholder' => 'Your message...',
+    // TASK-1772 — the private messaging composer now uses the ChatLoop pill
+    // and its « + » sheet. Labels live here, not in `loops.php`.
+    'composer_more_actions' => 'More actions',
+    'composer_add_image' => 'Add an image',
+    'composer_add_file' => 'Add a file',
+    'composer_take_photo' => 'Take a photo',
     'conversation_closed' => 'This conversation is closed.',
     'empty_thread' => 'No messages yet',
     'empty_thread_hint' => 'Be the first to write!',
@@ -150,4 +156,12 @@ return [
         'untitled' => 'Exchange',
         'subject' => 'Your exchange has been updated — :statut',
     ],
+
+    // TASK-1772 — the directory preview opened by the detached avatar.
+    'member_preview_open' => 'See :name’s profile card',
+    'member_preview_close' => 'Close',
+    'member_preview_title' => 'Directory card',
+    'member_preview_full' => 'See full profile',
+    'member_preview_write' => 'Send a message',
+    'member_preview_empty' => 'This person has not filled in their card yet.',
 ];
