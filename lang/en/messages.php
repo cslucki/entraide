@@ -93,6 +93,8 @@ return [
     'image_preview' => 'Preview',
     'image_alt' => 'Image',
     'reply' => 'Reply',
+    // TASK-1770 — nom accessible de la feuille d'actions (appui long).
+    'message_actions' => 'Message actions',
     'pin' => 'Pin',
     'unpin' => 'Unpin',
     'edit' => 'Edit',
