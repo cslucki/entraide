@@ -395,6 +395,10 @@
     @endif
 </div>
 
+{{-- TASK-1771 — meme barre que sur le ChatLoop : le composant de bulle est
+     partage, le geste doit l'etre aussi. --}}
+<x-conversation.selection-bar />
+
 <script>
     function syncUnreadBadge(count) {
         const link = document.querySelector('a[href="{{ $_threadRoute('messages.index', 'organization.messages.index') }}"]');

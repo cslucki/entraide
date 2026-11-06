@@ -55,21 +55,29 @@ class TASK1770ActionsAppuiLongTest extends TestCase
      * La feuille existe, elle se nomme, et chaque action y est en TOUTES
      * LETTRES. La rangee qu'elle remplace etait cinq icones muettes de 24 px.
      */
-    public function test_la_feuille_nomme_ses_actions(): void
+    /**
+     * TASK-1771 a remplace la feuille basse par la BARRE DU HAUT, sur le
+     * modele du « contextual action bar » d'Android que WhatsApp applique.
+     *
+     * Ce que ce test defend n'a pas bouge : la bulle doit DECLARER ce qu'elle
+     * permet, sinon la barre n'a rien a proposer. Le MOYEN, lui, a change —
+     * et c'est la bulle qui porte desormais la declaration, pas un menu.
+     */
+    public function test_la_bulle_declare_ce_qu_elle_permet(): void
     {
         $html = $this->bulle();
 
-        $this->assertStringContainsString(e(__('messages.message_actions')), $html,
-            'la feuille porte un nom accessible');
-
-        foreach (['messages.reply', 'messages.copy', 'messages.pin'] as $cle) {
-            $this->assertStringContainsString(e(__($cle)), $html,
-                "l'action {$cle} doit etre nommee, pas reduite a une icone");
+        // `@js()` echappe les guillemets en `\u0022` : chercher `&quot;`
+        // passerait A VIDE et ce test annoncerait vert sans rien mesurer.
+        foreach (['reply', 'copy', 'pin'] as $action) {
+            $this->assertStringContainsString($action.'\u0022:true', $html,
+                "la bulle doit declarer l'action « {$action} » a la barre");
         }
+        $this->assertStringContainsString('edit\u0022:false', $html,
+            'et declarer FAUX ce qu\'elle ne permet pas, plutot que de l\'omettre');
 
-        // Elle est teleportee : la bulle vit dans un conteneur qui defile et
-        // qui ROGNE tout element en absolu (constat T1124).
-        $this->assertStringContainsString('x-teleport="body"', $html);
+        $this->assertStringContainsString('selectionner()', $html,
+            'l\'appui long entre en mode selection');
     }
 
     /**
@@ -116,8 +124,8 @@ class TASK1770ActionsAppuiLongTest extends TestCase
         $this->assertStringContainsString('x-on:scroll.window.capture', $html,
             'sans la phase de capture, un defilement de conteneur n\'est jamais vu');
 
-        $this->assertStringContainsString('if (! pressAnnule) sheetOpen = true', $html,
-            '`contextmenu` ne doit ouvrir la feuille que si l\'appui est encore valide');
+        $this->assertStringContainsString('if (! pressAnnule) selectionner()', $html,
+            '`contextmenu` ne doit selectionner que si l\'appui est encore valide');
         $this->assertStringContainsString('contextmenu.prevent', $html,
             'mais il reste TOUJOURS neutralise : sinon le menu natif s\'ouvre par-dessus le notre');
 
@@ -127,14 +135,17 @@ class TASK1770ActionsAppuiLongTest extends TestCase
             'le seuil de 10 px doit exister : annuler au moindre pixel rendrait l\'appui long inatteignable');
     }
 
-    /** Une bulle sans aucune action n'embarque ni geste ni feuille. */
+    /** Une bulle sans aucune action n'embarque aucun geste. */
     public function test_une_bulle_sans_action_n_embarque_rien(): void
     {
         $html = $this->blade(
             '<x-conversation.message-bubble type="received">Bonjour</x-conversation.message-bubble>',
         )->__toString();
 
-        $this->assertStringNotContainsString('x-teleport="body"', $html);
+        // `selectionner()` reste DEFINIE dans le `x-data` — une methode qui
+        // existe ne coute rien. Ce qui compte, c'est qu'aucun evenement ne
+        // l'appelle : ni geste, ni ecoute de la barre.
         $this->assertStringNotContainsString('x-on:touchstart', $html);
+        $this->assertStringNotContainsString('bp-selection-action.window', $html);
     }
 }

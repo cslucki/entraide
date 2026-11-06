@@ -1522,4 +1522,7 @@
                 ? @js(__('loops.composer_file_uploaded'))
                 : @js(__('loops.composer_file_failed'))"></p>
     </div>
+    {{-- TASK-1771 — la barre du mode selection. Teleportee en haut de
+         l'ecran, telephone uniquement. Rendue UNE fois par fil. --}}
+    <x-conversation.selection-bar />
 </div>
