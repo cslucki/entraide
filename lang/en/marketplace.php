@@ -7,7 +7,7 @@ return [
     'request_create_heading' => 'Ask for help',
     // TASK-1773 — the screen that follows publishing an offer.
     'service_created_heading' => 'Offer published',
-    'service_created_title' => 'Your offer of help is published!',
+    'service_created_title' => 'Offer of help published!',
     'service_created_subtitle' => 'Thank you for contributing to mutual help on BouclePro.',
     'service_created_title_paused' => 'Your offer of help is saved.',
     'service_created_subtitle_paused' => 'It is not visible to other members yet.',

@@ -11,7 +11,7 @@ return [
     // Le but est produit : encourager a publier plusieurs propositions, pour
     // que l'annuaire dise vraiment ce qu'un membre sait faire.
     'service_created_heading' => 'Proposition publiée',
-    'service_created_title' => 'Votre proposition d\'entraide est publiée !',
+    'service_created_title' => 'Proposition d\'entraide publiée !',
     'service_created_subtitle' => 'Merci de contribuer à l\'entraide sur BouclePro.',
     // Le cas ou la proposition n'est PAS active. `store()` ne le produit pas
     // aujourd'hui ; l'ecran lit le statut reel plutot que de le supposer.

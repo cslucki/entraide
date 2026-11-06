@@ -79,7 +79,7 @@ class TASK1773EcranConfirmationPropositionTest extends TestCase
         $this->actingAs($this->membre)
             ->get(route('services.created', ['service' => $service->id]))
             ->assertOk()
-            ->assertSee('Votre proposition d\'entraide est publiée !')
+            ->assertSee('Proposition d\'entraide publiée !')
             ->assertSee('Merci de contribuer à l\'entraide sur BouclePro.')
             ->assertSee('Mettez en avant vos compétences')
             ->assertSee('Proposer une autre proposition d\'entraide')
@@ -115,6 +115,74 @@ class TASK1773EcranConfirmationPropositionTest extends TestCase
             strpos($html, 'data-service-created-again'),
             'le bouton doit venir AVANT le bloc d\'explication',
         );
+    }
+
+    /**
+     * Le bloc d'explication est lui-meme une porte vers le formulaire.
+     *
+     * Recette Cyril : « si on clique sur le bloc d'explication, ca va aussi
+     * sur le formulaire ». Le texte DIT d'en publier une autre — le lire et
+     * devoir remonter au bouton etait une marche inutile.
+     *
+     * Un `<a>`, pas un `<div>` avec un gestionnaire de clic : c'est ce qui
+     * rend la destination visible, ouvrable dans un onglet, et atteignable
+     * au clavier.
+     */
+    public function test_le_bloc_d_explication_mene_lui_aussi_au_formulaire(): void
+    {
+        $service = Service::factory()->forUser($this->membre)->forCategory($this->categorie)
+            ->create(['organization_id' => $this->organization->id, 'status' => 'active']);
+
+        $html = $this->actingAs($this->membre)
+            ->get(route('services.created', ['service' => $service->id]))
+            ->assertOk()
+            ->assertSee('data-service-created-block', false)
+            ->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/<a[^>]*href="'.preg_quote(route('services.create'), '/').'"[^>]*data-service-created-block/',
+            $html,
+            'le bloc doit etre un lien vers le formulaire, pas un div cliquable',
+        );
+    }
+
+    /**
+     * LA FETE, et surtout : ce qu'elle ne doit pas casser.
+     *
+     * « Faire un effet avec plein de coeurs qui traversent la page », puis
+     * « melange avec des likes et des reactions positives ». La garde ne
+     * mesure pas la joie — elle mesure les trois choses qu'une animation
+     * posee sur un ecran d'action peut abimer :
+     *   - avaler un clic (`pointer-events`) ;
+     *   - faire defiler la page (`fixed`, et non `absolute`) ;
+     *   - parler aux lecteurs d'ecran, qui n'ont que faire de confettis.
+     */
+    public function test_la_pluie_de_reactions_ne_gene_ni_le_clic_ni_la_lecture(): void
+    {
+        $service = Service::factory()->forUser($this->membre)->forCategory($this->categorie)
+            ->create(['organization_id' => $this->organization->id, 'status' => 'active']);
+
+        $html = $this->actingAs($this->membre)
+            ->get(route('services.created', ['service' => $service->id]))
+            ->assertOk()
+            ->assertSee('data-coeurs-confirmation', false)
+            ->assertSee('aria-hidden="true"', false)
+            ->getContent();
+
+        // Pas que des coeurs : la demande parle de likes et de reactions.
+        foreach (['❤️', '👍', '🎉', '👏'] as $glyphe) {
+            $this->assertStringContainsString($glyphe, $html);
+        }
+
+        $css = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('.bp-coeurs', $css);
+        $this->assertMatchesRegularExpression('/\.bp-coeurs\s*\{[^}]*position:\s*fixed/s', $css,
+            'en `absolute`, les reactions allongeraient le document et l\'ecran se remettrait a defiler');
+        $this->assertMatchesRegularExpression('/\.bp-coeurs\s*\{[^}]*pointer-events:\s*none/s', $css,
+            'un confetti qui avale un clic est un defaut, pas une fete');
+        $this->assertStringContainsString('prefers-reduced-motion', $css,
+            'qui a demande moins de mouvement a demande moins de mouvement');
     }
 
     /** Le bouton principal ramene au formulaire VIERGE. */
@@ -178,7 +246,7 @@ class TASK1773EcranConfirmationPropositionTest extends TestCase
         $this->actingAs($this->membre)
             ->get(route('services.created', ['service' => $service->id]))
             ->assertOk()
-            ->assertDontSee('Votre proposition d\'entraide est publiée !')
+            ->assertDontSee('Proposition d\'entraide publiée !')
             ->assertSee('Elle n\'est pas encore visible par les autres membres.');
     }
 

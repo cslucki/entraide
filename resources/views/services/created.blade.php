@@ -24,6 +24,56 @@
         :back="organizationScopedUrl('dashboard', 'organization.dashboard')"
         :back-label="__('dashboard.back_to_dashboard')">
 
+    {{-- TASK-1773 (demande Cyril, 06/11) — LA PLUIE DE COEURS.
+         Posee en premier et en `fixed` : elle ne participe pas au flux, donc
+         elle ne peut pas rendre la page defilante. Les regles qui la tiennent
+         (une seule lecture, aucun clic avale) vivent dans `app.css`. --}}
+    <div x-data="{
+            coeurs: [],
+            init() {
+                /* Un seul passage. `x-init` se rejoue a chaque retour sur la
+                   page par le cache du navigateur ; le drapeau evite une
+                   seconde pluie quand on revient en arriere. */
+                if (window.__bpCoeursJoues) { return; }
+                window.__bpCoeursJoues = true;
+
+                this.coeurs = Array.from({ length: 24 }, (_, i) => ({
+                    id: i,
+                    /* TASK-1773 (demande Cyril) — pas que des coeurs : des
+                       pouces, des applaudissements, des etincelles. Le geste
+                       qu'on fete est une CONTRIBUTION, et une contribution se
+                       salue de plusieurs facons. Aucune reaction negative ni
+                       ambigue dans la liste : c'est une felicitation.
+                       La repartition suit l'ordre de la liste (`i % n`) plutot
+                       qu'un tirage : un tirage laisse parfois dix coeurs
+                       d'affilee, et l'effet rate son melange. */
+                    glyphe: ['❤️', '👍', '🎉', '💜', '👏', '✨', '🧡', '🙌', '💚', '⭐', '💛', '🤝'][i % 12],
+                    gauche: Math.round(Math.random() * 92) + 2,
+                    taille: (Math.random() * 1.4 + 1).toFixed(2),
+                    retard: (Math.random() * 1.8).toFixed(2),
+                    duree: (Math.random() * 2 + 3.8).toFixed(2),
+                    derive: Math.round((Math.random() - 0.5) * 160),
+                    tour: Math.round((Math.random() - 0.5) * 90),
+                }));
+
+                /* Le calque disparait quand la derniere animation est finie :
+                   un element fixe qui reste, meme invisible, continue de
+                   couvrir la page pour les outils qui la lisent. */
+                setTimeout(() => { this.coeurs = []; }, 7000);
+            },
+         }"
+         x-show="coeurs.length > 0"
+         x-cloak
+         class="bp-coeurs"
+         aria-hidden="true"
+         data-coeurs-confirmation>
+        <template x-for="coeur in coeurs" :key="coeur.id">
+            <span class="bp-coeur"
+                  x-text="coeur.glyphe"
+                  :style="`left: ${coeur.gauche}%; font-size: ${coeur.taille}rem; --bp-coeur-retard: ${coeur.retard}s; --bp-coeur-duree: ${coeur.duree}s; --bp-coeur-derive: ${coeur.derive}px; --bp-coeur-tour: ${coeur.tour}deg;`"></span>
+        </template>
+    </div>
+
     <div class="mx-auto max-w-xl text-center" data-service-created>
         {{-- La pastille et le titre disent l'ETAT REEL. Une proposition mise en
              pause — ce que `store()` ne fait pas aujourd'hui, mais que rien
@@ -55,14 +105,32 @@
             </a>
         </div>
 
-        <div class="mt-6 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 text-left dark:border-indigo-800/60 dark:bg-indigo-900/20 sm:p-6">
+        {{-- TASK-1773 (recette Cyril, 06/11) — LE BLOC ENTIER EST LA PORTE.
+             « Si on clique sur le bloc d'explication, ca va aussi sur le
+             formulaire. » Le texte DIT d'en publier une autre : le lire et
+             devoir remonter au bouton est une marche inutile.
+
+             Un `<a>` et non un `<div>` avec un gestionnaire de clic : la
+             destination se voit dans la barre d'etat, s'ouvre dans un nouvel
+             onglet, se partage, et le clavier l'atteint — ce qu'aucun
+             `@click` ne donne. Le bloc ne contient aucun autre element
+             interactif, il peut donc etre un lien en entier.
+
+             `aria-label` reprend l'intitule du bouton : un lecteur d'ecran
+             annonce l'ACTION, pas les trois phrases qui la justifient. --}}
+        <a href="{{ organizationScopedUrl('services.create', 'organization.services.create') }}"
+           data-service-created-block
+           aria-label="{{ __('marketplace.service_created_again') }}"
+           class="mt-6 block rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 text-left transition hover:border-indigo-400 hover:bg-indigo-100/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-800/60 dark:bg-indigo-900/20 dark:hover:border-indigo-500 dark:hover:bg-indigo-900/40 sm:p-6">
             <h3 class="text-base font-semibold text-indigo-900 dark:text-indigo-100">{{ __('marketplace.service_created_more_title') }}</h3>
             <p class="mt-2 text-sm leading-snug text-indigo-800/90 dark:text-indigo-200/90 sm:leading-relaxed">{{ __('marketplace.service_created_more_body_skills') }}</p>
             <p class="mt-2 text-sm leading-snug text-indigo-800/90 dark:text-indigo-200/90 sm:leading-relaxed">{{ __('marketplace.service_created_more_body_directory') }}</p>
-        </div>
+            <span class="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-indigo-700 dark:text-indigo-200">
+                {{ __('marketplace.service_created_again') }}
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+            </span>
+        </a>
 
-        {{-- `organizationScopedUrl` et jamais une route en dur : la meme page
-             sert la surface courte et la surface prefixee par l'Organization. --}}
         <p class="mt-5 text-sm">
             <a href="{{ organizationScopedUrl('dashboard', 'organization.dashboard') }}"
                data-service-created-exit
