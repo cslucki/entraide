@@ -1575,12 +1575,23 @@
                         // feuille, elle, se referme aussitot, donc la seule
                         // chose que le membre voit est le bandeau du bas. Sans
                         // lui, un envoi de 20 Mo en 4G ne montrait RIEN.
-                        const progression = (pourcent) => window.dispatchEvent(
+                        const progression = (pourcent, phase) => window.dispatchEvent(
                             new CustomEvent('bp-depot-progression', {
-                                detail: { pourcent: pourcent, nombre: fichiers.length },
+                                detail: {
+                                    pourcent: pourcent,
+                                    // La PHASE, et pas seulement le chiffre :
+                                    // les octets d'abord, le serveur ensuite.
+                                    // Sans elle, la mire reste « Ajout en
+                                    // cours » pendant tout le traitement.
+                                    phase: phase || 'envoi',
+                                    nombre: fichiers.length,
+                                    // Le nom du PREMIER fichier : la mire en
+                                    // montre un, et le compteur dit le reste.
+                                    nom: fichiers[0]?.name ?? '',
+                                },
                             }),
                         );
-                        progression(0);
+                        progression(0, 'envoi');
 
                         const { ok, raison } = await window.bpTeleverserFichiers(this.endpoint, fichiers, progression);
 
@@ -1613,7 +1624,11 @@
         x-on:bp-depot-progression.window="enCours = true; vu = true; pourcent = $event.detail.pourcent; nombre = $event.detail.nombre"
         x-on:bp-depot-fichier.window="enCours = false; ok = $event.detail.ok; nombre = $event.detail.nombre; raison = $event.detail.raison || ''; vu = true; setTimeout(() => vu = false, 6000)"
         x-show="vu" x-cloak style="display: none"
-        class="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
+        {{-- TASK-1772 — `hidden md:flex` : au telephone, `x-conversation.depot-mire`
+             couvre l'ecran et dit la meme chose, en mieux place. Ce bandeau
+             vivait a `bottom-24`, dans la zone que le composeur, la barre
+             d'onglets et la zone sure se disputent. --}}
+        class="pointer-events-none fixed inset-x-0 bottom-24 z-50 hidden justify-center px-4 md:flex">
         <div x-show="enCours" class="w-full max-w-sm rounded-2xl bg-gray-900/90 px-4 py-3 text-white shadow-lg backdrop-blur dark:bg-gray-800/95" role="status" aria-live="polite">
             <div class="flex items-center justify-between gap-3">
                 <span class="text-xs font-semibold" x-text="nombre > 1
@@ -1634,6 +1649,11 @@
     {{-- TASK-1771 — la barre du mode selection. Teleportee en haut de
          l'ecran, telephone uniquement. Rendue UNE fois par fil. --}}
     <x-conversation.selection-bar />
+
+    {{-- TASK-1772 (recette Cyril) — la mire de televersement du telephone.
+         Elle n'est liee a aucune surface de depot : elle ecoute les
+         evenements que toutes emettent. --}}
+    <x-conversation.depot-mire />
 
     {{-- ==================================================================
          TASK-1772 (recette Cyril, 06/11) — L'APERCU D'ANNUAIRE.

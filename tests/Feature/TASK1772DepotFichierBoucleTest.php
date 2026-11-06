@@ -244,4 +244,48 @@ class TASK1772DepotFichierBoucleTest extends TestCase
         $this->assertStringContainsString('bp-depot-progression', $fil);
         $this->assertStringContainsString('data-depot-progression', $card);
     }
+
+    /**
+     * Recette Cyril du 06/11 : « la mire affiche 0 %, puis d'un coup cela se
+     * termine. Est-ce possible de montrer la progression ? »
+     *
+     * MESURE AU NAVIGATEUR, et c'est elle qui gouverne : pour un POST de 8 Mo
+     * sur ce reseau, Chrome n'emet QUE `upload:loadstart`. Ni `progress`, ni
+     * `load` — le corps part d'un bloc. Il n'existe aucun pourcentage a
+     * afficher, et en figer un a 0 % fait croire que rien ne part.
+     *
+     * La mire dit donc la verite a chaque instant : anneau INDETERMINE tant
+     * qu'aucune progression mesurable n'arrive, pourcentage des qu'il en
+     * arrive une (liaison lente, 4G), « Traitement » quand les octets sont
+     * partis mais que le serveur travaille encore.
+     */
+    public function test_la_mire_ne_fige_pas_un_pourcentage_qu_elle_ignore(): void
+    {
+        $mire = file_get_contents(resource_path('views/components/conversation/depot-mire.blade.php'));
+
+        $this->assertStringContainsString('mesurable', $mire,
+            'le chiffre ne s\'affiche que si le navigateur en rapporte un');
+        $this->assertStringContainsString('animate-spin', $mire,
+            'a defaut de pourcentage, une attente indeterminee — jamais un 0 % fige');
+        $this->assertStringContainsString("x-if=\"! termine && mesurable\"", $mire);
+        $this->assertStringContainsString("composer_file_processing", $mire,
+            'la seconde phase : les octets sont partis, le serveur travaille encore');
+
+        $js = file_get_contents(base_path('resources/js/app.js'));
+        $this->assertStringContainsString("'traitement'", $js);
+        $this->assertStringContainsString("xhr.upload.addEventListener('load'", $js,
+            'c\'est lui qui marque la fin de la montee, quand le navigateur daigne l\'emettre');
+    }
+
+    /** Une mire qu'on ne peut pas voir n'est pas une mire. */
+    public function test_la_mire_tient_un_plancher_d_affichage(): void
+    {
+        $mire = file_get_contents(resource_path('views/components/conversation/depot-mire.blade.php'));
+
+        $this->assertMatchesRegularExpression('/Math\.max\(0, 900 - \(Date\.now\(\) - this\.debut\)\)/', $mire,
+            'un envoi local dure 300 ms : sans plancher, le retour passe entre deux images');
+        $this->assertStringContainsString('x-teleport="body"', $mire);
+        $this->assertStringContainsString('md:hidden', $mire,
+            'au bureau, la Card et la page Dossiers ont deja leur progression la ou le geste a eu lieu');
+    }
 }

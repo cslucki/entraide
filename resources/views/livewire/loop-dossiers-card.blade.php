@@ -74,7 +74,7 @@
                  stockage. --}}
             @if($urls && ($canCreateArticle || $canUploadFile))
                 <div class="mt-3 border-t border-[var(--bp-border)] pt-3"
-                     x-data="{ writing: false, uploading: false, uploadError: '', pourcent: 0 }">
+                     x-data="{ writing: false, uploading: false, uploadError: '', pourcent: 0, phase: 'envoi', mesurable: false }">
                     <div class="flex flex-wrap gap-2">
                         @if($canCreateArticle)
                             <button type="button" @click="writing = ! writing; uploadError = ''"
@@ -99,24 +99,50 @@
                                             $event.target.value = '';
                                             if (! fichiers.length) return;
                                             uploading = true; uploadError = ''; pourcent = 0;
-                                            const r = await window.bpTeleverserFichiers(
-                                                @js($urls['upload']),
-                                                fichiers,
-                                                (p) => { pourcent = p; },
-                                            );
+                                            // La mire du telephone ecoute ces deux
+                                            // evenements : la Card n'a pas a la
+                                            // connaitre, elle annonce, c'est tout.
+                                            const annonce = (p, ph) => {
+                                                pourcent = p;
+                                                phase = ph || 'envoi';
+                                                if (phase === 'envoi' && p > 0 && p < 100) { mesurable = true; }
+                                                window.dispatchEvent(new CustomEvent('bp-depot-progression', {
+                                                    detail: { pourcent: p, phase: phase, nombre: fichiers.length, nom: fichiers[0]?.name ?? '' },
+                                                }));
+                                            };
+                                            mesurable = false;
+                                            annonce(0, 'envoi');
+                                            const r = await window.bpTeleverserFichiers(@js($urls['upload']), fichiers, annonce);
                                             uploading = false;
+                                            window.dispatchEvent(new CustomEvent('bp-depot-fichier', {
+                                                detail: { ok: r.ok, nombre: fichiers.length, raison: r.raison },
+                                            }));
                                             if (r.ok) { $wire.$refresh(); }
                                             else { uploadError = r.raison || @js(__('loops.cards.dossiers.upload_failed')); }
                                        ">
                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z"/></svg>
-                                <span x-text="uploading
-                                    ? @js(__('dossiers.file_upload_progress')).replace(':percent', pourcent)
-                                    : @js(__('loops.cards.dossiers.upload_file'))"></span>
+                                {{-- TASK-1772 — le chiffre SEULEMENT quand il veut dire
+                                     quelque chose. Sur une liaison rapide le navigateur
+                                     n'emet aucune progression intermediaire (mesure :
+                                     12 Mo = 0 % puis 100 %, rien entre) : un « 0 % »
+                                     fige ferait croire que rien ne part. --}}
+                                <span x-text="! uploading
+                                    ? @js(__('loops.cards.dossiers.upload_file'))
+                                    : (phase === 'traitement'
+                                        ? @js(__('loops.composer_file_processing'))
+                                        : (mesurable
+                                            ? @js(__('dossiers.file_upload_progress')).replace(':percent', pourcent)
+                                            : @js(__('loops.cards.dossiers.uploading'))))"></span>
                             </label>
                             {{-- La barre, a cote du bouton : le pourcentage dit
                                  « ca avance », la barre dit « de combien ». --}}
-                            <div x-show="uploading" x-cloak data-depot-progression class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--bp-border)]" role="progressbar" x-bind:aria-valuenow="pourcent" aria-valuemin="0" aria-valuemax="100">
-                                <div class="h-full rounded-full bg-[var(--bp-primary)] transition-all duration-200" x-bind:style="'width: ' + pourcent + '%'"></div>
+                            {{-- Barre PLEINE et pulsee quand rien n'est mesurable (ou
+                                 quand le serveur travaille) ; barre qui avance quand le
+                                 navigateur sait dire ou on en est. --}}
+                            <div x-show="uploading" x-cloak data-depot-progression class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--bp-border)]" role="progressbar" x-bind:aria-valuenow="mesurable ? pourcent : null" aria-valuemin="0" aria-valuemax="100">
+                                <div class="h-full rounded-full bg-[var(--bp-primary)] transition-all duration-200"
+                                     x-bind:class="(mesurable && phase !== 'traitement') ? '' : 'animate-pulse'"
+                                     x-bind:style="'width: ' + ((mesurable && phase !== 'traitement') ? pourcent : 100) + '%'"></div>
                             </div>
                         @endif
                     </div>

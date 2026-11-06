@@ -40,6 +40,9 @@ return [
     'chat_dossier_open_card' => 'Voir',
     // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.
     'composer_file_uploading_many' => ':count fichiers en cours d\'envoi…',
+    // TASK-1772 — la seconde phase : les octets sont partis, le serveur valide,
+    // calcule l'empreinte et ecrit. Pour un gros fichier, c'est la que le temps passe.
+    'composer_file_processing' => 'Traitement en cours…',
     'expected_help' => 'Aide attendue : :type',
     'no_messages' => 'Aucun message pour le moment',
     'no_messages_hint' => 'Soyez le premier à écrire !',

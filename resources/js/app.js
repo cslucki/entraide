@@ -23,10 +23,25 @@ window.createBlogEditor = createEditor;
  * est le seul mecanisme fiable, aujourd'hui encore, pour dire ou en est un
  * depot de 20 Mo depuis un telephone en 4G.
  *
- * La progression est BORNEE A 99 % tant que le serveur n'a pas repondu : les
- * octets sont partis, mais il reste la validation, le calcul d'empreinte et
- * l'ecriture sur le disque. Afficher 100 % puis attendre trois secondes est le
- * meme defaut que de ne rien afficher — la mire mentirait sur la fin.
+ * DEUX PHASES, parce qu'un envoi en a deux — et c'est la mesure qui l'a
+ * impose. Recette Cyril du 06/11 : « la mire affiche 0 %, puis d'un coup cela
+ * se termine ». Mesure au navigateur, fichier de 12 Mo sur le reseau local :
+ * `xhr.upload.progress` n'emet RIEN entre les deux bouts — `[0 %, 0 ms]` puis
+ * `[100 %, 315 ms]`. Le navigateur remet le corps au systeme d'un bloc ; sur
+ * une liaison rapide il n'y a litteralement rien a montrer entre les deux.
+ * Un pourcentage fige a 0 % est alors pire qu'une absence de chiffre : il
+ * donne a croire que rien ne part.
+ *
+ * La fonction annonce donc `phase` en plus du pourcentage :
+ *   - `'envoi'`      — les octets montent. Pourcentage SI le navigateur en
+ *                      donne un (c'est le cas sur un reseau lent, 4G comprise),
+ *                      sinon l'appelant montre une attente indeterminee ;
+ *   - `'traitement'` — les octets sont partis, le serveur travaille encore :
+ *                      validation, empreinte SHA-256, ecriture disque, base.
+ *                      Pour un fichier de 30 Mo, c'est LA que le temps passe.
+ *
+ * La progression d'envoi reste bornee a 99 % : la phase suivante existe, et
+ * afficher 100 % pendant qu'on attend encore serait un mensonge sur la fin.
  *
  * Rend toujours `{ ok, raison }`, jamais une exception : l'appelant affiche la
  * raison du serveur (le type refuse, le doublon, le quota) au lieu d'un
@@ -48,11 +63,20 @@ window.bpTeleverserFichiers = function (endpoint, fichiers, surProgression) {
         xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
         xhr.setRequestHeader('X-CSRF-TOKEN', document.querySelector('meta[name="csrf-token"]')?.content ?? '');
 
+        const annoncer = (pourcent, phase) => {
+            if (typeof surProgression === 'function') {
+                surProgression(pourcent, phase);
+            }
+        };
+
         xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable && typeof surProgression === 'function') {
-                surProgression(Math.min(99, Math.round((e.loaded / e.total) * 100)));
+            if (e.lengthComputable) {
+                annoncer(Math.min(99, Math.round((e.loaded / e.total) * 100)), 'envoi');
             }
         });
+
+        // Les octets sont partis. Le serveur, lui, commence seulement.
+        xhr.upload.addEventListener('load', () => annoncer(100, 'traitement'));
 
         xhr.addEventListener('load', () => {
             const ok = xhr.status >= 200 && xhr.status < 300;
@@ -70,9 +94,7 @@ window.bpTeleverserFichiers = function (endpoint, fichiers, surProgression) {
                 }
             }
 
-            if (typeof surProgression === 'function') {
-                surProgression(ok ? 100 : 0);
-            }
+            annoncer(ok ? 100 : 0, 'fin');
 
             resolve({ ok, raison });
         });
