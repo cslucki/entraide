@@ -12,6 +12,7 @@ use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmitter;
+use App\Support\Notifications\NotificationPreferenceResolver;
 use Illuminate\Support\Facades\DB;
 use Ramsey\Uuid\Uuid;
 
@@ -116,6 +117,29 @@ class LoopMessageService
             )
             ->whereKeyNot($auteur->getKey())
             ->get();
+
+        if ($destinataires->isEmpty()) {
+            return;
+        }
+
+        // TASK-1775 (CDC B1/C2) — une Boucle desactivee COLLECTIVEMENT par un
+        // membre ne doit produire AUCUNE notification pour lui, in-app
+        // comprise : la garde se pose ICI, avant l'emission, pas apres. Une
+        // notification qu'on ne cree jamais ne peut ni alimenter le badge des
+        // non-lues, ni planifier un canal asynchrone qu'on devra annuler plus
+        // tard — exactement ce que le CDC demande d'eviter.
+        //
+        // `allows()` retombe sur le reglage global historique, puis sur le
+        // defaut du catalogue, quand la personne n'a pas (encore) regle CETTE
+        // Boucle individuellement : aucun choix existant n'est perdu.
+        $preferences = app(NotificationPreferenceResolver::class);
+
+        $destinataires = $destinataires->filter(fn (User $destinataire): bool => $preferences->allows(
+            $destinataire,
+            NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
+            NotificationCatalogue::CHANNEL_IN_APP,
+            (string) $loop->id,
+        ));
 
         if ($destinataires->isEmpty()) {
             return;

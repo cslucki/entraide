@@ -63,6 +63,17 @@ return [
         ],
     ],
     'preferences_mandatory_hint' => 'Cette notification vous est adressée personnellement et appelle une réponse : elle ne peut pas être désactivée.',
+
+    // TASK-1775 (CDC B1) — les reglages COLLECTIFS, Boucle par Boucle. Place
+    // AVANT le reste de l'ecran : c'est la premiere decision, « de quelle
+    // Boucle je veux entendre parler ».
+    'loops' => [
+        'title' => 'Mes Boucles',
+        'hint' => "Les demandes d'aide publiées dans vos Boucles se règlent Boucle par Boucle.",
+        'master_label' => 'Recevoir les notifications',
+        'empty_message' => "Vous n'avez pas encore rejoint de Boucle. Rejoignez-en une pour participer aux échanges et recevoir les demandes d'aide.",
+        'join_cta' => 'Rejoindre une boucle',
+    ],
     'preferences_link' => 'Réglages',
     'preferences_back' => 'Mes notifications',
     'channel_in_app' => "Dans l'application",

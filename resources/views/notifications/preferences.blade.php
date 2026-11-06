@@ -32,6 +32,74 @@
             </a>
         </div>
 
+        {{-- TASK-1775 (CDC B1) — « Mes Boucles », EN PREMIER sur cet écran.
+
+             Avant les réglages par événement et avant le panneau « cet
+             appareil » : « de quelle Boucle je veux entendre parler » est la
+             première question qu'on vient régler ici, et c'est la seule
+             section qui nomme explicitement un contexte personnel — la liste
+             des Boucles dont on est membre ACTIF, dans SON Organization. --}}
+        <div class="mb-6">
+            <h2 class="text-sm font-semibold text-[var(--bp-text)]">{{ __('notifications.loops.title') }}</h2>
+            <p class="mt-0.5 text-xs text-[var(--bp-muted)]">{{ __('notifications.loops.hint') }}</p>
+
+            @if(empty($mesBoucles))
+                {{-- CDC B2 — message EXACT, et un chemin vers l'annuaire des
+                     Boucles plutôt qu'un nouvel écran. --}}
+                <div data-loops-empty class="mt-3 rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3">
+                    <p class="text-sm text-[var(--bp-muted)]">{{ __('notifications.loops.empty_message') }}</p>
+                    <a href="{{ route($routeLoopsIndex, $routeParams) }}"
+                       data-loops-join-cta
+                       class="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                        {{ __('notifications.loops.join_cta') }}
+                    </a>
+                </div>
+            @else
+                <form method="POST" action="{{ route($routeLoopsUpdate, $routeParams) }}" class="mt-3 space-y-3">
+                    @csrf
+
+                    <ul class="space-y-3">
+                        @foreach($mesBoucles as $boucle)
+                            <li data-loop-preference="{{ $boucle['id'] }}"
+                                class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 shadow-sm">
+                                <p class="text-sm font-semibold text-[var(--bp-text)]">{{ $boucle['nom'] }}</p>
+
+                                <ul class="mt-2 space-y-2">
+                                    @foreach([
+                                        ['collective', __('notifications.loops.master_label'), $boucle['collective_enabled']],
+                                        ['email', __('notifications.channel_email'), $boucle['email_enabled']],
+                                        ['web_push', __('notifications.channel_web_push'), $boucle['web_push_enabled']],
+                                    ] as [$levier, $libelle, $actif])
+                                        <li data-loop-channel="{{ $boucle['id'] }}:{{ $levier }}"
+                                            class="flex flex-wrap items-center justify-between gap-3">
+                                            <span class="text-sm text-[var(--bp-muted)]">{{ $libelle }}</span>
+                                            <label class="inline-flex min-h-11 items-center gap-2">
+                                                {{-- Meme garde qu'ailleurs sur cet ecran : le champ
+                                                     cache garantit qu'une case decochee est bien
+                                                     transmise comme « non », jamais comme une absence. --}}
+                                                <input type="hidden" name="boucles[{{ $boucle['id'] }}][{{ $levier }}]" value="0">
+                                                <input type="checkbox"
+                                                       name="boucles[{{ $boucle['id'] }}][{{ $levier }}]"
+                                                       value="1"
+                                                       @checked($actif)
+                                                       class="h-5 w-5 rounded border-[var(--bp-border)] text-[var(--bp-primary)]">
+                                            </label>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </li>
+                        @endforeach
+                    </ul>
+
+                    <button type="submit"
+                            data-loops-save
+                            class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                        {{ __('notifications.preferences_save') }}
+                    </button>
+                </form>
+            @endif
+        </div>
+
         {{-- TASK-1739 — « Notifications sur cet appareil ».
 
              Placé AVANT les préférences par événement, et c'est voulu : sans

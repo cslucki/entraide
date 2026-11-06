@@ -56,6 +56,15 @@ return [
         ],
     ],
     'preferences_mandatory_hint' => 'This notification is addressed to you personally and calls for a reply: it cannot be turned off.',
+
+    // TASK-1775 (CDC B1) — collective settings, Loop by Loop.
+    'loops' => [
+        'title' => 'My Loops',
+        'hint' => 'Help requests published in your Loops are set Loop by Loop.',
+        'master_label' => 'Receive notifications',
+        'empty_message' => "You haven't joined a Loop yet. Join one to take part in the exchanges and receive help requests.",
+        'join_cta' => 'Join a loop',
+    ],
     'preferences_link' => 'Settings',
     'preferences_back' => 'My notifications',
     'channel_in_app' => 'In the app',
