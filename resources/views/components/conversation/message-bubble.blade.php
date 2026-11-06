@@ -77,7 +77,14 @@
     // Dans la carte de debat « Pour / Contre », elle occupe au contraire une
     // COLONNE de grille : le plafond la raboterait a l'interieur d'un espace
     // deja borne. Une prop, pas un refactor.
-    'widthClass' => 'max-w-[90%] sm:max-w-md md:max-w-lg',
+    // TASK-1772 (recette Cyril, 06/11) — « les bulles sont trop larges et du
+    // coup, dans certains cas, on ne voit plus l'icone pour les reactions ».
+    // Le bouton ☺ est pose 1,75 rem HORS de la bulle, et la liste coupe ce qui
+    // deborde depuis la recette 6 (`overflow-x-hidden`) : une bulle a 90 % du
+    // fil, dans une rangee qui porte deja la gouttiere d'avatar, le poussait
+    // hors champ. 78 % lui laisse sa place sur tout telephone ; au-dela de
+    // `sm`, les bornes fixes gouvernent deja et ne changent pas.
+    'widthClass' => 'max-w-[78%] sm:max-w-md md:max-w-lg',
     // TASK-1316 : l'humain qui a demande cette reponse IA — ['id' => ..., 'name' => ...],
     // lu depuis `metadata.requested_by`, JAMAIS reconstruit en analysant un texte.
     // `null` sur toute bulle qui n'est pas une reponse IA a une demande nommee.
@@ -162,6 +169,10 @@ $timeClasses = $isSent
     ? 'text-indigo-200'
     : 'text-gray-400';
 
+// TASK-1772 (recette Cyril) — l'infobulle `title` qui suivait la souris sur
+// chaque pastille est retiree : elle affichait la CLE brute (« seen »,
+// « thumbs_up »), jamais traduite. `aria-label` reste, lui : il nomme le
+// geste pour un lecteur d'ecran sans rien peindre a l'ecran.
 $reactionTypes = App\Models\Reaction::REACTION_TYPES;
 $primaryReactionTypes = ['thumbs_up', 'heart', 'thanks', 'surprised', 'sad'];
 $secondaryReactionTypes = array_values(array_diff($reactionTypes, $primaryReactionTypes));
@@ -411,6 +422,52 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
     x-data="{
         id: @js((string) $messageId),
         open: false,
+        /**
+         * TASK-1772 (recette Cyril, 06/11) — LE MENU DE REACTIONS AU TELEPHONE.
+         *
+         * « Le menu reaction doit etre centre, car quand on l'affiche il est
+         * tronque car trop sur le cote. »
+         *
+         * Le panneau etait ancre au bouton ☺, lui-meme pose HORS de la bulle
+         * (`right: -1.75rem`), puis decale de la moitie de sa largeur : sur un
+         * ecran de 390 px il debordait forcement, et le debordement etait
+         * COUPE depuis que la liste porte `overflow-x-hidden` (recette 6).
+         *
+         * Au telephone, il quitte donc l'ancrage : `position: fixed`, centre
+         * sur l'ecran, pose juste au-dessus de la bulle. A partir de `md`,
+         * rien ne change — la souris survole une bulle precise, et le panneau
+         * doit rester attache a elle.
+         */
+        menuStyleBureau: @js($isSent
+            ? 'top: 50%; left: -1rem; transform: translate(-50%, calc(-100% - 1rem));'
+            : 'top: 50%; right: -1rem; transform: translate(50%, calc(-100% - 1rem));'),
+        menuStyle: '',
+        surTelephone() {
+            return ! window.matchMedia('(min-width: 768px)').matches;
+        },
+        ouvrirReactions() {
+            if (this.open) { this.open = false; this.showMore = false; return; }
+            this.$dispatch('reaction-menu-opened', { id: this.id });
+            this.open = true;
+            this.$nextTick(() => this.placerMenuReactions());
+        },
+        placerMenuReactions() {
+            const panneau = this.$refs.menuReactions;
+            if (! panneau) { return; }
+
+            if (! this.surTelephone()) { this.menuStyle = this.menuStyleBureau; return; }
+
+            // La bulle, mesuree A L'ECRAN : c'est le parent positionne du
+            // panneau, donc exactement la colonne du message.
+            const bulle = panneau.parentElement.getBoundingClientRect();
+            const hauteur = panneau.offsetHeight || 44;
+            // Au-dessus de la bulle ; si elle touche le haut du fil, dessous.
+            let haut = bulle.top - hauteur - 8;
+            if (haut < 8) { haut = Math.min(bulle.bottom + 8, window.innerHeight - hauteur - 8); }
+
+            this.menuStyle = 'position: fixed; z-index: 50; left: 50%; right: auto; '
+                + 'top: ' + Math.round(haut) + 'px; transform: translateX(-50%);';
+        },
         hover: false,
         showMore: false,
         /**
@@ -503,6 +560,15 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
     x-on:mouseleave="hover = false"
     x-on:reaction-menu-opened.window="if ($event.detail.id !== id) { open = false; showMore = false }"
     x-on:keydown.escape.window="open = false; showMore = false"
+    {{-- TASK-1772 — au telephone le panneau est FIXE : il ne suit pas le fil
+         qui defile, donc un defilement du fil le ferme. `.capture`, parce
+         qu'un `scroll` d'element ne remonte pas jusqu'a la fenetre.
+
+         MAIS le panneau defile LUI AUSSI, horizontalement (c'est la demande
+         de Cyril). Sans cette garde, faire glisser le rang d'emojis fermait
+         le menu aussitot — mesure a 320 px, ou le rang deborde vraiment.
+         Le defilement NE du panneau ne le ferme donc pas. --}}
+    x-on:scroll.window.capture="if (open && surTelephone() && ! ($event.target instanceof Element && $event.target.closest('[x-ref=menuReactions]'))) { open = false; showMore = false }"
     x-on:click.outside="open = false; showMore = false"
     @endif
 >
@@ -994,7 +1060,6 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
                         {{ $myReaction === $type
                             ? ($isSent ? 'bg-indigo-500/30 ring-1 ring-indigo-300/50' : 'bg-indigo-100 dark:bg-indigo-900/40 ring-1 ring-indigo-300 dark:ring-indigo-600')
                             : ($isSent ? 'bg-indigo-500/20 hover:bg-indigo-500/30' : 'bg-white/70 hover:bg-white dark:bg-gray-800/60 dark:hover:bg-gray-800') }}"
-                    title="{{ $type }}"
                 >
                     <span class="text-xs leading-none">{{ $emoji }}</span>
                     <span class="{{ $isSent ? 'text-indigo-200' : 'text-gray-500 dark:text-gray-400' }}">{{ $visibleReactionCounts[$type] }}</span>
@@ -1042,7 +1107,7 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
         @if($showReactions && $messageId)
         <button
             type="button"
-            x-on:click.stop="if (open) { open = false; showMore = false } else { $dispatch('reaction-menu-opened', { id }); open = true }"
+            x-on:click.stop="ouvrirReactions()"
             x-bind:style="'top: 50%; transform: translateY(-50%); {{ $isSent ? 'left: -1.75rem;' : 'right: -1.75rem;' }} ' + ((hover || open) ? 'opacity: 1;' : 'opacity: 0; pointer-events: none;')"
             x-bind:tabindex="(hover || open) ? 0 : -1"
             x-on:focus="hover = true"
@@ -1056,9 +1121,26 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
         <div
             x-show="open"
             x-cloak
-            style="top: 50%; {{ $isSent ? 'left: -1rem; transform: translate(-50%, calc(-100% - 1rem));' : 'right: -1rem; transform: translate(50%, calc(-100% - 1rem));' }}"
-            class="absolute z-30 flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1.5 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            x-ref="menuReactions"
+            {{-- TASK-1772 — le placement est calcule a l'ouverture : ancre a la
+                 bulle au bureau, centre sur l'ecran au telephone. --}}
+            x-bind:style="menuStyle || menuStyleBureau"
+            {{-- TASK-1772 (recette Cyril) — « une fois deplie, le menu devient
+                 une espece de bulle tres tres haute. Il faut qu'on puisse
+                 scroller horizontalement le type de reaction, comme sur
+                 WhatsApp. »
+                 Donc UN SEUL RANG, toujours : trop large pour l'ecran, il
+                 DEFILE au doigt au lieu de s'empiler. La barre de defilement
+                 est masquee — WhatsApp ne la montre pas, et sur un panneau de
+                 44 px de haut elle en mangerait le tiers. --}}
+            class="absolute z-30 max-w-[calc(100vw-1rem)] overflow-x-auto overscroll-x-contain rounded-full border border-gray-200 bg-white px-2 py-1.5 shadow-lg [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:max-w-none md:overflow-visible dark:border-gray-700 dark:bg-gray-800"
         >
+            {{-- `mx-auto` + `w-max` : le rang se CENTRE tant qu'il tient, et
+                 reste atteignable d'un bout a l'autre quand il deborde.
+                 `justify-center` sur le conteneur qui defile rendrait le DEBUT
+                 du rang inatteignable — le debordement se ferait des deux
+                 cotes, et rien ne ramene a gauche. --}}
+            <div class="mx-auto flex w-max items-center gap-1">
             @foreach($primaryReactionTypes as $type)
                 @php $emoji = $reactionEmojis[$type] ?? null; @endphp
                 @if($emoji)
@@ -1066,8 +1148,7 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
                     type="button"
                     wire:click="toggleReaction('{{ $messageId }}', '{{ $type }}')"
                     x-on:click="open = false"
-                    class="inline-flex h-7 w-7 items-center justify-center rounded-full text-sm transition hover:scale-110 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:hover:bg-gray-700 {{ $myReaction === $type ? 'bg-indigo-100 ring-1 ring-indigo-300 dark:bg-indigo-900/40 dark:ring-indigo-600' : '' }}"
-                    title="{{ $type }}"
+                    class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm transition hover:scale-110 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:hover:bg-gray-700 {{ $myReaction === $type ? 'bg-indigo-100 ring-1 ring-indigo-300 dark:bg-indigo-900/40 dark:ring-indigo-600' : '' }}"
                     aria-label="{{ __('messages.react_with', ['type' => $type]) }}"
                 >
                     {{ $emoji }}
@@ -1077,8 +1158,8 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
             @if(!empty($secondaryReactionTypes))
             <button
                 type="button"
-                x-on:click.stop="showMore = !showMore"
-                class="inline-flex h-7 w-7 items-center justify-center rounded-full text-base text-gray-900 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:text-white dark:hover:bg-gray-700"
+                x-on:click.stop="showMore = !showMore; $nextTick(() => placerMenuReactions())"
+                class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base text-gray-900 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:text-white dark:hover:bg-gray-700"
                 aria-label="{{ __('messages.more_reactions') }}"
             >
                 ›
@@ -1092,14 +1173,14 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
                     type="button"
                     wire:click="toggleReaction('{{ $messageId }}', '{{ $type }}')"
                     x-on:click="open = false; showMore = false"
-                    class="inline-flex h-7 w-7 items-center justify-center rounded-full text-sm transition hover:scale-110 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:hover:bg-gray-700 {{ $myReaction === $type ? 'bg-indigo-100 ring-1 ring-indigo-300 dark:bg-indigo-900/40 dark:ring-indigo-600' : '' }}"
-                    title="{{ $type }}"
+                    class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm transition hover:scale-110 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:hover:bg-gray-700 {{ $myReaction === $type ? 'bg-indigo-100 ring-1 ring-indigo-300 dark:bg-indigo-900/40 dark:ring-indigo-600' : '' }}"
                     aria-label="{{ __('messages.react_with', ['type' => $type]) }}"
                 >
                     {{ $emoji }}
                 </button>
                 @endif
             @endforeach
+            </div>
         </div>
         @endif
 

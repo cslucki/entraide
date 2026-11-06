@@ -20,12 +20,25 @@ class Reaction extends Model
         'reaction_type',
     ];
 
+    /**
+     * TASK-1772 (recette Cyril, 06/11) — « on va supprimer la reaction seen
+     * (les deux yeux), ainsi sur smartphone on aura plus de place ».
+     *
+     * Retiree des DEUX listes : celle-ci ordonne le choix propose, et
+     * `emojiMap()` sert de catalogue a toutes les surfaces (le fil, la
+     * messagerie, les cartes de flux, qui en prennent les six premieres).
+     * La laisser dans l'une et pas dans l'autre rendrait une pastille vide
+     * ici, ou un choix fantome la-bas.
+     *
+     * Mesure avant retrait : 0 ligne de reaction en base sur le jumeau, tous
+     * types confondus. Une reaction de ce type creee en PROD depuis le
+     * dernier dump cesserait donc d'etre AFFICHEE — la ligne, elle, reste.
+     */
     public const REACTION_TYPES = [
         'thumbs_up',
         'heart',
         'thanks',
         'surprised',
-        'seen',
         'interesting',
         'smile',
         'sad',
@@ -46,7 +59,6 @@ class Reaction extends Model
             'heart' => '❤️',
             'thanks' => '🙏',
             'surprised' => '😮',
-            'seen' => '👀',
             'interesting' => '💡',
             'smile' => '😊',
             'sad' => '😢',

@@ -102,4 +102,64 @@ class TASK1772ModeSelectionRecetteTest extends TestCase
         $this->assertStringNotContainsString('whitespace-pre-wrap', $corps,
             'le Markdown porte deja ses <br> et ses <p> : pre-wrap les doublait');
     }
+
+    /**
+     * Recette (9) : le menu de reactions au telephone. « Il doit etre centre,
+     * car il est tronque car trop sur le cote », puis « une fois deplie il
+     * devient une bulle tres tres haute : il faut pouvoir scroller
+     * horizontalement, comme sur WhatsApp ».
+     */
+    public function test_le_menu_de_reactions_est_centre_et_defile_sur_un_seul_rang(): void
+    {
+        $html = $this->blade(
+            '<x-conversation.message-bubble type="received" :message-id="$id" :show-reactions="true">Bonjour</x-conversation.message-bubble>',
+            ['id' => 'msg-1772'],
+        )->__toString();
+
+        $this->assertStringContainsString('position: fixed', $html,
+            'au telephone le panneau quitte l\'ancrage a la bulle et se centre sur l\'ecran');
+        $this->assertStringContainsString('overflow-x-auto', $html,
+            'un seul rang, qui DEFILE — jamais un pave qui monte');
+        $this->assertStringNotContainsString('flex-wrap items-center justify-center gap-1 rounded', $html,
+            'le panneau ne doit plus se replier sur plusieurs rangs');
+        $this->assertStringContainsString("closest('[x-ref=menuReactions]')", $html,
+            'le defilement DU panneau ne doit pas le fermer (il ferme sur le defilement du fil)');
+    }
+
+    /** « Les bulles sont trop larges : on ne voit plus l'icone des reactions. » */
+    public function test_la_bulle_laisse_la_place_du_bouton_de_reaction(): void
+    {
+        $html = $this->blade(
+            '<x-conversation.message-bubble type="received" :message-id="$id">Bonjour</x-conversation.message-bubble>',
+            ['id' => 'msg-1772'],
+        )->__toString();
+
+        // Le bouton ☺ est pose 1,75 rem HORS de la bulle, et la liste coupe ce
+        // qui deborde : a 90 %, mesure au navigateur, il sortait a 402 px pour
+        // un ecran de 390.
+        $this->assertStringContainsString('max-w-[78%]', $html);
+        $this->assertStringNotContainsString('max-w-[90%]', $html);
+    }
+
+    /**
+     * Recette (10) : « on supprime la reaction deux yeux » et « sur desktop on
+     * supprime les infobulles quand on passe sur une reaction ».
+     */
+    public function test_la_reaction_deux_yeux_a_disparu_et_les_infobulles_aussi(): void
+    {
+        $this->assertNotContains('seen', \App\Models\Reaction::REACTION_TYPES);
+        $this->assertArrayNotHasKey('seen', \App\Models\Reaction::emojiMap(),
+            'le catalogue sert AUSSI la carte de flux, qui en prend les six premieres');
+
+        $html = $this->blade(
+            '<x-conversation.message-bubble type="received" :message-id="$id" :show-reactions="true">Bonjour</x-conversation.message-bubble>',
+            ['id' => 'msg-1772'],
+        )->__toString();
+
+        $this->assertStringNotContainsString('👀', $html);
+        $this->assertStringNotContainsString('title="thumbs_up"', $html,
+            'l\'infobulle affichait la CLE brute, jamais traduite');
+        $this->assertStringContainsString('aria-label', $html,
+            'le libelle accessible reste : il nomme le geste sans rien peindre');
+    }
 }
