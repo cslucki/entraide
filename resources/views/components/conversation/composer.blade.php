@@ -24,6 +24,22 @@
     // cliche.
     'uploadAccept' => 'image/*',
     'uploadLabel' => null,
+    // TASK-1772 (recette Cyril, 06/11) — LA CAMERA PEUT-ELLE FILMER ?
+    //
+    // « Sur WhatsApp, quand on clique sur l'icone, cela appelle un ecran qui
+    // permet de faire les deux, soit photo, soit video. »
+    //
+    // Ce que le web sait faire : `accept="image/*,video/*" capture` ouvre la
+    // camera NATIVE. Sur iOS elle porte la bascule Photo/Video ; sur Android
+    // elle s'ouvre en photo et c'est l'appli camera qui offre le passage en
+    // video. Un ecran de prise de vue MAISON (appui = photo, appui long =
+    // video) demande `getUserMedia` + `MediaRecorder` : c'est un chantier a
+    // part, pas un attribut.
+    //
+    // OPT-IN, comme `uploadAccept` en T1704 : seule la Messagerie valide les
+    // types video cote serveur. Offrir « filmer » la ou la regle refuse une
+    // video, c'est le defaut exact de T1684.
+    'showVideoUpload' => false,
     // TASK-1308 : moteur du prochain tour ('ia'|'dossiers'|null), affiche en
     // chip compact au-dessus du composeur — jamais un verrou (voir $onClearMode).
     // TASK-1309 : quatrieme etat 'ia_dossiers' (IA + Dossiers).
@@ -231,8 +247,15 @@
              lieu de la galerie. Aucun pipeline nouveau : le fichier suit
              exactement le meme chemin que la galerie. Inerte tant qu'aucun
              bouton ne l'invoque (`$refs.cameraInput`, menu mobile T1308). --}}
-        <input type="file" x-ref="cameraInput" wire:model.live="photo" accept="image/*" capture="environment" class="hidden">
+        <input type="file" x-ref="cameraInput" wire:model.live="photo" accept="{{ $showVideoUpload ? 'image/*,video/*' : 'image/*' }}" capture="environment" class="hidden">
 
+        {{-- TASK-1772 — la GALERIE D'IMAGES, distincte de `uploadInput`.
+             Dans la Messagerie, `uploadInput` porte la liste elargie (images,
+             documents, audio, video) : son selecteur montre tout. « Ajouter
+             une image » doit, lui, ne montrer que des images. Meme modele
+             `photo`, meme chemin serveur — seul l'`accept` change.
+             Inerte tant qu'aucun bouton ne l'invoque, comme `cameraInput`. --}}
+        <input type="file" x-ref="imageInput" wire:model.live="photo" accept="image/*" class="hidden">
         {{-- TASK-1693 bug AC — le declencheur de l'appareil photo, enfin pose.
              Le champ ci-dessus existait depuis TASK-1329 mais restait INERTE
              hors du ChatLoop : aucun bouton ne l'invoquait. Aucun pipeline

@@ -1194,15 +1194,20 @@ class LoopChat extends Component
         }
 
         $organization = request()->route('organization') ?? $this->loop->organization?->slug;
-        $cle = $membre->profileRouteKey();
+        // `…Segment` et non `$cle` : c'est la convention que la garde
+        // `TASK1693WriteToMemberTest` lit pour distinguer un SEGMENT D'URL
+        // deja calcule d'un modele brut passe a `route()`. Elle avait raison
+        // de rougir — la ligne, telle quelle, ne disait pas laquelle des deux
+        // choses elle portait.
+        $cleSegment = $membre->profileRouteKey();
 
         return [
             'profil' => $organization && Route::has('organization.profile.show')
-                ? route('organization.profile.show', ['organization' => $organization, 'user' => $cle])
-                : route('profile.show', $cle),
+                ? route('organization.profile.show', ['organization' => $organization, 'user' => $cleSegment])
+                : route('profile.show', $cleSegment),
             'ecrire' => $organization && Route::has('organization.messages.with')
-                ? route('organization.messages.with', ['organization' => $organization, 'user' => $cle])
-                : route('messages.with', $cle),
+                ? route('organization.messages.with', ['organization' => $organization, 'user' => $cleSegment])
+                : route('messages.with', $cleSegment),
             // « Rien a montrer » n'est pas « pas de bio » : une fiche sans bio
             // mais avec une structure et un slogan dit deja quelque chose.
             'vide' => blank($membre->bio)

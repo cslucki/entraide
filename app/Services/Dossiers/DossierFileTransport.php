@@ -5,6 +5,7 @@ namespace App\Services\Dossiers;
 use App\Models\DossierFile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -92,12 +93,43 @@ class DossierFileTransport
     }
 
     /** Apercu d'un fichier quelconque, quand le navigateur sait le rendre. */
-    public function apercuDepuis(string $disque, string $chemin, string $nom, ?string $mime): RedirectResponse|StreamedResponse
+    public function apercuDepuis(string $disque, string $chemin, string $nom, ?string $mime): RedirectResponse|StreamedResponse|BinaryFileResponse
     {
-        return $this->servirDepuis($disque, $chemin, $nom, [
+        $entetes = [
             'Content-Type' => $this->typeAffichable($mime),
             'Content-Disposition' => 'inline; filename="'.$this->nomPourEntete($nom).'"',
-        ]);
+        ];
+
+        /*
+         * TASK-1772 — LES REQUETES `Range`, et pourquoi une video les exige.
+         *
+         * `Storage::download()` rend un flux SANS `Accept-Ranges` : le serveur
+         * ne sait repondre qu'en une seule piece, 200. Un navigateur peut
+         * encore lire une video ainsi, en la telechargeant d'un bout a
+         * l'autre — mais se deplacer dedans devient impossible, et **iOS
+         * Safari refuse purement et simplement de la lire** : il demande un
+         * 206 avant la premiere image.
+         *
+         * `response()->file()` rend une `BinaryFileResponse`, qui gere
+         * `Range` toute seule. Elle exige un chemin reel — donc le disque
+         * LOCAL. Sur un disque distant (S3), `servirDepuis` redirige deja
+         * vers une URL temporaire, et c'est S3 qui gere les plages : les deux
+         * chemins tiennent la meme promesse par des moyens differents.
+         */
+        if (config("filesystems.disks.{$disque}.driver") === 'local') {
+            try {
+                $absolu = Storage::disk($disque)->path($chemin);
+
+                if (is_file($absolu)) {
+                    return response()->file($absolu, $entetes);
+                }
+            } catch (\Throwable) {
+                // On retombe sur le flux : mieux vaut un apercu sans `Range`
+                // qu'un 404 sur un fichier qui existe.
+            }
+        }
+
+        return $this->servirDepuis($disque, $chemin, $nom, $entetes);
     }
 
     /**

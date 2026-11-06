@@ -101,6 +101,14 @@ return [
     'review_rating_hint' => 'Vous pouvez ajuster la note.',
     'send_review' => 'Envoyer le merci',
     'composer_placeholder' => 'Votre message...',
+    // TASK-1772 (recette Cyril) — le composeur de la Messagerie adopte la
+    // pilule et le menu « + » du ChatLoop. Les libelles vivent ici et non
+    // dans `loops.php` : cet ecran n'est pas une Boucle.
+    'composer_more_actions' => 'Plus d\'actions',
+    'composer_add_image' => 'Ajouter une image',
+    'composer_add_file' => 'Ajouter un fichier',
+    'composer_camera' => 'Appareil photo',
+    'composer_take_photo' => 'Prendre une photo',
     'conversation_closed' => 'Cette conversation est terminée.',
     'empty_thread' => 'Aucun message pour le moment',
     'empty_thread_hint' => 'Soyez le premier à écrire !',

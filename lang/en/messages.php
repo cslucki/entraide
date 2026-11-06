@@ -85,6 +85,13 @@ return [
     'review_rating_hint' => 'You can adjust the rating.',
     'send_review' => 'Send the thank-you',
     'composer_placeholder' => 'Your message...',
+    // TASK-1772 — the private messaging composer now uses the ChatLoop pill
+    // and its « + » sheet. Labels live here, not in `loops.php`.
+    'composer_more_actions' => 'More actions',
+    'composer_add_image' => 'Add an image',
+    'composer_add_file' => 'Add a file',
+    'composer_camera' => 'Camera',
+    'composer_take_photo' => 'Take a photo',
     'conversation_closed' => 'This conversation is closed.',
     'empty_thread' => 'No messages yet',
     'empty_thread_hint' => 'Be the first to write!',

@@ -361,12 +361,21 @@ class TASK1704MessagerieFileAttachmentTest extends TestCase
         );
         $this->assertStringContainsString('application/pdf', html_entity_decode($m[1]), 'Le selecteur ne propose pas les PDF.');
 
-        // Le bouton APPAREIL PHOTO reste aux images : `capture` n'a de sens
-        // que pour un cliche.
+        // TASK-1772 (arbitrage Cyril, 06/11) — l'APPAREIL PHOTO FILME AUSSI.
+        //
+        // T1704 bornait ce champ aux images (« `capture` n'a de sens que pour
+        // un cliche »). Cyril a tranche l'inverse : « sur WhatsApp, quand on
+        // clique sur l'icone, cela appelle un ecran qui permet de faire les
+        // deux ». `image/*,video/*` + `capture` ouvre la camera native, qui
+        // porte la bascule Photo/Video.
+        //
+        // La moitie SERVEUR de la promesse ne bouge pas : la Messagerie
+        // valide deja les types video (`TypesDeFichiersAcceptes::VIDEO`).
+        // C'est pour cela que ce champ peut filmer ICI et nulle part ailleurs.
         $this->assertSame(
             1,
-            preg_match('/<input[^>]*x-ref="cameraInput"[^>]*accept="image\/\*"/', $html),
-            'Le bouton appareil photo ne devrait proposer que des images.'
+            preg_match('/<input[^>]*x-ref="cameraInput"[^>]*accept="image\/\*,video\/\*"[^>]*capture="environment"/', $html),
+            'L\'appareil photo de la messagerie doit proposer photo ET video.'
         );
     }
 

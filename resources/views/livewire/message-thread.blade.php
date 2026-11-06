@@ -380,7 +380,101 @@
                  qu'une image : elle seule elargit le selecteur. --}}
             :upload-accept="\App\Support\Files\TypesDeFichiersAcceptes::pourAttributAccept()"
             :upload-label="__('messages.send_file')"
+            {{-- TASK-1772 (recette Cyril, 06/11) — « partager une video ».
+                 Seule la Messagerie l'active : elle seule valide les types
+                 video cote serveur (`TypesDeFichiersAcceptes::VIDEO`). --}}
+            :show-video-upload="true"
         >
+            {{-- TASK-1772 (recette Cyril, 06/11) — LA MEME PILULE QUE LE CHATLOOP.
+                 =====================================================================
+                 « Le chat composer de la messagerie privee n'est pas le meme que
+                 celui des ChatLoops. Il faut qu'il soit identique. »
+
+                 Il suffit de FOURNIR CE SLOT : `composer.blade.php` bascule en
+                 gabarit pilule des que `$leading` existe (T1769). Les deux boutons
+                 ronds exterieurs (galerie, appareil photo) se rangent alors d'eux
+                 memes derriere le « + » — ils sont `hidden md:flex` et
+                 `@if(! isset($leading))`. Rien n'est duplique : la feuille invoque
+                 les MEMES saisies de fichier, donc le meme `photo`, donc le meme
+                 chemin serveur.
+
+                 Ce qui differe du ChatLoop, et c'est voulu : pas d'IA, pas de
+                 Dossiers, pas de mentions. Cet ecran n'est pas une Boucle. --}}
+            <x-slot:leading>
+                <div class="md:hidden" x-data="{ sheetOpen: false }">
+                    <button
+                        type="button"
+                        x-on:click="sheetOpen = true"
+                        class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200 hover:text-indigo-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:hover:text-indigo-300"
+                        aria-label="{{ __('messages.composer_more_actions') }}"
+                        aria-haspopup="true"
+                        data-composer-sheet-trigger
+                    >
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                    </button>
+                    <template x-teleport="body">
+                        <div
+                            x-show="sheetOpen"
+                            x-cloak
+                            class="fixed inset-0 z-50 flex items-end justify-center"
+                            x-effect="document.body.style.overflow = sheetOpen ? 'hidden' : ''"
+                            @keydown.escape.window="sheetOpen = false"
+                        >
+                            <div x-show="sheetOpen" class="fixed inset-0 bg-black/50" x-on:click="sheetOpen = false"></div>
+                            <div
+                                x-show="sheetOpen"
+                                x-transition:enter="transition ease-out duration-200"
+                                x-transition:enter-start="translate-y-full opacity-0"
+                                x-transition:enter-end="translate-y-0 opacity-100"
+                                class="relative w-full max-w-lg rounded-t-2xl bg-white p-4 shadow-2xl dark:bg-gray-800"
+                                style="padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px))"
+                                role="dialog"
+                                aria-modal="true"
+                                aria-label="{{ __('messages.composer_more_actions') }}"
+                            >
+                                <div class="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+                                {{-- Trois par rangee, comme la feuille du ChatLoop : la
+                                     quatrieme tuile passe a la ligne, elle ne retrecit
+                                     pas les autres. --}}
+                                <div class="grid grid-cols-3 gap-1.5">
+                                    <button type="button" x-on:click="$refs.imageInput?.click(); sheetOpen = false"
+                                        data-composer-sheet-image
+                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        </span>
+                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('messages.composer_add_image') }}</span>
+                                    </button>
+                                    {{-- `data-composer-camera` : c'est le marqueur que lit
+                                         `TASK1693MobileMessagingTest`. Il vivait sur le bouton rond
+                                         exterieur, qui disparait avec la pilule — il DOIT donc
+                                         voyager ici, sans quoi la garde rougirait a juste titre. --}}
+                                    <button type="button" x-on:click="$refs.cameraInput?.click(); sheetOpen = false"
+                                        data-composer-take-photo
+                                        data-composer-camera
+                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>
+                                        </span>
+                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('messages.composer_camera') }}</span>
+                                    </button>
+                                    {{-- `uploadInput` porte la liste ELARGIE de la Messagerie :
+                                         c'est la tuile qui ouvre tout ce que le serveur sait
+                                         stocker. --}}
+                                    <button type="button" x-on:click="$refs.uploadInput?.click(); sheetOpen = false"
+                                        data-composer-sheet-file
+                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                                        </span>
+                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('messages.composer_add_file') }}</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </x-slot:leading>
             @error('newMessage')
                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
             @enderror
