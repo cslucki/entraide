@@ -236,9 +236,38 @@ $renderableBody = preg_replace_callback(
 //
 // Effet de bord assume et mineur, nomme au CDC : un `@Nom` ecrit dans un bloc
 // de code sera gras lui aussi.
+//
+// TASK-1772 (recette Cyril, 06/11) — « changer l'apparence du pseudo de la
+// personne mentionnee : changer de couleur pour qu'on voit que c'est une
+// mention ». Le gras seul ne suffisait pas : dans un fil, il se confond avec
+// un simple appui de ton.
+//
+// ## Pourquoi des SENTINELLES et pas une classe posee directement
+//
+// `markdown()` tourne avec `html_input => 'escape'` : tout HTML ecrit ici
+// ressortirait en `&lt;span&gt;`. Et le faire APRES le rendu demanderait de
+// retrouver le nom dans la sortie — or CommonMark n'echappe pas comme `e()`
+// (l'apostrophe, notamment), donc un `str_replace` sur `e($nom)` raterait
+// « L'Hopital » EN SILENCE.
+//
+// On encadre donc la mention de deux caracteres de la zone a usage prive
+// d'Unicode, que CommonMark traverse sans y toucher, et on les convertit en
+// balise APRES le rendu. Le contenu entre les deux n'a plus besoin d'etre
+// devine : quel qu'il soit, c'est la mention.
+//
+// Zone a usage prive d'Unicode (U+E000 / U+E001) : aucun caractere assigne,
+// donc rien de legitime ne les porte, et CommonMark les laisse passer.
+$_mentionDebut = "\u{E000}";
+$_mentionFin = "\u{E001}";
+
 $_mentionNames = array_values(array_filter(array_map('strval', (array) $mentionNames)));
 
 if ($_mentionNames !== []) {
+    // Un membre pourrait coller ces caracteres dans son message. Ils sont
+    // retires AVANT la passe : sans cela, une sentinelle orpheline ferait
+    // teindre tout le texte jusqu'a la mention suivante.
+    $renderableBody = str_replace([$_mentionDebut, $_mentionFin], '', $renderableBody);
+
     // Du plus long au plus court : sans cela, « @Anne » mis en gras en
     // premier couperait « @Anne Agricola » en deux.
     usort($_mentionNames, static fn (string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
@@ -248,9 +277,39 @@ if ($_mentionNames !== []) {
             continue;
         }
 
-        $renderableBody = str_replace('@'.$_nom, '**@'.$_nom.'**', $renderableBody);
+        $renderableBody = str_replace(
+            '@'.$_nom,
+            // Les sentinelles vont DEDANS, pas autour. CommonMark exige
+            // qu'un `**` ouvrant soit precede d'une espace ou d'une
+            // ponctuation ; un caractere de la zone privee compte comme une
+            // LETTRE, et le gras ne se formait pas — mesure du 06/11, le
+            // message rendait « **@Bob Durand** » en clair.
+            '**'.$_mentionDebut.'@'.$_nom.$_mentionFin.'**',
+            $renderableBody,
+        );
     }
 }
+
+/**
+ * Convertit les sentinelles en balise, APRES `markdown()`.
+ *
+ * Le contenu entre les deux sentinelles est deja echappe par CommonMark : on
+ * ne le touche pas, on ne fait que l'envelopper. Aucune donnee de membre
+ * n'entre dans un attribut — la classe est une constante.
+ *
+ * Le `str_replace` final retire toute sentinelle restee seule (corps tronque,
+ * mention coupee par une balise). Mieux vaut un gras sans couleur qu'un
+ * caractere invisible dans le presse-papier.
+ */
+$_teindreLesMentions = static function (string $html) use ($_mentionDebut, $_mentionFin): string {
+    $html = preg_replace(
+        '/'.preg_quote($_mentionDebut, '/').'(.*?)'.preg_quote($_mentionFin, '/').'/us',
+        '<span class="bp-mention">$1</span>',
+        $html,
+    ) ?? $html;
+
+    return str_replace([$_mentionDebut, $_mentionFin], '', $html);
+};
 
 // =====================================================================
 // TASK-1770 — les actions passent derriere un appui long, sur telephone.
@@ -440,6 +499,12 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          clavier-souris, personne ne fait d'appui long. --}}
     <div
         class="{{ $bubbleClasses }} px-3 py-2 select-none [-webkit-touch-callout:none] md:select-auto"
+        {{-- TASK-1772 — la bulle ENVOYEE a un fond indigo-600 plein, dans les
+             deux themes. Une mention en indigo y serait illisible : la regle
+             CSS a besoin de savoir de quel cote de la conversation elle est.
+             Un attribut explicite plutot qu'un selecteur sur `.bg-indigo-600` :
+             le jour ou la couleur de bulle change, le marqueur reste juste. --}}
+        @if($isSent) data-bulle-envoyee @endif
         {{-- TASK-1771 — la rangee se teinte (plus haut), la bulle porte
              l'anneau. Deux marques et non une : sur un fil dense, la teinte se
              voit d'un coup d'oeil mais ne dit pas LEQUEL des deux messages
@@ -568,7 +633,7 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
              paragraphes espaces SANS marqueurs (capture Cyril, 22/09). La
              regle vit dans app.css et redonne aux listes leurs puces et un
              interligne compact, sans toucher au reste du texte. --}}
-        <div x-ref="copyContent" class="bp-bulle-markdown min-w-0 max-w-full cursor-default overflow-hidden whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! markdown($renderableBody) !!}</div>
+        <div x-ref="copyContent" class="bp-bulle-markdown min-w-0 max-w-full cursor-default overflow-hidden whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! $_teindreLesMentions(markdown($renderableBody)) !!}</div>
 
         @if($attachment)
             <x-conversation.file-attachment-card

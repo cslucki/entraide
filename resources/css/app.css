@@ -379,3 +379,36 @@
 .bp-bulle-markdown li p {
     margin: 0;
 }
+
+/* TASK-1772 (recette Cyril, 06/11) — une mention doit SE VOIR.
+   « Changer l'apparence du pseudo de la personne mentionnée : changer de
+   couleur pour qu'on voit que c'est une mention. »
+
+   Le gras seul (arbitrage D3 de la TASK) se confondait avec un simple appui
+   de ton dans un fil dense. La couleur, elle, dit « on te parle ».
+
+   Pourquoi cette règle vit ICI et pas en classe utilitaire : `bp-mention` est
+   posée par du PHP (`message-bubble.blade.php`), et Tailwind ne scanne pas le
+   HTML produit à l'exécution — une utilitaire y serait PURGÉE en silence
+   (incident T1750). Une classe de feuille de style, elle, est toujours émise.
+
+   Cinq fonds de bulle coexistent : gris, violet (IA), rose et émeraude
+   (pour/contre), et indigo-600 plein (bulle envoyée). Les quatre premiers
+   portent du texte sombre en clair et clair en sombre — un indigo soutenu y
+   passe des deux côtés. Le cinquième est un aplat indigo : il lui faut une
+   teinte CLAIRE, et il ne change pas entre les thèmes. */
+.bp-bulle-markdown .bp-mention {
+    color: #4338ca; /* indigo-700 */
+}
+
+.dark .bp-bulle-markdown .bp-mention {
+    color: #a5b4fc; /* indigo-300 */
+}
+
+/* La bulle envoyée, en DERNIER et à spécificité suffisante : la règle `.dark`
+   ci-dessus compte trois classes, celle-ci doit au moins les égaler pour
+   gouverner. Deux passes, et c'est la surcharge qui décide. */
+[data-bulle-envoyee] .bp-bulle-markdown .bp-mention,
+.dark [data-bulle-envoyee] .bp-bulle-markdown .bp-mention {
+    color: #c7d2fe; /* indigo-200, lisible sur l'aplat indigo-600 */
+}

@@ -224,12 +224,17 @@ class TASK1772MentionsEmissionTest extends TestCase
     }
 
     /**
-     * D3 — la mention est mise en GRAS, et seulement celle qui a été retenue.
+     * D3 — la mention est mise en valeur, et seulement celle qui a été retenue.
      *
      * Une expression régulière qui devinerait ce qu'est une mention mettrait
-     * en valeur n'importe quel `@mot`. On ne met en gras que ce que le
+     * en valeur n'importe quel `@mot`. On ne met en valeur que ce que le
      * SERVEUR a enregistré : un `@Nom` qui n'a pas été retenu reste du texte
      * ordinaire, et c'est ce que ce test mesure.
+     *
+     * TASK-1772 (recette Cyril, 06/11) — la mise en valeur est désormais le
+     * gras ET la couleur. Le test gelait `<strong>@Nom</strong>`, c'est-à-dire
+     * un MOYEN ; il mesure maintenant la promesse : le nom mentionné porte le
+     * marqueur de mention, l'autre non.
      */
     public function test_seule_une_mention_reellement_enregistree_passe_en_gras(): void
     {
@@ -240,10 +245,26 @@ class TASK1772MentionsEmissionTest extends TestCase
             ->test(LoopChat::class, ['loop' => $this->loop])
             ->html();
 
-        $this->assertStringContainsString('<strong>@'.e($nom).'</strong>', $html,
-            'la mention retenue doit etre mise en valeur');
-        $this->assertStringNotContainsString('<strong>@PersonneInventee</strong>', $html,
+        // Le nom n'est PAS ré-échappé ici : CommonMark n'échappe pas comme
+        // `e()` — il laisse `'` tel quel là où `e()` écrit `&#039;`. C'est
+        // précisément pourquoi le marqueur est posé par des sentinelles avant
+        // le rendu, et pas par un `str_replace` sur la sortie.
+        $this->assertMatchesRegularExpression(
+            '#<strong><span class="bp-mention">@'.preg_quote($nom, '#').'</span></strong>#',
+            $html,
+            'la mention retenue doit etre mise en valeur — gras ET couleur');
+
+        $this->assertStringNotContainsString('bp-mention">@PersonneInventee', $html,
             'un @mot qui n\'est pas une mention retenue reste du texte ordinaire');
+        $this->assertStringNotContainsString('<strong>@PersonneInventee</strong>', $html,
+            'et il ne passe pas davantage en gras seul');
+
+        // Aucune sentinelle ne doit survivre au rendu : elles finiraient dans
+        // le presse-papier (le bouton « Copier » lit ce bloc) et dans toute
+        // copie manuelle, invisibles et indétectables.
+        $this->assertStringNotContainsString("\u{E000}", $html,
+            'une sentinelle de mention a survécu au rendu');
+        $this->assertStringNotContainsString("\u{E001}", $html);
     }
 
     /**
