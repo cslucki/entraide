@@ -16,6 +16,8 @@ return [
     'min_chars' => '(:count caractères minimum)',
     'service_description_placeholder' => "Décrivez ce que vous proposez concrètement :\n- Ce que le membre reçoit exactement\n- Comment vous travaillez\n- Vos conditions (délai, format de livraison…)\n\nExemple : Je réalise votre logo professionnel en 3 propositions avec retouches illimitées sous 5 jours. Formats livrés : PNG, SVG, PDF. Je travaille sur Figma et Illustrator.",
     'request_description' => 'Description de votre demande',
+    // TASK-1773 — le champ n'avait aucun guide ; l'editeur lui en donne un.
+    'request_description_placeholder' => "Décrivez votre besoin :\n- Ce dont vous avez besoin, précisément\n- Le résultat attendu\n- Vos contraintes (délai, format, lieu…)",
     'category' => 'Catégorie',
     'select' => 'Sélectionner...',
     'skills' => 'Compétences',

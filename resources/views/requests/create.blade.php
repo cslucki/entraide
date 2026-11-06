@@ -241,8 +241,18 @@
 
             <div class="mb-5">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.request_description', ['request' => $requestTerm]) }} {{ __('marketplace.required') }}</label>
-                <textarea name="description" rows="5" required minlength="100"
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">{{ old('description') }}</textarea>
+                {{-- TASK-1773 (demande Cyril, 06/11) — le MEME editeur que sur
+                     « Proposer de l'aide ». Le composant porte deja la garde de
+                     longueur minimale et pose un `<textarea name="description">`
+                     cache : le POST, la validation serveur et la colonne ne
+                     changent pas d'un octet.
+
+                     CONSEQUENCE A NE PAS OUBLIER, et traitee avec : la saisie
+                     produit desormais du Markdown. La fiche d'une demande
+                     l'affichait en texte brut (`{{ }}` + `whitespace-pre-wrap`),
+                     donc les `**gras**` seraient apparus tels quels. Elle rend
+                     maintenant le Markdown, comme la fiche d'un service. --}}
+                <x-markdown-wysiwyg-editor name="description" :value="old('description')" :placeholder="__('marketplace.request_description_placeholder')" required minLength="100" rows="6" :invalid="$errors->has('description')" />
             </div>
 
             <div class="mb-5">
