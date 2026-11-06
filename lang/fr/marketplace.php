@@ -17,7 +17,7 @@ return [
     // aujourd'hui ; l'ecran lit le statut reel plutot que de le supposer.
     'service_created_title_paused' => 'Votre proposition d\'entraide est enregistrée.',
     'service_created_subtitle_paused' => 'Elle n\'est pas encore visible par les autres membres.',
-    'service_created_more_title' => 'Et si vous partagiez d\'autres savoir-faire ?',
+    'service_created_more_title' => 'Mettez en avant vos compétences',
     'service_created_more_body_skills' => 'Vous avez certainement plusieurs compétences, expériences ou connaissances qui pourraient être utiles aux autres membres.',
     'service_created_more_body_directory' => 'Chaque nouvelle proposition enrichit votre profil dans l\'annuaire et permet aux autres membres de mieux découvrir ce que vous pouvez leur apporter.',
     'service_created_again' => 'Proposer une autre proposition d\'entraide',

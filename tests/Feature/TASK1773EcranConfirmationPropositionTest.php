@@ -81,7 +81,7 @@ class TASK1773EcranConfirmationPropositionTest extends TestCase
             ->assertOk()
             ->assertSee('Votre proposition d\'entraide est publiée !')
             ->assertSee('Merci de contribuer à l\'entraide sur BouclePro.')
-            ->assertSee('Et si vous partagiez d\'autres savoir-faire ?')
+            ->assertSee('Mettez en avant vos compétences')
             ->assertSee('Proposer une autre proposition d\'entraide')
             // TASK-1773 (recette Cyril) — le titre de la proposition est
             // RETIRE : il coutait une ligne et poussait le bouton hors du
@@ -111,7 +111,7 @@ class TASK1773EcranConfirmationPropositionTest extends TestCase
         $this->assertLessThan(
             strpos($html, 'service_created_more_title') !== false
                 ? strpos($html, 'service_created_more_title')
-                : strpos($html, 'Et si vous partagiez'),
+                : strpos($html, 'Mettez en avant vos'),
             strpos($html, 'data-service-created-again'),
             'le bouton doit venir AVANT le bloc d\'explication',
         );

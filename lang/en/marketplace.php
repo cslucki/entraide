@@ -11,7 +11,7 @@ return [
     'service_created_subtitle' => 'Thank you for contributing to mutual help on BouclePro.',
     'service_created_title_paused' => 'Your offer of help is saved.',
     'service_created_subtitle_paused' => 'It is not visible to other members yet.',
-    'service_created_more_title' => 'What about sharing other know-how?',
+    'service_created_more_title' => 'Put your skills forward',
     'service_created_more_body_skills' => 'You certainly have several skills, experiences or kinds of knowledge that could be useful to other members.',
     'service_created_more_body_directory' => 'Every new offer enriches your directory profile and helps other members discover what you can bring them.',
     'service_created_again' => 'Offer another kind of help',
