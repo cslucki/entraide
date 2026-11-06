@@ -126,10 +126,13 @@ class TASK1771ModeSelectionTest extends TestCase
         // batie sur un jeton (`bg-[var(--bp-primary)]/10`) rend une couleur
         // INVALIDE — donc transparente — sans lever la moindre erreur. Elle
         // avait ete livree telle quelle et le surlignage ne se voyait pas.
+        // TASK-1772 : la teinte a quitte la RANGEE pour la bulle (halo
+        // exterieur), parce que la gouttiere teintee faisait partie de la
+        // cible et qu'un appui a cote reselectionnait au lieu de sortir.
         $this->assertStringContainsString('color-mix(in srgb, var(--bp-primary)', $html,
-            'la RANGEE se teinte par style en ligne, hors de portee de la purge');
+            'la marque passe par un style en ligne, hors de portee de la purge');
         $this->assertStringContainsString('box-shadow: inset 0 0 0 2px var(--bp-primary)', $html,
-            'et la bulle porte l\'anneau, pour dire lequel exactement');
+            'anneau interieur : il dit LEQUEL des deux messages colles est pris');
         $this->assertStringNotContainsString('bg-[var(--bp-primary)]/', $html,
             'aucune opacite Tailwind sur un jeton : elle ne peint rien (T1475)');
     }

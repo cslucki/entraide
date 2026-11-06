@@ -363,24 +363,21 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
 
 <div
     {{ $attributes->merge(['class' => $containerClasses . ' group ' . $class]) }}
-    {{-- TASK-1771 — « on clique sur un message, il change de couleur ».
-         WhatsApp teinte la RANGEE entiere, pas la seule bulle : c'est ce qui
-         rend la selection lisible d'un coup d'oeil sur un fil dense. L'anneau
-         de la bulle, lui, dit lequel exactement. --}}
-    {{-- TASK-1771 — la teinte de la rangee passe par un STYLE EN LIGNE.
-         `bg-[var(--bp-primary)]/10` paraissait juste et ne peignait RIEN :
-         Tailwind ne sait pas appliquer un modificateur d'opacite a une
-         variable CSS, il produit une couleur invalide — donc transparente.
-         Mesure au navigateur : la classe etait bien posee sur l'element, et
-         sa couleur calculee valait `rgba(0, 0, 0, 0)`. C'est le piege deja
-         paye en TASK-1475 : une valeur arbitraire batie sur un jeton rend
-         transparent, SANS AUCUNE ERREUR.
-         `color-mix` fait le melange dans le navigateur, avec le jeton tel
-         quel, et ne depend d'aucune purge. Verifie : il rend bien
-         `color(srgb 0.32 0.49 1 / 0.16)` sur ce theme. --}}
-    x-bind:style="$store.bpSelection.id === @js((string) $messageId)
-        ? 'background-color: color-mix(in srgb, var(--bp-primary) 16%, transparent)'
-        : ''"
+    {{-- TASK-1772 (recette Cyril, 06/11) — LA SELECTION TIENT A LA BULLE.
+
+         « Quand on selectionne un message, c'est toute la ligne qui est
+         selectionnee. Du coup, on ne peut pas deselectionner en cliquant en
+         dehors de la bulle. Il faut vraiment qu'on copie WhatsApp. »
+
+         T1771 teintait la RANGEE entiere et posait le geste dessus : la
+         gouttiere vide a cote d'une bulle courte faisait donc partie de la
+         cible, et un appui a cet endroit — le geste naturel pour « sortir de
+         la » — RESELECTIONNAIT le message. Plus aucun endroit du fil ne
+         deselectionnait.
+
+         Le geste et la marque descendent sur la COLONNE de la bulle. Ce qui
+         est a cote d'elle est desormais « dehors », et `fermerSiDehors` y
+         rend la main. --}}
     {{-- =================================================================
          TASK-1771 — SELECTION PAR SIMPLE APPUI. Rien d'autre.
          =================================================================
@@ -409,8 +406,6 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
          toute la largeur — et c'est la LIGNE qui se surligne, comme sur
          WhatsApp. --}}
     @if($_menuAppuiLong)
-    data-bp-selectable
-    x-on:click="if (! $event.target.closest('a,button,input,textarea,select,[role=button]')) selectionner()"
     x-on:bp-selection-action.window="if ($event.detail.id === id) executerAction($event.detail.action)"
     @endif
     x-data="{
@@ -557,7 +552,16 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
         @endif
     @endif
 
-    <div class="relative min-w-0 {{ $widthClass }}">
+    <div class="relative min-w-0 {{ $widthClass }}"
+        {{-- TASK-1772 — la cible du geste, et la frontiere du « dehors ».
+             Cette colonne se reduit a la largeur de la bulle (elle est un
+             element flex a largeur automatique) : elle est donc exactement ce
+             que l'oeil appelle « le message », gouttiere exclue. --}}
+        @if($_menuAppuiLong)
+        data-bp-selectable
+        x-on:click="if (! $event.target.closest('a,button,input,textarea,select,[role=button]')) selectionner()"
+        @endif
+    >
     {{-- TASK-1771 — `select-none` et `-webkit-touch-callout: none` sur
          telephone : sans eux, un appui long sur le texte lance la selection
          native d'iOS et sa bulle « Copier / Tout selectionner », qui recouvre
@@ -577,13 +581,18 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
              Un attribut explicite plutot qu'un selecteur sur `.bg-indigo-600` :
              le jour ou la couleur de bulle change, le marqueur reste juste. --}}
         @if($isSent) data-bulle-envoyee @endif
-        {{-- TASK-1771 — la rangee se teinte (plus haut), la bulle porte
-             l'anneau. Deux marques et non une : sur un fil dense, la teinte se
-             voit d'un coup d'oeil mais ne dit pas LEQUEL des deux messages
-             colles l'un a l'autre est pris ; l'anneau, lui, le dit. --}}
-        {{-- Meme raison que la teinte de la rangee : `ring-[var(--bp-primary)]`
-             rendait un `box-shadow` INVALIDE, donc aucun. Style en ligne. --}}
-        x-bind:style="$store.bpSelection.id === id ? 'box-shadow: inset 0 0 0 2px var(--bp-primary)' : ''"
+        {{-- TASK-1772 — deux marques, toutes deux sur la bulle : l'anneau
+             interieur dit LEQUEL des deux messages colles l'un a l'autre est
+             pris, le halo exterieur le fait voir d'un coup d'oeil sur un fil
+             dense. C'est ce que la teinte de rangee de T1771 apportait, sans
+             manger la gouttiere. --}}
+        {{-- Style EN LIGNE : `ring-[var(--bp-primary)]` et
+             `bg-[var(--bp-primary)]/10` rendent une couleur INVALIDE, donc
+             rien du tout — Tailwind ne sait pas appliquer un modificateur
+             d'opacite a une variable CSS (piege paye en T1475, remesure en
+             T1771 : couleur calculee `rgba(0, 0, 0, 0)`). `color-mix` fait le
+             melange dans le navigateur, avec le jeton tel quel. --}}
+        x-bind:style="$store.bpSelection.id === id ? 'box-shadow: inset 0 0 0 2px var(--bp-primary), 0 0 0 4px color-mix(in srgb, var(--bp-primary) 22%, transparent)' : ''"
     >
         @if($avatar || $name || $subtitle || $requestedBy || $time || $isEdited || $isAi)
         <div class="mb-0.5 md:mb-1 flex items-start justify-between gap-3">
