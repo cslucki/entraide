@@ -123,7 +123,15 @@ class NotificationWebPushDeliverer
 
         $preferences = app(NotificationPreferenceResolver::class);
 
-        if (! $preferences->allows($destinataire, (string) $notification->notification_key, NotificationCatalogue::CHANNEL_WEB_PUSH)) {
+        // TASK-1775 (CDC C2) — meme discipline qu'en EMAIL : la sourdine par
+        // Boucle a pu changer entre la planification et ce rejeu, et seule
+        // `LOOP_HELP_REQUEST_CREATED` doit jamais s'y soumettre (`object_id`
+        // designe la Boucle AUSSI pour `LOOP_MEMBER_ADDED`, un fait personnel).
+        $loopId = $notification->notification_key === NotificationCatalogue::LOOP_HELP_REQUEST_CREATED
+            ? (string) $notification->object_id
+            : null;
+
+        if (! $preferences->allows($destinataire, (string) $notification->notification_key, NotificationCatalogue::CHANNEL_WEB_PUSH, $loopId)) {
             $this->abandonner($livraison, NotificationDeliveryStatus::SKIPPED_PREFERENCE, 'channel_disabled_by_member');
 
             return;

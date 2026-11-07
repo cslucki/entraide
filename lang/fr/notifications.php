@@ -12,6 +12,7 @@ return [
     // Les actions
     'mark_read' => 'Marquer comme lu',
     'mark_all_read' => 'Tout marquer comme lu',
+    'mark_unread' => 'Marquer comme non lue',
 
     // Les etats vides — DEUX, et c'est voulu. Une page vide et un filtre vide
     // ne disent pas la meme chose : la premiere dit « rien ne vous attend »,
@@ -62,13 +63,26 @@ return [
         ],
     ],
     'preferences_mandatory_hint' => 'Cette notification vous est adressée personnellement et appelle une réponse : elle ne peut pas être désactivée.',
+
+    // TASK-1775 (CDC B1) — les reglages COLLECTIFS, Boucle par Boucle. Place
+    // AVANT le reste de l'ecran : c'est la premiere decision, « de quelle
+    // Boucle je veux entendre parler ».
+    'loops' => [
+        'title' => 'Mes Boucles',
+        'hint' => "Les demandes d'aide publiées dans vos Boucles se règlent Boucle par Boucle.",
+        'master_label' => 'Recevoir les notifications',
+        'empty_message' => "Vous n'avez pas encore rejoint de Boucle. Rejoignez-en une pour participer aux échanges et recevoir les demandes d'aide.",
+        'join_cta' => 'Rejoindre une boucle',
+    ],
     'preferences_link' => 'Réglages',
     'preferences_back' => 'Mes notifications',
     'channel_in_app' => "Dans l'application",
     'channel_email' => 'Par email',
     // TASK-1740 — troisieme canal. Le libelle nomme l'APPAREIL, pas la
     // technique : « web push » ne veut rien dire pour la personne qui regle.
-    'channel_web_push' => 'Sur mes appareils',
+    // TASK-1775 (demande Cyril, 07/11) — remplace "Sur mes appareils" :
+    // nomme l'APPLICATION installee, pas l'appareil physique.
+    'channel_web_push' => 'Sur l\'application téléchargée',
 
     // TASK-1740 — les textes qui partent sur un ecran VERROUILLE.
     //
@@ -195,6 +209,11 @@ return [
         'loop_member_added' => 'Ajout à la Boucle « :loop »',
         'loop_join_request_accepted' => 'Votre demande d’adhésion à « :loop » a été acceptée',
         'loop_join_request_rejected' => 'Votre demande d’adhésion à « :loop » n’a pas été retenue',
+
+        // TASK-1775 (CDC C4) — nommee UNIQUEMENT ici, meme doctrine que ses
+        // voisines : le Centre est derriere l'authentification, `push_title`
+        // reste generique (ecran verrouille).
+        'loop_help_request_created' => 'Une demande d’aide a été publiée dans la Boucle « :loop »',
     ],
 
     // TASK-1725 — « Ouvrir » ne disait pas quoi. Le libelle depend donc de
@@ -288,6 +307,20 @@ return [
             'subject' => 'Votre demande pour rejoindre une Boucle a été acceptée',
             'body' => '<p>Bonjour,</p>'
                 .'<p>Votre demande pour rejoindre une Boucle sur BouclePro a été acceptée. Vous en êtes désormais membre.</p>'
+                .'<p><a href=":url">Ouvrir la Boucle</a></p>'
+                .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
+                .'<p>À bientôt,<br>L\'équipe BouclePro</p>',
+        ],
+
+        // TASK-1775 (CDC C3) — ultime repli pour « une demande d'aide a ete
+        // publiee ». Meme doctrine que ses voisines : volontairement neutre,
+        // car a ce niveau ni la Boucle ni l'auteur ne sont plus connus. Exige
+        // par la suite de coherence TASK-1379 des que le canal EMAIL est
+        // declare.
+        'loop_help_request_created' => [
+            'subject' => 'Une demande d’aide a été publiée dans une Boucle',
+            'body' => '<p>Bonjour,</p>'
+                .'<p>Une demande d’aide a été publiée dans une Boucle dont vous êtes membre.</p>'
                 .'<p><a href=":url">Ouvrir la Boucle</a></p>'
                 .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
                 .'<p>À bientôt,<br>L\'équipe BouclePro</p>',

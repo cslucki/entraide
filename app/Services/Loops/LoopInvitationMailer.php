@@ -348,6 +348,65 @@ class LoopInvitationMailer
     }
 
     /**
+     * TASK-1775 (CDC C3) — le courriel « une demande d'aide a ete publiee ».
+     *
+     * ## Memes variables, meme resolveur, meme repli que `composeForJoinRequestCreated()`
+     *
+     * Aucun systeme nouveau : ce courriel ne part QUE pour un membre qui a
+     * explicitement allume le canal EMAIL pour CETTE Boucle precise —
+     * `LoopNotificationPreference::email_enabled` — puisque c'est la seule
+     * porte qui rend ce canal autre chose que du bruit de masse (voir le
+     * docblock du catalogue). `recipient_name` reste le membre, `requester_name`
+     * devient l'AUTEUR de la demande, pas un decideur.
+     *
+     * @return array{subject: string, body: string, fallback_reason: string|null}
+     */
+    public function composeForHelpRequest(
+        Loop $loop,
+        User $destinataire,
+        ?User $auteur = null,
+        ?string $urlOverride = null,
+        ?string $locale = null,
+    ): array {
+        $langue = $locale ?: app()->getLocale();
+        $langueOrigine = app()->getLocale();
+        app()->setLocale($langue);
+
+        try {
+            $organization = $loop->organization;
+
+            $url = $urlOverride ?? route('organization.loops.show', [
+                'organization' => $loop->organization?->slug ?? $loop->organization_id,
+                'loop' => $loop->slug ?: $loop->getKey(),
+            ]);
+
+            return $this->rendreGabarit(
+                slug: 'loop_help_request_created',
+                organizationId: (string) $loop->organization_id,
+                langue: $langue,
+                sender: $auteur,
+                vars: [
+                    'recipient_name' => $destinataire->publicDisplayName(),
+                    'recipient_email' => $destinataire->email,
+                    'organization_name' => $organization?->name ?? '',
+                    'loop_name' => $loop->name ?? '',
+                    // L'auteur peut avoir ete desactive entre la publication
+                    // et l'envoi — meme garde que `composeForJoinRequestCreated()`.
+                    'requester_name' => $auteur?->publicDisplayName() ?? __('profile.deactivated_user'),
+                    'request_url' => $url,
+                    'app_name' => config('app.name'),
+                ],
+                repli: fn () => [
+                    'subject' => __('notifications.email.loop_help_request_created.subject'),
+                    'html' => __('notifications.email.loop_help_request_created.body', ['url' => $url]),
+                ],
+            );
+        } finally {
+            app()->setLocale($langueOrigine);
+        }
+    }
+
+    /**
      * TASK-1719 — resoudre le gabarit `loop_invitation`, l'interpoler, et
      * retomber proprement. En UN seul endroit.
      *

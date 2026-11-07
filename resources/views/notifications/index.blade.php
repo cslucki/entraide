@@ -169,8 +169,13 @@
 
         @if($notifications->isEmpty())
             {{-- DEUX etats vides, et les confondre serait un mensonge : une boite
-                 vide et un filtre sans resultat ne disent pas la meme chose. --}}
-            @if($filtreActif(\App\Http\Controllers\NotificationCenterController::FILTRE_NON_LUES))
+                 vide et un filtre sans resultat ne disent pas la meme chose.
+
+                 TASK-1775 — le defaut etant devenu « non-lues », une boite
+                 JAMAIS alimentee prend desormais le meme chemin de filtre
+                 qu'une boite entierement lue. `$dejaUneNotification` est la
+                 question posee EN DEHORS du filtre qui les redistingue. --}}
+            @if($filtreActif(\App\Http\Controllers\NotificationCenterController::FILTRE_NON_LUES) && $dejaUneNotification)
                 <div data-notifications-filter-empty class="py-14 text-center">
                     <p class="text-base font-semibold text-[var(--bp-text)]">{{ __('notifications.filter_empty_title') }}</p>
                     <p class="mt-1 text-sm text-[var(--bp-muted)]">{{ __('notifications.filter_empty_body') }}</p>
@@ -186,7 +191,10 @@
                 @foreach($notifications as $notification)
                     <li data-notification-id="{{ $notification->id }}"
                         @if($notification->isRead()) data-notification-read @else data-notification-unread @endif
-                        class="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 shadow-sm">
+                        class="flex flex-col gap-3 rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 shadow-sm sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+                        {{-- Titre + date d'abord, toujours lisibles sans defiler :
+                             sur mobile la carte s'empile en colonne, les actions
+                             suivent en dessous plutot qu'a cote. --}}
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-semibold text-[var(--bp-text)]">
                                 {{ $libelleNomme($notification->notification_key, $sujets[$notification->id] ?? null) }}
@@ -198,7 +206,12 @@
                             </p>
                         </div>
 
-                        <div class="flex shrink-0 items-center gap-3">
+                        {{-- `flex-wrap` ICI AUSSI : trois elements (badge + deux
+                             boutons) sur un ecran de 320px ne tiennent pas sur
+                             une seule ligne sans elle, et sans defilement
+                             horizontal possible, le seul recours honnete est de
+                             les laisser retomber sur une deuxieme ligne. --}}
+                        <div class="flex flex-wrap items-center gap-3 sm:shrink-0">
                             {{-- Ouvrir est un POST : le geste marque lu, et un GET
                                  qui mute se rejoue — prefetch, scanner de liens,
                                  bouton precedent. --}}
@@ -211,7 +224,21 @@
                                 </button>
                             </form>
 
-                            @unless($notification->isRead())
+                            @if($notification->isRead())
+                                {{-- TASK-1775 — l'inverse symmetrique de « Marquer
+                                     comme lu », reservee aux lignes DEJA lues :
+                                     sur une notification non lue l'action n'a
+                                     aucun sens, le bouton « Marquer comme lu »
+                                     occupe deja ce role. --}}
+                                <form method="POST" action="{{ route($routeUnread, $routeParams + ['notification' => $notification->id]) }}">
+                                    @csrf
+                                    <button type="submit"
+                                            data-notification-mark-unread="{{ $notification->id }}"
+                                            class="min-h-11 text-sm font-semibold text-[var(--bp-muted)] transition hover:text-[var(--bp-text)] hover:underline">
+                                        {{ __('notifications.mark_unread') }}
+                                    </button>
+                                </form>
+                            @else
                                 <span class="rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] font-bold text-red-600 dark:text-red-400">
                                     {{ __('notifications.unread_badge') }}
                                 </span>
@@ -224,7 +251,7 @@
                                         {{ __('notifications.mark_read') }}
                                     </button>
                                 </form>
-                            @endunless
+                            @endif
                         </div>
                     </li>
                 @endforeach

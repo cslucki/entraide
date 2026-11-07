@@ -240,7 +240,18 @@ final class NotificationEmailDeliverer
         }
 
         // La preference COURANTE, pas celle d'au moment de l'emission.
-        if (! $this->preferences->allows($destinataire, (string) $notification->notification_key, NotificationCatalogue::CHANNEL_EMAIL)) {
+        //
+        // TASK-1775 (CDC C2) — « au moment de l'emission » s'entend AUSSI de
+        // la sourdine par Boucle : un membre peut l'avoir coupee entre la
+        // planification et ce rejeu. `$loopId` n'est fourni que pour la SEULE
+        // cle collective concernee — le resolveur l'exige deja, redondant ici
+        // par discipline d'appel plutot que par necessite.
+        if (! $this->preferences->allows(
+            $destinataire,
+            (string) $notification->notification_key,
+            NotificationCatalogue::CHANNEL_EMAIL,
+            $this->loopIdPourPreference($notification),
+        )) {
             $this->conclure($livraison, NotificationDeliveryStatus::SKIPPED_PREFERENCE, 'channel_disabled_by_member');
 
             return;
@@ -630,6 +641,34 @@ final class NotificationEmailDeliverer
             ];
         }
 
+        // TASK-1775 (CDC C3) — la demande d'aide. L'objet EST la Boucle : rien
+        // a relire pour remonter ailleurs, comme pour `TRANSACTION_PROPOSAL_CREATED`
+        // ci-dessus. Sans cette branche, `rendreDepuisGabarit()` rendrait
+        // `null` et l'email partirait par le repli de langue SANS nom de
+        // Boucle ni d'auteur — exactement le defaut deja ferme deux fois sur
+        // ce fichier (T1751, T1761).
+        if ($cle === NotificationCatalogue::LOOP_HELP_REQUEST_CREATED) {
+            $loop = Loop::withoutGlobalScopes()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($loop === null) {
+                return null;
+            }
+
+            $auteur = $notification->actor_id ? User::find((string) $notification->actor_id) : null;
+
+            $reel = $mailer->composeForHelpRequest($loop, $destinataire, $auteur, $cible, $locale);
+            $expurge = $mailer->composeForHelpRequest($loop, $destinataire, $auteur, self::LIEN_EXPURGE, $locale);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
         if ($cle !== NotificationCatalogue::LOOP_INVITATION) {
             return null;
         }
@@ -745,5 +784,22 @@ final class NotificationEmailDeliverer
         $livraison->status = $status;
         $livraison->diagnostic = mb_substr($diagnostic, 0, self::DIAGNOSTIC_MAX);
         $livraison->save();
+    }
+
+    /**
+     * TASK-1775 — l'identifiant de Boucle a transmettre au resolveur de
+     * preference, et SEULEMENT pour la cle collective concernee.
+     *
+     * `object_id` designe la Boucle UNIQUEMENT pour `LOOP_HELP_REQUEST_CREATED` :
+     * `LOOP_MEMBER_ADDED` partage le meme `object_type` (`OBJECT_LOOP`) mais
+     * designe un fait PERSONNEL que la sourdine de Boucle ne doit jamais
+     * gouverner. La garde porte donc sur la CLE, jamais sur `object_type`
+     * seul — meme raison que dans `NotificationPreferenceResolver::allows()`.
+     */
+    private function loopIdPourPreference(MemberNotification $notification): ?string
+    {
+        return $notification->notification_key === NotificationCatalogue::LOOP_HELP_REQUEST_CREATED
+            ? (string) $notification->object_id
+            : null;
     }
 }

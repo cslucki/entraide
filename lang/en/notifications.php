@@ -12,6 +12,7 @@ return [
     // Actions
     'mark_read' => 'Mark as read',
     'mark_all_read' => 'Mark all as read',
+    'mark_unread' => 'Mark as unread',
 
     // Empty states — TWO, deliberately. An empty page and an empty filter do
     // not say the same thing: the first says "nothing awaits you", the second
@@ -55,13 +56,24 @@ return [
         ],
     ],
     'preferences_mandatory_hint' => 'This notification is addressed to you personally and calls for a reply: it cannot be turned off.',
+
+    // TASK-1775 (CDC B1) — collective settings, Loop by Loop.
+    'loops' => [
+        'title' => 'My Loops',
+        'hint' => 'Help requests published in your Loops are set Loop by Loop.',
+        'master_label' => 'Receive notifications',
+        'empty_message' => "You haven't joined a Loop yet. Join one to take part in the exchanges and receive help requests.",
+        'join_cta' => 'Join a loop',
+    ],
     'preferences_link' => 'Settings',
     'preferences_back' => 'My notifications',
     'channel_in_app' => 'In the app',
     'channel_email' => 'By email',
     // TASK-1740 — third channel. The label names the DEVICE, not the
     // technique: "web push" means nothing to the person setting it.
-    'channel_web_push' => 'On my devices',
+    // TASK-1775 (Cyril's request, 07/11) — replaces "On my devices": names
+    // the installed APP, not the physical device.
+    'channel_web_push' => 'On the downloaded app',
 
     // TASK-1740 — text that lands on a LOCKED screen.
     //
@@ -172,6 +184,10 @@ return [
         'loop_member_added' => 'Added to the :loop Loop',
         'loop_join_request_accepted' => 'Your request to join :loop was accepted',
         'loop_join_request_rejected' => 'Your request to join :loop was not accepted',
+
+        // TASK-1775 (CDC C4) — named ONLY here, same reasoning as the entries
+        // above.
+        'loop_help_request_created' => 'A help request was published in the :loop Loop',
     ],
 
     // TASK-1725 — « Open » did not say what. The label now follows the object.
@@ -252,6 +268,17 @@ return [
             'subject' => 'Your request to join a Loop has been accepted',
             'body' => '<p>Hello,</p>'
                 .'<p>Your request to join a Loop on BouclePro has been accepted. You are now a member.</p>'
+                .'<p><a href=":url">Open the Loop</a></p>'
+                .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
+                .'<p>See you soon,<br>The BouclePro team</p>',
+        ],
+
+        // TASK-1775 (CDC C3) — ultimate fallback for "a help request was
+        // published". Same reasoning as the entries above.
+        'loop_help_request_created' => [
+            'subject' => 'A help request was published in a Loop',
+            'body' => '<p>Hello,</p>'
+                .'<p>A help request was published in a Loop you are a member of.</p>'
                 .'<p><a href=":url">Open the Loop</a></p>'
                 .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
                 .'<p>See you soon,<br>The BouclePro team</p>',
