@@ -71,19 +71,21 @@ class TASK1782ScopedHomeNavigationTest extends TestCase
      * Le cas que Cyril decrit : un membre connecte demande la racine et doit
      * arriver chez lui.
      *
-     * Parametre sur `loops_enabled`, parce que c'est ce drapeau — et non le
-     * nom de l'Organization — qui decide entre les Boucles et la landing.
-     * C'est `canonicalHome()` qui porte ce choix depuis TASK-1730 ; ce test
-     * verifie qu'on le lui delegue bien.
+     * Parametre sur `loops_enabled` pour prouver que la destination N'EN DEPEND
+     * PAS : regle produit arbitree par Cyril, l'accueil demande est la VRAIE
+     * homepage `/org/{slug}`, Boucles activees ou non.
+     *
+     * C'est ce qui distingue cette fonction de `canonicalHome()`, laquelle
+     * rendrait `/org/{slug}/loops` quand `loops_enabled` vaut vrai. Les deux
+     * cas du fournisseur ci-dessous attendent donc la MEME forme d'adresse —
+     * un test qui delegerait a `canonicalHome()` rougirait sur le premier.
      *
      * @param  bool  $loops  l'Organization a-t-elle ses Boucles actives ?
-     * @param  string  $suffixe  le chemin attendu APRES le prefixe `/org/{slug}`
      */
     #[DataProvider('organizationsScopees')]
-    public function test_a_scoped_member_asking_for_the_root_lands_on_their_own_home(
+    public function test_a_scoped_member_asking_for_the_root_lands_on_their_own_homepage(
         string $slug,
-        bool $loops,
-        string $suffixe
+        bool $loops
     ): void {
         $this->organizationParDefaut();
 
@@ -96,22 +98,26 @@ class TASK1782ScopedHomeNavigationTest extends TestCase
 
         $this->actingAs($this->membreDe($organization))
             ->get('/')
-            ->assertRedirect('/org/'.$slug.$suffixe);
+            ->assertRedirect('/org/'.$slug);
     }
 
     /**
-     * Trois Organizations aux reglages differents, aucune nommee d'apres une
+     * Quatre Organizations aux reglages differents, aucune nommee d'apres une
      * Organization reelle. Les slugs sont volontairement quelconques : si la
-     * regle dependait d'un nom connu, aucun de ces trois cas ne passerait.
+     * regle dependait d'un nom connu, aucun de ces cas ne passerait.
      *
-     * @return array<string, array{string, bool, string}>
+     * Les deux premiers encadrent `loops_enabled` : meme destination attendue
+     * de part et d'autre du drapeau.
+     *
+     * @return array<string, array{string, bool}>
      */
     public static function organizationsScopees(): array
     {
         return [
-            'Boucles actives' => ['tenant-un', true, '/loops'],
-            'Boucles inactives' => ['tenant-deux', false, ''],
-            'slug a tirets multiples' => ['tenant-trois-quatre', true, '/loops'],
+            'Boucles ACTIVES — la homepage quand meme' => ['tenant-un', true],
+            'Boucles inactives' => ['tenant-deux', false],
+            'slug a tirets multiples, Boucles actives' => ['tenant-trois-quatre', true],
+            'slug numerique, Boucles inactives' => ['tenant-2026', false],
         ];
     }
 
@@ -141,7 +147,7 @@ class TASK1782ScopedHomeNavigationTest extends TestCase
 
         $this->actingAs($this->membreDe($organization))
             ->get('/')
-            ->assertRedirect('/org/'.$slug.'/loops');
+            ->assertRedirect('/org/'.$slug);
     }
 
     // =====================================================================
@@ -251,7 +257,7 @@ class TASK1782ScopedHomeNavigationTest extends TestCase
         $membre = $this->membreDe($organization);
 
         $connecte = $this->actingAs($membre)->get('/');
-        $connecte->assertRedirect('/org/tenant-expire/loops');
+        $connecte->assertRedirect('/org/tenant-expire');
 
         // `actingAs()` ne se defait pas tout seul : il faut une application
         // neuve pour poser une requete reellement anonyme.
@@ -260,7 +266,7 @@ class TASK1782ScopedHomeNavigationTest extends TestCase
         $anonyme = $this->get('/');
 
         $this->assertNotEquals(
-            '/org/tenant-expire/loops',
+            '/org/tenant-expire',
             $anonyme->headers->get('Location'),
             'sans session, la racine redevient publique'
         );
@@ -291,7 +297,7 @@ class TASK1782ScopedHomeNavigationTest extends TestCase
 
         $this->actingAs($admin)
             ->get('/')
-            ->assertRedirect('/org/tenant-admin/loops');
+            ->assertRedirect('/org/tenant-admin');
     }
 
     // =====================================================================
@@ -325,7 +331,46 @@ class TASK1782ScopedHomeNavigationTest extends TestCase
             // avec une fleche pointant ailleurs — ou sans fleche du tout. Mon
             // premier jet faisait exactement cela, et le sabotage l'a montre.
             // L'attribut existe depuis TASK-1693 pour cette raison precise.
-            ->assertSee('data-bp-topbar-back="/org/tenant-retour/loops"', escape: false);
+            ->assertSee('data-bp-topbar-back="/org/tenant-retour"', escape: false);
+    }
+
+    /**
+     * TASK-1782 ajustement — mobile et desktop doivent designer le MEME
+     * accueil.
+     *
+     * C'est le desktop qui a tranche la regle produit : le lien du logo de
+     * `app-side-nav` pointe sur `organization.home` depuis toujours, jamais
+     * sur `/loops`. Une fleche mobile menant aux Boucles aurait donc fait
+     * divergER les deux navigations sur la meme page.
+     *
+     * Ce test les lit TOUTES LES DEUX dans le meme document, sur une route
+     * prefixee par l'Organization — la seule ou le desktop resout son lien
+     * sans passer par la racine.
+     */
+    public function test_the_mobile_arrow_and_the_desktop_logo_point_to_the_same_homepage(): void
+    {
+        $this->organizationParDefaut();
+
+        $organization = Organization::factory()->create([
+            'slug' => 'tenant-coherence',
+            'is_active' => true,
+            'is_default' => false,
+            // Boucles ACTIVES : c'est le cas ou les deux auraient pu diverger.
+            'loops_enabled' => true,
+        ]);
+
+        $reponse = $this->actingAs($this->membreDe($organization))
+            ->get('/org/tenant-coherence/dashboard')
+            ->assertOk();
+
+        // La fleche mobile, par son attribut dedie.
+        $reponse->assertSee('data-bp-topbar-back="/org/tenant-coherence"', escape: false);
+
+        // Le logo desktop, qui porte la meme destination en absolu.
+        $reponse->assertSee(
+            'href="'.route('organization.home', ['organization' => 'tenant-coherence']).'"',
+            escape: false
+        );
     }
 
     /**

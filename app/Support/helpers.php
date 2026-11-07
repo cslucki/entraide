@@ -2,6 +2,7 @@
 
 use App\Models\Organization;
 use App\Services\TranslationOverrideService;
+use App\Support\ScenarioManager\Persona\ScenarioPersonaAccess;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Support\Facades\Route;
 use League\CommonMark\CommonMarkConverter;
@@ -299,9 +300,18 @@ if (! function_exists('accueilDuCompteAuthentifie')) {
      * jamais sur son nom. Une Organization creee demain est donc traitee comme
      * OFSH l'est aujourd'hui, sans toucher a cette fonction.
      *
-     * La destination elle-meme n'est pas calculee ici : elle est deleguee a
-     * `canonicalHome()`, qui est l'unique autorite de destination du depot
-     * depuis TASK-1730. Deux fonctions, une seule regle.
+     * ## La destination est la HOMEPAGE, pas les Boucles
+     *
+     * Regle produit arbitree par Cyril : pour toute Organization scopee
+     * active, l'accueil demande est sa VRAIE homepage — `/org/{slug}` — y
+     * compris quand `loops_enabled` vaut vrai.
+     *
+     * C'est pourquoi cette fonction ne delegue PAS a `canonicalHome()`, qui
+     * rendrait `/org/{slug}/loops` dans ce cas. `canonicalHome()` reste
+     * l'autorite de destination des AUTRES parcours — connexion, bascule de
+     * compte, changement de langue — et son comportement historique n'est pas
+     * touche. Deux questions distinctes : « ou va-t-on apres une bascule »
+     * n'est pas « quel est l'accueil de cette Organization ».
      *
      * ## Les quatre refus, et pourquoi chacun rend `null`
      *
@@ -322,12 +332,34 @@ if (! function_exists('accueilDuCompteAuthentifie')) {
      *     desactivee le menerait a une porte fermee, moins utile que
      *     l'accueil public. Meme garde que `getLoginRedirectTarget()`.
      *
-     *  4. **Organization par defaut** — c'est elle que la racine sert DEJA.
-     *     Le refus est ici double : il preserve le comportement de `main`,
-     *     et il evite une BOUCLE de redirection. `canonicalHome()` rend
-     *     justement `/` pour une Organization par defaut sans Boucles : `/`
-     *     renverrait vers `/`, indefiniment. C'est le drapeau `is_default`
-     *     qui le dit, pas le slug « main ».
+     *  4. **Organization par defaut** — c'est elle que la racine sert DEJA,
+     *     et son comportement est preserve tel quel. C'est le drapeau
+     *     `is_default` qui le dit, jamais le slug « main ».
+     *
+     *  5. **Mode persona actif** — et c'est une garde de SECURITE, mesuree.
+     *     Le bandeau du mode persona et son bouton de sortie vivent dans
+     *     `layouts/app.blade.php` et `layouts/org-admin.blade.php`. Or trois
+     *     des cinq gabarits de landing d'Organization — `hero-v2`,
+     *     `shell-first`, `artscilab-hero` — sont des documents HTML COMPLETS
+     *     ecrits en propre : ils n'etendent aucun de ces layouts, donc ils ne
+     *     portent NI bandeau NI sortie.
+     *
+     *     Rediriger la racine vers la landing d'une sandbox pourrait donc
+     *     deposer un operateur en mode persona sur une page qui ne dit pas
+     *     qu'il y est, et dont il ne peut pas sortir. L'invariant de TASK-1654
+     *     est precisement celui-la, et le layout `org-admin` porte la trace
+     *     d'un defaut de cette meme famille, deja corrige une fois.
+     *
+     *     Le refus est donc fail-closed, dans l'esprit de
+     *     `EnsureScenarioPersonaContextIsValid` : « quand une condition tombe,
+     *     on ne continue prudemment pas ». `actif()` coute une lecture de
+     *     session et aucune requete SQL — il est fait pour etre appele
+     *     partout.
+     *
+     *     NB : l'absence de bandeau sur ces trois gabarits PREEXISTE a cette
+     *     TASK — un persona qui ouvre `/org/{slug}` par un lien l'y rencontre
+     *     deja. Ce refus ne la corrige pas, il refuse de la rendre plus facile
+     *     a atteindre. Le signalement est remonte a MASTER a part.
      *
      * @return string|null chemin relatif, ou `null` s'il ne faut pas rediriger
      */
@@ -355,7 +387,17 @@ if (! function_exists('accueilDuCompteAuthentifie')) {
             return null;
         }
 
-        return canonicalHome($organization);
+        // Garde de securite TASK-1654 : ne jamais deposer un persona sur une
+        // landing qui ne porte ni bandeau ni sortie. Detail dans le docbloc.
+        if (ScenarioPersonaAccess::actif()) {
+            return null;
+        }
+
+        // La homepage de l'Organization, et non ses Boucles. Le slug vient du
+        // COMPTE authentifie, jamais de la route ni d'un cookie.
+        return route('organization.home', [
+            'organization' => $organization->slug,
+        ], absolute: false);
     }
 }
 

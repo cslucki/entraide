@@ -645,7 +645,22 @@ class TASK1654PersonaAccessTest extends TestCase
         // Fail-closed sur la FORME : plus de mode persona du tout, donc plus de
         // bandeau — et non un mode dont on ne saurait pas sortir.
         $this->assertFalse(ScenarioPersonaAccess::actif());
-        $this->get('/')->assertOk()->assertDontSee('Mode persona');
+
+        // TASK-1782 — la racine redirige desormais un membre d'Organization
+        // scopee vers l'accueil de SON Organization, et le compte persona en
+        // est un comme un autre des que le mode est tombe. On SUIT donc la
+        // redirection au lieu d'exiger un 200 sur `/` : l'assertion porte
+        // alors sur la page REELLEMENT servie, ce qui la rend plus forte
+        // qu'avant — elle verifie l'absence de bandeau la ou l'operateur
+        // atterrit, et non sur une page intermediaire.
+        //
+        // Le mode persona ACTIF, lui, n'est jamais redirige : c'est le
+        // cinquieme refus de `accueilDuCompteAuthentifie()`, pose precisement
+        // pour que le bandeau et sa sortie restent atteignables.
+        $this->followingRedirects()
+            ->get('/')
+            ->assertOk()
+            ->assertDontSee('Mode persona');
     }
 
     public function test_le_mode_perime_deconnecte_si_l_acteur_n_est_plus_administrateur(): void
