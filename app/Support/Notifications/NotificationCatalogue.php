@@ -207,6 +207,20 @@ final class NotificationCatalogue
      * Avant cette TASK, `LoopService::createJoinRequest()` ecrivait la ligne et
      * n'emettait RIEN : personne n'apprenait qu'on attendait une reponse.
      */
+    /**
+     * TASK-1772 — on m'a nommement appele dans une ChatLoop.
+     *
+     * Le nom dit le FAIT (on m'a mentionne), jamais le support (un message).
+     * Ce n'est pas une coquetterie : `TASK1744WebPushBusinessEventsTest`
+     * interdit les sous-chaines `chatloop` et `message` dans toute cle qui
+     * pousse, parce que la §6.2 du CDC notifications combat la diffusion de
+     * TOUT message a TOUS les membres. Une mention est l'inverse de ce
+     * bruit-la — elle vise une personne designee — mais la garde teste une
+     * sous-chaine, pas une intention. `loop.mention.created` passe telle
+     * quelle et suit la forme des voisines.
+     */
+    public const LOOP_MENTION_CREATED = 'loop.mention.created';
+
     public const LOOP_JOIN_REQUEST_CREATED = 'loop.join_request.created';
 
     public const LOOP_JOIN_REQUEST_ACCEPTED = 'loop.join_request.accepted';
@@ -286,6 +300,20 @@ final class NotificationCatalogue
      * FAIT, porte par `notification_key`, pas l'objet dont elles parlent.
      */
     public const OBJECT_LOOP_JOIN_REQUEST = 'loop_join_request';
+
+    /**
+     * TASK-1772 — le message lui-meme, et non la Boucle qui le contient.
+     *
+     * Arbitrage Cyril : la notification doit mener a LA PHRASE ou l'on a ete
+     * nomme. Dans une Boucle a cinq cents messages, « on vous a mentionne
+     * ici » sans dire OU oblige a chercher.
+     *
+     * Un type DISTINCT de `OBJECT_LOOP`, et c'est ce qui evite un defaut
+     * silencieux : `NotificationCenterController` unit deux cartes de sujets
+     * avec `+`, et `+` garde la valeur de GAUCHE. Reutiliser `OBJECT_LOOP`
+     * aurait fait ignorer en silence la carte qui nomme l'auteur.
+     */
+    public const OBJECT_LOOP_MESSAGE = 'loop_message';
 
     /**
      * TASK-1697 — un commentaire depose sur un article de blog.
@@ -453,6 +481,40 @@ final class NotificationCatalogue
         // peine sans rien lui permettre. Le fait reste visible dans le Centre pour
         // qui va voir. A rouvrir si MASTER le demande : une ligne ici, un gabarit,
         // rien de plus.
+        self::LOOP_MENTION_CREATED => [
+            'category' => 'loop',
+
+            // « On me sollicite DIRECTEMENT » : quelqu'un m'a designe par mon
+            // nom et attend que je lise. C'est la rubrique que la demande de
+            // Cyril nomme explicitement — « Quand on me sollicite ».
+            'intention' => self::INTENTION_SOLLICITATION_DIRECTE,
+
+            'object_type' => self::OBJECT_LOOP_MESSAGE,
+            'channels' => [
+                // NON configurable, arbitrage Cyril du 06/11.
+                //
+                // On ne se desabonne pas d'apprendre qu'on a ete nommement
+                // appele : la couper, c'est ne jamais savoir qu'on vous parle.
+                // Meme raison que l'invitation et la proposition d'echange.
+                // La ligne RESTE affichee a l'ecran, verrouillee, avec son
+                // `preferences_mandatory_hint` : le membre a le droit de
+                // savoir ce qu'il recevra.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+
+                // Configurable : le fait reste lisible dans le Centre, donc
+                // couper l'email ne fait RIEN perdre. C'est le reglage que la
+                // demande de Cyril designe.
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+
+                // « Notification application (et donc PWA) ». Aligne sur
+                // `LOOP_INVITATION` : un evenement PERSONNEL, pas collectif.
+                // Le defaut ne reveille personne a lui seul — il faut encore
+                // un appareil abonne ET la permission systeme. Jamais
+                // obligatoire : `test_le_push_reste_toujours_REGLABLE`.
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
         self::LOOP_JOIN_REQUEST_CREATED => [
             'category' => 'loop',
 
@@ -593,25 +655,31 @@ final class NotificationCatalogue
 
             'object_type' => self::OBJECT_LOOP,
             'channels' => [
-                // CONFIGURABLE, contrairement aux six cles precedentes.
-                //
-                // Une invitation n'arrive qu'une fois et appelle une reponse :
-                // s'en desabonner n'aurait pas de sens. Une demande d'aide est
-                // RECURRENTE — c'est le premier evenement du catalogue dont on
-                // peut raisonnablement vouloir se taire sans quitter la
-                // Boucle. Le §7B lui ajoutera une sourdine par Boucle ; en
-                // attendant, cette case est la seule sortie.
-                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+                // TASK-1775 (arbitrage Cyril, 07/11, APRES avoir vu l'ecran
+                // "Mes Boucles" en vrai) — redevenu OBLIGATOIRE, comme les six
+                // cles personnelles. Le §7B avait rendu ce canal configurable
+                // pour permettre de « se taire sans quitter la Boucle » ;
+                // Cyril est revenu sur ce point une fois la sourdine par
+                // Boucle (`LoopNotificationPreference`) livree : le VRAI
+                // levier de calme est desormais le maitre de Boucle (plus
+                // expose dans l'UI, mais toujours applique cote resolveur),
+                // pas un reglage global sur ce seul canal.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
 
-                // Declare mais ETEINT (decision MASTER, 03/11). Le canal doit
-                // exister pour que la personne puisse l'allumer elle-meme, et
-                // pour que le jour ou on changera ce defaut, rien d'autre
-                // n'ait a bouger.
-                self::CHANNEL_WEB_PUSH => ['default' => false, 'configurable' => true],
+                // TASK-1775 (meme arbitrage) — ACTIF par defaut, et non plus
+                // eteint (decision MASTER du 03/11, renversee le 07/11). La
+                // sourdine par Boucle etant livree, Cyril a choisi l'opt-OUT
+                // plutot que l'opt-IN pour ce canal : un membre recoit le
+                // Push des sa premiere Boucle, et peut le couper Boucle par
+                // Boucle s'il le souhaite.
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
 
-                // PAS de canal EMAIL, et c'est delibere : un courriel par
-                // demande d'aide collective serait exactement le bruit de
-                // masse que le §7 combat. Rien ne le reclame.
+                // TASK-1775 (meme arbitrage) — ACTIF par defaut, memes
+                // raisons que WEB_PUSH ci-dessus. Decision CONSCIENTE d'un
+                // opt-OUT plutot qu'un opt-IN : chaque membre d'une Boucle
+                // recoit desormais un email par demande d'aide, sauf s'il le
+                // desactive pour cette Boucle precise.
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
             ],
         ],
 

@@ -66,7 +66,14 @@
                 </div>
 
                 <div class="mb-6">
-                    <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ $request->description }}</p>
+                    {{-- TASK-1773 — meme rendu que la fiche d'un service : la
+                         saisie se fait desormais dans l'editeur, donc en
+                         Markdown. Sans ce changement, un `**gras**` se serait
+                         lu tel quel — l'ecran aurait refuse ce que le
+                         formulaire venait de promettre. --}}
+                    <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
+                        {!! markdown($request->description, ['renderer' => ['soft_break' => "<br />\n"]]) !!}
+                    </div>
                 </div>
 
                 @if($request->attachments->isNotEmpty())

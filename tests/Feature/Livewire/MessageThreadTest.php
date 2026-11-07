@@ -692,7 +692,10 @@ class MessageThreadTest extends TestCase
 
         Livewire::actingAs($this->buyer)
             ->test(MessageThread::class, ['transaction' => $this->transaction])
-            ->call('toggleReaction', $msg->id, 'seen');
+            // TASK-1772 : la reaction « deux yeux » a ete retiree du
+            // catalogue a la recette de Cyril. N'importe quelle AUTRE
+            // reaction prouve exactement la meme chose.
+            ->call('toggleReaction', $msg->id, 'thanks');
 
         $this->assertDatabaseMissing('reactions', [
             'reactionable_id' => $msg->id,
@@ -701,7 +704,7 @@ class MessageThreadTest extends TestCase
 
         $this->assertDatabaseHas('reactions', [
             'reactionable_id' => $msg->id,
-            'reaction_type' => 'seen',
+            'reaction_type' => 'thanks',
         ]);
     }
 

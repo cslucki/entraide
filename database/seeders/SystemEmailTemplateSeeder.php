@@ -242,6 +242,30 @@ class SystemEmailTemplateSeeder extends Seeder
          * doivent dire la meme chose : un gabarit pose par migration entre au
          * catalogue du seeder, sinon une base reconstruite de zero ne l'a pas.
          */
+        // TASK-1772 — meme contenu que la migration
+        // `2026_11_06_090000_add_loop_mention_created_email_template`.
+        // Un gabarit pose par migration doit entrer ICI aussi : sans quoi une
+        // base reconstruite de zero ne l'aurait pas.
+        'loop_mention_created' => [
+            'name_fr' => 'Mention dans une Boucle',
+            'name_en' => 'Mention in a Loop',
+            'subject_fr' => '{{ author_name }} vous a mentionné dans « {{ loop_name }} »',
+            'subject_en' => '{{ author_name }} mentioned you in “{{ loop_name }}”',
+            // Le contenu suit la migration
+            // `2026_11_06_150000_add_message_and_preferences_to_mention_email` :
+            // une base reconstruite de zero recoit directement la version
+            // qui porte l'extrait et le lien de desabonnement, sans passer
+            // par la precedente. La suite TASK-1772 verifie que ces deux
+            // chaines ne divergent pas.
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> vous a mentionné dans un message de la Boucle <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Lire le message dans la Boucle</a></p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned you in a message from the Loop <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Read the message in the Loop</a></p><p>No rush: the message will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'organization_name',
+                'loop_name', 'author_name', 'message_url', 'message_excerpt',
+                'preferences_url', 'app_name',
+            ],
+        ],
+
         'loop_join_request_created' => [
             'name_fr' => 'Demande pour rejoindre une Boucle',
             'name_en' => 'Request to join a Loop',
@@ -249,6 +273,22 @@ class SystemEmailTemplateSeeder extends Seeder
             'subject_en' => 'Someone is asking to join “{{ loop_name }}”',
             'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> demande à rejoindre la Boucle <strong>{{ loop_name }}</strong>, dont vous êtes responsable.</p><p><a href="{{ request_url }}">Voir la demande et répondre</a></p><p>Tant que vous n’avez pas répondu, cette personne reste en attente.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p>',
             'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> is asking to join the Loop <strong>{{ loop_name }}</strong>, which you are responsible for.</p><p><a href="{{ request_url }}">View the request and reply</a></p><p>Until you reply, this person stays on hold.</p><p>See you soon,<br>The {{ app_name }} team</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'organization_name',
+                'loop_name', 'requester_name', 'request_url', 'app_name',
+            ],
+        ],
+
+        // TASK-1775 (CDC C3) — un gabarit pose par migration doit entrer au
+        // catalogue du seeder, sinon une base reconstruite de zero ne
+        // l'aurait pas (lecon deja payee sur ce fichier).
+        'loop_help_request_created' => [
+            'name_fr' => 'Demande d’aide publiée dans une Boucle',
+            'name_en' => 'Help request published in a Loop',
+            'subject_fr' => 'Une demande d’aide dans « {{ loop_name }} »',
+            'subject_en' => 'A help request in “{{ loop_name }}”',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> a publié une demande d’aide dans la Boucle <strong>{{ loop_name }}</strong>, dont vous êtes membre.</p><p><a href="{{ request_url }}">Ouvrir la Boucle</a></p><p>Rien ne presse : la demande vous attend, vous la lirez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> published a help request in the Loop <strong>{{ loop_name }}</strong>, which you are a member of.</p><p><a href="{{ request_url }}">Open the Loop</a></p><p>No rush: the request will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'organization_name',
                 'loop_name', 'requester_name', 'request_url', 'app_name',

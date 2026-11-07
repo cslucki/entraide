@@ -214,8 +214,15 @@ class TASK1289CrossOrganizationWriteGuardTest extends TestCase
     {
         $this->actingAs($this->member)
             ->post(route('services.store'), $this->validServiceData())
-            ->assertRedirect(route('organization.dashboard.services', [$this->defaultOrganization]))
-            ->assertSessionHas('success');
+            // TASK-1773 : la publication mene a l'ecran de confirmation, qui
+            // DIT lui-meme que la proposition est publiee — le flash `success`
+            // a donc disparu de ce chemin (deux annonces pour un fait). Ce que
+            // ce test defend est ailleurs et n'a pas bouge : un membre de
+            // l'Organization par defaut cree bien son service.
+            ->assertRedirect(route('organization.services.created', [
+                'organization' => $this->defaultOrganization,
+                'service' => Service::withoutGlobalScopes()->latest()->firstOrFail()->id,
+            ]));
 
         $this->assertSame(1, Service::withoutGlobalScopes()->count());
         $this->assertDatabaseHas('services', [

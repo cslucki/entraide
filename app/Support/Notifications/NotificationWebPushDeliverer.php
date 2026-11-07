@@ -123,7 +123,15 @@ class NotificationWebPushDeliverer
 
         $preferences = app(NotificationPreferenceResolver::class);
 
-        if (! $preferences->allows($destinataire, (string) $notification->notification_key, NotificationCatalogue::CHANNEL_WEB_PUSH)) {
+        // TASK-1775 (CDC C2) — meme discipline qu'en EMAIL : la sourdine par
+        // Boucle a pu changer entre la planification et ce rejeu, et seule
+        // `LOOP_HELP_REQUEST_CREATED` doit jamais s'y soumettre (`object_id`
+        // designe la Boucle AUSSI pour `LOOP_MEMBER_ADDED`, un fait personnel).
+        $loopId = $notification->notification_key === NotificationCatalogue::LOOP_HELP_REQUEST_CREATED
+            ? (string) $notification->object_id
+            : null;
+
+        if (! $preferences->allows($destinataire, (string) $notification->notification_key, NotificationCatalogue::CHANNEL_WEB_PUSH, $loopId)) {
             $this->abandonner($livraison, NotificationDeliveryStatus::SKIPPED_PREFERENCE, 'channel_disabled_by_member');
 
             return;
@@ -553,6 +561,12 @@ class NotificationWebPushDeliverer
             NotificationCatalogue::OBJECT_LOOP => $objetId,
             NotificationCatalogue::OBJECT_LOOP_INVITATION => DB::table('loop_invitations')->where('id', $objetId)->value('loop_id'),
             NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST => DB::table('loop_join_requests')->where('id', $objetId)->value('loop_id'),
+            // TASK-1772 — sans cette ligne, le Push d'une mention perdrait le
+            // nom de la Boucle PUBLIQUE : le corps retomberait sur son texte
+            // generique, alors qu'il a le droit de nommer une Boucle publique.
+            // `DB::table` et non Eloquent : aucun scope global ne doit
+            // intervenir, ce code tourne sous worker.
+            NotificationCatalogue::OBJECT_LOOP_MESSAGE => DB::table('loop_messages')->where('id', $objetId)->value('loop_id'),
 
             // Un article co-ecrit est le plus souvent un BROUILLON : son titre
             // n'a rien a faire sur un ecran verrouille.

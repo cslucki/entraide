@@ -393,11 +393,63 @@ class ServiceController extends Controller
             }
         }
 
-        $redirectRoute = $organization && Route::has('organization.dashboard.services')
-            ? route('organization.dashboard.services', ['organization' => $organization->slug])
-            : route('dashboard.services');
+        // TASK-1773 — la publication mene a un ECRAN, plus a un message flash
+        // sur le tableau de bord. Le but est produit : inviter a partager un
+        // autre savoir-faire pendant qu'on y est.
+        //
+        // PRG, comme avant : c'est une redirection vers une page en GET. Un
+        // rafraichissement de cette page ne recree donc rien — la demande le
+        // posait comme regle, et c'est la forme qui la tient.
+        //
+        // Pas de flash `success` ici : l'ecran DIT deja que la proposition est
+        // publiee. Deux annonces pour un meme fait, c'est une de trop.
+        $confirmationRoute = $organization && Route::has('organization.services.created')
+            ? route('organization.services.created', ['organization' => $organization->slug, 'service' => $service->id])
+            : route('services.created', ['service' => $service->id]);
 
-        return redirect($redirectRoute)->with('success', __('services.notification.created'));
+        return redirect($confirmationRoute);
+    }
+
+    /**
+     * TASK-1773 — L'ECRAN DE CONFIRMATION D'UNE PROPOSITION.
+     *
+     * Trois gardes, dans cet ordre :
+     *
+     * 1. l'Organization courante est celle de la proposition — meme forme que
+     *    `edit()` et `show()`, sinon la page d'une autre Organization serait
+     *    lisible depuis la surface courte ;
+     * 2. **la proposition est bien celle du demandeur.** Sans cette garde, un
+     *    membre pourrait lire « votre proposition est publiee » devant la
+     *    proposition d'autrui — et le bouton « voir mes propositions » ne
+     *    montrerait rien de ce qu'il vient de lire ;
+     * 3. une proposition supprimee n'a pas d'ecran de felicitations.
+     *
+     * Le STATUT REEL est passe a la vue : la demande exige que le texte de
+     * confirmation corresponde a l'etat de publication. Aujourd'hui une
+     * creation vaut `active` (ecrit en dur dans `store()`), mais c'est la vue
+     * qui le lit, pas une promesse ecrite une fois pour toutes.
+     */
+    public function created(Service $service): View
+    {
+        $organization = currentOrganization();
+
+        if (! $organization || $service->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        if ($service->user_id !== auth()->id()) {
+            abort(404);
+        }
+
+        if ($service->status === 'deleted') {
+            abort(404);
+        }
+
+        return view('services.created', [
+            'service' => $service,
+            'organization' => $organization,
+            'estPubliee' => $service->status === 'active',
+        ]);
     }
 
     public function edit(Service $service): View

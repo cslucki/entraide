@@ -417,6 +417,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/services/create', [ServiceController::class, 'create'])->name('services.create');
         Route::post('/services', [ServiceController::class, 'store'])->name('services.store');
         Route::post('/services/ai-formulate', [ServiceController::class, 'formulate'])->name('services.ai-formulate');
+        // TASK-1773 — l'ecran de confirmation. Une page en GET, et non un
+        // simple message flash : elle survit au rafraichissement sans rien
+        // recreer, et c'est la condition posee par la demande.
+        Route::get('/services/{service}/publiee', [ServiceController::class, 'created'])->name('services.created')->whereUuid('service');
     });
     Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->name('services.edit');
     Route::put('/services/{service}', [ServiceController::class, 'update'])->name('services.update');
@@ -474,7 +478,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/read-all', [NotificationCenterController::class, 'readAll'])->middleware('throttle:30,1')->name('notifications.read-all');
     Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'edit'])->name('notifications.preferences.edit');
     Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
+    Route::post('/notifications/preferences/loops', [NotificationPreferenceController::class, 'updateLoopPreferences'])->middleware('throttle:30,1')->name('notifications.preferences.loops.update');
     Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
+    Route::post('/notifications/{notification}/unread', [NotificationCenterController::class, 'markUnread'])->middleware('throttle:60,1')->name('notifications.unread');
     Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
 
     // TASK-1739 — abonnements Web Push, un par APPAREIL.
@@ -1617,6 +1623,7 @@ Route::prefix('/org/{organization}')
                 Route::get('/services/create', [ServiceController::class, 'create'])->name('services.create');
                 Route::post('/services', [ServiceController::class, 'store'])->name('services.store');
                 Route::post('/services/ai-formulate', [ServiceController::class, 'formulate'])->name('services.ai-formulate');
+                Route::get('/services/{service}/publiee', [ServiceController::class, 'created'])->middleware('consume.org')->name('services.created')->whereUuid('service');
             });
             Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->middleware('consume.org')->name('services.edit');
             Route::put('/services/{service}', [ServiceController::class, 'update'])->middleware('consume.org')->name('services.update');
@@ -1672,7 +1679,9 @@ Route::prefix('/org/{organization}')
             Route::post('/notifications/read-all', [NotificationCenterController::class, 'readAll'])->middleware('throttle:30,1')->name('notifications.read-all');
             Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'edit'])->name('notifications.preferences.edit');
             Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
+            Route::post('/notifications/preferences/loops', [NotificationPreferenceController::class, 'updateLoopPreferences'])->middleware('throttle:30,1')->name('notifications.preferences.loops.update');
             Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
+            Route::post('/notifications/{notification}/unread', [NotificationCenterController::class, 'markUnread'])->middleware('throttle:60,1')->name('notifications.unread');
             Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
 
             // TASK-1739 — meme trio que la forme globale ci-dessus. Declaree

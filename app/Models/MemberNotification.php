@@ -158,6 +158,12 @@ class MemberNotification extends Model
         return $query->whereNull('read_at');
     }
 
+    /** TASK-1775 — l'inverse d'`unread()` : les lignes que « Marquer comme non lue » peut cibler. */
+    public function scopeRead(Builder $query): Builder
+    {
+        return $query->whereNotNull('read_at');
+    }
+
     public function isRead(): bool
     {
         return $this->read_at !== null;
@@ -186,5 +192,32 @@ class MemberNotification extends Model
         }
 
         $this->forceFill(['read_at' => now()])->save();
+    }
+
+    /**
+     * TASK-1775 — l'inverse symmetrique de `markAsReadFor()` : remettre une
+     * notification deja lue dans la file des non-lues, pour qui veut la
+     * retrouver plus tard.
+     *
+     * Meme contrat que `markAsReadFor()` : le couple (organization, recipient)
+     * est EXIGE, refus bruyant sinon — connaitre l'identifiant ne donne aucun
+     * droit sur la ligne. Idempotent dans l'autre sens : deja non lue, on ne
+     * touche a rien.
+     *
+     * Ce geste ne retablit AUCUNE livraison asynchrone : il ne fait que
+     * reinitialiser `read_at`, il n'emet rien, ne replanifie rien — une
+     * notification qu'on remet en non-lue ne redeclenche ni email ni Web Push.
+     */
+    public function markAsUnreadFor(string $organizationId, string $recipientId): void
+    {
+        if ($this->organization_id !== $organizationId || $this->recipient_id !== $recipientId) {
+            throw new RuntimeException('Cannot mark a notification unread on behalf of another member.');
+        }
+
+        if ($this->read_at === null) {
+            return;
+        }
+
+        $this->forceFill(['read_at' => null])->save();
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Files\TypesDeFichiersAcceptes;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -134,10 +135,14 @@ class Message extends Model
      */
     public function fileIsPreviewable(): bool
     {
+        // TASK-1772 — les videos entrent ici : c'est cette URL que la balise
+        // `<video>` de la bulle consomme. Elle reste GARDEE (meme policy que
+        // le fil) — « apercevable » ne veut pas dire « public ».
         return in_array($this->file_mime, [
             'application/pdf',
             'image/jpeg', 'image/png', 'image/webp', 'image/gif',
             'text/plain', 'text/markdown', 'text/csv',
+            ...TypesDeFichiersAcceptes::VIDEO,
         ], true);
     }
 

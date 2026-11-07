@@ -232,12 +232,21 @@ class TASK1621PourContreFlowTest extends TestCase
         $composant->assertSet('composerMode', 'multi_ai');
     }
 
-    public function test_aucun_mode_ne_rend_de_pastille_et_le_mode_reste_arme(): void
+    /**
+     * TASK-1769 — la pastille revient, et la lecon de T1621 tient toujours.
+     *
+     * T1621 avait retire la pastille parce qu'elle redisait, AILLEURS, ce que
+     * la rangee des modes disait deja : deux surfaces pour un meme etat. Sous
+     * 768 px cette rangee ne se rend plus — la pastille redevient donc
+     * l'unique indicateur, et elle n'est plus un doublon.
+     *
+     * Ce qui ne change pas, et c'est le constat de recette de Cyril : un mode
+     * SANS LIBELLE n'a pas de pastille. `multi_ai` n'en a pas — il a son badge
+     * nomme — et une pastille vide reduite a son bouton × ne doit jamais
+     * revenir.
+     */
+    public function test_un_mode_nomme_rend_sa_pastille_un_mode_sans_libelle_n_en_rend_pas(): void
     {
-        // Arbitrage de recette : le bouton du mode choisi change d'aspect, a
-        // l'endroit meme ou le geste a eu lieu. La pastille redisait cet etat
-        // ailleurs, avec son propre bouton ×. Elle disparait pour TOUS les
-        // moteurs, pas seulement « Pour / Contre ».
         $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
 
         // `toggleComposerEngine` COMBINE (ia + dossiers = ia_dossiers) : on
@@ -245,9 +254,16 @@ class TASK1621PourContreFlowTest extends TestCase
         foreach (['ia', 'dossiers', 'ia_dossiers'] as $moteur) {
             $composant->call('setComposerMode', $moteur)
                 ->assertSet('composerMode', $moteur)
-                ->assertDontSeeHtml('data-composer-mode');
+                ->assertSeeHtml('data-composer-mode="'.$moteur.'"');
         }
 
+        // Et le libelle est bien DANS la pastille : une pastille qui ne nomme
+        // pas son mode ne vaut pas mieux que pas de pastille du tout.
+        $html = $composant->call('setComposerMode', 'ia')->html();
+        $this->assertSame(1, preg_match('/data-composer-mode="ia".*?<\/span>/s', $html, $pastille));
+        $this->assertStringContainsString(e(__('loops.ia_mode_label')), $pastille[0]);
+
+        // `multi_ai` n'a pas de libelle : pas de pastille, le badge suffit.
         $composant->call('toggleMultiAiMode')
             ->assertSet('composerMode', 'multi_ai')
             ->assertDontSeeHtml('data-composer-mode');

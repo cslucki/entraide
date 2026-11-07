@@ -6,11 +6,13 @@ use App\Models\EmailLog;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
+use App\Models\LoopMessage;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Loops\LoopInvitationMailer;
+use App\Services\Loops\LoopMentionMailer;
 use App\Services\Transactions\TransactionProposalMailer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Lang;
@@ -238,7 +240,18 @@ final class NotificationEmailDeliverer
         }
 
         // La preference COURANTE, pas celle d'au moment de l'emission.
-        if (! $this->preferences->allows($destinataire, (string) $notification->notification_key, NotificationCatalogue::CHANNEL_EMAIL)) {
+        //
+        // TASK-1775 (CDC C2) — « au moment de l'emission » s'entend AUSSI de
+        // la sourdine par Boucle : un membre peut l'avoir coupee entre la
+        // planification et ce rejeu. `$loopId` n'est fourni que pour la SEULE
+        // cle collective concernee — le resolveur l'exige deja, redondant ici
+        // par discipline d'appel plutot que par necessite.
+        if (! $this->preferences->allows(
+            $destinataire,
+            (string) $notification->notification_key,
+            NotificationCatalogue::CHANNEL_EMAIL,
+            $this->loopIdPourPreference($notification),
+        )) {
             $this->conclure($livraison, NotificationDeliveryStatus::SKIPPED_PREFERENCE, 'channel_disabled_by_member');
 
             return;
@@ -467,6 +480,50 @@ final class NotificationEmailDeliverer
             ];
         }
 
+        // TASK-1772 — LA MENTION.
+        //
+        // Cette branche est la piece qu'on oublie, et le depot l'a oubliee
+        // DEUX FOIS : T1751 (branche `OBJECT_TRANSACTION` manquante) et T1761
+        // (cle et gabarit poses, aucune branche). Le symptome est le meme et
+        // il est silencieux : `rendreDepuisGabarit()` rend `null`, l'email
+        // **part quand meme** par le repli de langue — sans nom de Boucle ni
+        // de personne — et rien ne le signale.
+        //
+        // L'objet est le MESSAGE (D5) : c'est lui qu'on relit, et c'est de lui
+        // qu'on tire la Boucle. Scopes retires puis frontiere de tenant
+        // reposee a la main, parce que ce code tourne sous worker.
+        if ($cle === NotificationCatalogue::LOOP_MENTION_CREATED) {
+            $message = LoopMessage::query()
+                ->withoutGlobalScopes()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($message === null) {
+                return null;
+            }
+
+            // L'AUTEUR du message est l'acteur de la notification — pas le
+            // destinataire, qui est la personne mentionnee.
+            $auteur = $notification->actor_id
+                ? User::find((string) $notification->actor_id)
+                : User::find((string) $message->sender_id);
+
+            $mentionMailer = app(LoopMentionMailer::class);
+            $reel = $mentionMailer->compose($message, $destinataire, $auteur, $cible, $locale);
+            // Le sixieme argument expurge AUSSI l'extrait du message : le
+            // courriel porte desormais la phrase ecrite par un membre, et
+            // `email_logs` n'a pas a archiver une conversation de Boucle
+            // privee (cf. `LoopMentionMailer::EXTRAIT_EXPURGE`).
+            $expurge = $mentionMailer->compose($message, $destinataire, $auteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
         // TASK-1761 point 1 — la DEMANDE d'adhesion, cote PROPRIETAIRE.
         //
         // ## Le defaut que cette branche ferme, trouve par la recette de Cyril
@@ -576,6 +633,34 @@ final class NotificationEmailDeliverer
 
             $reel = $composeur->compose($transaction, $destinataire, $acteur, $cible, $locale);
             $expurge = $composeur->compose($transaction, $destinataire, $acteur, self::LIEN_EXPURGE, $locale);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
+        // TASK-1775 (CDC C3) — la demande d'aide. L'objet EST la Boucle : rien
+        // a relire pour remonter ailleurs, comme pour `TRANSACTION_PROPOSAL_CREATED`
+        // ci-dessus. Sans cette branche, `rendreDepuisGabarit()` rendrait
+        // `null` et l'email partirait par le repli de langue SANS nom de
+        // Boucle ni d'auteur — exactement le defaut deja ferme deux fois sur
+        // ce fichier (T1751, T1761).
+        if ($cle === NotificationCatalogue::LOOP_HELP_REQUEST_CREATED) {
+            $loop = Loop::withoutGlobalScopes()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($loop === null) {
+                return null;
+            }
+
+            $auteur = $notification->actor_id ? User::find((string) $notification->actor_id) : null;
+
+            $reel = $mailer->composeForHelpRequest($loop, $destinataire, $auteur, $cible, $locale);
+            $expurge = $mailer->composeForHelpRequest($loop, $destinataire, $auteur, self::LIEN_EXPURGE, $locale);
 
             return [
                 'subject' => $reel['subject'],
@@ -699,5 +784,22 @@ final class NotificationEmailDeliverer
         $livraison->status = $status;
         $livraison->diagnostic = mb_substr($diagnostic, 0, self::DIAGNOSTIC_MAX);
         $livraison->save();
+    }
+
+    /**
+     * TASK-1775 — l'identifiant de Boucle a transmettre au resolveur de
+     * preference, et SEULEMENT pour la cle collective concernee.
+     *
+     * `object_id` designe la Boucle UNIQUEMENT pour `LOOP_HELP_REQUEST_CREATED` :
+     * `LOOP_MEMBER_ADDED` partage le meme `object_type` (`OBJECT_LOOP`) mais
+     * designe un fait PERSONNEL que la sourdine de Boucle ne doit jamais
+     * gouverner. La garde porte donc sur la CLE, jamais sur `object_type`
+     * seul — meme raison que dans `NotificationPreferenceResolver::allows()`.
+     */
+    private function loopIdPourPreference(MemberNotification $notification): ?string
+    {
+        return $notification->notification_key === NotificationCatalogue::LOOP_HELP_REQUEST_CREATED
+            ? (string) $notification->object_id
+            : null;
     }
 }

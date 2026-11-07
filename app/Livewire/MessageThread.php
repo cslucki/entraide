@@ -78,6 +78,20 @@ class MessageThread extends Component
 
     public const TAILLE_MAX_FICHIER_KO = 51200;
 
+    /**
+     * TASK-1772 (arbitrage Cyril, 06/11) — LE PLAFOND D'UNE VIDEO.
+     *
+     * 25 Mo, soit environ trente secondes de video de telephone. Plus bas que
+     * les 50 Mo d'un fichier ordinaire, et deliberement : la PROD tourne sur
+     * UNE instance de 1 vCPU / 512 Mo (mesure du 05/11). Un envoi de 50 Mo
+     * occupe cette instance unique pendant toute sa montee — pour tout le
+     * monde, pas seulement pour celui qui envoie.
+     *
+     * Le plafond est une decision de SURFACE : `TypesDeFichiersAcceptes` dit
+     * de quoi le produit sait faire quelque chose, jamais combien ca pese.
+     */
+    public const TAILLE_MAX_VIDEO_KO = 25600;
+
     public $photo = null;
 
     public function mount(Transaction $transaction): void
@@ -145,8 +159,42 @@ class MessageThread extends Component
         return [
             'file',
             TypesDeFichiersAcceptes::regleMimetypes(),
-            'max:'.($this->estUneImage($file) ? self::TAILLE_MAX_IMAGE_KO : self::TAILLE_MAX_FICHIER_KO),
+            'max:'.$this->plafondEnKo($file),
         ];
+    }
+
+    /**
+     * TASK-1772 — le plafond qui s'applique a CE depot.
+     *
+     * Trois reponses et non deux : une image passe par le pipeline WebP et
+     * n'a aucune raison de peser 50 Mo ; une video est bornee plus bas que le
+     * reste (voir `TAILLE_MAX_VIDEO_KO`) ; tout le reste suit les Dossiers.
+     */
+    private function plafondEnKo($file): int
+    {
+        if ($this->estUneImage($file)) {
+            return self::TAILLE_MAX_IMAGE_KO;
+        }
+
+        return $this->estUneVideo($file) ? self::TAILLE_MAX_VIDEO_KO : self::TAILLE_MAX_FICHIER_KO;
+    }
+
+    /**
+     * TASK-1772 — le depot est-il une video ?
+     *
+     * Meme discipline que `estUneImage()` : le type est devine sur le
+     * CONTENU, jamais sur l'extension. Un `.mp4` renomme en `.pdf` reste une
+     * video et garde le plafond d'une video.
+     */
+    private function estUneVideo($file): bool
+    {
+        try {
+            $mime = $file?->getMimeType();
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return is_string($mime) && str_starts_with($mime, 'video/');
     }
 
     /**

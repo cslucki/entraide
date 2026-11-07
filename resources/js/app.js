@@ -12,6 +12,101 @@ window.FilePond = FilePond;
 window.createBlogEditor = createEditor;
 
 /**
+ * TASK-1772 (recette Cyril, 06/11) — TELEVERSER EN MONTRANT LA PROGRESSION.
+ *
+ * « Il faudrait ajouter une mire de televersement, car sinon on a
+ * l'impression que rien ne se passe. Ceci sur desktop et smartphone. »
+ *
+ * Pourquoi `XMLHttpRequest` et non `fetch` : `fetch` ne rapporte AUCUNE
+ * progression d'ENVOI. Son `ReadableStream` de requete n'est pas disponible
+ * partout, et `response.body` ne decrit que la descente. `xhr.upload.progress`
+ * est le seul mecanisme fiable, aujourd'hui encore, pour dire ou en est un
+ * depot de 20 Mo depuis un telephone en 4G.
+ *
+ * DEUX PHASES, parce qu'un envoi en a deux — et c'est la mesure qui l'a
+ * impose. Recette Cyril du 06/11 : « la mire affiche 0 %, puis d'un coup cela
+ * se termine ». Mesure au navigateur, fichier de 12 Mo sur le reseau local :
+ * `xhr.upload.progress` n'emet RIEN entre les deux bouts — `[0 %, 0 ms]` puis
+ * `[100 %, 315 ms]`. Le navigateur remet le corps au systeme d'un bloc ; sur
+ * une liaison rapide il n'y a litteralement rien a montrer entre les deux.
+ * Un pourcentage fige a 0 % est alors pire qu'une absence de chiffre : il
+ * donne a croire que rien ne part.
+ *
+ * La fonction annonce donc `phase` en plus du pourcentage :
+ *   - `'envoi'`      — les octets montent. Pourcentage SI le navigateur en
+ *                      donne un (c'est le cas sur un reseau lent, 4G comprise),
+ *                      sinon l'appelant montre une attente indeterminee ;
+ *   - `'traitement'` — les octets sont partis, le serveur travaille encore :
+ *                      validation, empreinte SHA-256, ecriture disque, base.
+ *                      Pour un fichier de 30 Mo, c'est LA que le temps passe.
+ *
+ * La progression d'envoi reste bornee a 99 % : la phase suivante existe, et
+ * afficher 100 % pendant qu'on attend encore serait un mensonge sur la fin.
+ *
+ * Rend toujours `{ ok, raison }`, jamais une exception : l'appelant affiche la
+ * raison du serveur (le type refuse, le doublon, le quota) au lieu d'un
+ * « echec » muet.
+ *
+ * @param {string} endpoint
+ * @param {File[]} fichiers
+ * @param {(pourcent: number) => void} [surProgression]
+ * @returns {Promise<{ok: boolean, raison: string}>}
+ */
+window.bpTeleverserFichiers = function (endpoint, fichiers, surProgression) {
+    return new Promise((resolve) => {
+        const corps = new FormData();
+        fichiers.forEach((f) => corps.append('files[]', f, f.name));
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', endpoint);
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.setRequestHeader('X-CSRF-TOKEN', document.querySelector('meta[name="csrf-token"]')?.content ?? '');
+
+        const annoncer = (pourcent, phase) => {
+            if (typeof surProgression === 'function') {
+                surProgression(pourcent, phase);
+            }
+        };
+
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                annoncer(Math.min(99, Math.round((e.loaded / e.total) * 100)), 'envoi');
+            }
+        });
+
+        // Les octets sont partis. Le serveur, lui, commence seulement.
+        xhr.upload.addEventListener('load', () => annoncer(100, 'traitement'));
+
+        xhr.addEventListener('load', () => {
+            const ok = xhr.status >= 200 && xhr.status < 300;
+            let raison = '';
+
+            if (! ok) {
+                try {
+                    const donnees = JSON.parse(xhr.responseText || '{}');
+                    // 422 : le detail est dans `errors`, le resume dans `message`.
+                    raison = donnees.errors
+                        ? Object.values(donnees.errors).flat().join(' ')
+                        : (donnees.message || '');
+                } catch (e) {
+                    raison = '';
+                }
+            }
+
+            annoncer(ok ? 100 : 0, 'fin');
+
+            resolve({ ok, raison });
+        });
+
+        xhr.addEventListener('error', () => resolve({ ok: false, raison: '' }));
+        xhr.addEventListener('abort', () => resolve({ ok: false, raison: '' }));
+
+        xhr.send(corps);
+    });
+};
+
+/**
  * TASK-1684 — ouvrir le selecteur natif des champs de date au toucher.
  *
  * Defaut rapporte en recette mobile : sur la Card Roadmap, toucher le champ
@@ -68,6 +163,105 @@ function registerAlpineStores() {
         open(id, form) { this.active = id; this._form = form; },
         close() { this.active = null; this._form = null; },
         confirm() { if (this._form) this._form.submit(); this.close(); },
+    });
+
+    /**
+     * TASK-1771 — le MODE SELECTION d'un message.
+     *
+     * Modele du « contextual action bar » d'Android, celui que WhatsApp
+     * applique : un appui long SELECTIONNE, la barre du haut est REMPLACEE
+     * par une barre d'actions, et le message selectionne est surligne.
+     *
+     * Pourquoi un store et pas un `x-data` de page : la bulle, la barre et
+     * les deux fils (ChatLoop et Messagerie) sont trois portees Alpine
+     * distinctes. Un etat de page obligerait a le recopier des deux cotes —
+     * et deux copies divergent toujours.
+     *
+     * UNE SEULE selection a la fois (arbitrage Cyril du 06/11) : le compteur
+     * et les actions par lot de WhatsApp demanderaient un etat SERVEUR dans
+     * les deux fils, et que chaque action sache traiter un lot.
+     */
+    window.Alpine.store('bpSelection', {
+        id: null,
+        actions: {},
+        texte: '',
+        /** Qui a ecrit le message selectionne (« Moi » ou le nom affiche). */
+        auteur: '',
+
+        get ouvert() {
+            return this.id !== null;
+        },
+
+        /** Selectionner, ou DESELECTIONNER si c'est deja celui-la. */
+        basculer(id, actions, texte, auteur) {
+            if (this.id === id) {
+                return this.fermer();
+            }
+
+            this.id = id;
+            this.actions = actions || {};
+            this.texte = texte || '';
+            this.auteur = auteur || '';
+        },
+
+        fermer() {
+            this.id = null;
+            this.actions = {};
+            this.texte = '';
+            this.auteur = '';
+        },
+
+        /**
+         * TASK-1772 (recette Cyril) — un appui EN DEHORS de tout message sort
+         * du mode selection, comme on referme un menu en touchant a cote.
+         *
+         * Appele depuis un `click` de fenetre : la rangee a deja traite le
+         * sien (le `click` remonte de la rangee vers la fenetre), donc un
+         * appui sur une AUTRE rangee a deja bascule la selection quand on
+         * arrive ici — et il est ignore, puisqu'il vient d'une rangee.
+         * Seuls comptent les appuis qui ne viennent ni d'une rangee
+         * selectionnable, ni de la barre elle-meme.
+         */
+        fermerSiDehors(cible) {
+            if (! this.ouvert || ! (cible instanceof Element)) {
+                return;
+            }
+
+            if (cible.closest('[data-bp-selectable], [data-selection-bar]')) {
+                return;
+            }
+
+            this.fermer();
+        },
+
+        /**
+         * Le presse-papier, depuis la BARRE et non depuis la bulle.
+         *
+         * `navigator.clipboard` n'existe pas hors contexte sécurisé et refuse
+         * parfois sans lever : le repli `execCommand` reste nécessaire, c'est
+         * le meme que celui de la bulle depuis T1704.
+         */
+        async copier() {
+            const texte = (this.texte || '').trim();
+
+            if (! texte) {
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(texte);
+            } catch {
+                const zone = document.createElement('textarea');
+                zone.value = texte;
+                zone.setAttribute('readonly', '');
+                zone.style.position = 'fixed';
+                zone.style.opacity = '0';
+                document.body.appendChild(zone);
+                zone.select();
+                try { document.execCommand('copy'); } catch { /* rien de plus a tenter */ }
+                document.body.removeChild(zone);
+            }
+        },
     });
 
     window.Alpine.store('darkMode', {

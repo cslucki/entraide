@@ -27,6 +27,21 @@
     // divergé au premier ajustement.
     $shape = 'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border text-xs font-semibold transition';
     $quiet = 'border-[var(--bp-border)] bg-[var(--bp-panel)] text-[var(--bp-muted)] hover:text-[var(--bp-text)] hover:border-[var(--bp-primary)]/40';
+
+    // TASK-1769 — la meme geometrie, mais reservee au BUREAU.
+    //
+    // On SUBSTITUE `inline-flex` au lieu d'ajouter `hidden` a cote : deux
+    // utilitaires de `display` au meme niveau, c'est l'ordre de la feuille
+    // compilee qui tranche, pas l'ordre dans l'attribut. Le depot a deja paye
+    // ce piege (T1744 : `hidden` ne masquait rien face a `inline-flex`).
+    $shapeDesktop = str_replace('inline-flex', 'hidden md:inline-flex', $shape);
+
+    // Les outils, dans l'ordre du catalogue et SANS coupure a cinq : sous
+    // 768 px la barre d'outils ne se rend plus, le menu est leur seul acces.
+    $_menuTools = collect($workspaceCards ?? []);
+    $_registry = app(\App\Support\Loops\LoopCardRegistry::class);
+    $_ligne = 'flex min-h-11 w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-semibold text-[var(--bp-text)] transition hover:bg-[var(--bp-primary)]/10';
+    $_section = 'px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.11em] text-[var(--bp-muted)]';
 @endphp
 
 <div class="flex shrink-0 items-center gap-1.5">
@@ -39,7 +54,7 @@
                     x-bind:class="activeCard === @js($card['key'])
                         ? 'border-[var(--bp-primary)] bg-[var(--bp-primary)]/10 text-[var(--bp-text)]'
                         : '{{ $quiet }}'"
-                    class="{{ $shape }} px-2.5"
+                    class="{{ $shapeDesktop }} px-2.5"
                     title="{{ __($card['label_key']) }}">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-6a2.25 2.25 0 0 0-.659-1.591l-3-3A2.25 2.25 0 0 0 14.25 3H6.75A2.25 2.25 0 0 0 4.5 5.25v13.5A2.25 2.25 0 0 0 6.75 21h10.5a2.25 2.25 0 0 0 2.25-2.25v-4.5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3v4.5h4.5"/></svg>
                 <span class="hidden sm:inline">{{ __($card['label_key']) }}</span>
@@ -55,7 +70,7 @@
                 x-bind:class="activeCard === @js($card['key'])
                     ? 'border-[var(--bp-accent)] bg-[var(--bp-accent)]/15 text-[var(--bp-text)]'
                     : 'border-[var(--bp-accent)]/30 bg-[var(--bp-accent)]/5 text-[var(--bp-accent)] hover:bg-[var(--bp-accent)]/10'"
-                class="{{ $shape }} px-2.5"
+                class="{{ $shapeDesktop }} px-2.5"
                 title="{{ __($card['label_key']) }}">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
             <span class="hidden lg:inline">{{ __($card['label_key']) }}</span>
@@ -73,7 +88,7 @@
     @if(($_org ?? null) && $_aiGate->availableHere())
         <a href="{{ route('organization.loops.catch-up', ['organization' => $_org, 'loop' => $currentLoop->id]) }}"
            data-loop-catch-up-link
-           class="{{ $shape }} {{ $quiet }} px-2.5"
+           class="{{ $shapeDesktop }} {{ $quiet }} px-2.5"
            title="{{ __('loops.catch_up_title') }}">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
             <span class="hidden sm:inline">{{ __('loops.catch_up_open') }}</span>
@@ -109,16 +124,80 @@
 
     @if($aQuelqueChose)
         <div class="relative shrink-0" x-data="{ gerer: false }" x-on:keydown.escape.window="gerer = false">
+            {{-- TASK-1769 — le menu ne se cree pas, il se TERMINE.
+                 « Gerer la Boucle » existe depuis T1620 et contenait deja un
+                 outil (Membres). Sous 768 px il devient le ⋮ unique de la
+                 barre du haut et recoit les sept outils, le Manifeste, le
+                 Resume IA et « Rattrape-moi » — tout ce que la barre d'outils
+                 et les boutons d'icone portaient avant. --}}
             <button type="button" x-on:click="gerer = ! gerer" x-bind:aria-expanded="gerer"
-                    class="{{ $shape }} {{ $quiet }} px-2.5"
-                    title="{{ __('loops.manage_loop_title') }}">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.425-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
-                <span class="hidden sm:inline">{{ __('loops.manage_loop') }}</span>
-                <svg class="h-3 w-3 transition-transform" x-bind:class="gerer && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+                    data-loop-menu-trigger
+                    class="{{ $shape }} {{ $quiet }} px-1.5 md:px-2.5"
+                    title="{{ __('loops.manage_loop_title') }}"
+                    aria-label="{{ __('loops.manage_loop_title') }}">
+                <svg class="block h-5 w-5 md:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75h.007v.008H12V6.75Zm0 5.25h.007v.008H12V12Zm0 5.25h.007v.008H12v-.008Z"/></svg>
+                <svg class="hidden h-4 w-4 md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.425-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
+                <span class="hidden md:inline">{{ __('loops.manage_loop') }}</span>
+                <svg class="hidden h-3 w-3 transition-transform md:block" x-bind:class="gerer && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
             </button>
 
             <div x-show="gerer" x-cloak x-on:click.outside="gerer = false"
-                 class="absolute right-0 top-full z-30 mt-1.5 w-60 rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-panel)] p-1.5 shadow-lg">
+                 {{-- TASK-1769 — 276 px et une hauteur bornee sur le viewport
+                      VISIBLE : un panneau ancre garde le fil derriere lui, donc
+                      le contexte, la ou une feuille pleine largeur le masque.
+                      `--bp-vvh` est pose par `<x-visual-viewport-height>`, deja
+                      monte sur cette page. --}}
+                 class="absolute right-0 top-full z-30 mt-1.5 w-[276px] max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-panel)] p-1.5 shadow-lg md:w-60"
+                 style="max-height: calc(var(--bp-vvh, 100dvh) - 5rem)">
+
+                {{-- ========== TELEPHONE : les outils ==========
+                     La barre d'outils ne se rend plus sous 768 px. Le menu
+                     liste donc TOUT, dans l'ordre du catalogue et sans coupure
+                     a cinq : plus de defilement horizontal muet, plus de
+                     depliant « N autres ». `TOOLBAR_VISIBLE` n'est pas touchee,
+                     elle reste la regle du bureau. --}}
+                @if($_menuTools->isNotEmpty())
+                    <div class="md:hidden">
+                        <p class="{{ $_section }}">{{ __('loops.menu_tools_section') }}</p>
+                        @foreach($_menuTools as $card)
+                            <button type="button" x-on:click="openCard(@js($card['key'])); gerer = false"
+                                    x-bind:class="activeCard === @js($card['key']) && 'bg-[var(--bp-primary)]/15 text-[var(--bp-primary)]'"
+                                    class="{{ $_ligne }}">
+                                <x-loops.card-icon :icon="$card['icon'] ?? null" />
+                                {{-- `labelFor` et non `__($card['label_key'])` : le
+                                     depot a deja paye ce defaut — le bouton disait
+                                     « Roadmap » et le panneau « Engagements ». --}}
+                                <span class="truncate">{{ $_registry->labelFor($currentLoop, $card['key']) }}</span>
+                            </button>
+                        @endforeach
+                    </div>
+                @endif
+
+                {{-- Les boutons d'icone de la barre du haut : ils rentrent ici
+                     sous 768 px, et restent dehors au-dessus. --}}
+                <div class="md:hidden">
+                    @foreach($frame->reject(fn ($c) => $c['key'] === 'core.members') as $card)
+                        <button type="button" x-on:click="openCard(@js($card['key'])); gerer = false" class="{{ $_ligne }}">
+                            <svg class="h-4 w-4 shrink-0 text-[var(--bp-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-6a2.25 2.25 0 0 0-.659-1.591l-3-3A2.25 2.25 0 0 0 14.25 3H6.75A2.25 2.25 0 0 0 4.5 5.25v13.5A2.25 2.25 0 0 0 6.75 21h10.5a2.25 2.25 0 0 0 2.25-2.25v-4.5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3v4.5h4.5"/></svg>
+                            <span class="truncate">{{ $_registry->labelFor($currentLoop, $card['key']) }}</span>
+                        </button>
+                    @endforeach
+                    @foreach($chatActions as $card)
+                        <button type="button" x-on:click="openCard(@js($card['key'])); gerer = false" class="{{ $_ligne }}">
+                            <svg class="h-4 w-4 shrink-0 text-[var(--bp-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
+                            <span class="truncate">{{ $_registry->labelFor($currentLoop, $card['key']) }}</span>
+                        </button>
+                    @endforeach
+                    @if(($_org ?? null) && $_aiGate->availableHere())
+                        <a href="{{ route('organization.loops.catch-up', ['organization' => $_org, 'loop' => $currentLoop->id]) }}"
+                           data-loop-catch-up-link class="{{ $_ligne }}">
+                            <svg class="h-4 w-4 shrink-0 text-[var(--bp-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                            <span class="truncate">{{ __('loops.catch_up_open') }}</span>
+                        </a>
+                    @endif
+                </div>
+
+                <p class="{{ $_section }} md:hidden">{{ __('loops.menu_manage_section') }}</p>
 
                 @if($membresCard)
                     {{-- Membres reste une Card : le menu n'est que son nouveau
@@ -126,7 +205,14 @@
                     <button type="button" x-on:click="openCard(@js($membresCard['key'])); gerer = false"
                             class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-sm font-semibold text-[var(--bp-text)] transition hover:bg-[var(--bp-primary)]/10">
                         <svg class="h-4 w-4 shrink-0 text-[var(--bp-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/></svg>
-                        {{ __($membresCard['label_key']) }}
+                        <span class="truncate">{{ $_registry->labelFor($currentLoop, $membresCard['key']) }}</span>
+                        {{-- TASK-1769 — le compteur suit Membres dans le menu :
+                             c'est lui qui porte le nombre que le sous-titre de la
+                             barre du haut vient de laisser tomber. --}}
+                        <span class="ml-auto shrink-0 rounded-md bg-[var(--bp-border)]/60 px-1.5 py-0.5 text-[10px] font-bold text-[var(--bp-muted)]">{{ ($loopMembers ?? collect())->count() }}</span>
+                        @if(($canManageJoinRequests ?? false) && ($pendingJoinRequests ?? collect())->isNotEmpty())
+                            <span class="shrink-0 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white" title="{{ __('loops.join_requests_title') }}">{{ $pendingJoinRequests->count() }}</span>
+                        @endif
                     </button>
                 @endif
 

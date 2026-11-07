@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
+use App\Models\LoopMessage;
 use App\Models\MemberNotification;
 use App\Models\Organization;
 use App\Models\Transaction;
@@ -83,6 +84,26 @@ class NotificationCenterController extends Controller
 
         $notifications = $query->paginate(self::PAR_PAGE)->withQueryString();
 
+        // TASK-1775 — distinguer « rien n'est jamais arrive » de « tout est
+        // deja lu » exige desormais une mesure separee du filtre affiche.
+        //
+        // Avant cette TASK, le defaut etait « toutes » : une boite vide s'y
+        // voyait directement, sans requete de plus. Le defaut etant devenu
+        // « non-lues », une boite jamais alimentee ET une boite entierement
+        // lue produisent exactement la MEME liste filtree vide — seule une
+        // question posee EN DEHORS du filtre les distingue. Sans elle, un
+        // membre qui n'a jamais rien recu lirait « Tout est lu », qui laisse
+        // croire a un historique qu'il n'a pas.
+        //
+        // La requete ne part QUE quand elle peut changer la reponse : sur le
+        // filtre « toutes », la liste vide EST deja la preuve qu'il n'y a
+        // rien eu.
+        $dejaUneNotification = $filtre === self::FILTRE_NON_LUES && $notifications->isEmpty()
+            ? MemberNotification::query()
+                ->forRecipient((string) $organization->id, (string) $user->id)
+                ->exists()
+            : false;
+
         // TASK-1382 — une page hors borne ne doit pas se faire passer pour un
         // etat vide.
         //
@@ -115,13 +136,27 @@ class NotificationCenterController extends Controller
             // l'annonce. Les deux cartes sont indexees par identifiant de
             // notification et portent sur des `object_type` DISJOINTS : leur
             // union ne peut pas se recouvrir.
+            // TASK-1772 — une TROISIEME carte, et l'ordre de l'union compte.
+            //
+            // `+` garde la valeur de GAUCHE. Les trois cartes portent donc des
+            // `object_type` DISJOINTS, et c'est la prémisse qui les autorise a
+            // s'unir : `OBJECT_LOOP*` pour la premiere, `OBJECT_TRANSACTION`
+            // pour la deuxieme, `OBJECT_LOOP_MESSAGE` pour la troisieme.
+            //
+            // C'est exactement pour preserver cette prémisse que la mention a
+            // recu son PROPRE type d'objet au lieu de reutiliser `OBJECT_LOOP` :
+            // avec `OBJECT_LOOP`, la premiere carte aurait gagne et la
+            // troisieme aurait ete ignoree EN SILENCE.
             'sujets' => $this->sujetsDesBoucles($notifications->getCollection(), (string) $organization->id)
-                + $this->sujetsDEntraide($notifications->getCollection(), (string) $organization->id, $user),
+                + $this->sujetsDEntraide($notifications->getCollection(), (string) $organization->id, $user)
+                + $this->sujetsDesMentions($notifications->getCollection(), (string) $organization->id),
             'notifications' => $notifications,
             'filtre' => $filtre,
+            'dejaUneNotification' => $dejaUneNotification,
             'nonLues' => $user->unreadNotificationsCount((string) $organization->id),
             'routeParams' => $slug ? ['organization' => $slug] : [],
             'routeRead' => $slug ? 'organization.notifications.read' : 'notifications.read',
+            'routeUnread' => $slug ? 'organization.notifications.unread' : 'notifications.unread',
             'routeOpen' => $slug ? 'organization.notifications.open' : 'notifications.open',
             'routeReadAll' => $slug ? 'organization.notifications.read-all' : 'notifications.read-all',
             // TASK-1739 — l'acces aux reglages depuis le centre. Il manquait :
@@ -293,6 +328,84 @@ class NotificationCenterController extends Controller
      * @param  Collection<int, MemberNotification>  $notifications
      * @return array<string, string> identifiant de notification => nom de la Boucle
      */
+    /**
+     * TASK-1772 — nommer QUI a mentionne, et DANS QUELLE Boucle.
+     *
+     * Rend un TABLEAU et non une chaine : le libelle nomme a deux parametres
+     * (`:prenom` et `:loop`), la ou les notifications de Boucle n'en ont
+     * qu'un. La vue accepte les deux formes.
+     *
+     * Le nom n'est montre QUE si la cible est encore joignable, et le verdict
+     * est DEMANDE au resolveur plutot que re-derive : si la porte s'est
+     * refermee, l'ecran dira « plus accessible » au clic, et nommer la Boucle
+     * a cote laisserait filtrer ce que le membre n'a plus le droit de voir.
+     *
+     * @param  Collection<int, MemberNotification>  $notifications
+     * @return array<string, array{prenom: string, loop: string}>
+     */
+    private function sujetsDesMentions($notifications, string $organizationId): array
+    {
+        $lignes = $notifications->groupBy('object_type')
+            ->get(NotificationCatalogue::OBJECT_LOOP_MESSAGE);
+
+        if ($lignes === null || $lignes->isEmpty()) {
+            return [];
+        }
+
+        $identifiants = $lignes->pluck('object_id')->filter()->unique()->all();
+
+        if ($identifiants === []) {
+            return [];
+        }
+
+        $messages = LoopMessage::query()
+            ->withoutGlobalScopes()
+            ->whereIn('id', $identifiants)
+            ->where('organization_id', $organizationId)
+            ->get()
+            ->keyBy(fn ($m) => (string) $m->id);
+
+        $noms = Loop::query()
+            ->withoutGlobalScopes()
+            ->whereIn('id', $messages->pluck('loop_id')->filter()->unique()->all())
+            ->where('organization_id', $organizationId)
+            ->pluck('name', 'id');
+
+        $auteurs = User::query()
+            ->whereIn('id', $lignes->pluck('actor_id')->filter()->unique()->all())
+            ->get()
+            ->keyBy(fn ($u) => (string) $u->id);
+
+        $cibles = app(NotificationTargetResolver::class);
+        $sujets = [];
+
+        foreach ($lignes as $notification) {
+            $message = $messages->get((string) $notification->object_id);
+
+            if ($message === null) {
+                continue;
+            }
+
+            $nomBoucle = $noms[(string) $message->loop_id] ?? null;
+            $auteur = $notification->actor_id ? $auteurs->get((string) $notification->actor_id) : null;
+
+            if (! is_string($nomBoucle) || $nomBoucle === '' || $auteur === null) {
+                continue;
+            }
+
+            if ($cibles->resolve($notification) === null) {
+                continue;
+            }
+
+            $sujets[(string) $notification->id] = [
+                'prenom' => $auteur->publicDisplayName(),
+                'loop' => $nomBoucle,
+            ];
+        }
+
+        return $sujets;
+    }
+
     private function sujetsDesBoucles($notifications, string $organizationId): array
     {
         // notification => identifiant de Boucle, construit en trois passes selon
@@ -392,6 +505,27 @@ class NotificationCenterController extends Controller
     }
 
     /**
+     * TASK-1775 — l'inverse symmetrique de `read()` : remettre une
+     * notification deja lue dans la file des non-lues.
+     *
+     * Meme forme que `read()` — meme resolution tenant+destinataire, meme
+     * redirection — par symetrie avec le reste de l'ecran. `resoudre()` ne
+     * distingue pas lu/non lu : le controle « seulement sur une notification
+     * deja lue » appartient a la vue (l'action n'est proposee que la ou elle a
+     * un sens), et `markAsUnreadFor()` reste idempotent si elle est quand meme
+     * appelee sur une ligne deja non lue.
+     */
+    public function markUnread(Request $request): RedirectResponse
+    {
+        [$user, $organization] = $this->acteur($request);
+
+        $this->resoudre($this->identifiant($request), (string) $organization->id, (string) $user->id)
+            ->markAsUnreadFor((string) $organization->id, (string) $user->id);
+
+        return back();
+    }
+
+    /**
      * Ouvrir une notification : la marquer lue, PUIS resoudre sa cible.
      *
      * ## Un POST, pas un lien
@@ -486,17 +620,20 @@ class NotificationCenterController extends Controller
     /**
      * Le filtre vient du client : il passe par une liste blanche.
      *
-     * Toute autre valeur retombe sur « toutes » plutot que d'atteindre la
-     * requete — un filtre inconnu n'est pas une erreur a signaler, c'est une
-     * valeur a ignorer.
+     * TASK-1775 — le defaut (absence de `?filtre`) devient « non-lues » : un
+     * membre qui ouvre le centre doit voir ce qui reclame son attention, pas
+     * tout son historique. Toute autre valeur, y compris une valeur inconnue,
+     * retombe aussi sur « non-lues » plutot que d'atteindre la requete — un
+     * filtre inconnu n'est pas une erreur a signaler, c'est une valeur a
+     * ignorer. Seule la demande EXPLICITE de « toutes » montre tout.
      */
     private function filtre(Request $request): string
     {
-        $demande = (string) $request->query('filtre', self::FILTRE_TOUTES);
+        $demande = (string) $request->query('filtre', self::FILTRE_NON_LUES);
 
-        return in_array($demande, [self::FILTRE_TOUTES, self::FILTRE_NON_LUES], true)
-            ? $demande
-            : self::FILTRE_TOUTES;
+        return $demande === self::FILTRE_TOUTES
+            ? self::FILTRE_TOUTES
+            : self::FILTRE_NON_LUES;
     }
 
     /**

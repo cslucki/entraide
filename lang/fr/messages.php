@@ -101,6 +101,13 @@ return [
     'review_rating_hint' => 'Vous pouvez ajuster la note.',
     'send_review' => 'Envoyer le merci',
     'composer_placeholder' => 'Votre message...',
+    // TASK-1772 (recette Cyril) — le composeur de la Messagerie adopte la
+    // pilule et le menu « + » du ChatLoop. Les libelles vivent ici et non
+    // dans `loops.php` : cet ecran n'est pas une Boucle.
+    'composer_more_actions' => 'Plus d\'actions',
+    'composer_add_image' => 'Ajouter une image',
+    'composer_add_file' => 'Ajouter un fichier',
+    'composer_take_photo' => 'Prendre une photo',
     'conversation_closed' => 'Cette conversation est terminée.',
     'empty_thread' => 'Aucun message pour le moment',
     'empty_thread_hint' => 'Soyez le premier à écrire !',
@@ -109,6 +116,11 @@ return [
     'image_preview' => 'Aperçu',
     'image_alt' => 'Image',
     'reply' => 'Répondre',
+    // TASK-1770 — nom accessible de la feuille d'actions (appui long).
+    'message_actions' => 'Actions sur ce message',
+    // TASK-1771 — le mode selection (barre d'actions en haut).
+    'selection_exit' => 'Quitter la sélection',
+    'selection_one' => '1 message sélectionné',
     'pin' => 'Épingler',
     'unpin' => 'Désépingler',
     'edit' => 'Modifier',
@@ -163,4 +175,13 @@ return [
         'untitled' => 'Échange',
         'subject' => 'Mise à jour de votre échange — :statut',
     ],
+
+    // TASK-1772 (recette Cyril, 06/11) — l'apercu d'annuaire au clic sur
+    // l'avatar detache de la bulle.
+    'member_preview_open' => 'Voir la fiche de :name',
+    'member_preview_close' => 'Fermer',
+    'member_preview_title' => 'Fiche d’annuaire',
+    'member_preview_full' => 'Voir le profil complet',
+    'member_preview_write' => 'Écrire un message',
+    'member_preview_empty' => 'Cette personne n’a pas encore renseigné sa fiche.',
 ];

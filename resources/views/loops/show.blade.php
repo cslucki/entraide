@@ -278,7 +278,12 @@
         >
 
         {{-- Topbar --}}
-        <div class="flex flex-nowrap items-center gap-2 border-b border-[var(--bp-border)] px-3 py-2.5 flex-shrink-0 sm:gap-3 sm:px-4">
+        {{-- TASK-1769 — 61 px -> 44 px sur telephone. Les 17 px ne viennent pas
+             d'un rognage au juge : le bouton retour fait 36 px, et 4 px de
+             respiration au-dessus et en dessous donnent exactement 44 — la
+             cible tactile minimale, qu'on ne descend pas. Ce qui disparait
+             (pastille de visibilite, description) reparait a partir de `sm`. --}}
+        <div class="flex flex-nowrap items-center gap-2 border-b border-[var(--bp-border)] px-2 py-1 flex-shrink-0 sm:gap-3 sm:px-4 sm:py-2.5">
             @php
                 // TASK-1602 — ce bouton pointait sur `route('home')`, c'est-a-dire
                 // la RACINE, qui retombe sur l'Organization par defaut : depuis une
@@ -296,22 +301,30 @@
                     : $_loopRoute('index');
             @endphp
             <a href="{{ $backHref }}"
-               class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] text-[var(--bp-muted)] transition hover:text-[var(--bp-text)]"
+               class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-transparent bg-transparent text-[var(--bp-muted)] transition hover:text-[var(--bp-text)] sm:border-[var(--bp-border)] sm:bg-[var(--bp-panel)]"
                aria-label="{{ $backHome ? __('loops.back_home') : __('loops.back_to_loops') }}">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                 </svg>
             </a>
+            {{-- TASK-1769 — pas de vignette d'initiales.
+                 Elle avait ete arbitree « oui » le 06/11 puis RETIREE le meme
+                 jour, a la lecture de l'ecran : sur une barre ramenee a 44 px,
+                 28 px de pastille prenaient la largeur que le nom de la Boucle
+                 reclame — et le nom, lui, identifie. --}}
             <div class="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
                 <div class="min-w-0 flex-1">
                     <div class="flex min-w-0 items-start gap-2">
-                        <h1 class="truncate text-base font-semibold text-[var(--bp-text)] sm:text-lg">{{ $currentLoop->name }}</h1>
-                        <span class="mt-0.5 inline-flex shrink-0 items-center rounded-full border px-1 py-px text-[8px] font-semibold uppercase tracking-wide {{ $currentLoop->isPublic() ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-300' : 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400' }}">
+                        <h1 class="truncate text-sm font-semibold text-[var(--bp-text)] sm:text-lg">{{ $currentLoop->name }}</h1>
+                        <span class="mt-0.5 hidden shrink-0 items-center rounded-full border px-1 py-px text-[8px] font-semibold uppercase tracking-wide sm:inline-flex {{ $currentLoop->isPublic() ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-300' : 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400' }}">
                             {{ $currentLoop->isPublic() ? __('loops.visibility_public') : __('loops.visibility_private') }}
                         </span>
                     </div>
                     @if($currentLoop->description)
-                        <p class="truncate text-xs text-[var(--bp-muted)]">{{ $currentLoop->description }}</p>
+                        {{-- TASK-1769 — seconde ligne : elle coutait a elle seule
+                             la difference entre 44 et 61 px. Elle reste a partir
+                             de `sm`, ou la place ne manque pas. --}}
+                        <p class="hidden truncate text-xs text-[var(--bp-muted)] sm:block">{{ $currentLoop->description }}</p>
                     @endif
                 </div>
 
@@ -388,7 +401,13 @@
                 data-loop-workspace-chat
             >
                 @if($workspaceCards->isNotEmpty() || ($chatActionCards ?? collect())->isNotEmpty())
-                    <div class="flex-shrink-0 border-b border-gray-200 bg-white/90 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/90 sm:px-4">
+                    {{-- TASK-1769 — 63 px permanents pour montrer 2 outils sur 7,
+                         atteints par TROIS mecanismes (lisible, defilement muet,
+                         depliant « N autres »). Sous 768 px la barre ne se rend
+                         plus : le menu ⋮ liste les sept, sans coupure a cinq.
+                         `TOOLBAR_VISIBLE = 5` n'est pas touchee — elle reste la
+                         regle du bureau. --}}
+                    <div class="hidden flex-shrink-0 border-b border-gray-200 bg-white/90 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/90 sm:px-4 md:block">
                         @include('loops.partials.chat-tools')
                     </div>
                 @endif
@@ -428,18 +447,29 @@
                              endroits pour une seule intention. MASTER : « c'est
                              laborieux ». --}}
                         <div class="flex shrink-0 items-center gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-                            {{-- Mobile only: back to chat --}}
+                            {{-- TASK-1769 — defaut attrape en chemin : le panneau
+                                 d'un outil ne portait PAS son nom sous 1024 px.
+                                 On ouvrait « Roadmap » et on arrivait sur un
+                                 ecran qui ne disait pas qu'il etait Roadmap —
+                                 avec, pour seules indications, « Retour a
+                                 ChatLoop » et une croix : DEUX sorties
+                                 identiques a dix pixels l'une de l'autre, et
+                                 aucune entree en matiere.
+                                 Le retour devient donc un chevron nu a gauche,
+                                 le titre prend la place liberee, la croix reste
+                                 a droite. Trois roles, trois endroits. --}}
                             <button
                                 type="button"
                                 x-on:click="closeCard()"
-                                class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-violet-700 dark:hover:text-violet-200 lg:hidden"
+                                class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-violet-700 dark:hover:text-violet-200 lg:hidden"
+                                aria-label="{{ __('loops.cards_panel_back_to_chat') }}"
+                                title="{{ __('loops.cards_panel_back_to_chat') }}"
                             >
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
-                                {{ __('loops.cards_panel_back_to_chat') }}
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
                             </button>
 
-                            {{-- Desktop: active tool title (docked card) --}}
-                            <div class="hidden min-w-0 flex-1 lg:block">
+                            {{-- Le titre de l'outil actif — sur TOUS les formats. --}}
+                            <div class="min-w-0 flex-1">
                                 @foreach($panelCards as $card)
                                     <p x-show="activeCard === @js($card['key'])" x-cloak class="truncate text-base font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ app(\App\Support\Loops\LoopCardRegistry::class)->labelFor($currentLoop, $card['key']) }}</p>
                                 @endforeach

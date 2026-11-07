@@ -70,6 +70,17 @@ class LoopChat extends Component
     #[Locked]
     public bool $isMember = false;
 
+    /**
+     * TASK-1772 — l'identifiant de la fiche d'annuaire ouverte, ou `null`.
+     *
+     * `#[Locked]` : elle voyage dans le snapshot, et sans verrou le client
+     * pourrait la reecrire directement, sans passer par `ouvrirApercuMembre()`
+     * et ses quatre portes. C'est la lecon de `$isMember` deux lignes plus
+     * haut — une propriete publique est une ENTREE, pas une conclusion.
+     */
+    #[Locked]
+    public ?string $apercuMembreId = null;
+
     public ?string $replyToMessageId = null;
 
     public ?array $replyingTo = null;
@@ -444,6 +455,26 @@ class LoopChat extends Component
         $this->loop = $loop;
         $this->refreshMembership();
         $this->loadInitialMessages();
+
+        // TASK-1772 — calculee ICI, et pas dans `render()` : `wire:poll.3s`
+        // la recalculerait toutes les trois secondes, par spectateur, pour
+        // une liste qui ne change presque jamais.
+        $this->rafraichirMentionables();
+
+        // TASK-1772 — on arrive depuis une notification de mention : l'URL
+        // porte `?message={uuid}`. Aucune mecanique nouvelle ici —
+        // `showMessageInThread()` existe depuis T1548 : elle charge les
+        // messages AUTOUR de la cible (donc meme si elle est hors de la
+        // fenetre de trente) puis emet `scroll-to-message`, que la liste
+        // ecoute deja en surlignant la bulle.
+        //
+        // La methode borne elle-meme sur la Boucle ET l'Organization : un
+        // identifiant forge dans l'URL ne montre rien.
+        $cible = request()->query('message');
+
+        if (is_string($cible) && $cible !== '') {
+            $this->showMessageInThread($cible);
+        }
     }
 
     /**
@@ -903,6 +934,334 @@ class LoopChat extends Component
             && app(LoopLifecycleService::class)->isWritable($this->loop);
     }
 
+    /**
+     * TASK-1772 — le plafond de mentions par message.
+     *
+     * Arbitrage Cyril : **dix**, et un refus EXPLICITE au-dela, jamais une
+     * troncature. Tronquer ne previendrait pas quelqu'un que l'auteur croit
+     * avoir prevenu — un silence pire que l'erreur.
+     *
+     * Une Boucle de quinze personnes ne doit pas pouvoir produire quinze
+     * courriels d'un seul geste : ce serait `@tous` deguise, que le CDC a
+     * ecarte (D6).
+     */
+    public const MENTIONS_MAX = 10;
+
+    /**
+     * Les personnes mentionnables, calculees UNE FOIS au montage.
+     *
+     * `#[Locked]` : le navigateur ne doit pas pouvoir y ajouter quelqu'un. Et
+     * la calculer dans `render()` couterait une requete TOUTES LES TROIS
+     * SECONDES par spectateur (`wire:poll.3s`), pour une liste qui ne change
+     * presque jamais. Elle est donc rafraichie sur l'evenement qui existe
+     * deja : `loop-members-changed`, emis par `LoopMembersCard` et jusqu'ici
+     * ecoute par personne.
+     *
+     * @var list<array{id: string, nom: string}>
+     */
+    #[Locked]
+    public array $mentionables = [];
+
+    /**
+     * TASK-1772 — la carte `identifiant => nom`, pour le RENDU des bulles.
+     *
+     * Distincte de `$mentionables`, et ce n'est pas un doublon : celle-la
+     * EXCLUT le lecteur (on ne se mentionne pas soi-meme), tandis que
+     * celle-ci l'INCLUT — sinon ma propre mention serait la seule a ne pas
+     * etre mise en valeur pour moi, c'est-a-dire precisement celle qui
+     * compte le plus.
+     *
+     * Elle evite aussi un N+1 : la bulle ne va pas chercher les noms, on les
+     * lui donne.
+     *
+     * @var array<string, string>
+     */
+    #[Locked]
+    public array $nomsPourMentions = [];
+
+    /**
+     * Ce que le navigateur PRETEND avoir mentionne.
+     *
+     * Volontairement NON verrouillee : c'est une saisie. Elle est re-cadree
+     * au serveur a l'envoi, et rien de ce qui vient d'ici n'est cru sur
+     * parole — voir `mentionsRecadrees()`.
+     *
+     * @var list<string>
+     */
+    public array $mentionsSelectionnees = [];
+
+    /**
+     * Re-cadrage SERVEUR de ce que le navigateur a envoye.
+     *
+     * Deux gardes, et la seconde est la moins evidente :
+     *
+     * 1. **Intersection avec les membres ACTIFS de CETTE Boucle**, dans SON
+     *    Organization. Precedent explicite : `LoopMembersCard::add()` —
+     *    « quoi qu'ait envoye le navigateur, seuls les candidats reels de
+     *    CETTE Organization sont retenus ».
+     * 2. **Le nom doit reellement figurer dans le corps.** Sans elle, un POST
+     *    forge notifierait n'importe quel co-membre sans qu'aucun `@`
+     *    n'apparaisse dans le message — la personne recevrait un courriel
+     *    disant qu'on l'a mentionnee, et ne trouverait rien. La regle vit au
+     *    SERVEUR et pas dans la vue : corriger la seule vue laisse passer un
+     *    POST forge.
+     *
+     * @return list<string>
+     */
+    private function mentionsRecadrees(string $corps): array
+    {
+        $demandes = array_values(array_unique(array_filter(
+            array_map(fn ($id) => is_string($id) ? $id : null, $this->mentionsSelectionnees),
+        )));
+
+        if ($demandes === []) {
+            return [];
+        }
+
+        $reels = collect($this->mentionablesReels())->keyBy('id');
+
+        return array_values(array_filter($demandes, function (string $id) use ($reels, $corps): bool {
+            $candidat = $reels->get($id);
+
+            if ($candidat === null) {
+                return false;
+            }
+
+            return str_contains($corps, '@'.$candidat['nom']);
+        }));
+    }
+
+    /**
+     * Les membres actifs de la Boucle, hors l'auteur, lisibles.
+     *
+     * Trois exclusions, toutes deja portees par le modele : compte desactive,
+     * non affichable dans l'Organization, et soi-meme — on ne se mentionne
+     * pas (meme regle que `notifierAjoutDirect()` en T1761, qui ne notifie
+     * pas l'acteur de son propre geste).
+     *
+     * @return list<array{id: string, nom: string}>
+     */
+    private function mentionablesReels(): array
+    {
+        $moi = auth()->id();
+
+        return User::query()
+            ->whereIn(
+                'id',
+                LoopMember::query()
+                    ->where('loop_id', $this->loop->id)
+                    ->where('organization_id', $this->loop->organization_id)
+                    ->where('status', 'active')
+                    ->pluck('user_id'),
+            )
+            ->whereKeyNot($moi)
+            ->get()
+            ->reject(fn (User $u) => $u->isDeactivated())
+            // `publicDisplayName()` et non une concatenation maison : c'est
+            // la MEME fonction que `LoopMembersCard` emploie pour afficher ces
+            // personnes. Un test qui re-derive la regle d'une vue finit par
+            // diverger d'elle — et ici, c'est pire : le nom sert de garde.
+            ->map(fn (User $u) => ['id' => (string) $u->getKey(), 'nom' => trim($u->publicDisplayName())])
+            ->reject(fn (array $m) => $m['nom'] === '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Les mentions candidates a l'edition d'un message.
+     *
+     * Celles deja enregistrees, PLUS tous les mentionnables : une edition peut
+     * en ajouter. Le filtrage reel est fait par `mentionsRecadrees()`, qui ne
+     * garde que les noms presents dans le nouveau corps.
+     *
+     * @return list<string>
+     */
+    private function mentionsDejaEnregistrees(LoopMessage $message): array
+    {
+        $deja = $message->metadata['mentions'] ?? [];
+        $deja = is_array($deja) ? array_values(array_filter($deja, 'is_string')) : [];
+
+        return array_values(array_unique(array_merge(
+            $deja,
+            array_column($this->mentionables, 'id'),
+        )));
+    }
+
+    /**
+     * TASK-1772 (recette Cyril, 06/11) — L'APERCU D'ANNUAIRE, AU CLIC SUR
+     * L'AVATAR.
+     *
+     * « Quand on clique sur cet avatar on puisse avoir un pop-up, qui va
+     * permettre de voir un apercu de sa card d'annuaire. »
+     *
+     * ## Pourquoi un identifiant et pas la fiche entiere
+     *
+     * Cette propriete voyage dans le snapshot Livewire, donc dans le HTML de
+     * la page, a chaque `wire:poll.3s`. Y ranger la bio, la structure et le
+     * slogan de quelqu'un, c'est les faire voyager trente fois par minute pour
+     * un panneau ferme. On ne garde que l'identifiant ; la fiche se relit au
+     * rendu, sous les permissions du moment.
+     *
+     * C'est la meme discipline que `NotificationTargetResolver` : une
+     * notification ne porte qu'un `object_id`, et la cible est reconstruite au
+     * clic. Rien d'ancien ne se reaffiche.
+     *
+     * ## Les quatre portes, et pourquoi aucune n'est de trop
+     *
+     * 1. **lire ce fil** — sans adhesion, cette Boucle ne se lit pas ;
+     * 2. **la personne existe et n'est pas desactivee** ;
+     * 3. **elle est AFFICHABLE dans l'Organization courante** — exactement la
+     *    porte que l'avatar franchit deja dans la vue. Si l'avatar est
+     *    decoratif, l'apercu n'existe pas non plus ;
+     * 4. **elle a un lien avec CETTE Boucle** — membre actif, ou auteur d'un
+     *    message. Sans elle, un identifiant forge ouvrirait la fiche de
+     *    n'importe qui de l'Organization. L'annuaire les montre deja, certes,
+     *    mais une surface ne doit pas offrir plus que ce qu'elle affiche :
+     *    c'est ce qui la rend verifiable.
+     *
+     * Un refus est SILENCIEUX et ferme le panneau. Il n'y a rien a dire a
+     * quelqu'un qui forge un identifiant, et un message d'erreur distinguerait
+     * « inconnu » de « non affichable » — soit exactement l'information qu'on
+     * ne veut pas donner.
+     */
+    public function ouvrirApercuMembre(string $userId): void
+    {
+        $this->apercuMembreId = null;
+
+        if (! $this->isMember) {
+            return;
+        }
+
+        $organisation = currentOrganization();
+
+        if ($organisation === null) {
+            return;
+        }
+
+        $membre = User::query()->whereKey($userId)->first();
+
+        if ($membre === null || $membre->isDeactivated() || ! $membre->isDisplayableIn($organisation)) {
+            return;
+        }
+
+        $lieAuFil = LoopMember::query()
+            ->where('loop_id', $this->loop->id)
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('user_id', $membre->getKey())
+            ->where('status', 'active')
+            ->exists()
+            || LoopMessage::query()
+                ->withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('loop_id', $this->loop->id)
+                ->where('organization_id', $this->loop->organization_id)
+                ->where('sender_id', $membre->getKey())
+                ->exists();
+
+        if (! $lieAuFil) {
+            return;
+        }
+
+        $this->apercuMembreId = (string) $membre->getKey();
+    }
+
+    /**
+     * Les deux liens de l'apercu, et le fait que la fiche soit VIDE.
+     *
+     * ## Pourquoi ce calcul n'est pas reste dans la vue
+     *
+     * Deux raisons, et la seconde est un defaut silencieux.
+     *
+     * 1. L'annuaire bati ses liens sur `request()->route('organization')`.
+     *    Dans une page rendue, c'est juste. Dans un RE-RENDU Livewire, la
+     *    route courante est celle de `/livewire/update` : le parametre est
+     *    `null`, la route retombe sur sa forme SANS prefixe, et
+     *    `ResolveUrlOrganization` lie alors l'Organization PAR DEFAUT. Le lien
+     *    « Ecrire » menait donc ailleurs des le premier rafraichissement —
+     *    sans erreur, sans rien signaler. Le repli sur l'Organization de la
+     *    Boucle, lui, ne change pas d'une requete a l'autre : c'est le meme
+     *    choix que `loopAiUrl()` plus haut.
+     * 2. Le bloc `@php … @endphp` qu'il aurait fallu dans la vue a casse le
+     *    gabarit entier — voir le commentaire de `loop-chat.blade.php`.
+     *
+     * @return array{profil: string, ecrire: string, vide: bool}|null
+     */
+    public function apercuMembreLiens(): ?array
+    {
+        $membre = $this->apercuMembre;
+
+        if ($membre === null) {
+            return null;
+        }
+
+        $organization = request()->route('organization') ?? $this->loop->organization?->slug;
+        // `…Segment` et non `$cle` : c'est la convention que la garde
+        // `TASK1693WriteToMemberTest` lit pour distinguer un SEGMENT D'URL
+        // deja calcule d'un modele brut passe a `route()`. Elle avait raison
+        // de rougir — la ligne, telle quelle, ne disait pas laquelle des deux
+        // choses elle portait.
+        $cleSegment = $membre->profileRouteKey();
+
+        return [
+            'profil' => $organization && Route::has('organization.profile.show')
+                ? route('organization.profile.show', ['organization' => $organization, 'user' => $cleSegment])
+                : route('profile.show', $cleSegment),
+            'ecrire' => $organization && Route::has('organization.messages.with')
+                ? route('organization.messages.with', ['organization' => $organization, 'user' => $cleSegment])
+                : route('messages.with', $cleSegment),
+            // « Rien a montrer » n'est pas « pas de bio » : une fiche sans bio
+            // mais avec une structure et un slogan dit deja quelque chose.
+            'vide' => blank($membre->bio)
+                && blank($membre->slogan)
+                && blank($membre->public_location)
+                && ! (structureIsShown() && filled($membre->structure)),
+        ];
+    }
+
+    public function fermerApercuMembre(): void
+    {
+        $this->apercuMembreId = null;
+    }
+
+    /**
+     * La fiche a afficher, relue a CHAQUE rendu.
+     *
+     * Elle repasse par `ouvrirApercuMembre()` — la meme porte, les memes
+     * quatre controles — plutot que de faire confiance a l'identifiant deja
+     * pose : entre l'ouverture du panneau et le `wire:poll` suivant, la
+     * personne peut avoir quitte la Boucle ou l'Organization. Le panneau se
+     * referme alors tout seul, au lieu de continuer a montrer une fiche a
+     * laquelle le lecteur n'a plus droit.
+     */
+    public function getApercuMembreProperty(): ?User
+    {
+        if ($this->apercuMembreId === null) {
+            return null;
+        }
+
+        $identifiant = $this->apercuMembreId;
+        $this->ouvrirApercuMembre($identifiant);
+
+        return $this->apercuMembreId === null
+            ? null
+            : User::query()->whereKey($identifiant)->first();
+    }
+
+    /** Rafraichir la liste quand la composition de la Boucle change. */
+    #[On('loop-members-changed')]
+    public function rafraichirMentionables(): void
+    {
+        $this->mentionables = $this->mentionablesReels();
+
+        $moi = auth()->user();
+        $noms = collect($this->mentionables)->pluck('nom', 'id')->all();
+
+        if ($moi !== null) {
+            $noms[(string) $moi->getKey()] = trim($moi->publicDisplayName());
+        }
+
+        $this->nomsPourMentions = $noms;
+    }
+
     public function sendMessage(LoopMessageService $service): void
     {
         $this->validate([
@@ -922,6 +1281,15 @@ class LoopChat extends Component
         // auto-detection du parent (`continuationParent()` retiree). Une
         // Boucle agent exclut les deux moteurs : son agent (T-2) repond deja
         // a chaque message — une seconde IA serait une seconde depense.
+        // TASK-1772 — le plafond, verifie AVANT d'ecrire quoi que ce soit.
+        // Un refus explicite, jamais une troncature : tronquer ne previendrait
+        // pas quelqu'un que l'auteur croit avoir prevenu.
+        if (count(array_unique($this->mentionsSelectionnees)) > self::MENTIONS_MAX) {
+            $this->addError('body', __('loops.mentions_too_many', ['max' => self::MENTIONS_MAX]));
+
+            return;
+        }
+
         $mode = $this->loop->isAiAgent() ? 'normal' : $this->composerMode;
 
         if ($mode !== 'normal' && trim($this->body) === '') {
@@ -957,8 +1325,13 @@ class LoopChat extends Component
 
                 $question = trim($this->body);
 
-                $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
+                // TASK-1772 — re-cadrage SERVEUR : rien de ce que le
+                // navigateur a envoye n'est cru sur parole.
+                $mentions = $this->mentionsRecadrees($this->body);
+
+                $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath, $mentions);
                 $this->body = '';
+                $this->mentionsSelectionnees = [];
                 $this->cancelReply();
             } catch (\RuntimeException) {
                 $this->addError('body', 'Impossible d\'envoyer le message.');
@@ -2466,7 +2839,22 @@ class LoopChat extends Component
             $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
             $metadata = $preview !== null ? ['url_preview' => $preview] : null;
 
+            // TASK-1772 — les mentions sont RECALCULEES sur le nouveau corps,
+            // et non reprises de la saisie : a l'edition, le navigateur
+            // n'envoie pas de selection. On repart donc des mentions deja
+            // enregistrees, on ne garde que celles dont le nom figure encore
+            // dans le texte, et on ajoute celles que l'edition introduit.
+            //
+            // Le service FUSIONNE desormais les metadonnees (il ne les ecrase
+            // plus) : ce que l'on ne nomme pas ici survit — `requested_mode`
+            // le premier, qui etait perdu a chaque correction de faute de
+            // frappe depuis toujours.
+            $this->mentionsSelectionnees = $this->mentionsDejaEnregistrees($message);
+            $mentions = $this->mentionsRecadrees($this->editingBody);
+            $metadata = ($metadata ?? []) + ['mentions' => $mentions];
+
             app(LoopMessageService::class)->updateUserMessage($this->loop, $message, $user, $this->editingBody, $metadata);
+            $this->mentionsSelectionnees = [];
             $this->cancelEdit();
         } catch (\RuntimeException) {
             $this->addError('editingBody', __('messages.edit_failed'));

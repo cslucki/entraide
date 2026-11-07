@@ -51,9 +51,21 @@ export const libelleAppareil = () => {
     return null;
 };
 
+/**
+ * Ce NAVIGATEUR sait-il faire du Push ? La question porte sur lui SEUL.
+ *
+ * TASK-1768 — elle est isolée parce qu'elle ne se confond pas avec « le Push
+ * est-il proposé ici ? ». Un navigateur parfaitement capable se voyait
+ * annoncer « Non prises en charge par ce navigateur » quand c'était le
+ * SERVEUR qui avait le Push éteint : le message accusait le navigateur d'une
+ * panne de configuration. Les deux causes se distinguent maintenant, et elles
+ * se lisent à un seul endroit.
+ */
+export const supporteNavigateur = () =>
+    'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
 /** Le Push est-il utilisable ici ? Quatre conditions, aucune supposée. */
-export const supporte = (actif, vapid) =>
-    actif && vapid !== '' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+export const supporte = (actif, vapid) => actif && vapid !== '' && supporteNavigateur();
 
 /** L'abonnement que le navigateur détient, ou `null`. */
 export const abonnementCourant = async () => {

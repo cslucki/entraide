@@ -7,6 +7,7 @@ use App\Models\Transaction;
 use App\Services\Dossiers\DossierFileTransport;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -63,8 +64,14 @@ class MessageAttachmentController extends Controller
         );
     }
 
-    /** L'ouvrir dans l'onglet, quand le navigateur sait la rendre. */
-    public function preview(Transaction $transaction, Message $message): RedirectResponse|StreamedResponse
+    /**
+     * L'ouvrir dans l'onglet, quand le navigateur sait la rendre.
+     *
+     * TASK-1772 — le type de retour s'elargit a `BinaryFileResponse` : sur un
+     * disque local, l'apercu passe desormais par `response()->file()`, qui
+     * gere les requetes `Range`. Une video ne se lit pas sans elles.
+     */
+    public function preview(Transaction $transaction, Message $message): RedirectResponse|StreamedResponse|BinaryFileResponse
     {
         $message = $this->piece($transaction, $message);
 
@@ -98,7 +105,7 @@ class MessageAttachmentController extends Controller
         return $this->download($transaction, $message);
     }
 
-    public function orgPreview(string $org, Transaction $transaction, Message $message): RedirectResponse|StreamedResponse
+    public function orgPreview(string $org, Transaction $transaction, Message $message): RedirectResponse|StreamedResponse|BinaryFileResponse
     {
         return $this->preview($transaction, $message);
     }
