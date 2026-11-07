@@ -240,11 +240,15 @@ class TASK1747HelpRequestNotificationTest extends TestCase
      * `test_l_in_app_est_CONFIGURABLE_contrairement_aux_cles_personnelles`
      * et affirmait l'inverse exact de ce qu'il affirme maintenant. Le §7B
      * avait rendu l'in-app configurable pour permettre de « se taire sans
-     * quitter la Boucle » ; Cyril est revenu sur ce point une fois le maitre
-     * de Boucle (`LoopNotificationPreference::collective_enabled`) livre —
-     * c'est LUI le vrai levier de calme desormais, pas un reglage global sur
-     * le seul canal in-app. L'in-app redevient donc OBLIGATOIRE, exactement
-     * comme les six cles personnelles.
+     * quitter la Boucle » ; Cyril est revenu sur ce point une fois livre
+     * l'interrupteur general que chaque membre possede sur chacune de ses
+     * Boucles (`LoopNotificationPreference::collective_enabled`) — c'est LUI
+     * le vrai levier de calme desormais, pas un reglage global sur le seul
+     * canal in-app. L'in-app redevient donc OBLIGATOIRE, exactement comme les
+     * six cles personnelles.
+     *
+     * TASK-1778 — cet interrupteur est INDIVIDUEL : la ligne appartient a un
+     * membre (`forOwner`), personne ne coupe une Boucle pour les autres.
      */
     public function test_l_in_app_est_desormais_OBLIGATOIRE_comme_les_cles_personnelles(): void
     {
@@ -253,7 +257,7 @@ class TASK1747HelpRequestNotificationTest extends TestCase
         $this->assertTrue(NotificationCatalogue::channelDefault($cle, NotificationCatalogue::CHANNEL_IN_APP));
         $this->assertFalse(
             NotificationCatalogue::channelIsConfigurable($cle, NotificationCatalogue::CHANNEL_IN_APP),
-            'arbitrage du 07/11 : le maitre de Boucle est desormais le seul levier de calme.',
+            'arbitrage du 07/11 : l interrupteur general du membre sur cette Boucle est desormais le seul levier de calme.',
         );
 
         // Et l'invitation partage desormais le meme regime — la comparaison
@@ -324,8 +328,8 @@ class TASK1747HelpRequestNotificationTest extends TestCase
      * TASK-1775 — meme renversement, mesure BOUT EN BOUT : une demande d'aide
      * REELLEMENT publiee continue de creer la notification du membre, malgre
      * l'ecart stocke, puisque ce canal ne se laisse plus couper globalement.
-     * Seul le maitre de Boucle (teste dans TASK1775LoopNotificationPreferencesTest)
-     * peut desormais l'empecher.
+     * Seul l'interrupteur general du membre sur cette Boucle (teste dans
+     * TASK1775LoopNotificationPreferencesTest) peut desormais l'empecher.
      */
     public function test_une_preference_in_app_stockee_n_empeche_plus_la_creation_de_la_notification(): void
     {

@@ -249,7 +249,7 @@ class TASK1775LoopNotificationPreferencesTest extends TestCase
         ), 'Le reglage global doit continuer a s\'appliquer a une Boucle jamais reglee individuellement.');
     }
 
-    /** Une autre cle qui partage `OBJECT_LOOP` (`loop.member_added`) n'est JAMAIS gouvernee par le maitre de Boucle. */
+    /** Une autre cle qui partage `OBJECT_LOOP` (`loop.member_added`) n'est JAMAIS gouvernee par l'interrupteur general de Boucle. */
     public function test_le_maitre_de_boucle_ne_coupe_jamais_une_cle_personnelle(): void
     {
         $this->creerReglage([
