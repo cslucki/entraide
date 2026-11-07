@@ -10,7 +10,6 @@ return [
     'my_posts' => 'Mes articles',
     'edit_post' => 'Modifier',
     'delete_post' => 'Supprimer',
-    'subtitle' => 'Conseils, expertises et ressources de la boucle',
     'write' => 'Écrire',
     'empty' => "Aucun article publié pour l'instant.",
     'be_first' => 'Soyez le premier à publier',
