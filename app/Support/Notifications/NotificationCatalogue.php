@@ -661,9 +661,15 @@ final class NotificationCatalogue
                 // pour permettre de « se taire sans quitter la Boucle » ;
                 // Cyril est revenu sur ce point une fois la sourdine par
                 // Boucle (`LoopNotificationPreference`) livree : le VRAI
-                // levier de calme est desormais le maitre de Boucle (plus
+                // levier de calme est desormais l'interrupteur general que
+                // CHAQUE MEMBRE possede sur CHACUNE de ses Boucles (plus
                 // expose dans l'UI, mais toujours applique cote resolveur),
                 // pas un reglage global sur ce seul canal.
+                //
+                // TASK-1778 — a ne pas lire comme un levier COLLECTIF :
+                // l'interrupteur est individuel, personne ne coupe une Boucle
+                // pour les autres. Voir le docblock de
+                // `LoopNotificationPreference`.
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
 
                 // TASK-1775 (meme arbitrage) — ACTIF par defaut, et non plus

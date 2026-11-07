@@ -265,7 +265,7 @@ class TASK1775HelpRequestEmailTest extends TestCase
         $this->assertStringContainsString(e($this->auteur->publicDisplayName()), $journal->body_html);
     }
 
-    /** Le maitre de Boucle coupe tout, EMAIL compris — rien n'est meme emis pour ce membre. */
+    /** L'interrupteur general du membre coupe tout, EMAIL compris — rien n'est meme emis POUR CE MEMBRE (jamais pour les autres). */
     public function test_le_maitre_de_boucle_eteint_empeche_aussi_l_email(): void
     {
         $reglage = new LoopNotificationPreference(['collective_enabled' => false, 'email_enabled' => true]);

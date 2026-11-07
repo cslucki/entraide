@@ -64,9 +64,9 @@ class NotificationPreferenceResolver
      * La garde porte sur la CLE, jamais sur le seul fait qu'un `loopId` ait
      * ete fourni : `loop.member_added` partage le meme `object_type`
      * (`OBJECT_LOOP`) que `loop.help_request.created` et designe pourtant un
-     * fait PERSONNEL (« on vous a ajoute ») — un maitre de Boucle coupe ne
-     * doit jamais le faire taire. Seule la cle collective explicite se laisse
-     * gouverner par ce reglage.
+     * fait PERSONNEL (« on vous a ajoute ») — un interrupteur general coupe
+     * ne doit jamais le faire taire. Seule la cle collective explicite se
+     * laisse gouverner par ce reglage.
      */
     public function allows(User $user, string $notificationKey, string $channel, ?string $loopId = null): bool
     {
@@ -231,14 +231,19 @@ class NotificationPreferenceResolver
 
         $defaut = (bool) NotificationCatalogue::channelDefault($notificationKey, $channel);
 
-        // TASK-1775 (arbitrage Cyril, 07/11) — le maitre de Boucle est
-        // verifie AVANT la garde de configurabilite du catalogue, et non
-        // apres : l'in-app est redevenu OBLIGATOIRE au catalogue (plus
-        // personne ne peut le couper globalement), mais le maitre de Boucle
-        // doit continuer a pouvoir l'eteindre POUR CETTE BOUCLE precise —
-        // c'est desormais le SEUL levier de calme qui reste. Le placer apres
-        // le retour anticipe de la garde de configurabilite l'aurait rendu
-        // inatteignable.
+        // TASK-1775 (arbitrage Cyril, 07/11) — l'interrupteur general du
+        // MEMBRE sur CETTE Boucle est verifie AVANT la garde de
+        // configurabilite du catalogue, et non apres : l'in-app est redevenu
+        // OBLIGATOIRE au catalogue (plus personne ne peut le couper
+        // globalement), mais ce membre doit continuer a pouvoir l'eteindre
+        // POUR CETTE BOUCLE precise — c'est le SEUL levier de calme qui
+        // reste. Le placer apres le retour anticipe de la garde de
+        // configurabilite l'aurait rendu inatteignable.
+        //
+        // TASK-1778 — « general » n'est PAS « collectif » : la ligne lue
+        // ci-dessous appartient a `$user` seul (`forOwner`). Personne ne peut
+        // couper une Boucle pour les autres, donc ce levier ne reduit jamais
+        // le fan-out — il retire un destinataire, le sien.
         //
         // TASK-1778 — la regle « quelle cle se laisse gouverner par une
         // Boucle » est passee au catalogue (`loopScopeFor`), ou elle n'est
