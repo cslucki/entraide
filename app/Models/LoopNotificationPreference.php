@@ -22,10 +22,23 @@ use RuntimeException;
  *
  * ## `collective_enabled` eteint coupe TOUT, quel que soit le canal
  *
- * C'est le maitre de la section B1 du CDC : une Boucle coupee ne produit plus
- * aucune notification de ce type, in-app compris — `email_enabled` et
- * `web_push_enabled` ne REDUISENT le bruit que si la Boucle elle-meme reste
- * active.
+ * C'est l'interrupteur GENERAL de la section B1 du CDC : une Boucle que CE
+ * MEMBRE a coupee ne lui produit plus aucune notification de ce type, in-app
+ * comprise — `email_enabled` et `web_push_enabled` ne REDUISENT le bruit que
+ * si la collecte elle-meme reste active.
+ *
+ * ## ⚠️ « General » ne veut pas dire « collectif » — TASK-1778
+ *
+ * Chaque ligne appartient a UN membre : l'unicite est `(loop_id, user_id)` et
+ * toutes les lectures passent par `forOwner($user->id)`. **Personne ne peut
+ * couper une Boucle pour les autres**, ni son createur, ni un administrateur.
+ * Un reglage ne reduit donc jamais le fan-out de la Boucle : il ne retire que
+ * son propre destinataire.
+ *
+ * La precision est ecrite ici parce que l'ambiguite a deja produit une erreur
+ * de jugement : « maitre de Boucle », formule employee dans les commentaires
+ * de T1775, a ete lue comme « le maitre DE LA Boucle », donc comme un levier
+ * collectif qui n'existe pas.
  *
  * ## L'identite est figee, meme doctrine que `MemberNotificationPreference`
  *

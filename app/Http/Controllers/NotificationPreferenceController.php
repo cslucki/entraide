@@ -189,11 +189,20 @@ class NotificationPreferenceController extends Controller
             $champ = $demande[$loopId] ?? [];
             $champ = is_array($champ) ? $champ : [];
 
-            // TASK-1775 (arbitrage Cyril, 07/11) — le maitre n'est plus un
-            // levier EXPOSE : l'ecran ne poste plus `collective`, et meme
-            // s'il le faisait, cette valeur serait ignoree. L'in-app est
-            // desormais OBLIGATOIRE (catalogue), le maitre de Boucle reste un
-            // garde-fou interne, jamais pilote par la requete.
+            // TASK-1775 (arbitrage Cyril, 07/11) — l'interrupteur general
+            // n'est plus un levier EXPOSE : l'ecran ne poste plus
+            // `collective`, et meme s'il le faisait, cette valeur serait
+            // ignoree. L'in-app est desormais OBLIGATOIRE (catalogue), et cet
+            // interrupteur reste un garde-fou interne, jamais pilote par la
+            // requete.
+            //
+            // TASK-1778 — deux consequences a ne pas confondre. Primo, le
+            // reglage pose ici appartient a `$user` et ne porte que sur les
+            // Boucles dont `$user` est membre (`bouclesActives`) : personne
+            // ne coupe une Boucle pour les autres. Secundo, `collective`
+            // etant force a `true`, meme son propre interrupteur general
+            // n'est plus atteignable depuis cet ecran — seuls `email` et
+            // `web_push` le sont.
             $collectif = true;
             $email = (bool) ($champ['email'] ?? false);
             $push = (bool) ($champ['web_push'] ?? false);

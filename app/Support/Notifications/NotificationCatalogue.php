@@ -670,9 +670,15 @@ final class NotificationCatalogue
                 // pour permettre de « se taire sans quitter la Boucle » ;
                 // Cyril est revenu sur ce point une fois la sourdine par
                 // Boucle (`LoopNotificationPreference`) livree : le VRAI
-                // levier de calme est desormais le maitre de Boucle (plus
+                // levier de calme est desormais l'interrupteur general que
+                // CHAQUE MEMBRE possede sur CHACUNE de ses Boucles (plus
                 // expose dans l'UI, mais toujours applique cote resolveur),
                 // pas un reglage global sur ce seul canal.
+                //
+                // TASK-1778 — a ne pas lire comme un levier COLLECTIF :
+                // l'interrupteur est individuel, personne ne coupe une Boucle
+                // pour les autres. Voir le docblock de
+                // `LoopNotificationPreference`.
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
 
                 // TASK-1775 (meme arbitrage) — ACTIF par defaut, et non plus
@@ -839,5 +845,38 @@ final class NotificationCatalogue
     public static function channelIsConfigurable(string $notificationKey, string $channel): bool
     {
         return self::definition($notificationKey)['channels'][$channel]['configurable'] ?? false;
+    }
+
+    /**
+     * TASK-1778 — l'identifiant de Boucle qui gouverne une preference, ou `null`.
+     *
+     * ## Pourquoi cette regle vit ICI et nulle part ailleurs
+     *
+     * Elle etait ecrite TROIS FOIS a l'identique en T1775 :
+     * `NotificationPreferenceResolver::allows()` en ligne,
+     * `NotificationEmailDeliverer::loopIdPourPreference()` et
+     * `NotificationWebPushDeliverer::livrer()`. T1778 lui ajoutait un
+     * quatrieme lecteur — le planificateur — et une regle de securite recopiee
+     * quatre fois est une regle qui finira par diverger en trois endroits sur
+     * quatre, la copie oubliee devenant une fuite silencieuse.
+     *
+     * ## La regle porte sur la CLE, jamais sur `object_type`
+     *
+     * `LOOP_MEMBER_ADDED` partage le meme `object_type` (`OBJECT_LOOP`) que
+     * `LOOP_HELP_REQUEST_CREATED` et son `object_id` designe aussi une Boucle.
+     * Mais « on vous a ajoute » est un fait PERSONNEL : la sourdine de Boucle
+     * ne doit jamais le faire taire. Seule la cle collective explicite se
+     * laisse gouverner par un reglage par Boucle.
+     *
+     * Rendre `null` n'est donc pas un repli : c'est la reponse juste pour
+     * toutes les autres cles.
+     */
+    public static function loopScopeFor(string $notificationKey, ?string $objectId): ?string
+    {
+        if ($notificationKey !== self::LOOP_HELP_REQUEST_CREATED) {
+            return null;
+        }
+
+        return blank($objectId) ? null : (string) $objectId;
     }
 }
