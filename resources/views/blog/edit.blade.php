@@ -255,6 +255,32 @@
                     </div>
                 </div>
 
+                {{-- TASK-1783 correctif 3 — Cyril : « il faut masquer cette
+                     option si l'Organization n'est pas en mode "Visible sans
+                     connexion", puisque les articles ne sont pas visibles sans
+                     connexion ». Du SEO sur une page qu'aucun moteur ne peut
+                     atteindre ne sert a rien, et promet le contraire.
+
+                     « Visible sans connexion » est la case `is_public` de
+                     `admin/organizations/edit.blade.php:318`. Le drapeau, jamais
+                     un slug : une Organization creee demain suit la meme regle.
+
+                     ## Pourquoi un `@else` avec des champs caches
+
+                     Masquer SANS les reposter n'aurait pas ete neutre. Le
+                     versionnement (`BlogController` l.1250-1266) compare
+                     `$lastSnapshot->meta_title !== ($data['meta_title'] ?? null)`
+                     puis ECRIT `$data['meta_title'] ?? null` dans le snapshot.
+                     Sur un article deja renseigne, les champs absents auraient
+                     donc rendu `$changed` vrai a CHAQUE enregistrement — une
+                     version parasite par sauvegarde — et chaque nouveau snapshot
+                     aurait enregistre `null`, perdant les metadonnees dans
+                     l'historique.
+
+                     Le `<details>` disparait donc de l'ecran, mais les valeurs
+                     continuent de faire l'aller-retour. Ne pas supprimer ces
+                     deux champs en les prenant pour du poids mort. --}}
+                @if($organization->is_public)
                 <details class="group">
                     <summary class="text-sm font-medium text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 transition">{{ __('blog.label_seo') }}</summary>
                     <div class="mt-3 space-y-3 pl-4 border-l-2 border-gray-100 dark:border-gray-700">
@@ -270,6 +296,10 @@
                         </div>
                     </div>
                 </details>
+                @else
+                <input type="hidden" name="meta_title" value="{{ old('meta_title', $post->meta_title) }}">
+                <input type="hidden" name="meta_description" value="{{ old('meta_description', $post->meta_description) }}">
+                @endif
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('blog.label_status') }}</label>

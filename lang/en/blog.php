@@ -10,7 +10,6 @@ return [
     'my_posts' => 'My articles',
     'edit_post' => 'Edit',
     'delete_post' => 'Delete',
-    'subtitle' => 'Tips, expertise and resources from the loop',
     'write' => 'Write',
     'empty' => 'No articles published yet.',
     'be_first' => 'Be the first to publish',

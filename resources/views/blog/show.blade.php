@@ -176,6 +176,37 @@
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                         {{ __('blog.btn_edit') }}
                     </a>
+                    {{-- TASK-1783 correctif 2 — Cyril : « ainsi cela incite les
+                         membres a rediger des billets et c'est plus rapide que
+                         de repasser par le rail gauche ».
+
+                         A DROITE de « Modifier », dans la barre d'actions qui
+                         existe deja : rien a creer, le geste suit celui qu'on
+                         vient de faire sur son propre article.
+
+                         Condition PROPRE, et non celle du bloc qui l'entoure.
+                         Ce bloc s'ouvre aussi a `is_admin`, donc un
+                         administrateur lisant l'article de QUELQU'UN D'AUTRE y
+                         verrait un bouton que la demande ne lui destine pas :
+                         « si un membre est sur UN DE SES articles ».
+
+                         `blog.btn_new_post` existe deja et vaut « Nouvel
+                         article » : c'est le libelle de `my-posts`, pour la
+                         meme action. Une cle neuve aurait fait deux libelles
+                         pour un seul geste. Mon premier jet en avait ajoute un,
+                         parce qu'un grep sur `'new_post'` ne voit pas
+                         `'btn_new_post'` — le prefixe masque le motif.
+
+                         `$_blogRoute('create')` et non `route('blog.create')` :
+                         le helper de cette vue conserve le prefixe
+                         d'Organization, la route courte le perdrait. --}}
+                    @if(auth()->id() === $post->user_id)
+                    <a href="{{ $_blogRoute('create') }}"
+                       class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        {{ __('blog.btn_new_post') }}
+                    </a>
+                    @endif
                 </div>
                 @endif
                 @endauth
