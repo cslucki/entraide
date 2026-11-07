@@ -2,6 +2,7 @@
 
 use App\Models\Organization;
 use App\Services\TranslationOverrideService;
+use App\Support\ScenarioManager\Persona\ScenarioPersonaAccess;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Support\Facades\Route;
 use League\CommonMark\CommonMarkConverter;
@@ -281,6 +282,119 @@ if (! function_exists('canonicalHome')) {
             ], absolute: false);
         }
 
+        return route('organization.home', [
+            'organization' => $organization->slug,
+        ], absolute: false);
+    }
+}
+
+if (! function_exists('accueilDuCompteAuthentifie')) {
+    /**
+     * TASK-1782 — ou doit atterrir le compte authentifie quand il demande la
+     * RACINE du site, ou le retour depuis son tableau de bord.
+     *
+     * ## Une seule implementation, pour tous les tenants
+     *
+     * Aucun slug n'apparait ici, et aucun n'y entrera : la decision se prend
+     * sur les drapeaux de l'Organization du COMPTE (`is_active`, `is_default`),
+     * jamais sur son nom. Une Organization creee demain est donc traitee comme
+     * OFSH l'est aujourd'hui, sans toucher a cette fonction.
+     *
+     * ## La destination est la HOMEPAGE, pas les Boucles
+     *
+     * Regle produit arbitree par Cyril : pour toute Organization scopee
+     * active, l'accueil demande est sa VRAIE homepage — `/org/{slug}` — y
+     * compris quand `loops_enabled` vaut vrai.
+     *
+     * C'est pourquoi cette fonction ne delegue PAS a `canonicalHome()`, qui
+     * rendrait `/org/{slug}/loops` dans ce cas. `canonicalHome()` reste
+     * l'autorite de destination des AUTRES parcours — connexion, bascule de
+     * compte, changement de langue — et son comportement historique n'est pas
+     * touche. Deux questions distinctes : « ou va-t-on apres une bascule »
+     * n'est pas « quel est l'accueil de cette Organization ».
+     *
+     * ## Les quatre refus, et pourquoi chacun rend `null`
+     *
+     * `null` veut dire « ne redirige pas, sers ce que tu servais » — jamais
+     * « erreur ». Les quatre cas :
+     *
+     *  1. **Visiteur anonyme** — la homepage publique est le produit. Elle ne
+     *     doit jamais devenir inatteignable.
+     *
+     *  2. **Administrateur global** — la racine est SOUVERAINE depuis
+     *     TASK-1628 : `/admin/homepage` decide de ce qu'elle sert au public.
+     *     Rediriger le superadmin lui retirerait le seul moyen de VOIR le
+     *     choix qu'il vient de faire. Son pouvoir sur la racine serait intact
+     *     et invisible, ce qui revient a le casser.
+     *
+     *  3. **Compte sans Organization, ou Organization inactive** — c'est la
+     *     verification de statut. Envoyer quelqu'un dans une Organization
+     *     desactivee le menerait a une porte fermee, moins utile que
+     *     l'accueil public. Meme garde que `getLoginRedirectTarget()`.
+     *
+     *  4. **Organization par defaut** — c'est elle que la racine sert DEJA,
+     *     et son comportement est preserve tel quel. C'est le drapeau
+     *     `is_default` qui le dit, jamais le slug « main ».
+     *
+     *  5. **Mode persona actif** — et c'est une garde de SECURITE, mesuree.
+     *     Le bandeau du mode persona et son bouton de sortie vivent dans
+     *     `layouts/app.blade.php` et `layouts/org-admin.blade.php`. Or trois
+     *     des cinq gabarits de landing d'Organization — `hero-v2`,
+     *     `shell-first`, `artscilab-hero` — sont des documents HTML COMPLETS
+     *     ecrits en propre : ils n'etendent aucun de ces layouts, donc ils ne
+     *     portent NI bandeau NI sortie.
+     *
+     *     Rediriger la racine vers la landing d'une sandbox pourrait donc
+     *     deposer un operateur en mode persona sur une page qui ne dit pas
+     *     qu'il y est, et dont il ne peut pas sortir. L'invariant de TASK-1654
+     *     est precisement celui-la, et le layout `org-admin` porte la trace
+     *     d'un defaut de cette meme famille, deja corrige une fois.
+     *
+     *     Le refus est donc fail-closed, dans l'esprit de
+     *     `EnsureScenarioPersonaContextIsValid` : « quand une condition tombe,
+     *     on ne continue prudemment pas ». `actif()` coute une lecture de
+     *     session et aucune requete SQL — il est fait pour etre appele
+     *     partout.
+     *
+     *     NB : l'absence de bandeau sur ces trois gabarits PREEXISTE a cette
+     *     TASK — un persona qui ouvre `/org/{slug}` par un lien l'y rencontre
+     *     deja. Ce refus ne la corrige pas, il refuse de la rendre plus facile
+     *     a atteindre. Le signalement est remonte a MASTER a part.
+     *
+     * @return string|null chemin relatif, ou `null` s'il ne faut pas rediriger
+     */
+    function accueilDuCompteAuthentifie(): ?string
+    {
+        $compte = auth()->user();
+
+        if ($compte === null) {
+            return null;
+        }
+
+        // Le superadmin garde la racine telle qu'il l'a choisie pour le public.
+        if ($compte->is_admin) {
+            return null;
+        }
+
+        $organization = $compte->organization;
+
+        if ($organization === null || ! $organization->is_active) {
+            return null;
+        }
+
+        // L'Organization par defaut est ce que la racine sert deja.
+        if ($organization->is_default) {
+            return null;
+        }
+
+        // Garde de securite TASK-1654 : ne jamais deposer un persona sur une
+        // landing qui ne porte ni bandeau ni sortie. Detail dans le docbloc.
+        if (ScenarioPersonaAccess::actif()) {
+            return null;
+        }
+
+        // La homepage de l'Organization, et non ses Boucles. Le slug vient du
+        // COMPTE authentifie, jamais de la route ni d'un cookie.
         return route('organization.home', [
             'organization' => $organization->slug,
         ], absolute: false);

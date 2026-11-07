@@ -274,6 +274,31 @@
     if ($retourVersAccueil) {
         $backHref = auth()->check() ? $routeUrl('home', 'organization.home') : route('home');
     }
+
+    // TASK-1782 — le tableau de bord gagne sa fleche de retour.
+    //
+    // `dashboard` et `organization.dashboard` figurent tous deux dans
+    // `$levelOneTitles` : `$isLevelOne` vaut donc vrai, la chaine ci-dessus est
+    // sautee, et aucune branche ne leur donnait de `$backHref`. Meme cause que
+    // les Dossiers et l'Agenda en TASK-1707 M5, meme remede — hors du garde.
+    //
+    // La destination vient de `accueilDuCompteAuthentifie()`, et NON de
+    // `$routeUrl('home', 'organization.home')` comme la branche voisine. La
+    // raison est le defaut mesure en TASK-1281 : `$routeUrl()` lit le PREFIXE
+    // DE LA ROUTE, et `/dashboard` — la route courte — n'en porte aucun. Son
+    // repli resout l'Organization par DEFAUT, et un membre d'OFSH venu de
+    // `/dashboard` serait renvoye chez un autre tenant. L'identite
+    // authentifiee, elle, ne se trompe pas de locataire.
+    //
+    // Le repli `?: route('home')` couvre les quatre refus du helper : sans lui,
+    // un superadmin ou un membre de l'Organization par defaut perdrait la
+    // fleche que cette TASK vient d'ajouter.
+    //
+    // Ce composant est `md:hidden` : le retour desktop ne passe pas par ici et
+    // reste donc intact.
+    if (request()->routeIs('dashboard', 'organization.dashboard')) {
+        $backHref = accueilDuCompteAuthentifie() ?: route('home');
+    }
 @endphp
 
 {{-- TASK-1625 — CAUSE RACINE du menu Avatar masque.

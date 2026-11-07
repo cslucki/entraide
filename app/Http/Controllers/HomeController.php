@@ -20,6 +20,26 @@ class HomeController extends Controller
 {
     public function index(): RedirectResponse|View
     {
+        // TASK-1782 — un membre d'une Organization scopee qui demande la racine
+        // veut SON accueil, pas celui de la plateforme.
+        //
+        // C'est aussi le correctif du lancement PWA : le manifeste declare
+        // `start_url: "/"` et `scope: "/"`, partages par toutes les
+        // Organizations. Plutot qu'un manifeste par compte — qui multiplierait
+        // les PWA installables et casserait celles deja installees — c'est la
+        // RACINE qui devient capable de reconnaitre son visiteur. Une seule
+        // PWA, un seul manifeste, et chacun arrive chez lui.
+        //
+        // Pose AVANT tout le reste, et c'est voulu : la resolution souveraine
+        // de `RootDestination` (TASK-1628) decide de ce que la racine sert au
+        // PUBLIC. Elle n'est pas touchee, elle est seulement precedee. Les
+        // quatre cas qui ne redirigent pas — anonyme, superadmin, statut
+        // invalide, Organization par defaut — sont documentes un a un dans
+        // `accueilDuCompteAuthentifie()`.
+        if (($accueilDuCompte = accueilDuCompteAuthentifie()) !== null) {
+            return redirect()->to($accueilDuCompte);
+        }
+
         $defaultOrganization = Organization::where('is_default', true)->first()
             ?? Organization::where('slug', 'main')->where('is_active', true)->first();
 
