@@ -17,11 +17,12 @@ use Illuminate\Support\Facades\DB;
  *
  * ## Ce gabarit ne part QUE pour qui l'a explicitement demande
  *
- * Contrairement a ses voisines (invitation, decision d'adhesion), ce canal
- * EMAIL est eteint par defaut au catalogue ET exige une ligne
- * `LoopNotificationPreference.email_enabled = true` POUR CETTE BOUCLE
- * precise (TASK-1775 B3/C2). Poser ce gabarit active la CAPACITE d'ecrire un
- * email correctement compose ; il n'active aucun envoi.
+ * Au moment ou cette migration a ete ecrite, le canal EMAIL etait eteint par
+ * defaut et exigeait un opt-in Boucle par Boucle. **L'arbitrage du 07/11 a
+ * inverse ce defaut** : l'email est desormais ACTIF par defaut, et se coupe
+ * Boucle par Boucle (`LoopNotificationPreference.email_enabled = false`).
+ * Poser ce gabarit n'active toujours aucun envoi par lui-meme : il fournit la
+ * CAPACITE d'ecrire un email correctement compose.
  */
 return new class extends Migration
 {

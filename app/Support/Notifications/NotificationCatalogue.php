@@ -248,11 +248,20 @@ final class NotificationCatalogue
      * designee — on l'invite, on l'ajoute, on accepte sa demande, on la nomme
      * co-auteur. Celle-ci previent TOUS les membres d'une Boucle.
      *
-     * C'est ce qui justifie ses deux particularites, decidees par MASTER le
-     * 03/11 : l'in-app est CONFIGURABLE — contrairement a une invitation, on
-     * doit pouvoir calmer un evenement recurrent — et le Web Push est declare
-     * mais ETEINT, pour ne pas transformer le premier producteur collectif en
+     * ## Ses defauts ont ete RENVERSES le 07/11 (TASK-1775)
+     *
+     * Etat du 03/11 (decision MASTER) : in-app CONFIGURABLE, Web Push declare
+     * mais ETEINT — pour ne pas transformer le premier producteur collectif en
      * sollicitation de masse sur ecran verrouille.
+     *
+     * Etat depuis le 07/11 (arbitrage Cyril, apres recette de l'ecran
+     * « Mes Boucles ») : **in-app OBLIGATOIRE**, **Web Push et EMAIL ACTIFS
+     * par defaut**. Ce qui a change entre les deux, et qui le justifie : la
+     * sourdine PAR BOUCLE (`LoopNotificationPreference`) n'existait pas le
+     * 03/11. C'est elle qui porte desormais le calme, canal par canal et
+     * Boucle par Boucle, a la place d'un reglage global sur l'in-app.
+     *
+     * Les valeurs qui font autorite sont dans `ENTRIES`, pas ici.
      */
     public const LOOP_HELP_REQUEST_CREATED = 'loop.help_request.created';
 
@@ -698,9 +707,10 @@ final class NotificationCatalogue
          *
          * A ne pas confondre avec `LOOP_HELP_REQUEST_CREATED`, qui est
          * COLLECTIF (une demande posee dans une Boucle, adressee a tout le
-         * monde) et donc eteint par defaut sur le Push. Ici l'evenement est
-         * PERSONNEL : une seule personne est concernee, sur sa propre annonce.
-         * C'est cette difference qui justifie des defauts opposes.
+         * monde). TASK-1775 (07/11) a aligne ses defauts sur ceux-ci — Push et
+         * email actifs — mais par un chemin different : la cle collective est
+         * calmee Boucle par Boucle, celle-ci ne l'est pas, puisqu'une seule
+         * personne est concernee, sur sa propre annonce.
          */
         self::TRANSACTION_PROPOSAL_CREATED => [
             'category' => 'transaction',
