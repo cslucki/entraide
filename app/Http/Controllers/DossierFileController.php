@@ -8,10 +8,12 @@ use App\Models\DossierFile;
 use App\Models\User;
 use App\Services\Dossiers\DossierFileRemover;
 use App\Services\Dossiers\DossierFileTransport;
+use App\Services\LoopMessageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -286,6 +288,34 @@ class DossierFileController extends Controller
             return response()->json([
                 'message' => __('dossiers.file_upload_failed'),
             ], 500);
+        }
+
+        // TASK-1772 (demande Cyril, 06/11) — ANNONCER LE DEPOT DANS LA BOUCLE.
+        //
+        // « Depuis smartphone ou desktop, quand on upload un fichier dans
+        // Dossiers, il manque un message dans la Boucle disant X vient de
+        // deposer le fichier Y. » Les deux surfaces passent par ICI : la
+        // tuile du composeur poste en `fetch` sur cette route, et la page
+        // Dossiers aussi. Poser la trace dans l'une des deux vues en aurait
+        // oublie la moitie.
+        //
+        // APRES le commit, et jamais dedans : une annonce qui echoue ne doit
+        // pas faire perdre les fichiers. Si elle casse, les fichiers sont
+        // deposes, la Card les montre, et seul le repere manque.
+        if ($dossier->loop_id && $dossier->loop) {
+            try {
+                app(LoopMessageService::class)->sendDossierFileMessage(
+                    $dossier->loop,
+                    $request->user(),
+                    array_map(fn ($f) => (string) ($f['original_name'] ?? ''), $createdFiles),
+                );
+            } catch (\Throwable $e) {
+                Log::warning('TASK-1772 : depot annonce impossible dans la Boucle', [
+                    'dossier_id' => $dossier->id,
+                    'loop_id' => $dossier->loop_id,
+                    'erreur' => $e->getMessage(),
+                ]);
+            }
         }
 
         return response()->json([

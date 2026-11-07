@@ -12,6 +12,7 @@ return [
     'state_off' => 'Not enabled on this device',
     'state_denied' => 'Blocked by your browser',
     'state_unsupported' => 'Not supported by this browser',
+    'state_unavailable' => 'Unavailable for now',
     'state_checking' => 'Checking…',
 
     'enable' => 'Enable notifications',
@@ -19,6 +20,7 @@ return [
 
     'denied_help' => 'Your browser blocked notifications for BouclePro. To turn them back on, open the site settings in your browser and allow notifications, then come back to this page.',
     'unsupported_help' => 'This browser does not offer web notifications. On iPhone, first install BouclePro on your home screen: notifications are only available from the installed app.',
+    'unavailable_help' => 'Notifications are not offered on this space yet. Your browser does support them: there is nothing for you to do.',
 
     'devices_count' => '{0}No device registered|{1}1 device registered|[2,*]:count devices registered',
 

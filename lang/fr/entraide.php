@@ -45,7 +45,7 @@ return [
         'complet' => 'Cet atelier est complet.',
         'places_restantes' => '{0}Complet|{1}1 place restante|[2,*]:count places restantes',
         'groupe' => 'Atelier de groupe · :n personnes maximum',
-        'champ_label' => 'Pour un groupe ?',
+        'champ_label' => 'Proposer cette action sous forme d\'atelier',
         'champ_aide' => 'Laissez vide pour une aide individuelle. De 2 à 6 personnes pour un atelier — le temps annoncé est réparti entre les participants.',
         'champ_capacite' => 'Jusqu’à',
         'champ_plancher' => 'À partir de',

@@ -81,6 +81,12 @@ final class NotificationEmitter
      * @param  string  $eventId  UUID de l'EVENEMENT DE NOTIFICATION — partage
      *                           par tous ses destinataires, jamais l'identifiant
      *                           de l'objet metier.
+     * @param  array<string, bool>|null  $canauxAutorises  TASK-1778 — les
+     *        verdicts de preference `[canal => autorise]` deja calcules POUR
+     *        CE DESTINATAIRE. Un fan-out les resout en masse une fois pour
+     *        tous ses destinataires, ce qui evite au planificateur de les
+     *        relire personne par personne. `null` = qu'il les lise lui-meme,
+     *        comportement de tous les appelants d'avant T1778.
      */
     public function emit(
         string $notificationKey,
@@ -91,6 +97,7 @@ final class NotificationEmitter
         ?string $objectId = null,
         ?User $actor = null,
         ?string $collapseKey = null,
+        ?array $canauxAutorises = null,
     ): MemberNotification {
         // L'AUTORITE de normaliser est au modele, pour couvrir toutes les
         // portes. On applique ici la meme fonction — pas une seconde regle — sur
@@ -121,10 +128,10 @@ final class NotificationEmitter
             // `wasRecentlyCreated` : ce drapeau appartient a l'instance, se perd
             // sur `fresh()` (constate en T1374) et ne prouve donc pas par quelle
             // branche on est passe.
-            return DB::transaction(function () use ($attributes) {
+            return DB::transaction(function () use ($attributes, $canauxAutorises) {
                 $notification = MemberNotification::create($attributes);
 
-                $this->planner()->plan($notification);
+                $this->planner()->plan($notification, $canauxAutorises);
 
                 return $notification;
             });

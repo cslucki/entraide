@@ -207,6 +207,14 @@ class UserDataLifecycleRegistry
             // sert a personne d'autre, et ne constitue aucune trace d'audit :
             // il suit son auteur. FK NOT NULL ON DELETE CASCADE.
             ['key' => 'member_notification_preferences_user_id', 'type' => 'sql', 'table' => 'member_notification_preferences', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'A notification preference is a personal choice about what a person receives: it has no meaning without them and serves no one else. The FK is NOT NULL ON DELETE CASCADE and the registry says so.'],
+            // TASK-1775 — a per-Loop collective notification preference is
+            // the same kind of fact as its neighbour above (a personal
+            // choice about what a person receives), scoped to ONE Loop
+            // instead of globally. It has no meaning without the person, and
+            // the table carries its own `organization_id` (unlike its
+            // neighbour): `org_scope` is therefore 'direct', not
+            // 'user_organization'. The FK is NOT NULL ON DELETE CASCADE.
+            ['key' => 'member_loop_notification_preferences_user_id', 'type' => 'sql', 'table' => 'member_loop_notification_preferences', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'A per-Loop notification preference is a personal choice about what a person receives for one specific Loop: it has no meaning without them and serves no one else. The FK is NOT NULL ON DELETE CASCADE and the registry says so.'],
             ['key' => 'member_notifications_recipient_id', 'type' => 'sql', 'table' => 'member_notifications', 'column' => 'recipient_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'An in-app notification is addressed TO a person: it is an address, not a trace, and it carries no content of its own (references only). The FK is NOT NULL ON DELETE CASCADE and the registry says so.'],
             // TASK-1739 — un abonnement Web Push est un DESTINATAIRE TECHNIQUE :
             // le trio (endpoint, p256dh, auth) qu'un navigateur remet apres un

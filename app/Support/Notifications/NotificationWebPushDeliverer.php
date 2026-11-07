@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Minishlink\WebPush\ContentEncoding;
 use Minishlink\WebPush\Encryption;
 use Minishlink\WebPush\VAPID;
+use Throwable;
 
 /**
  * TASK-1740 — l'envoi reel d'une notification Web Push.
@@ -67,6 +68,20 @@ class NotificationWebPushDeliverer
      */
     private const MAX_APPAREILS = 10;
 
+    /**
+     * TASK-1779 — le transport a-t-il DEJA ete sollicite pour cette livraison ?
+     *
+     * C'est la frontiere qui separe `failed` (on sait que rien n'est parti) de
+     * `ambiguous` (on ne sait plus). Elle est posee juste avant le premier
+     * `deposer()`, et remise a zero a chaque entree dans `deliver()`.
+     *
+     * Elle ne remplace PAS le `try/catch` interne de `deposer()`, qui absorbe
+     * les echecs du transport lui-meme : elle couvre ce qui echoue AUTOUR du
+     * transport une fois celui-ci engage — la suppression d'un appareil
+     * revoque, l'ecriture du statut final.
+     */
+    private bool $transportSollicite = false;
+
     private const TIMEOUT = 8;
 
     /** Duree de vie du message chez le fournisseur, en secondes. */
@@ -92,7 +107,50 @@ class NotificationWebPushDeliverer
             return;
         }
 
-        $this->livrer($notification, $livraison);
+        // TASK-1779 — le drapeau est remis a zero A CHAQUE ENTREE, jamais lu
+        // d'un appel sur l'autre. Ce livreur n'est pas un singleton (il est
+        // resolu par job), mais une garde de correction ne doit pas dependre
+        // de la duree de vie d'une instance.
+        $this->transportSollicite = false;
+
+        try {
+            $this->livrer($notification, $livraison);
+        } catch (Throwable $incident) {
+            // TASK-1779 — sans ce bloc, une erreur INTERNE du chemin push
+            // (base injoignable, suppression d'un appareil refusee, cible qui
+            // leve) remontait jusqu'a l'appelant. Sous `QUEUE_CONNECTION=sync`,
+            // `SyncQueue::handleException()` relance : l'exception atteignait
+            // la requete HTTP de l'AUTEUR, qui voyait une 500 alors que son
+            // message etait publie. Et la livraison restait bloquee en
+            // `sending`, donc jamais reprise — `prendre()` n'accepte que
+            // `pending`.
+            //
+            // Le livreur EMAIL se protegeait deja ainsi
+            // (`NotificationEmailDeliverer::deliver()`). Cette TASK rend les
+            // deux symetriques ; l'asymetrie n'etait pas un choix, c'etait un
+            // oubli.
+            report($incident);
+
+            // LA FRONTIERE. Avant toute sollicitation du transport, on SAIT
+            // que rien n'est parti : `failed` est exact et autorise une
+            // relance manuelle. Des que le premier `deposer()` a ete appele,
+            // on ne sait plus : le fournisseur a peut-etre accepte le message
+            // avant que la suite echoue. `ambiguous` dit exactement cela, et
+            // il interdit la relance.
+            //
+            // Le diagnostic est un CODE STABLE, jamais le message
+            // d'exception : meme raison que dans le livreur email — un
+            // message de moteur peut depasser la colonne et faire echouer
+            // l'ecriture PAR-DESSUS l'incident d'origine, ou transporter des
+            // fragments de donnees.
+            $this->abandonnerSansEchouer(
+                $livraison,
+                $this->transportSollicite
+                    ? NotificationDeliveryStatus::AMBIGUOUS
+                    : NotificationDeliveryStatus::FAILED,
+                $this->transportSollicite ? 'push_outcome_unknown' : 'delivery_internal_error',
+            );
+        }
     }
 
     private function livrer(MemberNotification $notification, MemberNotificationDelivery $livraison): void
@@ -123,7 +181,18 @@ class NotificationWebPushDeliverer
 
         $preferences = app(NotificationPreferenceResolver::class);
 
-        if (! $preferences->allows($destinataire, (string) $notification->notification_key, NotificationCatalogue::CHANNEL_WEB_PUSH)) {
+        // TASK-1775 (CDC C2) — meme discipline qu'en EMAIL : la sourdine par
+        // Boucle a pu changer entre la planification et ce rejeu, et seule
+        // `LOOP_HELP_REQUEST_CREATED` doit jamais s'y soumettre (`object_id`
+        // designe la Boucle AUSSI pour `LOOP_MEMBER_ADDED`, un fait personnel).
+        //
+        // TASK-1778 — la regle est au catalogue, en un seul exemplaire.
+        $loopId = NotificationCatalogue::loopScopeFor(
+            (string) $notification->notification_key,
+            $notification->object_id === null ? null : (string) $notification->object_id,
+        );
+
+        if (! $preferences->allows($destinataire, (string) $notification->notification_key, NotificationCatalogue::CHANNEL_WEB_PUSH, $loopId)) {
             $this->abandonner($livraison, NotificationDeliveryStatus::SKIPPED_PREFERENCE, 'channel_disabled_by_member');
 
             return;
@@ -181,6 +250,12 @@ class NotificationWebPushDeliverer
         $charge = $this->chargeUtile($notification, $cible);
         $reussites = 0;
         $revoques = 0;
+
+        // TASK-1779 — FRANCHISSEMENT DE LA FRONTIERE. Tout ce qui echoue a
+        // partir d'ici doit conclure `ambiguous`, jamais `failed` : le premier
+        // appel a `deposer()` est imminent, et un fournisseur peut avoir
+        // accepte le message avant qu'une etape suivante echoue.
+        $this->transportSollicite = true;
 
         foreach ($appareils as $appareil) {
             $resultat = $this->deposer($appareil, $charge);
@@ -416,7 +491,7 @@ class NotificationWebPushDeliverer
             $this->dernierMotif = 'refus du fournisseur (HTTP '.$reponse->status().')';
 
             return 'echec';
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Le garde d'egress leve ici quand la base visee est un jumeau de
             // PRODUCTION. C'est un refus VOULU, pas une panne : on le
             // journalise sans le maquiller en succes.
@@ -553,6 +628,12 @@ class NotificationWebPushDeliverer
             NotificationCatalogue::OBJECT_LOOP => $objetId,
             NotificationCatalogue::OBJECT_LOOP_INVITATION => DB::table('loop_invitations')->where('id', $objetId)->value('loop_id'),
             NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST => DB::table('loop_join_requests')->where('id', $objetId)->value('loop_id'),
+            // TASK-1772 — sans cette ligne, le Push d'une mention perdrait le
+            // nom de la Boucle PUBLIQUE : le corps retomberait sur son texte
+            // generique, alors qu'il a le droit de nommer une Boucle publique.
+            // `DB::table` et non Eloquent : aucun scope global ne doit
+            // intervenir, ce code tourne sous worker.
+            NotificationCatalogue::OBJECT_LOOP_MESSAGE => DB::table('loop_messages')->where('id', $objetId)->value('loop_id'),
 
             // Un article co-ecrit est le plus souvent un BROUILLON : son titre
             // n'a rien a faire sur un ecran verrouille.
@@ -607,5 +688,29 @@ class NotificationWebPushDeliverer
     private function abandonner(MemberNotificationDelivery $livraison, string $statut, string $motif): void
     {
         $livraison->forceFill(['status' => $statut, 'diagnostic' => $motif])->save();
+    }
+
+    /**
+     * TASK-1779 — conclure sans jamais relancer vers l'appelant.
+     *
+     * On est deja dans le `catch` d'un incident : si l'ecriture du statut
+     * echoue a son tour — c'est le cas le plus probable, puisque l'incident
+     * d'origine est souvent la base elle-meme — relancer ferait remonter la
+     * SECONDE exception et masquerait completement la premiere. Le seul
+     * resultat serait une 500 sur la publication, exactement ce que cette
+     * TASK ferme.
+     *
+     * Le point de sauvegarde vaut pour la meme raison qu'ailleurs dans ce
+     * module : sur PostgreSQL, une requete qui echoue abandonne la
+     * transaction courante, et l'appelant peut nous avoir appele depuis la
+     * sienne. Meme parade qu'en T1372 et dans le livreur email.
+     */
+    private function abandonnerSansEchouer(MemberNotificationDelivery $livraison, string $statut, string $motif): void
+    {
+        try {
+            DB::transaction(fn () => $this->abandonner($livraison, $statut, $motif));
+        } catch (Throwable $incident) {
+            report($incident);
+        }
     }
 }

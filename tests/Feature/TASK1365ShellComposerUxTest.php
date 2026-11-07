@@ -299,16 +299,47 @@ class TASK1365ShellComposerUxTest extends TestCase
         // Entree y supprimait le retour a la ligne. Contrairement a la garde
         // d'upload, celle-ci vaut pour LES DEUX composeurs — elle est donc dans
         // l'invariant, pas dans la divergence.
-        $invariant = '@keydown.enter="if (enterEnvoie && !$event.shiftKey) { $event.preventDefault();';
+        // TASK-1772 (3e relecture) — le test a rougi, et il demandait encore
+        // d'etre RELU. Relecture faite : le ChatLoop a gagne un menu de
+        // mentions, et quand ce menu est ouvert, Entree CHOISIT la personne
+        // surlignee au lieu d'envoyer le message. La garde se place donc avant
+        // le contrat, dans le meme `@keydown.enter` :
+        //
+        //     if (mentionOuvert) { return }  if (enterEnvoie && …) { … }
+        //
+        // Meme famille que la garde `uploading` de T1684 : une divergence qui
+        // n'a d'objet QUE dans le ChatLoop — le Shell n'a pas de mentions.
+        //
+        // Ce qui change ici, c'est l'ANCRAGE de l'invariant, pas l'invariant.
+        // Le `@keydown.enter="` collait la mesure a la POSITION de l'expression
+        // dans l'attribut ; c'est un moyen, pas la promesse. La promesse est :
+        // Entree envoie, Maj+Entree garde la ligne, et `enterEnvoie` arbitre.
+        // Elle est intacte des deux cotes, et c'est elle qu'on mesure.
+        $invariant = 'if (enterEnvoie && !$event.shiftKey) { $event.preventDefault();';
 
+        $this->assertStringContainsString('@keydown.enter="', $chatloop,
+            'Le contrat clavier ne passe plus par `@keydown.enter` du tout : relire, pas contourner.');
         $this->assertStringContainsString($invariant, $chatloop,
             'Le contrat de reference a change dans le ChatLoop : ce test doit etre relu, pas contourne.');
         $this->assertStringContainsString('$wire.sendMessage() }', $chatloop);
 
+        // La divergence de mentions est BORNEE et NOMMEE : si la garde
+        // disparaissait, Entree enverrait le message au lieu de choisir la
+        // personne surlignee — exactement le defaut remonte en recette le
+        // 06/11 (« le message part immediatement »).
+        $this->assertMatchesRegularExpression(
+            '/@keydown\.enter="if \(mentionOuvert[^"]*\)\s*\{\s*return\s*\}/',
+            $chatloop,
+            'La garde du menu de mentions a disparu : Entree renverrait le message '
+            .'au lieu de choisir la personne surlignee.');
+
         $shell = file_get_contents(resource_path('views/livewire/ai-shell.blade.php'));
 
-        $this->assertStringContainsString($invariant, $shell);
+        $this->assertStringContainsString('@keydown.enter="'.$invariant, $shell,
+            'Le Shell n\'a ni mentions ni upload : son contrat clavier reste nu.');
         $this->assertStringContainsString('$wire.send() }', $shell);
+        $this->assertStringNotContainsString('mentionOuvert', $shell,
+            'Le Shell a gagne un menu de mentions : la divergence ci-dessus doit alors etre relue.');
 
         // La divergence est BORNEE a la garde d'upload : si le Shell recevait
         // un jour une saisie de fichier, cette assertion tomberait et forcerait

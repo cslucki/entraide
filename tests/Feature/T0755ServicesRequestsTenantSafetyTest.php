@@ -39,7 +39,13 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
             ->post(route('services.store'), array_merge($this->validServiceData($category), [
                 'organization_id' => $organizationB->id,
             ]))
-            ->assertRedirect(route('organization.dashboard.services', [$organizationA]));
+        // TASK-1773 : destination deplacee vers l'ecran de confirmation.
+        // La promesse ne bouge pas : l'Organization resolue gouverne, et
+        // l'`organization_id` poste par l'attaquant est ignore.
+            ->assertRedirect(route('organization.services.created', [
+                'organization' => $organizationA,
+                'service' => \App\Models\Service::where('user_id', $user->id)->latest()->firstOrFail()->id,
+            ]));
 
         $this->assertDatabaseHas('services', [
             'user_id' => $user->id,

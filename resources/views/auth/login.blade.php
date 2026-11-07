@@ -392,13 +392,46 @@
                     <x-input-error :messages="$errors->get('password')" class="mt-1.5" />
                 </div>
 
-                <!-- Se souvenir de moi -->
+                {{-- ===============================================================
+                     TASK-1774 — RESTER CONNECTE : LA CASE EST ENFIN COCHEE.
+                     ===============================================================
+                     Mesure du 06/11 : le mecanisme de reconnexion de Laravel
+                     dure 400 JOURS et existe depuis toujours dans ce depot —
+                     mais personne ne l'arme, parce que cette case etait
+                     DECOCHEE. La seule chose qui protegeait qui que ce soit
+                     d'une ressaisie etait donc la session ordinaire, et elle
+                     expire apres 120 minutes d'inactivite (valeur mesuree en
+                     PROD, pas supposee).
+
+                     Elle est donc cochee PAR DEFAUT, et elle reste
+                     DECOCHABLE : sur un poste partage, le refus doit etre
+                     possible, et il doit etre RESPECTE — c'est le serveur qui
+                     lit la case, rien d'autre.
+
+                     Le libelle change aussi : « Se souvenir de moi » ne disait
+                     pas ce que ca fait. « Rester connecte sur cet appareil »
+                     nomme l'appareil, ce qui rend la mention du poste partage
+                     comprehensible juste en dessous. --}}
                 <div>
-                    <label for="remember_me" class="inline-flex items-center gap-2 cursor-pointer">
-                        <input id="remember_me" type="checkbox" name="remember"
-                               class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 shadow-sm focus:ring-indigo-500 dark:bg-gray-700">
-                        <span class="text-sm text-gray-600 dark:text-gray-400">{{ __('auth.remember_me') }}</span>
+                    <label for="remember_me" class="inline-flex items-start gap-2 cursor-pointer">
+                        {{-- `checked` par defaut, mais l'ancienne saisie gagne :
+                             apres un echec de connexion ou un rechargement, la
+                             personne qui venait de DECOCHER ne doit pas voir la
+                             case se recocher dans son dos. `old()` ne distingue
+                             pas « premier affichage » de « soumission ou rien
+                             n'etait coche » — d'ou le drapeau `_remember_pose`,
+                             present des qu'un POST vient de ce formulaire. --}}
+                        <input id="remember_me" type="checkbox" name="remember" value="1"
+                               data-remember-checkbox
+                               @checked(old('_remember_pose') ? old('remember') : true)
+                               class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 shadow-sm focus:ring-indigo-500 dark:bg-gray-700">
+                        <span class="text-sm text-gray-600 dark:text-gray-400">
+                            {{ __('auth.remember_me') }}
+                            <span class="block text-xs text-gray-400 dark:text-gray-500" data-remember-hint>{{ __('auth.remember_me_shared_device') }}</span>
+                        </span>
                     </label>
+                    {{-- Temoin de soumission : voir le commentaire ci-dessus. --}}
+                    <input type="hidden" name="_remember_pose" value="1">
                 </div>
 
                 <!-- Bouton connexion -->

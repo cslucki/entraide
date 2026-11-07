@@ -20,12 +20,27 @@ class Reaction extends Model
         'reaction_type',
     ];
 
+    /**
+     * TASK-1772 (recette Cyril, 06/11) — « on va supprimer la reaction seen
+     * (les deux yeux), ainsi sur smartphone on aura plus de place ».
+     *
+     * Retiree des DEUX listes : celle-ci ordonne le choix propose, et
+     * `emojiMap()` sert de catalogue a toutes les surfaces (le fil, la
+     * messagerie, les cartes de flux, qui en prennent les six premieres).
+     * La laisser dans l'une et pas dans l'autre rendrait une pastille vide
+     * ici, ou un choix fantome la-bas.
+     *
+     * Mesure avant retrait, sur la base REELLEMENT servie
+     * (`bouclepro_prod_work`, et non `bouclepro_ai_validation` que lit
+     * `APP_ENV=ai-validation`) : 4 reactions en base — thumbs_up 2, heart 1,
+     * thanks 1 — et AUCUNE du type retire. Une reaction de ce type creee en
+     * PROD cesserait d'etre AFFICHEE ; la ligne, elle, reste en base.
+     */
     public const REACTION_TYPES = [
         'thumbs_up',
         'heart',
         'thanks',
         'surprised',
-        'seen',
         'interesting',
         'smile',
         'sad',
@@ -46,7 +61,6 @@ class Reaction extends Model
             'heart' => '❤️',
             'thanks' => '🙏',
             'surprised' => '😮',
-            'seen' => '👀',
             'interesting' => '💡',
             'smile' => '😊',
             'sad' => '😢',

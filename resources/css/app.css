@@ -379,3 +379,121 @@
 .bp-bulle-markdown li p {
     margin: 0;
 }
+
+/* TASK-1772 (recette Cyril, 06/11) — une mention doit SE VOIR.
+   « Changer l'apparence du pseudo de la personne mentionnée : changer de
+   couleur pour qu'on voit que c'est une mention. »
+
+   Le gras seul (arbitrage D3 de la TASK) se confondait avec un simple appui
+   de ton dans un fil dense. La couleur, elle, dit « on te parle ».
+
+   Pourquoi cette règle vit ICI et pas en classe utilitaire : `bp-mention` est
+   posée par du PHP (`message-bubble.blade.php`), et Tailwind ne scanne pas le
+   HTML produit à l'exécution — une utilitaire y serait PURGÉE en silence
+   (incident T1750). Une classe de feuille de style, elle, est toujours émise.
+
+   Cinq fonds de bulle coexistent : gris, violet (IA), rose et émeraude
+   (pour/contre), et indigo-600 plein (bulle envoyée). Les quatre premiers
+   portent du texte sombre en clair et clair en sombre — un indigo soutenu y
+   passe des deux côtés. Le cinquième est un aplat indigo : il lui faut une
+   teinte CLAIRE, et il ne change pas entre les thèmes. */
+.bp-bulle-markdown .bp-mention {
+    color: #4338ca; /* indigo-700 */
+}
+
+.dark .bp-bulle-markdown .bp-mention {
+    color: #a5b4fc; /* indigo-300 */
+}
+
+/* La bulle envoyée, en DERNIER et à spécificité suffisante : la règle `.dark`
+   ci-dessus compte trois classes, celle-ci doit au moins les égaler pour
+   gouverner. Deux passes, et c'est la surcharge qui décide. */
+[data-bulle-envoyee] .bp-bulle-markdown .bp-mention,
+.dark [data-bulle-envoyee] .bp-bulle-markdown .bp-mention {
+    color: #c7d2fe; /* indigo-200, lisible sur l'aplat indigo-600 */
+}
+
+/* TASK-1772 (recette Cyril, telephone) — le corps d'une bulle n'est plus en
+   `pre-wrap` : les paragraphes Markdown s'espacent ici, d'une demi-ligne,
+   et un `<br>` vaut UN retour. */
+.bp-bulle-markdown > :where(p, ul, ol, pre, blockquote) + :where(p, ul, ol, pre, blockquote) {
+    margin-top: 0.5em;
+}
+
+/* Le nom d'un humain recu, en couleur d'action du theme sur telephone
+   (WhatsApp colore le nom par auteur). Au bureau il reste gris : la rangee y
+   est plus dense et la couleur y crierait. */
+@media (max-width: 767px) {
+    .bp-bulle-nom {
+        color: var(--bp-primary);
+    }
+}
+
+/* =======================================================================
+   TASK-1773 (demande Cyril, 06/11) — LA PLUIE DE COEURS DE LA CONFIRMATION.
+   =======================================================================
+   « Faire un effet avec plein de coeurs qui traversent la page, ca fait
+   plaisir a la personne. »
+
+   Trois contraintes qui gouvernent la forme, et qu'on ne voit pas en
+   regardant l'animation :
+
+   1. `position: fixed` + `overflow: hidden` sur le calque. Des coeurs en
+      `absolute` allongeraient le DOCUMENT, et l'ecran se remettrait a
+      defiler — ce que la recette precedente venait justement de corriger.
+   2. `pointer-events: none` sur le calque ET les coeurs : l'ecran est une
+      invitation a cliquer. Un confetti qui avale un clic est un defaut, pas
+      une fete.
+   3. L'animation est JOUEE UNE FOIS puis le calque est retire. Une boucle
+      infinie sur un ecran ou l'on s'attarde coute de la batterie et finit
+      par agacer.
+
+   `transform` et `opacity` seulement : ce sont les deux proprietes qu'un
+   navigateur sait animer sans recalculer la mise en page. */
+.bp-coeurs {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 40;
+}
+
+.bp-coeur {
+    position: absolute;
+    bottom: -3rem;
+    pointer-events: none;
+    will-change: transform, opacity;
+    animation: bp-coeur-monte var(--bp-coeur-duree, 4.5s) cubic-bezier(0.22, 0.61, 0.36, 1) var(--bp-coeur-retard, 0s) both;
+}
+
+@keyframes bp-coeur-monte {
+    0% {
+        opacity: 0;
+        transform: translate3d(0, 0, 0) scale(0.6) rotate(0deg);
+    }
+    12% {
+        opacity: 1;
+    }
+    80% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        transform: translate3d(var(--bp-coeur-derive, 0px), calc(-100vh - 6rem), 0) scale(1) rotate(var(--bp-coeur-tour, 20deg));
+    }
+}
+
+/* Une personne qui a demande moins de mouvement a demande moins de
+   mouvement. Les coeurs ne montent plus : ils apparaissent et s'effacent. */
+@media (prefers-reduced-motion: reduce) {
+    .bp-coeur {
+        animation: bp-coeur-discret 1.6s ease-out var(--bp-coeur-retard, 0s) both;
+        bottom: auto;
+        top: 35%;
+    }
+
+    @keyframes bp-coeur-discret {
+        0%, 100% { opacity: 0; }
+        40% { opacity: 0.9; }
+    }
+}

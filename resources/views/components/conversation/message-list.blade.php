@@ -25,7 +25,15 @@
         x-on:older-messages-loaded.window="requestAnimationFrame(() => { if (preservingScroll) { $el.scrollTop = $el.scrollHeight - previousScrollHeight; preservingScroll = false } })"
         x-on:scroll-to-message.window="requestAnimationFrame(() => { const target = document.getElementById('loop-message-' + $event.detail.messageId); if (target) { target.scrollIntoView({ block: 'start' }); target.classList.add('ring-2', 'ring-violet-400', 'rounded-xl'); setTimeout(() => target.classList.remove('ring-2', 'ring-violet-400', 'rounded-xl'), 1800) } })"
     @endif
-    {{ $attributes->merge(['class' => 'flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-1', 'style' => 'scrollbar-width: thin;']) }}
+    {{-- TASK-1772 (recette Cyril, telephone) — `overflow-x-hidden` : le fil
+         se laissait faire defiler HORIZONTALEMENT. Mesure a 390 px : le
+         conteneur avait 402 px de contenu pour 390 de large. Le coupable
+         est le bouton de reaction, pose en absolu a 1,75 rem HORS de la
+         bulle (`right: -1.75rem`) : sur une bulle recue a sa largeur
+         maximale, il depasse du bord. Invisible (opacite 0) mais present —
+         l'opacite ne retire rien a la mise en page. Le fil ne defile que
+         verticalement, par contrat. --}}
+    {{ $attributes->merge(['class' => 'flex-1 overflow-y-auto overflow-x-hidden min-h-0 px-4 py-4 space-y-1', 'style' => 'scrollbar-width: thin;']) }}
 >
     @if(isset($messages))
         {{ $messages }}

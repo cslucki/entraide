@@ -236,8 +236,13 @@ class TASK1693MobileMessagingTest extends TestCase
     {
         $html = $this->conversation($this->discussion());
 
+        // TASK-1772 — le DECLENCHEUR a demenage : il etait un bouton rond a
+        // cote du champ, il est maintenant une tuile de la feuille « + »
+        // (meme pilule que le ChatLoop, demande de Cyril du 06/11). La
+        // PROMESSE est inchangee et c'est elle qu'on mesure : un geste nomme
+        // invoque `cameraInput`, et ce champ ouvre bien la camera.
         $this->assertStringContainsString('data-composer-camera', $html);
-        $this->assertStringContainsString('$refs.cameraInput.click()', $html,
+        $this->assertMatchesRegularExpression('/\$refs\.cameraInput\??\.click\(\)/', $html,
             'le champ `capture` existait deja : il lui manquait un declencheur');
         $this->assertStringContainsString('capture="environment"', $html);
     }
@@ -245,11 +250,29 @@ class TASK1693MobileMessagingTest extends TestCase
     /** Et il est reserve au telephone : sur ordinateur il ferait doublon. */
     public function test_the_camera_control_is_mobile_only(): void
     {
-        $this->assertMatchesRegularExpression(
-            '/class="md:hidden[^"]*"[^>]*>\s*<svg|data-composer-camera[\s\S]{0,400}?md:hidden/',
-            $this->conversation($this->discussion()),
-            '`capture` n\'a de sens que sur un appareil qui a une camera',
-        );
+        $html = $this->conversation($this->discussion());
+
+        // TASK-1772 — la porte est la feuille « + », et c'est ELLE qui est
+        // `md:hidden`. On mesure donc que le declencheur de la camera vit
+        // bien dans un conteneur reserve au telephone : le fragment qui le
+        // precede doit porter `md:hidden`, et il ne doit exister qu'une
+        // seule porte (pas de doublon ressuscite au bureau).
+        // La page rend la conversation en DEUX exemplaires (variante
+        // telephone et variante bureau, dont une est masquee) : compter les
+        // occurrences ne dirait rien. Ce qui compte, c'est que CHACUNE vive
+        // dans un conteneur reserve au telephone.
+        $morceaux = explode('data-composer-camera', $html);
+        array_pop($morceaux);
+
+        $this->assertNotEmpty($morceaux, 'aucune porte vers la camera');
+
+        foreach ($morceaux as $i => $avant) {
+            // 8000 : la feuille porte trois tuiles et leurs trajets SVG, et
+            // le conteneur `md:hidden` est tout en haut. Une fenetre courte
+            // rendait un faux rouge.
+            $this->assertStringContainsString('md:hidden', substr($avant, -8000),
+                "porte n°{$i} : `capture` n'a de sens que sur un appareil qui a une camera");
+        }
     }
 
     // ── Bug AD : le composeur tient vraiment le bas de l'ecran ───────────────

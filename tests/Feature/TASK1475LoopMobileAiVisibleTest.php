@@ -104,29 +104,62 @@ class TASK1475LoopMobileAiVisibleTest extends TestCase
      * `hidden md:flex` : aucune affordance IA visible, la seule porte etant le
      * menu `+`, qui ne nomme pas l'IA.
      *
-     * La rangee est desormais visible sur TOUS les formats (elle defile
-     * horizontalement sur mobile). La promesse de TASK-1475 est donc tenue par
-     * la rangee elle-meme, et le raccourci a ete retire : deux surfaces pour un
-     * meme interrupteur, a vingt pixels l'une de l'autre, dont l'une etait un
-     * glyphe muet — un membre a demande en recette a quoi elle servait.
+     * La rangee est devenue visible sur tous les formats, et le raccourci muet
+     * a ete retire : deux surfaces pour un meme interrupteur, a vingt pixels
+     * l'une de l'autre, dont l'une etait un glyphe muet — un membre a demande
+     * en recette a quoi elle servait.
+     *
+     * TASK-1769 deplace le MOYEN une seconde fois, et la promesse ne bouge
+     * toujours pas.
+     *
+     * Sous 768 px la rangee ne se rend plus : elle coutait 34 px au-dessus
+     * d'un composeur qui en coutait deja 65, sur un ecran dont 27 % partait
+     * en chrome. La porte nommee vers l'IA entre donc DANS la pilule du
+     * composeur, a droite du « + ».
+     *
+     * Ce test ne verifie donc plus « la rangee n'est pas masquee » — ce serait
+     * verifier un moyen. Il verifie ce qui a toujours compte : sur telephone,
+     * une action IA NOMMEE est atteignable SANS ouvrir de feuille.
      */
     public function test_the_named_ai_action_is_visible_without_opening_a_sheet(): void
     {
         $html = $this->actingAs($this->member)->get($this->loopUrl())->assertOk()->getContent();
 
-        // La rangee qui porte les modes n'est plus masquee sous `md`.
+        // La porte de la pilule existe, et elle n'est pas masquee sous `md`.
         $this->assertSame(1, preg_match(
-            '/<div class="(flex[^"]*overflow-x-auto[^"]*)"[^>]*x-data="\{ askOpen/', $html, $rangee,
-        ), 'la rangee des modes est rendue');
-        $this->assertStringNotContainsString('hidden', $rangee[1],
-            'elle doit etre visible sur mobile, pas seulement a partir de md');
-        $this->assertStringContainsString('overflow-x-auto', $rangee[1],
-            'sur mobile elle defile au lieu d\'empiler trois lignes de pastilles');
+            '/<button[^>]*data-composer-ai-door[^>]*class="([^"]*)"/s', $html, $porte,
+        ), 'la porte IA du composeur est rendue');
+        $this->assertStringNotContainsString('hidden', $porte[1],
+            'elle doit etre visible sur telephone : c\'est la seule porte nommee qui y reste');
 
-        // Et l'action IA y est NOMMEE, pas reduite a un glyphe.
-        $this->assertStringContainsString(e(__('loops.ask_ai_button')), $html);
-        $this->assertSame(1, preg_match('/<button[^>]*data-engine-toggle="ia"[^>]*>/', $html, $bouton));
-        $this->assertStringContainsString('aria-pressed="false"', $bouton[0]);
+        // Elle est NOMMEE : un mot visible, et son intitule complet en
+        // `aria-label`. C'est tout l'ecart avec le glyphe muet de T1475.
+        $this->assertSame(1, preg_match(
+            '/<button[^>]*data-composer-ai-door.*?<\/button>/s', $html, $bloc,
+        ));
+        $this->assertStringContainsString(e(__('loops.ia_mode_label')), $bloc[0],
+            'le mot « IA » doit etre VISIBLE dans le bouton, pas seulement en attribut');
+        $this->assertStringContainsString(e(__('loops.ask_ai_button')), $bloc[0],
+            'et l\'intitule complet doit y etre, pour le lecteur d\'ecran');
+        $this->assertStringContainsString('data-engine-toggle="ia"', $bloc[0]);
+        $this->assertStringContainsString('aria-pressed="false"', $bloc[0]);
+
+        // Et elle n'est PAS derriere une feuille : la promesse est « sans
+        // ouvrir quoi que ce soit ». Tout ce qui s'ouvre sur cette page vit
+        // dans un `<template>` (feuille du « + », modales teleportees). On
+        // retire donc TOUS les `<template>` et on verifie que la porte
+        // survit — mesurer la position du premier d'entre eux ne dirait rien,
+        // la page en porte plusieurs, dont certains AVANT le composeur.
+        $horsFeuilles = preg_replace('/<template\b.*?<\/template>/s', '', $html);
+        $this->assertStringContainsString('data-composer-ai-door', $horsFeuilles,
+            'la porte doit vivre dans le composeur, pas dans la feuille du « + »');
+
+        // La rangee, elle, est desormais une surface de BUREAU.
+        $this->assertSame(1, preg_match(
+            '/<div class="(hidden[^"]*overflow-x-auto[^"]*)"[^>]*x-data="\{ askOpen/', $html, $rangee,
+        ), 'la rangee des modes est rendue, masquee sous md');
+        $this->assertStringContainsString('md:flex', $rangee[1],
+            'elle revient a partir de 768 px : le bureau ne perd rien');
     }
 
     /** Le raccourci muet a disparu, et rien ne le remplace en douce. */
@@ -179,13 +212,28 @@ class TASK1475LoopMobileAiVisibleTest extends TestCase
             ->assertSet('composerMode', 'normal');
     }
 
-    /** Deux interrupteurs par moteur, et pas trois : la rangee et la feuille. */
-    public function test_each_engine_has_exactly_two_switches(): void
+    /**
+     * Un interrupteur par SURFACE, et pas un de plus.
+     *
+     * TASK-1769 : l'IA en a trois, et chacune a sa raison d'etre — la rangee
+     * (bureau), la feuille du « + » (telephone, liste complete), la porte de
+     * la pilule (telephone, acces direct). Dossiers en garde deux : il n'a pas
+     * de porte dediee dans la pilule, il s'arme depuis la feuille.
+     *
+     * Le compte est verifie parce qu'un quatrieme interrupteur serait la
+     * rechute de T1621 : deux commandes pour un meme etat, a vingt pixels
+     * l'une de l'autre.
+     */
+    public function test_each_engine_has_its_surfaces_and_no_more(): void
     {
         $html = $this->actingAs($this->member)->get($this->loopUrl())->assertOk()->getContent();
 
-        $this->assertSame(2, substr_count($html, 'data-engine-toggle="ia"'), 'rangee + feuille mobile');
-        $this->assertSame(2, substr_count($html, 'data-engine-toggle="dossiers"'));
+        $this->assertSame(3, substr_count($html, 'data-engine-toggle="ia"'),
+            'rangee bureau + feuille mobile + porte de la pilule');
+        $this->assertSame(2, substr_count($html, 'data-engine-toggle="dossiers"'),
+            'rangee bureau + feuille mobile');
+        $this->assertSame(1, substr_count($html, 'data-composer-ai-door'),
+            'une seule porte dans la pilule');
     }
 
     // =====================================================================
