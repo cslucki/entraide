@@ -288,4 +288,58 @@ class TASK1747HelpRequestNotificationTest extends TestCase
             NotificationCatalogue::CHANNEL_IN_APP,
         ));
     }
+
+    /**
+     * TASK-1775 — meme preference qu'au test precedent, mais mesuree BOUT EN
+     * BOUT.
+     *
+     * Le test precedent ne verifiait que le resolveur, ISOLEMENT : rien ne
+     * prouvait qu'une demande d'aide REELLEMENT publiee respecte ce reglage.
+     * C'est exactement le defaut que l'audit prealable a la TASK-1775 a
+     * signale — l'in-app n'etait filtre par AUCUNE preference, ni a
+     * l'emission ni a l'affichage. Desormais corrige dans
+     * `LoopMessageService::notifierLaDemandeDAide()` : AUCUNE
+     * `MemberNotification` ne doit meme etre creee pour ce membre.
+     */
+    public function test_une_preference_globale_ETEINTE_empeche_la_creation_de_la_notification(): void
+    {
+        $preference = new \App\Models\MemberNotificationPreference([
+            'notification_key' => NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
+            'channel' => NotificationCatalogue::CHANNEL_IN_APP,
+            'enabled' => false,
+        ]);
+        $preference->user_id = $this->membre->id;
+        $preference->save();
+
+        $this->poserUneDemande();
+
+        $this->assertSame(
+            0,
+            MemberNotification::query()
+                ->where('notification_key', NotificationCatalogue::LOOP_HELP_REQUEST_CREATED)
+                ->where('recipient_id', $this->membre->id)
+                ->count(),
+            'Le reglage global in_app coupe doit empecher la creation meme de la ligne.'
+        );
+    }
+
+    /**
+     * TASK-1775 (CDC C4) — le libelle nomme la Boucle, exactement comme ses
+     * voisines (T1725).
+     *
+     * Avant cette TASK, `keys_named.loop_help_request_created` n'existait pas :
+     * le resolveur de sujet (`sujetsDesBoucles()`) couvrait deja cette cle —
+     * `object_type` vaut `OBJECT_LOOP` — mais faute de forme nommee, le
+     * Centre retombait silencieusement sur le libelle generique.
+     */
+    public function test_le_centre_nomme_la_boucle_dans_le_libelle(): void
+    {
+        $this->boucle->forceFill(['name' => 'Boucle Entraide'])->save();
+
+        $this->poserUneDemande();
+
+        $this->actingAs($this->membre)->get(route('notifications.index', ['filtre' => 'toutes']))
+            ->assertOk()
+            ->assertSee('Une demande d’aide a été publiée dans la Boucle « Boucle Entraide »');
+    }
 }
