@@ -107,7 +107,14 @@ class TASK1778FanOutBenchmarkTest extends TestCase
         // Le Mailer tourne pour de vrai, mais sur le transport `array` : le
         // rendu du gabarit, l'ecriture d'`EmailLog` et le SQL restent reels,
         // seule la sortie SMTP disparait.
-        config()->set('mail.default', 'array');
+        //
+        // TASK-1778 (arbitrage MASTER, micro-sequence B3) — `BENCH_SMTP=1`
+        // bascule sur le mailer configure. En local c'est Mailpit
+        // (`127.0.0.1:1025`), un PUITS : aucun membre ne recoit rien. Cela
+        // rend mesurable le cout CPU du protocole SMTP (encadrement MIME,
+        // encodage, ecriture sur la socket), le reste etant de la latence
+        // reseau que seule la PROD paie.
+        config()->set('mail.default', getenv('BENCH_SMTP') === '1' ? config('mail.default') : 'array');
 
         Http::fake(['*' => Http::response('', 201)]);
 
@@ -219,6 +226,51 @@ class TASK1778FanOutBenchmarkTest extends TestCase
                 }
             });
 
+        // TASK-1778 (micro-sequence B3) — DECOUPER le temps par phase.
+        //
+        // Les quatre postes que MASTER demande de distinguer ne sont pas
+        // devinables depuis la duree totale. Trois d'entre eux ont un
+        // evenement qui les encadre deja, il suffit de l'ecouter :
+        //
+        // | poste | frontiere |
+        // |---|---|
+        // | SQL | `DB::listen` (deja en place) |
+        // | transport email | `MessageSending` -> `MessageSent` |
+        // | depot HTTP du push | `RequestSending` -> `ResponseReceived` |
+        // | CPU : preparation, rendu, chiffrement | le RESTE, par soustraction |
+        //
+        // Le chiffrement Web Push n'a pas d'evenement propre : il est dans le
+        // reste. C'est pourquoi la configuration B (email seul) est mesuree
+        // separement — l'ecart B -> C isole ce que le push coute en CPU.
+        $tTransportEmail = 0.0;
+        $nTransportEmail = 0;
+        $tDepotHttp = 0.0;
+        $nDepotHttp = 0;
+        $debutEnvoiEmail = null;
+        $debutDepotHttp = null;
+
+        $ecouteur = app('events');
+        $ecouteur->listen(\Illuminate\Mail\Events\MessageSending::class,
+            function () use (&$debutEnvoiEmail): void { $debutEnvoiEmail = hrtime(true); });
+        $ecouteur->listen(\Illuminate\Mail\Events\MessageSent::class,
+            function () use (&$debutEnvoiEmail, &$tTransportEmail, &$nTransportEmail): void {
+                if ($debutEnvoiEmail !== null) {
+                    $tTransportEmail += (hrtime(true) - $debutEnvoiEmail) / 1_000_000;
+                    $nTransportEmail++;
+                    $debutEnvoiEmail = null;
+                }
+            });
+        $ecouteur->listen(\Illuminate\Http\Client\Events\RequestSending::class,
+            function () use (&$debutDepotHttp): void { $debutDepotHttp = hrtime(true); });
+        $ecouteur->listen(\Illuminate\Http\Client\Events\ResponseReceived::class,
+            function () use (&$debutDepotHttp, &$tDepotHttp, &$nDepotHttp): void {
+                if ($debutDepotHttp !== null) {
+                    $tDepotHttp += (hrtime(true) - $debutDepotHttp) / 1_000_000;
+                    $nDepotHttp++;
+                    $debutDepotHttp = null;
+                }
+            });
+
         gc_collect_cycles();
         $memoireAvant = memory_get_usage(true);
         $debut = hrtime(true);
@@ -240,6 +292,10 @@ class TASK1778FanOutBenchmarkTest extends TestCase
         $ecouteur->forget(\Illuminate\Database\Events\TransactionBeginning::class);
         $ecouteur->forget(\Illuminate\Database\Events\TransactionCommitted::class);
         $ecouteur->forget(\Illuminate\Database\Events\TransactionCommitting::class);
+        $ecouteur->forget(\Illuminate\Mail\Events\MessageSending::class);
+        $ecouteur->forget(\Illuminate\Mail\Events\MessageSent::class);
+        $ecouteur->forget(\Illuminate\Http\Client\Events\RequestSending::class);
+        $ecouteur->forget(\Illuminate\Http\Client\Events\ResponseReceived::class);
 
         // Couper l'ecoute : sans cela, les requetes de COMPTAGE ci-dessous
         // s'ajouteraient a la mesure et la fausseraient d'autant.
@@ -284,6 +340,13 @@ class TASK1778FanOutBenchmarkTest extends TestCase
             // Une transaction imbriquee = 1 `SAVEPOINT`, donc 1 aller-retour
             // de plus, absent de la colonne `requetes`.
             'savepoints' => max(0, $transactions - 1),
+            'transport_email_ms' => round($tTransportEmail, 1),
+            'transport_email_n' => $nTransportEmail,
+            'depot_http_ms' => round($tDepotHttp, 1),
+            'depot_http_n' => $nDepotHttp,
+            // Le CPU, par soustraction : preparation, rendu du gabarit,
+            // chiffrement Web Push, hydratation Eloquent.
+            'cpu_ms' => round(max(0, $dureeMs - array_sum(array_column($requetes, 'time')) - $tTransportEmail - $tDepotHttp), 1),
             'profondeur_max' => $profondeurMax,
             'duree_transaction_ms' => $dureeTransactionMs === null ? null : round($dureeTransactionMs, 1),
             'latence_reseau_estimee_ms' => round((count($requetes) + max(0, $transactions - 1)) * self::RTT_NEON_MS, 0),
@@ -473,17 +536,19 @@ class TASK1778FanOutBenchmarkTest extends TestCase
     {
         $etiquette = getenv('BENCH_LABEL') ?: 'sans-etiquette';
         $lignes = ["# Banc fan-out TASK-1778 — {$etiquette}", ''];
-        $lignes[] = '| taille | config | requetes | SAVEPOINT | req.+sp / dest. | duree CPU+SQL (ms) | dont SQL (ms) | dont transaction (ms) | prof. max | memoire (Mo) | notifs | livraisons | latence reseau estimee (ms) |';
+        $lignes[] = '| taille | config | requetes | SAVEPOINT | AR/dest. | TOTAL (ms) | SQL (ms) | transport email (ms / n) | depot HTTP (ms / n) | CPU (ms) | memoire (Mo) | notifs | livraisons |';
         $lignes[] = '|---|---|---|---|---|---|---|---|---|---|---|---|---|';
 
         foreach ($this->resultats as $r) {
             $lignes[] = sprintf(
-                '| %d | %s | %d | %d | %s | %s | %s | %s | %d | %s | %d | %d | %s |',
+                '| %d | %s | %d | %d | %s | %s | %s | %s / %d | %s / %d | %s | %s | %d | %d |',
                 $r['taille'], $r['configuration'], $r['requetes'], $r['savepoints'],
                 $r['taille'] > 0 ? round(($r['requetes'] + $r['savepoints']) / $r['taille'], 1) : 0,
-                $r['duree_ms'], $r['duree_sql_ms'], $r['duree_transaction_ms'] ?? '-',
-                $r['profondeur_max'], $r['memoire_mo'],
-                $r['notifications'], $r['livraisons'], $r['latence_reseau_estimee_ms'],
+                $r['duree_ms'], $r['duree_sql_ms'],
+                $r['transport_email_ms'], $r['transport_email_n'],
+                $r['depot_http_ms'], $r['depot_http_n'],
+                $r['cpu_ms'], $r['memoire_mo'],
+                $r['notifications'], $r['livraisons'],
             );
         }
 
