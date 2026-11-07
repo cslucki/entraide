@@ -2,6 +2,7 @@
 
 namespace App\Support\Notifications;
 
+use App\Models\BlogComment;
 use App\Models\EmailLog;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
@@ -11,6 +12,7 @@ use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\Blog\BlogCommentMailer;
 use App\Services\Loops\LoopInvitationMailer;
 use App\Services\Loops\LoopMentionMailer;
 use App\Services\Transactions\TransactionProposalMailer;
@@ -492,6 +494,45 @@ final class NotificationEmailDeliverer
         // L'objet est le MESSAGE (D5) : c'est lui qu'on relit, et c'est de lui
         // qu'on tire la Boucle. Scopes retires puis frontiere de tenant
         // reposee a la main, parce que ce code tourne sous worker.
+        // TASK-1784 — le commentaire depose sous un article.
+        //
+        // Place AVANT la mention sans aucune signification d'ordre : cet
+        // aiguillage est une suite de `if` sur des cles disjointes.
+        if ($cle === NotificationCatalogue::BLOG_COMMENT_CREATED) {
+            // Sans les scopes globaux, puis borne a la main : ce code tourne
+            // sous worker, ou `BelongsToOrganizationScope` echoue FERME faute
+            // de `current_organization`. Le commentaire ressortirait
+            // introuvable, en silence.
+            $commentaire = BlogComment::query()
+                ->withoutGlobalScopes()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($commentaire === null) {
+                return null;
+            }
+
+            // L'AUTEUR DU COMMENTAIRE est l'acteur — pas le destinataire, qui
+            // est l'auteur de l'article.
+            $acteur = $notification->actor_id
+                ? User::find((string) $notification->actor_id)
+                : User::find((string) $commentaire->user_id);
+
+            $commentMailer = app(BlogCommentMailer::class);
+            $reel = $commentMailer->compose($commentaire, $destinataire, $acteur, $cible, $locale);
+            // Le sixieme argument expurge AUSSI l'extrait : le courriel porte
+            // la phrase ecrite par un membre, et `email_logs` n'a pas a
+            // l'archiver (cf. `BlogCommentMailer::EXTRAIT_EXPURGE`).
+            $expurge = $commentMailer->compose($commentaire, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
         if ($cle === NotificationCatalogue::LOOP_MENTION_CREATED) {
             $message = LoopMessage::query()
                 ->withoutGlobalScopes()

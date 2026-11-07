@@ -49,10 +49,21 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * Les quatre cles arbitrees, d'apres la matrice du CDC 6.2.
+     * Les cles arbitrees qui poussent, d'apres la matrice du CDC 6.2 — puis
+     * TASK-1784.
      *
      * Ecrite A LA MAIN, et non derivee du catalogue : un test qui lirait le
-     * catalogue pour verifier le catalogue passerait quoi qu'on y mette.
+     * catalogue pour verifier le catalogue passerait quoi qu'on y mette. Cette
+     * discipline est maintenue, et c'est elle qui a fait rougir TASK-1784 au
+     * bon endroit — la liste a du etre modifiee a la main, donc la decision a
+     * du etre prise en conscience.
+     *
+     * TASK-1784 : `blog.comment.created` passe d'ECARTEE a POUSSEE. Le CDC 6.2
+     * disait « plutot non par defaut » au motif qu'un commentaire ne vous est
+     * pas adresse et qu'un auteur prolifique en recevrait des dizaines. Cyril a
+     * renverse : « il faut notifier l'auteur du billet par email et PWA ».
+     * L'objection reste traitee — le canal est `configurable`, donc un auteur
+     * prolifique peut se taire.
      *
      * @var list<string>
      */
@@ -61,16 +72,19 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         NotificationCatalogue::LOOP_MEMBER_ADDED,
         NotificationCatalogue::LOOP_JOIN_REQUEST_ACCEPTED,
         NotificationCatalogue::BLOG_CO_AUTHOR_ADDED,
+        NotificationCatalogue::BLOG_COMMENT_CREATED,
     ];
 
     /**
-     * Les cles ECARTEES de la V1, et c'est un arbitrage, pas un oubli.
+     * Les cles ECARTEES, et c'est un arbitrage, pas un oubli.
+     *
+     * Il n'en reste qu'UNE depuis TASK-1784. Elle garde tout son sens : un
+     * refus d'adhesion n'ouvre aucune porte, donc rien a pousser.
      *
      * @var list<string>
      */
     private const CLES_ECARTEES = [
         NotificationCatalogue::LOOP_JOIN_REQUEST_REJECTED,
-        NotificationCatalogue::BLOG_COMMENT_CREATED,
     ];
 
     private Organization $org;
@@ -116,7 +130,7 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
     // 1. La matrice d'eligibilite — CDC 6.2
     // =====================================================================
 
-    public function test_les_quatre_evenements_arbitres_autorisent_le_push(): void
+    public function test_les_evenements_arbitres_autorisent_le_push(): void
     {
         foreach (self::CLES_POUSSEES as $cle) {
             $this->assertTrue(
@@ -128,9 +142,12 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
 
     public function test_les_evenements_ecartes_restent_SANS_push(): void
     {
-        // CDC 6.2 : « plutot non au lancement » pour le refus d'adhesion,
-        // « plutot non par defaut » pour le commentaire de blog. Un refus
-        // n'ouvre aucune porte ; un commentaire ne vous est pas adresse.
+        // CDC 6.2 : « plutot non au lancement » pour le refus d'adhesion. Un
+        // refus n'ouvre aucune porte, donc il n'y a rien a pousser.
+        //
+        // TASK-1784 — le commentaire de blog n'est PLUS ici : Cyril a renverse
+        // « plutot non par defaut » et demande email + PWA. La cle a rejoint
+        // `CLES_POUSSEES`, ou son entree dit pourquoi.
         foreach (self::CLES_ECARTEES as $cle) {
             $this->assertFalse(
                 NotificationCatalogue::allowsChannel($cle, NotificationCatalogue::CHANNEL_WEB_PUSH),
@@ -145,7 +162,7 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         // Quelle que soit la valeur par defaut, la personne doit pouvoir
         // l'eteindre : aucune cle ne peut le declarer obligatoire.
         //
-        // Ecrit sur TOUTE cle du catalogue, et pas seulement sur les quatre :
+        // Ecrit sur TOUTE cle du catalogue, et pas seulement sur celles qui poussent :
         // c'est la regle du canal, elle doit tenir pour celles qu'on ouvrira
         // plus tard sans que personne ne pense a revenir ici.
         foreach (NotificationCatalogue::keys() as $cle) {
@@ -504,7 +521,7 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
     // 3. L'ecran de reglages — derive du catalogue, sans code ajoute
     // =====================================================================
 
-    public function test_l_ecran_expose_le_nouveau_canal_sur_les_quatre_cles(): void
+    public function test_l_ecran_expose_le_nouveau_canal_sur_les_cles_poussees(): void
     {
         $reponse = $this->actingAs($this->membre)->get(route('notifications.preferences.edit'));
 

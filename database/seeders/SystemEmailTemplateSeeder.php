@@ -246,6 +246,34 @@ class SystemEmailTemplateSeeder extends Seeder
         // `2026_11_06_090000_add_loop_mention_created_email_template`.
         // Un gabarit pose par migration doit entrer ICI aussi : sans quoi une
         // base reconstruite de zero ne l'aurait pas.
+        // TASK-1784 — « on a commente votre article ».
+        //
+        // Les deux points d'entree sont tenus : CE catalogue, qui fait autorite
+        // pour une base fraiche, ET la migration
+        // `2026_11_07_230000_add_blog_comment_created_email_template`, qui pose
+        // les lignes sur les bases deja installees. Ecrire la migration seule
+        // avait fait rougir les deux gates en T1720 : une base reconstruite
+        // n'aurait JAMAIS eu le gabarit. Les deux textes sont identiques, et
+        // compares programmatiquement avant commit — pas a l'oeil.
+        'blog_comment_created' => [
+            'name_fr' => 'Commentaire sur votre article',
+            'name_en' => 'Comment on your article',
+            'subject_fr' => '{{ author_name }} a commenté « {{ post_title }} »',
+            'subject_en' => '{{ author_name }} commented on “{{ post_title }}”',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a laissé un commentaire sur votre article <strong>{{ post_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Lire le commentaire</a></p><p>Rien ne presse : le commentaire vous attend, vous y répondrez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> left a comment on your article <strong>{{ post_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Read the comment</a></p><p>No rush: the comment will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            // Obligatoire : `ligne()` lit `$def['variables']` SANS repli
+            // (`SystemEmailTemplateSeeder:450`). L'omettre ne casse pas le
+            // seeder tout seul — il casse TOUT ce qui l'invoque, soit 209
+            // tests en `ErrorException` et zero assertion. Meme liste que la
+            // migration jumelle.
+            'variables' => [
+                'recipient_name', 'recipient_email', 'author_name',
+                'organization_name', 'post_title', 'comment_url',
+                'comment_excerpt', 'preferences_url', 'app_name',
+            ],
+        ],
+
         'loop_mention_created' => [
             'name_fr' => 'Mention dans une Boucle',
             'name_en' => 'Mention in a Loop',

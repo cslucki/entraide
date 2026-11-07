@@ -156,11 +156,16 @@ test.describe('TASK-1744 — reglages Web Push', () => {
         await page.goto('/notifications/preferences');
         await page.waitForLoadState('domcontentloaded');
 
-        // Anti-bruit du CDC 6.2 : un refus d'adhesion n'ouvre aucune porte, un
-        // commentaire de blog ne vous est pas adresse. Pas de reglage affiche
-        // pour un canal que le catalogue n'autorise pas — l'ecran n'invente
-        // rien.
-        for (const cle of ['loop.join_request.rejected', 'blog.comment.created']) {
+        // Anti-bruit du CDC 6.2 : un refus d'adhesion n'ouvre aucune porte.
+        // Pas de reglage affiche pour un canal que le catalogue n'autorise
+        // pas — l'ecran n'invente rien.
+        //
+        // TASK-1784 — `blog.comment.created` a quitte cette liste : Cyril a
+        // renverse le « plutot non par defaut » du CDC 6.2 et demande email +
+        // PWA. Ce spec n'est pas joue par les gates PHP, donc rien ne l'aurait
+        // signale : l'affirmation serait restee fausse jusqu'au prochain run
+        // Playwright.
+        for (const cle of ['loop.join_request.rejected']) {
             await expect(
                 page.locator(`[data-preference-channel="${cle}:web_push"]`),
                 `[${cle}] ne doit porter aucun reglage Push`,
