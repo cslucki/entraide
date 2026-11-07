@@ -43,10 +43,12 @@ use Illuminate\Support\Facades\Schema;
  *
  * ## L'absence de ligne EST le defaut produit
  *
- * Rejoindre une Boucle ne provisionne rien ici : `collective_enabled = true`,
- * `email_enabled = false`, `web_push_enabled = false` sont le comportement
- * attendu d'une Boucle fraichement rejointe, et c'est deja ce que le
- * resolver rend en l'absence de ligne. Ecrire une ligne au premier chargement
+ * Rejoindre une Boucle ne provisionne rien ici : le resolver rend deja les
+ * defauts du CATALOGUE en l'absence de ligne. Les `default()` poses sur ces
+ * colonnes ne decrivent donc PAS le comportement produit — ils ne servent que
+ * si une ligne est creee sans valeur explicite. Depuis l'arbitrage du 07/11,
+ * le comportement d'une Boucle fraichement rejointe est : collecte active,
+ * **email ACTIF**, **push ACTIF** (opt-OUT). Ecrire une ligne au premier chargement
  * de l'ecran figerait ces defauts a la date d'inscription — meme erreur que
  * T1375 a deja evitee pour les reglages personnels.
  *
