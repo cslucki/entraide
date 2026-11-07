@@ -164,9 +164,9 @@ class NotificationPreferenceController extends Controller
      *
      * ## Meme philosophie d'ecart que `update()`
      *
-     * Les trois leviers par defaut (collecte active, email et push eteints)
-     * et toute ligne qui y revient exactement est supprimee plutot que
-     * conservee — le membre retrouve alors le comportement produit si celui-ci
+     * Les trois leviers par defaut (collecte active, email ACTIF, push ACTIF
+     * depuis l'arbitrage du 07/11) et toute ligne qui y revient exactement est
+     * supprimee plutot que conservee — le membre retrouve alors le comportement produit si celui-ci
      * change plus tard, et une base neuve n'a jamais besoin d'etre peuplee.
      */
     public function updateLoopPreferences(Request $request): RedirectResponse

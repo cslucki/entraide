@@ -14,10 +14,11 @@ use RuntimeException;
  *
  * ## Absence de ligne = Boucle fraichement rejointe
  *
- * `collective_enabled = true`, `email_enabled = false`, `web_push_enabled =
- * false` : exactement les defauts qu'une Boucle qu'on vient de rejoindre doit
- * produire. Aucune ligne n'est ecrite au moment de l'adhesion — le resolver
- * de preferences rend deja ces valeurs en l'absence de toute ligne.
+ * Aucune ligne n'est ecrite au moment de l'adhesion : le resolver rend les
+ * defauts du CATALOGUE en l'absence de toute ligne. Depuis l'arbitrage du
+ * 07/11, ces defauts sont `collective_enabled = true`, **email ACTIF** et
+ * **push ACTIF** (opt-OUT) — les colonnes de cette table ne font autorite que
+ * lorsqu'une ligne existe, c'est-a-dire apres un reglage explicite.
  *
  * ## `collective_enabled` eteint coupe TOUT, quel que soit le canal
  *
