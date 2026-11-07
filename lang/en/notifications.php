@@ -101,6 +101,7 @@ return [
         'loop_invitation' => 'Open BouclePro to reply.',
         'loop_member_added' => 'You can now take part.',
         'loop_join_request_accepted' => 'You can now take part.',
+        'blog_comment_created' => 'Open the article to read the comment.',
         'blog_co_author_added' => 'Open the article to get started.',
 
         // TASK-1747 — names NEITHER the Boucle NOR the person: a request
@@ -125,6 +126,7 @@ return [
         // TASK-1744 — the fourth key opened to Push. The title does not name
         // the article: a co-written draft has no reason to show up in front of
         // anyone.
+        'blog_comment_created' => 'A new comment on your article',
         'blog_co_author_added' => 'You have been added to an article',
 
         // TASK-1747 — the channel is OFF by default, but the label must
@@ -216,10 +218,24 @@ return [
     | those two renders are what protect the token.
     |
     */
+    'blog_comment_email_excerpt_empty' => '(comment without text)',
+
     'email' => [
         // TASK-1772 — REPLI. Le rendu passe normalement par le gabarit
         // administrable `loop_mention_created` ; ceci ne sert que si le
         // gabarit est desactive ou absent.
+        // TASK-1784 — REPLI. Le rendu passe normalement par le gabarit
+        // administrable `blog_comment_created` ; ceci ne sert que si le
+        // gabarit est desactive ou absent.
+        //
+        // `:url`, `:reglages`, `:titre` et `:extrait` restent des JETONS.
+        // Une adresse en dur ici echapperait a l'expurgation du livreur et
+        // finirait telle quelle dans `email_logs` — garde
+        // `TASK1379…::test_every_email_body_uses_the_url_placeholder`.
+        'blog_comment_created' => [
+            'subject' => 'Someone commented on your article',
+            'body' => '<p>Hello,</p><p>Someone left a comment on your article <strong>:titre</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">Read the comment</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>No rush: the comment will wait for you.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
         'loop_mention_created' => [
             'subject' => 'You were mentioned in a Loop',
             // TASK-1772 — see the French file: both the excerpt and the

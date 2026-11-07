@@ -601,9 +601,32 @@ final class NotificationCatalogue
                 // savoir qu'on lui repond.
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
 
-                // Pas de canal EMAIL : le catalogue ne declare que ce qui
-                // EXISTE, et Cyril a tranche « dans l'application ». L'ajouter
-                // plus tard tiendra en une ligne.
+                // TASK-1784 — Cyril revient sur deux decisions, les siennes :
+                // « il faut notifier l'auteur du billet par email ET PWA si
+                // quelqu'un a commente son billet. Et par defaut tout est
+                // coche ».
+                //
+                // Ce que cela remplace, et qui est consigne ici pour qu'on
+                // sache ce qu'on a change :
+                //
+                //  - l'EMAIL etait absent parce que « le catalogue ne declare
+                //    que ce qui EXISTE, et Cyril a tranche *dans
+                //    l'application* ». La note promettait « une ligne » ; c'est
+                //    faux, et TASK-1784 l'a mesure : `rendreDepuisGabarit()`
+                //    est un aiguillage ECRIT A LA MAIN, et un gabarit
+                //    administrable exige le catalogue du seeder ET une
+                //    migration. D'ou une TASK, pas une ligne ;
+                //
+                //  - le PUSH etait absent sur le CDC 6.2 : « un commentaire ne
+                //    vous est pas adresse, n'appelle aucune reponse, et un
+                //    auteur prolifique en recevrait des dizaines ».
+                //
+                // Cette derniere objection reste VRAIE, et c'est pourquoi les
+                // deux canaux sont `configurable => true` : un auteur prolifique
+                // doit pouvoir se taire canal par canal. « Tout coche par
+                // defaut » decide du DEFAUT, pas de l'irrevocabilite.
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
 

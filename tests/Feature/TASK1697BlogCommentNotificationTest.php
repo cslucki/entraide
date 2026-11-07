@@ -228,27 +228,56 @@ class TASK1697BlogCommentNotificationTest extends TestCase
 
     // ── Le catalogue et l'ecran ─────────────────────────────────────────────
 
-    public function test_le_catalogue_declare_la_cle_en_in_app_reglable(): void
+    /**
+     * TASK-1784 — ce test epinglait l'etat de T1697 : `in_app` SEUL, et un
+     * `assertFalse` explicite sur l'email. Il a donc rougi, et c'est normal :
+     * il mesurait une decision produit que Cyril a renversee — « notifier
+     * l'auteur par email ET PWA [...] et par defaut tout est coche ».
+     *
+     * Il n'est pas affaibli pour autant. Les trois canaux sont enumeres dans
+     * l'ORDRE du catalogue par `assertSame()`, donc un canal ajoute ou retire
+     * par inadvertance le fait toujours rougir. Et chaque canal voit ses DEUX
+     * proprietes verifiees, defaut et reglabilite — ce que l'ancienne version
+     * ne faisait que pour `in_app`.
+     */
+    public function test_le_catalogue_declare_les_trois_canaux_tous_actifs_et_reglables(): void
     {
         $this->assertTrue(NotificationCatalogue::has(NotificationCatalogue::BLOG_COMMENT_CREATED));
+
+        // L'ordre est celui du catalogue : `assertSame` le garde aussi.
         $this->assertSame(
-            [NotificationCatalogue::CHANNEL_IN_APP],
+            [
+                NotificationCatalogue::CHANNEL_IN_APP,
+                NotificationCatalogue::CHANNEL_EMAIL,
+                NotificationCatalogue::CHANNEL_WEB_PUSH,
+            ],
             NotificationCatalogue::channelsFor(NotificationCatalogue::BLOG_COMMENT_CREATED)
         );
-        $this->assertTrue(NotificationCatalogue::channelDefault(
-            NotificationCatalogue::BLOG_COMMENT_CREATED, NotificationCatalogue::CHANNEL_IN_APP
-        ));
 
-        // Reglable, et c'est la difference avec une invitation : un commentaire
-        // ne vous est pas adresse et n'appelle aucune reponse de vous.
-        $this->assertTrue(NotificationCatalogue::channelIsConfigurable(
-            NotificationCatalogue::BLOG_COMMENT_CREATED, NotificationCatalogue::CHANNEL_IN_APP
-        ));
+        foreach ([
+            NotificationCatalogue::CHANNEL_IN_APP,
+            NotificationCatalogue::CHANNEL_EMAIL,
+            NotificationCatalogue::CHANNEL_WEB_PUSH,
+        ] as $canal) {
+            // « Par defaut tout est coche » — la demande, canal par canal.
+            $this->assertTrue(
+                NotificationCatalogue::channelDefault(NotificationCatalogue::BLOG_COMMENT_CREATED, $canal),
+                "le canal {$canal} doit etre actif par defaut"
+            );
 
-        // Pas de canal email : le catalogue ne declare que ce qui EXISTE.
-        $this->assertFalse(NotificationCatalogue::allowsChannel(
-            NotificationCatalogue::BLOG_COMMENT_CREATED, NotificationCatalogue::CHANNEL_EMAIL
-        ));
+            // Et REGLABLE : l'objection du CDC 6.2 — « un auteur prolifique en
+            // recevrait des dizaines » — reste vraie. « Tout coche par defaut »
+            // decide du DEFAUT, pas de l'irrevocabilite. Un `configurable =>
+            // false` ici enfermerait l'auteur prolifique.
+            $this->assertTrue(
+                NotificationCatalogue::channelIsConfigurable(NotificationCatalogue::BLOG_COMMENT_CREATED, $canal),
+                "le canal {$canal} doit rester desactivable"
+            );
+
+            $this->assertTrue(
+                NotificationCatalogue::allowsChannel(NotificationCatalogue::BLOG_COMMENT_CREATED, $canal)
+            );
+        }
     }
 
     public function test_la_cle_porte_un_libelle_dans_les_deux_langues(): void
