@@ -23,8 +23,20 @@
     </div>
 
     @if(session('rss_erreur'))
+        {{-- TASK-1785 — le message est traduit QUAND la cle existe, et rendu
+             TEL QUEL sinon.
+
+             Mesure en recette du 08/11 : la garde de sortie du depot
+             (TASK-1724) refuse tout appel sortant quand la base est un jumeau
+             de PRODUCTION, et leve une exception portant une PHRASE, pas un de
+             mes codes stables. `__()` rendait alors la cle elle-meme, et
+             l'ecran affichait « admin.import_rss.erreurs.SORTIE REFUSEE — … ».
+
+             Supposer que toute exception porte un code maison etait une
+             erreur : ce chemin traverse du code qui ne m'appartient pas. --}}
         <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
-            {{ __('admin.import_rss.erreurs.'.session('rss_erreur')) }}
+            @php($_cle = 'admin.import_rss.erreurs.'.session('rss_erreur'))
+            {{ \Illuminate\Support\Facades\Lang::has($_cle) ? __($_cle) : session('rss_erreur') }}
         </div>
     @endif
 
@@ -73,7 +85,8 @@
                 <ul class="mt-1 space-y-1">
                     @foreach($resultat['erreurs'] as $ligne)
                         <li class="text-red-700 dark:text-red-300">
-                            {{ $ligne['titre'] }} — {{ __('admin.import_rss.erreurs.'.$ligne['raison']) }}
+                            @php($_c = 'admin.import_rss.erreurs.'.$ligne['raison'])
+                            {{ $ligne['titre'] }} — {{ \Illuminate\Support\Facades\Lang::has($_c) ? __($_c) : $ligne['raison'] }}
                         </li>
                     @endforeach
                 </ul>
