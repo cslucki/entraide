@@ -80,7 +80,9 @@ return [
     'channel_email' => 'Par email',
     // TASK-1740 — troisieme canal. Le libelle nomme l'APPAREIL, pas la
     // technique : « web push » ne veut rien dire pour la personne qui regle.
-    'channel_web_push' => 'Sur mes appareils',
+    // TASK-1775 (demande Cyril, 07/11) — remplace "Sur mes appareils" :
+    // nomme l'APPLICATION installee, pas l'appareil physique.
+    'channel_web_push' => 'Sur l\'application téléchargée',
 
     // TASK-1740 — les textes qui partent sur un ecran VERROUILLE.
     //

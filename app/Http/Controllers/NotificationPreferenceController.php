@@ -189,7 +189,12 @@ class NotificationPreferenceController extends Controller
             $champ = $demande[$loopId] ?? [];
             $champ = is_array($champ) ? $champ : [];
 
-            $collectif = (bool) ($champ['collective'] ?? false);
+            // TASK-1775 (arbitrage Cyril, 07/11) — le maitre n'est plus un
+            // levier EXPOSE : l'ecran ne poste plus `collective`, et meme
+            // s'il le faisait, cette valeur serait ignoree. L'in-app est
+            // desormais OBLIGATOIRE (catalogue), le maitre de Boucle reste un
+            // garde-fou interne, jamais pilote par la requete.
+            $collectif = true;
             $email = (bool) ($champ['email'] ?? false);
             $push = (bool) ($champ['web_push'] ?? false);
 
@@ -198,9 +203,10 @@ class NotificationPreferenceController extends Controller
                 ->where('loop_id', $loopId)
                 ->first();
 
-            // Le defaut d'une Boucle fraichement rejointe : collecte active,
-            // email et push eteints (CDC B1).
-            $estLeDefaut = $collectif === true && $email === false && $push === false;
+            // Le defaut d'une Boucle fraichement rejointe (arbitrage Cyril,
+            // 07/11) : collecte active, email ET push actifs — opt-OUT, pas
+            // opt-IN.
+            $estLeDefaut = $collectif === true && $email === true && $push === true;
 
             if ($estLeDefaut) {
                 $existant?->delete();

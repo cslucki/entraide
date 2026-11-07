@@ -71,7 +71,9 @@ return [
     'channel_email' => 'By email',
     // TASK-1740 — third channel. The label names the DEVICE, not the
     // technique: "web push" means nothing to the person setting it.
-    'channel_web_push' => 'On my devices',
+    // TASK-1775 (Cyril's request, 07/11) — replaces "On my devices": names
+    // the installed APP, not the physical device.
+    'channel_web_push' => 'On the downloaded app',
 
     // TASK-1740 — text that lands on a LOCKED screen.
     //

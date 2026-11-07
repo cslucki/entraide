@@ -82,10 +82,13 @@ class NotificationPreferenceResolver
 
         $defaut = (bool) NotificationCatalogue::channelDefault($notificationKey, $channel);
 
-        if (! NotificationCatalogue::channelIsConfigurable($notificationKey, $channel)) {
-            return $defaut;
-        }
-
+        // TASK-1775 (arbitrage Cyril, 07/11) — le maitre de Boucle est
+        // verifie AVANT la garde de configurabilite du catalogue, et non
+        // apres : l'in-app est redevenu OBLIGATOIRE au catalogue (plus
+        // personne ne peut le couper globalement), mais le maitre de Boucle
+        // doit continuer a pouvoir l'eteindre POUR CETTE BOUCLE precise —
+        // c'est desormais le SEUL levier de calme qui reste. Le placer apres
+        // le retour anticipe de la ligne 86 l'aurait rendu inatteignable.
         if ($loopId !== null && $notificationKey === NotificationCatalogue::LOOP_HELP_REQUEST_CREATED) {
             // Un reglage laisse par une appartenance qui n'est plus ACTIVE
             // reste en base (quitter une Boucle ne l'efface pas), mais cesse
@@ -110,18 +113,25 @@ class NotificationPreferenceResolver
                     return false;
                 }
 
-                if ($channel === NotificationCatalogue::CHANNEL_EMAIL) {
-                    return (bool) $reglageBoucle->email_enabled;
+                if (NotificationCatalogue::channelIsConfigurable($notificationKey, $channel)) {
+                    if ($channel === NotificationCatalogue::CHANNEL_EMAIL) {
+                        return (bool) $reglageBoucle->email_enabled;
+                    }
+
+                    if ($channel === NotificationCatalogue::CHANNEL_WEB_PUSH) {
+                        return (bool) $reglageBoucle->web_push_enabled;
+                    }
                 }
 
-                if ($channel === NotificationCatalogue::CHANNEL_WEB_PUSH) {
-                    return (bool) $reglageBoucle->web_push_enabled;
-                }
-
-                // `CHANNEL_IN_APP` : la Boucle est active, et l'in-app est
-                // livre par l'existence meme de la ligne — aucune case
-                // dediee a lire, le defaut du catalogue (true) gouverne.
+                // `CHANNEL_IN_APP`, obligatoire : la Boucle est active, et
+                // l'in-app est livre par l'existence meme de la ligne —
+                // aucune case dediee a lire, le defaut du catalogue (true)
+                // gouverne (rejoint ci-dessous).
             }
+        }
+
+        if (! NotificationCatalogue::channelIsConfigurable($notificationKey, $channel)) {
+            return $defaut;
         }
 
         $ecart = MemberNotificationPreference::query()

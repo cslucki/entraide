@@ -204,12 +204,19 @@ class TASK1747HelpRequestNotificationTest extends TestCase
         $this->assertCount(1, $this->notificationsDeDemande());
     }
 
-    public function test_le_canal_WEB_PUSH_est_declare_mais_ETEINT(): void
+    /**
+     * TASK-1775 (arbitrage Cyril, 07/11) — ce test s'appelait
+     * `test_le_canal_WEB_PUSH_est_declare_mais_ETEINT` et verrouillait la
+     * decision MASTER du 03/11 (canal declare, mais eteint par defaut tant
+     * qu'aucune sourdine par Boucle n'existait). Cyril est revenu sur ce
+     * point apres avoir vu l'ecran "Mes Boucles" en vrai : la sourdine
+     * EXISTE desormais (T1775 B), et il a choisi l'opt-OUT plutot que
+     * l'opt-IN. La promesse — « le canal est declare et son defaut est une
+     * decision VOLONTAIRE, pas un oubli » — ne change pas ; seule la valeur
+     * choisie s'inverse.
+     */
+    public function test_le_canal_WEB_PUSH_est_declare_et_ACTIF_par_defaut(): void
     {
-        // Décision MASTER du 03/11. Le canal doit EXISTER — pour que la
-        // personne puisse l'allumer, et pour que l'ouvrir un jour ne demande
-        // aucun autre changement — mais il ne doit réveiller personne tant
-        // que la sourdine par Boucle (§7B) n'existe pas.
         $cle = NotificationCatalogue::LOOP_HELP_REQUEST_CREATED;
 
         $this->assertTrue(
@@ -217,30 +224,42 @@ class TASK1747HelpRequestNotificationTest extends TestCase
             'le canal doit être déclaré',
         );
 
-        $this->assertFalse(
+        $this->assertTrue(
             NotificationCatalogue::channelDefault($cle, NotificationCatalogue::CHANNEL_WEB_PUSH),
-            'un premier producteur COLLECTIF ne doit pas pousser par défaut',
+            'arbitrage du 07/11 : opt-OUT plutôt qu\'opt-IN, la sourdine par Boucle rendant ce défaut tenable',
         );
 
         $this->assertTrue(
             NotificationCatalogue::channelIsConfigurable($cle, NotificationCatalogue::CHANNEL_WEB_PUSH),
-            'la personne doit pouvoir l’allumer elle-même',
+            'la personne doit pouvoir le couper elle-même, Boucle par Boucle',
         );
     }
 
-    public function test_l_in_app_est_CONFIGURABLE_contrairement_aux_cles_personnelles(): void
+    /**
+     * TASK-1775 (arbitrage Cyril, 07/11) — ce test s'appelait
+     * `test_l_in_app_est_CONFIGURABLE_contrairement_aux_cles_personnelles`
+     * et affirmait l'inverse exact de ce qu'il affirme maintenant. Le §7B
+     * avait rendu l'in-app configurable pour permettre de « se taire sans
+     * quitter la Boucle » ; Cyril est revenu sur ce point une fois le maitre
+     * de Boucle (`LoopNotificationPreference::collective_enabled`) livre —
+     * c'est LUI le vrai levier de calme desormais, pas un reglage global sur
+     * le seul canal in-app. L'in-app redevient donc OBLIGATOIRE, exactement
+     * comme les six cles personnelles.
+     */
+    public function test_l_in_app_est_desormais_OBLIGATOIRE_comme_les_cles_personnelles(): void
     {
-        // Une invitation n'arrive qu'une fois et appelle une réponse : on ne
-        // s'en désabonne pas. Une demande d'aide est RÉCURRENTE — c'est le
-        // premier événement du catalogue dont on peut vouloir se taire sans
-        // quitter la Boucle.
         $cle = NotificationCatalogue::LOOP_HELP_REQUEST_CREATED;
 
         $this->assertTrue(NotificationCatalogue::channelDefault($cle, NotificationCatalogue::CHANNEL_IN_APP));
-        $this->assertTrue(NotificationCatalogue::channelIsConfigurable($cle, NotificationCatalogue::CHANNEL_IN_APP));
+        $this->assertFalse(
+            NotificationCatalogue::channelIsConfigurable($cle, NotificationCatalogue::CHANNEL_IN_APP),
+            'arbitrage du 07/11 : le maitre de Boucle est desormais le seul levier de calme.',
+        );
 
-        // Et l'invitation, elle, reste obligatoire : la comparaison est le
-        // point du test.
+        // Et l'invitation partage desormais le meme regime — la comparaison
+        // qui faisait le point du test avant son renversement n'a plus lieu
+        // d'etre, mais la garde reste utile : les deux cles personnelles et
+        // collective sont OBLIGATOIRES en in-app.
         $this->assertFalse(NotificationCatalogue::channelIsConfigurable(
             NotificationCatalogue::LOOP_INVITATION,
             NotificationCatalogue::CHANNEL_IN_APP,
@@ -264,62 +283,73 @@ class TASK1747HelpRequestNotificationTest extends TestCase
             ->assertSee('data-preference-intention="'.NotificationCatalogue::INTENTION_SOLLICITATION_PERTINENTE.'"', false);
     }
 
-    public function test_une_preference_ETEINTE_coupe_la_notification_in_app(): void
+    /**
+     * TASK-1775 (arbitrage Cyril, 07/11) — ce test s'appelait
+     * `test_une_preference_ETEINTE_coupe_la_notification_in_app` et
+     * verrouillait le contraire : que l'in-app, alors configurable, se
+     * laissait couper par un ecart stocke. L'in-app etant redevenu
+     * OBLIGATOIRE, la garde a verrouiller est desormais l'INVERSE — meme
+     * doctrine que T1375 pour les cles personnelles
+     * (`test_a_row_written_straight_into_the_database_cannot_disable_a_mandatory_channel`) :
+     * un ecart stocke sur un canal obligatoire n'a AUCUN effet, meme ecrit
+     * directement en base.
+     */
+    public function test_une_preference_in_app_stockee_n_a_plus_aucun_effet_canal_obligatoire(): void
     {
-        // L'in-app étant configurable, l'éteindre doit réellement couper.
-        // Sans ce test, « configurable » serait une case décorative.
-        // `user_id` n'est volontairement PAS mass-assignable sur ce modèle :
-        // l'identité du propriétaire d'une préférence ne doit jamais venir
-        // d'un tableau de requête. On le pose donc explicitement, comme le
-        // contrôleur le fait côté serveur.
-        $preference = new \App\Models\MemberNotificationPreference([
+        // Le modele refuse desormais d'ECRIRE un tel ecart (garde
+        // structurelle de `NotificationPreferenceInvariants`) : simuler une
+        // ligne LAISSEE par une epoque ou ce canal etait configurable exige
+        // de contourner Eloquent, comme le feraient un import ou une base
+        // heritee.
+        \Illuminate\Support\Facades\DB::table('member_notification_preferences')->insert([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'user_id' => $this->membre->id,
             'notification_key' => NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
             'channel' => NotificationCatalogue::CHANNEL_IN_APP,
             'enabled' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
-        $preference->user_id = $this->membre->id;
-        $preference->save();
 
         $resolveur = app(\App\Support\Notifications\NotificationPreferenceResolver::class);
 
-        $this->assertFalse($resolveur->allows(
+        $this->assertTrue($resolveur->allows(
             $this->membre->fresh(),
             NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
             NotificationCatalogue::CHANNEL_IN_APP,
-        ));
+        ), 'Un canal obligatoire ignore tout ecart stocke — meme ecrit directement en base.');
     }
 
     /**
-     * TASK-1775 — meme preference qu'au test precedent, mais mesuree BOUT EN
-     * BOUT.
-     *
-     * Le test precedent ne verifiait que le resolveur, ISOLEMENT : rien ne
-     * prouvait qu'une demande d'aide REELLEMENT publiee respecte ce reglage.
-     * C'est exactement le defaut que l'audit prealable a la TASK-1775 a
-     * signale — l'in-app n'etait filtre par AUCUNE preference, ni a
-     * l'emission ni a l'affichage. Desormais corrige dans
-     * `LoopMessageService::notifierLaDemandeDAide()` : AUCUNE
-     * `MemberNotification` ne doit meme etre creee pour ce membre.
+     * TASK-1775 — meme renversement, mesure BOUT EN BOUT : une demande d'aide
+     * REELLEMENT publiee continue de creer la notification du membre, malgre
+     * l'ecart stocke, puisque ce canal ne se laisse plus couper globalement.
+     * Seul le maitre de Boucle (teste dans TASK1775LoopNotificationPreferencesTest)
+     * peut desormais l'empecher.
      */
-    public function test_une_preference_globale_ETEINTE_empeche_la_creation_de_la_notification(): void
+    public function test_une_preference_in_app_stockee_n_empeche_plus_la_creation_de_la_notification(): void
     {
-        $preference = new \App\Models\MemberNotificationPreference([
+        // Meme contournement que ci-dessus : ce chemin d'ecriture n'existe
+        // plus par l'application, seulement comme residu possible.
+        \Illuminate\Support\Facades\DB::table('member_notification_preferences')->insert([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'user_id' => $this->membre->id,
             'notification_key' => NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
             'channel' => NotificationCatalogue::CHANNEL_IN_APP,
             'enabled' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
-        $preference->user_id = $this->membre->id;
-        $preference->save();
 
         $this->poserUneDemande();
 
         $this->assertSame(
-            0,
+            1,
             MemberNotification::query()
                 ->where('notification_key', NotificationCatalogue::LOOP_HELP_REQUEST_CREATED)
                 ->where('recipient_id', $this->membre->id)
                 ->count(),
-            'Le reglage global in_app coupe doit empecher la creation meme de la ligne.'
+            'Un canal obligatoire ne se laisse plus couper par un ecart global : la notification doit exister.'
         );
     }
 

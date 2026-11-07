@@ -65,8 +65,21 @@
                                 <p class="text-sm font-semibold text-[var(--bp-text)]">{{ $boucle['nom'] }}</p>
 
                                 <ul class="mt-2 space-y-2">
+                                    {{-- TASK-1775 (arbitrage Cyril, 07/11) — l'in-app
+                                         est redevenu OBLIGATOIRE : plus de case a
+                                         cocher, le meme badge verrouille que les
+                                         cles personnelles du reste de l'ecran. --}}
+                                    <li data-loop-channel="{{ $boucle['id'] }}:collective"
+                                        class="flex flex-wrap items-center justify-between gap-3">
+                                        <span class="text-sm text-[var(--bp-muted)]">{{ __('notifications.loops.master_label') }}</span>
+                                        <span data-preference-locked
+                                              title="{{ __('notifications.preferences_mandatory_hint') }}"
+                                              class="rounded-full bg-[var(--bp-border)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--bp-muted)]">
+                                            {{ __('notifications.preferences_mandatory') }}
+                                        </span>
+                                    </li>
+
                                     @foreach([
-                                        ['collective', __('notifications.loops.master_label'), $boucle['collective_enabled']],
                                         ['email', __('notifications.channel_email'), $boucle['email_enabled']],
                                         ['web_push', __('notifications.channel_web_push'), $boucle['web_push_enabled']],
                                     ] as [$levier, $libelle, $actif])

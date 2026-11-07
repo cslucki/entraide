@@ -22,13 +22,18 @@ use Tests\TestCase;
 /**
  * TASK-1775 (CDC C3) — le canal EMAIL de `loop.help_request.created`.
  *
- * ## La garde la plus importante de ce fichier est negative
+ * ## Arbitrage Cyril du 07/11 — opt-OUT, pas opt-IN
  *
- * `test_sans_rien_regler_aucun_email_ne_part`. Ouvrir un canal au catalogue
- * ne doit RIEN declencher pour qui n'a rien demande — c'est la promesse
- * explicite du §7 contre le bruit de masse, et c'est elle qui justifie que le
- * defaut soit `false` ET que `LoopNotificationPreference` doive etre reglee
- * individuellement, Boucle par Boucle, avant qu'un seul email ne parte.
+ * Ce fichier defendait a l'origine l'inverse : « ouvrir un canal au catalogue
+ * ne doit RIEN declencher pour qui n'a rien demande ». Cyril est revenu sur
+ * ce point APRES avoir vu l'ecran "Mes Boucles" en vrai — une fois la
+ * sourdine par Boucle livree, il a juge le silence par defaut trop
+ * invisible, et choisi l'opt-OUT : chaque membre d'une Boucle recoit
+ * desormais un email par demande d'aide, sauf s'il le desactive pour CETTE
+ * Boucle precise. La garde qui compte desormais est donc la SYMETRIQUE de
+ * l'ancienne : `test_sans_rien_regler_l_email_part_quand_meme` verrouille
+ * que le defaut ENVOIE, et `test_le_membre_peut_desactiver_l_email_pour_une_boucle`
+ * verrouille que l'opt-OUT fonctionne reellement.
  *
  * ## `Mail::fake()` ne convient pas ici
  *
@@ -128,13 +133,18 @@ class TASK1775HelpRequestEmailTest extends TestCase
     // 1. Le catalogue : le canal existe, et il n'allume RIEN tout seul
     // =====================================================================
 
-    public function test_le_canal_email_est_declare_mais_eteint_par_defaut(): void
+    /**
+     * TASK-1775 (arbitrage Cyril, 07/11) — ce test s'appelait
+     * `test_le_canal_email_est_declare_mais_eteint_par_defaut`. Cyril a
+     * choisi l'opt-OUT apres avoir vu l'ecran "Mes Boucles" en vrai.
+     */
+    public function test_le_canal_email_est_declare_et_ACTIF_par_defaut(): void
     {
         $this->assertTrue(NotificationCatalogue::allowsChannel(
             NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
             NotificationCatalogue::CHANNEL_EMAIL,
         ));
-        $this->assertFalse(NotificationCatalogue::channelDefault(
+        $this->assertTrue(NotificationCatalogue::channelDefault(
             NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
             NotificationCatalogue::CHANNEL_EMAIL,
         ));
@@ -145,31 +155,35 @@ class TASK1775HelpRequestEmailTest extends TestCase
     }
 
     /**
-     * **La garde contre le bruit de masse.**
+     * **La garde qui remplace l'ancienne garde contre le bruit de masse.**
      *
-     * Ouvrir le canal au catalogue ne doit reveiller personne : sans aucune
-     * ligne `LoopNotificationPreference`, la demande d'aide ne doit produire
-     * AUCUN envoi reel — seulement une livraison qui conclut honnetement
-     * qu'elle n'a rien a faire.
+     * TASK-1775 (arbitrage Cyril, 07/11) — ce test s'appelait
+     * `test_sans_rien_regler_aucun_email_ne_part` et verrouillait l'inverse
+     * exact : que RIEN ne parte sans reglage explicite. Cyril est revenu sur
+     * ce point en voyant l'ecran reel : sans aucune ligne
+     * `LoopNotificationPreference`, une demande d'aide doit desormais
+     * produire un envoi REEL — c'est le defaut produit, pas une anomalie.
      */
-    public function test_sans_rien_regler_aucun_email_ne_part(): void
+    public function test_sans_rien_regler_l_email_part_quand_meme_par_defaut(): void
     {
         $notification = $this->poserUneDemande();
         $this->assertNotNull($notification);
 
         app(NotificationEmailDeliverer::class)->deliver((string) $notification->id);
 
-        $this->assertSame(0, EmailLog::query()->whereNotNull('notification_id')->count());
+        $journal = EmailLog::query()->whereNotNull('notification_id')->firstOrFail();
+        $this->assertSame($this->membre->email, $journal->to_email);
 
         $livraison = $this->livraisonEmail((string) $notification->id);
-        $this->assertSame(NotificationDeliveryStatus::SKIPPED_PREFERENCE, $livraison->status);
+        $this->assertSame(NotificationDeliveryStatus::SENT, $livraison->status);
     }
 
     // =====================================================================
-    // 2. L'allumer Boucle par Boucle, et SEULEMENT alors, part l'email
+    // 2. L'opt-OUT : desactiver l'email pour UNE Boucle precise
     // =====================================================================
 
-    public function test_le_membre_qui_a_allume_l_email_pour_la_boucle_le_recoit(): void
+    /** Confirme l'opt-OUT explicite : le resultat est le MEME que le defaut, et c'est le point. */
+    public function test_le_membre_qui_a_explicitement_allume_l_email_pour_la_boucle_le_recoit(): void
     {
         $this->allumerLEmailPourLaBoucle();
 
@@ -185,6 +199,32 @@ class TASK1775HelpRequestEmailTest extends TestCase
         $this->assertSame(NotificationDeliveryStatus::SENT, $livraison->status);
     }
 
+    /**
+     * **La garde qui prouve que l'opt-OUT fonctionne reellement.**
+     *
+     * Le defaut etant desormais ACTIF, il faut verifier separement qu'un
+     * membre peut encore se taire — sans cela, "configurable => true" serait
+     * une case decorative.
+     */
+    public function test_le_membre_peut_desactiver_l_email_pour_une_boucle_precise(): void
+    {
+        $reglage = new LoopNotificationPreference(['collective_enabled' => true, 'email_enabled' => false]);
+        $reglage->organization_id = (string) $this->organization->id;
+        $reglage->loop_id = (string) $this->boucle->id;
+        $reglage->user_id = (string) $this->membre->id;
+        $reglage->save();
+
+        $notification = $this->poserUneDemande();
+        $this->assertNotNull($notification);
+
+        app(NotificationEmailDeliverer::class)->deliver((string) $notification->id);
+
+        $this->assertSame(0, EmailLog::query()->whereNotNull('notification_id')->count());
+
+        $livraison = $this->livraisonEmail((string) $notification->id);
+        $this->assertSame(NotificationDeliveryStatus::SKIPPED_PREFERENCE, $livraison->status);
+    }
+
     /** Le corps nomme la Boucle ET l'auteur — le repli generique, lui, ne les connait pas. */
     public function test_le_corps_de_l_email_nomme_la_boucle_et_l_auteur(): void
     {
@@ -197,8 +237,11 @@ class TASK1775HelpRequestEmailTest extends TestCase
 
         $journal = EmailLog::query()->whereNotNull('notification_id')->firstOrFail();
 
+        // `e()` : un nom tire par Faker peut porter une apostrophe (~1,55 %
+        // du temps — O'Connell, O'Hara...), que le rendu echappe en HTML.
+        // Comparer la forme BRUTE romprait ce test au hasard (TASK-1147).
         $this->assertStringContainsString($this->boucle->name, $journal->subject.$journal->body_html);
-        $this->assertStringContainsString($this->auteur->publicDisplayName(), $journal->body_html);
+        $this->assertStringContainsString(e($this->auteur->publicDisplayName()), $journal->body_html);
     }
 
     /** Le maitre de Boucle coupe tout, EMAIL compris — rien n'est meme emis pour ce membre. */

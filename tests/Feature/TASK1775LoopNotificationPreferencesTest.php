@@ -221,6 +221,13 @@ class TASK1775LoopNotificationPreferencesTest extends TestCase
      * Sans ligne PAR Boucle, l'ecart GLOBAL historique continue de
      * gouverner : rien n'est perdu pour qui n'a pas encore touche a cette
      * Boucle individuellement.
+     *
+     * TASK-1775 (arbitrage Cyril, 07/11) — l'ecart pose ici est desormais
+     * `false` et non `true` : le defaut du catalogue pour WEB_PUSH est
+     * devenu `true`, donc un ecart global a `true` ne mesurerait plus rien
+     * (il coinciderait avec le defaut). La direction qui reste signifiante
+     * est l'inverse — un membre qui a globalement COUPE ce canal doit
+     * rester coupe sur une Boucle qu'il n'a pas reglee individuellement.
      */
     public function test_sans_ligne_par_boucle_l_ecart_global_historique_continue_de_gouverner(): void
     {
@@ -229,12 +236,12 @@ class TASK1775LoopNotificationPreferencesTest extends TestCase
         $ecartGlobal = new MemberNotificationPreference([
             'notification_key' => NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
             'channel' => NotificationCatalogue::CHANNEL_WEB_PUSH,
-            'enabled' => true,
+            'enabled' => false,
         ]);
         $ecartGlobal->user_id = (string) $this->membre->id;
         $ecartGlobal->save();
 
-        $this->assertTrue($this->resolver()->allows(
+        $this->assertFalse($this->resolver()->allows(
             $this->membre,
             NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
             NotificationCatalogue::CHANNEL_WEB_PUSH,
@@ -301,6 +308,29 @@ class TASK1775LoopNotificationPreferencesTest extends TestCase
             ->assertSee($this->boucle->name);
     }
 
+    /**
+     * TASK-1775 (arbitrage Cyril, 07/11) — une Boucle jamais reglee affiche
+     * desormais email ET push COCHES (opt-OUT), et l'in-app comme un badge
+     * verrouille plutot qu'une case.
+     */
+    public function test_une_boucle_jamais_reglee_affiche_email_et_push_coches_et_l_in_app_verrouille(): void
+    {
+        $html = $this->actingAs($this->membre)->get(route('notifications.preferences.edit'))
+            ->assertOk()
+            ->getContent();
+
+        // Aucune case "collective" n'est plus postee : l'in-app est un badge
+        // verrouille, pas un champ de formulaire.
+        $this->assertStringNotContainsString('[collective]', $html);
+        $this->assertStringContainsString('data-loop-channel="'.$this->boucle->id.':collective"', $html);
+        $this->assertStringContainsString('data-preference-locked', $html);
+
+        foreach (['email', 'web_push'] as $levier) {
+            $motif = '/name="boucles\['.preg_quote((string) $this->boucle->id, '/').'\]\['.$levier.'\]"[^>]*checked/';
+            $this->assertMatchesRegularExpression($motif, $html, "{$levier} doit etre coche par defaut.");
+        }
+    }
+
     public function test_l_ecran_ignore_une_boucle_d_une_autre_organization(): void
     {
         $autreOrganization = Organization::factory()->create(['is_active' => true]);
@@ -341,12 +371,19 @@ class TASK1775LoopNotificationPreferencesTest extends TestCase
         $reponse->assertSee('href="'.route('loops.index').'"', false);
     }
 
-    public function test_un_membre_peut_couper_une_boucle_depuis_l_ecran(): void
+    /**
+     * TASK-1775 (arbitrage Cyril, 07/11) — ce test s'appelait
+     * `test_un_membre_peut_couper_une_boucle_depuis_l_ecran` : l'ecran n'a
+     * plus de case "collective" a cocher (l'in-app est obligatoire), donc ce
+     * n'est plus email/push qui la gouvernent plus — c'est desormais EUX,
+     * et EUX SEULS, que l'ecran peut couper.
+     */
+    public function test_un_membre_peut_couper_email_et_push_depuis_l_ecran(): void
     {
         $this->actingAs($this->membre)
             ->post(route('notifications.preferences.loops.update'), [
                 'boucles' => [
-                    (string) $this->boucle->id => ['collective' => '0', 'email' => '0', 'web_push' => '0'],
+                    (string) $this->boucle->id => ['email' => '0', 'web_push' => '0'],
                 ],
             ])
             ->assertRedirect();
@@ -354,23 +391,52 @@ class TASK1775LoopNotificationPreferencesTest extends TestCase
         $ligne = LoopNotificationPreference::query()->forOwner((string) $this->membre->id)->first();
 
         $this->assertNotNull($ligne);
-        $this->assertFalse($ligne->collective_enabled);
+        $this->assertFalse($ligne->email_enabled);
+        $this->assertFalse($ligne->web_push_enabled);
     }
 
-    /** Rallumer efface l'ecart au lieu d'en stocker un second — meme doctrine que T1744. */
+    /**
+     * Une valeur `collective` postee — forgee, puisque l'ecran n'en envoie
+     * plus — est IGNOREE : le controleur pose toujours `true`, jamais la
+     * valeur recue.
+     */
+    public function test_une_valeur_collective_forgee_est_ignoree(): void
+    {
+        $this->actingAs($this->membre)
+            ->post(route('notifications.preferences.loops.update'), [
+                'boucles' => [
+                    (string) $this->boucle->id => ['collective' => '0', 'email' => '0', 'web_push' => '0'],
+                ],
+            ]);
+
+        $ligne = LoopNotificationPreference::query()->forOwner((string) $this->membre->id)->firstOrFail();
+
+        $this->assertTrue($ligne->collective_enabled, 'Le maitre n\'est plus un levier pilote par la requete.');
+    }
+
+    /**
+     * Rallumer efface l'ecart au lieu d'en stocker un second — meme doctrine
+     * que T1744.
+     *
+     * TASK-1775 (arbitrage Cyril, 07/11) — le defaut auquel on revient est
+     * desormais (collectif actif, email actif, push actif) : opt-OUT, pas
+     * opt-IN.
+     */
     public function test_revenir_au_defaut_efface_la_ligne(): void
     {
         $this->creerReglage([
             'organization_id' => $this->organization->id,
             'loop_id' => $this->boucle->id,
             'user_id' => $this->membre->id,
-            'collective_enabled' => false,
+            'collective_enabled' => true,
+            'email_enabled' => false,
+            'web_push_enabled' => false,
         ]);
 
         $this->actingAs($this->membre)
             ->post(route('notifications.preferences.loops.update'), [
                 'boucles' => [
-                    (string) $this->boucle->id => ['collective' => '1', 'email' => '0', 'web_push' => '0'],
+                    (string) $this->boucle->id => ['email' => '1', 'web_push' => '1'],
                 ],
             ]);
 

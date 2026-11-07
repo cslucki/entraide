@@ -343,11 +343,18 @@ class TASK1632DataIntegrityToolTest extends TestCase
         // alors une ligne `loop` sans `loop_id` comme INVISIBLE (fail-closed,
         // voir `FeedPostPolicy::view()`).
         //
+        // TASK-1775 ajoute `member_loop_notification_preferences.loop_id`
+        // (le reglage de notification COLLECTIVE d'un membre, pour CETTE
+        // Boucle), avec sa FK `cascadeOnDelete` — 27 -> 28. `cascadeOnDelete`
+        // et non `nullOnDelete`, cette fois : un reglage par Boucle n'a plus
+        // aucun sens des que la Boucle elle-meme n'existe plus, contrairement
+        // a une ligne de Flux qui survit sans sa restriction d'audience.
+        //
         // `unprotected` reste a 0 : c'est la VRAIE assertion de ce test. Le
         // compte de tables n'est qu'un garde-fou contre une table ajoutee
         // sans contrainte, et il DOIT etre mis a jour sciemment — jamais pour
         // faire taire la CI.
-        $this->assertSame(27, $check->replacements['tables']);
+        $this->assertSame(28, $check->replacements['tables']);
         $this->assertSame(0, $check->replacements['unprotected']);
     }
 
