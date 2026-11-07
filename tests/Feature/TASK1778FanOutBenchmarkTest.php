@@ -181,6 +181,44 @@ class TASK1778FanOutBenchmarkTest extends TestCase
             }
         });
 
+        // TASK-1778 (arbitrage MASTER) — compter les TRANSACTIONS imbriquees.
+        //
+        // `DB::listen` ne voit pas les `SAVEPOINT` : `createSavepoint()` passe
+        // par `$pdo->exec()` en direct. Chaque transaction imbriquee emet donc
+        // UN aller-retour invisible du compteur de requetes (le commit
+        // imbrique, lui, n'emet rien : il decremente un compteur en PHP).
+        // Les evenements de transaction, eux, sont emis a TOUS les niveaux.
+        $transactions = 0;
+        $profondeurMax = 0;
+        $profondeur = 0;
+        $finDeTransaction = null;
+
+        $ecouteur = app('events');
+        $ecouteur->listen(\Illuminate\Database\Events\TransactionBeginning::class,
+            function () use (&$transactions, &$profondeur, &$profondeurMax): void {
+                $transactions++;
+                $profondeur++;
+                $profondeurMax = max($profondeurMax, $profondeur);
+            });
+        $ecouteur->listen(\Illuminate\Database\Events\TransactionCommitted::class,
+            function () use (&$profondeur): void {
+                $profondeur--;
+            });
+
+        // `TransactionCommitting` n'est emis QUE pour le commit le plus
+        // externe, et JUSTE AVANT `$pdo->commit()`. C'est la seule frontiere
+        // exploitable : `TransactionCommitted`, lui, est emis APRES que le
+        // gestionnaire de transactions a execute les rappels `afterCommit` —
+        // donc apres les envois d'email et de push, ce qui faisait mesurer a
+        // mon premier instrument la totalite du fan-out comme « dans la
+        // transaction ». Elle ne l'est pas : le commit PDO a lieu d'abord.
+        $ecouteur->listen(\Illuminate\Database\Events\TransactionCommitting::class,
+            function () use (&$finDeTransaction, &$debut): void {
+                if ($finDeTransaction === null) {
+                    $finDeTransaction = hrtime(true);
+                }
+            });
+
         gc_collect_cycles();
         $memoireAvant = memory_get_usage(true);
         $debut = hrtime(true);
@@ -197,6 +235,11 @@ class TASK1778FanOutBenchmarkTest extends TestCase
 
         $dureeMs = (hrtime(true) - $debut) / 1_000_000;
         $memoireApres = memory_get_peak_usage(true);
+        $dureeTransactionMs = $finDeTransaction === null ? null : ($finDeTransaction - $debut) / 1_000_000;
+
+        $ecouteur->forget(\Illuminate\Database\Events\TransactionBeginning::class);
+        $ecouteur->forget(\Illuminate\Database\Events\TransactionCommitted::class);
+        $ecouteur->forget(\Illuminate\Database\Events\TransactionCommitting::class);
 
         // Couper l'ecoute : sans cela, les requetes de COMPTAGE ci-dessous
         // s'ajouteraient a la mesure et la fausseraient d'autant.
@@ -238,7 +281,12 @@ class TASK1778FanOutBenchmarkTest extends TestCase
             'livraisons' => $livraisons->count(),
             'livraisons_par_statut' => $parStatut,
             'emails_journalises' => $emails,
-            'latence_reseau_estimee_ms' => round(count($requetes) * self::RTT_NEON_MS, 0),
+            // Une transaction imbriquee = 1 `SAVEPOINT`, donc 1 aller-retour
+            // de plus, absent de la colonne `requetes`.
+            'savepoints' => max(0, $transactions - 1),
+            'profondeur_max' => $profondeurMax,
+            'duree_transaction_ms' => $dureeTransactionMs === null ? null : round($dureeTransactionMs, 1),
+            'latence_reseau_estimee_ms' => round((count($requetes) + max(0, $transactions - 1)) * self::RTT_NEON_MS, 0),
             'top_requetes' => $this->top($requetes),
             'origines' => $this->trier($origines),
         ];
@@ -425,14 +473,16 @@ class TASK1778FanOutBenchmarkTest extends TestCase
     {
         $etiquette = getenv('BENCH_LABEL') ?: 'sans-etiquette';
         $lignes = ["# Banc fan-out TASK-1778 — {$etiquette}", ''];
-        $lignes[] = '| taille | config | requetes | req./destinataire | duree CPU+SQL (ms) | dont SQL (ms) | memoire (Mo) | notifs | livraisons | latence reseau estimee (ms) |';
-        $lignes[] = '|---|---|---|---|---|---|---|---|---|---|';
+        $lignes[] = '| taille | config | requetes | SAVEPOINT | req.+sp / dest. | duree CPU+SQL (ms) | dont SQL (ms) | dont transaction (ms) | prof. max | memoire (Mo) | notifs | livraisons | latence reseau estimee (ms) |';
+        $lignes[] = '|---|---|---|---|---|---|---|---|---|---|---|---|---|';
 
         foreach ($this->resultats as $r) {
             $lignes[] = sprintf(
-                '| %d | %s | %d | %s | %s | %s | %s | %d | %d | %s |',
-                $r['taille'], $r['configuration'], $r['requetes'], $r['requetes_par_destinataire'],
-                $r['duree_ms'], $r['duree_sql_ms'], $r['memoire_mo'],
+                '| %d | %s | %d | %d | %s | %s | %s | %s | %d | %s | %d | %d | %s |',
+                $r['taille'], $r['configuration'], $r['requetes'], $r['savepoints'],
+                $r['taille'] > 0 ? round(($r['requetes'] + $r['savepoints']) / $r['taille'], 1) : 0,
+                $r['duree_ms'], $r['duree_sql_ms'], $r['duree_transaction_ms'] ?? '-',
+                $r['profondeur_max'], $r['memoire_mo'],
                 $r['notifications'], $r['livraisons'], $r['latence_reseau_estimee_ms'],
             );
         }

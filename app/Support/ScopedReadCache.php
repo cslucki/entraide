@@ -10,16 +10,15 @@ use Closure;
  * ## Le defaut mesure que cette classe corrige
  *
  * Le fan-out d'une demande d'aide relit, pour CHAQUE destinataire, des lignes
- * qui sont les memes pour tout le monde : le gabarit d'email de la cle, la
- * langue de l'Organization, l'Organization elle-meme, la Boucle. Le banc
- * T1778 a compte, pour une Boucle de 100 membres :
+ * qui sont les memes pour tout le monde : la Boucle, l'Organization, la langue
+ * de l'Organization. Le banc T1778 a compte, pour une Boucle de 100 membres :
  *
  * | lecture repetee | par destinataire | total |
  * |---|---|---|
- * | gabarit d'email + langue de l'Organization | 6 | **600** |
  * | Boucle + Organization du resolveur de cibles | 4 | **400** |
+ * | langue de l'Organization (2 compositions par email) | 2 | **200** |
  *
- * Mille requetes pour quatre lignes. Sur SQLite local, invisible. Sur Neon,
+ * Six cents requetes pour trois lignes. Sur SQLite local, invisible. Sur Neon,
  * chacune paie un aller-retour reseau.
  *
  * ## Ce que ce n'est PAS
@@ -40,24 +39,32 @@ use Closure;
  *   `forgetScopedInstances()` dans le `resetScope` du `Worker`).
  *
  * La seconde est la raison du choix. Un `singleton()` aurait survecu d'un job
- * a l'autre dans un `queue:work` de longue duree, et un gabarit d'email
- * modifie par un administrateur serait reste perime jusqu'au redemarrage du
- * worker — exactement le piege deja rencontre avec le code garde en memoire
- * par un worker. `scoped()` donne la seule garantie qui compte ici : **ce qui
- * est memorise ne traverse jamais la frontiere d'une unite de travail.**
+ * a l'autre dans un `queue:work` de longue duree, et une Boucle renommee ou
+ * une Organization dont le slug a change seraient restees perimees jusqu'au
+ * redemarrage du worker — exactement le piege deja rencontre avec le code
+ * garde en memoire par un worker. `scoped()` donne la seule garantie qui
+ * compte ici : **ce qui est memorise ne traverse jamais la frontiere d'une
+ * unite de travail.**
  *
  * ## Ce qu'on y met, et ce qu'on n'y met JAMAIS
  *
  * Uniquement des lectures de REFERENCE, identiques pour tous les
  * destinataires d'un meme evenement, et dont une evolution en cours de
- * requete n'aurait aucun sens metier : un gabarit, une Organization, une
- * Boucle.
+ * requete n'aurait aucun sens metier : une Organization, une Boucle, la
+ * langue d'une Organization.
  *
  * Jamais une preference, jamais une appartenance, jamais un statut de
  * livraison. Les livreurs doivent relire la preference COURANTE au moment de
  * livrer — une preference memorisee a la planification rendrait un verdict
  * perime et casserait cette garantie. La frontiere est la, et elle est
  * explicite dans le docblock de chaque appelant.
+ *
+ * **Jamais du contenu ADMINISTRABLE non plus.** Le gabarit d'email a ete
+ * memorise ici le temps d'une mesure, puis retire : il est fait pour etre
+ * modifie, l'ecran d'administration le re-rend dans la requete meme ou il
+ * l'enregistre, et un `Builder::update()` en masse ne declenche aucun
+ * evenement de modele — donc aucune invalidation ne pouvait etre fiable. Le
+ * raisonnement complet est dans `SystemEmailTemplateResolver::resolve()`.
  *
  * ## La cle est la question, pas la reponse
  *
@@ -74,7 +81,7 @@ final class ScopedReadCache
      * La valeur memorisee, ou le resultat de `$lecture` — memorise.
      *
      * `array_key_exists` et non `isset` : une lecture qui rend legitimement
-     * `null` (« ce gabarit n'existe pas ») doit etre memorisee comme telle,
+     * `null` (« cette Boucle n'existe plus ») doit etre memorisee comme telle,
      * sinon la requete repart a chaque destinataire et le cas ABSENT devient
      * le plus couteux de tous.
      *
