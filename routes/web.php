@@ -41,6 +41,7 @@ use App\Http\Controllers\Admin\AdminNotificationCockpitController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminAssignDataController;
+use App\Http\Controllers\Admin\AdminRssImportController;
 use App\Http\Controllers\Admin\AdminDataIntegrityController;
 use App\Http\Controllers\Admin\AdminDossierCleanupController;
 use App\Http\Controllers\Admin\AdminScenarioManagerController;
@@ -1211,6 +1212,24 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // tableau sont desormais de vrais liens, pas un `window.open` fabrique en
     // JavaScript — ce qui les rend testables cote serveur. Les deux etapes
     // qui engagent quelque chose (preview, assign) sont en POST.
+    // TASK-1785 — l'import d'articles depuis un flux RSS WordPress.
+    //
+    // Dans le groupe `['auth', 'admin']` : `AdminMiddleware` exige `is_admin`
+    // et rend 403 sinon, en LECTURE comme en ECRITURE.
+    //
+    // `charger` et `importer` sont en POST et portent donc le jeton CSRF. Un
+    // `charger` en GET aurait permis de declencher une requete sortante depuis
+    // un lien — une porte SSRF ouverte par la methode elle-meme.
+    Route::get('/outils/import-rss', [AdminRssImportController::class, 'index'])->name('outils.import-rss');
+    Route::post('/outils/import-rss/charger', [AdminRssImportController::class, 'charger'])
+        ->middleware('throttle:10,1')
+        ->name('outils.import-rss.charger');
+    Route::post('/outils/import-rss/importer', [AdminRssImportController::class, 'importer'])
+        ->middleware('throttle:20,1')
+        ->name('outils.import-rss.importer');
+    Route::get('/outils/import-rss/boucles/{organization}', [AdminRssImportController::class, 'boucles'])
+        ->name('outils.import-rss.boucles');
+
     Route::get('/outils/assign-data', [AdminAssignDataController::class, 'index'])->name('outils.assign-data');
     Route::get('/outils/assign-data/{dataset}', [AdminAssignDataController::class, 'detail'])->name('outils.assign-data.detail');
     Route::post('/outils/assign-data/preview', [AdminAssignDataController::class, 'preview'])->name('outils.assign-data.preview');
