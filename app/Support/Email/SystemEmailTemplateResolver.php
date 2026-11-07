@@ -5,6 +5,7 @@ namespace App\Support\Email;
 use App\Models\Organization;
 use App\Models\SystemEmailTemplate;
 use App\Models\User;
+use App\Support\ScopedReadCache;
 
 /**
  * TASK-1694 bug M — l'autorité UNIQUE qui choisit un gabarit d'email système.
@@ -66,6 +67,32 @@ class SystemEmailTemplateResolver
         ?string $locale = null,
         ?string $defaultLocale = null,
     ): ?SystemEmailTemplate {
+        // TASK-1778 — le GABARIT n'est volontairement PAS memorise.
+        //
+        // Il l'a ete, et la mesure a montre le gain : les cinq crans sont
+        // parcourus a chaque appel et le gabarit trouve est souvent le dernier
+        // (le Global sans langue), soit 4 requetes par destinataire pour
+        // rendre N fois LA MEME ligne.
+        //
+        // Deux tests l'ont pourtant fait rougir, et ils avaient raison :
+        // `TASK1751...::test_le_repli_rend_un_contenu_quand_le_gabarit_est_retire`
+        // et `TASK1772...::test_un_gabarit_desactive_retombe_sur_le_repli_de_langue`
+        // retirent le gabarit PUIS resolvent, dans la meme requete. Une
+        // memoire de lecture leur rendait la ligne d'avant.
+        //
+        // La vraie raison de renoncer n'est pas qu'ils rougissaient — c'est ce
+        // qu'ils ont revele : un gabarit est du CONTENU ADMINISTRABLE, fait
+        // pour etre modifie, et l'ecran d'administration le re-rend dans la
+        // requete meme ou il l'enregistre. Pire, un `Builder::update()` ou
+        // `Builder::delete()` en masse ne declenche AUCUN evenement de
+        // modele : aucun observateur ne pourrait vider la memoire de facon
+        // fiable. La justesse aurait dependu de la MANIERE dont l'ecriture a
+        // ete faite, ce qui est exactement le genre de defaut qui ne se voit
+        // qu'en production.
+        //
+        // La langue de l'Organization, elle, reste memorisee (voir
+        // `candidats()`) : ce n'est pas du contenu administrable rendu dans la
+        // meme requete, et ce n'est pas la meme prise de risque.
         foreach ($this->candidats($slug, $organizationId, $locale, $defaultLocale, true) as $candidat) {
             $template = $candidat->first();
 
@@ -118,8 +145,14 @@ class SystemEmailTemplateResolver
     ): array {
         $locale ??= app()->getLocale();
 
+        // TASK-1778 — la langue de l'Organization est une donnee de reference :
+        // identique pour les 100 destinataires d'un meme evenement, et relue
+        // pour chacun avant cette TASK.
         $defaultLocale ??= $organizationId
-            ? (Organization::query()->whereKey($organizationId)->value('locale') ?: self::FALLBACK_LOCALE)
+            ? (app(ScopedReadCache::class)->souviens(
+                'organization-locale:'.$organizationId,
+                fn () => Organization::query()->whereKey($organizationId)->value('locale'),
+            ) ?: self::FALLBACK_LOCALE)
             : self::FALLBACK_LOCALE;
 
         $base = SystemEmailTemplate::query()->where('slug', $slug);

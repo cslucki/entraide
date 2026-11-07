@@ -215,14 +215,35 @@ class TASK1775HelpRequestEmailTest extends TestCase
         $reglage->save();
 
         $notification = $this->poserUneDemande();
+
+        // L'in-app reste livre : seul l'email est coupe. La notification
+        // existe donc, et c'est ce qui rend l'absence de livraison EMAIL
+        // significative — sinon le test serait vert faute de notification.
         $this->assertNotNull($notification);
+
+        // TASK-1778 — l'opt-OUT se prouve desormais par l'ABSENCE de travail.
+        //
+        // Avant : une livraison EMAIL etait creee, un job mis en file, et le
+        // livreur concluait en `skipped_preference` apres avoir relu la
+        // preference — 12 requetes et deux ecritures pour un email que
+        // personne n'allait recevoir. Le planificateur consulte maintenant
+        // les preferences : rien n'est planifie du tout.
+        //
+        // L'assertion est donc PLUS forte qu'avant, pas plus faible : « aucune
+        // ligne » implique « aucun envoi », tandis que « une ligne refusee »
+        // laissait le travail exister.
+        $this->assertSame(
+            0,
+            MemberNotificationDelivery::query()
+                ->where('notification_id', $notification->id)
+                ->forChannel(NotificationCatalogue::CHANNEL_EMAIL)
+                ->count(),
+            'Un email coupe pour cette Boucle ne doit produire aucune livraison a planifier.'
+        );
 
         app(NotificationEmailDeliverer::class)->deliver((string) $notification->id);
 
         $this->assertSame(0, EmailLog::query()->whereNotNull('notification_id')->count());
-
-        $livraison = $this->livraisonEmail((string) $notification->id);
-        $this->assertSame(NotificationDeliveryStatus::SKIPPED_PREFERENCE, $livraison->status);
     }
 
     /** Le corps nomme la Boucle ET l'auteur — le repli generique, lui, ne les connait pas. */

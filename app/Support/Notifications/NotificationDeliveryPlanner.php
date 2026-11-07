@@ -6,6 +6,7 @@ use App\Jobs\SendNotificationEmail;
 use App\Jobs\SendNotificationWebPush;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
+use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
@@ -80,13 +81,31 @@ class NotificationDeliveryPlanner
     /**
      * Planifie les livraisons d'une notification FRAICHEMENT creee.
      *
+     * @param  array<string, bool>|null  $canauxAutorises  TASK-1778 — les
+     *        verdicts de preference DEJA calcules par l'appelant, `[canal =>
+     *        autorise]`. Un fan-out les resout en masse pour tous ses
+     *        destinataires (3 requetes au total) et les passe ici ; les
+     *        appelants qui ne les fournissent pas les font resoudre a l'unite,
+     *        comme avant.
      * @return list<MemberNotificationDelivery> les livraisons reellement creees
      */
-    public function plan(MemberNotification $notification): array
+    public function plan(MemberNotification $notification, ?array $canauxAutorises = null): array
     {
         $creees = [];
 
         foreach ($this->canauxALivrer($notification) as $canal) {
+            // TASK-1778 — DEUXIEME filtre, distinct du premier.
+            //
+            // Le catalogue dit quels canaux EXISTENT pour cette cle ; les
+            // preferences disent lesquels cette personne accepte. Confondre
+            // les deux etait le defaut mesure par le banc : on creait une
+            // ligne de livraison et on mettait un job en file pour un canal
+            // que le membre avait deja coupe, et c'est le job qui le
+            // decouvrait — apres 12 requetes et deux ecritures.
+            if (! $this->preferenceAutorise($notification, $canal, $canauxAutorises)) {
+                continue;
+            }
+
             $livraison = $this->creerLivraison((string) $notification->id, $canal);
 
             if ($livraison === null) {
@@ -139,6 +158,66 @@ class NotificationDeliveryPlanner
             self::CANAUX_ASYNCHRONES,
             fn (string $canal) => NotificationCatalogue::allowsChannel((string) $notification->notification_key, $canal)
         ));
+    }
+
+    /**
+     * Les preferences de cette personne acceptent-elles ce canal ?
+     *
+     * ## Ce que ce filtre NE remplace PAS
+     *
+     * Les deux livreurs relisent la preference AU MOMENT DE LIVRER, et cette
+     * relecture reste indispensable : une personne peut couper son email entre
+     * la planification et le travail du worker, et c'est la seule garde qui
+     * voit ce changement. Le filtre d'ici ne la double pas, il evite de
+     * fabriquer un travail dont on sait DEJA qu'il sera refuse.
+     *
+     * ## L'asymetrie, assumee et nommee
+     *
+     * Un canal coupe au moment de la planification ne produit plus aucune
+     * ligne. Si la personne le rallume ENSUITE, elle ne recevra pas ce
+     * message-ci — alors qu'avant T1778, la ligne existait et le rallumage la
+     * faisait partir. C'est le comportement attendu : « j'allume mes emails »
+     * ne veut pas dire « renvoie-moi les messages d'avant ».
+     *
+     * ## Ce que l'on perd, et pourquoi c'est acceptable
+     *
+     * Les lignes `skipped_preference` disparaissent pour les canaux coupes
+     * AVANT l'emission. Elles decrivaient un travail jamais tente ; la
+     * `MemberNotification`, elle, reste et porte toute l'histoire du fait.
+     * Les lignes `skipped_preference` nees d'une coupure APRES planification
+     * continuent, elles, d'etre ecrites : c'est le cas ou quelque chose a
+     * reellement change, et c'est celui qui merite une trace.
+     *
+     * @param  array<string, bool>|null  $canauxAutorises
+     */
+    private function preferenceAutorise(
+        MemberNotification $notification,
+        string $canal,
+        ?array $canauxAutorises,
+    ): bool {
+        // Verdict deja calcule en masse par l'appelant : aucune requete.
+        if ($canauxAutorises !== null && array_key_exists($canal, $canauxAutorises)) {
+            return $canauxAutorises[$canal];
+        }
+
+        $destinataire = User::query()->whereKey($notification->recipient_id)->first();
+
+        if ($destinataire === null) {
+            // Pas de destinataire lisible : on ne PLANIFIE rien plutot que de
+            // deviner. Les livreurs concluraient de toute facon en
+            // `skipped_unreachable`, apres avoir paye la mise en file.
+            return false;
+        }
+
+        return app(NotificationPreferenceResolver::class)->allows(
+            $destinataire,
+            (string) $notification->notification_key,
+            $canal,
+            NotificationCatalogue::loopScopeFor(
+                (string) $notification->notification_key,
+                $notification->object_id === null ? null : (string) $notification->object_id,
+            ),
+        );
     }
 
     /**

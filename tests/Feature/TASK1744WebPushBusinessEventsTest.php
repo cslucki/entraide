@@ -392,11 +392,30 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         $this->appareil();
         $this->eteindreLePush(NotificationCatalogue::LOOP_INVITATION);
 
-        $livraison = $this->livraisonPush($this->inviter());
+        $notificationId = $this->inviter();
 
-        app(NotificationWebPushDeliverer::class)->deliver((string) $livraison->notification_id);
+        // TASK-1778 — la garde a GAGNE en force, et l'assertion suit.
+        //
+        // Avant : une livraison PUSH etait creee, un job etait mis en file,
+        // et c'est le livreur qui decouvrait la coupure et concluait en
+        // `skipped_preference`. Le planificateur consulte desormais les
+        // preferences : un canal deja coupe au moment de planifier ne produit
+        // plus NI ligne NI job. « Ne recoit rien » se prouve donc mieux
+        // qu'avant — par l'absence de travail, pas par son refus.
+        //
+        // La relecture du livreur, elle, reste mesuree par
+        // `test_le_reglage_coupe_APRES_coup_arrete_le_push`
+        // juste en dessous : c'est le cas ou quelque chose a reellement change
+        // entre les deux moments, et il est le seul a pouvoir le mesurer.
+        $this->assertSame(
+            0,
+            MemberNotificationDelivery::query()
+                ->where('notification_id', $notificationId)
+                ->forChannel(NotificationCatalogue::CHANNEL_WEB_PUSH)
+                ->count(),
+            'Un canal coupe ne doit produire aucune livraison a planifier.'
+        );
 
-        $this->assertSame(NotificationDeliveryStatus::SKIPPED_PREFERENCE, $livraison->fresh()->status);
         Http::assertNothingSent();
     }
 

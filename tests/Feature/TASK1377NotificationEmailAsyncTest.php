@@ -348,14 +348,28 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
     // 6. Tout est RELU au moment du travail
     // =====================================================================
 
-    /** Une preference coupee arrete l'envoi, et le dit. */
+    /**
+     * Une preference coupee arrete l'envoi, et le dit.
+     *
+     * TASK-1778 — l'ecart est desormais pose APRES l'emission, et ce
+     * reordonnancement est la raison d'etre de cette section (« Tout est RELU
+     * au moment du travail »). Depuis T1778, le planificateur ne cree plus
+     * aucune ligne de livraison pour un canal deja coupe au moment de
+     * planifier : poser l'ecart AVANT mesurerait cette nouvelle garde-la, pas
+     * la relecture du livreur. Le fait que cette ligne existe, puis soit
+     * refusee, est precisement ce que ce test doit prouver.
+     *
+     * La garde « rien n'est meme planifie » est mesuree a sa place, dans
+     * `TASK1778FanOutSqlCostTest`.
+     */
     public function test_a_disabled_preference_skips_without_sending(): void
     {
         $this->transportMesurable();
-        $this->autoriserEmail(false);
         $this->traductionsPresentes();
 
         $livraison = $this->livraisonEmail();
+
+        $this->autoriserEmail(false);
 
         app(NotificationEmailDeliverer::class)->deliver((string) $livraison->notification_id);
 
@@ -629,10 +643,14 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
     public function test_skipped_states_write_no_email_log(): void
     {
         $this->transportMesurable();
-        $this->autoriserEmail(false);
         $this->traductionsPresentes();
 
         $livraison = $this->livraisonEmail();
+
+        // TASK-1778 — l'ecart APRES l'emission, meme raison que ci-dessus :
+        // sans ligne de livraison, il n'y a plus d'etat « ignore » dont on
+        // puisse verifier qu'il n'ecrit aucune preuve.
+        $this->autoriserEmail(false);
 
         app(NotificationEmailDeliverer::class)->deliver((string) $livraison->notification_id);
 

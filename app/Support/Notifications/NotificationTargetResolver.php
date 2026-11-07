@@ -13,6 +13,7 @@ use App\Models\MemberNotification;
 use App\Models\Organization;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Transaction;
+use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -258,11 +259,29 @@ class NotificationTargetResolver
         // La frontiere de tenant n'est pas affaiblie : le `where
         // organization_id` ci-dessous la pose explicitement, et il est le seul
         // a decider.
-        $boucle = Loop::query()
-            ->withoutGlobalScope(BelongsToOrganizationScope::class)
-            ->whereKey($notification->object_id)
-            ->where('organization_id', $notification->organization_id)
-            ->first();
+        // TASK-1778 — la Boucle est memorisee pour la duree de cette requete
+        // (ou de ce job), et c'est le SEUL des quatre controles de cette
+        // methode qui le soit.
+        //
+        // Le fan-out d'une demande d'aide appelle cette methode 2 fois par
+        // destinataire (un livreur par canal asynchrone) : 200 lectures de LA
+        // MEME ligne pour une Boucle de 100 membres. La Boucle est une donnee
+        // de reference pour l'evenement ; elle ne peut changer ni d'identite
+        // ni de tenant pendant le traitement d'une seule unite de travail.
+        //
+        // Les trois controles qui suivent — le tenant du DESTINATAIRE, son
+        // appartenance ACTIVE a la Boucle, l'etat de l'objet — restent lus a
+        // chaque appel, sans memoire : ils varient par destinataire, et ce
+        // sont eux qui portent la frontiere de tenant. Memoriser la Boucle
+        // n'en affaiblit aucun, et la cle inclut le tenant attendu.
+        $boucle = app(ScopedReadCache::class)->souviens(
+            'cible-boucle:'.$notification->organization_id.':'.$notification->object_id,
+            fn (): ?Loop => Loop::query()
+                ->withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->whereKey($notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first(),
+        );
 
         if ($boucle === null) {
             return null;
@@ -286,9 +305,16 @@ class NotificationTargetResolver
             return null;
         }
 
-        $organisation = Organization::query()
-            ->whereKey($notification->organization_id)
-            ->first();
+        // TASK-1778 — meme raison que pour la Boucle ci-dessus : elle ne sert
+        // qu'a construire l'URL, elle est identique pour tous les
+        // destinataires de l'evenement, et elle etait relue 200 fois pour une
+        // Boucle de 100 membres.
+        $organisation = app(ScopedReadCache::class)->souviens(
+            'cible-organization:'.$notification->organization_id,
+            fn (): ?Organization => Organization::query()
+                ->whereKey($notification->organization_id)
+                ->first(),
+        );
 
         if ($organisation === null) {
             return null;

@@ -790,16 +790,17 @@ final class NotificationEmailDeliverer
      * TASK-1775 — l'identifiant de Boucle a transmettre au resolveur de
      * preference, et SEULEMENT pour la cle collective concernee.
      *
-     * `object_id` designe la Boucle UNIQUEMENT pour `LOOP_HELP_REQUEST_CREATED` :
-     * `LOOP_MEMBER_ADDED` partage le meme `object_type` (`OBJECT_LOOP`) mais
-     * designe un fait PERSONNEL que la sourdine de Boucle ne doit jamais
-     * gouverner. La garde porte donc sur la CLE, jamais sur `object_type`
-     * seul — meme raison que dans `NotificationPreferenceResolver::allows()`.
+     * TASK-1778 — la regle elle-meme a demenage au catalogue
+     * (`loopScopeFor`), ou elle n'est plus ecrite qu'une fois. Elle vivait en
+     * quatre copies identiques, et une regle de securite recopiee quatre fois
+     * finit par diverger dans la copie qu'on oublie. Cette methode ne garde
+     * que l'adaptation du modele vers la regle.
      */
     private function loopIdPourPreference(MemberNotification $notification): ?string
     {
-        return $notification->notification_key === NotificationCatalogue::LOOP_HELP_REQUEST_CREATED
-            ? (string) $notification->object_id
-            : null;
+        return NotificationCatalogue::loopScopeFor(
+            (string) $notification->notification_key,
+            $notification->object_id === null ? null : (string) $notification->object_id,
+        );
     }
 }

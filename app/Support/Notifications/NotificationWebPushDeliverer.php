@@ -127,9 +127,12 @@ class NotificationWebPushDeliverer
         // Boucle a pu changer entre la planification et ce rejeu, et seule
         // `LOOP_HELP_REQUEST_CREATED` doit jamais s'y soumettre (`object_id`
         // designe la Boucle AUSSI pour `LOOP_MEMBER_ADDED`, un fait personnel).
-        $loopId = $notification->notification_key === NotificationCatalogue::LOOP_HELP_REQUEST_CREATED
-            ? (string) $notification->object_id
-            : null;
+        //
+        // TASK-1778 — la regle est au catalogue, en un seul exemplaire.
+        $loopId = NotificationCatalogue::loopScopeFor(
+            (string) $notification->notification_key,
+            $notification->object_id === null ? null : (string) $notification->object_id,
+        );
 
         if (! $preferences->allows($destinataire, (string) $notification->notification_key, NotificationCatalogue::CHANNEL_WEB_PUSH, $loopId)) {
             $this->abandonner($livraison, NotificationDeliveryStatus::SKIPPED_PREFERENCE, 'channel_disabled_by_member');
