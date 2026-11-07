@@ -5,6 +5,7 @@ namespace App\Support\Email;
 use App\Models\Organization;
 use App\Models\SystemEmailTemplate;
 use App\Models\User;
+use App\Support\ScopedReadCache;
 
 /**
  * TASK-1694 bug M — l'autorité UNIQUE qui choisit un gabarit d'email système.
@@ -66,15 +67,36 @@ class SystemEmailTemplateResolver
         ?string $locale = null,
         ?string $defaultLocale = null,
     ): ?SystemEmailTemplate {
-        foreach ($this->candidats($slug, $organizationId, $locale, $defaultLocale, true) as $candidat) {
-            $template = $candidat->first();
+        // TASK-1778 — memorise pour la duree de CETTE requete (ou de CE job).
+        //
+        // Le defaut mesure : les cinq crans sont parcourus a chaque appel, et
+        // le gabarit reellement trouve est souvent le dernier (le Global sans
+        // langue). Pour une demande d'aide dans une Boucle de 100 membres,
+        // cela faisait **600 requetes** — quatre crans plus la langue de
+        // l'Organization, cent fois — pour rendre cent fois LA MEME ligne.
+        //
+        // La cle porte les quatre parametres : c'est eux, et eux seuls, qui
+        // font varier la reponse. En oublier un rendrait le gabarit d'une
+        // autre langue ou d'un autre tenant.
+        //
+        // La duree de vie est celle du conteneur `scoped` : vidée entre deux
+        // requetes HTTP et entre deux jobs. Un gabarit modifie par un
+        // administrateur est donc visible des la requete suivante — voir le
+        // docblock de `ScopedReadCache`.
+        return app(ScopedReadCache::class)->souviens(
+            'gabarit-email:'.implode('|', [$slug, $organizationId ?? '-', $locale ?? '-', $defaultLocale ?? '-']),
+            function () use ($slug, $organizationId, $locale, $defaultLocale): ?SystemEmailTemplate {
+                foreach ($this->candidats($slug, $organizationId, $locale, $defaultLocale, true) as $candidat) {
+                    $template = $candidat->first();
 
-            if ($template) {
-                return $template;
-            }
-        }
+                    if ($template) {
+                        return $template;
+                    }
+                }
 
-        return null;
+                return null;
+            },
+        );
     }
 
     /**
@@ -118,8 +140,14 @@ class SystemEmailTemplateResolver
     ): array {
         $locale ??= app()->getLocale();
 
+        // TASK-1778 — la langue de l'Organization est une donnee de reference :
+        // identique pour les 100 destinataires d'un meme evenement, et relue
+        // pour chacun avant cette TASK.
         $defaultLocale ??= $organizationId
-            ? (Organization::query()->whereKey($organizationId)->value('locale') ?: self::FALLBACK_LOCALE)
+            ? (app(ScopedReadCache::class)->souviens(
+                'organization-locale:'.$organizationId,
+                fn () => Organization::query()->whereKey($organizationId)->value('locale'),
+            ) ?: self::FALLBACK_LOCALE)
             : self::FALLBACK_LOCALE;
 
         $base = SystemEmailTemplate::query()->where('slug', $slug);

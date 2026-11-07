@@ -126,6 +126,16 @@ class AppServiceProvider extends ServiceProvider
         // menu avatar vit sur plusieurs surfaces rendues dans la meme
         // requete), jamais partage entre requetes ni entre utilisateurs.
         $this->app->scoped(\App\Services\Users\SiblingAccountsPanel::class);
+        // TASK-1778 : memoire de lecture du fan-out de notifications — le
+        // gabarit d'email, l'Organization et la Boucle sont les MEMES pour
+        // les 100 destinataires d'une demande d'aide, et etaient relus pour
+        // chacun (1000 requetes mesurees pour quatre lignes).
+        //
+        // `scoped` et surtout PAS `singleton` : le conteneur vide les
+        // instances `scoped` entre deux requetes HTTP ET entre deux jobs de
+        // file d'attente. Un `singleton` aurait garde un gabarit perime
+        // pendant toute la vie d'un `queue:work`.
+        $this->app->scoped(\App\Support\ScopedReadCache::class);
         $this->app->bind(AiProvider::class, function ($app) {
             return new ClarifyUserHelpRequestService(
                 $app->make(FakeAIProvider::class),

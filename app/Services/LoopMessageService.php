@@ -134,12 +134,34 @@ class LoopMessageService
         // Boucle individuellement : aucun choix existant n'est perdu.
         $preferences = app(NotificationPreferenceResolver::class);
 
-        $destinataires = $destinataires->filter(fn (User $destinataire): bool => $preferences->allows(
-            $destinataire,
+        // TASK-1778 — les TROIS canaux resolus EN MASSE, une seule fois.
+        //
+        // Avant : `allows()` etait appele une fois par destinataire pour
+        // l'in-app (2 requetes chacun), puis le planificateur decouvrait les
+        // deux canaux asynchrones destinataire par destinataire, puis chaque
+        // job les relisait encore. Le banc T1778 a compte **8 requetes de
+        // preference par destinataire**, soit 800 pour une Boucle de 100
+        // membres. `allowsMany()` les rend en 3 requetes, quel que soit N.
+        //
+        // Les verdicts email/push sont transmis a `emit()` pour que le
+        // planificateur ne fabrique AUCUNE ligne de livraison ni aucun job
+        // pour un canal que la personne a coupe. Ils ne dispensent pas les
+        // livreurs de relire la preference au moment de livrer : elle peut
+        // changer entre-temps, et c'est leur garde qui le voit.
+        $verdicts = $preferences->allowsMany(
+            $destinataires,
             NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
-            NotificationCatalogue::CHANNEL_IN_APP,
+            [
+                NotificationCatalogue::CHANNEL_IN_APP,
+                NotificationCatalogue::CHANNEL_EMAIL,
+                NotificationCatalogue::CHANNEL_WEB_PUSH,
+            ],
             (string) $loop->id,
-        ));
+        );
+
+        $destinataires = $destinataires->filter(
+            fn (User $destinataire): bool => (bool) ($verdicts[(string) $destinataire->id][NotificationCatalogue::CHANNEL_IN_APP] ?? false)
+        );
 
         if ($destinataires->isEmpty()) {
             return;
@@ -159,6 +181,7 @@ class LoopMessageService
                 objectType: NotificationCatalogue::OBJECT_LOOP,
                 objectId: (string) $loop->getKey(),
                 actor: $auteur,
+                canauxAutorises: $verdicts[(string) $destinataire->id] ?? null,
             );
         }
     }

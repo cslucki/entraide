@@ -830,4 +830,37 @@ final class NotificationCatalogue
     {
         return self::definition($notificationKey)['channels'][$channel]['configurable'] ?? false;
     }
+
+    /**
+     * TASK-1778 — l'identifiant de Boucle qui gouverne une preference, ou `null`.
+     *
+     * ## Pourquoi cette regle vit ICI et nulle part ailleurs
+     *
+     * Elle etait ecrite TROIS FOIS a l'identique en T1775 :
+     * `NotificationPreferenceResolver::allows()` en ligne,
+     * `NotificationEmailDeliverer::loopIdPourPreference()` et
+     * `NotificationWebPushDeliverer::livrer()`. T1778 lui ajoutait un
+     * quatrieme lecteur — le planificateur — et une regle de securite recopiee
+     * quatre fois est une regle qui finira par diverger en trois endroits sur
+     * quatre, la copie oubliee devenant une fuite silencieuse.
+     *
+     * ## La regle porte sur la CLE, jamais sur `object_type`
+     *
+     * `LOOP_MEMBER_ADDED` partage le meme `object_type` (`OBJECT_LOOP`) que
+     * `LOOP_HELP_REQUEST_CREATED` et son `object_id` designe aussi une Boucle.
+     * Mais « on vous a ajoute » est un fait PERSONNEL : la sourdine de Boucle
+     * ne doit jamais le faire taire. Seule la cle collective explicite se
+     * laisse gouverner par un reglage par Boucle.
+     *
+     * Rendre `null` n'est donc pas un repli : c'est la reponse juste pour
+     * toutes les autres cles.
+     */
+    public static function loopScopeFor(string $notificationKey, ?string $objectId): ?string
+    {
+        if ($notificationKey !== self::LOOP_HELP_REQUEST_CREATED) {
+            return null;
+        }
+
+        return blank($objectId) ? null : (string) $objectId;
+    }
 }
