@@ -468,6 +468,42 @@ class TASK1785RssImportTest extends TestCase
         $this->assertNotNull($publie->published_at);
     }
 
+    /**
+     * Le selecteur de Boucle, et le piege qui l'avait rendu MUET.
+     *
+     * Defaut trouve en recette reelle le 08/11 : le selecteur restait vide
+     * alors que l'Organization avait bien des Boucles, et sans la moindre
+     * erreur a l'ecran.
+     *
+     * La cause n'etait ni le controleur — qui rendait les bonnes donnees quand
+     * on l'appelait directement — ni le routeur, qui MATCHAIT l'URI (verifie).
+     * C'etait le NOM DU PARAMETRE : `organization` est reserve par
+     * `ResolveUrlOrganization`, qui le lit comme un slug de tenant et rend 404
+     * quand il n'en est pas un. Renomme en `organizationId`.
+     *
+     * Ce test garde la route de bout en bout, par HTTP : seul ce chemin-la
+     * traverse le middleware, et c'est le seul qui aurait rougi.
+     */
+    public function test_the_loops_endpoint_answers_over_http_for_the_right_organization(): void
+    {
+        $org = $this->organization('endpoint-boucles');
+        $autre = $this->organization('endpoint-autre');
+        $admin = $this->superadmin($org);
+
+        $sienne = Loop::factory()->create(['organization_id' => $org->id, 'name' => 'La sienne']);
+        Loop::factory()->create(['organization_id' => $autre->id, 'name' => 'Celle d\'un autre']);
+
+        $reponse = $this->actingAs($admin)
+            ->getJson(route('admin.outils.import-rss.boucles', ['organizationId' => $org->id]))
+            ->assertOk();
+
+        $corps = $reponse->json();
+
+        $this->assertCount(1, $corps, 'seules les Boucles de l\'Organization demandee');
+        $this->assertSame((string) $sienne->id, $corps[0]['id']);
+        $this->assertSame('La sienne', $corps[0]['name']);
+    }
+
     public function test_both_screens_link_to_each_other(): void
     {
         $org = $this->organization('navigation');

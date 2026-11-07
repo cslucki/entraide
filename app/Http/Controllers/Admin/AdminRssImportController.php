@@ -174,11 +174,11 @@ class AdminRssImportController extends Controller
      * envoyer tout le reste au navigateur serait une fuite inter-tenant — meme
      * masquee a l'ecran.
      */
-    public function boucles(Request $request, string $organization): array
+    public function boucles(Request $request, string $organizationId): array
     {
         $org = Organization::query()
             ->where('is_active', true)
-            ->whereKey($organization)
+            ->whereKey($organizationId)
             ->first();
 
         if ($org === null) {

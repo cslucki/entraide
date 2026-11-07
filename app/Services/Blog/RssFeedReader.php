@@ -55,6 +55,8 @@ class RssFeedReader
      */
     public function lire(string $xml): array
     {
+        $xml = $this->degraisser($xml);
+
         $this->refuserLesEntites($xml);
 
         $document = $this->charger($xml);
@@ -100,6 +102,27 @@ class RssFeedReader
         }
 
         return $articles;
+    }
+
+    /**
+     * Retire ce qui precede la declaration XML.
+     *
+     * DEFAUT TROUVE EN RECETTE REELLE le 08/11, et qu'aucune fixture n'aurait
+     * montre : `https://cpformation.com/feed/` commence par un ESPACE avant
+     * `<?xml` — premier octet `0x20`, mesure. `DOMDocument::loadXML()` refuse
+     * tout caractere avant la declaration, et rendait donc « xml_illisible »
+     * sur un flux parfaitement valide.
+     *
+     * Ce n'est pas un cas tordu : un greffon WordPress qui laisse echapper une
+     * ligne vide hors de ses balises PHP suffit, et c'est frequent. `feed-io`
+     * degraisse d'ailleurs pour la meme raison (`Reader\Document`).
+     *
+     * Le BOM UTF-8 est retire aussi : invisible, et il produit exactement la
+     * meme panne.
+     */
+    private function degraisser(string $xml): string
+    {
+        return trim(str_replace("\xEF\xBB\xBF", '', $xml));
     }
 
     /**

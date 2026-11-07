@@ -121,6 +121,7 @@
     @if($articles !== [])
         {{-- 2. Prévisualisation, sélection, destination, import. --}}
         <form method="POST" action="{{ route('admin.outils.import-rss.importer') }}"
+              x-init="$watch('org', () => chargerBoucles())"
               x-data="{ org: '', boucles: [], boucle: '', publier: false, droits: false,
                         async chargerBoucles() {
                             this.boucle = '';
@@ -136,8 +137,19 @@
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div>
                         <label for="organization_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.import_rss.organization_label') }}</label>
+                        {{-- `$watch` sur la VALEUR, et non `@change` sur
+                             l'evenement.
+
+                             Mesure en recette du 08/11 : `@change` ne part que
+                             si l'evenement `change` est emis. Un choix a la
+                             souris en emet un, mais pas toute mise a jour du
+                             champ — et `x-model`, lui, suit `input` AUSSI. Le
+                             selecteur de Boucle restait donc vide alors que
+                             l'Organization etait bien selectionnee : la liste
+                             depend de la valeur, pas de la facon dont elle est
+                             arrivee. --}}
                         <select name="organization_id" id="organization_id" required
-                                x-model="org" @change="chargerBoucles()"
+                                x-model="org"
                                 class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
                             <option value="">{{ __('admin.import_rss.organization_vide') }}</option>
                             @foreach($organizations as $organization)
@@ -209,7 +221,15 @@
                                     @if(! $article['contenu_html'])<span class="text-amber-600 dark:text-amber-400">{{ __('admin.import_rss.sans_contenu') }}</span>@endif
                                 </p>
                                 @if($article['resume'])
-                                    <p class="mt-1 line-clamp-2 text-xs text-gray-600 dark:text-gray-400">{{ Str::limit(strip_tags($article['resume']), 200) }}</p>
+                                    {{-- Les entites HTML sont DECODEES avant
+                                         l'affichage. Mesure en recette du
+                                         08/11 : un flux WordPress sert
+                                         « l&#8217;Etat » dans sa
+                                         `description`, et `strip_tags()` ne
+                                         touche pas aux entites. Blade echappe
+                                         ensuite, et le lecteur voyait
+                                         « l&#8217;Etat » en clair. --}}
+                                    <p class="mt-1 line-clamp-2 text-xs text-gray-600 dark:text-gray-400">{{ Str::limit(html_entity_decode(strip_tags($article['resume']), ENT_QUOTES | ENT_HTML5, 'UTF-8'), 200) }}</p>
                                 @endif
                                 @if($article['url'])
                                     <a href="{{ $article['url'] }}" target="_blank" rel="nofollow noopener"

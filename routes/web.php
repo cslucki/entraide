@@ -1227,7 +1227,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/outils/import-rss/importer', [AdminRssImportController::class, 'importer'])
         ->middleware('throttle:20,1')
         ->name('outils.import-rss.importer');
-    Route::get('/outils/import-rss/boucles/{organization}', [AdminRssImportController::class, 'boucles'])
+    // Le parametre s'appelle `organizationId`, et NON `organization` : ce
+    // dernier nom est RESERVE par `ResolveUrlOrganization`, qui le lit comme un
+    // slug de tenant et rend 404 quand il n'en est pas un. Mesure du 08/11 — la
+    // route matchait (verifie au routeur) mais le pipeline rendait 404, et le
+    // selecteur de Boucle restait vide a l'ecran sans la moindre erreur.
+    Route::get('/outils/import-rss/boucles/{organizationId}', [AdminRssImportController::class, 'boucles'])
         ->name('outils.import-rss.boucles');
 
     Route::get('/outils/assign-data', [AdminAssignDataController::class, 'index'])->name('outils.assign-data');

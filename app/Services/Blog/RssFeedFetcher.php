@@ -2,7 +2,7 @@
 
 namespace App\Services\Blog;
 
-use Illuminate\Http\Client\Factory as HttpFactory;
+use App\Support\Ops\SortieDeRecette;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -121,6 +121,18 @@ class RssFeedFetcher
         $port = $parts['port'] ?? (($parts['scheme'] ?? 'https') === 'https' ? 443 : 80);
 
         $options = [
+            // TASK-1785 — le marqueur de sortie de recette.
+            //
+            // Il n'OUVRE rien par lui-meme : `SortieDeRecette` exige en plus
+            // l'environnement `local`, un drapeau faux par defaut
+            // (`ops.sorties_de_recette.import_rss`) et un hote public. Sur un
+            // banc dont la base vise un jumeau de production, c'est ce qui
+            // rend l'outil eprouvable sans affaiblir la garde de sortie — ni
+            // la garde SSRF, qui refuse toujours le bouclage.
+            //
+            // Hors `local`, et notamment en production, ce marqueur est inerte.
+            SortieDeRecette::OPTION_IMPORT_RSS => true,
+
             // La garde a juge CES adresses : on s'y connecte, sans laisser
             // curl re-resoudre le nom. C'est ce qui ferme la fenetre de
             // rebinding.

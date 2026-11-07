@@ -59,6 +59,9 @@ final class SortieDeRecette
     /** Le marqueur du transport « apercu de lien » (T1741). */
     public const OPTION_APERCU_LIEN = 'bouclepro_apercu_lien';
 
+    /** Le marqueur du transport « import RSS » (T1785). */
+    public const OPTION_IMPORT_RSS = 'bouclepro_import_rss';
+
     /** Le marqueur du transport « Web Push » (T1740). */
     public const OPTION_TRANSPORT_PUSH = 'bouclepro_web_push';
 
@@ -85,6 +88,30 @@ final class SortieDeRecette
         return [
             self::OPTION_APERCU_LIEN => [
                 'config' => 'ops.sorties_de_recette.apercus_de_lien',
+                'schemas' => ['http', 'https'],
+                'env' => static fn (): bool => app()->environment() === 'local',
+                'hote' => PublicHostPolicy::estPublic(...),
+            ],
+
+            // TASK-1785 — l'outil SuperAdmin d'import RSS.
+            //
+            // Meme forme que l'apercu de lien, et pour la meme raison : la
+            // destination est un hote PUBLIC quelconque, choisi par
+            // l'administrateur, pas une liste fermee de fournisseurs connus.
+            // `PublicHostPolicy::estPublic()` est donc le bon juge.
+            //
+            // Sans cette entree, l'outil etait INEPROUVABLE sur un banc dont la
+            // base vise un jumeau : le garde n'admet que le bouclage, et la
+            // garde SSRF de T1785 refuse justement le bouclage. Les deux etant
+            // justes, la seule sortie honnete etait d'emprunter le mecanisme
+            // prevu — pas d'affaiblir l'une des deux.
+            //
+            // Les quatre conditions du socle s'appliquent entierement :
+            // `local` SEULEMENT, drapeau faux par defaut, marqueur pose par le
+            // seul `RssFeedFetcher`, et hote public. Une requete HTTP
+            // ordinaire vers le meme domaine reste REFUSEE.
+            self::OPTION_IMPORT_RSS => [
+                'config' => 'ops.sorties_de_recette.import_rss',
                 'schemas' => ['http', 'https'],
                 'env' => static fn (): bool => app()->environment() === 'local',
                 'hote' => PublicHostPolicy::estPublic(...),
