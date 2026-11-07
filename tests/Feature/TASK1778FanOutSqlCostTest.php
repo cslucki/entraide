@@ -32,7 +32,7 @@ use Tests\TestCase;
  * | aucune livraison planifiee pour un canal coupe | le job qui part pour decouvrir un refus deja connu |
  * | cout de preference CONSTANT en N | le retour de `allows()` appele par destinataire |
  * | `allowsMany()` == `allows()` | la divergence entre les deux strategies de chargement |
- * | gabarit d'email lu une seule fois | la perte de la memoire de lecture |
+ * | langue de l'Organization lue une seule fois | la perte de la memoire de lecture |
  * | un reglage d'une AUTRE Boucle ne gouverne pas celle-ci | une contamination par le `whereIn` du chargement en masse |
  * | la preference reste relue a la livraison | une memoire de lecture etendue par erreur aux preferences |
  *
@@ -291,13 +291,25 @@ class TASK1778FanOutSqlCostTest extends TestCase
     // =====================================================================
 
     /**
-     * Le gabarit d'email est lu UNE fois pour N destinataires.
+     * **La langue de l'Organization est lue UNE fois pour N destinataires.**
      *
-     * Mesure T1778 avant la memoire de lecture : 6 requetes par destinataire
-     * pour rendre N fois la meme ligne, les cinq crans de resolution plus la
-     * langue de l'Organization.
+     * Elle est relue a chaque resolution de gabarit — donc deux fois par
+     * destinataire sur ce chemin, puisque le corps est compose deux fois (le
+     * lien reel et le lien expurge pour le journal). Le banc T1778 comptait
+     * 200 lectures de la meme ligne pour une Boucle de 100 membres.
+     *
+     * ## Le gabarit lui-meme n'est PAS memorise, et c'est voulu
+     *
+     * Il l'a ete le temps d'une mesure. Deux tests l'ont fait rougir
+     * (`TASK1751...::test_le_repli_rend_un_contenu_quand_le_gabarit_est_retire`,
+     * `TASK1772...::test_un_gabarit_desactive_retombe_sur_le_repli_de_langue`)
+     * et ils avaient raison : un gabarit est du contenu ADMINISTRABLE, re-rendu
+     * dans la requete meme ou on l'enregistre, et un `Builder::update()` en
+     * masse ne declenche aucun evenement de modele — aucune invalidation ne
+     * pouvait etre fiable. Le detail du raisonnement est dans
+     * `SystemEmailTemplateResolver::resolve()`.
      */
-    public function test_le_gabarit_d_email_n_est_lu_qu_une_fois_pour_plusieurs_destinataires(): void
+    public function test_la_langue_de_l_organization_n_est_lue_qu_une_fois_pour_plusieurs_destinataires(): void
     {
         config()->set('mail.default', 'array');
 
@@ -308,7 +320,8 @@ class TASK1778FanOutSqlCostTest extends TestCase
         $lectures = 0;
 
         DB::listen(function ($evenement) use (&$lectures): void {
-            if (str_contains($evenement->sql, 'system_email_templates')) {
+            if (str_contains($evenement->sql, 'select "locale" from "organizations"')
+                || str_contains($evenement->sql, 'select `locale` from `organizations`')) {
                 $lectures++;
             }
         });
@@ -325,13 +338,10 @@ class TASK1778FanOutSqlCostTest extends TestCase
             'Les quatre emails doivent bien avoir ete planifies, sinon rien n a resolu de gabarit.'
         );
 
-        // 5 crans au plus pour la premiere resolution, puis plus rien. Le
-        // seuil borne le NOMBRE DE CRANS, pas le nombre de destinataires :
-        // c'est la memoire de lecture qui est mesuree.
         $this->assertLessThanOrEqual(
-            5,
+            1,
             $lectures,
-            "Le gabarit a ete resolu {$lectures} fois : la memoire de lecture par requete ne joue plus."
+            "La langue de l Organization a ete lue {$lectures} fois : la memoire de lecture par requete ne joue plus."
         );
     }
 

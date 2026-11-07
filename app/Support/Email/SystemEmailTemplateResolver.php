@@ -67,36 +67,41 @@ class SystemEmailTemplateResolver
         ?string $locale = null,
         ?string $defaultLocale = null,
     ): ?SystemEmailTemplate {
-        // TASK-1778 — memorise pour la duree de CETTE requete (ou de CE job).
+        // TASK-1778 — le GABARIT n'est volontairement PAS memorise.
         //
-        // Le defaut mesure : les cinq crans sont parcourus a chaque appel, et
-        // le gabarit reellement trouve est souvent le dernier (le Global sans
-        // langue). Pour une demande d'aide dans une Boucle de 100 membres,
-        // cela faisait **600 requetes** — quatre crans plus la langue de
-        // l'Organization, cent fois — pour rendre cent fois LA MEME ligne.
+        // Il l'a ete, et la mesure a montre le gain : les cinq crans sont
+        // parcourus a chaque appel et le gabarit trouve est souvent le dernier
+        // (le Global sans langue), soit 4 requetes par destinataire pour
+        // rendre N fois LA MEME ligne.
         //
-        // La cle porte les quatre parametres : c'est eux, et eux seuls, qui
-        // font varier la reponse. En oublier un rendrait le gabarit d'une
-        // autre langue ou d'un autre tenant.
+        // Deux tests l'ont pourtant fait rougir, et ils avaient raison :
+        // `TASK1751...::test_le_repli_rend_un_contenu_quand_le_gabarit_est_retire`
+        // et `TASK1772...::test_un_gabarit_desactive_retombe_sur_le_repli_de_langue`
+        // retirent le gabarit PUIS resolvent, dans la meme requete. Une
+        // memoire de lecture leur rendait la ligne d'avant.
         //
-        // La duree de vie est celle du conteneur `scoped` : vidée entre deux
-        // requetes HTTP et entre deux jobs. Un gabarit modifie par un
-        // administrateur est donc visible des la requete suivante — voir le
-        // docblock de `ScopedReadCache`.
-        return app(ScopedReadCache::class)->souviens(
-            'gabarit-email:'.implode('|', [$slug, $organizationId ?? '-', $locale ?? '-', $defaultLocale ?? '-']),
-            function () use ($slug, $organizationId, $locale, $defaultLocale): ?SystemEmailTemplate {
-                foreach ($this->candidats($slug, $organizationId, $locale, $defaultLocale, true) as $candidat) {
-                    $template = $candidat->first();
+        // La vraie raison de renoncer n'est pas qu'ils rougissaient — c'est ce
+        // qu'ils ont revele : un gabarit est du CONTENU ADMINISTRABLE, fait
+        // pour etre modifie, et l'ecran d'administration le re-rend dans la
+        // requete meme ou il l'enregistre. Pire, un `Builder::update()` ou
+        // `Builder::delete()` en masse ne declenche AUCUN evenement de
+        // modele : aucun observateur ne pourrait vider la memoire de facon
+        // fiable. La justesse aurait dependu de la MANIERE dont l'ecriture a
+        // ete faite, ce qui est exactement le genre de defaut qui ne se voit
+        // qu'en production.
+        //
+        // La langue de l'Organization, elle, reste memorisee (voir
+        // `candidats()`) : ce n'est pas du contenu administrable rendu dans la
+        // meme requete, et ce n'est pas la meme prise de risque.
+        foreach ($this->candidats($slug, $organizationId, $locale, $defaultLocale, true) as $candidat) {
+            $template = $candidat->first();
 
-                    if ($template) {
-                        return $template;
-                    }
-                }
+            if ($template) {
+                return $template;
+            }
+        }
 
-                return null;
-            },
-        );
+        return null;
     }
 
     /**
