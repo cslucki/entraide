@@ -287,6 +287,78 @@ if (! function_exists('canonicalHome')) {
     }
 }
 
+if (! function_exists('accueilDuCompteAuthentifie')) {
+    /**
+     * TASK-1782 — ou doit atterrir le compte authentifie quand il demande la
+     * RACINE du site, ou le retour depuis son tableau de bord.
+     *
+     * ## Une seule implementation, pour tous les tenants
+     *
+     * Aucun slug n'apparait ici, et aucun n'y entrera : la decision se prend
+     * sur les drapeaux de l'Organization du COMPTE (`is_active`, `is_default`),
+     * jamais sur son nom. Une Organization creee demain est donc traitee comme
+     * OFSH l'est aujourd'hui, sans toucher a cette fonction.
+     *
+     * La destination elle-meme n'est pas calculee ici : elle est deleguee a
+     * `canonicalHome()`, qui est l'unique autorite de destination du depot
+     * depuis TASK-1730. Deux fonctions, une seule regle.
+     *
+     * ## Les quatre refus, et pourquoi chacun rend `null`
+     *
+     * `null` veut dire « ne redirige pas, sers ce que tu servais » — jamais
+     * « erreur ». Les quatre cas :
+     *
+     *  1. **Visiteur anonyme** — la homepage publique est le produit. Elle ne
+     *     doit jamais devenir inatteignable.
+     *
+     *  2. **Administrateur global** — la racine est SOUVERAINE depuis
+     *     TASK-1628 : `/admin/homepage` decide de ce qu'elle sert au public.
+     *     Rediriger le superadmin lui retirerait le seul moyen de VOIR le
+     *     choix qu'il vient de faire. Son pouvoir sur la racine serait intact
+     *     et invisible, ce qui revient a le casser.
+     *
+     *  3. **Compte sans Organization, ou Organization inactive** — c'est la
+     *     verification de statut. Envoyer quelqu'un dans une Organization
+     *     desactivee le menerait a une porte fermee, moins utile que
+     *     l'accueil public. Meme garde que `getLoginRedirectTarget()`.
+     *
+     *  4. **Organization par defaut** — c'est elle que la racine sert DEJA.
+     *     Le refus est ici double : il preserve le comportement de `main`,
+     *     et il evite une BOUCLE de redirection. `canonicalHome()` rend
+     *     justement `/` pour une Organization par defaut sans Boucles : `/`
+     *     renverrait vers `/`, indefiniment. C'est le drapeau `is_default`
+     *     qui le dit, pas le slug « main ».
+     *
+     * @return string|null chemin relatif, ou `null` s'il ne faut pas rediriger
+     */
+    function accueilDuCompteAuthentifie(): ?string
+    {
+        $compte = auth()->user();
+
+        if ($compte === null) {
+            return null;
+        }
+
+        // Le superadmin garde la racine telle qu'il l'a choisie pour le public.
+        if ($compte->is_admin) {
+            return null;
+        }
+
+        $organization = $compte->organization;
+
+        if ($organization === null || ! $organization->is_active) {
+            return null;
+        }
+
+        // L'Organization par defaut est ce que la racine sert deja.
+        if ($organization->is_default) {
+            return null;
+        }
+
+        return canonicalHome($organization);
+    }
+}
+
 if (! function_exists('markdown')) {
     function markdown(string $text, array $options = []): string
     {
