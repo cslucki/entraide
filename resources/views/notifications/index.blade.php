@@ -18,13 +18,21 @@
 --}}
 @php
     $filtreActif = fn (string $f) => $filtre === $f;
-    $urlFiltre = function (string $f) {
-        $params = $f === \App\Http\Controllers\NotificationCenterController::FILTRE_TOUTES
-            ? []
-            : ['filtre' => $f];
-
-        return request()->url().($params ? '?'.http_build_query($params) : '');
-    };
+    // TASK-1780 — le filtre est TOUJOURS transmis explicitement.
+    //
+    // Ce lien omettait le parametre pour « Toutes », et c'etait juste tant que
+    // `NotificationCenterController::filtre()` rendait `FILTRE_TOUTES` en
+    // l'absence de parametre. T1775 a inverse ce defaut vers
+    // `FILTRE_NON_LUES` sans toucher a ce constructeur d'URL : cliquer sur
+    // « Toutes » renvoyait donc vers « Non lues », et **l'historique devenait
+    // inatteignable depuis l'interface**.
+    //
+    // La lecon est dans la forme du defaut, pas seulement dans sa correction :
+    // un lien qui s'appuie sur le DEFAUT d'un controleur se casse en silence
+    // le jour ou ce defaut change, et aucun test ne le voit si l'on se
+    // contente de verifier que l'onglet est RENDU. Transmettre la valeur
+    // rend le lien independant du defaut — y compris du prochain.
+    $urlFiltre = fn (string $f) => request()->url().'?'.http_build_query(['filtre' => $f]);
 
     // Le libelle vient du catalogue, jamais de la ligne : le stockage ne
     // contient aucun texte. Les points de la cle deviennent des tirets bas.

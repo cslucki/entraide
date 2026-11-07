@@ -775,12 +775,43 @@ class TASK1373NotificationCenterTest extends TestCase
         }
     }
 
-    /** L'entree de navigation pointe vers le Centre. */
+    /**
+     * L'entree de navigation pointe vers le Centre.
+     *
+     * TASK-1780 — ce test cherchait `href="<route root-level>"` dans la page,
+     * et il passait **grace au defaut** qu'a corrige T1780 : le seul lien nu
+     * vers `/notifications` etait celui de l'onglet « Toutes », que
+     * `$urlFiltre()` fabriquait sans parametre. La navigation, elle, emet la
+     * forme ORG-SCOPEE des qu'une Organization est courante
+     * (`app-side-nav.blade.php`, `$routeUrl()`), donc jamais cette URL-la pour
+     * un membre comme `alice`.
+     *
+     * L'assertion porte desormais sur **l'entree de navigation elle-meme**,
+     * par son marqueur, et accepte les deux formes de route : c'est ce que le
+     * nom du test annonce, et cela ne depend plus d'un lien fabrique ailleurs
+     * dans la page.
+     *
+     * La couverture fine — chaque surface mene aux notifications de LA BONNE
+     * Organization — reste celle du test juste au-dessus, qui n'a pas bouge.
+     */
     public function test_the_navigation_entry_points_to_the_center(): void
     {
-        $this->actingAs($this->alice)->get(route('notifications.index'))
+        $html = $this->actingAs($this->alice)->get(route('notifications.index'))
             ->assertOk()
-            ->assertSee('href="'.route('notifications.index').'"', false);
+            ->getContent();
+
+        $this->assertSame(1, preg_match('/<a[^>]*data-side-nav-notifications[^>]*>/', $html, $lien),
+            "L'entree de navigation vers le Centre n'est pas rendue.");
+
+        $cibles = [
+            route('notifications.index'),
+            route('organization.notifications.index', ['organization' => $this->orgMembre->slug]),
+        ];
+
+        $this->assertTrue(
+            array_sum(array_map(fn (string $c): int => str_contains($lien[0], 'href="'.$c.'"') ? 1 : 0, $cibles)) === 1,
+            "L'entree de navigation ne mene pas au Centre : {$lien[0]}"
+        );
     }
 
     // =====================================================================
