@@ -752,6 +752,165 @@ class TASK1786EntraideCommentsTest extends TestCase
         $this->assertSame(EntraideComments::ECRITURES_PAR_MINUTE, EntraideComment::count());
     }
 
+    // ------------------------- purge sur suppression DEFINITIVE (arbitrage MASTER)
+
+    /**
+     * L'AUDIT, consigne ici parce qu'il borne ces tests a deux appelants.
+     *
+     * Quatre chemins touchent une annonce, et **deux seulement** sont definitifs :
+     *
+     * | chemin | nature | commentaires |
+     * |---|---|---|
+     * | `AdminController::forceDeleteService()` | `forceDelete()` | **PURGES** |
+     * | `AdminController::destroyRequest()` | `delete()`, et `ServiceRequest` n'a pas `SoftDeletes` | **PURGES** |
+     * | `RequestController::destroy()` | `update(status = closed)` — ne supprime RIEN | conserves |
+     * | `ServiceController::destroy()` | soft delete, reversible par `restoreService()` | conserves |
+     *
+     * Et deux cas sont couverts par le SCHEMA, sans une ligne de code :
+     * la suppression d'une Organization par la CASCADE de `organization_id`, la
+     * suppression d'un compte par le `SET NULL` de `user_id` (politique ANONYMIZE).
+     */
+    public function test_la_suppression_definitive_d_un_service_purge_ses_commentaires(): void
+    {
+        $commentaire = $this->commentaire($this->proposition, $this->commentateur, 'A purger avec le service');
+
+        // Un commentaire DEJA soft-supprime doit partir aussi : l'annonce n'existe
+        // plus, donc plus rien ne le rattache.
+        $dejaRetire = $this->commentaire($this->proposition, $this->commentateur, 'Deja retire');
+        $dejaRetire->delete();
+
+        // Le TEMOIN : un commentaire d'une AUTRE annonce, qui ne doit pas bouger.
+        $temoin = $this->commentaire($this->demande, $this->commentateur, 'Temoin sur la demande');
+
+        $this->proposition->delete(); // soft, comme le fait le membre
+        $admin = $this->membre($this->orgA, ['is_admin' => true]);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.services.force-delete', ['id' => $this->proposition->id]))
+            ->assertRedirect();
+
+        $this->assertSame(0, EntraideComment::withTrashed()->whereKey($commentaire->id)->count());
+        $this->assertSame(0, EntraideComment::withTrashed()->whereKey($dejaRetire->id)->count());
+
+        // Sans ce témoin, une purge trop large passerait pour une purge juste.
+        $this->assertSame(1, EntraideComment::withTrashed()->whereKey($temoin->id)->count());
+    }
+
+    public function test_la_suppression_definitive_d_une_demande_purge_ses_commentaires(): void
+    {
+        $commentaire = $this->commentaire($this->demande, $this->commentateur, 'A purger avec la demande');
+        $temoin = $this->commentaire($this->proposition, $this->commentateur, 'Temoin sur la proposition');
+
+        $admin = $this->membre($this->orgA, ['is_admin' => true]);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.requests.destroy', ['requestId' => $this->demande->id]))
+            ->assertRedirect();
+
+        // `ServiceRequest` n'a pas `SoftDeletes` : la demande a bien disparu.
+        $this->assertSame(0, ServiceRequest::withoutGlobalScopes()->whereKey($this->demande->id)->count());
+        $this->assertSame(0, EntraideComment::withTrashed()->whereKey($commentaire->id)->count());
+        $this->assertSame(1, EntraideComment::withTrashed()->whereKey($temoin->id)->count());
+    }
+
+    public function test_une_demande_simplement_CLOTUREE_garde_ses_commentaires(): void
+    {
+        $commentaire = $this->commentaire($this->demande, $this->commentateur, 'Doit survivre a la cloture');
+
+        // `RequestController::destroy()` ne supprime RIEN : il clôture.
+        $this->actingAs($this->auteur)
+            ->delete(route('requests.destroy', $this->demande))
+            ->assertRedirect();
+
+        $this->demande->refresh();
+        $this->assertSame('closed', $this->demande->status);
+
+        // Le commentaire est intact, et non soft-supprime.
+        $this->assertDatabaseHas('entraide_comments', ['id' => $commentaire->id, 'deleted_at' => null]);
+    }
+
+    public function test_un_service_en_suppression_REVERSIBLE_garde_ses_commentaires(): void
+    {
+        $commentaire = $this->commentaire($this->proposition, $this->commentateur, 'Doit survivre au soft delete');
+
+        // `ServiceController::destroy()` fait un soft delete, que
+        // `AdminController::restoreService()` peut annuler. Purger detruirait
+        // l'historique d'un geste reversible.
+        $this->actingAs($this->auteur)
+            ->delete(route('services.destroy', $this->proposition))
+            ->assertRedirect();
+
+        $this->assertSoftDeleted('services', ['id' => $this->proposition->id]);
+        $this->assertDatabaseHas('entraide_comments', ['id' => $commentaire->id, 'deleted_at' => null]);
+    }
+
+    /**
+     * La purge est bornee au TENANT, et pas seulement a l'identifiant.
+     *
+     * La borne triple (`organization_id` + `commentable_type` + `commentable_id`)
+     * se mesure en fabriquant une collision : une annonce d'une AUTRE Organization
+     * portant le MEME identifiant. Les deux derniers critères suffiraient à
+     * l'identité ; on ne confie pas une suppression définitive à l'unicité d'un
+     * UUID.
+     */
+    public function test_la_purge_ne_franchit_pas_la_frontiere_d_Organization(): void
+    {
+        $auteurB = $this->membre($this->orgB);
+
+        // Meme identifiant, autre Organization : la collision est fabriquee a la
+        // main parce qu'elle ne se produit pas d'elle-meme.
+        $jumelle = Service::factory()
+            ->forUser($auteurB)
+            ->forCategory(Category::factory()->create())
+            ->create(['organization_id' => $this->orgB->id, 'status' => 'active']);
+
+        $commentaireB = EntraideComment::create([
+            'organization_id' => $this->orgB->id,
+            'commentable_type' => Service::class,
+            'commentable_id' => $this->proposition->getKey(), // L'ID DE A, dans B
+            'user_id' => $auteurB->id,
+            'content' => 'Commentaire de B visant l identifiant de A',
+            'is_approved' => true,
+        ]);
+
+        $commentaireA = $this->commentaire($this->proposition, $this->commentateur, 'Commentaire de A');
+
+        $purgees = EntraideComment::purgerPourAnnonceSupprimee($this->proposition);
+
+        $this->assertSame(1, $purgees, 'Seul le commentaire de A devait partir.');
+        $this->assertSame(0, EntraideComment::withTrashed()->whereKey($commentaireA->id)->count());
+        $this->assertSame(1, EntraideComment::withTrashed()->whereKey($commentaireB->id)->count());
+
+        unset($jumelle);
+    }
+
+    /**
+     * Purge et suppression sont dans la MEME transaction.
+     *
+     * Mesure : on annule la transaction englobante, et NI la demande NI ses
+     * commentaires ne doivent avoir bouge. Sans transaction, la purge serait
+     * commise seule — les commentaires detruits sous une annonce toujours
+     * vivante, exactement l'inverse du defaut corrige.
+     */
+    public function test_purge_et_suppression_sont_atomiques(): void
+    {
+        $commentaire = $this->commentaire($this->demande, $this->commentateur, 'Ni purge ni conserve a moitie');
+        $admin = $this->membre($this->orgA, ['is_admin' => true]);
+
+        DB::beginTransaction();
+
+        $this->actingAs($admin)
+            ->delete(route('admin.requests.destroy', ['requestId' => $this->demande->id]))
+            ->assertRedirect();
+
+        $this->assertSame(0, EntraideComment::withTrashed()->whereKey($commentaire->id)->count());
+
+        DB::rollBack();
+
+        $this->assertSame(1, EntraideComment::withTrashed()->whereKey($commentaire->id)->count());
+        $this->assertSame(1, ServiceRequest::withoutGlobalScopes()->whereKey($this->demande->id)->count());
+    }
+
     // ------------------------------------------------------------------ outils
 
     private function membre(Organization $org, array $surcharges = []): User

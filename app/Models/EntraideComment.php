@@ -114,4 +114,71 @@ class EntraideComment extends Model
             ->where('is_approved', true)
             ->oldest();
     }
+
+    /**
+     * TASK-1786 — purge DEFINITIVE des commentaires d'une annonce qui disparait
+     * definitivement.
+     *
+     * ## Pourquoi cette methode existe
+     *
+     * Une relation polymorphique ne peut pas porter de cle etrangere :
+     * `commentable_id` vise deux tables. La base ne peut donc pas nettoyer, et
+     * l'audit a trouve **deux** chemins de suppression DEFINITIVE qui laisseraient
+     * des orphelins :
+     *
+     *  - `AdminController::forceDeleteService()` — `forceDelete()` d'un Service ;
+     *  - `AdminController::destroyRequest()` — `delete()` d'une ServiceRequest,
+     *    qui est definitif puisque ce modele **n'a pas** `SoftDeletes`.
+     *
+     * Les orphelins n'etaient jamais RENDUS — toute lecture passe par l'annonce —
+     * mais ils restaient en base, et une colonne `commentable_id` qui ne designe
+     * plus rien est une dette qui grossit en silence.
+     *
+     * ## Les chemins qui ne doivent RIEN purger, et ils sont la majorite
+     *
+     * Verifie par l'audit, et c'est ce qui borne cette methode a deux appelants :
+     *
+     *  - `RequestController::destroy()` ne supprime PAS : il fait
+     *    `update(['status' => 'closed'])`. Une demande clôturee garde ses
+     *    commentaires, qui restent LISIBLES (decision du CDC §4) ;
+     *  - `ServiceController::destroy()` fait un **soft delete** — reversible par
+     *    `AdminController::restoreService()`. Purger detruirait l'historique d'un
+     *    geste annulable ;
+     *  - une suppression d'**Organization** est deja couverte par la CASCADE de
+     *    `organization_id` ;
+     *  - une suppression de **compte** est couverte par le `SET NULL` de
+     *    `user_id` : politique ANONYMIZE du registre, le commentaire survit avec
+     *    une attribution anonyme.
+     *
+     * ## La borne est TRIPLE, et c'est voulu
+     *
+     * `organization_id` **et** `commentable_type` **et** `commentable_id`. Les
+     * deux derniers suffiraient a l'identite, mais le premier est la frontiere de
+     * tenant : une purge qui s'en passerait pourrait, sur une collision
+     * d'identifiant, toucher les lignes d'une autre Organization. On ne confie pas
+     * une suppression definitive a l'unicite d'un UUID — et le sabotage qui retire
+     * cette borne fait bien rougir
+     * `test_la_purge_ne_franchit_pas_la_frontiere_d_Organization`.
+     *
+     * ## `withTrashed()` + `forceDelete()`
+     *
+     * Les commentaires deja soft-supprimes partent AUSSI : l'annonce n'existe
+     * plus, donc plus rien ne les rattache. Et la purge est definitive — laisser
+     * des lignes soft-supprimees pointant vers le vide, c'est exactement
+     * l'orphelin qu'on vient eliminer.
+     *
+     * L'appelant est responsable de la TRANSACTION : cette methode ne l'ouvre pas,
+     * pour que la purge et la suppression de l'annonce reussissent ou echouent
+     * ENSEMBLE.
+     *
+     * @return int le nombre de lignes purgees
+     */
+    public static function purgerPourAnnonceSupprimee(Service|ServiceRequest $annonce): int
+    {
+        return (int) static::withTrashed()
+            ->where('organization_id', $annonce->organization_id)
+            ->where('commentable_type', $annonce->getMorphClass())
+            ->where('commentable_id', $annonce->getKey())
+            ->forceDelete();
+    }
 }
