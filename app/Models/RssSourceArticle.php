@@ -41,4 +41,29 @@ class RssSourceArticle extends Model
     {
         return $this->belongsTo(RssSource::class, 'rss_source_id');
     }
+
+    /**
+     * Reconstruit l'entree telle que `RssFeedReader::lire()` l'aurait rendue
+     * — meme forme exactement, pour que `RssArticleImporter::importer()` ne
+     * voie aucune difference entre un article fraichement lu et un article
+     * relu depuis ce cache (TASK-1790). Fabrique UNIQUE, partagee par
+     * l'ecran en lot (`AdminRssImportController::importer()`) et par la
+     * fiche individuelle (`RssArticleFiche`) : deux reconstructions auraient
+     * fini par diverger au premier champ ajoute a l'un des deux cotes.
+     *
+     * @return array{identite: string, guid: string|null, url: string|null, titre: string, auteur: string|null, resume: string|null, contenu_html: string|null, publie_le: string|null}
+     */
+    public function versEntreeImport(): array
+    {
+        return [
+            'identite' => $this->source_identity,
+            'guid' => $this->guid,
+            'url' => $this->url,
+            'titre' => $this->titre,
+            'auteur' => $this->auteur,
+            'resume' => $this->resume,
+            'contenu_html' => $this->contenu_html,
+            'publie_le' => optional($this->source_published_at)->toDateTimeString(),
+        ];
+    }
 }

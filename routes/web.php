@@ -42,6 +42,9 @@ use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminAssignDataController;
 use App\Http\Controllers\Admin\AdminRssImportController;
+use App\Livewire\Admin\RssArticleFiche;
+use App\Livewire\Admin\RssSourceArticles;
+use App\Livewire\Admin\RssSources;
 use App\Http\Controllers\Admin\AdminDataIntegrityController;
 use App\Http\Controllers\Admin\AdminDossierCleanupController;
 use App\Http\Controllers\Admin\AdminScenarioManagerController;
@@ -1255,6 +1258,18 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // selecteur de Boucle restait vide a l'ecran sans la moindre erreur.
     Route::get('/outils/import-rss/boucles/{organizationId}', [AdminRssImportController::class, 'boucles'])
         ->name('outils.import-rss.boucles');
+
+    // TASK-1790 — le parcours individuel : source -> articles -> fiche.
+    //
+    // Trois composants Livewire plein-ecran, meme motif que `OrganizationFeed`/
+    // `MyFeedPosts` ailleurs dans ce depot (`Route::get(chemin, Composant::class)`).
+    // L'ecran en lot ci-dessus reste intact et inchange : ce sont deux parcours
+    // qui coexistent, pas une refonte.
+    Route::get('/outils/import-rss/sources', RssSources::class)->name('outils.import-rss.sources');
+    Route::get('/outils/import-rss/sources/{rssSource}', RssSourceArticles::class)
+        ->name('outils.import-rss.sources.show');
+    Route::get('/outils/import-rss/articles/{rssSourceArticle}', RssArticleFiche::class)
+        ->name('outils.import-rss.articles.show');
 
     Route::get('/outils/assign-data', [AdminAssignDataController::class, 'index'])->name('outils.assign-data');
     Route::get('/outils/assign-data/{dataset}', [AdminAssignDataController::class, 'detail'])->name('outils.assign-data.detail');
