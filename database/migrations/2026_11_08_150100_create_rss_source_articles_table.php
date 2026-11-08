@@ -29,6 +29,15 @@ use Illuminate\Support\Facades\Schema;
  * que ses N derniers items) reste en cache. Rien dans le code applicatif ne doit
  * supprimer une ligne de cette table sur un simple rechargement — voir
  * `AdminRssImportController::charger()`, qui UPSERT sans jamais `DELETE`.
+ *
+ * ## `guid`/`url`/`titre`/`auteur` en `text()` (revue MASTER, commit `f4953aea`)
+ *
+ * Ce sont des métadonnées EXTERNES, écrites par un flux WordPress qu'on ne contrôle
+ * pas — un plugin peut servir un titre de plusieurs centaines de caractères, une URL
+ * avec une querystring longue, un nom d'auteur compose. Aucune de ces quatre colonnes
+ * n'est indexée ni jointe : seule `source_identity` (inchangée, `string(500)`, portant
+ * l'unique) doit rester bornée pour que son index tienne. `text()` retire la limite
+ * arbitraire sans rien coûter côté requête.
  */
 return new class extends Migration
 {
@@ -44,10 +53,10 @@ return new class extends Migration
             // d'un service déjà éprouvé.
             $table->string('source_identity', 500);
 
-            $table->string('guid', 500)->nullable();
-            $table->string('url', 2048)->nullable();
-            $table->string('titre', 500);
-            $table->string('auteur')->nullable();
+            $table->text('guid')->nullable();
+            $table->text('url')->nullable();
+            $table->text('titre');
+            $table->text('auteur')->nullable();
             $table->text('resume')->nullable();
             $table->longText('contenu_html')->nullable();
             $table->timestamp('source_published_at')->nullable();

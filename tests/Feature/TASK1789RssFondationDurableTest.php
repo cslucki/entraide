@@ -60,6 +60,50 @@ class TASK1789RssFondationDurableTest extends TestCase
         XML;
     }
 
+    /**
+     * Un flux dont `guid`, `url`, `titre` et `auteur` depassent largement les
+     * anciennes longueurs `string()` (500 / 2048 / 500 / 255) — exactement le
+     * cas que la revue MASTER (commit `f4953aea`) a fait passer en `text()`.
+     *
+     * @return array{xml: string, guid: string, url: string, titre: string, auteur: string}
+     */
+    private function fluxMetadonneesLongues(): array
+    {
+        $guid = 'guid-'.str_repeat('x', 600);
+        $url = 'https://cpformation.test/article?'.str_repeat('q=1&', 600);
+        $titre = str_repeat('Un titre tres long ', 40);
+        $auteur = str_repeat('Camille-Durand ', 30);
+
+        // Le `&` de l'URL doit etre ECHAPPE dans le XML (`&amp;`), sinon le
+        // document n'est pas bien forme — mesure directement ici : le premier
+        // jet de ce test echouait en `xml_illisible` pour cette raison. Les
+        // assertions, elles, comparent contre `$url` DECODE, exactement ce
+        // que `textContent` rend a la lecture.
+        $urlEchappe = str_replace('&', '&amp;', $url);
+
+        $xml = <<<XML
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0"
+          xmlns:content="http://purl.org/rss/1.0/modules/content/"
+          xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <channel>
+          <title>CP Formation</title>
+          <link>https://cpformation.com</link>
+          <item>
+            <title>{$titre}</title>
+            <link>{$urlEchappe}</link>
+            <guid isPermaLink="false">{$guid}</guid>
+            <pubDate>Tue, 03 Nov 2026 09:15:00 +0000</pubDate>
+            <dc:creator>{$auteur}</dc:creator>
+            <description>Resume court.</description>
+          </item>
+        </channel>
+        </rss>
+        XML;
+
+        return ['xml' => $xml, 'guid' => $guid, 'url' => $url, 'titre' => trim($titre), 'auteur' => trim($auteur)];
+    }
+
     private function organization(string $slug): Organization
     {
         return Organization::factory()->create([
@@ -142,6 +186,48 @@ class TASK1789RssFondationDurableTest extends TestCase
 
         // Le flux relu n'en porte plus qu'un, mais les trois restent en cache.
         $this->assertSame(3, RssSourceArticle::count());
+    }
+
+    /**
+     * Revue MASTER (commit `f4953aea`) : `guid`/`url`/`titre`/`auteur` sont
+     * passes de `string()` borne a `text()`. Ce test envoie des valeurs qui
+     * depassaient les anciennes limites, et verifie deux choses : le
+     * rafraichissement REUSSIT (aucune troncature ni erreur de contrainte),
+     * et l'identite — un hash SHA-256 du guid, deja borne par construction —
+     * reste STABLE d'une lecture a l'autre.
+     */
+    public function test_le_rafraichissement_reussit_avec_des_metadonnees_externes_longues(): void
+    {
+        $org = $this->organization('metadonnees-longues');
+        $admin = $this->superadmin($org);
+        $flux = $this->fluxMetadonneesLongues();
+
+        Http::fake(['*' => fn () => Http::response($flux['xml'], 200, ['Content-Type' => 'application/rss+xml'])]);
+        $this->app->instance(RssFeedUrlGuard::class, $this->garde(['cpformation.test' => ['93.184.216.34']]));
+
+        $this->actingAs($admin)->post(route('admin.outils.import-rss.charger'), [
+            'url' => 'https://cpformation.test/feed/',
+        ])->assertSessionHas('rss_charge', 1);
+
+        $article = RssSourceArticle::first();
+        $this->assertNotNull($article);
+        $this->assertSame($flux['guid'], $article->guid);
+        $this->assertSame($flux['url'], $article->url);
+        $this->assertSame($flux['titre'], $article->titre);
+        $this->assertSame($flux['auteur'], $article->auteur);
+
+        $identiteInitiale = $article->source_identity;
+
+        // Rafraichissement : doit reussir de nouveau, mettre a jour LA MEME
+        // ligne (upsert par source_identity), jamais en creer une seconde.
+        $this->actingAs($admin)->post(route('admin.outils.import-rss.charger'), [
+            'url' => 'https://cpformation.test/feed/',
+        ])->assertSessionHas('rss_charge', 1);
+
+        $this->assertSame(1, RssSourceArticle::count());
+        $article->refresh();
+        $this->assertSame($identiteInitiale, $article->source_identity);
+        $this->assertSame($flux['guid'], $article->guid);
     }
 
     // =====================================================================
