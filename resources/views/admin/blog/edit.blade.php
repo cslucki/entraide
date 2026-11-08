@@ -1,8 +1,17 @@
 <x-admin-layout title="{{ __('blog.title_edit', ['title' => $post->title]) }}">
-    <div class="mb-6">
+    <div class="mb-6 flex flex-wrap items-center gap-4">
         <a href="{{ route('admin.blog') }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">
             {{ __('blog.back_to_list') }}
         </a>
+
+        {{-- TASK-1790 (correctif post-merge) — uniquement si une fiche
+             source persiste encore pour CET article (lecture seule, voir
+             AdminBlogController::edit()). --}}
+        @if($rssSourceArticle)
+            <a href="{{ route('admin.outils.import-rss.articles.show', $rssSourceArticle) }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">
+                {{ __('blog.back_to_rss_article') }}
+            </a>
+        @endif
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">

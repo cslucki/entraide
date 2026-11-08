@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BlogPost;
 use App\Models\Category;
 use App\Models\Organization;
+use App\Models\RssSourceArticle;
 use App\Models\Tag;
 use App\Models\User;
 use App\Support\Tenancy\DefaultOrganizationResolver;
@@ -97,7 +98,18 @@ class AdminBlogController extends Controller
             ->get(['id', 'name', 'email', 'organization_id'])
             ->groupBy(fn ($u) => $u->organization?->name ?? __('blog.organization_none'));
 
-        return view('admin.blog.edit', compact('post', 'organizations', 'categories', 'tags', 'usersByOrg'));
+        // TASK-1790 (correctif post-merge) — un article importe depuis un
+        // flux RSS porte `source_guid`, qui est EXACTEMENT la valeur de
+        // `rss_source_articles.source_identity` (meme fabrique,
+        // RssFeedReader::identite()). La fiche source peut avoir ete
+        // supprimee du cache depuis (rafraichissement d'une source qui ne
+        // sert plus cet article) : `null` dans ce cas, et aucun lien ne
+        // s'affiche — lecture seule, jamais une recreation.
+        $rssSourceArticle = $post->source_guid !== null
+            ? RssSourceArticle::where('source_identity', $post->source_guid)->first()
+            : null;
+
+        return view('admin.blog.edit', compact('post', 'organizations', 'categories', 'tags', 'usersByOrg', 'rssSourceArticle'));
     }
 
     public function update(Request $request, BlogPost $post): RedirectResponse
