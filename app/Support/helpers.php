@@ -3,6 +3,7 @@
 use App\Models\Organization;
 use App\Services\TranslationOverrideService;
 use App\Support\ScenarioManager\Persona\ScenarioPersonaAccess;
+use App\Support\Markdown\YoutubeEmbedExtension;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Support\Facades\Route;
 use League\CommonMark\CommonMarkConverter;
@@ -412,6 +413,10 @@ if (! function_exists('markdown')) {
 
         $converter = new CommonMarkConverter($config);
         $converter->getEnvironment()->addExtension(new GithubFlavoredMarkdownExtension);
+        // TASK-1788 correctif 12 — un lien NU vers YouTube devient un lecteur
+        // integre. Voir le docbloc de `YoutubeEmbedExtension` pour pourquoi
+        // cette reconnaissance vit ici et non dans un noeud TipTap.
+        $converter->getEnvironment()->addExtension(new YoutubeEmbedExtension);
 
         return (string) $converter->convert($text);
     }

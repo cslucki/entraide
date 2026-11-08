@@ -11,6 +11,7 @@ return [
 
     'back_to_directory' => 'Back to directory',
     'edit_profile' => 'Edit my profile',
+    'publish_to_blog' => 'Publish to the blog',
     'available' => 'Available',
     'unavailable' => 'Unavailable',
     'deactivated_user' => 'Deactivated user',
@@ -36,6 +37,9 @@ return [
     'requests_count' => ':count request|:count requests',
     'before_deadline' => 'Before :date',
     'blog_section' => 'Blog',
+    // TASK-1788 correctif 05 — le titre de la carte d'apercu, au meme
+    // gabarit que « Blog » juste au-dessus.
+    'stats_section' => 'Stats',
     'blog_count' => ':count article|:count articles',
     'no_posts' => "This user hasn't published any articles yet.",
     'reviews_section' => 'Reviews received',
@@ -134,6 +138,13 @@ return [
     'avatar_drop' => 'Drop a photo here, or click to choose one',
     'avatar_save' => 'Save photo',
     'avatar_updated' => 'Your photo has been updated.',
+    // TASK-1788 correctif 02 — REMOVING the photo. Until now it could only be
+    // replaced, never removed: a null avatar falls back to generated initials.
+    'avatar_remove' => 'Remove my photo',
+    'avatar_remove_cancel' => 'Cancel removal',
+    'avatar_remove_pending' => 'Your photo will be removed when you save. Your initials will replace it.',
+    'avatar_remove_confirm' => 'Remove photo',
+    'avatar_removed' => 'Your photo has been removed.',
     'available_label' => 'I am available for exchanges',
     'save' => 'Save',
     'saved' => 'Saved.',

@@ -155,8 +155,11 @@ class TASK1762FormulaireProfilReorganiseTest extends TestCase
         $this->assertStringContainsString('bp-editeur-grand', $html);
     }
 
-    /** La limite passe a 2000 : le balisage est compte dedans. */
-    public function test_la_presentation_accepte_2000_caracteres(): void
+    /**
+     * TASK-1788 correctif 12 (demande Cyril) — 2000 releve a 3500 : le
+     * balisage (lien YouTube inclus, desormais) est compte dedans.
+     */
+    public function test_la_presentation_accepte_3500_caracteres(): void
     {
         $org = $this->organization();
         $membre = $this->membre($org);
@@ -165,16 +168,16 @@ class TASK1762FormulaireProfilReorganiseTest extends TestCase
             'first_name' => $membre->first_name, 'name' => $membre->name,
             'email' => $membre->email, 'phone' => $membre->phone,
             'slogan' => 'Mon slogan de test.',
-            'bio' => str_repeat('a', 2000),
+            'bio' => str_repeat('a', 3500),
         ])->assertSessionHasNoErrors();
 
-        $this->assertSame(2000, mb_strlen($membre->fresh()->bio));
+        $this->assertSame(3500, mb_strlen($membre->fresh()->bio));
 
         $this->actingAs($membre)->put(route('profile.update'), [
             'first_name' => $membre->first_name, 'name' => $membre->name,
             'email' => $membre->email, 'phone' => $membre->phone,
             'slogan' => 'Mon slogan de test.',
-            'bio' => str_repeat('a', 2001),
+            'bio' => str_repeat('a', 3501),
         ])->assertSessionHasErrors('bio');
     }
 

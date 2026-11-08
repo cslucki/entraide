@@ -82,8 +82,12 @@
                         {{ $stepsDoneCount }}/{{ count($onboardingSteps) }}
                     </div>
                     <div class="min-w-0">
+                        {{-- TASK-1788 correctif 03 — une seule ligne desormais.
+                             « Votre progression dans la boucle » est RETIREE sur
+                             demande de Cyril ; la cle `onboarding_title` reste
+                             definie dans les deux langues, ce correctif etant un
+                             changement de texte et non un menage de lexique. --}}
                         <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">{{ __('dashboard.onboarding_badge') }}</p>
-                        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.onboarding_title') }}</h2>
                     </div>
                 </div>
                 <svg x-show="!open" class="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" x-cloak><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>

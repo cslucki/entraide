@@ -305,11 +305,15 @@
 
                  Arbitrage Q6 de Cyril, pris sur une mesure : `reviews.rating`
                  est NOT NULL sans defaut, la moyenne du profil se calcule sur
-                 TOUTES les notes (`User::recalculateRating()`) et `BadgeService`
-                 s'en nourrit. La rendre optionnelle sans migration aurait oblige
-                 a ecrire une note que personne n'a choisie — qui aurait compte
-                 dans la moyenne affichee et dans l'attribution des badges. Et le
-                 critere d'acceptation n°8 du CDC interdit la migration.
+                 TOUTES les notes (`User::recalculateRating()`). La rendre
+                 optionnelle sans migration aurait oblige a ecrire une note que
+                 personne n'a choisie, qui aurait compte dans la moyenne
+                 affichee. Et le critere d'acceptation n°8 du CDC interdit la
+                 migration.
+
+                 (TASK-1788 correctif 05 : `BadgeService` s'en nourrissait lui
+                 aussi ; le systeme de badges membre a ete supprime, cette
+                 seconde raison n'existe plus. La premiere suffit.)
 
                  Elle est donc PRE-SELECTIONNEE et MODIFIABLE, et le libelle le
                  dit honnetement — « Vous pouvez ajuster la note », et non

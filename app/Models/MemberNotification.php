@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use RuntimeException;
 
 /**
@@ -138,6 +139,19 @@ class MemberNotification extends Model
     public function recipient(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recipient_id');
+    }
+
+    /**
+     * TASK-1788 correctif 11 — les LIVRAISONS de cette notification.
+     *
+     * ⚠️ `in_app` n'a PAS de ligne ici, et ce n'est pas un oubli : la
+     * notification EST la livraison en application (lecon T1786). Cette
+     * relation ne porte donc que `email` et `web_push` — un ecran qui compte
+     * « trois canaux » a partir d'elle se tromperait d'un a chaque fois.
+     */
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(MemberNotificationDelivery::class, 'notification_id');
     }
 
     public function actor(): BelongsTo

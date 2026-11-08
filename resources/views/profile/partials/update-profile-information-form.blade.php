@@ -48,25 +48,59 @@
              arrive sans qu'on ait a l'ecrire. L'`<input>` est masque
              visuellement (`sr-only`), pas `hidden` — un champ `hidden` ne se
              declenche pas au clavier. --}}
+        {{-- TASK-1788 correctif 02 — l'adresse de l'avatar PAR DEFAUT.
+
+             Elle est demandee au modele sur une COPIE dont l'avatar est vide,
+             plutot que recopiee ici. `getAvatarUrlAttribute()` est la seule
+             autorite sur « a quoi ressemble quelqu'un sans photo » ; en
+             reecrire l'URL dans une vue garantirait qu'elles divergent au
+             premier changement de couleur ou de service.
+
+             `clone` : le tableau d'attributs d'un modele est copie par valeur,
+             l'original n'est donc pas touche. --}}
         <div x-data="{
                  preview: null,
                  survol: false,
                  nom: null,
+                 /* TASK-1788 correctif 02 — la suppression est une INTENTION,
+                    appliquee a l'enregistrement comme le reste du formulaire.
+                    Supprimer au clic aurait efface une photo a qui voulait
+                    seulement voir a quoi ressemblerait le profil sans elle, et
+                    « Annuler » n'aurait plus rien eu a annuler. */
+                 supprimer: false,
+                 get source() {
+                     if (this.preview) return this.preview;
+                     return this.supprimer ? '{{ (clone $user)->setAttribute('avatar', null)->avatar_url }}' : '{{ $user->avatar_url }}';
+                 },
                  choisir(fichiers) {
                      const f = fichiers && fichiers[0];
                      if (! f) return;
                      this.nom = f.name;
                      this.preview = URL.createObjectURL(f);
+                     /* Choisir une photo ANNULE la suppression : les deux
+                        gestes se contredisent, et c'est le dernier qui parle. */
+                     this.supprimer = false;
                  },
                  deposer(e) {
                      this.survol = false;
                      this.$refs.champ.files = e.dataTransfer.files;
                      this.choisir(e.dataTransfer.files);
+                 },
+                 basculerSuppression() {
+                     this.supprimer = ! this.supprimer;
+                     if (this.supprimer) {
+                         /* On retire aussi l'apercu du fichier choisi : sinon
+                            l'ecran montrerait la photo qu'on vient de dire de
+                            ne pas garder. */
+                         this.preview = null;
+                         this.nom = null;
+                         this.$refs.champ.value = '';
+                     }
                  }
              }">
             <x-input-label for="avatar" :value="__('profile.avatar')" />
             <div class="mt-2 flex items-center gap-4">
-                <img :src="preview ?? '{{ $user->avatar_url }}'"
+                <img :src="source"
                      class="w-14 h-14 flex-shrink-0 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600" alt="">
                 <label for="avatar"
                        @dragover.prevent="survol = true"
@@ -84,6 +118,38 @@
                     class="sr-only">
             </div>
             <x-input-error class="mt-2" :messages="$errors->get('avatar')" />
+
+            {{-- TASK-1788 correctif 02 — SUPPRIMER sa photo.
+
+                 On pouvait la remplacer, jamais l'enlever : qui en avait depose
+                 une n'avait plus aucun moyen de revenir a ses initiales.
+
+                 Le bouton n'existe que si une photo EST posee : l'offrir a qui
+                 n'en a pas poserait un geste sans effet.
+
+                 Pas de `<form>` imbrique — c'est invalide en HTML, et le bloc
+                 vit DANS le formulaire de profil. L'intention voyage donc dans
+                 un champ cache du formulaire existant, exactement comme les
+                 cases `delete_images` du formulaire d'annonce. --}}
+            @if($user->avatar)
+            <input type="hidden" name="supprimer_avatar" x-bind:value="supprimer ? '1' : '0'">
+
+            <div class="mt-2 flex items-center gap-3">
+                <button type="button" @click="basculerSuppression()"
+                        data-avatar-remove
+                        class="text-xs font-medium underline-offset-2 hover:underline"
+                        x-bind:class="supprimer
+                            ? 'text-gray-500 dark:text-gray-400'
+                            : 'text-red-600 dark:text-red-400'"
+                        x-text="supprimer
+                            ? @js(__('profile.avatar_remove_cancel'))
+                            : @js(__('profile.avatar_remove'))"></button>
+
+                <span x-show="supprimer" x-cloak
+                      data-avatar-remove-pending
+                      class="text-xs text-gray-500 dark:text-gray-400">{{ __('profile.avatar_remove_pending') }}</span>
+            </div>
+            @endif
         </div>
 
             {{-- TASK-1762 point 1 — la structure, AVANT prenom et nom.

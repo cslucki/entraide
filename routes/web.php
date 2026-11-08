@@ -737,10 +737,31 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // TASK-1752 — le Flux, toutes Organizations. Meme groupe `['auth','admin']`
     // que la Roadmap : surface PLATEFORME, jamais un administrateur d'Org.
+    // TASK-1788 correctif 11 — la gestion des notifications.
+    //
+    // `/notifications/{notification}` apres les routes nommees : aucune
+    // collision ici, les deux chemins fixes (`/notifications` et
+    // `/notifications/{id}/lecture`) ne se recouvrent pas.
+    Route::get('/notifications', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'index'])->name('notifications');
+    Route::get('/notifications/{notification}', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'show'])->name('notifications.show');
+    Route::put('/notifications/{notification}/lecture', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'toggleRead'])->name('notifications.read');
+    Route::delete('/notifications/{notification}', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'destroy'])->name('notifications.destroy');
+
     Route::get('/flux', [\App\Http\Controllers\Admin\AdminFeedController::class, 'index'])->name('feed');
     Route::put('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'update'])->name('feed.update');
     Route::delete('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'destroy'])->name('feed.destroy');
     Route::put('/flux/commentaire/{comment}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'basculerCommentaire'])->name('feed.comment.toggle');
+    // TASK-1788 correctif 10 — la gestion des commentaires du Flux.
+    //
+    // `/flux/commentaires` AVANT `/flux/{post}` n'est pas necessaire ici : les
+    // deux routes de liste sont en GET sur des chemins distincts et aucune ne
+    // capture l'autre. En revanche les deux routes d'ecriture ci-dessous sont
+    // prefixees par `/flux/commentaire/`, comme la bascule existante : un
+    // identifiant de commentaire ne peut donc jamais etre pris pour un
+    // identifiant d'annonce.
+    Route::get('/flux/commentaires', [\App\Http\Controllers\Admin\AdminFeedController::class, 'commentaires'])->name('feed.comments');
+    Route::put('/flux/commentaire/{comment}/contenu', [\App\Http\Controllers\Admin\AdminFeedController::class, 'modifierCommentaire'])->name('feed.comment.update');
+    Route::delete('/flux/commentaire/{comment}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'supprimerCommentaire'])->name('feed.comment.destroy');
     Route::post('/flux/reprendre-historique', [\App\Http\Controllers\Admin\AdminFeedController::class, 'reprendreHistorique'])->name('feed.replay');
     Route::post('/flux/evenements-automatiques', [\App\Http\Controllers\Admin\AdminFeedController::class, 'basculerEvenementsAutomatiques'])->name('feed.auto-events');
 

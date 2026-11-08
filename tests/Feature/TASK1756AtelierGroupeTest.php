@@ -428,7 +428,11 @@ class TASK1756AtelierGroupeTest extends TestCase
         $this->atelier(points: 45, capacite: 3, plancher: 3)->update(['title' => 'ATELIER DE GROUPE']);
         $this->atelier(points: 30, capacite: null, plancher: null)->update(['title' => 'AIDE INDIVIDUELLE']);
 
-        $page = $this->actingAs($this->participant())->get(route('explorer'))->assertOk()->getContent();
+        // TASK-1788 correctif 07 — l'explorateur s'ouvre desormais sur les
+        // DEMANDES : ce test parle des annonces, il demande donc son onglet.
+        $page = $this->actingAs($this->participant())
+            ->get(route('explorer', ['tab' => 'services']))
+            ->assertOk()->getContent();
 
         $this->assertStringContainsString('data-entraide-atelier-carte', $page);
         $this->assertStringContainsString('atelier · 15 min / pers.', $page);

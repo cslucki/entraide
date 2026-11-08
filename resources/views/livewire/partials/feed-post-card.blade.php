@@ -3,7 +3,12 @@
     $reactionCounts = $post->reactions->groupBy('reaction_type')->map->count();
     $totalReactions = $reactionCounts->sum();
     $commentCount = $post->comments->count();
-    $lastComment = $post->comments->first();
+    // TASK-1788 correctif 09 — l'apercu « dernier commentaire » a disparu, et
+    // la variable avec. Meme retrait que sur la fiche d'article de blog : le
+    // fil entier s'ouvre au clic sur l'icone, un extrait au-dessus ne faisait
+    // que le repeter — c'est ce qui donnait l'impression de voir son propre
+    // commentaire DEUX FOIS apres l'avoir poste. `$commentCount` sert encore
+    // au compteur de la barre.
     $preview = $post->url_preview;
     $authorName = $post->user?->publicDisplayName() ?? __('feed.member_fallback');
 
@@ -126,8 +131,15 @@
             </a>
         @endif
 
+        {{-- TASK-1788 correctif 09 — des cibles TACTILES, pas des liens de souris.
+
+             Les deux commandes faisaient une vingtaine de pixels de haut : au
+             doigt, sur une PWA, on les rate. `min-h-[44px]` est la cible que le
+             reste du produit respecte deja (etat vide des Boucles), et
+             `-my-2` reprend la hauteur ajoutee pour que la rangee ne grossisse
+             pas visuellement. --}}
         <div class="flex items-center gap-4 border-t border-gray-100 pt-3 text-sm dark:border-gray-800">
-            <button type="button" @click="showComments = !showComments" class="inline-flex items-center gap-1.5 text-gray-500 hover:text-indigo-600 transition dark:text-gray-400 dark:hover:text-indigo-400">
+            <button type="button" @click="showComments = !showComments" class="-my-2 inline-flex min-h-[44px] items-center gap-1.5 py-2 text-gray-500 hover:text-indigo-600 transition dark:text-gray-400 dark:hover:text-indigo-400">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                 @if($commentCount > 0)
                     <span>{{ $commentCount }}</span>
@@ -136,48 +148,148 @@
                 @endif
             </button>
 
-            <button type="button" @click="showReactions = !showReactions" class="inline-flex items-center gap-1.5 text-gray-500 hover:text-indigo-600 transition dark:text-gray-400 dark:hover:text-indigo-400">
-                <span class="text-base">👍</span>
+            {{-- TASK-1788 correctif 09 (point 9) — la commande montre MA
+                 reaction, pas un pouce generique.
+
+                 Facon Facebook : des que j'ai reagi, c'est mon emoji qui
+                 s'affiche et le libelle passe a l'accent — on voit d'un coup
+                 d'oeil qu'on a deja reagi, et avec quoi. Sans reaction de ma
+                 part, le pouce reste l'invitation.
+
+                 `$myReaction` est deja calcule en haut de cette carte, sur la
+                 collection `reactions` chargee avec l'annonce : aucune requete
+                 de plus. --}}
+            <button type="button" @click="showReactions = !showReactions"
+                    data-feed-reaction-trigger="{{ $myReaction ?? '' }}"
+                    class="-my-2 inline-flex min-h-[44px] items-center gap-1.5 py-2 transition {{ $myReaction
+                        ? 'font-semibold text-indigo-600 dark:text-indigo-400'
+                        : 'text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400' }}">
+                <span class="text-base">{{ $myReaction ? ($emojiMap[$myReaction] ?? '👍') : '👍' }}</span>
                 @if($totalReactions > 0)
                     <span>{{ $totalReactions }}</span>
                 @endif
             </button>
         </div>
 
-        @if($lastComment)
-            <div class="flex items-start gap-2 text-sm">
-                <span class="font-semibold text-gray-800 dark:text-gray-100 shrink-0">{{ $lastComment->user?->publicDisplayName() ?? __('feed.member_fallback') }}</span>
-                <p class="text-gray-600 dark:text-gray-300 line-clamp-2">{{ $lastComment->content }}</p>
-            </div>
-            @if($commentCount > 1)
-                <button type="button" @click="$dispatch('open-modal', 'comments-{{ $post->id }}')" class="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-                    {{ __('feed.view_comments', ['count' => $commentCount]) }}
-                </button>
-            @endif
-        @endif
+        {{-- TASK-1788 correctif 09 (point 4) — la disposition d'un fil de
+             commentaires, telle que tout le monde la connait.
 
+             Trois choses, demandees sur l'exemple de Facebook :
+
+             1. **un avatar a GAUCHE** de chaque commentaire — c'est le visage
+                qu'on cherche en parcourant, pas le nom ;
+             2. **la zone pour ecrire APRES les commentaires** — on lit, puis on
+                repond. Elle etait au-dessus : on ecrivait avant d'avoir lu ;
+             3. **l'ordre chronologique**. La relation `comments()` est
+                `latest()` — le plus recent d'abord, ce qui convenait quand la
+                carte n'en montrait qu'un. Avec le fil complet et le champ en
+                bas, il faut lire du plus ancien au plus recent, sinon la
+                reponse qu'on vient d'ecrire apparait tout en haut, loin du
+                champ. Le tri est fait A L'AFFICHAGE (`sortBy`), sur la
+                collection deja chargee : la relation n'est pas touchee, et les
+                autres surfaces qui s'en servent gardent leur ordre. C'est
+                d'ailleurs ce que faisait la fenetre qu'on vient de retirer. --}}
         <div x-show="showComments" x-cloak class="space-y-3">
-            <form wire:submit="addComment('{{ $post->id }}')" class="space-y-2">
-                <textarea wire:model="commentForms.{{ $post->id }}" rows="2" class="w-full rounded-2xl border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" placeholder="{{ __('feed.comment_placeholder') }}"></textarea>
-                @error('commentForms.'.$post->id) <p class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
-                <button type="submit" class="rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white">{{ __('feed.comment_submit') }}</button>
-            </form>
-
             @if($commentCount > 0)
-                <div class="space-y-2">
-                    @foreach($post->comments as $comment)
-                        <div class="rounded-2xl bg-gray-50 p-3 text-sm dark:bg-gray-800/60">
-                            <p class="font-semibold text-gray-800 dark:text-gray-100">{{ $comment->user?->publicDisplayName() ?? __('feed.member_fallback') }}</p>
-                            <p class="mt-0.5 whitespace-pre-line text-gray-600 dark:text-gray-300">{{ $comment->content }}</p>
+                <div class="space-y-3">
+                    @foreach($post->comments->sortBy('created_at') as $comment)
+                        {{-- TASK-1788 correctif 09 (points 5 et 6) — l'avatar
+                             MENE AU PROFIL, et il est mis en forme comme dans
+                             les ChatLoops.
+
+                             Le lien passe par `FeedEventRenderer::lienProfil()`,
+                             deja employe par la ligne d'evenement juste
+                             au-dessus : une seule autorite sur « ou mene le
+                             visage de quelqu'un ». Elle rend `null` pour une
+                             personne desactivee ou hors Organization — et dans
+                             ce cas la pastille reste une IMAGE. Meme discipline
+                             que la bulle de ChatLoop, dont le commentaire le
+                             dit : « un bouton qui n'ouvre rien est pire qu'une
+                             image, il promet un geste qui ne vient pas. »
+
+                             La mise en forme est celle de la gouttiere du
+                             ChatLoop : pastille ronde detachee, alignee en
+                             HAUT (en face du nom, jamais de la derniere ligne
+                             d'un long commentaire), et un anneau d'accent au
+                             survol et au focus clavier. --}}
+                        @php($_lienCommentateur = \App\Support\Feed\FeedEventRenderer::lienProfil($comment->user, currentOrganization()?->slug))
+                        <div class="flex items-start gap-2" data-feed-comment>
+                            @if($_lienCommentateur)
+                                <a href="{{ $_lienCommentateur }}"
+                                   data-feed-comment-avatar="{{ $comment->user?->id }}"
+                                   aria-label="{{ $comment->user?->publicDisplayName() ?? __('feed.member_fallback') }}"
+                                   class="mt-0.5 shrink-0 rounded-full ring-0 transition hover:ring-2 hover:ring-[var(--bp-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bp-accent)]">
+                                    <x-user-avatar :user="$comment->user" size="md" variant="solid" />
+                                </a>
+                            @else
+                                <x-user-avatar :user="$comment->user" size="md" variant="solid" class="mt-0.5 shrink-0" />
+                            @endif
+                            <div class="min-w-0 flex-1 rounded-2xl bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800/60">
+                                <p class="font-semibold text-gray-800 dark:text-gray-100">{{ $comment->user?->publicDisplayName() ?? __('feed.member_fallback') }}</p>
+                                <p class="mt-0.5 whitespace-pre-line break-words text-gray-600 dark:text-gray-300">{{ $comment->content }}</p>
+                            </div>
                         </div>
                     @endforeach
                 </div>
             @endif
+
+            {{-- Le champ, avec le visage de qui ecrit : la meme grammaire que
+                 les commentaires au-dessus, pour que la zone se lise comme la
+                 suite du fil et non comme un formulaire a part. --}}
+            <form wire:submit="addComment('{{ $post->id }}')" class="flex items-start gap-2" data-feed-comment-form>
+                {{-- Meme taille que les commentaires au-dessus : sans cela la
+                     gouttiere ne serait pas droite. Pas de lien ici — c'est son
+                     propre visage, et le champ n'est pas un fil. --}}
+                <x-user-avatar :user="auth()->user()" size="md" variant="solid" class="mt-0.5 shrink-0" />
+                <div class="min-w-0 flex-1 space-y-2">
+                    <textarea wire:model="commentForms.{{ $post->id }}" rows="2" class="w-full rounded-2xl border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" placeholder="{{ __('feed.comment_placeholder') }}"></textarea>
+                    @error('commentForms.'.$post->id) <p class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                    <button type="submit" class="inline-flex min-h-[44px] items-center rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white">{{ __('feed.comment_submit') }}</button>
+                </div>
+            </form>
         </div>
 
-        <div x-show="showReactions" x-cloak class="flex flex-wrap items-center gap-2">
+        {{-- TASK-1788 correctif 09 (point 7) — la palette se REFERME, et elle
+             tient moins de place.
+
+             Elle restait ouverte apres le choix : on avait reagi, et la rangee
+             de six pastilles continuait de pousser la carte vers le bas sans
+             plus rien proposer. `showReactions = false` la referme — pose a
+             cote du `wire:click`, les deux partent au meme clic.
+
+             La fermeture vaut aussi quand on RETIRE sa reaction : le geste est
+             fait dans les deux cas, et une palette qui ne se ferme que dans un
+             sens serait plus deroutante qu'utile.
+
+             36 px et non 44 : six pastilles a 44 px debordent sur deux rangees
+             sur un telephone, et c'est justement ce qu'on cherche a eviter ici.
+             36 px reste une cible franche — c'est celle des suggestions du
+             ChatLoop (`min-h-[36px]`). Les commandes PRINCIPALES de la carte,
+             elles, gardent leurs 44 px. --}}
+        <div x-show="showReactions" x-cloak class="flex flex-wrap items-center gap-1.5" data-feed-reactions>
             @foreach(array_slice($emojiMap, 0, 6, true) as $type => $emoji)
-                <button type="button" wire:click="toggleReaction('{{ $post->id }}', '{{ $type }}')" class="rounded-full border px-2.5 py-1 text-sm transition {{ $myReaction === $type ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200' : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800' }}" aria-label="{{ __('feed.react', ['type' => $type]) }}">
+                {{-- TASK-1788 correctif 09 (point 8) — UN seul gestionnaire, et il
+                     est ORDONNE.
+
+                     La premiere version posait `wire:click` ET `@click` sur le
+                     meme bouton : deux ecouteurs independants sur un meme clic,
+                     dont l'un cache l'element (`x-show`) pendant que l'autre
+                     doit encore composer sa requete. Changer de reaction ou
+                     annuler la sienne ne produisait plus rien a l'ecran.
+
+                     ⚠️ Le serveur, lui, etait JUSTE — mesure avant de toucher
+                     quoi que ce soit : meme type -> la ligne est supprimee ;
+                     type different -> elle est modifiee ; aucune -> elle est
+                     creee. Il ne fallait donc rien corriger de ce cote.
+
+                     `$wire.toggleReaction(...)` rend une promesse : la palette
+                     ne se referme qu'une fois la reaction ENREGISTREE. Si la
+                     requete echoue, elle reste ouverte — ce qui est la bonne
+                     reponse : le geste n'a pas eu lieu. --}}
+                <button type="button"
+                        data-feed-reaction="{{ $type }}"
+                        @click="$wire.toggleReaction('{{ $post->id }}', '{{ $type }}').then(() => showReactions = false)"
+                        class="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-full border px-2 py-1 text-sm transition {{ $myReaction === $type ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200' : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800' }}" aria-label="{{ __('feed.react', ['type' => $type]) }}">
                     <span>{{ $emoji }}</span>
                     @if(($reactionCounts[$type] ?? 0) > 0)
                         <span class="ml-1 text-xs text-gray-500 dark:text-gray-400">{{ $reactionCounts[$type] }}</span>
@@ -186,19 +298,5 @@
             @endforeach
         </div>
 
-        @if($commentCount > 1)
-            <x-modal name="comments-{{ $post->id }}" maxWidth="lg">
-                <div class="p-6 space-y-4">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ __('feed.comments_title', ['count' => $commentCount]) }}</h3>
-                    @foreach($post->comments->sortBy('created_at') as $comment)
-                        <div class="border-b border-gray-100 pb-3 last:border-0 dark:border-gray-700">
-                            <p class="font-semibold text-gray-800 dark:text-gray-100">{{ $comment->user?->publicDisplayName() ?? __('feed.member_fallback') }}</p>
-                            <p class="mt-1 whitespace-pre-line text-sm text-gray-600 dark:text-gray-300">{{ $comment->content }}</p>
-                            <p class="mt-0.5 text-xs text-gray-400">{{ $comment->created_at->isoFormat('lll') }}</p>
-                        </div>
-                    @endforeach
-                </div>
-            </x-modal>
-        @endif
     </div>
 </article>

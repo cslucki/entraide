@@ -137,8 +137,10 @@ return [
     'markdown_h2' => 'Titre 2',
     'markdown_h3' => 'Titre 3',
     'markdown_bullet_list' => 'Liste à puces',
+    'markdown_youtube' => 'Vidéo YouTube',
     'markdown_toolbar' => 'Barre d\'outils de formatage',
     'markdown_url_prompt' => 'URL',
+    'markdown_youtube_prompt' => 'URL de la vidéo YouTube',
 
     // Console RAG Organization (TASK-1217) — read-only
     'knowledge_console_intro' => "Ce que l'IA peut utiliser dans les Dossiers de votre organization. Cette page ne modifie rien et n'indexe rien.",
