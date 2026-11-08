@@ -637,6 +637,10 @@ return [
     'org_admin_loop_cover_remove' => 'Remove the current cover',
     'org_multilingual_label' => 'Multilingual site',
     'org_multilingual_hint' => 'Shows the FR/EN switcher on the homepage, in the left rail and in the mobile bar. When unchecked, the interface stays in the display language chosen below. The admin area keeps its own switcher.',
+    // TASK-1787 — distinct de `is_public` : une Organization peut rester
+    // visible et refuser les inscriptions. C'est le cas de `main`.
+    'org_registration_disabled' => 'Disable account creation',
+    'org_registration_disabled_hint' => 'This organization no longer appears in the sign-up picker and refuses any new registration, including by invitation. It stays visible and its members keep signing in normally.',
     'org_requires_account_approval' => 'Administrator must approve the account after email confirmation',
     'org_requires_account_approval_hint' => 'New sign-ups wait for your approval, even after confirming their address. Existing accounts are not affected.',
     'users_approve_account' => 'Approve account',

@@ -672,8 +672,18 @@ class TASK1786EntraideCommentsTest extends TestCase
         // Le gabarit nomme le commentateur ET l'annonce. Le repli ne fait ni
         // l'un ni l'autre : si l'une de ces deux assertions tombe, c'est que le
         // repli a parle.
-        $this->assertStringContainsString($this->commentateur->publicDisplayName(), $compose['body']);
-        $this->assertStringContainsString($this->proposition->title, $compose['body']);
+        //
+        // ⚠️ La forme ECHAPPEE, et c'est une correction. Le corps est du HTML —
+        // `EmailerService::interpolate()` passe chaque variable par `e()` —
+        // tandis que le nom et le titre viennent de `fake()`. Une apostrophe
+        // (« O'Connell ») devient `&#039;` et l'assertion tombait selon le
+        // tirage. C'est le MEME defaut que celui corrige dans
+        // `TASK1761NotificationDemandeAdhesionTest` : je l'avais ecrit deux fois.
+        //
+        // Les valeurs restent ALEATOIRES : les figer masquerait la classe de
+        // defaut au lieu de la corriger.
+        $this->assertStringContainsString(e($this->commentateur->publicDisplayName()), $compose['body']);
+        $this->assertStringContainsString(e($this->proposition->title), $compose['body']);
 
         // Et le type d'annonce est resolu, ce qui est ce qui permet a UN gabarit
         // de servir les deux.

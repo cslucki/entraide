@@ -21,6 +21,9 @@ class OrganizationFactory extends Factory
             'description' => fake()->sentence(),
             'is_active' => true,
             'is_public' => false,
+            // TASK-1787 — le defaut de la colonne, repris ici pour qu'un modele
+            // fabrique soit fidele a ce que la base ecrirait.
+            'registration_disabled' => false,
             'admin_id' => null,
             'hero_image' => null,
             'hero_title' => null,

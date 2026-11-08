@@ -98,6 +98,8 @@ class OrganizationInvitationController extends Controller
             OrganizationInvitationService::RESULT_EXPIRED => __('organization_invitations.flash_expired'),
             OrganizationInvitationService::RESULT_REVOKED => __('organization_invitations.flash_revoked'),
             OrganizationInvitationService::RESULT_SANDBOX_FORBIDDEN => __('organization_invitations.flash_sandbox_forbidden'),
+            // TASK-1787 — message DISTINCT : « monde de demonstration » serait faux ici.
+            OrganizationInvitationService::RESULT_REGISTRATION_CLOSED => __('organization_invitations.flash_registration_closed'),
             // TASK-1732 (A6) — message GENERIQUE, et c'est l'arbitrage MASTER B.
             // Le refus ne dit pas pourquoi : dire « un compte sans Organization
             // porte cette adresse » renseignerait un visiteur non authentifie

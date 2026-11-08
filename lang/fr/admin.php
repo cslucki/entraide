@@ -638,6 +638,10 @@ return [
     'org_admin_loop_cover_remove' => 'Supprimer la couverture actuelle',
     'org_multilingual_label' => 'Site multilingue',
     'org_multilingual_hint' => "Affiche le sélecteur FR/EN sur la page d'accueil, dans le rail de gauche et dans la barre mobile. Décoché, l'interface reste dans la langue d'affichage choisie ci-dessous. L'administration garde son sélecteur.",
+    // TASK-1787 — distinct de `is_public` : une Organization peut rester
+    // visible et refuser les inscriptions. C'est le cas de `main`.
+    'org_registration_disabled' => 'Interdire la création de compte',
+    'org_registration_disabled_hint' => 'Cette organisation n\'apparaît plus dans le choix d\'inscription et refuse toute nouvelle inscription, y compris par invitation. Elle reste visible et ses membres continuent de se connecter normalement.',
     'org_requires_account_approval' => 'L\'administrateur doit valider le compte après confirmation email',
     'org_requires_account_approval_hint' => 'Les nouvelles inscriptions attendent votre validation, même après confirmation de leur adresse. Les comptes existants ne sont pas affectés.',
     'users_approve_account' => 'Valider compte',

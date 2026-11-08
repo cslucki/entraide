@@ -155,4 +155,13 @@ return [
     'login_organization_nav_placeholder' => 'Join your organisation',
     'login_organization_nav_hint' => 'Pick the organisation your account belongs to.',
     'login_organization_nav_first' => 'Pick your organisation first — the fields below will then unlock.',
+
+    // TASK-1787 — le refus nomme l'Organization : la personne est arrivee
+    // la deliberement, le plus souvent par un lien, et un refus anonyme
+    // l'empecherait de comprendre ce qui lui arrive.
+    'registration_closed_for' => 'Registrations are closed on :organization.',
+    'registration_closed_login_hint' => 'Already have an account here? Sign in.',
+    'registration_closed_title' => 'Registrations are closed',
+    'registration_closed_elsewhere' => 'You can however create an account on:',
+    'registration_closed_everywhere' => 'No organization is accepting new registrations at the moment.',
 ];
