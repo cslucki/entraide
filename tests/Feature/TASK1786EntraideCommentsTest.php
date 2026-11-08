@@ -752,6 +752,46 @@ class TASK1786EntraideCommentsTest extends TestCase
         $this->assertSame(EntraideComments::ECRITURES_PAR_MINUTE, EntraideComment::count());
     }
 
+    // --------------------------------------- la garde que la recette a exigee
+
+    /**
+     * **Aucun commentaire Blade ne fuit dans la page rendue.**
+     *
+     * Ce test existe parce que le defaut est arrive : le commentaire
+     * `{{-- TASK-1786 … --}}` pose au-dessus du composant s'affichait EN CLAIR
+     * sur les deux fiches, et Cyril l'a vu a l'ecran.
+     *
+     * La cause etait une fermeture tronquee — `--}` au lieu de `--}}`, une
+     * accolade mangee par le script qui a ecrit le bloc. Sans terminateur, Blade
+     * ne reconnait aucun commentaire et rend la totalite du texte.
+     *
+     * Et RIEN ne l'a attrape : les 37 tests passaient, parce qu'aucun n'affirmait
+     * l'ABSENCE de ce texte. Un `assertSee()` ne dit jamais ce qui est en trop.
+     *
+     * La mesure porte sur les deux fiches, et sur deux motifs : le marqueur de
+     * commentaire lui-meme, et le nom de la TASK — un commentaire qui fuit porte
+     * presque toujours l'un ou l'autre.
+     */
+    public function test_aucun_commentaire_Blade_ne_fuit_dans_les_deux_fiches(): void
+    {
+        $pages = [
+            route('services.show', $this->proposition),
+            route('requests.show', $this->demande),
+        ];
+
+        foreach ($pages as $url) {
+            $html = $this->actingAs($this->auteur)->get($url)->assertOk()->getContent();
+
+            $this->assertStringNotContainsString('{{--', $html, "Un commentaire Blade fuit sur [{$url}].");
+            $this->assertStringNotContainsString('--}}', $html, "Une fermeture de commentaire Blade fuit sur [{$url}].");
+            $this->assertStringNotContainsString('TASK-1786', $html, "Le nom de la TASK fuit sur [{$url}].");
+
+            // TEMOIN : la page a bien ete rendue, et porte la section. Sans lui,
+            // une page vide ou en erreur passerait les trois assertions ci-dessus.
+            $this->assertStringContainsString('data-entraide-comments', $html);
+        }
+    }
+
     // ------------------------- purge sur suppression DEFINITIVE (arbitrage MASTER)
 
     /**

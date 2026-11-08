@@ -34,8 +34,11 @@
        data-entraide-comment-confirmation>
         {{ $confirmation }}
         @if($dernierPublie !== null)
+        {{-- Une cle DEDIEE, et non le titre de section : « Votre commentaire est
+             publie. Commentaires et suggestions » se lisait mal — un libelle de
+             lien doit dire ou il mene. Defaut vu a l'ecran. --}}
         <a href="#commentaire-{{ $dernierPublie }}" class="underline hover:no-underline" data-entraide-comment-goto="{{ $dernierPublie }}">
-            {{ __('entraide.commentaires.titre') }}
+            {{ __('entraide.commentaires.voir_mon_commentaire') }}
         </a>
         @endif
     </p>

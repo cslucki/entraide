@@ -81,6 +81,7 @@ return [
         'total' => '{0}no comments|{1}1 comment|[2,*]:count comments',
         'vide' => 'No comments yet. Be the first to help.',
         'publie' => 'Your comment has been posted.',
+        'voir_mon_commentaire' => 'View my comment',
         'supprimer' => 'Delete',
         'confirmer_suppression' => 'Delete this comment?',
         'fermee_proposition' => 'This offer is no longer active: comments remain readable.',

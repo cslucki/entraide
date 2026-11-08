@@ -234,7 +234,7 @@
              seconde politique n'est ecrite ici — il n'y en a pas besoin.
 
              Le composant refait neanmoins les memes gardes sur CHAQUE geste :
-             une requete Livewire ne traverse pas ce controleur. --}
+             une requete Livewire ne traverse pas ce controleur. --}}
         @livewire('entraide-comments', ['annonce' => $request])
 
     </x-page-container>

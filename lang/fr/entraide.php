@@ -94,6 +94,7 @@ return [
         'total' => '{0}aucun commentaire|{1}1 commentaire|[2,*]:count commentaires',
         'vide' => 'Aucun commentaire pour l’instant. Soyez la première personne à aider.',
         'publie' => 'Votre commentaire est publié.',
+        'voir_mon_commentaire' => 'Voir mon commentaire',
         'supprimer' => 'Supprimer',
         'confirmer_suppression' => 'Supprimer ce commentaire ?',
 
