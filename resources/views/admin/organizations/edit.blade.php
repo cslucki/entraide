@@ -325,6 +325,29 @@
                     </label>
                 </div>
 
+                {{-- TASK-1787 — place JUSTE SOUS « Visible sans connexion », et
+                     c'est deliberé : les deux reglages se confondent facilement,
+                     et les voir cote a cote est ce qui montre qu'ils sont
+                     distincts. Une Organization peut rester visible et refuser
+                     les inscriptions — c'est precisement le cas de `main`.
+
+                     Champ cache `value="0"` avant la case : une case decochee
+                     n'envoie RIEN, et la colonne est NOT NULL. Meme forme que
+                     `requires_account_approval` juste en dessous. --}}
+                <div>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="hidden" name="registration_disabled" value="0">
+                        <input type="checkbox" name="registration_disabled" value="1"
+                            data-marqueur="reglage-inscriptions-fermees"
+                            {{ old('registration_disabled', $organization->registration_disabled) ? 'checked' : '' }}
+                            class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.org_registration_disabled') }}</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.org_registration_disabled_hint') }}</p>
+                        </div>
+                    </label>
+                </div>
+
                 {{-- TASK-1714 volet 2 — dans « Configuration », juste apres
                      « Visible sans connexion ».
 

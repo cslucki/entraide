@@ -49,6 +49,9 @@ class AdminOrganizationController extends Controller
             'accent_color' => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
             'welcome_points' => 'required|integer|min:0|max:10000',
             'is_public' => 'nullable|boolean',
+            // TASK-1787 — INDEPENDANT de `is_public` : une Organization peut
+            // rester publique (vitrine, connexion) et refuser les inscriptions.
+            'registration_disabled' => 'nullable|boolean',
             'is_default' => 'nullable|boolean',
             'blog_naming' => 'nullable|in:b2b,b2c',
             'transactions_naming' => 'nullable|in:b2b,b2c',
@@ -242,6 +245,10 @@ class AdminOrganizationController extends Controller
         // `value="0"`, et une absence totale doit valoir `false`, jamais `null`
         // — la colonne est NOT NULL.
         $data['requires_account_approval'] = ($data['requires_account_approval'] ?? '0') === '1';
+
+        // TASK-1787 — meme normalisation, meme raison : la colonne est NOT NULL,
+        // et une case decochee n'envoie que le champ cache `value="0"`.
+        $data['registration_disabled'] = ($data['registration_disabled'] ?? '0') === '1';
 
         if ($data['is_default']) {
             Organization::where('is_default', true)

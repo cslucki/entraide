@@ -169,4 +169,10 @@ return [
     'login_organization_nav_placeholder' => 'Rejoignez votre organisation',
     'login_organization_nav_hint' => 'Choisissez l\'organisation à laquelle votre compte appartient.',
     'login_organization_nav_first' => 'Choisissez d\'abord votre organisation : les champs ci-dessous s\'activeront ensuite.',
+
+    // TASK-1787 — le refus nomme l'Organization : la personne est arrivee
+    // la deliberement, le plus souvent par un lien, et un refus anonyme
+    // l'empecherait de comprendre ce qui lui arrive.
+    'registration_closed_for' => 'Les inscriptions sont fermées sur :organization.',
+    'registration_closed_login_hint' => 'Vous avez déjà un compte ici ? Connectez-vous.',
 ];
