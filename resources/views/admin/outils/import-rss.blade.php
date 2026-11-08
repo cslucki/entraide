@@ -1,4 +1,6 @@
 {{-- TASK-1785 — l'ecran d'import RSS.
+     TASK-1789 — fondation durable sous cet ecran, UI inchangee par decision
+     MASTER (« pas de refonte UI prematuree »).
 
      Sobre et sans nouveau framework, comme demande : Tailwind et Alpine, tous
      deux deja en place. Le seul comportement scripte est le selecteur de
@@ -9,7 +11,11 @@
      La liste des Boucles est demandee au serveur a ce moment-la, et n'est
      jamais envoyee d'avance : expedier toutes les Boucles de toutes les
      Organizations au navigateur serait une fuite inter-tenant, meme masquee a
-     l'ecran. La validation refait de toute facon le controle cote serveur. --}}
+     l'ecran. La validation refait de toute facon le controle cote serveur.
+
+     `$articles` est desormais une collection de `RssSourceArticle` (TASK-1789),
+     plus un tableau de session : attribut `->` partout, et chaque case a
+     cocher porte l'id persistant de la ligne, jamais un index. --}}
 <x-admin-layout :title="__('admin.import_rss.title')">
     <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('admin.import_rss.subtitle') }}</p>
@@ -67,11 +73,19 @@
                         @foreach($resultat[$categorie] as $ligne)
                             <li class="flex flex-wrap items-center gap-2 text-gray-700 dark:text-gray-300">
                                 <span class="truncate">{{ $ligne['titre'] }}</span>
-                                {{-- « Modifier » dans le SuperAdmin : la seule
-                                     destination toujours valable, un brouillon
-                                     n'ayant pas d'URL publique. --}}
-                                <a href="{{ route('admin.blog.edit', ['post' => $ligne['id']]) }}"
-                                   class="text-indigo-600 underline hover:no-underline dark:text-indigo-400">{{ __('admin.import_rss.modifier') }}</a>
+                                @if($ligne['supprime'] ?? false)
+                                    {{-- TASK-1789 — l'original a ete supprime
+                                         (soft delete) : pas de lien « Modifier »,
+                                         la route `admin.blog.edit` n'est pas
+                                         `withTrashed()` et rendrait un 404. --}}
+                                    <span class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('admin.import_rss.supprime') }}</span>
+                                @else
+                                    {{-- « Modifier » dans le SuperAdmin : la seule
+                                         destination toujours valable, un brouillon
+                                         n'ayant pas d'URL publique. --}}
+                                    <a href="{{ route('admin.blog.edit', ['post' => $ligne['id']]) }}"
+                                       class="text-indigo-600 underline hover:no-underline dark:text-indigo-400">{{ __('admin.import_rss.modifier') }}</a>
+                                @endif
                             </li>
                         @endforeach
                     </ul>
@@ -104,7 +118,8 @@
                    value="{{ old('url', $url) }}"
                    placeholder="https://exemple.com/feed/"
                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
-            {{-- Les URL deja consultees, memorisees pour cette session. --}}
+            {{-- Les URL deja connues, lues depuis `rss_sources` (TASK-1789) —
+                 partagees entre admins, et plus seulement cette session. --}}
             <datalist id="flux-connus">
                 @foreach($historique as $connu)
                     <option value="{{ $connu }}"></option>
@@ -112,13 +127,13 @@
             </datalist>
             <button type="submit"
                     class="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">
-                {{ $articles === [] ? __('admin.import_rss.charger') : __('admin.import_rss.rafraichir') }}
+                {{ $articles->isEmpty() ? __('admin.import_rss.charger') : __('admin.import_rss.rafraichir') }}
             </button>
         </div>
         @error('url')<p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
     </form>
 
-    @if($articles !== [])
+    @if($articles->isNotEmpty())
         {{-- 2. Prévisualisation, sélection, destination, import. --}}
         <form method="POST" action="{{ route('admin.outils.import-rss.importer') }}"
               x-init="$watch('org', () => chargerBoucles())"
@@ -132,6 +147,11 @@
                         } }"
               class="space-y-4">
             @csrf
+            {{-- TASK-1789 — les articles sont desormais des lignes persistees,
+                 identifiees par id ; la source courante doit etre nommee
+                 explicitement pour que le serveur reverifie l'appartenance de
+                 la selection (jamais supposee depuis le formulaire). --}}
+            <input type="hidden" name="rss_source_id" value="{{ $rssSourceId }}">
 
             <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
                 <div class="grid gap-4 sm:grid-cols-2">
@@ -206,21 +226,24 @@
                 </div>
 
                 <ul class="divide-y divide-gray-200 dark:divide-gray-700">
-                    @foreach($articles as $index => $article)
+                    @foreach($articles as $article)
                         <li class="flex gap-3 px-4 py-3">
-                            <input type="checkbox" name="selection[]" value="{{ $index }}"
+                            {{-- TASK-1789 — id persistant de `RssSourceArticle`,
+                                 jamais un index de tableau : la ligne survit a
+                                 un rafraichissement. --}}
+                            <input type="checkbox" name="selection[]" value="{{ $article->id }}"
                                    class="mt-1 shrink-0 rounded border-gray-300 text-indigo-600">
                             <div class="min-w-0 flex-1">
-                                <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $article['titre'] }}</p>
+                                <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $article->titre }}</p>
                                 <p class="mt-0.5 flex flex-wrap gap-x-3 text-xs text-gray-500 dark:text-gray-400">
-                                    @if($article['publie_le'])<span>{{ $article['publie_le'] }}</span>@endif
+                                    @if($article->source_published_at)<span>{{ $article->source_published_at->format('d/m/Y') }}</span>@endif
                                     {{-- « auteur si disponible » : rien ne
                                          s'affiche quand le flux n'en donne pas,
                                          et rien n'est invente. --}}
-                                    @if($article['auteur'])<span>{{ $article['auteur'] }}</span>@endif
-                                    @if(! $article['contenu_html'])<span class="text-amber-600 dark:text-amber-400">{{ __('admin.import_rss.sans_contenu') }}</span>@endif
+                                    @if($article->auteur)<span>{{ $article->auteur }}</span>@endif
+                                    @if(! $article->contenu_html)<span class="text-amber-600 dark:text-amber-400">{{ __('admin.import_rss.sans_contenu') }}</span>@endif
                                 </p>
-                                @if($article['resume'])
+                                @if($article->resume)
                                     {{-- Les entites HTML sont DECODEES avant
                                          l'affichage. Mesure en recette du
                                          08/11 : un flux WordPress sert
@@ -229,11 +252,11 @@
                                          touche pas aux entites. Blade echappe
                                          ensuite, et le lecteur voyait
                                          « l&#8217;Etat » en clair. --}}
-                                    <p class="mt-1 line-clamp-2 text-xs text-gray-600 dark:text-gray-400">{{ Str::limit(html_entity_decode(strip_tags($article['resume']), ENT_QUOTES | ENT_HTML5, 'UTF-8'), 200) }}</p>
+                                    <p class="mt-1 line-clamp-2 text-xs text-gray-600 dark:text-gray-400">{{ Str::limit(html_entity_decode(strip_tags($article->resume), ENT_QUOTES | ENT_HTML5, 'UTF-8'), 200) }}</p>
                                 @endif
-                                @if($article['url'])
-                                    <a href="{{ $article['url'] }}" target="_blank" rel="nofollow noopener"
-                                       class="mt-1 inline-block truncate text-xs text-indigo-600 underline hover:no-underline dark:text-indigo-400">{{ $article['url'] }}</a>
+                                @if($article->url)
+                                    <a href="{{ $article->url }}" target="_blank" rel="nofollow noopener"
+                                       class="mt-1 inline-block truncate text-xs text-indigo-600 underline hover:no-underline dark:text-indigo-400">{{ $article->url }}</a>
                                 @endif
                             </div>
                         </li>

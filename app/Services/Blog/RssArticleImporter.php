@@ -50,6 +50,24 @@ use Illuminate\Support\Str;
  * rafraichissement. Et l'attribution est posee dans le contenu lui-meme —
  * lien visible vers la source — parce qu'un champ de provenance en base ne se
  * voit pas du lecteur.
+ *
+ * ## L'angle mort soft-delete (TASK-1789)
+ *
+ * `dejaImporte()` interroge desormais AVEC `withTrashed()`. Sans cela, un
+ * article importe puis supprime devenait invisible a cette lecture — alors
+ * que l'index unique `(organization_id, source_guid)`, lui, N'EST PAS partiel
+ * et refuse quand meme la reinsertion. Le code tombait alors dans le
+ * `catch (QueryException)` de `importer()`, dont la seconde verification
+ * EXCLUAIT elle aussi les lignes supprimees : le resultat rendu etait
+ * `erreurs: echec_enregistrement`, un message faux qui ne dit rien de ce qui
+ * s'est reellement passe.
+ *
+ * Decision MASTER (precheck TASK-1789), explicite : corriger la LECTURE, pas
+ * l'index. Un article supprime reste donc bloquant pour une reimportation —
+ * ce comportement ne change pas — mais il est desormais rapporte comme ce
+ * qu'il est : un doublon dont l'original a ete supprime (`supprime: true`
+ * dans le resultat), jamais comme un echec d'enregistrement. Aucune
+ * recreation automatique, aucune restauration : hors perimetre de cette TASK.
  */
 class RssArticleImporter
 {
@@ -59,7 +77,7 @@ class RssArticleImporter
 
     /**
      * @param  list<array{identite: string, guid: string|null, url: string|null, titre: string, auteur: string|null, resume: string|null, contenu_html: string|null, publie_le: string|null}>  $articles
-     * @return array{crees: list<array{titre: string, id: string}>, doublons: list<array{titre: string, id: string}>, erreurs: list<array{titre: string, raison: string}>}
+     * @return array{crees: list<array{titre: string, id: string}>, doublons: list<array{titre: string, id: string, supprime: bool}>, erreurs: list<array{titre: string, raison: string}>}
      */
     public function importer(
         array $articles,
@@ -77,7 +95,7 @@ class RssArticleImporter
 
             if ($existant !== null) {
                 // Rendu TEL QUEL : aucune mise a jour de l'editorial.
-                $resultat['doublons'][] = ['titre' => $existant->title, 'id' => (string) $existant->id];
+                $resultat['doublons'][] = $this->ligneDoublon($existant);
 
                 continue;
             }
@@ -86,12 +104,13 @@ class RssArticleImporter
                 $article = $this->creer($entree, $organization, $auteur, $publier);
             } catch (QueryException $e) {
                 // L'index unique a parle : une autre requete vient de creer le
-                // meme article. Ce n'est pas une erreur, c'est l'anti-doublon
+                // meme article (ou en porte deja un, supprime depuis — voir
+                // `dejaImporte()`). Ce n'est pas une erreur, c'est l'anti-doublon
                 // qui fonctionne — y compris sur un double clic.
                 $concurrent = $this->dejaImporte($entree['identite'], $organization);
 
                 if ($concurrent !== null) {
-                    $resultat['doublons'][] = ['titre' => $concurrent->title, 'id' => (string) $concurrent->id];
+                    $resultat['doublons'][] = $this->ligneDoublon($concurrent);
 
                     continue;
                 }
@@ -114,11 +133,25 @@ class RssArticleImporter
     }
 
     /**
+     * @return array{titre: string, id: string, supprime: bool}
+     */
+    private function ligneDoublon(BlogPost $post): array
+    {
+        return [
+            'titre' => $post->title,
+            'id' => (string) $post->id,
+            // `trashed()` fonctionne ici parce que `dejaImporte()` a lu AVEC
+            // `withTrashed()` : un article ordinaire rend toujours `false`.
+            'supprime' => $post->trashed(),
+        ];
+    }
+
+    /**
      * @param  array{identite: string, guid: string|null, url: string|null, titre: string, auteur: string|null, resume: string|null, contenu_html: string|null, publie_le: string|null}  $entree
      */
     private function creer(array $entree, Organization $organization, User $auteur, bool $publier): BlogPost
     {
-        $publieLe = $this->date($entree['publie_le']);
+        $publieLe = self::dateSource($entree['publie_le']);
 
         return BlogPost::create([
             'user_id' => $auteur->id,
@@ -195,10 +228,18 @@ class RssArticleImporter
         return '<hr><p><em>'.$source.' <a href="'.$url.'" rel="nofollow noopener" target="_blank">'.$url.'</a></em></p>';
     }
 
+    /**
+     * `withTrashed()` est INDISPENSABLE (TASK-1789) : l'index unique
+     * `(organization_id, source_guid)` n'est pas partiel et bloque une
+     * reinsertion meme quand la ligne existante est supprimee. Lire sans
+     * `withTrashed()` rendait cette lecture aveugle a exactement le cas que
+     * l'index refuse — d'ou le faux `echec_enregistrement` corrige ici.
+     */
     private function dejaImporte(string $identite, Organization $organization): ?BlogPost
     {
         return BlogPost::query()
             ->withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->withTrashed()
             ->where('organization_id', $organization->id)
             ->where('source_guid', $identite)
             ->first();
@@ -251,7 +292,13 @@ class RssArticleImporter
             : null;
     }
 
-    private function date(?string $brut): ?string
+    /**
+     * Public et statique (TASK-1789) : `AdminRssImportController::charger()`
+     * en a desormais besoin pour mettre en cache `RssSourceArticle.source_published_at`
+     * au MEME format — une seule fabrique, jamais deux implementations qui
+     * pourraient diverger.
+     */
+    public static function dateSource(?string $brut): ?string
     {
         if ($brut === null || trim($brut) === '') {
             return null;

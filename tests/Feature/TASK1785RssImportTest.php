@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\BlogPost;
 use App\Models\Loop;
 use App\Models\Organization;
+use App\Models\RssSource;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\User;
 use App\Services\Blog\RssArticleImporter;
@@ -541,9 +542,22 @@ class TASK1785RssImportTest extends TestCase
         ]);
         $charge->assertSessionHas('rss_charge', 3);
 
+        // TASK-1789 — la selection se fait desormais par id persistant de
+        // `RssSourceArticle`, jamais par index de tableau. On retrouve les
+        // deux premiers articles du flux par leur IDENTITE (source_identity),
+        // jamais par `orderBy('created_at')` : deux lignes inserees dans la
+        // meme requete ont le meme horodatage a la seconde, et cet ordre ne
+        // serait pas deterministe (piege deja releve dans ce depot).
+        $source = RssSource::where('url', 'https://cpformation.test/feed/')->firstOrFail();
+        $articlesDuFlux = app(RssFeedReader::class)->lire($this->flux());
+        $selection = $source->articles()
+            ->whereIn('source_identity', [$articlesDuFlux[0]['identite'], $articlesDuFlux[1]['identite']])
+            ->pluck('id');
+
         $import = $this->actingAs($admin)->post(route('admin.outils.import-rss.importer'), [
+            'rss_source_id' => $source->id,
             'organization_id' => $org->id,
-            'selection' => [0, 1],
+            'selection' => $selection->all(),
         ]);
 
         $import->assertSessionHas('rss_resultat');

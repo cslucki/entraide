@@ -2178,6 +2178,10 @@ return [
         'crees' => 'Created articles',
         'doublons' => 'Already imported, skipped',
         'modifier' => 'Edit',
+        // TASK-1789 — a duplicate whose original article was deleted (soft
+        // delete): the unique index still forbids re-import, but the "Edit"
+        // link would be invalid (route not `withTrashed()`).
+        'supprime' => 'deleted',
         'erreurs_titre' => 'Errors',
         'erreurs' => [
             'url_malformee' => 'The feed address is malformed.',
