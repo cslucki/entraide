@@ -106,7 +106,6 @@ class ProfileController extends Controller
             ->with('reviewer')
             ->latest('created_at')
             ->get();
-        $badges = $user->badges()->get();
         $blogPosts = BlogPost::where('user_id', $user->id)
             ->where('organization_id', $organization->id)
             ->where('status', 'published')
@@ -184,7 +183,7 @@ class ProfileController extends Controller
         $bilan = BilanEntraide::pour($user, $organization);
         $mercis = BilanEntraide::mercis($user, $organization);
 
-        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'blogPosts', 'boucles', 'commentaires', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd', 'memberAiProfile', 'bilan', 'mercis'));
+        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'blogPosts', 'boucles', 'commentaires', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd', 'memberAiProfile', 'bilan', 'mercis'));
     }
 
     public function aiAgentChat(User $user): View

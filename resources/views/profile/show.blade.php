@@ -58,8 +58,14 @@
     </div>
 
     <x-page-container>
+        {{-- TASK-1788 correctif 04 — `data-profile-entete` delimite l'en-tete.
+
+             Sans lui, aucun test ne pourrait dire « ce marqueur n'est PLUS dans
+             l'en-tete » : il le trouverait ailleurs dans la page et conclurait a
+             tort. Un marqueur de frontiere, pas de decoration. --}}
         <!-- Profile Header -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-7 mb-5 relative">
+        <div data-profile-entete
+             class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-7 mb-5 relative">
             @if(auth()->check() && auth()->id() === $user->id)
             <div class="absolute top-4 right-4 z-10">
                 <a href="{{ $urlOrg('profile.edit') }}" data-profile-edit
@@ -162,80 +168,27 @@
                        data-profile-slogan>{{ $user->slogan }}</p>
                     @endif
 
-                    <!-- Stats chips -->
+                    {{-- TASK-1788 correctif 04 — l'en-tete ne porte plus que
+                         l'IDENTITE.
+
+                         Les pastilles de note, d'echanges et de temps, le bilan
+                         d'entraide, les remerciements et les badges sont partis
+                         dans la colonne de droite (`partials/apercu-public`) :
+                         ils noyaient ce qu'on vient chercher en premier sur une
+                         fiche — qui est cette personne.
+
+                         La LOCALISATION reste, elle : elle dit ou se trouve la
+                         personne, pas ce qu'elle a accompli. Elle etait melee aux
+                         compteurs dans la meme rangee ; elle a desormais la
+                         sienne. --}}
+                    @if($user->public_location)
                     <div class="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
-                        @if($user->rating)
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 rounded-lg text-xs font-medium">
-                            ⭐ {{ number_format($user->rating, 1) }}
-                        </span>
-                        @endif
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 rounded-lg text-xs font-medium">
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            {{ trans_choice('profile.exchanges', $completedCount, ['count' => $completedCount]) }}
-                        </span>
-                        {{-- TASK-1755 §9.6 — le TEMPS disponible, pas un solde
-                             comptable. Meme donnee, lecture d'entraide
-                             (arbitrage Q8 : double affichage). --}}
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-lg text-xs font-medium"
-                              data-entraide-temps>
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            {{ \App\Support\Entraide\TempsPartage::solde($user->points_balance) }}
-                        </span>
-                        @if($user->public_location)
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 rounded-lg text-xs font-medium">
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 rounded-lg text-xs font-medium"
+                              data-profile-localisation>
                             📍 {{ $user->public_location }}
                         </span>
-                        @endif
                     </div>
-
-                    {{-- TASK-1755 §9.6 (maquette M4 droite) — LE BILAN D'ENTRAIDE.
-
-                         Le profil disait un solde. C'est un chiffre de
-                         portefeuille : il ne raconte rien de ce que la personne
-                         a fait pour les autres. Trois nombres le remplacent, et
-                         les MOTS de remerciement les accompagnent — un compteur
-                         seul ne rend pas la gratitude.
-
-                         Rien ne s'affiche quand le bilan est vide : « 0 personne
-                         · 0 fois · 0 min » est un reproche, pas un bilan. --}}
-                    @unless(\App\Support\Entraide\BilanEntraide::estVide($bilan))
-                    <div class="mt-4" data-entraide-bilan>
-                        <div class="grid grid-cols-3 gap-2 text-center">
-                            @foreach([
-                                ['valeur' => $bilan['personnes_aidees'], 'cle' => 'personnes_aidees', 'marqueur' => 'personnes'],
-                                ['valeur' => $bilan['fois_aide'], 'cle' => 'fois_aide', 'marqueur' => 'fois'],
-                            ] as $_chiffre)
-                                <div class="rounded-xl border border-gray-200 bg-white px-2 py-3 dark:border-gray-700 dark:bg-gray-800">
-                                    <p class="text-xl font-bold text-indigo-600 dark:text-indigo-400 tabular-nums"
-                                       data-entraide-bilan-{{ $_chiffre['marqueur'] }}>{{ $_chiffre['valeur'] }}</p>
-                                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ trans_choice('profile.bilan.'.$_chiffre['cle'], $_chiffre['valeur']) }}</p>
-                                </div>
-                            @endforeach
-                            <div class="rounded-xl border border-gray-200 bg-white px-2 py-3 dark:border-gray-700 dark:bg-gray-800">
-                                <p class="text-xl font-bold text-indigo-600 dark:text-indigo-400 tabular-nums" data-entraide-bilan-temps>
-                                    {{ \App\Support\Entraide\BilanEntraide::tempsOffert($bilan['temps_offert']) }}
-                                </p>
-                                <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('profile.bilan.temps_offert') }}</p>
-                            </div>
-                        </div>
-
-                        @if($bilan['mercis'] > 0)
-                        <div class="mt-3">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400" data-entraide-bilan-mercis>
-                                🙏 {{ trans_choice('profile.bilan.mercis', $bilan['mercis']) }}
-                            </p>
-                            <div class="mt-2 space-y-2">
-                                @foreach($mercis as $_merci)
-                                    <blockquote class="border-s-2 border-amber-400 ps-2.5 text-xs italic text-gray-600 dark:text-gray-300">
-                                        « {{ $_merci->comment }} »
-                                        <span class="not-italic text-gray-400">— {{ $_merci->reviewer?->first_name ?: ($_merci->reviewer?->name ?: __('profile.deactivated_user')) }}</span>
-                                    </blockquote>
-                                @endforeach
-                            </div>
-                        </div>
-                        @endif
-                    </div>
-                    @endunless
+                    @endif
 
                     {{-- TASK-1750 — les liens declares s'ajoutent a la rangee
                          existante. La condition les prend en compte, sinon la
@@ -282,22 +235,6 @@
                             <span class="sr-only">{{ \App\Support\ProfileLinks::libelle($_lien['type']) }} —</span>
                             {{ \App\Support\ProfileLinks::hote($_lien['url']) }}
                         </a>
-                        @endforeach
-                    </div>
-                    @endif
-
-                    <!-- Badges -->
-                    @if($badges->isNotEmpty())
-                    <div class="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
-                        @foreach($badges as $badge)
-                        {{-- TASK-1757 — `libelle()` et non `name` : le libelle en base
-                             porte encore l'ancien vocabulaire (« Prestataire ») et
-                             n'est traduit dans aucune langue. Voir `Badge::libelle()`. --}}
-                        <span title="{{ $badge->explication() }}" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-white cursor-default"
-                              style="background-color: {{ $badge->color }}"
-                              data-badge="{{ $badge->key }}">
-                            {{ $badge->icon }} {{ $badge->libelle() }}
-                        </span>
                         @endforeach
                     </div>
                     @endif
@@ -460,35 +397,6 @@
                 </section>
                 @endif
 
-                <!-- Blog posts -->
-                @if($blogPosts->isNotEmpty())
-                {{-- `id` : cible de l'ancre posee par l'annuaire (T1697 correctif 15). --}}
-                <section id="articles">
-                    <div class="flex items-center justify-between mb-3">
-                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.blog_section') }}</h2>
-                        <span class="text-xs text-gray-400">{{ trans_choice('profile.blog_count', $blogPosts->count(), ['count' => $blogPosts->count()]) }}</span>
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        @foreach($blogPosts as $post)
-                        <a href="{{ $urlOrg('blog.show', ['post' => $post]) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition">
-                            <div class="flex items-center justify-between mb-2">
-                                @if($post->category)
-                                <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $post->category->color }}">
-                                    {{ $post->category->displayName('blog') }}
-                                </span>
-                                @endif
-                                <span class="text-xs text-gray-400">{{ $post->published_at?->format('d/m/Y') }}</span>
-                            </div>
-                            <p class="font-medium text-gray-900 dark:text-gray-100 text-sm mb-1 line-clamp-2">{{ $post->title }}</p>
-                            @if($post->summary)
-                            <p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{{ $post->summary }}</p>
-                            @endif
-                        </a>
-                        @endforeach
-                    </div>
-                </section>
-                @endif
-
                 {{-- TASK-1697 — les Boucles dont cette personne est membre,
                      animateur ou proprietaire. Perimetre : voir le controleur.
                      Nommer une Boucle ne revele rien de plus que le catalogue
@@ -580,8 +488,65 @@
 
             </div>
 
-            <!-- Right column (desktop) -->
-            <aside class="hidden md:block md:col-span-1 space-y-4">
+            {{-- TASK-1788 correctif 04 — la colonne de droite n'est plus reservee
+                 au bureau.
+
+                 Elle l'etait (`hidden md:block`) parce qu'elle ne portait que des
+                 appels a l'action, que le smartphone rend deja ailleurs (bloc
+                 « Mobile CTAs » plus haut). Elle accueille desormais aussi
+                 l'apercu chiffre, qui doit se voir aux DEUX largeurs.
+
+                 D'ou le partage : les appels a l'action gardent leur
+                 `hidden md:block` — sinon le smartphone les afficherait deux fois
+                 —, l'apercu reste visible. Sous `md` la grille ne s'applique pas,
+                 les deux colonnes redeviennent des blocs empiles, et l'apercu
+                 tombe donc tout seul en fin d'ecran. --}}
+            <!-- Right column -->
+            <aside class="md:col-span-1 space-y-4">
+
+                {{-- TASK-1788 correctif 04 (suite) — le Blog passe a DROITE, et
+                     AVANT l'apercu chiffre. Demande de Cyril.
+
+                     `sm:grid-cols-2` est retire : c'est une media query sur la
+                     largeur de l'ECRAN, pas sur celle du conteneur. Dans une
+                     colonne qui fait un tiers de la page, elle aurait coupe les
+                     cartes en deux des 640 px.
+
+                     `id="articles"` est CONSERVE : c'est la cible de l'ancre
+                     posee par l'annuaire (T1697 correctif 15). Le deplacer sans
+                     lui aurait casse un lien qui ne se plaint jamais. --}}
+                <!-- Blog posts -->
+                @if($blogPosts->isNotEmpty())
+                {{-- `id` : cible de l'ancre posee par l'annuaire (T1697 correctif 15). --}}
+                <section id="articles">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.blog_section') }}</h2>
+                        <span class="text-xs text-gray-400">{{ trans_choice('profile.blog_count', $blogPosts->count(), ['count' => $blogPosts->count()]) }}</span>
+                    </div>
+                    <div class="grid gap-3">
+                        @foreach($blogPosts as $post)
+                        <a href="{{ $urlOrg('blog.show', ['post' => $post]) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition">
+                            <div class="flex items-center justify-between mb-2">
+                                @if($post->category)
+                                <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $post->category->color }}">
+                                    {{ $post->category->displayName('blog') }}
+                                </span>
+                                @endif
+                                <span class="text-xs text-gray-400">{{ $post->published_at?->format('d/m/Y') }}</span>
+                            </div>
+                            <p class="font-medium text-gray-900 dark:text-gray-100 text-sm mb-1 line-clamp-2">{{ $post->title }}</p>
+                            @if($post->summary)
+                            <p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{{ $post->summary }}</p>
+                            @endif
+                        </a>
+                        @endforeach
+                    </div>
+                </section>
+                @endif
+
+                @include('profile.partials.apercu-public')
+
+                <div class="hidden md:block space-y-4">
 
                 <!-- AI agent CTA -->
                 @if($memberAiProfile && (auth()->guest() || auth()->id() !== $user->id))
@@ -644,6 +609,8 @@
                 </div>
                 @endif
                 @endauth
+
+                </div>
 
             </aside>
 

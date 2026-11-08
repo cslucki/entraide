@@ -31,8 +31,6 @@ use App\Models\User;
 use App\Observers\BlogPostObserver;
 use App\Observers\DossierFileObserver;
 use App\Observers\DossierObserver;
-use App\Observers\ServiceObserver;
-use App\Observers\TransactionObserver;
 use App\Observers\TranslationOverrideObserver;
 use App\Policies\FeedPostPolicy;
 use App\Policies\LoopPolicy;
@@ -267,8 +265,6 @@ class AppServiceProvider extends ServiceProvider
             // ai_configs table may not exist yet (migrations pending)
         }
 
-        Transaction::observe(TransactionObserver::class);
-        Service::observe(ServiceObserver::class);
         TranslationOverride::observe(TranslationOverrideObserver::class);
         BlogPost::observe(BlogPostObserver::class);
         Dossier::observe(DossierObserver::class);

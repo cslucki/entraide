@@ -36,6 +36,9 @@ return [
     'requests_count' => ':count request|:count requests',
     'before_deadline' => 'Before :date',
     'blog_section' => 'Blog',
+    // TASK-1788 correctif 05 — le titre de la carte d'apercu, au meme
+    // gabarit que « Blog » juste au-dessus.
+    'stats_section' => 'Stats',
     'blog_count' => ':count article|:count articles',
     'no_posts' => "This user hasn't published any articles yet.",
     'reviews_section' => 'Reviews received',
