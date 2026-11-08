@@ -296,6 +296,15 @@ class UserDataLifecycleRegistry
             ['key' => 'reports_filed', 'type' => 'sql', 'table' => 'reports', 'column' => 'reporter_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Reports are moderation audit data.'],
             ['key' => 'reviews_received', 'type' => 'sql', 'table' => 'reviews', 'column' => 'reviewed_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'user_organization', 'justification' => 'Reviews may need retained content with anonymized user.'],
             ['key' => 'reviews_given', 'type' => 'sql', 'table' => 'reviews', 'column' => 'reviewer_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'user_organization', 'justification' => 'Reviews may need retained content with anonymized author.'],
+            // TASK-1789 — le catalogue des flux RSS connus est une donnee de
+            // PLATEFORME (la table ne porte pas d'organization_id), au meme
+            // titre que `scenario_manifest_versions`/`custom_loop_types`
+            // au-dessus. Le createur n'est qu'une attribution d'audit : le
+            // catalogue n'a aucun sens sans l'URL qu'il memorise, mais il n'a
+            // pas besoin de son createur pour continuer d'exister. La FK est
+            // nullable + nullOnDelete, et la politique RECOPIE ce que le
+            // schema fait deja.
+            ['key' => 'rss_sources_created_by', 'type' => 'sql', 'table' => 'rss_sources', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'none', 'justification' => 'A known RSS source is PLATFORM tooling catalog data, not personal data and not tenant data: the table carries no organization_id. The catalog entry survives whoever first loaded it, who is simply detached. The FK is nullable with nullOnDelete, so the data is retained after the creator is removed (TASK-1789).'],
             ['key' => 'service_requests', 'type' => 'sql', 'table' => 'service_requests', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run considered service requests transferable.'],
             ['key' => 'services', 'type' => 'sql', 'table' => 'services', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run considered services transferable.'],
             // TASK-1635 : TRANSFER -> BLOCK, sur les deux cotes.
