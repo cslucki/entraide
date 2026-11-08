@@ -57,7 +57,6 @@
             $currentOrganization = currentOrganization();
             $menuOrganization = (auth()->check() ? auth()->user()->organization : null) ?? $currentOrganization;
             $organizationRouteParam = request()->route('organization') ?: (auth()->check() ? $menuOrganization?->slug : null);
-            $canSeeFlux = auth()->check() && auth()->user()->can('create', \App\Models\FeedPost::class);
             $loopsEnabled = $currentOrganization?->loops_enabled ?? $menuOrganization?->loops_enabled ?? true;
             $tabUrl = function (string $rootRoute, ?string $organizationRoute = null) use ($organizationRouteParam): string {
                 if ($organizationRouteParam && $organizationRoute && Route::has($organizationRoute)) {
@@ -78,7 +77,23 @@
 
             $tabs = auth()->check() ? [
                 ['key' => 'loops', 'url' => $tabUrl('loops.index', 'organization.loops.index'), 'active' => 'loops', 'label' => __('navigation.loops'), 'icon' => config('navigation_icons.loops'), 'visible' => $loopsEnabled],
-                ['key' => 'flux', 'url' => $organizationRouteParam && Route::has('organization.flux') ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard'), 'active' => 'flux', 'label' => __('navigation.feed'), 'icon' => config('navigation_icons.feed'), 'visible' => $canSeeFlux],
+                // TASK-1788 (demande Cyril) — le Flux se montre TOUJOURS sur
+                // telephone, comme sur le rail de bureau.
+                //
+                // L'entree existait deja ici, mais derriere
+                // `can('create', FeedPost::class)` : elle ne paraissait donc
+                // qu'a qui a le droit de PUBLIER. Or le Flux se LIT bien plus
+                // largement — `viewAny` ne demande que d'appartenir a
+                // l'Organization. Un membre qui ne publie pas n'avait aucun
+                // chemin vers le Flux sur son telephone.
+                //
+                // Le rail de bureau porte deja l'arbitrage, pris par Cyril le
+                // 10/09 et ecrit dans `app-side-nav` : « l'entree se montre
+                // TOUJOURS (…) C'est la page qui applique les droits, pas le
+                // rail — un rail qui cache ce qu'on n'a pas le droit de faire
+                // cache aussi ce qui existe. » La barre du telephone ne l'avait
+                // jamais suivi. Elle le suit.
+                ['key' => 'flux', 'url' => $organizationRouteParam && Route::has('organization.flux') ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard'), 'active' => 'flux', 'label' => __('navigation.feed'), 'icon' => config('navigation_icons.feed')],
                 ['key' => 'exchanges', 'url' => $tabUrl('explorer', 'organization.explorer'), 'active' => 'explorer', 'label' => __('navigation.exchanges'), 'icon' => config('navigation_icons.exchanges')],
                 ['key' => 'messages', 'url' => $tabUrl('messages.index', 'organization.messages.index'), 'active' => 'messages', 'label' => __('navigation.messaging'), 'icon' => config('navigation_icons.messaging')],
                 // TASK-1625 — les trois destinations que la barre fixe ne
