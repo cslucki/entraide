@@ -54,7 +54,21 @@ return new class extends Migration
             // `commentable_type` + `commentable_id` + index composite.
             $table->uuidMorphs('commentable');
 
-            $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            // NULLABLE et `nullOnDelete`, et c'est le PRECEDENT qui le dicte.
+            //
+            // `blog_comments.user_id` et `feed_post_comments.user_id` sont tous
+            // deux nullable en SET NULL (poses ainsi par
+            // `2026_09_24_213000_user_lifecycle_set_null_foreign_keys`), et
+            // `UserDataLifecycleRegistry` classe l'auteur d'un commentaire en
+            // **ANONYMIZE** : « comment authorship is never transferred;
+            // retained content needs anonymized attribution ».
+            //
+            // J'avais ecrit `cascadeOnDelete()`, donc le commentaire DISPARAISSAIT
+            // a la suppression du compte — ce qui contredit la politique et la
+            // vue, qui rend deja `__('profile.deactivated_user')` sur un auteur
+            // nul. Defaut trouve par `UserDataLifecycleRegistryTest`, qui exige
+            // que toute FK vers `users` soit declaree.
+            $table->foreignUuid('user_id')->nullable()->constrained()->nullOnDelete();
 
             $table->text('content');
 

@@ -134,6 +134,18 @@ class UserDataLifecycleRegistry
             ['key' => 'dossier_members_added_by', 'type' => 'sql', 'table' => 'dossier_members', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_dossier', 'justification' => 'Membership grant audit can be detached.'],
             ['key' => 'dossier_members', 'type' => 'sql', 'table' => 'dossier_members', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'through_dossier', 'justification' => 'Dossier membership is user-specific participation.'],
             ['key' => 'dossiers', 'type' => 'sql', 'table' => 'dossiers', 'column' => 'owner_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'Owned dossiers require explicit transfer/ownership decision before deletion.'],
+            // TASK-1786 — les deux FK de `entraide_comments` vers `users`.
+            //
+            // L'AUTEUR du commentaire suit exactement la politique de ses deux
+            // jumeaux (`blog_comments`, `feed_post_comments`) : ANONYMIZE, parce
+            // que la paternite d'un commentaire ne se transfere jamais et que le
+            // contenu conserve a besoin d'une attribution anonymisee. La vue rend
+            // deja `profile.deactivated_user` sur un auteur nul.
+            ['key' => 'entraide_comments', 'type' => 'sql', 'table' => 'entraide_comments', 'column' => 'user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'Comment authorship is never transferred; retained mutual aid suggestions need anonymized attribution.'],
+            // Le MODERATEUR est une trace d'audit : meme politique que
+            // `blog_post_annotations.resolved_by`, l'acteur se detache et le
+            // geste reste.
+            ['key' => 'entraide_comments_moderated_by', 'type' => 'sql', 'table' => 'entraide_comments', 'column' => 'moderated_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Moderation audit can be detached: the act is retained, the moderator identity is not.'],
             ['key' => 'email_logs', 'type' => 'sql', 'table' => 'email_logs', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Email logs are operational audit.'],
             ['key' => 'favorites', 'type' => 'sql', 'table' => 'favorites', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'Favorites are personal user preferences and are not transferable.'],
             // TASK-1727 — a password reset token became account-scoped, so it is
