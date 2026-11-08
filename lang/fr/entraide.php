@@ -76,4 +76,37 @@ return [
         'sous_titre' => '{1}de temps partagé · :points pt|[2,*]de temps partagé · :points pts',
         'sous_titre_offert' => 'un coup de main offert',
     ],
+
+    // TASK-1786 — « Commentaires et suggestions » sous une annonce d'entraide.
+    //
+    // Le lexique suit la regle du fichier : des personnes qui s'entraident, et
+    // le mot « transaction » banni de l'interface membre. Un commentaire
+    // n'engage rien, et les textes le disent plutot que de le supposer.
+    'commentaires' => [
+        'titre' => 'Commentaires et suggestions',
+
+        // Le message d'accompagnement du CDC §2, adapte au type d'annonce.
+        'invite_proposition' => 'Vous avez une suggestion ou une question pour améliorer cette proposition d’entraide ? Partagez-la avec son auteur.',
+        'invite_demande' => 'Vous avez une suggestion ou une question pour améliorer cette demande d’aide ? Partagez-la avec son auteur.',
+
+        'placeholder' => 'Votre suggestion ou votre question…',
+        'publier' => 'Publier mon commentaire',
+        'total' => '{0}aucun commentaire|{1}1 commentaire|[2,*]:count commentaires',
+        'vide' => 'Aucun commentaire pour l’instant. Soyez la première personne à aider.',
+        'publie' => 'Votre commentaire est publié.',
+        'supprimer' => 'Supprimer',
+        'confirmer_suppression' => 'Supprimer ce commentaire ?',
+
+        // L'annonce ne prend plus de commentaires : les anciens restent
+        // LISIBLES, et on dit pourquoi le formulaire a disparu.
+        'fermee_proposition' => 'Cette proposition n’est plus active : les commentaires restent consultables.',
+        'fermee_demande' => 'Cette demande est clôturée : les commentaires restent consultables.',
+
+        'trop_rapide' => 'Vous publiez trop vite. Réessayez dans :secondes secondes.',
+
+        // Les deux mots que `keys_named` injecte dans `:type`, cote Centre de
+        // notifications. Ils vivent ici parce que c'est le lexique d'entraide.
+        'type_proposition' => 'proposition d’entraide',
+        'type_demande' => 'demande d’aide',
+    ],
 ];

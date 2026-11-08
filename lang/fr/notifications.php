@@ -113,6 +113,14 @@ return [
         'loop_member_added' => 'Vous pouvez maintenant y participer.',
         'loop_join_request_accepted' => 'Vous pouvez maintenant y participer.',
         'blog_comment_created' => 'Ouvrez l’article pour lire le commentaire.',
+        // TASK-1786 — GENERIQUE a dessein. Le CDC T1786 §9 proposait « Marie a
+        // commente votre proposition d'entraide » ; la doctrine du depot, posee
+        // par le CDC notifications §6.4/6.5 et redite dans
+        // `NotificationCenterController`, veut l'inverse : un Push s'affiche sur
+        // un ECRAN VERROUILLE, et nommer la personne y exposerait l'entraide de
+        // quelqu'un a qui passe devant le telephone. Le fait se raconte en
+        // entier dans `keys_named`, qui n'est lisible qu'authentifie.
+        'entraide_comment_created' => 'Ouvrez BouclePro pour lire la suggestion.',
         'blog_co_author_added' => 'Ouvrez l’article pour commencer.',
 
         // TASK-1747 — ne nomme NI la Boucle NI la personne : une demande
@@ -144,6 +152,10 @@ return [
         'blog_comment_created' => 'Un nouveau commentaire sur votre article',
         'blog_co_author_added' => 'On vous associe à un article',
 
+        // TASK-1786 — le titre exact du CDC §9, qui ne nomme ni la personne ni
+        // l'annonce : il est donc compatible avec l'ecran verrouille.
+        'entraide_comment_created' => 'Nouvelle suggestion sur votre annonce',
+
         // TASK-1747 — le canal est ETEINT par defaut, mais le libelle doit
         // exister : la garde de coherence l'exige des qu'un canal est
         // declare, et l'oublier ferait rougir le jour de l'ouverture.
@@ -160,6 +172,11 @@ return [
 
         // TASK-1697
         'blog_comment_created' => 'Un nouveau commentaire sur votre article',
+
+        // TASK-1786 — le libelle que le CDC §6 demande pour « Reglages des
+        // notifications », et qui sert aussi de repli dans le Centre quand
+        // l'annonce n'a pas pu etre nommee.
+        'entraide_comment_created' => 'Commentaires sur mes propositions et demandes d’aide',
         'loop_invitation' => 'Invitation à rejoindre une Boucle',
         'loop_member_added' => 'Ajout à une Boucle',
 
@@ -207,6 +224,11 @@ return [
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).
         'transaction_proposal_created' => ':prenom répond à votre annonce « :titre » — :temps',
+        // TASK-1786 — nommee UNIQUEMENT ici, meme doctrine que ses voisines : le
+        // Centre est derriere l'authentification. C'est le texte du CDC §7, et
+        // `:type` porte « proposition d'entraide » ou « demande d'aide », resolu
+        // par le controleur — ce qui permet a UNE cle de servir les deux.
+        'entraide_comment_created' => ':prenom a commenté votre :type « :titre »',
         'loop_invitation' => 'Invitation à rejoindre la Boucle « :loop »',
         'loop_member_added' => 'Ajout à la Boucle « :loop »',
         'loop_join_request_accepted' => 'Votre demande d’adhésion à « :loop » a été acceptée',
@@ -260,6 +282,15 @@ return [
         // Une adresse en dur ici echapperait a l'expurgation du livreur et
         // finirait telle quelle dans `email_logs` — garde
         // `TASK1379…::test_every_email_body_uses_the_url_placeholder`.
+        // TASK-1786 — REPLI de langue. Le gabarit qui fait foi est
+        // l'administrable `entraide_comment_created` (seeder + migration) ; ceci
+        // ne sert que s'il manque. Sujet GENERIQUE : un apercu de boite mail se
+        // lit sans deverrouiller, meme doctrine que `push_title`.
+        'entraide_comment_created' => [
+            'subject' => 'Un membre a commenté votre annonce d’entraide',
+            'body' => '<p>Bonjour,</p><p>Un membre a laissé un commentaire sur votre annonce d’entraide.</p><p><a href=":url">Voir le commentaire</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>Un commentaire n’engage rien : ni transaction, ni acceptation d’aide, ni temps promis.</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
+        ],
+
         'blog_comment_created' => [
             'subject' => 'On a commenté votre article',
             'body' => '<p>Bonjour,</p><p>Une personne a laissé un commentaire sur votre article <strong>:titre</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">Lire le commentaire</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>Rien ne presse : le commentaire vous attend, vous y répondrez quand vous voudrez.</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',

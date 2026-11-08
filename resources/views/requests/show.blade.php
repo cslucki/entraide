@@ -224,5 +224,18 @@
                 @endauth
             </div>
         </div>
+
+        {{-- TASK-1786 — « Commentaires et suggestions » sous la demande d'aide.
+
+             Monte DANS la vue `show`, et c'est ce qui fait que la consultation
+             des commentaires suit exactement la politique de visibilite de
+             l'annonce : cette route porte deja `['auth', 'organization.member']`
+             et le controleur a deja rendu 404 a qui n'y a pas droit. Aucune
+             seconde politique n'est ecrite ici — il n'y en a pas besoin.
+
+             Le composant refait neanmoins les memes gardes sur CHAQUE geste :
+             une requete Livewire ne traverse pas ce controleur. --}
+        @livewire('entraide-comments', ['annonce' => $request])
+
     </x-page-container>
 </x-app-layout>

@@ -4,6 +4,7 @@ namespace App\Support\Notifications;
 
 use App\Models\BlogComment;
 use App\Models\BlogPost;
+use App\Models\EntraideComment;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
@@ -12,6 +13,8 @@ use App\Models\LoopMessage;
 use App\Models\MemberNotification;
 use App\Models\Organization;
 use App\Models\Scopes\BelongsToOrganizationScope;
+use App\Models\Service;
+use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\DB;
@@ -61,6 +64,7 @@ class NotificationTargetResolver
             NotificationCatalogue::OBJECT_BLOG_POST => $this->blogPost($notification),
             // TASK-1751 — un echange mene a SA conversation.
             NotificationCatalogue::OBJECT_TRANSACTION => $this->transaction($notification),
+            NotificationCatalogue::OBJECT_ENTRAIDE_COMMENT => $this->entraideComment($notification),
             default => null,
         };
     }
@@ -454,6 +458,93 @@ class NotificationTargetResolver
      * la notification ferait changer de locataire — meme defaut que celui
      * corrige trois fois sur la fiche profil.
      */
+    /**
+     * TASK-1786 — un commentaire d'entraide mene a SON annonce, ancre sur lui.
+     *
+     * ## C'est ici que « une seule cle pour deux types » se paie, et se tient
+     *
+     * Le commentaire porte `commentable_type` : c'est lui qu'on lit pour choisir
+     * entre `services.show` et `requests.show`. Une cle unique au catalogue n'a
+     * donc rien coute en precision de destination — elle a seulement deplace le
+     * branchement la ou l'information existe.
+     *
+     * ## L'URL est SCOPEE sur l'Organization de la notification
+     *
+     * Exigence explicite du CDC §7 : « une notification ne doit jamais rediriger
+     * vers `main` lorsque l'annonce appartient a OFSH ». Le slug vient donc de
+     * l'Organization de la NOTIFICATION, relue en base, et non d'un contexte de
+     * requete — ce code tourne au clic, parfois sous worker.
+     *
+     * ## Fail-closed, comme tout ce resolver
+     *
+     * `null` des que quelque chose manque : commentaire supprime (`SoftDeletes`,
+     * donc `find()` ne le rend plus), moderne (`is_approved` faux), annonce
+     * disparue — une `ServiceRequest` est supprimee DUREMENT, elle n'a pas
+     * `SoftDeletes` —, annonce passee hors tenant, ou type inconnu. L'ecran dit
+     * alors honnetement « cet element n'est plus accessible » plutot que de se
+     * rabattre sur une page approchante.
+     *
+     * Le statut de l'annonce n'est volontairement PAS reinterroge ici : la
+     * politique de visibilite appartient aux controleurs `show()`, qui rendront
+     * 404 a qui n'y a pas droit. La dupliquer ici installerait une seconde
+     * verite, et c'est exactement ce que `blogComment()` juste en dessous evite
+     * en ne jugeant que ce qui le concerne.
+     */
+    private function entraideComment(MemberNotification $notification): ?string
+    {
+        if ($notification->object_id === null) {
+            return null;
+        }
+
+        // `withoutGlobalScopes()` par principe : ce code tourne au clic, mais
+        // aussi sous worker ou aucune Organization n'est liee. La frontiere est
+        // le `where` explicite juste en dessous.
+        $commentaire = EntraideComment::query()
+            ->withoutGlobalScopes()
+            ->whereKey($notification->object_id)
+            ->where('organization_id', $notification->organization_id)
+            ->where('is_approved', true)
+            ->first();
+
+        if ($commentaire === null) {
+            return null;
+        }
+
+        $type = (string) $commentaire->commentable_type;
+
+        if (! in_array($type, EntraideComment::TYPES_COMMENTABLES, true)) {
+            return null;
+        }
+
+        /** @var class-string<Service|ServiceRequest> $type */
+        $annonce = $type::query()
+            ->withoutGlobalScopes()
+            ->whereKey($commentaire->commentable_id)
+            ->where('organization_id', $notification->organization_id)
+            ->first();
+
+        if ($annonce === null) {
+            return null;
+        }
+
+        $organization = Organization::query()
+            ->withoutGlobalScopes()
+            ->whereKey($notification->organization_id)
+            ->first();
+
+        $scopee = $annonce instanceof Service ? 'organization.services.show' : 'organization.requests.show';
+        $nue = $annonce instanceof Service ? 'services.show' : 'requests.show';
+        $parametre = $annonce instanceof Service ? 'service' : 'request';
+
+        $url = $organization !== null && \Illuminate\Support\Facades\Route::has($scopee)
+            ? route($scopee, ['organization' => $organization->slug, $parametre => $annonce->getKey()])
+            : route($nue, [$parametre => $annonce->getKey()]);
+
+        // L'ancre vise LE commentaire, pas la section : le CDC §7 demande « un
+        // lien d'ancrage vers le commentaire concerne ».
+        return $url.'#commentaire-'.$commentaire->id;
+    }
+
     private function blogComment(MemberNotification $notification): ?string
     {
         if ($notification->object_id === null) {

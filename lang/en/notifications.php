@@ -103,6 +103,10 @@ return [
         'loop_join_request_accepted' => 'You can now take part.',
         'blog_comment_created' => 'Open the article to read the comment.',
         'blog_co_author_added' => 'Open the article to get started.',
+        // TASK-1786 — generic on purpose: a push shows on a LOCKED SCREEN, so
+        // naming the person would expose someone's mutual aid to whoever walks
+        // past the phone. The full story lives in `keys_named`, behind auth.
+        'entraide_comment_created' => 'Open BouclePro to read the suggestion.',
 
         // TASK-1747 — names NEITHER the Boucle NOR the person: a request
         // may be posted in a private Boucle, and a Push body shows on a
@@ -129,6 +133,9 @@ return [
         'blog_comment_created' => 'A new comment on your article',
         'blog_co_author_added' => 'You have been added to an article',
 
+        // TASK-1786 — names neither the person nor the listing.
+        'entraide_comment_created' => 'New suggestion on your listing',
+
         // TASK-1747 — the channel is OFF by default, but the label must
         // exist: the coherence guard requires it as soon as a channel is
         // declared.
@@ -153,6 +160,9 @@ return [
 
         // TASK-1697
         'blog_comment_created' => 'A new comment on your article',
+
+        // TASK-1786 — the label shown in notification settings.
+        'entraide_comment_created' => 'Comments on my offers and help requests',
         'loop_invitation' => 'Invitation to join a Loop',
         'loop_member_added' => 'Added to a Loop',
 
@@ -182,6 +192,10 @@ return [
         'loop_mention_created' => '“:prenom” mentioned you in the Loop “:loop”',
         // TASK-1757 — see the French file for why this surface only.
         'transaction_proposal_created' => ':prenom replies to your listing “:titre” — :temps',
+        // TASK-1786 — named ONLY here. `:type` carries "mutual aid offer" or
+        // "help request", resolved by the controller, which is what lets ONE
+        // key serve both listing types.
+        'entraide_comment_created' => ':prenom commented on your :type “:titre”',
         'loop_invitation' => 'Invitation to join the :loop Loop',
         'loop_member_added' => 'Added to the :loop Loop',
         'loop_join_request_accepted' => 'Your request to join :loop was accepted',
@@ -232,6 +246,15 @@ return [
         // Une adresse en dur ici echapperait a l'expurgation du livreur et
         // finirait telle quelle dans `email_logs` — garde
         // `TASK1379…::test_every_email_body_uses_the_url_placeholder`.
+        // TASK-1786 — language FALLBACK only. The authoritative template is the
+        // administrable `entraide_comment_created` (seeder + migration); this is
+        // used only if it is missing. Generic subject: a mailbox preview is read
+        // without unlocking, same doctrine as `push_title`.
+        'entraide_comment_created' => [
+            'subject' => 'A member commented on your mutual aid listing',
+            'body' => '<p>Hello,</p><p>A member left a comment on your mutual aid listing.</p><p><a href=":url">View the comment</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>A comment commits to nothing: no transaction, no accepted help, no promised time.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
+
         'blog_comment_created' => [
             'subject' => 'Someone commented on your article',
             'body' => '<p>Hello,</p><p>Someone left a comment on your article <strong>:titre</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">Read the comment</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>No rush: the comment will wait for you.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
