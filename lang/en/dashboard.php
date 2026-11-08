@@ -8,7 +8,9 @@ return [
     'available' => 'Available',
     'unavailable' => 'Unavailable',
     'availability_updated' => 'Availability updated.',
-    'onboarding_badge' => 'Beta onboarding',
+        // TASK-1788 correctif 03 — see the French file for the rationale.
+    // `onboarding_title` stays DEFINED although nothing renders it any more.
+    'onboarding_badge' => 'Welcome journey',
     'onboarding_title' => 'Your progress in the loop',
     'onboarding_intro' => 'Move forward step by step to ask for help, offer help and start interacting.',
     'done' => 'Done',
