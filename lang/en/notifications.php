@@ -233,6 +233,8 @@ return [
     |
     */
     'blog_comment_email_excerpt_empty' => '(comment without text)',
+    // TASK-1786 — meme repli pour un commentaire d'entraide sans texte.
+    'entraide_comment_email_excerpt_empty' => '(comment without text)',
 
     'email' => [
         // TASK-1772 — REPLI. Le rendu passe normalement par le gabarit
