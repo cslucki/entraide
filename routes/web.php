@@ -737,6 +737,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // TASK-1752 — le Flux, toutes Organizations. Meme groupe `['auth','admin']`
     // que la Roadmap : surface PLATEFORME, jamais un administrateur d'Org.
+    // TASK-1788 correctif 11 — la gestion des notifications.
+    //
+    // `/notifications/{notification}` apres les routes nommees : aucune
+    // collision ici, les deux chemins fixes (`/notifications` et
+    // `/notifications/{id}/lecture`) ne se recouvrent pas.
+    Route::get('/notifications', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'index'])->name('notifications');
+    Route::get('/notifications/{notification}', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'show'])->name('notifications.show');
+    Route::put('/notifications/{notification}/lecture', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'toggleRead'])->name('notifications.read');
+    Route::delete('/notifications/{notification}', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'destroy'])->name('notifications.destroy');
+
     Route::get('/flux', [\App\Http\Controllers\Admin\AdminFeedController::class, 'index'])->name('feed');
     Route::put('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'update'])->name('feed.update');
     Route::delete('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'destroy'])->name('feed.destroy');

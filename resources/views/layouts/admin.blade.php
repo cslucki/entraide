@@ -51,7 +51,10 @@
                     @php
                         $emailItems = [
                             ['route' => 'admin.email-templates', 'label' => __('admin.emailer_templates'), 'icon' => 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'],
-                            ['route' => 'admin.notifications-cockpit', 'label' => __('admin.notifications_cockpit'), 'icon' => 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'],
+                            // TASK-1788 correctif 11 (demande Cyril) — le cockpit a
+                            // quitte l'Emailer pour la section « Notifications »,
+                            // regroupe avec les deux autres outils qui parlent de
+                            // notifications plutot que d'email.
                             ['route' => 'admin.email-logs', 'label' => __('admin.emailer_history'), 'icon' => 'M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 4.5v-4.5m0 4.5l-6.75-4.5M21 10l-6.75 4.5'],
                             ['route' => 'admin.email-test', 'label' => __('admin.emailer_test'), 'icon' => 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
                             ['route' => 'admin.system-email-templates', 'label' => __('admin.emailer_system'), 'icon' => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z'],
@@ -103,6 +106,19 @@
                             ));
                         }
 
+                        // TASK-1788 correctif 11 (demande Cyril) — section dediee,
+                        // les trois ecrans SuperAdmin qui parlent de notifications :
+                        // l'outil de TEST (envoyer un essai), le cockpit (compter les
+                        // livraisons, dans l'Emailer jusqu'ici) et la gestion des
+                        // notifications elles-memes (voir/basculer leur lecture/
+                        // supprimer). Les trois vivaient chacun dans une section qui
+                        // ne parlait pas d'eux en premier.
+                        $notifsItems = [
+                            ['route' => 'admin.outils.test-notification', 'label' => __('admin.push_test_title_page'), 'icon' => 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z'],
+                            ['route' => 'admin.notifications-cockpit', 'label' => __('admin.notifications_cockpit'), 'icon' => 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'],
+                            ['route' => 'admin.notifications', 'label' => __('admin.notifications_admin_nav'), 'icon' => 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'],
+                        ];
+
                         $orgItems = [
                             ['route' => 'admin.organizations', 'label' => 'Organisations', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857A17.983 17.983 0 0112 16c-2.071 0-4.065.332-5.932.943A3 3 0 001 20h5v2a3 3 0 005.356 1.857A17.983 17.983 0 0112 18c2.071 0 4.065.332 5.932.943A3 3 0 0017 20z'],
                             // TASK-1694 bug AM — « Utilisateurs » remonte JUSTE APRES
@@ -149,22 +165,14 @@
                             ['route' => 'admin.outils.dossiers', 'label' => __('admin.dossiers_cleanup.nav_label'), 'icon' => 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z'],
                             // TASK-1632 — cockpit d'integrite, en lecture seule.
                             ['route' => 'admin.outils.integrite', 'label' => __('admin.integrity.nav_label'), 'icon' => 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'],
-                            // TASK-1744 (demande Cyril, 02/11) — le diagnostic Web Push de
-                            // T1740 n'etait atteignable QUE par son URL. Un outil de
-                            // recette qu'il faut connaitre par coeur ne sert qu'a celui
-                            // qui l'a ecrit.
-                            //
-                            // Icone d'APPAREIL et non la cloche : la cloche appartient
-                            // deja au cockpit des notifications (ligne 54), et deux
-                            // entrees qui se ressemblent dans le meme rail se confondent.
-                            // Ici l'objet est l'appareil qu'on reveille, pas la
-                            // notification qu'on supervise.
-                            ['route' => 'admin.outils.test-notification', 'label' => __('admin.push_test_title_page'), 'icon' => 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z'],
                             // TASK-1744 (demande Cyril, 02/11) — lire les
-                            // notifications emises et en rejouer une. Voisine
-                            // de l'outil de test ci-dessus, et volontairement :
-                            // l'une envoie un essai, l'autre explique ce qui
-                            // est deja parti.
+                            // notifications emises et en rejouer une.
+                            //
+                            // TASK-1788 correctif 11 (demande Cyril) — l'outil de
+                            // TEST Web Push (qui vivait ici, voisin de celui-ci) a
+                            // rejoint la section « Notifications » avec le cockpit :
+                            // les trois ecrans qui parlent de notifications au
+                            // SuperAdmin tiennent desormais ensemble.
                             ['route' => 'admin.outils.notifications', 'label' => __('admin.notif_inspector_title'), 'icon' => 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
                             // TASK-1646 — Scenario Manager. Entree canonique du produit
                             // (CDC 5.1 : « Outils -> Scenarios », et non « IA »).
@@ -250,7 +258,7 @@
                             ['route' => 'admin.themes', 'label' => 'Thèmes', 'icon' => 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828L10.828 18.83'],
                         ];
 
-                        $navRoutes = collect([$designItems, $emailItems, $echangesItems, $orgItems, $outilsItems, $statsItems, $iaItems])
+                        $navRoutes = collect([$designItems, $emailItems, $echangesItems, $notifsItems, $orgItems, $outilsItems, $statsItems, $iaItems])
                             ->flatten(1)
                             ->pluck('route')
                             ->push('admin.dashboard')   // l'entree autonome compte aussi
@@ -427,6 +435,49 @@
                              x-transition:leave-end="opacity-0 scale-y-95"
                              class="origin-top">
                             @foreach($echangesItems as $item)
+                            @php $itemActive = $isNavActive($item['route']); @endphp
+                            <a href="{{ route($item['route']) }}"
+                               class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
+                                      {{ $itemActive ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                                <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
+                                </svg>
+                                {{ $item['label'] }}
+                            </a>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <!-- Notifications group -->
+                    {{-- TASK-1788 correctif 11 (demande Cyril) — section dediee du
+                         rail, les trois ecrans SuperAdmin qui parlent de
+                         notifications : outil de test, cockpit et gestion. --}}
+                    @php $groupActive = $isGroupActive($notifsItems); @endphp
+                    <div x-data="{ open: {{ $groupActive ? 'true' : "localStorage.getItem('sidebar_notifs_open') !== 'false'" }} }">
+                        <button @click.stop="open = !open; localStorage.setItem('sidebar_notifs_open', open)"
+                                class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
+                                       {{ $groupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
+                            <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
+                                 :class="{'rotate-180': !open}"
+                                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                            {{-- `data-marqueur`, pas le texte brut : la page
+                                 `/admin/notifications` elle-meme porte un
+                                 `<title>` et un `<h1>` « Notifications », qui
+                                 auraient fait reussir une assertion sur le seul
+                                 texte sans jamais lire le rail. --}}
+                            <span class="text-xs font-semibold uppercase tracking-wider" data-marqueur="rail-section-notifications">Notifications</span>
+                        </button>
+                        <div x-show="open" x-cloak
+                             x-transition:enter="transition ease-out duration-200"
+                             x-transition:enter-start="opacity-0 scale-y-95"
+                             x-transition:enter-end="opacity-100 scale-y-100"
+                             x-transition:leave="transition ease-in duration-150"
+                             x-transition:leave-start="opacity-100 scale-y-100"
+                             x-transition:leave-end="opacity-0 scale-y-95"
+                             class="origin-top">
+                            @foreach($notifsItems as $item)
                             @php $itemActive = $isNavActive($item['route']); @endphp
                             <a href="{{ route($item['route']) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
