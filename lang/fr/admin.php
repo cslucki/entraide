@@ -2211,6 +2211,10 @@ return [
         'crees' => 'Articles créés',
         'doublons' => 'Déjà importés, ignorés',
         'modifier' => 'Modifier',
+        // TASK-1789 — un doublon dont l'article d'origine a été supprimé (soft
+        // delete) : l'index unique interdit toujours la réimportation, mais le
+        // lien « Modifier » serait invalide (route non `withTrashed()`).
+        'supprime' => 'supprimé',
         'erreurs_titre' => 'Erreurs',
         'erreurs' => [
             'url_malformee' => 'L\'adresse du flux est mal formée.',

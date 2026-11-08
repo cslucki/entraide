@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Loop;
 use App\Models\Organization;
+use App\Models\RssSource;
+use App\Models\RssSourceArticle;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Services\Blog\RssArticleImporter;
 use App\Services\Blog\RssFeedFetcher;
@@ -16,6 +18,7 @@ use RuntimeException;
 
 /**
  * TASK-1785 — l'ecran SuperAdmin d'import d'articles depuis un flux RSS.
+ * TASK-1789 — la persistance durable des sources et des articles decouverts.
  *
  * Pose dans le groupe `['auth', 'admin']` (`routes/web.php:694`), donc
  * `AdminMiddleware` exige `is_admin` et rend `403` sinon — en LECTURE comme en
@@ -25,20 +28,24 @@ use RuntimeException;
  *
  * L'Organization et la Boucle sont RELUES en base a chaque soumission, et la
  * Boucle est reverifiee comme appartenant a cette Organization — cote serveur,
- * dans `RssArticleImporter`. Les identifiants d'articles selectionnes ne
- * designent pas des lignes : ce sont des index dans le flux relu depuis la
- * session, donc rien a forger.
+ * dans `RssArticleImporter`. Les articles selectionnes sont RELUS par id, et
+ * leur appartenance a la source courante est reverifiee ici (`$source->articles()`),
+ * jamais supposee depuis ce que le formulaire a renvoye.
  *
- * ## Pourquoi les articles charges vivent en SESSION
+ * ## Pourquoi les flux et leurs articles vivent desormais en BASE (TASK-1789)
  *
- * Le CDC demande « le minimum de persistance necessaire ». Un flux charge est
- * un brouillon de travail, pas une donnee : le stocker en base aurait demande
- * une seconde table, et une politique de purge, pour un etat qui ne survit pas
- * a la journee de travail.
+ * Jusqu'a TASK-1785, un flux charge etait un brouillon de travail vivant en
+ * SESSION — perdu a la deconnexion. Decision MASTER (precheck TASK-1789) :
+ * memoire durable, independante des Organizations (`RssSource`,
+ * `RssSourceArticle`) — une meme source peut nourrir plusieurs Organizations,
+ * et deux admins qui consultent le meme flux partagent desormais le meme
+ * cache. Seule reste en session la commodite d'interface « quelle source
+ * cet onglet regardait-il en dernier » (`SESSION_URL`) — ce n'est pas une
+ * donnee, juste un pointeur d'ecran, perdu sans consequence a la deconnexion.
  *
- * Consequence assumee, et dite a MASTER : les URL de flux memorisees le sont
- * **par session**. Elles se perdent a la deconnexion. Une memoire durable
- * tiendrait en une table de deux colonnes si Cyril la veut.
+ * Un rafraichissement (`charger()`) met a jour les articles connus mais n'en
+ * supprime JAMAIS : un flux WordPress ne sert que ses N derniers items, et un
+ * article qui en sort ne doit pas disparaitre du cache qu'on a deja constitue.
  *
  * ## Le rafraichissement ne publie rien
  *
@@ -49,21 +56,27 @@ use RuntimeException;
  */
 class AdminRssImportController extends Controller
 {
-    private const SESSION_ARTICLES = 'rss_import.articles';
-
+    /** Pointeur d'ecran uniquement : quelle source cette session regarde. Pas une donnee. */
     private const SESSION_URL = 'rss_import.url';
 
-    private const SESSION_HISTORIQUE = 'rss_import.historique';
-
-    /** Plafond de l'historique des URL memorisees. */
+    /** Plafond de l'historique de sources propose dans le datalist. */
     private const HISTORIQUE_MAX = 10;
 
     public function index(Request $request): View|\Illuminate\Contracts\View\View
     {
+        $url = $request->session()->get(self::SESSION_URL);
+        $source = $url !== null ? RssSource::where('url', $url)->first() : null;
+
         return view('admin.outils.import-rss', [
-            'url' => $request->session()->get(self::SESSION_URL),
-            'articles' => $request->session()->get(self::SESSION_ARTICLES, []),
-            'historique' => $request->session()->get(self::SESSION_HISTORIQUE, []),
+            'url' => $url,
+            'rssSourceId' => $source?->id,
+            'articles' => $source !== null
+                ? $source->articles()->orderByDesc('source_published_at')->get()
+                : collect(),
+            'historique' => RssSource::query()
+                ->orderByDesc('last_fetched_at')
+                ->limit(self::HISTORIQUE_MAX)
+                ->pluck('url'),
             'organizations' => Organization::query()
                 ->where('is_active', true)
                 ->orderBy('name')
@@ -86,16 +99,34 @@ class AdminRssImportController extends Controller
             return back()->with('rss_erreur', $e->getMessage());
         }
 
-        $historique = collect($request->session()->get(self::SESSION_HISTORIQUE, []))
-            ->prepend($valide['url'])
-            ->unique()
-            ->take(self::HISTORIQUE_MAX)
-            ->values()
-            ->all();
+        $source = RssSource::firstOrCreate(
+            ['url' => $valide['url']],
+            ['created_by' => $request->user()->id],
+        );
+
+        $maintenant = now();
+
+        foreach ($articles as $entree) {
+            // UPSERT par (source, identite) — jamais de suppression des
+            // articles absents de CETTE lecture : voir le docblock de classe.
+            RssSourceArticle::query()->updateOrCreate(
+                ['rss_source_id' => $source->id, 'source_identity' => $entree['identite']],
+                [
+                    'guid' => $entree['guid'],
+                    'url' => $entree['url'],
+                    'titre' => $entree['titre'],
+                    'auteur' => $entree['auteur'],
+                    'resume' => $entree['resume'],
+                    'contenu_html' => $entree['contenu_html'],
+                    'source_published_at' => RssArticleImporter::dateSource($entree['publie_le']),
+                    'fetched_at' => $maintenant,
+                ],
+            );
+        }
+
+        $source->update(['last_fetched_at' => $maintenant]);
 
         $request->session()->put(self::SESSION_URL, $valide['url']);
-        $request->session()->put(self::SESSION_ARTICLES, $articles);
-        $request->session()->put(self::SESSION_HISTORIQUE, $historique);
 
         return back()->with('rss_charge', count($articles));
     }
@@ -103,17 +134,18 @@ class AdminRssImportController extends Controller
     public function importer(Request $request, RssArticleImporter $importer): RedirectResponse
     {
         $valide = $request->validate([
+            'rss_source_id' => ['required', 'uuid'],
             'organization_id' => ['required', 'string'],
             'loop_id' => ['nullable', 'string'],
             'selection' => ['required', 'array', 'min:1'],
-            'selection.*' => ['integer', 'min:0'],
+            'selection.*' => ['string', 'uuid'],
             'publier' => ['nullable', 'boolean'],
             'droits_confirmes' => ['nullable', 'boolean'],
         ]);
 
-        $articles = $request->session()->get(self::SESSION_ARTICLES, []);
+        $source = RssSource::find($valide['rss_source_id']);
 
-        if ($articles === []) {
+        if ($source === null) {
             return back()->with('rss_erreur', 'aucun_flux_charge');
         }
 
@@ -143,10 +175,22 @@ class AdminRssImportController extends Controller
         // des droits de republication. L'une sans l'autre reste un brouillon.
         $publier = (bool) ($valide['publier'] ?? false) && (bool) ($valide['droits_confirmes'] ?? false);
 
-        $choisis = collect($valide['selection'])
-            ->map(fn ($i) => $articles[$i] ?? null)
-            ->filter()
-            ->values()
+        // Appartenance reverifiee ICI : les id selectionnes doivent appartenir
+        // a LA SOURCE COURANTE, jamais supposee depuis ce que le formulaire a
+        // renvoye (TASK-1789, decision MASTER).
+        $choisis = $source->articles()
+            ->whereIn('id', $valide['selection'])
+            ->get()
+            ->map(fn (RssSourceArticle $a) => [
+                'identite' => $a->source_identity,
+                'guid' => $a->guid,
+                'url' => $a->url,
+                'titre' => $a->titre,
+                'auteur' => $a->auteur,
+                'resume' => $a->resume,
+                'contenu_html' => $a->contenu_html,
+                'publie_le' => optional($a->source_published_at)->toDateTimeString(),
+            ])
             ->all();
 
         if ($choisis === []) {
