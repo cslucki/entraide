@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\EntraideComment;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -125,8 +126,11 @@ class EntraideComments extends Component
         /** @var class-string<Service|ServiceRequest> $classe */
         $classe = $this->annonceType;
 
+        // Portee d'Organization retiree NOMMEMENT, jamais en bloc :
+        // `withoutGlobalScopes()` retire AUSSI `SoftDeletingScope`, et une
+        // annonce supprimee redeviendrait commentable.
         $annonce = $classe::query()
-            ->withoutGlobalScopes()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
             ->whereKey($this->annonceId)
             ->first();
 

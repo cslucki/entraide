@@ -4,6 +4,7 @@ namespace App\Services\Entraide;
 
 use App\Models\EntraideComment;
 use App\Models\Organization;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -85,7 +86,6 @@ final class EntraideCommentMailer
             $annonce = $this->annonce($commentaire);
 
             $organization = Organization::query()
-                ->withoutGlobalScopes()
                 ->whereKey($commentaire->organization_id)
                 ->first();
 
@@ -179,9 +179,12 @@ final class EntraideCommentMailer
             return null;
         }
 
+        // Portee d'Organization retiree NOMMEMENT : `withoutGlobalScopes()`
+        // retirerait aussi `SoftDeletingScope`, et le courriel nommerait alors
+        // une annonce supprimee.
         /** @var class-string<Service|ServiceRequest> $type */
         return $type::query()
-            ->withoutGlobalScopes()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
             ->whereKey($commentaire->commentable_id)
             ->where('organization_id', $commentaire->organization_id)
             ->first();

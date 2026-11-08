@@ -553,8 +553,10 @@ final class NotificationEmailDeliverer
             // sous worker, ou `BelongsToOrganizationScope` echoue FERME faute de
             // `current_organization`. Le commentaire ressortirait introuvable,
             // en silence.
+            // Pas de `withoutGlobalScopes()` : ce modele ne porte aucune portee
+            // d'Organization, et le retrait en bloc emporterait `SoftDeletes` —
+            // un commentaire supprime repartirait en courriel.
             $commentaire = EntraideComment::query()
-                ->withoutGlobalScopes()
                 ->whereKey((string) $notification->object_id)
                 ->where('organization_id', $notification->organization_id)
                 ->first();

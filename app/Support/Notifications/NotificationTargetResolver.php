@@ -496,11 +496,13 @@ class NotificationTargetResolver
             return null;
         }
 
-        // `withoutGlobalScopes()` par principe : ce code tourne au clic, mais
-        // aussi sous worker ou aucune Organization n'est liee. La frontiere est
-        // le `where` explicite juste en dessous.
+        // PAS de `withoutGlobalScopes()` ici, et c'est une correction : ce
+        // modele ne porte AUCUNE portee d'Organization (comme `BlogComment`),
+        // donc il n'y a rien a retirer — tandis que `withoutGlobalScopes()`
+        // retire AUSSI `SoftDeletingScope`, et un commentaire supprime se
+        // remettait a resoudre une cible. Defaut trouve par
+        // `test_un_commentaire_supprime_ne_mene_nulle_part`.
         $commentaire = EntraideComment::query()
-            ->withoutGlobalScopes()
             ->whereKey($notification->object_id)
             ->where('organization_id', $notification->organization_id)
             ->where('is_approved', true)
@@ -516,9 +518,12 @@ class NotificationTargetResolver
             return null;
         }
 
+        // Portee d'Organization retiree NOMMEMENT, et non en bloc : `Service`
+        // porte `SoftDeletes`, et `withoutGlobalScopes()` le retirerait aussi —
+        // une annonce supprimee redeviendrait une destination valide.
         /** @var class-string<Service|ServiceRequest> $type */
         $annonce = $type::query()
-            ->withoutGlobalScopes()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
             ->whereKey($commentaire->commentable_id)
             ->where('organization_id', $notification->organization_id)
             ->first();
@@ -528,7 +533,6 @@ class NotificationTargetResolver
         }
 
         $organization = Organization::query()
-            ->withoutGlobalScopes()
             ->whereKey($notification->organization_id)
             ->first();
 
