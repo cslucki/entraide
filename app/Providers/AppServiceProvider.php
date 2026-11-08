@@ -7,6 +7,7 @@ use App\Ai\Context\ContextBuilder;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Events\LoopMessageCreated;
+use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\EnsureOrganizationMember;
 use App\Http\Middleware\ResolveOrganization;
 use App\Jobs\GenerateAiAgentResponse;
@@ -251,6 +252,17 @@ class AppServiceProvider extends ServiceProvider
         // declaration, `POST /livewire/update` garderait le tenant mais
         // sauterait la frontiere membre posee sur `/org/{organization}`.
         Livewire::addPersistentMiddleware(EnsureOrganizationMember::class);
+        // TASK-1790 (correctif post-merge) — meme defaut, cote SuperAdmin.
+        // Les composants plein-ecran `App\Livewire\Admin\*` vivent derriere
+        // le groupe de route `['auth', 'admin']`, donc le CHARGEMENT de la
+        // page est bien garde. Mais sans cette declaration, `AdminMiddleware`
+        // n'est PAS dans la liste blanche interne de Livewire
+        // (`PersistentMiddleware::$persistentMiddleware`) : `POST
+        // /livewire/update` rejoue `Authenticate` (deja present) mais PAS le
+        // controle `is_admin`. Une session dont le droit est revoque APRES le
+        // premier rendu pouvait donc continuer d'agir sur un composant
+        // SuperAdmin deja monte.
+        Livewire::addPersistentMiddleware(AdminMiddleware::class);
 
         try {
             $dbProvider = AiConfig::get('default_provider');

@@ -27,6 +27,9 @@ return [
     'back_to_blog' => '← Retour au blog',
     'back_to_article' => '← Retour à l\'article',
     'back_to_list' => '← Retour à la liste des articles',
+    // TASK-1790 (correctif post-merge) — visible seulement quand une fiche
+    // source RSS persiste encore pour cet article (AdminBlogController::edit()).
+    'back_to_rss_article' => '← Retour à l\'article RSS',
     'title_create' => 'Écrire un article — Blog BouclePro',
     'heading_create' => 'Écrire un article',
     'title_edit' => 'Modifier — :title',

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\AdminMiddleware;
 use App\Livewire\Admin\RssArticleFiche;
 use App\Models\BlogPost;
 use App\Models\Loop;
@@ -11,6 +12,7 @@ use App\Models\RssSourceArticle;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Livewire\Mechanisms\HandleRequests\HandleRequests;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -366,5 +368,129 @@ class TASK1790RssFicheArticleTest extends TestCase
             ->assertHasErrors('organizationId');
 
         $this->assertSame(0, BlogPost::withoutGlobalScopes()->where('source_guid', 'guid:organization-inconnue')->count());
+    }
+
+    // =====================================================================
+    // 6. Correctif post-merge — revocation de is_admin EN COURS DE SESSION
+    // =====================================================================
+
+    public function test_resume_et_contenu_s_affichent_separement_quand_les_deux_existent(): void
+    {
+        $org = $this->organization('resume-et-contenu-separes');
+        $admin = $this->superadmin($org);
+        $source = $this->source();
+        $article = $this->article($source, [
+            'resume' => 'TEXTE-DU-RESUME-SEUL',
+            'contenu_html' => '<p>TEXTE-DU-CONTENU-SEUL</p>',
+        ]);
+
+        $page = $this->actingAs($admin)->get(route('admin.outils.import-rss.articles.show', $article));
+
+        $page->assertSee('TEXTE-DU-RESUME-SEUL');
+        $page->assertSee('TEXTE-DU-CONTENU-SEUL');
+        $page->assertSee(__('admin.import_rss.fiche.resume_label'));
+        $page->assertSee(__('admin.import_rss.fiche.contenu_label'));
+    }
+
+    /**
+     * `AdminMiddleware` DOIT figurer dans la liste blanche interne de
+     * Livewire (`PersistentMiddleware`), sinon `POST /livewire/update`
+     * rejoue `Authenticate` mais jamais le controle `is_admin` — mesure
+     * directement dans ce depot (voir `AppServiceProvider::boot()`).
+     *
+     * Isole la garde (1) [middleware] de la garde (2) [controle explicite
+     * dans `creerBrouillon()`] : sans cette assertion, le test HTTP suivant
+     * resterait vert meme si cette declaration disparaissait un jour, parce
+     * que la garde (2) suffirait seule a le faire passer — ce qui ne
+     * prouverait plus rien sur (1) precisement.
+     */
+    public function test_admin_middleware_est_declaree_middleware_persistant_livewire(): void
+    {
+        $this->assertContains(AdminMiddleware::class, Livewire::getPersistentMiddleware());
+    }
+
+    /**
+     * La garde (2) ISOLEE : `Livewire::test()` ne passe PAR AUCUN middleware
+     * (ni la route, ni la liste persistante) — un refus ici ne peut venir
+     * QUE du controle explicite dans `creerBrouillon()`.
+     */
+    public function test_creerbrouillon_refuse_un_acteur_qui_n_est_plus_superadmin(): void
+    {
+        $org = $this->organization('acteur-non-admin');
+        $exAdmin = User::factory()->create(['organization_id' => $org->id, 'is_admin' => false]);
+        $source = $this->source();
+        $article = $this->article($source, ['source_identity' => 'guid:acteur-non-admin']);
+
+        $this->actingAs($exAdmin);
+
+        Livewire::test(RssArticleFiche::class, ['rssSourceArticle' => $article])
+            ->set('organizationId', (string) $org->id)
+            ->call('creerBrouillon')
+            ->assertForbidden();
+
+        $this->assertSame(0, BlogPost::withoutGlobalScopes()->where('source_guid', 'guid:acteur-non-admin')->count());
+    }
+
+    /**
+     * Le VRAI endpoint Livewire, jamais `Livewire::test()` — qui court-circuite
+     * le middleware persistant (`PersistentMiddleware::applyPersistentMiddleware()`
+     * ne s'execute que sur une requete reconnue comme `isLivewireRoute()`).
+     * Meme technique que `TASK1691LivewireTenantIdentityTest`.
+     *
+     * Verifie le RESULTAT (l'action est refusee), porte indifferemment par
+     * la garde (1) ou la garde (2) — voir le test precedent pour la garde
+     * (1) isolee.
+     */
+    public function test_une_revocation_is_admin_interdit_une_action_deja_initialisee(): void
+    {
+        $org = $this->organization('revocation-is-admin');
+        $admin = $this->superadmin($org);
+        $source = $this->source();
+        $article = $this->article($source, ['source_identity' => 'guid:revocation-is-admin']);
+
+        $url = route('admin.outils.import-rss.articles.show', $article);
+        $snapshot = $this->snapshotDe($url, $admin, 'admin.rss-article-fiche');
+
+        // Le droit est revoque APRES l'initialisation du composant : le
+        // snapshot ci-dessus a ete pris pendant que $admin etait encore
+        // SuperAdmin, exactement le scenario « action deja initialisee ».
+        $admin->update(['is_admin' => false]);
+
+        $reponse = $this->update($admin, $snapshot, ['organizationId' => (string) $org->id], [
+            ['method' => 'creerBrouillon', 'params' => []],
+        ]);
+
+        $this->assertSame(403, $reponse->getStatusCode());
+        $this->assertSame(0, BlogPost::withoutGlobalScopes()->where('source_guid', 'guid:revocation-is-admin')->count());
+    }
+
+    /** Le snapshot REEL du composant vise, pris sur une page legitime. */
+    private function snapshotDe(string $url, User $acteur, string $composant): string
+    {
+        $html = $this->actingAs($acteur)->get($url)->assertOk()->getContent();
+
+        foreach (preg_match_all('/wire:snapshot="([^"]+)"/', $html, $tous) ? $tous[1] : [] as $candidat) {
+            $decode = html_entity_decode($candidat, ENT_QUOTES);
+            if (str_contains($decode, $composant)) {
+                return $decode;
+            }
+        }
+
+        $this->fail("le composant [{$composant}] n'est pas monte sur [{$url}]");
+    }
+
+    /**
+     * Un appel sur le VRAI endpoint. L'URI est resolue a l'execution : la
+     * coder en dur rendrait un 404 trompeur qui ressemblerait a une protection.
+     */
+    private function update(User $acteur, string $snapshot, array $updates, array $calls = [])
+    {
+        return $this->actingAs($acteur)
+            ->withHeaders(['X-Livewire' => 'true'])
+            ->postJson(app(HandleRequests::class)->getUpdateUri(), ['components' => [[
+                'snapshot' => $snapshot,
+                'updates' => $updates,
+                'calls' => $calls,
+            ]]]);
     }
 }

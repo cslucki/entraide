@@ -1,9 +1,12 @@
 {{-- TASK-1790 — la fiche individuelle.
 
-     `$contenuApercu` est DEJA assaini (RssArticleImporter::contenuAssaini(),
-     meme fabrique que l'ecriture) : c'est le seul endroit de ce fichier ou du
-     HTML est rendu sans echappement, et c'est volontaire (CDC §7). Tout le
-     reste du gabarit echappe normalement. --}}
+     `$resumeApercu`/`$contenuApercu` sont DEJA assainis
+     (RssArticleImporter::contenuAssaini(), meme fabrique que l'ecriture) :
+     ce sont les deux seuls endroits de ce fichier ou du HTML est rendu sans
+     echappement, et c'est volontaire (CDC §7). Tout le reste du gabarit
+     echappe normalement. Affiches SEPAREMENT (correctif post-merge) : l'un
+     n'est plus le repli de l'autre, a la difference de l'ecriture qui n'en
+     garde qu'un. --}}
 <x-admin-layout :title="$rssSourceArticle->titre">
     <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('admin.import_rss.fiche.title') }}</p>
@@ -33,14 +36,25 @@
                 </a>
             @endif
 
-            @if(! $rssSourceArticle->contenu_html)
+            @if(! $resumeApercu && ! $contenuApercu)
                 <p class="mt-3 text-xs text-amber-600 dark:text-amber-400">{{ __('admin.import_rss.fiche.sans_contenu') }}</p>
             @endif
 
-            {{-- Apercu assaini — voir le commentaire en tete de fichier. --}}
-            <div class="prose prose-sm mt-4 max-w-none dark:prose-invert">
-                {!! $contenuApercu !!}
-            </div>
+            {{-- Resume et contenu complet, SEPAREMENT quand les deux
+                 existent — voir le commentaire en tete de fichier. --}}
+            @if($resumeApercu)
+                <h2 class="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('admin.import_rss.fiche.resume_label') }}</h2>
+                <div class="prose prose-sm mt-1 max-w-none dark:prose-invert">
+                    {!! $resumeApercu !!}
+                </div>
+            @endif
+
+            @if($contenuApercu)
+                <h2 class="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('admin.import_rss.fiche.contenu_label') }}</h2>
+                <div class="prose prose-sm mt-1 max-w-none dark:prose-invert">
+                    {!! $contenuApercu !!}
+                </div>
+            @endif
         </div>
 
         {{-- 2. Destination et statuts. --}}

@@ -40,6 +40,18 @@ use Livewire\Component;
  * privee) est appelee dans `render()` : apres une creation, le nouveau
  * statut doit apparaitre immediatement, y compris pour l'Organization qui
  * vient de recevoir son brouillon.
+ *
+ * ## Deux gardes independantes contre une session dont le droit a change
+ * (correctif post-merge TASK-1790)
+ *
+ * 1. `AdminMiddleware` est desormais declare a `Livewire::addPersistentMiddleware()`
+ *    (`AppServiceProvider::boot()`), donc rejoue sur `POST /livewire/update` —
+ *    sans cette declaration, Livewire ne rejouait QUE `Authenticate`.
+ * 2. `creerBrouillon()` revalide `is_admin` EXPLICITEMENT, en plus de (1) :
+ *    si la declaration ci-dessus venait un jour a disparaitre (regression,
+ *    montee de version de Livewire qui changerait la liste blanche interne),
+ *    cette seconde garde continuerait de refuser seule. Defense en profondeur,
+ *    pas une redite : les deux dependent de mecanismes differents.
  */
 class RssArticleFiche extends Component
 {
@@ -61,6 +73,10 @@ class RssArticleFiche extends Component
 
     public function creerBrouillon(RssArticleImporter $importer): void
     {
+        // Garde explicite (2) — voir le docbloc de classe. Independante de
+        // la garde (1) au niveau middleware.
+        abort_unless(auth()->check() && auth()->user()->is_admin, 403);
+
         $organization = Organization::query()
             ->where('is_active', true)
             ->whereKey($this->organizationId)
@@ -147,15 +163,28 @@ class RssArticleFiche extends Component
             'loops' => $this->loopsDisponibles(),
             'statuts' => $statuts,
             'organisationsConcernees' => $organisationsConcernees,
-            // CDC §7 — jamais le HTML brut du flux : meme fabrique que
-            // l'ecriture (RssArticleImporter::contenuAssaini()), pour qu'un
-            // apercu ne montre jamais plus permissif que ce qui serait
-            // enregistre.
-            'contenuApercu' => $importer->contenuAssaini(
-                $this->rssSourceArticle->contenu_html,
-                $this->rssSourceArticle->resume,
-            ),
+            // Correctif post-merge TASK-1790 : resume et contenu complet
+            // affiches SEPAREMENT quand les deux existent — auparavant, un
+            // seul apercu fusionnait les deux (meme logique que l'ECRITURE,
+            // qui n'en garde qu'un). La lecture n'a pas cette contrainte :
+            // rien n'empeche de montrer les deux. CDC §7 toujours respecte —
+            // chacun passe par `contenuAssaini()`, jamais de HTML brut.
+            'resumeApercu' => $this->apercu($this->rssSourceArticle->resume, $importer),
+            'contenuApercu' => $this->apercu($this->rssSourceArticle->contenu_html, $importer),
             'peutCreer' => $this->organizationId !== null && ! $statuts->has($this->organizationId),
         ]);
+    }
+
+    /**
+     * `null` quand le champ source est vide — pour que la vue puisse omettre
+     * la section plutot que de rendre un bloc sanitise vide (`<p></p>`).
+     */
+    private function apercu(?string $html, RssArticleImporter $importer): ?string
+    {
+        if ($html === null || trim($html) === '') {
+            return null;
+        }
+
+        return $importer->contenuAssaini($html, null);
     }
 }
