@@ -43,6 +43,12 @@ class BlogPost extends Model
         // relue et validee par un humain. NULL sur tout Article ordinaire —
         // c'est ce qui distingue une SOURCE PRIMAIRE d'une synthese IA.
         'ai_origin',
+        // TASK-1785 — provenance d'un import RSS. `source_guid` porte
+        // l'unicite PAR ORGANIZATION via l'index
+        // `blog_posts_org_source_guid_unique`.
+        'source_guid',
+        'source_url',
+        'source_published_at',
     ];
 
     protected $casts = [
@@ -54,6 +60,7 @@ class BlogPost extends Model
         'toc_max_level' => 'integer',
         'toc_navigation_enabled' => 'boolean',
         'ai_origin' => 'array',
+        'source_published_at' => 'datetime',
     ];
 
     protected static function booted(): void

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+<channel>
+  <title>CP Formation</title>
+  <link>https://cpformation.com</link>
+  <item>
+    <title>Vigilance face aux demarchages commerciaux</title>
+    <link>https://cpformation.com/vigilance-demarchages/</link>
+    <guid isPermaLink="false">https://cpformation.com/?p=1234</guid>
+    <pubDate>Tue, 03 Nov 2026 09:15:00 +0000</pubDate>
+    <dc:creator>Camille</dc:creator>
+    <description>Un resume court du billet.</description>
+    <content:encoded><![CDATA[<p>Premier paragraphe.</p><h2>Un titre</h2><ul><li>point</li></ul><p><a href="https://exemple.test">lien</a></p><script>alert('xss')</script>]]></content:encoded>
+  </item>
+  <item>
+    <title>Article sans guid ni auteur</title>
+    <link>https://cpformation.com/sans-guid/</link>
+    <pubDate>Wed, 04 Nov 2026 10:00:00 +0000</pubDate>
+    <description>Resume du second.</description>
+  </item>
+  <item>
+    <title>Article sans guid ni lien</title>
+    <pubDate>Thu, 05 Nov 2026 11:00:00 +0000</pubDate>
+  </item>
+</channel>
+</rss>

@@ -10,6 +10,9 @@ return [
     'my_posts' => 'Mes articles',
     'edit_post' => 'Modifier',
     'delete_post' => 'Supprimer',
+    // TASK-1785 — attribution VISIBLE d'un article importe par RSS.
+    'rss_attribution' => 'Article publié initialement sur',
+    'rss_attribution_with_author' => 'Article de :auteur, publié initialement sur',
     'write' => 'Écrire',
     'empty' => "Aucun article publié pour l'instant.",
     'be_first' => 'Soyez le premier à publier',
