@@ -112,7 +112,9 @@ class TASK1759Neuf1SoldeEtHistoriqueTest extends TestCase
 
         $surfaces = [
             'annonce (service)' => route('services.show', $annonce),
-            'explorateur' => route('explorer'),
+            // TASK-1788 correctif 07 — l'explorateur s'ouvre sur les DEMANDES ;
+            // c'est la carte d'ANNONCE qui porte le temps, d'ou l'onglet demande.
+            'explorateur' => route('explorer', ['tab' => 'services']),
             'solde + historique (page des points)' => route('points.index'),
         ];
 

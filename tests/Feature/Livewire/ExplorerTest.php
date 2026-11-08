@@ -32,7 +32,13 @@ class ExplorerTest extends TestCase
             ->assertStatus(200);
     }
 
-    public function test_shows_active_services_by_default(): void
+    /**
+     * TASK-1788 correctif 07 — renomme : l'onglet par defaut est desormais
+     * « demandes ». Ce test mesure toujours la meme chose — seules les annonces
+     * ACTIVES paraissent — mais il dit maintenant OU il regarde au lieu de
+     * s'appuyer sur un defaut qui a change.
+     */
+    public function test_shows_only_active_services_in_the_services_tab(): void
     {
         Service::factory()->for($this->owner)->for($this->category)->create([
             'title' => 'Service visible',
@@ -44,6 +50,9 @@ class ExplorerTest extends TestCase
         ]);
 
         Livewire::test(Explorer::class)
+            // TASK-1788 correctif 07 — l'onglet par defaut est « demandes » :
+            // ce test parle des ANNONCES, il le declare.
+            ->set('tab', 'services')
             ->assertSee('Service visible')
             ->assertDontSee('Service pausé');
     }
@@ -62,6 +71,9 @@ class ExplorerTest extends TestCase
         ]);
 
         Livewire::test(Explorer::class)
+            // TASK-1788 correctif 07 — l'onglet par defaut est « demandes » :
+            // ce test parle des ANNONCES, il le declare.
+            ->set('tab', 'services')
             ->assertSee('Service propriétaire actif')
             ->assertDontSee('Service propriétaire désactivé');
     }
@@ -78,6 +90,9 @@ class ExplorerTest extends TestCase
         ]);
 
         Livewire::test(Explorer::class)
+            // TASK-1788 correctif 07 — l'onglet par defaut est « demandes » :
+            // ce test parle des ANNONCES, il le declare.
+            ->set('tab', 'services')
             ->set('search', 'piano')
             ->assertSee('Cours de piano')
             ->assertDontSee('Jardinage');
@@ -122,6 +137,9 @@ class ExplorerTest extends TestCase
         ]);
 
         Livewire::test(Explorer::class)
+            // TASK-1788 correctif 07 — l'onglet par defaut est « demandes » :
+            // ce test parle des ANNONCES, il le declare.
+            ->set('tab', 'services')
             ->call('toggleCategory', $this->category->id)
             ->assertSee('Service catégorie A')
             ->assertDontSee('Service catégorie B');
@@ -150,6 +168,9 @@ class ExplorerTest extends TestCase
         ]);
 
         Livewire::test(Explorer::class)
+            // TASK-1788 correctif 07 — l'onglet par defaut est « demandes » :
+            // ce test parle des ANNONCES, il le declare.
+            ->set('tab', 'services')
             ->set('deliveryMode', 'remote')
             ->assertSee('Service remote')
             ->assertDontSee('Service onsite');
@@ -177,6 +198,9 @@ class ExplorerTest extends TestCase
         ]);
 
         $component = Livewire::test(Explorer::class)
+            // TASK-1788 correctif 07 — l'onglet par defaut est « demandes » :
+            // ce test parle des ANNONCES, il le declare.
+            ->set('tab', 'services')
             ->set('sortBy', 'points_asc');
 
         $html = $component->html();

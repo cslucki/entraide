@@ -64,6 +64,8 @@ class T126ExplorerTenantScopingTest extends TestCase
         ]);
 
         Livewire::test(Explorer::class)
+            // TASK-1788 correctif 07 — l'onglet par defaut est « demandes ».
+            ->set('tab', 'services')
             ->assertSee('T126_SERVICE_ORG_A');
     }
 
@@ -82,6 +84,8 @@ class T126ExplorerTenantScopingTest extends TestCase
         ]);
 
         Livewire::test(Explorer::class)
+            // TASK-1788 correctif 07 — l'onglet par defaut est « demandes ».
+            ->set('tab', 'services')
             ->assertSee('T126_SERVICE_ORG_A')
             ->assertDontSee('T126_SERVICE_ORG_B_HIDDEN');
     }
