@@ -134,6 +134,13 @@ return [
     'avatar_drop' => 'Drop a photo here, or click to choose one',
     'avatar_save' => 'Save photo',
     'avatar_updated' => 'Your photo has been updated.',
+    // TASK-1788 correctif 02 — REMOVING the photo. Until now it could only be
+    // replaced, never removed: a null avatar falls back to generated initials.
+    'avatar_remove' => 'Remove my photo',
+    'avatar_remove_cancel' => 'Cancel removal',
+    'avatar_remove_pending' => 'Your photo will be removed when you save. Your initials will replace it.',
+    'avatar_remove_confirm' => 'Remove photo',
+    'avatar_removed' => 'Your photo has been removed.',
     'available_label' => 'I am available for exchanges',
     'save' => 'Save',
     'saved' => 'Saved.',

@@ -78,7 +78,23 @@
 
             <div class="flex flex-col gap-5 sm:flex-row sm:gap-6">
                 <!-- Avatar -->
-                <div class="relative flex-shrink-0 mx-auto sm:mx-0">
+                {{-- TASK-1788 correctif 02 — `sm:self-start`, et c'est TOUTE la
+                     correction du crayon.
+
+                     Le crayon est pose `absolute bottom-0 right-0` sur ce bloc.
+                     Sur mobile (`flex-col`) le bloc a la hauteur de la photo, le
+                     crayon tombait donc sur la photo. Sur desktop (`sm:flex-row`)
+                     le conteneur flex applique `align-items: stretch` par defaut :
+                     ce bloc s'etirait sur TOUTE la hauteur de la colonne voisine —
+                     nom, slogan, pastilles, statistiques, badges — et `bottom-0`
+                     deposait le crayon tout en bas, a cote des badges, a plus de
+                     300 px de la photo qu'il pretend modifier.
+
+                     `self-start` ramene la hauteur du bloc a celle de son contenu,
+                     donc a celle de la photo. Prefixe `sm:` parce que sur mobile
+                     il n'y a rien a corriger, et qu'un `self-start` nu y
+                     remplacerait le `mx-auto` qui centre la photo. --}}
+                <div class="relative flex-shrink-0 mx-auto sm:mx-0 sm:self-start">
                     <img src="{{ $user->avatar_url }}" class="h-20 w-20 sm:h-24 sm:w-24 rounded-full object-cover ring-2 ring-gray-200 dark:ring-gray-600" alt="">
                     @if(auth()->check() && auth()->id() === $user->id)
                     {{-- TASK-1749 (demande Cyril, 04/11) — le crayon de l'avatar ouvre
@@ -650,17 +666,33 @@
          commande — simplement masque visuellement, pas `hidden` (un champ
          `hidden` ne se declenche pas au clavier). --}}
     @if(auth()->check() && auth()->id() === $user->id)
+    {{-- TASK-1788 correctif 02 — l'adresse de l'avatar PAR DEFAUT, demandee au
+         modele sur une COPIE dont l'avatar est vide plutot que recopiee ici :
+         `getAvatarUrlAttribute()` est la seule autorite sur « a quoi ressemble
+         quelqu'un sans photo ». `clone` ne touche pas l'original, le tableau
+         d'attributs etant copie par valeur. --}}
     <x-modal name="photo-profil" :show="false" focusable maxWidth="md">
         <form method="POST" action="{{ $urlOrg('profile.avatar') }}" enctype="multipart/form-data"
               x-data="{
                   apercu: null,
                   survol: false,
                   nom: null,
+                  /* TASK-1788 correctif 02 — la suppression depuis la fenetre.
+                     Meme modele que le formulaire de profil : une INTENTION que
+                     l'on voit a l'ecran avant de l'envoyer, et qui s'annule. */
+                  supprimer: false,
+                  get source() {
+                      if (this.apercu) return this.apercu;
+                      return this.supprimer ? '{{ (clone $user)->setAttribute('avatar', null)->avatar_url }}' : '{{ $user->avatar_url }}';
+                  },
                   choisir(fichiers) {
                       const f = fichiers && fichiers[0];
                       if (! f) return;
                       this.nom = f.name;
                       this.apercu = URL.createObjectURL(f);
+                      /* Choisir une photo annule la suppression : le dernier
+                         geste parle. */
+                      this.supprimer = false;
                   },
                   deposer(e) {
                       this.survol = false;
@@ -668,6 +700,14 @@
                          l'apercu changerait et l'envoi partirait vide. */
                       this.$refs.champ.files = e.dataTransfer.files;
                       this.choisir(e.dataTransfer.files);
+                  },
+                  basculerSuppression() {
+                      this.supprimer = ! this.supprimer;
+                      if (this.supprimer) {
+                          this.apercu = null;
+                          this.nom = null;
+                          this.$refs.champ.value = '';
+                      }
                   }
               }"
               class="p-6">
@@ -677,7 +717,7 @@
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('profile.avatar_modal_help') }}</p>
 
             <div class="mt-5 flex flex-col items-center">
-                <img :src="apercu ?? '{{ $user->avatar_url }}'"
+                <img :src="source"
                      class="h-28 w-28 rounded-full object-cover ring-4 ring-indigo-100 dark:ring-indigo-900/40" alt="">
 
                 <label for="avatar-modal"
@@ -693,10 +733,36 @@
                     <span class="mt-0.5 block text-xs text-gray-400" x-text="nom ?? '{{ __('profile.avatar_help') }}'"></span>
                 </label>
 
-                <input id="avatar-modal" name="avatar" type="file" accept="image/*" required
+                {{-- `required` devient CONDITIONNEL : un envoi qui supprime n'a
+                     pas de fichier, et un `required` nu le ferait refuser par le
+                     navigateur avant meme d'atteindre le serveur. --}}
+                <input id="avatar-modal" name="avatar" type="file" accept="image/*"
+                       x-bind:required="! supprimer"
                        x-ref="champ" @change="choisir($event.target.files)"
                        class="sr-only">
             </div>
+
+            {{-- TASK-1788 correctif 02 — SUPPRIMER sa photo, depuis la fenetre
+                 elle-meme : c'est ici qu'on vient quand on pense a sa photo.
+                 Propose seulement si une photo est posee. --}}
+            @if($user->avatar)
+            <input type="hidden" name="supprimer_avatar" x-bind:value="supprimer ? '1' : '0'">
+
+            <div class="mt-4 text-center">
+                <button type="button" @click="basculerSuppression()"
+                        data-avatar-remove-modal
+                        class="text-xs font-medium underline-offset-2 hover:underline"
+                        x-bind:class="supprimer
+                            ? 'text-gray-500 dark:text-gray-400'
+                            : 'text-red-600 dark:text-red-400'"
+                        x-text="supprimer
+                            ? @js(__('profile.avatar_remove_cancel'))
+                            : @js(__('profile.avatar_remove'))"></button>
+
+                <p x-show="supprimer" x-cloak
+                   class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.avatar_remove_pending') }}</p>
+            </div>
+            @endif
 
             <x-input-error class="mt-3" :messages="$errors->get('avatar')" />
 
@@ -705,11 +771,19 @@
                         class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
                     {{ __('profile.cancel') }}
                 </button>
+                {{-- Le bouton sert les DEUX gestes, et il le dit : enregistrer
+                     une photo choisie, ou supprimer celle qui est posee. Il
+                     reste inerte tant qu'aucun des deux n'est demande. --}}
                 <button type="submit"
-                        class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        :disabled="! apercu">
-                    {{ __('profile.avatar_save') }}
-                </button>
+                        data-avatar-submit
+                        class="rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                        x-bind:class="supprimer
+                            ? 'bg-red-600 hover:bg-red-700'
+                            : 'bg-indigo-600 hover:bg-indigo-700'"
+                        x-text="supprimer
+                            ? @js(__('profile.avatar_remove_confirm'))
+                            : @js(__('profile.avatar_save'))"
+                        :disabled="! apercu && ! supprimer"></button>
             </div>
         </form>
     </x-modal>

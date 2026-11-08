@@ -130,6 +130,13 @@ return [
     'avatar_drop' => 'Glissez une photo ici, ou cliquez pour la choisir',
     'avatar_save' => 'Enregistrer la photo',
     'avatar_updated' => 'Votre photo a été mise à jour.',
+    // TASK-1788 correctif 02 — la SUPPRESSION de la photo. Jusqu'ici on
+    // pouvait la remplacer, jamais l'enlever : avatar nul = initiales generees.
+    'avatar_remove' => 'Supprimer ma photo',
+    'avatar_remove_cancel' => 'Annuler la suppression',
+    'avatar_remove_pending' => 'Votre photo sera supprimée à l\'enregistrement. Vos initiales la remplaceront.',
+    'avatar_remove_confirm' => 'Supprimer la photo',
+    'avatar_removed' => 'Votre photo a été supprimée.',
     'available_label' => 'Je suis disponible pour des échanges',
     'save' => 'Enregistrer',
     'saved' => 'Enregistré.',

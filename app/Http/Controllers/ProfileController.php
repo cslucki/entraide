@@ -298,6 +298,11 @@ class ProfileController extends Controller
             'show_email' => ['nullable', 'boolean'],
             'show_phone' => ['nullable', 'boolean'],
             'avatar' => ['nullable', 'image', 'max:2048'],
+            // TASK-1788 correctif 02 — l'INTENTION de supprimer sa photo.
+            // Le formulaire la pose toujours (0 ou 1) quand une photo existe ;
+            // elle est consommee plus bas, puis retiree de `$data` avant le
+            // `fill()` — `users` n'a pas de colonne de ce nom.
+            'supprimer_avatar' => ['nullable', 'boolean'],
             // TASK-1762 point 17 — le slogan, OBLIGATOIRE et sans condition
             // d'Organization (contrairement a `structure`, `address_line1` ou
             // `preferred_locale` plus bas) : « c'est important que les gens
@@ -402,9 +407,31 @@ class ProfileController extends Controller
             $slugs->attribuer($request->user(), $slugDemande);
         }
 
+        // TASK-1788 correctif 02 — deposer une photo et demander sa suppression
+        // sont deux gestes qui se contredisent. Le FICHIER gagne : on est venu
+        // avec une photo en main. L'ecran les rend d'ailleurs exclusifs, mais
+        // un formulaire renvoye ne se croit pas sur parole.
         if ($request->hasFile('avatar')) {
             $data['avatar'] = $this->stockerAvatar($request->file('avatar'));
+        } elseif ($request->boolean('supprimer_avatar')) {
+            // `null` et non une chaine vide : `getAvatarUrlAttribute()` teste
+            // `if ($this->avatar)`, et rend les initiales generees des que la
+            // colonne est vide. Supprimer sa photo, c'est revenir a ce defaut.
+            //
+            // Le FICHIER sur le disque n'est pas efface, et c'est deliberement
+            // le meme comportement que le REMPLACEMENT, qui laisse lui aussi
+            // l'ancien derriere lui depuis toujours. Ramasser les orphelins est
+            // un autre sujet, qui se decide — pas un effet de bord qu'on glisse
+            // dans un correctif d'interface.
+            $data['avatar'] = null;
         }
+
+        // Jamais jusqu'au `fill()` : `supprimer_avatar` est une intention, pas
+        // une colonne. Eloquent n'est pas en mode strict ici, il l'ignorerait
+        // donc EN SILENCE — et le jour ou quelqu'un active
+        // `Model::shouldBeStrict()`, l'enregistrement du profil casserait sans
+        // que rien n'explique pourquoi.
+        unset($data['supprimer_avatar']);
 
         // TASK-1750 — on n'enregistre que les lignes COMPLETES, et seulement
         // si le formulaire a reellement porte le champ.
@@ -558,11 +585,37 @@ class ProfileController extends Controller
      */
     public function updateAvatar(Request $request): RedirectResponse
     {
+        // TASK-1788 correctif 02 — cette fenetre SUPPRIME aussi, desormais.
+        //
+        // `required` devient conditionnel : on arrive ici soit avec une photo
+        // en main, soit pour enlever celle qui est posee. Exiger un fichier
+        // dans le second cas refuserait le seul geste qui restait a inventer.
+        //
+        // Le choix est lu sur la REQUETE et non sur une regle croisee du genre
+        // `required_without` : le formulaire envoie toujours `supprimer_avatar`
+        // (0 ou 1) quand une photo existe, donc « le champ est absent » ne dit
+        // rien — c'est sa VALEUR qui decide.
         $request->validate([
-            'avatar' => ['required', 'image', 'max:2048'],
+            'supprimer_avatar' => ['nullable', 'boolean'],
+            'avatar' => [
+                $request->boolean('supprimer_avatar') ? 'nullable' : 'required',
+                'image', 'max:2048',
+            ],
         ]);
 
         $moi = $request->user();
+
+        // Meme arbitrage que dans `update()` : deposer une photo et demander sa
+        // suppression se contredisent, et le FICHIER l'emporte.
+        if ($request->boolean('supprimer_avatar') && ! $request->hasFile('avatar')) {
+            // Le fichier sur le disque n'est pas efface — comportement
+            // identique au REMPLACEMENT, qui laisse lui aussi l'ancien derriere
+            // lui depuis toujours.
+            $moi->update(['avatar' => null]);
+
+            return back()->with('success', __('profile.avatar_removed'));
+        }
+
         $moi->update(['avatar' => $this->stockerAvatar($request->file('avatar'))]);
 
         return back()->with('success', __('profile.avatar_updated'));
