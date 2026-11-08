@@ -127,6 +127,43 @@ class TASK1788Correctif09FluxResponsiveTest extends TestCase
         }
     }
 
+    /**
+     * Le lien « Mon tableau de bord » est retire de l'en-tete — demande de
+     * Cyril, sur les DEUX largeurs.
+     *
+     * Le retour au tableau de bord est deja offert par la navigation
+     * elle-meme : le rail sur bureau, la barre du bas sur telephone. Le lien
+     * reprenait une destination que l'ecran porte en permanence.
+     *
+     * ⚠️ L'assertion porte sur l'EN-TETE, pas sur la page : l'adresse du
+     * tableau de bord figure legitimement ailleurs (la navigation). La
+     * chercher dans tout le document ferait rougir un correctif juste.
+     */
+    public function test_l_en_tete_ne_renvoie_plus_au_tableau_de_bord(): void
+    {
+        $html = $this->page();
+
+        $debut = strpos($html, 'wire:poll.visible.15s');
+        $this->assertNotFalse($debut, 'Temoin absent : la racine du fil n\'est pas rendue.');
+
+        $fin = strpos($html, 'data-feed-poll') !== false
+            ? strpos($html, '</div>', strpos($html, 'data-feed-actions') ?: $debut)
+            : $debut + 4000;
+        $entete = substr($html, $debut, max(1, $fin - $debut));
+
+        $this->assertStringContainsString(e(__('feed.title')), $entete,
+            'Temoin absent : l\'en-tete du Flux n\'est pas dans la tranche mesuree.');
+        $this->assertStringNotContainsString(e(__('feed.dashboard')), $entete,
+            'Le lien « Mon tableau de bord » est encore rendu en tete du Flux.');
+    }
+
+    /** La cle reste DEFINIE : changement d'ecran, pas menage de lexique. */
+    public function test_la_cle_du_tableau_de_bord_reste_definie(): void
+    {
+        $this->assertNotSame('feed.dashboard', __('feed.dashboard'),
+            'La cle `feed.dashboard` a ete supprimee : c\'est un menage, pas ce correctif.');
+    }
+
     // ── Les commentaires ─────────────────────────────────────────────────────
 
     /**

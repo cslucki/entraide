@@ -77,8 +77,23 @@
 
             $tabs = auth()->check() ? [
                 ['key' => 'loops', 'url' => $tabUrl('loops.index', 'organization.loops.index'), 'active' => 'loops', 'label' => __('navigation.loops'), 'icon' => config('navigation_icons.loops'), 'visible' => $loopsEnabled],
+                ['key' => 'exchanges', 'url' => $tabUrl('explorer', 'organization.explorer'), 'active' => 'explorer', 'label' => __('navigation.exchanges'), 'icon' => config('navigation_icons.exchanges')],
+                ['key' => 'messages', 'url' => $tabUrl('messages.index', 'organization.messages.index'), 'active' => 'messages', 'label' => __('navigation.messaging'), 'icon' => config('navigation_icons.messaging')],
+                // TASK-1625 — les trois destinations que la barre fixe ne
+                // pouvait pas porter. Route, libelle, icone et garde de
+                // visibilite sont repris TELS QUELS du rail desktop
+                // (`app-side-nav.blade.php`) : aucune route n'est creee, aucune
+                // architecture d'information n'est inventee. Ce sont les memes
+                // destinations, enfin atteignables sur telephone.
+                ['key' => 'agenda', 'url' => $tabUrl('events.agenda', 'organization.events.agenda'), 'active' => 'events.agenda', 'label' => __('navigation.agenda'), 'icon' => config('navigation_icons.agenda'), 'visible' => $loopsEnabled],
+                ['key' => 'members', 'url' => $tabUrl('members.index', 'organization.members.index'), 'active' => 'members', 'label' => __('navigation.directory'), 'icon' => config('navigation_icons.directory')],
                 // TASK-1788 (demande Cyril) — le Flux se montre TOUJOURS sur
-                // telephone, comme sur le rail de bureau.
+                // telephone, comme sur le rail de bureau, et il est place
+                // ici : a GAUCHE de « Dossiers », deuxieme demande de Cyril.
+                //
+                // La barre DEFILE (T1625) : la position n'est donc pas une
+                // question de place disponible mais d'ordre de lecture, et
+                // c'est un choix produit — d'ou un test qui le fixe.
                 //
                 // L'entree existait deja ici, mais derriere
                 // `can('create', FeedPost::class)` : elle ne paraissait donc
@@ -94,16 +109,6 @@
                 // cache aussi ce qui existe. » La barre du telephone ne l'avait
                 // jamais suivi. Elle le suit.
                 ['key' => 'flux', 'url' => $organizationRouteParam && Route::has('organization.flux') ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard'), 'active' => 'flux', 'label' => __('navigation.feed'), 'icon' => config('navigation_icons.feed')],
-                ['key' => 'exchanges', 'url' => $tabUrl('explorer', 'organization.explorer'), 'active' => 'explorer', 'label' => __('navigation.exchanges'), 'icon' => config('navigation_icons.exchanges')],
-                ['key' => 'messages', 'url' => $tabUrl('messages.index', 'organization.messages.index'), 'active' => 'messages', 'label' => __('navigation.messaging'), 'icon' => config('navigation_icons.messaging')],
-                // TASK-1625 — les trois destinations que la barre fixe ne
-                // pouvait pas porter. Route, libelle, icone et garde de
-                // visibilite sont repris TELS QUELS du rail desktop
-                // (`app-side-nav.blade.php`) : aucune route n'est creee, aucune
-                // architecture d'information n'est inventee. Ce sont les memes
-                // destinations, enfin atteignables sur telephone.
-                ['key' => 'agenda', 'url' => $tabUrl('events.agenda', 'organization.events.agenda'), 'active' => 'events.agenda', 'label' => __('navigation.agenda'), 'icon' => config('navigation_icons.agenda'), 'visible' => $loopsEnabled],
-                ['key' => 'members', 'url' => $tabUrl('members.index', 'organization.members.index'), 'active' => 'members', 'label' => __('navigation.directory'), 'icon' => config('navigation_icons.directory')],
                 ['key' => 'dossiers', 'url' => $organizationRouteParam && Route::has('organization.dossiers.index') ? route('organization.dossiers.index', ['organization' => $organizationRouteParam]) : '#', 'active' => 'organization.dossiers', 'label' => __('navigation.my_dossiers'), 'icon' => config('navigation_icons.my_dossiers'), 'visible' => (bool) $organizationRouteParam && Route::has('organization.dossiers.index')],
                 ['key' => 'blog', 'url' => $tabUrl('blog.index', 'organization.blog.index'), 'active' => 'blog', 'label' => __('navigation.blog'), 'icon' => config('navigation_icons.blog')],
             ] : [

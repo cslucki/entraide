@@ -1,9 +1,6 @@
 @php
     $organizationRouteParam = request()->route('organization') ?: currentOrganization()?->slug;
     $usesDefaultOrganizationRoute = (bool) currentOrganization()?->is_default;
-    $dashboardUrl = $usesDefaultOrganizationRoute && Route::has('dashboard')
-        ? route('dashboard')
-        : route('organization.dashboard', ['organization' => $organizationRouteParam]);
     $createUrl = $usesDefaultOrganizationRoute && Route::has('flux.create')
         ? route('flux.create')
         : route('organization.flux.create', ['organization' => $organizationRouteParam]);
@@ -56,10 +53,18 @@
              definies — ce correctif est un changement d'ecran, pas un menage
              de lexique. --}}
         <div class="min-w-0">
+            {{-- TASK-1788 (demande Cyril) — le lien « Mon tableau de bord » est
+                 RETIRE, sur les deux largeurs.
+
+                 Le retour au tableau de bord est deja offert par la navigation
+                 elle-meme : le rail sur bureau, la barre du bas sur telephone.
+                 Un lien de plus en tete de page reprenait une destination que
+                 l'ecran porte en permanence, et coutait une ligne la ou l'on
+                 vient lire un fil.
+
+                 La cle `feed.dashboard` reste DEFINIE : c'est un changement
+                 d'ecran, pas un menage de lexique. --}}
             <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('feed.title') }}</h1>
-            <a href="{{ $dashboardUrl }}" class="mt-2 inline-flex text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
-                {{ __('feed.dashboard') }}
-            </a>
         </div>
         @can('create', App\Models\FeedPost::class)
             <div class="flex w-full items-center gap-2 sm:w-auto sm:shrink-0" data-feed-actions>

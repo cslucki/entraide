@@ -86,6 +86,40 @@ class TASK1788Correctif10bisFluxBarreMobileTest extends TestCase
     }
 
     /**
+     * Le Flux est a GAUCHE de « Dossiers » — demande de Cyril.
+     *
+     * La barre DEFILE depuis T1625 : la position n'est donc pas contrainte par
+     * la place disponible, c'est un choix d'ordre de lecture. Un choix qui ne
+     * se mesure pas se reperd au premier ajout d'onglet.
+     *
+     * ⚠️ `data-bp-dossiers` n'existe que si l'Organization a la route des
+     * dossiers : la precondition est verifiee avant de comparer les positions,
+     * sinon le test passerait sur une absence.
+     */
+    public function test_le_flux_precede_les_dossiers_dans_la_barre(): void
+    {
+        $membre = User::factory()->create(['organization_id' => $this->organization->id]);
+
+        $html = $this->barre($membre);
+
+        $positionFlux = strpos($html, 'data-bp-nav-item="flux"');
+        $positionDossiers = strpos($html, 'data-bp-nav-item="dossiers"');
+
+        $this->assertNotFalse($positionFlux, 'Temoin absent : le Flux n\'est pas dans la barre.');
+        $this->assertNotFalse($positionDossiers, 'Precondition non prise : « Dossiers » n\'est pas dans la barre, l\'ordre ne se mesure pas.');
+
+        $this->assertLessThan($positionDossiers, $positionFlux,
+            'Le Flux ne precede plus « Dossiers » dans la barre du bas.');
+
+        // Et il vient APRES l'annuaire : c'est la place demandee, pas « quelque
+        // part avant Dossiers ».
+        $positionAnnuaire = strpos($html, 'data-bp-nav-item="members"');
+        $this->assertNotFalse($positionAnnuaire, 'Temoin absent : l\'annuaire n\'est pas dans la barre.');
+        $this->assertGreaterThan($positionAnnuaire, $positionFlux,
+            'Le Flux a remonte au-dela de la place demandee.');
+    }
+
+    /**
      * La barre du telephone dit la MEME chose que le rail de bureau.
      *
      * C'est tout l'objet de la correction : deux barres qui divergent sur ce
