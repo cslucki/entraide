@@ -7,6 +7,7 @@ use App\Models\FeedPost;
 use App\Models\FeedPostComment;
 use App\Models\Organization;
 use App\Models\Scopes\BelongsToOrganizationScope;
+use App\Models\User;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Feed\FeedHistoryReplay;
 use Illuminate\Http\RedirectResponse;
@@ -251,6 +252,161 @@ class AdminFeedController extends Controller
         $ligne->update(['is_approved' => ! $ligne->is_approved]);
 
         return back()->with('success', __('admin.feed_comment_toggled'));
+    }
+
+    /**
+     * TASK-1788 correctif 10 — LA page des commentaires du Flux.
+     *
+     * « Voir uniquement les commentaires classes par date, et par utilisateur.
+     * Ceci pour pouvoir les voir / modifier / supprimer. »
+     *
+     * ## Pourquoi une page a part, et pas une colonne de plus
+     *
+     * La liste des annonces porte deja six colonnes et deux formulaires par
+     * ligne. Y glisser le fil complet de chaque annonce aurait rendu la page
+     * illisible — et surtout, moderer un commentaire ne commence pas toujours
+     * par l'annonce qui le porte : on part d'une personne, ou d'une date.
+     *
+     * ## ⚠️ LE scope de tenant n'existe PAS sur ce modele — mesure
+     *
+     * Le docblock de ce controleur affirmait depuis T1752 que
+     * `FeedPostComment` portait `BelongsToOrganizationScope`. **C'est faux.**
+     * Mesure : `getGlobalScopes()` ne rend que `SoftDeletingScope`. Le trait
+     * `HasOrganizationId` ne fait que REMPLIR la colonne a la creation, il
+     * n'ajoute aucun scope.
+     *
+     * Consequence, et elle compte : cette page lit les trois tenants parce
+     * qu'aucun scope ne l'en empeche, **pas** parce qu'on en retire un. La
+     * seule garde est `AdminMiddleware` (`is_admin`, le SuperAdmin plateforme,
+     * jamais un administrateur d'Organization). Un test la tient.
+     *
+     * Le `withoutGlobalScope(BelongsToOrganizationScope::class)` est CONSERVE —
+     * il est sans effet aujourd'hui et le resterait juste le jour ou le scope
+     * serait ajoute. Mais il est posé **par son nom** : `withoutGlobalScopes()`
+     * emporterait `SoftDeletingScope` et ferait reapparaitre les lignes
+     * detruites par le bouton rouge de cette meme page.
+     *
+     * ## Les filtres sont ceux de la demande
+     *
+     * Par date (l'ordre, dans les deux sens), par utilisateur, et par
+     * Organization — ce dernier parce que la page est transversale et que
+     * « tous les tenants melanges » n'est pas une vue de travail.
+     */
+    public function commentaires(Request $request): View
+    {
+        $organizationId = $request->string('organization_id')->toString();
+        $userId = $request->string('user_id')->toString();
+        $feedPostId = $request->string('feed_post_id')->toString();
+        $ordre = $request->string('ordre')->toString() === 'asc' ? 'asc' : 'desc';
+
+        $query = FeedPostComment::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->with(['user', 'organization', 'feedPost']);
+
+        if ($organizationId !== '') {
+            $query->where('organization_id', $organizationId);
+        }
+
+        if ($userId !== '') {
+            $query->where('user_id', $userId);
+        }
+
+        // TASK-1788 correctif 10 (recette Cyril) — le filtre par ANNONCE.
+        //
+        // Defaut signale : cliquer « 3 commentaires » sur une ligne ouvrait la
+        // page filtree sur la seule ORGANIZATION, donc tous les commentaires du
+        // tenant. Un compteur qui annonce trois doit mener a ces trois-la.
+        if ($feedPostId !== '') {
+            $query->where('feed_post_id', $feedPostId);
+        }
+
+        $commentaires = $query->orderBy('created_at', $ordre)
+            ->paginate(50)
+            ->withQueryString();
+
+        // Les auteurs proposes au filtre : ceux qui ont REELLEMENT commente,
+        // et dans l'Organization choisie s'il y en a une. Lister tous les
+        // comptes de la plateforme donnerait un menu de plusieurs centaines
+        // d'entrees dont presque aucune ne rend de ligne.
+        $auteursQuery = FeedPostComment::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->whereNotNull('user_id');
+
+        if ($organizationId !== '') {
+            $auteursQuery->where('organization_id', $organizationId);
+        }
+
+        $auteurs = User::whereIn('id', $auteursQuery->select('user_id'))
+            ->orderBy('first_name')->orderBy('name')
+            ->get(['id', 'first_name', 'name']);
+
+        // L'annonce choisie, pour que la page DISE sur quoi elle est bornee —
+        // un filtre invisible est un filtre qu'on accuse de perdre des lignes.
+        $annonceChoisie = $feedPostId !== ''
+            ? FeedPost::withTrashed()->whereKey($feedPostId)->first()
+            : null;
+
+        return view('admin.feed.comments', [
+            'commentaires' => $commentaires,
+            'organizations' => Organization::orderBy('name')->get(['id', 'name', 'slug']),
+            'auteurs' => $auteurs,
+            'organizationId' => $organizationId,
+            'userId' => $userId,
+            'feedPostId' => $feedPostId,
+            'annonceChoisie' => $annonceChoisie,
+            'ordre' => $ordre,
+        ]);
+    }
+
+    /**
+     * Modifier le TEXTE d'un commentaire.
+     *
+     * La meme borne que le produit : 2000 caracteres, et jamais vide. Un
+     * commentaire vide n'est pas une correction, c'est une suppression a
+     * moitie faite — et la suppression a son propre geste, juste en dessous.
+     */
+    public function modifierCommentaire(Request $request, string $comment): RedirectResponse
+    {
+        $data = $request->validate([
+            'content' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $ligne = FeedPostComment::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->whereKey($comment)
+            ->firstOrFail();
+
+        $ligne->update(['content' => $data['content']]);
+
+        return back()->with('success', __('admin.feed_comment_updated'));
+    }
+
+    /**
+     * Supprimer un commentaire, pour de bon.
+     *
+     * ⚠️ Distinct de la BASCULE juste au-dessus, et c'est l'essentiel : masquer
+     * est reversible, ceci ne l'est pas. L'ecran le dit avant de le faire.
+     *
+     * ⚠️ `forceDelete()` et NON `delete()`. J'avais d'abord ecrit `delete()` en
+     * supposant que la table n'avait pas de suppression douce : **elle en a
+     * une**. `FeedPostComment` emploie `SoftDeletes` et la colonne
+     * `deleted_at` existe. Un `delete()` aurait donc seulement masque la ligne
+     * — un second « masquer », sous un bouton rouge qui promet le contraire.
+     * Le test l'a montre.
+     *
+     * C'est aussi ce que fait la suppression d'une ANNONCE dans ce meme
+     * controleur : deux boutons de meme couleur doivent detruire pareil.
+     *
+     * Et c'est la raison pour laquelle le scope est retire PAR SON NOM plus
+     * haut : `withoutGlobalScopes()` emporterait `SoftDeletingScope` et ferait
+     * reapparaitre dans la liste ce que ce geste vient de detruire.
+     */
+    public function supprimerCommentaire(string $comment): RedirectResponse
+    {
+        $ligne = FeedPostComment::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->whereKey($comment)
+            ->firstOrFail();
+
+        $ligne->forceDelete();
+
+        return back()->with('success', __('admin.feed_comment_deleted'));
     }
 
     private function resoudre(string $id): FeedPost
