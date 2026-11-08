@@ -255,6 +255,34 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         // Le NOM de la cle est lui-meme une decision, prise sous la contrainte
         // de la garde anti-bruit ci-dessous : voir son acquittement.
         //
+        // TASK-1786 : CINQUIEME fois. `entraide.comment.created` est le fait
+        // « on a commente l'annonce d'entraide que j'ai publiee » — une
+        // proposition de service ou une demande d'aide, indifferemment. Decide
+        // dans sa propre TASK, sur CDC de Cyril du 08/11 : « les trois canaux
+        // sont actives par defaut et configurables », mot pour mot.
+        //
+        // Donc in-app ON **configurable**, email ON configurable, Web Push ON
+        // configurable. Les trois `configurable => true`, et c'est aligne sur
+        // `BLOG_COMMENT_CREATED` plutot que sur une invitation, pour la meme
+        // raison : un commentaire ne vous est pas ADRESSE et n'appelle aucune
+        // reponse de vous. Un membre dont les annonces sont tres commentees doit
+        // pouvoir se taire canal par canal — « tout coche par defaut » decide du
+        // DEFAUT, pas de l'irrevocabilite.
+        //
+        // UNE seule cle pour les deux types d'annonce, et c'est la doctrine deja
+        // posee juste au-dessus par `TRANSACTION_PROPOSAL_CREATED` : « deux cles
+        // auraient duplique l'entree, la migration, le seeder et les quatre
+        // libelles pour une nuance de texte ». La nuance (« proposition
+        // d'entraide » / « demande d'aide ») est resolue a l'AFFICHAGE, par le
+        // Centre.
+        //
+        // Et le Push reste GENERIQUE malgre le CDC §9, qui proposait « Marie a
+        // commente votre proposition d'entraide » : la doctrine du depot (CDC
+        // notifications §6.4/6.5, redite dans `NotificationCenterController`)
+        // veut qu'un Push ne nomme personne, parce qu'il s'affiche sur un ECRAN
+        // VERROUILLE. Le fait se raconte en entier dans `keys_named`, qui n'est
+        // lisible qu'authentifie. Ecart signale a MASTER.
+        //
         // La garde reste donc ce qu'elle est : un inventaire qui force la
         // decision a se prendre AILLEURS, dans la TASK qui introduit la cle.
         $attendues = [
@@ -268,6 +296,7 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             NotificationCatalogue::BLOG_CO_AUTHOR_ADDED,
             NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
             NotificationCatalogue::TRANSACTION_PROPOSAL_CREATED,
+            NotificationCatalogue::ENTRAIDE_COMMENT_CREATED,
         ];
 
         sort($attendues);

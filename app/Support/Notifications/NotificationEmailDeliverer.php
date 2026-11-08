@@ -3,6 +3,7 @@
 namespace App\Support\Notifications;
 
 use App\Models\BlogComment;
+use App\Models\EntraideComment;
 use App\Models\EmailLog;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
@@ -13,6 +14,7 @@ use App\Models\MemberNotificationDelivery;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Blog\BlogCommentMailer;
+use App\Services\Entraide\EntraideCommentMailer;
 use App\Services\Loops\LoopInvitationMailer;
 use App\Services\Loops\LoopMentionMailer;
 use App\Services\Transactions\TransactionProposalMailer;
@@ -525,6 +527,57 @@ final class NotificationEmailDeliverer
             // la phrase ecrite par un membre, et `email_logs` n'a pas a
             // l'archiver (cf. `BlogCommentMailer::EXTRAIT_EXPURGE`).
             $expurge = $commentMailer->compose($commentaire, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
+        // TASK-1786 — le commentaire depose sous une annonce d'entraide.
+        //
+        // ## Cette branche est OBLIGATOIRE, et son absence est SILENCIEUSE
+        //
+        // Le commentaire juste au-dessus de `rendreDepuisGabarit()` consigne que
+        // l'oubli s'est produit DEUX fois (T1751, puis T1761), et que le
+        // symptome ne se signale pas : sans branche, la methode rend `null`,
+        // l'email **part quand meme** par le repli de langue — sans nom de
+        // personne ni titre d'annonce — et rien ne proteste.
+        //
+        // Il y a donc un test dedie qui cherche une chaine que SEUL le gabarit
+        // administrable produit. « Email actif par defaut » ne prouverait rien :
+        // le repli part aussi.
+        if ($cle === NotificationCatalogue::ENTRAIDE_COMMENT_CREATED) {
+            // Sans les scopes globaux, puis borne a la main : ce code tourne
+            // sous worker, ou `BelongsToOrganizationScope` echoue FERME faute de
+            // `current_organization`. Le commentaire ressortirait introuvable,
+            // en silence.
+            // Pas de `withoutGlobalScopes()` : ce modele ne porte aucune portee
+            // d'Organization, et le retrait en bloc emporterait `SoftDeletes` —
+            // un commentaire supprime repartirait en courriel.
+            $commentaire = EntraideComment::query()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($commentaire === null) {
+                return null;
+            }
+
+            // L'AUTEUR DU COMMENTAIRE est l'acteur — pas le destinataire, qui
+            // est l'auteur de l'annonce.
+            $acteur = $notification->actor_id
+                ? User::find((string) $notification->actor_id)
+                : User::find((string) $commentaire->user_id);
+
+            $entraideMailer = app(EntraideCommentMailer::class);
+            $reel = $entraideMailer->compose($commentaire, $destinataire, $acteur, $cible, $locale);
+            // Le sixieme argument expurge AUSSI l'extrait : le courriel porte la
+            // phrase ecrite par un membre, et `email_logs` n'a pas a l'archiver
+            // (cf. `EntraideCommentMailer::EXTRAIT_EXPURGE`). Exigence nommee du
+            // CDC §8.
+            $expurge = $entraideMailer->compose($commentaire, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
 
             return [
                 'subject' => $reel['subject'],

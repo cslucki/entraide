@@ -8,6 +8,7 @@ use App\Models\Country;
 use App\Models\CrmContact;
 use App\Models\EmailLog;
 use App\Models\EmailTemplate;
+use App\Models\EntraideComment;
 use App\Models\LoginLog;
 use App\Models\Organization;
 use App\Models\PointLedger;
@@ -1164,10 +1165,29 @@ class AdminController extends Controller
         }
     }
 
+    /**
+     * TASK-1786 — la purge des commentaires d'entraide accompagne la suppression
+     * definitive, dans la MEME transaction.
+     *
+     * `commentable_id` ne peut pas porter de cle etrangere — une relation
+     * polymorphique vise deux tables — donc la base ne nettoie pas, et des
+     * commentaires resteraient attaches a un service qui n'existe plus.
+     *
+     * Transaction : les deux reussissent ou aucune. Sans elle, un echec du
+     * `forceDelete()` laisserait les commentaires detruits sous une annonce
+     * toujours vivante — exactement l'inverse du defaut qu'on corrige.
+     *
+     * L'ordre importe peu a l'interieur d'une transaction ; la purge est placee
+     * AVANT pour que le dernier geste reste celui que la methode annonce.
+     */
     public function forceDeleteService(string $id): RedirectResponse
     {
         $service = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($id);
-        $service->forceDelete();
+
+        DB::transaction(function () use ($service) {
+            EntraideComment::purgerPourAnnonceSupprimee($service);
+            $service->forceDelete();
+        });
 
         return back()->with('success', 'Service définitivement supprimé.');
     }
@@ -1459,14 +1479,35 @@ class AdminController extends Controller
         return back()->with('success', __('admin.transaction_deleted'));
     }
 
+    /**
+     * TASK-1786 — meme purge, et ici la suppression est definitive PAR DEFAUT.
+     *
+     * `ServiceRequest` **n'a pas** `SoftDeletes` : ce `delete()` est irreversible,
+     * contrairement a celui d'un `Service`. Les commentaires de l'annonce doivent
+     * donc partir avec elle.
+     *
+     * A ne pas confondre avec `RequestController::destroy()`, qui ne supprime
+     * rien — il fait `update(['status' => 'closed'])`. Une demande clôturee garde
+     * ses commentaires, qui restent lisibles.
+     *
+     * Le corps est enveloppe dans UNE transaction, ce qui ne change ni l'ordre ni
+     * la nature des operations — seulement leur atomicite. Le cycle de vie des
+     * demandes et des transactions est inchange : memes gestes, memes effets.
+     */
     public function destroyRequest(string $requestId): RedirectResponse
     {
         $serviceRequest = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($requestId);
-        foreach ($serviceRequest->transactions as $transaction) {
-            PointLedger::where('transaction_id', $transaction->id)->update(['transaction_id' => null]);
-            $transaction->delete();
-        }
-        $serviceRequest->delete();
+
+        DB::transaction(function () use ($serviceRequest) {
+            EntraideComment::purgerPourAnnonceSupprimee($serviceRequest);
+
+            foreach ($serviceRequest->transactions as $transaction) {
+                PointLedger::where('transaction_id', $transaction->id)->update(['transaction_id' => null]);
+                $transaction->delete();
+            }
+
+            $serviceRequest->delete();
+        });
 
         return back()->with('success', __('admin.request_deleted'));
     }

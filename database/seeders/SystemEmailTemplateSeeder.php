@@ -255,6 +255,41 @@ class SystemEmailTemplateSeeder extends Seeder
         // avait fait rougir les deux gates en T1720 : une base reconstruite
         // n'aurait JAMAIS eu le gabarit. Les deux textes sont identiques, et
         // compares programmatiquement avant commit — pas a l'oeil.
+        // TASK-1786 — on a commente votre annonce d'entraide.
+        //
+        // Pose AUSSI par la migration jumelle
+        // `2026_11_08_031000_add_entraide_comment_created_email_template`, qui
+        // sert les bases DEJA installees qu'un seeder ne revisite pas. Les deux
+        // textes sont identiques, et la migration a ete GENEREE depuis cette
+        // entree — la divergence est donc impossible a la naissance. Ecrire la
+        // migration seule avait fait rougir les deux gates en T1720 : une base
+        // reconstruite n'aurait JAMAIS eu le gabarit.
+        //
+        // `listing_type` porte « proposition d'entraide » ou « demande d'aide ».
+        // C'est ce qui permet a UN seul gabarit de servir les DEUX types
+        // d'annonce, comme une seule cle de catalogue les sert.
+        //
+        // Le SUJET ne nomme personne : il se lit dans un apercu de boite mail,
+        // sans deverrouiller. C'est le texte du CDC §8.
+        'entraide_comment_created' => [
+            'name_fr' => 'Commentaire sur votre annonce d\'entraide',
+            'name_en' => 'Comment on your mutual aid listing',
+            'subject_fr' => 'Un membre a commenté votre {{ listing_type }}',
+            'subject_en' => 'A member commented on your {{ listing_type }}',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a laissé un commentaire sur votre {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Voir le commentaire</a></p><p>Un commentaire n’engage rien : ni échange, ni acceptation d’aide, ni temps promis. Vous répondrez si vous le souhaitez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> left a comment on your {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">View the comment</a></p><p>A comment commits to nothing: no exchange, no accepted help, no promised time. You may reply if you wish.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            // Obligatoire : `ligne()` lit `$def['variables']` SANS repli
+            // (`SystemEmailTemplateSeeder:450`). L'omettre ne casse pas le
+            // seeder tout seul — il casse TOUT ce qui l'invoque, soit 209 tests
+            // en `ErrorException` et zero assertion (mesure en T1784). Meme
+            // liste que la migration jumelle.
+            'variables' => [
+                'recipient_name', 'recipient_email', 'author_name',
+                'organization_name', 'listing_type', 'listing_title',
+                'comment_url', 'comment_excerpt', 'preferences_url', 'app_name',
+            ],
+        ],
+
         'blog_comment_created' => [
             'name_fr' => 'Commentaire sur votre article',
             'name_en' => 'Comment on your article',

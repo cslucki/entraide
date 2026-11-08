@@ -70,4 +70,24 @@ return [
         'sous_titre' => '{1}of shared time · :points pt|[2,*]of shared time · :points pts',
         'sous_titre_offert' => 'a helping hand, offered',
     ],
+
+    // TASK-1786 — "Comments and suggestions" under a mutual aid listing.
+    'commentaires' => [
+        'titre' => 'Comments and suggestions',
+        'invite_proposition' => 'Do you have a suggestion or a question to improve this mutual aid offer? Share it with its author.',
+        'invite_demande' => 'Do you have a suggestion or a question to improve this help request? Share it with its author.',
+        'placeholder' => 'Your suggestion or question…',
+        'publier' => 'Post my comment',
+        'total' => '{0}no comments|{1}1 comment|[2,*]:count comments',
+        'vide' => 'No comments yet. Be the first to help.',
+        'publie' => 'Your comment has been posted.',
+        'voir_mon_commentaire' => 'View my comment',
+        'supprimer' => 'Delete',
+        'confirmer_suppression' => 'Delete this comment?',
+        'fermee_proposition' => 'This offer is no longer active: comments remain readable.',
+        'fermee_demande' => 'This request is closed: comments remain readable.',
+        'trop_rapide' => 'You are posting too fast. Try again in :secondes seconds.',
+        'type_proposition' => 'mutual aid offer',
+        'type_demande' => 'help request',
+    ],
 ];
