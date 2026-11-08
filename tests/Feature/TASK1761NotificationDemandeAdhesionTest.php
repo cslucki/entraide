@@ -255,7 +255,23 @@ class TASK1761NotificationDemandeAdhesionTest extends TestCase
         $this->assertStringContainsString('Barnabe', $contenu['body'],
             'Le corps ne nomme pas le demandeur.');
 
-        $this->assertStringContainsString($this->proprietaire->publicDisplayName(), $contenu['body'],
+        // TASK-1787 — la forme ECHAPPEE, et c'est la correction d'une instabilite
+        // preexistante.
+        //
+        // Le corps est du HTML : `EmailerService::interpolate()` passe chaque
+        // variable par `e()`. Le nom du proprietaire vient de `fake()`, donc il
+        // porte une apostrophe environ une fois sur vingt — « O'Connell » —, et
+        // le corps contient alors `O&#039;Connell` tandis que l'assertion
+        // cherchait `O'Connell`. Le test rougissait selon le tirage.
+        //
+        // Mesure : nom impose avec apostrophe -> rouge ; sans apostrophe ->
+        // vert. La CI de T1787 l'a fait sortir en deplacant la sequence de
+        // `fake()`, sans aucun rapport avec ce que T1787 modifie.
+        //
+        // Le nom reste ALEATOIRE a dessein : figer la valeur aurait masque la
+        // classe de defaut au lieu de la corriger, et cette assertion attrape
+        // desormais tout probleme d'echappement.
+        $this->assertStringContainsString(e($this->proprietaire->publicDisplayName()), $contenu['body'],
             'Le corps ne salue pas le proprietaire.');
     }
 
