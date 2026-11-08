@@ -312,7 +312,10 @@ class ProfileController extends Controller
             // desormais du Markdown, et le BALISAGE est compte dans la limite.
             // « **Auditeur Qualiopi** » coute 24 caracteres pour 18 lisibles,
             // un lien en coute 31 pour 8.
-            'bio' => ['nullable', 'string', 'max:2000'],
+            // TASK-1788 correctif 12 (demande Cyril) — 2000 releve a 3500 :
+            // meme raisonnement, la video et les liens inseres depuis la
+            // barre d'outils alourdissent encore le balisage compte ici.
+            'bio' => ['nullable', 'string', 'max:3500'],
             'city' => ['nullable', 'string', 'max:255'],
             'country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
             'website' => ['nullable', 'url', 'max:255'],

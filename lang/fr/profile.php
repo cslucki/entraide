@@ -11,6 +11,7 @@ return [
 
     'back_to_directory' => 'Retour à l’annuaire',
     'edit_profile' => 'Modifier mon profil',
+    'publish_to_blog' => 'Publier dans le blog',
     'available' => 'Disponible',
     'unavailable' => 'Indisponible',
     'deactivated_user' => 'Utilisateur désactivé',

@@ -86,6 +86,15 @@
     }
     .dark .bp-editeur-plein {
         background-color: #111827;
+        /* TASK-1788 correctif 12 (demande Cyril) — « en plein ecran, les
+           boutons deviennent noirs ». La survalue ci-dessus posait un fond
+           sombre SANS jamais poser de couleur de premier plan : tout ce qui
+           compte sur `currentColor` (les icones de la barre d'outils, avant
+           leur premiere interaction) heritait d'une couleur choisie pour un
+           fond clair. Filet de securite ; la cause racine (l'icone sans
+           couleur explicite au premier rendu) est corrigee dans
+           `markdown-wysiwyg-editor.js`. */
+        color: #e5e7eb;
     }
     .bp-editeur-plein .ProseMirror-wrapper {
         flex: 1;
@@ -131,8 +140,10 @@
      data-i18n-h2="{{ __('ai.markdown_h2') }}"
      data-i18n-h3="{{ __('ai.markdown_h3') }}"
      data-i18n-bullet-list="{{ __('ai.markdown_bullet_list') }}"
+     data-i18n-youtube="{{ __('ai.markdown_youtube') }}"
      data-i18n-toolbar="{{ __('ai.markdown_toolbar') }}"
-     data-i18n-url-prompt="{{ __('ai.markdown_url_prompt') }}">
+     data-i18n-url-prompt="{{ __('ai.markdown_url_prompt') }}"
+     data-i18n-youtube-prompt="{{ __('ai.markdown_youtube_prompt') }}">
     <textarea
         id="{{ $name }}"
         name="{{ $name }}"

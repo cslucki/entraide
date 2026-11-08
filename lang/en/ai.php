@@ -137,8 +137,10 @@ return [
     'markdown_h2' => 'Heading 2',
     'markdown_h3' => 'Heading 3',
     'markdown_bullet_list' => 'Bullet list',
+    'markdown_youtube' => 'YouTube video',
     'markdown_toolbar' => 'Formatting toolbar',
     'markdown_url_prompt' => 'URL',
+    'markdown_youtube_prompt' => 'YouTube video URL',
 
     // Organization RAG console (TASK-1217) — read-only
     'knowledge_console_intro' => 'What the AI can use from your organization Folders. This page changes nothing and indexes nothing.',

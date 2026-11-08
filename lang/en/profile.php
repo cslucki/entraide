@@ -11,6 +11,7 @@ return [
 
     'back_to_directory' => 'Back to directory',
     'edit_profile' => 'Edit my profile',
+    'publish_to_blog' => 'Publish to the blog',
     'available' => 'Available',
     'unavailable' => 'Unavailable',
     'deactivated_user' => 'Deactivated user',

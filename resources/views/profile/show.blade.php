@@ -67,7 +67,15 @@
         <div data-profile-entete
              class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-7 mb-5 relative">
             @if(auth()->check() && auth()->id() === $user->id)
-            <div class="absolute top-4 right-4 z-10">
+            <div class="absolute top-4 right-4 z-10 flex items-center gap-2">
+                {{-- TASK-1788 correctif 12 (demande Cyril) — a cote de « Modifier
+                     mon profil », pas dedans : deux intentions differentes
+                     (corriger sa fiche / publier un article), deux boutons. --}}
+                <a href="{{ $urlOrg('blog.create') }}" data-profile-publish-blog
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-semibold rounded-lg transition">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    {{ __('profile.publish_to_blog') }}
+                </a>
                 <a href="{{ $urlOrg('profile.edit') }}" data-profile-edit
                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
@@ -273,7 +281,11 @@
                          services (`services/show`), avec le meme reglage de
                          saut de ligne. `whitespace-pre-line` disparait : le
                          Markdown gouverne desormais les paragraphes. --}}
-                    <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300" data-profile-bio>
+                    {{-- TASK-1788 correctif 12 — les memes variantes arbitraires
+                         que `blog/show` pour `[data-media-embed]` : une video
+                         YouTube inseree depuis la barre d'outils de la bio suit
+                         le MEME rendu que dans un article de blog. --}}
+                    <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 [&_div[data-media-embed]]:rounded-lg [&_div[data-media-embed]]:overflow-hidden [&_div[data-media-embed]]:my-4 [&_div[data-media-embed]_iframe]:w-full [&_div[data-media-embed]_iframe]:h-full [&_div[data-media-embed]_iframe]:border-0" data-profile-bio>
                         {!! markdown($user->bio, ['renderer' => ['soft_break' => "<br />\n"]]) !!}
                     </div>
                 </div>
