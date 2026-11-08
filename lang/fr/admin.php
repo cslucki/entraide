@@ -151,6 +151,9 @@ return [
     // `crm.member_picker.already_followed`, `crm.note_placeholder`,
     // `crm.show.channel_hint`, `crm.channel.*`) : seul ce qui n'existait pas est ici.
     'crm_note_action' => 'Saisir une note',
+    // TASK-1788 correctif 08 — le lien vers la fiche CRM, a cote de
+    // « Saisir une note ». Il n'apparait que si la fiche EXISTE.
+    'crm_fiche_action' => 'Voir la fiche',
     'crm_note_modal_title' => 'Ajouter une note',
     // Décision N1 (Cyril, 04/11) : la note ajoute la personne au suivi si besoin.
     // Le pop-up doit DIRE cette écriture implicite — une écriture silencieuse

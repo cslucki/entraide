@@ -721,6 +721,30 @@
                                         data-crm-note-trigger="{{ $u->id }}">
                                     {{ __('admin.crm_note_action') }}
                                 </button>
+
+                                {{-- TASK-1788 correctif 08 — « Voir la fiche ».
+
+                                     La pastille verte « Deja suivi » menait deja
+                                     la, mais elle annonce un ETAT, pas une
+                                     destination : on ne clique pas un statut. Le
+                                     lien, lui, le dit.
+
+                                     Il n'est rendu que si une fiche EXISTE —
+                                     `$followedContactIds` porte l'identifiant du
+                                     `CrmContact` de la personne. Sans fiche, le
+                                     lien n'aurait aucune cible : c'est « Ajouter
+                                     au suivi », juste au-dessus, qui la cree.
+
+                                     L'URL vient de `route()` cote serveur : un
+                                     chemin recompose a la main n'est verifie par
+                                     aucun `route:list`. --}}
+                                @if($followedContactIds->get($u->id))
+                                    <a href="{{ route('admin.crm.contacts.show', ['organization' => $u->organization->slug, 'contact' => $followedContactIds->get($u->id)]) }}"
+                                       class="text-xs font-semibold text-teal-600 hover:underline whitespace-nowrap dark:text-teal-400"
+                                       data-crm-fiche="{{ $u->id }}">
+                                        {{ __('admin.crm_fiche_action') }}
+                                    </a>
+                                @endif
                             @endif
                         </div>
                     </td>

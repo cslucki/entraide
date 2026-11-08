@@ -82,11 +82,34 @@ class AdminController extends Controller
     {
         $query = User::with(['organization'])->withCount(['services', 'buyerTransactions', 'sellerTransactions', 'reviewsReceived']);
 
+        // TASK-1788 correctif 08 — la recherche ne tenait pas compte de la CASSE.
+        //
+        // Les trois colonnes etaient deja interrogees : chercher par prenom
+        // n'etait pas « oublie », il ne RENDAIT RIEN des qu'on tapait en
+        // minuscules. `LIKE` est insensible a la casse sous SQLite et
+        // SENSIBLE sous PostgreSQL — le defaut etait donc invisible aux tests
+        // et bien reel en production.
+        //
+        // Mesure sur le jumeau avant correction :
+        //   LIKE  '%cyril%' -> 0 ligne
+        //   ILIKE '%cyril%' -> 6 lignes
+        //   LIKE  '%Cyril%' -> 5 lignes (et manquait « CYRIL »)
+        //
+        // `whereLike(..., caseSensitive: false)` emet `ilike` sous PostgreSQL et
+        // `like` ailleurs : UNE ecriture, le bon operateur sur chaque moteur.
+        // Ecrire `ilike` a la main aurait casse SQLite, et un `LOWER()` des deux
+        // cotes aurait ecarte l'index.
+        //
+        // ⚠️ Les ACCENTS restent distincts : « Prenom » ne trouve pas
+        // « Prénom ». Les replier demande une collation ou `unaccent`, qui est
+        // un sujet de base de donnees — pas de ce correctif.
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('first_name', 'like', '%'.$request->search.'%')
-                    ->orWhere('name', 'like', '%'.$request->search.'%')
-                    ->orWhere('email', 'like', '%'.$request->search.'%');
+                $motif = '%'.$request->search.'%';
+
+                $q->whereLike('first_name', $motif, caseSensitive: false)
+                    ->orWhereLike('name', $motif, caseSensitive: false)
+                    ->orWhereLike('email', $motif, caseSensitive: false);
             });
         }
 
