@@ -94,11 +94,33 @@ class TASK1787RegistrationDisabledTest extends TestCase
         // …mais propose bien l'autre. Sans ce volet, une page vide passerait.
         $this->assertStringContainsString('data-marqueur="organisation-ofsh-1787"', $inscription);
 
-        // …et la CONNEXION ne bouge pas : `main` reste `is_public`, et
-        // `LoginAccountResolver` resout par adresse sans jamais interroger la
-        // garde. C'est l'exigence 4 du CDC.
+        // …et la CONNEXION ne bouge pas.
+        //
+        // ⚠️ CORRECTION d'une affirmation fausse de mon rapport : j'avais ecrit
+        // que `LoginAccountResolver` « resout par adresse sans filtrer ». C'est
+        // vrai de `candidats()`, et FAUX de `organizationSelectionnable()` et
+        // `organizationsProposables()`, qui filtrent toutes deux
+        // `is_active` + `is_public`.
+        //
+        // Le comportement voulu tient precisement a cela : ces deux methodes
+        // ignorent `registration_disabled`, donc `main` — qui reste
+        // `is_public` — demeure selectionnable a la connexion. Ce n'est pas une
+        // absence de filtre, c'est un filtre qui porte sur AUTRE CHOSE.
         $this->get(route('login'))->assertOk();
         $this->get(route('organization.login', ['organization' => 'main-1787']))->assertOk();
+
+        // Mesure directe des deux methodes, plutot qu'une deduction.
+        $resolver = app(\App\Services\Users\LoginAccountResolver::class);
+
+        $this->assertNotNull(
+            $resolver->organizationSelectionnable('main-1787'),
+            'main fermee aux inscriptions doit rester selectionnable a la connexion.'
+        );
+
+        $this->assertTrue(
+            $resolver->organizationsProposables()->contains(fn ($o) => $o->slug === 'main-1787'),
+            'main doit figurer dans le selecteur de connexion.'
+        );
     }
 
     // --------------------------------------- /org/main/register : parcours central
