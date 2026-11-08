@@ -178,19 +178,12 @@ class AdminRssImportController extends Controller
         // Appartenance reverifiee ICI : les id selectionnes doivent appartenir
         // a LA SOURCE COURANTE, jamais supposee depuis ce que le formulaire a
         // renvoye (TASK-1789, decision MASTER).
+        // TASK-1790 : reconstruction factorisee sur `RssSourceArticle::versEntreeImport()`,
+        // partagee avec la fiche individuelle — une seule fabrique.
         $choisis = $source->articles()
             ->whereIn('id', $valide['selection'])
             ->get()
-            ->map(fn (RssSourceArticle $a) => [
-                'identite' => $a->source_identity,
-                'guid' => $a->guid,
-                'url' => $a->url,
-                'titre' => $a->titre,
-                'auteur' => $a->auteur,
-                'resume' => $a->resume,
-                'contenu_html' => $a->contenu_html,
-                'publie_le' => optional($a->source_published_at)->toDateTimeString(),
-            ])
+            ->map(fn (RssSourceArticle $a) => $a->versEntreeImport())
             ->all();
 
         if ($choisis === []) {

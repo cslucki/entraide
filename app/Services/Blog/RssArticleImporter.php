@@ -9,6 +9,7 @@ use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
@@ -68,6 +69,16 @@ use Illuminate\Support\Str;
  * qu'il est : un doublon dont l'original a ete supprime (`supprime: true`
  * dans le resultat), jamais comme un echec d'enregistrement. Aucune
  * recreation automatique, aucune restauration : hors perimetre de cette TASK.
+ *
+ * ## `statutsParOrganization()` est une lecture A PART (TASK-1790)
+ *
+ * La fiche individuelle doit savoir, pour TOUTES les Organizations, si un
+ * article source est deja importe et sous quel statut — pas seulement pour
+ * l'Organization en cours de choix. `dejaImporte()` reste PRIVEE : c'est une
+ * primitive d'ECRITURE (elle sert `importer()` a decider s'il cree ou non),
+ * et la rendre publique l'exposerait sans necessite, decision MASTER
+ * explicite. `statutsParOrganization()` est une requete INDEPENDANTE, pensee
+ * pour la lecture seule, qui ne passe par aucune methode interne d'import.
  */
 class RssArticleImporter
 {
@@ -180,7 +191,25 @@ class RssArticleImporter
      */
     private function contenu(array $entree): string
     {
-        $brut = $entree['contenu_html'] ?? $entree['resume'] ?? '';
+        $corps = $this->contenuAssaini($entree['contenu_html'] ?? null, $entree['resume'] ?? null);
+        $attribution = $this->attribution($entree);
+
+        return $attribution === null ? $corps : $corps.$attribution;
+    }
+
+    /**
+     * Le HTML d'un article source, assaini — SEULE fabrique pour l'ecriture
+     * (ici, avant `BlogPost::create()`) et pour l'apercu de la fiche
+     * individuelle (TASK-1790, `RssArticleFiche`). Deux appelants, une seule
+     * regle : si l'un se durcit sans l'autre, la fiche montrerait un contenu
+     * plus permissif que celui realement enregistre, ou l'inverse.
+     *
+     * Public exprès : c'est une lecture, pas un point d'entree d'ECRITURE —
+     * a la difference de `dejaImporte()`, restee privee.
+     */
+    public function contenuAssaini(?string $brut, ?string $repli): string
+    {
+        $html = $brut ?? $repli ?? '';
 
         // `<script>` et `<style>` sont retires AVEC leur contenu, AVANT la
         // sanitation generale.
@@ -191,9 +220,9 @@ class RssArticleImporter
         // visible en plein milieu de l'article. Ce n'est pas une faille — le
         // texte est echappe a l'affichage — mais c'est du code source expose
         // au lecteur, et sur du contenu tiers non relu c'est inacceptable.
-        $brut = preg_replace('#<(script|style)\b[^>]*>.*?</\1\s*>#is', '', $brut) ?? $brut;
+        $html = preg_replace('#<(script|style)\b[^>]*>.*?</\1\s*>#is', '', $html) ?? $html;
 
-        $corps = trim($this->sanitizer->sanitizeHtml($brut));
+        $corps = trim($this->sanitizer->sanitizeHtml($html));
 
         if ($corps === '') {
             // Rien d'exploitable : on n'invente pas de texte. L'attribution
@@ -202,9 +231,7 @@ class RssArticleImporter
             $corps = '<p></p>';
         }
 
-        $attribution = $this->attribution($entree);
-
-        return $attribution === null ? $corps : $corps.$attribution;
+        return $corps;
     }
 
     /**
@@ -243,6 +270,44 @@ class RssArticleImporter
             ->where('organization_id', $organization->id)
             ->where('source_guid', $identite)
             ->first();
+    }
+
+    /**
+     * Le statut d'un article source, PAR ORGANIZATION — lecture dediee pour
+     * la fiche individuelle (TASK-1790), independante de `dejaImporte()`.
+     *
+     * Trois statuts possibles par ligne rendue ; l'ABSENCE d'une Organization
+     * dans la collection rendue EST le quatrieme statut — « non importe » —
+     * et ne necessite donc aucune valeur a part : une Organization absente
+     * n'a jamais ete touchee par cette identite.
+     *
+     * `withTrashed()` pour la MEME raison qu'en TASK-1789 : un article
+     * supprime reste « deja importe » au sens de l'index unique, et doit
+     * donc apparaitre ici — sinon la fiche proposerait « Creer le brouillon »
+     * sur une Organization ou l'identite est deja prise, ce que l'ecriture
+     * refuserait aussitot.
+     *
+     * @return Collection<string, array{blog_post_id: string, blog_post_slug: string, trashed: bool, statut: string}>
+     *         Cle = `organization_id`.
+     */
+    public function statutsParOrganization(string $identite): Collection
+    {
+        return BlogPost::query()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->withTrashed()
+            ->where('source_guid', $identite)
+            ->get(['id', 'organization_id', 'slug', 'status', 'deleted_at'])
+            ->keyBy(fn (BlogPost $post) => (string) $post->organization_id)
+            ->map(fn (BlogPost $post) => [
+                'blog_post_id' => (string) $post->id,
+                'blog_post_slug' => $post->slug,
+                'trashed' => $post->trashed(),
+                'statut' => match (true) {
+                    $post->trashed() => 'supprime',
+                    $post->status === 'published' => 'publie',
+                    default => 'brouillon',
+                },
+            ]);
     }
 
     /**

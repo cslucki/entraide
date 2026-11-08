@@ -20,12 +20,23 @@
     <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('admin.import_rss.subtitle') }}</p>
 
-        {{-- Navigation reciproque, cote outil (CDC §6). --}}
-        <a href="{{ route('admin.blog') }}"
-           class="shrink-0 inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
-            {{ __('admin.import_rss.go_to_blog') }}
-        </a>
+        <div class="flex shrink-0 flex-wrap gap-2">
+            {{-- TASK-1790 — navigation reciproque vers le parcours individuel
+                 (source -> articles -> fiche), qui coexiste avec cet ecran en
+                 lot sans le remplacer. --}}
+            <a href="{{ route('admin.outils.import-rss.sources') }}"
+               class="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                {{ __('admin.import_rss.sources.title') }}
+            </a>
+
+            {{-- Navigation reciproque, cote outil (CDC §6). --}}
+            <a href="{{ route('admin.blog') }}"
+               class="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+                {{ __('admin.import_rss.go_to_blog') }}
+            </a>
+        </div>
     </div>
 
     @if(session('rss_erreur'))
