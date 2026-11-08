@@ -20,6 +20,7 @@ use App\Services\ReferralService;
 use App\Services\Security\TurnstileVerifier;
 use App\Services\Workshops\WorkshopResumption;
 use App\Support\Tenancy\DefaultOrganizationResolver;
+use App\Support\Tenancy\RegistrationGuard;
 use App\Support\Tenancy\UserWriteLock;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -38,9 +39,48 @@ class RegisteredUserController extends Controller
     /**
      * Display the registration view.
      */
-    public function create(Request $request, GuestVisitorResolver $visitors, AcquisitionEventRecorder $events): View
+    public function create(Request $request, GuestVisitorResolver $visitors, AcquisitionEventRecorder $events): View|RedirectResponse
     {
         $organization = currentOrganization();
+
+        // TASK-1787 — l'Organization d'arrivee refuse les inscriptions.
+        //
+        // La table de decision, ecrite en clair parce qu'elle a six cas et que
+        // des conditions imbriquees les auraient caches :
+        //
+        // | route                  | ouvertes ? | action                      |
+        // |------------------------|-----------|------------------------------|
+        // | `/org/<defaut>/register` | oui     | redirection vers `/register` |
+        // | `/org/<defaut>/register` | non     | ecran « ferme »              |
+        // | `/org/<autre>/register`  | peu importe | ecran « ferme » + SA connexion |
+        // | `/register` (defaut ferme) | oui   | formulaire, menu OBLIGATOIRE |
+        // | `/register` (defaut ferme) | non   | ecran « ferme »              |
+        // | arrivee ouverte          | —       | formulaire normal            |
+        //
+        // La redirection ne vaut QUE depuis la route prefixee : la declencher
+        // sur `/register` boucherait sur elle-meme, `currentOrganization()` y
+        // etant nul et l'Organization par defaut etant precisement la fermee.
+        $arrivee = $organization ?? DefaultOrganizationResolver::resolve();
+
+        if (RegistrationGuard::fermeeParLeReglage($arrivee)) {
+            $ouvertes = $this->organizationsOuvertes();
+            $estLeDefaut = $organization !== null
+                && DefaultOrganizationResolver::resolve()?->is($organization);
+
+            if ($estLeDefaut && $ouvertes->isNotEmpty()) {
+                return redirect()->route('register');
+            }
+
+            // Sur `/register`, avec des Organizations encore ouvertes, on laisse
+            // le formulaire se rendre : `menuEstPropose()` le rend obligatoire,
+            // et c'est le parcours central que le CDC demande.
+            if ($organization !== null || $ouvertes->isEmpty()) {
+                return view('auth.registration-closed', [
+                    'organization' => $arrivee,
+                    'ouvertes' => $ouvertes,
+                ]);
+            }
+        }
 
         // TASK-1449 (Growth V3 §5) : `signup_started`, une fois par visiteur Guest de la MEME Organization —
         // lecture pure du cookie (`find()`, jamais `ensure()`) : afficher le formulaire ne cree aucune identite.
@@ -82,6 +122,10 @@ class RegisteredUserController extends Controller
             // l'organisation par defaut qui s'applique. Lire `$organization`
             // seul y rendait `null`, donc aucun menu — alors que c'est
             // precisement le point de chute de qui ne sait pas ou aller.
+            // TASK-1787 — le choix devient OBLIGATOIRE quand l'arrivee refuse
+            // les inscriptions : l'unique Organization ouverte n'est alors plus
+            // une alternative, c'est le seul chemin.
+            'choixObligatoire' => RegistrationGuard::fermeeParLeReglage($organization ?? DefaultOrganizationResolver::resolve()),
             'organizationsOuvertes' => $this->menuEstPropose($organization ?? DefaultOrganizationResolver::resolve())
                 ? $this->organizationsOuvertes()
                 : collect(),
@@ -109,6 +153,21 @@ class RegisteredUserController extends Controller
     private function menuEstPropose(?Organization $courante): bool
     {
         $defaut = DefaultOrganizationResolver::resolve();
+
+        // TASK-1787 — une arrivee FERMEE rend le menu obligatoire, quel que soit
+        // le nombre d'Organizations ouvertes.
+        //
+        // Sans cette branche, le cas « une seule Organization encore ouverte »
+        // etait un cul-de-sac : `count() > 1` tombait a faux, le menu
+        // disparaissait, et `store()` retombait sur l'Organization d'ARRIVEE —
+        // c'est-a-dire celle qui refuse. La personne voyait un formulaire
+        // complet qui ne pouvait que la refuser.
+        //
+        // Le menu cesse ici d'etre une alternative offerte pour devenir le seul
+        // chemin : c'est pourquoi la condition de comptage ne s'applique pas.
+        if (RegistrationGuard::fermeeParLeReglage($courante)) {
+            return $this->organizationsOuvertes()->isNotEmpty();
+        }
 
         return $defaut !== null
             && $courante !== null
@@ -154,6 +213,18 @@ class RegisteredUserController extends Controller
             ->where('is_active', true)
             ->where('is_public', true)
             ->whereNull('scenario_sandbox_created_at')
+            // TASK-1787 — le reglage « Interdire la creation de compte ».
+            //
+            // Ce n'est PAS un quatrieme sens donne a « publique » : c'est le
+            // meme genre de critere que `scenario_sandbox_created_at` juste
+            // au-dessus, propre a l'INSCRIPTION, et pose pour la raison que ce
+            // docbloc donne deja — « lister une Organization dont l'inscription
+            // est fermee quelques lignes plus bas enverrait les gens dans un
+            // mur ».
+            //
+            // `main` disparait donc de ce menu tout en restant `is_public`,
+            // donc presente dans les selecteurs de CONNEXION.
+            ->where('registration_disabled', false)
             // Departage par `id` derriere le nom : deux Organizations
             // homonymes laisseraient sinon PostgreSQL choisir au gre du plan
             // (meme lecon que DefaultOrganizationResolver).
@@ -283,6 +354,30 @@ class RegisteredUserController extends Controller
         if ($organization->scenario_sandbox_created_at !== null) {
             throw ValidationException::withMessages([
                 'email' => "Cette organisation est un monde de demonstration : on ne peut pas s'y inscrire.",
+            ]);
+        }
+
+        // TASK-1787 — l'Organization refuse les inscriptions.
+        //
+        // ## Ce refus n'est pas une doublure du selecteur, il est LA protection
+        //
+        // Retirer une Organization du menu ne ferme rien : `$organization` ci-
+        // dessus retombe sur l'Organization d'ARRIVEE des que le menu n'est pas
+        // rendu — et `menuEstPropose()` exige `count() > 1`. Donc avec `main`
+        // fermee et UNE SEULE autre Organization ouverte, le menu disparait et
+        // un POST sur `/org/main/register` creerait le compte dans `main`.
+        //
+        // C'est exactement le cas que le CDC demande de traiter, et il ne se
+        // regle que cote serveur, APRES resolution et AVANT toute creation —
+        // au meme endroit et pour la meme raison que le refus sandbox
+        // ci-dessus.
+        //
+        // Vaut aussi contre un POST forge portant `organisation_confirmee` :
+        // la regle `Rule::in` n'existe que si le menu est rendu, donc elle ne
+        // peut pas etre la seule garde.
+        if (RegistrationGuard::fermeeParLeReglage($organization)) {
+            throw ValidationException::withMessages([
+                'email' => RegistrationGuard::messageFermeture($organization),
             ]);
         }
 

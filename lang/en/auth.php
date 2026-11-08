@@ -161,4 +161,7 @@ return [
     // l'empecherait de comprendre ce qui lui arrive.
     'registration_closed_for' => 'Registrations are closed on :organization.',
     'registration_closed_login_hint' => 'Already have an account here? Sign in.',
+    'registration_closed_title' => 'Registrations are closed',
+    'registration_closed_elsewhere' => 'You can however create an account on:',
+    'registration_closed_everywhere' => 'No organization is accepting new registrations at the moment.',
 ];

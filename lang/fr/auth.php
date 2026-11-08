@@ -175,4 +175,7 @@ return [
     // l'empecherait de comprendre ce qui lui arrive.
     'registration_closed_for' => 'Les inscriptions sont fermées sur :organization.',
     'registration_closed_login_hint' => 'Vous avez déjà un compte ici ? Connectez-vous.',
+    'registration_closed_title' => 'Les inscriptions sont fermées',
+    'registration_closed_elsewhere' => 'Vous pouvez en revanche créer un compte sur :',
+    'registration_closed_everywhere' => 'Aucune organisation n\'accepte de nouvelle inscription pour le moment.',
 ];

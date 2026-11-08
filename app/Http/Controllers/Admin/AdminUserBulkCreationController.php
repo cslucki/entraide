@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\OrganizationInvitation;
 use App\Services\OrganizationInvitationMailer;
 use App\Services\OrganizationInvitationService;
+use App\Support\Tenancy\RegistrationGuard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -150,6 +151,24 @@ class AdminUserBulkCreationController extends Controller
             // Defensive: the select is already filtered, but the value is
             // client-submitted and re-validated here before anything else.
             return back()->withInput()->with('error', __('organization_invitations.admin_sandbox_forbidden'));
+        }
+
+        // TASK-1787 — cet ecran cree des comptes PAR INVITATION : la personne
+        // recoit un courriel et clique. C'est donc un des « parcours pouvant
+        // creer des utilisateurs sans passer par le formulaire classique » que
+        // le CDC demande de fermer.
+        //
+        // La creation administrative d'un compte de TEST reste ouverte par
+        // ailleurs : `AdminController::storeUser()` ecrit directement, sans
+        // invitation, et n'est pas touche — c'est lui que preserve l'exigence 6
+        // du CDC.
+        //
+        // Le refus est pose ICI en plus du service, pour la meme raison que la
+        // garde sandbox juste au-dessus : sans lui, chaque personne de la liste
+        // echouerait une a une, et l'ecran rendrait un decompte muet au lieu
+        // d'une phrase.
+        if (RegistrationGuard::fermeeParLeReglage($organization)) {
+            return back()->withInput()->with('error', RegistrationGuard::messageFermeture($organization));
         }
 
         $created = 0;

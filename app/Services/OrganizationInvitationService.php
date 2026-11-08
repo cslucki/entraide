@@ -9,6 +9,7 @@ use App\Models\OrganizationInvitation;
 use App\Models\PointLedger;
 use App\Models\User;
 use App\Support\Tenancy\UserWriteLock;
+use App\Support\Tenancy\RegistrationGuard;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -53,6 +54,16 @@ class OrganizationInvitationService
 
     public const CASE_SANDBOX_FORBIDDEN = 'sandbox_forbidden';
 
+    /**
+     * TASK-1787 — l'Organization refuse les inscriptions.
+     *
+     * Code DISTINCT de la sandbox, alors que les deux refusent la meme chose :
+     * « monde de demonstration » et « les inscriptions sont fermees » ne se
+     * disent pas pareil a qui lit l'ecran, et les confondre rendrait un message
+     * faux dans l'un des deux cas.
+     */
+    public const CASE_REGISTRATION_CLOSED = 'registration_closed';
+
     /** Outcome of accept(). */
     public const RESULT_ACCEPTED = 'accepted';
 
@@ -63,6 +74,9 @@ class OrganizationInvitationService
     public const RESULT_REVOKED = 'revoked';
 
     public const RESULT_SANDBOX_FORBIDDEN = 'sandbox_forbidden';
+
+    /** TASK-1787 — voir `CASE_REGISTRATION_CLOSED`. */
+    public const RESULT_REGISTRATION_CLOSED = 'registration_closed';
 
     /** TASK-1732 (A6) — meme renommage, meme raison : voir `CASE_EMAIL_NOT_INVITABLE`. */
     public const RESULT_EMAIL_NOT_INVITABLE = 'email_not_invitable';
@@ -114,6 +128,23 @@ class OrganizationInvitationService
             // request.
             if ($organization->scenario_sandbox_created_at !== null) {
                 return ['case' => self::CASE_SANDBOX_FORBIDDEN, 'invitation' => null, 'user' => null];
+            }
+
+            // TASK-1787 — une Organization fermee aux inscriptions n'emet plus
+            // d'invitation.
+            //
+            // C'est la QUATRIEME expression de la meme garde, et elle est posee
+            // ici pour la raison que le commentaire ci-dessus donne deja :
+            // `resend()` rentre dans cette methode SANS repasser par la
+            // validation de la requete. Une garde posee au formulaire seul se
+            // contournerait donc par un simple renvoi.
+            //
+            // Consequence assumee, dite a MASTER : un membre de `main` ne peut
+            // plus y faire entrer quelqu'un deliberement. C'est l'intention
+            // produit — ne plus faire grossir `main` — et c'est aussi ce que le
+            // CDC demande, « empecher un contournement de la fermeture ».
+            if (RegistrationGuard::fermeeParLeReglage($organization)) {
+                return ['case' => self::CASE_REGISTRATION_CLOSED, 'invitation' => null, 'user' => null];
             }
 
             // Recherche INSENSIBLE A LA CASSE, et BORNEE A CETTE Organization.
@@ -401,6 +432,17 @@ class OrganizationInvitationService
             // pas de commentaire.
             if (! $organization || $organization->scenario_sandbox_created_at !== null || ! $organization->is_active) {
                 return ['result' => self::RESULT_SANDBOX_FORBIDDEN, 'invitation' => $invitation, 'user' => null];
+            }
+
+            // TASK-1787 — meme recontrole defensif, meme raison : l'Organization
+            // a pu etre FERMEE aux inscriptions apres l'envoi de l'invitation.
+            //
+            // Separe de la condition ci-dessus a dessein : elle rend
+            // `RESULT_SANDBOX_FORBIDDEN`, et une invitation refusee pour
+            // fermeture afficherait alors « monde de demonstration » — un
+            // message faux. Un code distinct, un message juste.
+            if (RegistrationGuard::fermeeParLeReglage($organization)) {
+                return ['result' => self::RESULT_REGISTRATION_CLOSED, 'invitation' => $invitation, 'user' => null];
             }
 
             $adresse = OrganizationInvitation::normalizeEmail($invitation->recipient_email);
