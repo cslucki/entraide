@@ -5,6 +5,9 @@ return [
     'ask_for_help' => 'Ask for help',
     'offer_help' => 'Offer help',
     'my_loops' => 'My loops',
+    // TASK-1788 correctif 06 — see the French file. `my_loops` stays defined
+    // although nothing renders it any more.
+    'index_title' => 'Loops',
     'new' => 'New',
     'collaboration_spaces' => 'Your collaboration spaces',
     'default_missing_title' => 'Warning:',

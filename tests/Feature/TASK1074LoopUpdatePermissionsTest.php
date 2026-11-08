@@ -322,7 +322,12 @@ class TASK1074LoopUpdatePermissionsTest extends TestCase
         $this->actingAs($member)
             ->get(route('loops.index'))
             ->assertOk()
-            ->assertSee('md:hidden shrink-0 inline-flex', false);
+            // TASK-1788 correctif 06 — marqueur plutot que chaine de classes.
+            // `md:hidden` a migre sur le conteneur quand « Vos espaces de
+            // collaboration » a ete retiree : le lien est toujours reserve au
+            // smartphone, mais la chaine exacte avait change. Un marqueur ne
+            // depend d'aucune mise en page.
+            ->assertSee('data-loops-new-mobile', false);
     }
 
     public function test_mobile_only_new_loop_link_is_absent_when_not_authorized(): void
@@ -335,6 +340,6 @@ class TASK1074LoopUpdatePermissionsTest extends TestCase
         $this->actingAs($member)
             ->get(route('loops.index'))
             ->assertOk()
-            ->assertDontSee('md:hidden shrink-0 inline-flex', false);
+            ->assertDontSee('data-loops-new-mobile', false);
     }
 }
