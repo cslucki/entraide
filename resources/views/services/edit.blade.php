@@ -196,7 +196,25 @@
                        x-text="@js(__('marketplace.service_duration_equivalent')).replace(':points', Number(minutes) || 0)"></p>
                 </div>
 
-                <x-entraide.champs-atelier :capacite="$service->capacity" :plancher="$service->min_participants" />
+                {{-- TASK-1788 correctif 01 — l'option « Proposer cette action sous
+                     forme d'atelier » et son panneau sont MASQUES, sur demande
+                     de Cyril.
+
+                     L'appel au composant est RETIRE, pas mis en commentaire :
+                     Blade compile les composants et les directives a
+                     l'INTERIEUR d'un commentaire `{{--` (defaut mesure en
+                     T1786, un commentaire s'affichait a l'ecran). Mettre la
+                     ligne en commentaire aurait donc continue de rendre la
+                     case et sa zone.
+
+                     Rien d'autre n'est touche : le composant
+                     `entraide.champs-atelier` reste en place, les colonnes
+                     `capacity` / `min_participants` aussi, et un atelier DEJA
+                     cree continue de s'afficher et de fonctionner (fiche,
+                     explorateur, acceptation, repartition du temps). Pour
+                     reouvrir l'option, il suffit de remettre l'appel au
+                     composant ici, avec ses deux attributs `capacite` et
+                     `plancher`. --}}
             </div>
 
             <div class="flex gap-3">
