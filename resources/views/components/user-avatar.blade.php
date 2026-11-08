@@ -12,6 +12,23 @@
 @props([
     'user' => null,
     'size' => 'md',
+    // TASK-1788 correctif 09 — la FORME de la pastille d'initiales.
+    //
+    //   `soft`  (defaut) : disque translucide, teinte d'accent. C'est ce que
+    //                      rendaient toutes les surfaces jusqu'ici, et rien ne
+    //                      change pour elles.
+    //   `solid`          : disque PLEIN, initiales blanches — la pastille des
+    //                      ChatLoops, demandee par Cyril pour le fil du Flux.
+    //
+    // Une variante plutot qu'une surcharge au site d'appel : deux utilitaires
+    // `bg-*` qui se disputent se departagent par l'ORDRE DANS LA FEUILLE, pas
+    // par l'ordre des attributs. La surcharge aurait marche par accident.
+    //
+    // ⚠️ Et surtout PAS en reprenant la recette du ChatLoop : la sienne vient
+    // de `avatar_url`, qui retombe sur ui-avatars.com — un appel a un tiers a
+    // qui on envoie le nom de la personne. Ce composant existe precisement
+    // pour ne pas le faire (voir l'en-tete). On copie l'ASPECT, pas le moyen.
+    'variant' => 'soft',
 ])
 
 @php
@@ -29,6 +46,10 @@
     $hasImage = ! $deactivated && filled($user?->avatar);
     $initials = $deactivated ? '?' : ($user?->initials ?: '?');
     $label = $user?->publicDisplayName() ?? '—';
+
+    $pastille = $variant === 'solid'
+        ? 'bg-[var(--bp-primary)] text-white'
+        : 'bg-[var(--bp-primary)]/12 text-[var(--bp-primary-deep)] dark:bg-[var(--bp-primary)]/25 dark:text-white';
 @endphp
 
 @if($hasImage)
@@ -42,6 +63,7 @@
           {{ $attributes->class([
               $dim['box'],
               $dim['text'],
-              'inline-flex shrink-0 items-center justify-center rounded-full bg-[var(--bp-primary)]/12 font-bold uppercase leading-none text-[var(--bp-primary-deep)] dark:bg-[var(--bp-primary)]/25 dark:text-white',
+              'inline-flex shrink-0 items-center justify-center rounded-full font-bold uppercase leading-none',
+              $pastille,
           ]) }}>{{ $initials }}</span>
 @endif
