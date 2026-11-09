@@ -43,6 +43,7 @@ use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminAssignDataController;
 use App\Http\Controllers\Admin\AdminRssImportController;
 use App\Livewire\Admin\RssArticleFiche;
+use App\Livewire\Admin\RssEditorialHistory;
 use App\Livewire\Admin\RssSourceArticles;
 use App\Livewire\Admin\RssSources;
 use App\Http\Controllers\Admin\AdminDataIntegrityController;
@@ -1270,6 +1271,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         ->name('outils.import-rss.sources.show');
     Route::get('/outils/import-rss/articles/{rssSourceArticle}', RssArticleFiche::class)
         ->name('outils.import-rss.articles.show');
+    // TASK-1792 — l'historique editorial, toutes sources, toutes Organizations.
+    Route::get('/outils/import-rss/historique', RssEditorialHistory::class)
+        ->name('outils.import-rss.historique');
 
     Route::get('/outils/assign-data', [AdminAssignDataController::class, 'index'])->name('outils.assign-data');
     Route::get('/outils/assign-data/{dataset}', [AdminAssignDataController::class, 'detail'])->name('outils.assign-data.detail');

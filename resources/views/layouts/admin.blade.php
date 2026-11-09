@@ -82,8 +82,6 @@
                             // sait que refuser est pire que pas de lien.
                             ['route' => 'admin.loop-plugins', 'label' => __('loops.plugins_admin_title'), 'icon' => 'M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a.64.64 0 0 1-.657.643 48.39 48.39 0 0 1-4.163-.3c.186 1.613.293 3.25.315 4.907a.656.656 0 0 1-.658.663v0c-.355 0-.676-.186-.959-.401a1.647 1.647 0 0 0-1.003-.349c-1.036 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401v0c.31 0 .555.26.532.57a48.039 48.039 0 0 1-.642 5.056c1.518.19 3.058.309 4.616.354a.64.64 0 0 0 .657-.643v0c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.035 1.008-1.875 2.25-1.875 1.243 0 2.25.84 2.25 1.875 0 .369-.128.713-.349 1.003-.215.283-.4.604-.4.959v0c0 .333.277.599.61.58a48.1 48.1 0 0 0 5.427-.63 48.05 48.05 0 0 0 .582-4.717.532.532 0 0 0-.533-.57v0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.035 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.369 0 .713.128 1.003.349.283.215.604.401.959.401v0a.656.656 0 0 0 .658-.663 48.422 48.422 0 0 0-.37-5.36c-1.886.342-3.81.574-5.766.689a.578.578 0 0 1-.61-.58v0Z'],
                             ['route' => 'admin.messages', 'label' => 'Messages', 'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z'],
-                            ['route' => 'admin.blog', 'label' => 'Blog', 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z'],
-                            ['route' => 'admin.todo', 'label' => __('blog.admin_todo_menu'), 'icon' => 'M9 12l2 2 4-4M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z'],
                             ['route' => 'admin.tags', 'label' => 'Tags', 'icon' => 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z'],
                             // TASK-1456 : ateliers, vue transversale (icone a coordonnees entieres :
                             // aucune sequence de montant, cf. T1450/T1228).
@@ -103,6 +101,29 @@
                             $echangesItems = array_values(array_filter(
                                 $echangesItems,
                                 fn ($item) => ! in_array($item['route'], ['admin.loop-types', 'admin.loop-plugins', 'admin.loop-permissions', 'admin.workshops', 'admin.feed'], true),
+                            ));
+                        }
+
+                        // TASK-1792 — section dediee « Blog », demandee par MASTER :
+                        // Blog et Todos Blog QUITTENT « Echanges » (sans doublon),
+                        // rejoints par l'entree « Import RSS », qui ouvre desormais
+                        // le gestionnaire individuel (`outils.import-rss.sources`,
+                        // TASK-1790) plutot que l'ecran en lot — celui-ci reste
+                        // atteignable par son lien reciproque existant.
+                        $blogItems = [
+                            ['route' => 'admin.blog', 'label' => 'Blog', 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z'],
+                            ['route' => 'admin.todo', 'label' => __('blog.admin_todo_menu'), 'icon' => 'M9 12l2 2 4-4M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z'],
+                            ['route' => 'admin.outils.import-rss.sources', 'label' => __('admin.import_rss.sources.nav_label'), 'icon' => 'M4 6h16M4 12h16M4 18h7'],
+                        ];
+
+                        // Meme garde que les items SuperAdmin de $echangesItems juste
+                        // au-dessus : « Import RSS » repond 403 a un admin d'Organization
+                        // (groupe de route `admin`), donc on ne l'affiche pas pour lui.
+                        // Blog/Todos Blog restent visibles : inchange depuis toujours.
+                        if (! auth()->user()?->is_admin) {
+                            $blogItems = array_values(array_filter(
+                                $blogItems,
+                                fn ($item) => $item['route'] !== 'admin.outils.import-rss.sources',
                             ));
                         }
 
@@ -258,7 +279,7 @@
                             ['route' => 'admin.themes', 'label' => 'Thèmes', 'icon' => 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828L10.828 18.83'],
                         ];
 
-                        $navRoutes = collect([$designItems, $emailItems, $echangesItems, $notifsItems, $orgItems, $outilsItems, $statsItems, $iaItems])
+                        $navRoutes = collect([$designItems, $emailItems, $echangesItems, $blogItems, $notifsItems, $orgItems, $outilsItems, $statsItems, $iaItems])
                             ->flatten(1)
                             ->pluck('route')
                             ->push('admin.dashboard')   // l'entree autonome compte aussi
@@ -435,6 +456,44 @@
                              x-transition:leave-end="opacity-0 scale-y-95"
                              class="origin-top">
                             @foreach($echangesItems as $item)
+                            @php $itemActive = $isNavActive($item['route']); @endphp
+                            <a href="{{ route($item['route']) }}"
+                               class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
+                                      {{ $itemActive ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                                <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
+                                </svg>
+                                {{ $item['label'] }}
+                            </a>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <!-- Blog group -->
+                    {{-- TASK-1792 — section dediee, demandee par MASTER : Blog et
+                         Todos Blog viennent de « Echanges », rejoints par « Import
+                         RSS » (gestionnaire individuel, TASK-1790). --}}
+                    @php $groupActive = $isGroupActive($blogItems); @endphp
+                    <div x-data="{ open: {{ $groupActive ? 'true' : "localStorage.getItem('sidebar_blog_open') !== 'false'" }} }">
+                        <button @click.stop="open = !open; localStorage.setItem('sidebar_blog_open', open)"
+                                class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
+                                       {{ $groupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
+                            <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
+                                 :class="{'rotate-180': !open}"
+                                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                            <span class="text-xs font-semibold uppercase tracking-wider">Blog</span>
+                        </button>
+                        <div x-show="open" x-cloak
+                             x-transition:enter="transition ease-out duration-200"
+                             x-transition:enter-start="opacity-0 scale-y-95"
+                             x-transition:enter-end="opacity-100 scale-y-100"
+                             x-transition:leave="transition ease-in duration-150"
+                             x-transition:leave-start="opacity-100 scale-y-100"
+                             x-transition:leave-end="opacity-0 scale-y-95"
+                             class="origin-top">
+                            @foreach($blogItems as $item)
                             @php $itemActive = $isNavActive($item['route']); @endphp
                             <a href="{{ route($item['route']) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition

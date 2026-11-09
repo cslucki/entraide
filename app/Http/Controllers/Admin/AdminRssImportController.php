@@ -104,27 +104,8 @@ class AdminRssImportController extends Controller
             ['created_by' => $request->user()->id],
         );
 
-        $maintenant = now();
-
-        foreach ($articles as $entree) {
-            // UPSERT par (source, identite) — jamais de suppression des
-            // articles absents de CETTE lecture : voir le docblock de classe.
-            RssSourceArticle::query()->updateOrCreate(
-                ['rss_source_id' => $source->id, 'source_identity' => $entree['identite']],
-                [
-                    'guid' => $entree['guid'],
-                    'url' => $entree['url'],
-                    'titre' => $entree['titre'],
-                    'auteur' => $entree['auteur'],
-                    'resume' => $entree['resume'],
-                    'contenu_html' => $entree['contenu_html'],
-                    'source_published_at' => RssArticleImporter::dateSource($entree['publie_le']),
-                    'fetched_at' => $maintenant,
-                ],
-            );
-        }
-
-        $source->update(['last_fetched_at' => $maintenant]);
+        // TASK-1792 — fabrique UNIQUE, partagee avec `RssSourceArticles::actualiser()`.
+        $source->enregistrerArticlesDecouverts($articles);
 
         $request->session()->put(self::SESSION_URL, $valide['url']);
 

@@ -292,22 +292,54 @@ class RssArticleImporter
      */
     public function statutsParOrganization(string $identite): Collection
     {
+        return $this->statutsParOrganizationPourPlusieurs([$identite])->get($identite, collect());
+    }
+
+    /**
+     * Version GROUPEE de `statutsParOrganization()` (TASK-1792) : une seule
+     * requete `BlogPost` pour TOUTES les identites demandees, au lieu d'une
+     * par article. L'historique editorial liste des dizaines d'articles par
+     * page — les interroger un par un aurait ete du N+1 pur, exactement ce
+     * que le CDC (§10) demande d'eviter. Meme fabrique de statut que la
+     * version singuliere : extraite une seule fois (`ligneStatut()`), jamais
+     * dupliquee entre les deux methodes.
+     *
+     * @param  list<string>  $identites
+     * @return Collection<string, Collection<string, array{blog_post_id: string, blog_post_slug: string, trashed: bool, statut: string}>>
+     *         Cle externe = `source_identity`, cle interne = `organization_id`.
+     */
+    public function statutsParOrganizationPourPlusieurs(array $identites): Collection
+    {
+        if ($identites === []) {
+            return collect();
+        }
+
         return BlogPost::query()
             ->withoutGlobalScope(BelongsToOrganizationScope::class)
             ->withTrashed()
-            ->where('source_guid', $identite)
-            ->get(['id', 'organization_id', 'slug', 'status', 'deleted_at'])
-            ->keyBy(fn (BlogPost $post) => (string) $post->organization_id)
-            ->map(fn (BlogPost $post) => [
-                'blog_post_id' => (string) $post->id,
-                'blog_post_slug' => $post->slug,
-                'trashed' => $post->trashed(),
-                'statut' => match (true) {
-                    $post->trashed() => 'supprime',
-                    $post->status === 'published' => 'publie',
-                    default => 'brouillon',
-                },
-            ]);
+            ->whereIn('source_guid', $identites)
+            ->get(['id', 'organization_id', 'slug', 'status', 'deleted_at', 'source_guid'])
+            ->groupBy('source_guid')
+            ->map(fn ($posts) => $posts
+                ->keyBy(fn (BlogPost $post) => (string) $post->organization_id)
+                ->map(fn (BlogPost $post) => $this->ligneStatut($post)));
+    }
+
+    /**
+     * @return array{blog_post_id: string, blog_post_slug: string, trashed: bool, statut: string}
+     */
+    private function ligneStatut(BlogPost $post): array
+    {
+        return [
+            'blog_post_id' => (string) $post->id,
+            'blog_post_slug' => $post->slug,
+            'trashed' => $post->trashed(),
+            'statut' => match (true) {
+                $post->trashed() => 'supprime',
+                $post->status === 'published' => 'publie',
+                default => 'brouillon',
+            },
+        ];
     }
 
     /**

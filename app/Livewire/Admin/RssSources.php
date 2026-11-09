@@ -9,20 +9,25 @@ use Livewire\WithPagination;
 
 /**
  * TASK-1790 — etape 1 du parcours individuel : les sources RSS connues.
+ * TASK-1792 — bascule d'affichage des sources archivees (decision MASTER :
+ * masquees par defaut, jamais supprimees).
  *
  * Route dans le groupe `['auth', 'admin']` (`routes/web.php`), donc deja
- * protegee par `AdminMiddleware` avant meme le montage du composant — rien
- * a dupliquer ici.
+ * protegee par `AdminMiddleware` avant meme le montage du composant ; et
+ * depuis TASK-1791, `AdminMiddleware` est aussi middleware persistant
+ * Livewire — rien a dupliquer ici pour les mises a jour.
  *
- * Volontairement minimal : ni creation, ni suppression, ni filtre, ni
- * recherche. La gestion des sources (cockpit) est le perimetre de la TASK
- * SUIVANTE, explicitement non demarree ici (decision MASTER).
+ * Toujours volontairement minimal sur un point : pas de creation manuelle ni
+ * de suppression physique — la seule facon de faire naitre une source reste
+ * `AdminRssImportController::charger()` (ecran en lot).
  */
 class RssSources extends Component
 {
     use WithPagination;
 
     protected string $paginationTheme = 'tailwind';
+
+    public bool $afficherArchivees = false;
 
     /**
      * Pas de colonne de contenu chargee ici : seul le compte d'articles est
@@ -31,6 +36,7 @@ class RssSources extends Component
     public function render(): View
     {
         $sources = RssSource::query()
+            ->when(! $this->afficherArchivees, fn ($q) => $q->nonArchivees())
             ->withCount('articles')
             ->orderByDesc('last_fetched_at')
             ->paginate(20);
