@@ -50,6 +50,18 @@
                 <nav @click="if ($event.target.closest('a')) { pinned || (sidebarOpen = false) }" class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
                     @php
                         $emailItems = [
+                            // TASK-1795 correctif 5 (demande Cyril) — « Messages »
+                            // quitte les ECHANGES pour cette section, qui devient
+                            // « Email&Messages ».
+                            //
+                            // Il y etait parce qu'un message naissait d'un echange.
+                            // Ce n'est plus vrai : les discussions privees vivent
+                            // dans la meme table sans echange derriere (correctif 4),
+                            // et ce qu'on consulte ici c'est une CORRESPONDANCE —
+                            // la meme chose que l'historique d'emails juste en
+                            // dessous. L'entree passe en tete : c'est elle qu'on
+                            // vient chercher le plus souvent.
+                            ['route' => 'admin.messages', 'label' => __('admin.emailer_messages_history'), 'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z'],
                             ['route' => 'admin.email-templates', 'label' => __('admin.emailer_templates'), 'icon' => 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'],
                             // TASK-1788 correctif 11 (demande Cyril) — le cockpit a
                             // quitte l'Emailer pour la section « Notifications »,
@@ -81,7 +93,6 @@
                             // comme loop-types et loop-permissions, parce qu'un lien qui ne
                             // sait que refuser est pire que pas de lien.
                             ['route' => 'admin.loop-plugins', 'label' => __('loops.plugins_admin_title'), 'icon' => 'M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a.64.64 0 0 1-.657.643 48.39 48.39 0 0 1-4.163-.3c.186 1.613.293 3.25.315 4.907a.656.656 0 0 1-.658.663v0c-.355 0-.676-.186-.959-.401a1.647 1.647 0 0 0-1.003-.349c-1.036 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401v0c.31 0 .555.26.532.57a48.039 48.039 0 0 1-.642 5.056c1.518.19 3.058.309 4.616.354a.64.64 0 0 0 .657-.643v0c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.035 1.008-1.875 2.25-1.875 1.243 0 2.25.84 2.25 1.875 0 .369-.128.713-.349 1.003-.215.283-.4.604-.4.959v0c0 .333.277.599.61.58a48.1 48.1 0 0 0 5.427-.63 48.05 48.05 0 0 0 .582-4.717.532.532 0 0 0-.533-.57v0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.035 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.369 0 .713.128 1.003.349.283.215.604.401.959.401v0a.656.656 0 0 0 .658-.663 48.422 48.422 0 0 0-.37-5.36c-1.886.342-3.81.574-5.766.689a.578.578 0 0 1-.61-.58v0Z'],
-                            ['route' => 'admin.messages', 'label' => 'Messages', 'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z'],
                             ['route' => 'admin.tags', 'label' => 'Tags', 'icon' => 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z'],
                             // TASK-1456 : ateliers, vue transversale (icone a coordonnees entieres :
                             // aucune sequence de montant, cf. T1450/T1228).

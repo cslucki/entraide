@@ -69,8 +69,42 @@ class SystemEmailTemplateSeeder extends Seeder
 <p><strong>{{ sender_name }}</strong> sent you a message about <strong>{{ transaction_title }}</strong>.</p>
 <blockquote>{{ message_preview }}</blockquote>
 <p><a href="{{ url }}">View conversation</a></p>',
-            'variables' => ['name', 'sender_name', 'transaction_title', 'message_preview', 'url'],
+            // `sender_first_name` est fourni par `NewMessageReceived` et donc
+            // utilisable dans le gabarit ; l'ecran d'administration doit le dire.
+            'variables' => ['name', 'sender_first_name', 'sender_name', 'transaction_title', 'message_preview', 'url'],
         ],
+
+        // TASK-1795 correctif 2 — la DISCUSSION PRIVEE, distincte de l'entraide.
+        //
+        // `new_message` juste au-dessus reste le gabarit des messages d'un
+        // ECHANGE : son texte parle d'echange et interpole
+        // `{{ transaction_title }}`. Une discussion privee n'a ni service ni
+        // demande — cette variable y valait « Echange », un mot invente par un
+        // repli. `Transaction::isDirectConversation()` tranche entre les deux,
+        // et `NewMessageReceived::toMail()` choisit le slug a partir d'elle.
+        //
+        // Pose AUSSI par la migration jumelle
+        // `2026_11_09_160000_add_private_message_received_email_template`, qui
+        // sert les bases DEJA installees qu'un seeder ne revisite pas. Les deux
+        // textes sont identiques, et la migration a ete GENEREE depuis cette
+        // entree — la divergence est impossible a la naissance. Ecrire la
+        // migration seule avait fait rougir les deux gates en T1720 : une base
+        // reconstruite n'aurait JAMAIS eu le gabarit.
+        'private_message_received' => [
+            'name_fr' => 'Message privé reçu',
+            'name_en' => 'Private message received',
+            'subject_fr' => 'Message privé de {{ sender_first_name }} {{ sender_name }}',
+            'subject_en' => 'Private message from {{ sender_first_name }} {{ sender_name }}',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Vous avez reçu un message privé de <strong>{{ sender_first_name }} {{ sender_name }}</strong> sur {{ organization_name }}.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_preview }}</blockquote><p><a href="{{ message_url }}" style="display:inline-block;padding:10px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px">Lire le message et répondre</a></p><p style="font-size:12px;color:#777">Lien : {{ message_url }}</p><p>À bientôt,<br>L’équipe {{ app_name }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>You received a private message from <strong>{{ sender_first_name }} {{ sender_name }}</strong> on {{ organization_name }}.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_preview }}</blockquote><p><a href="{{ message_url }}" style="display:inline-block;padding:10px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px">Read and reply</a></p><p style="font-size:12px;color:#777">Link: {{ message_url }}</p><p>See you soon,<br>The {{ app_name }} team</p>',
+            // Obligatoire : `ligne()` lit `$def['variables']` SANS repli.
+            // Meme liste que la migration jumelle.
+            'variables' => [
+                'sender_first_name', 'sender_name', 'recipient_name',
+                'organization_name', 'message_preview', 'message_url', 'app_name',
+            ],
+        ],
+
         'transaction_status_changed' => [
             'name_fr' => 'Mise à jour statut échange',
             'name_en' => 'Exchange status update',

@@ -46,6 +46,10 @@ return [
     'loop_owners_inline' => 'Propriétaire :|Propriétaires :',
     'loop_creator_label' => 'Créée par',
     'login_as_short' => 'se connecter sous',
+    'login_as_action' => 'Se connecter sous',
+    'login_as_self' => 'C’est votre compte',
+    'login_as_banned' => 'Compte banni',
+    'login_as_admin' => 'Compte administrateur',
     'join_requests_card_empty' => 'Aucune demande en attente.',
     'join_requests_card_wants_to_join' => 'souhaite rejoindre',
     'join_requests_card_accept' => 'Accepter',
@@ -789,9 +793,10 @@ return [
     'all_locales' => 'Toutes',
 
     // Emailer module
-    'emailer_title' => 'Emailer',
+    'emailer_title' => 'Email&Messages',
     'emailer_templates' => 'Templates',
-    'emailer_history' => 'Historique',
+    'emailer_history' => 'Emails envoyés',
+    'emailer_messages_history' => 'Historique de tous les messages',
     'notifications_cockpit' => 'Supervision notifications',
     'emailer_test' => 'Test',
     'emailer_system' => 'Emails système',
@@ -1934,6 +1939,9 @@ return [
     'users_stat_new' => 'Nouveaux ce mois',
     'users_stat_unverified' => 'Non vérifiés',
     'users_stat_unverified_hint' => 'Afficher ces comptes',
+    'users_org_counter_total' => 'sur :total au total',
+    'users_org_counter_filter' => 'N’afficher que les comptes de :name',
+    'users_org_counter_clear' => 'Retirer le filtre et revoir toutes les organisations',
     // TASK-1726 — les quatre cles `users_assign_organization*` ont ete retirees
     // avec le controle qu'elles libellaient : un compte ne change plus
     // d'Organization. Ces deux-la les remplacent, et ne libellent qu'un

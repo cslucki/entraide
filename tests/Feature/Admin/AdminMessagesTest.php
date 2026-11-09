@@ -99,7 +99,20 @@ class AdminMessagesTest extends TestCase
 
     // ── Default filter ────────────────────────────────────────────────────────
 
-    public function test_default_filter_is_chatloop(): void
+    /**
+     * TASK-1795 correctif 3 — ce test etait un FAUX VERT.
+     *
+     * Il s'appelait `test_default_filter_is_chatloop` et n'a jamais mesure le
+     * defaut : `assertSee('ChatLoop')` rencontre l'ETIQUETTE DE L'ONGLET, que
+     * la vue rend a chaque fois, quel que soit le filtre actif. Il serait reste
+     * vert avec n'importe quel defaut — il l'est d'ailleurs reste apres le
+     * passage a `all`, ce qui l'a trahi.
+     *
+     * Il demande desormais ce que son nom annonce, sur ce que la VUE a recu
+     * plutot que sur du HTML : les deux defauts de l'ecran, type et
+     * Organization.
+     */
+    public function test_default_filter_is_all_types_and_all_organizations(): void
     {
         $org = $this->makeOrg();
         $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
@@ -112,7 +125,8 @@ class AdminMessagesTest extends TestCase
         $response = $this->actingAs($admin)->get(route('admin.messages'));
 
         $response->assertOk();
-        $response->assertSee('ChatLoop');
+        $response->assertViewHas('filter', 'all');
+        $response->assertViewHas('selectedOrganizationId', 'all');
     }
 
     // ── ChatLoop filter ───────────────────────────────────────────────────────
@@ -183,6 +197,25 @@ class AdminMessagesTest extends TestCase
 
     // ── Tenant isolation ──────────────────────────────────────────────────────
 
+    /**
+     * TASK-1795 correctif 3 — le filtre est desormais EXPLICITE dans ce test.
+     *
+     * Ce test ne reposait sur aucun filtre : il lisait le DEFAUT, qui valait
+     * alors l'Organization par defaut — ici `$orgA`, premiere Organization
+     * active (`DefaultOrganizationResolver`). Il mesurait donc un defaut, pas
+     * la garantie que son nom annonce.
+     *
+     * Le defaut vaut maintenant « Toutes les organisations », a la demande de
+     * Cyril : « Actuellement c'est sur `main`. Donc il faut passer par le menu,
+     * et c'est perte de temps. » La garantie, elle, ne bouge pas — un
+     * `organization_id` explicite restreint toujours — et c'est ELLE que ce
+     * test nomme, donc c'est elle qu'il demande desormais.
+     *
+     * L'isolation reelle de l'ecran n'est pas portee par ce defaut : elle vit
+     * dans `test_admin_cannot_view_message_detail_outside_organization`, qui
+     * reste inchange, et `/admin/messages` est deja derriere `is_admin` — le
+     * SuperAdmin PLATEFORME, qui pouvait deja choisir « Toutes » au menu.
+     */
     public function test_admin_sees_only_own_organization_chatloop_messages(): void
     {
         $orgA = $this->makeOrg();
@@ -200,7 +233,10 @@ class AdminMessagesTest extends TestCase
         $this->makeLoopMessage($loopB, $adminB, body: 'CHATLOOP ORG B MSG');
 
         $response = $this->actingAs($adminA)
-            ->get(route('admin.messages', ['filter' => 'chatloop']));
+            ->get(route('admin.messages', [
+                'filter' => 'chatloop',
+                'organization_id' => $orgA->id,
+            ]));
 
         $response->assertOk();
         $response->assertSee('CHATLOOP ORG A MSG');
@@ -227,7 +263,10 @@ class AdminMessagesTest extends TestCase
         app()->instance('current_organization', $orgA);
 
         $response = $this->actingAs($adminA)
-            ->get(route('admin.messages', ['filter' => 'exchanges']));
+            ->get(route('admin.messages', [
+                'filter' => 'exchanges',
+                'organization_id' => $orgA->id,
+            ]));
 
         $response->assertOk();
         $response->assertSee('EXCHANGE ORG A MSG');
@@ -271,7 +310,20 @@ class AdminMessagesTest extends TestCase
 
     // ── Admin without org ─────────────────────────────────────────────────────
 
-    public function test_admin_without_org_sees_no_messages(): void
+    /**
+     * TASK-1795 correctif 3 — « sans org » voulait dire « hors de l'org visee ».
+     *
+     * L'administrateur a toujours eu une Organization (`UserFactory` lui en
+     * donne une) : ce qu'il n'avait pas, c'est l'Organization qui porte le
+     * message. Le test lisait le DEFAUT, qui valait alors sa propre
+     * Organization — vide — d'ou l'etat vide attendu.
+     *
+     * Le defaut vaut maintenant « Toutes les organisations », et le message
+     * existe : la liste n'est plus vide, et c'est voulu. Ce que le test dit
+     * reellement — « mon Organization ne contient aucun message » — reste
+     * vrai et se demande desormais explicitement.
+     */
+    public function test_admin_sees_an_empty_state_when_his_own_organization_has_no_message(): void
     {
         $admin = $this->makeAdmin();
 
@@ -279,7 +331,10 @@ class AdminMessagesTest extends TestCase
         $loop = $this->makeLoop($org);
         $this->makeLoopMessage($loop);
 
-        $response = $this->actingAs($admin)->get(route('admin.messages'));
+        $response = $this->actingAs($admin)->get(route('admin.messages', [
+            'filter' => 'chatloop',
+            'organization_id' => $admin->organization_id,
+        ]));
 
         $response->assertOk();
         $response->assertSee('Aucun message ChatLoop');
@@ -366,7 +421,13 @@ class AdminMessagesTest extends TestCase
 
     // ── Unknown filter ────────────────────────────────────────────────────────
 
-    public function test_unknown_filter_falls_back_to_chatloop(): void
+    /**
+     * TASK-1795 correctif 3 — un filtre inconnu retombe sur `all`, plus sur
+     * `chatloop`. Ce que le test garde : une valeur invalide ne lit JAMAIS la
+     * chaine telle quelle, elle retombe sur le defaut de l'ecran. Seul ce
+     * defaut a change.
+     */
+    public function test_unknown_filter_falls_back_to_the_default_tab(): void
     {
         $org = $this->makeOrg();
         $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
@@ -382,7 +443,11 @@ class AdminMessagesTest extends TestCase
             ->get(route('admin.messages', ['filter' => 'invalid']));
 
         $response->assertOk();
+        $response->assertViewHas('filter', 'all');
+
+        // `all` melange les deux modeles : les DEUX messages sont la, et c'est
+        // la preuve que la valeur « invalid » n'a pas ete lue telle quelle.
         $response->assertSee('FALLBACK CHATLOOP MSG');
-        $response->assertDontSee('FALLBACK EXCHANGE MSG');
+        $response->assertSee('FALLBACK EXCHANGE MSG');
     }
 }

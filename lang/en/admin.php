@@ -46,6 +46,10 @@ return [
     'loop_owners_inline' => 'Owner:|Owners:',
     'loop_creator_label' => 'Created by',
     'login_as_short' => 'log in as',
+    'login_as_action' => 'Log in as',
+    'login_as_self' => 'This is your account',
+    'login_as_banned' => 'Banned account',
+    'login_as_admin' => 'Administrator account',
     'join_requests_card_empty' => 'No pending request.',
     'join_requests_card_wants_to_join' => 'is asking to join',
     'join_requests_card_accept' => 'Accept',
@@ -786,9 +790,10 @@ return [
     'all_locales' => 'All locales',
 
     // Emailer module
-    'emailer_title' => 'Emailer',
+    'emailer_title' => 'Email&Messages',
     'emailer_templates' => 'Templates',
-    'emailer_history' => 'History',
+    'emailer_history' => 'Sent emails',
+    'emailer_messages_history' => 'History of all messages',
     'notifications_cockpit' => 'Notifications health',
     'emailer_test' => 'Test',
     'emailer_system' => 'System emails',
@@ -1916,6 +1921,9 @@ return [
     'users_stat_new' => 'New this month',
     'users_stat_unverified' => 'Unverified',
     'users_stat_unverified_hint' => 'Show these accounts',
+    'users_org_counter_total' => 'of :total in total',
+    'users_org_counter_filter' => 'Show only :name accounts',
+    'users_org_counter_clear' => 'Clear the filter and show all organizations',
     // TASK-1726 — see the French file: the account no longer moves between
     // Organizations, so these keys label a READ-ONLY display.
     'users_organization_none' => 'No organization',

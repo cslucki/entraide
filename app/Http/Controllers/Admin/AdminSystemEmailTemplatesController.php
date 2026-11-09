@@ -21,6 +21,9 @@ class AdminSystemEmailTemplatesController extends Controller
      */
     public const FILTRE_GLOBAL = 'global';
 
+    /** TASK-1795 correctif 10 — la langue ouverte par defaut sur cet ecran. */
+    public const LOCALE_PAR_DEFAUT = 'fr';
+
     public function index(Request $request): View
     {
         $query = SystemEmailTemplate::with('organization')->orderBy('name');
@@ -38,8 +41,28 @@ class AdminSystemEmailTemplatesController extends Controller
             $query->where('organization_id', $request->organization_id);
         }
 
-        if ($request->filled('locale')) {
-            $query->where('locale', $request->locale);
+        // TASK-1795 correctif 10 — la LANGUE par defaut est le francais.
+        //
+        // Cyril : « pour "Locale" sur "FR" par défaut ». Sans defaut, l'ecran
+        // ouvrait les 40 lignes — 20 slugs vus DEUX fois, une par langue — et
+        // la liste se lisait comme si chaque gabarit etait en double.
+        //
+        // `has()` et non `filled()` : c'est la distinction qui garde « Toutes
+        // les langues » ATTEIGNABLE. Cette option poste `locale=` (present, mais
+        // vide) ; avec `filled()` la valeur vide serait retombee sur le defaut
+        // `fr`, et l'option n'aurait jamais rien pu faire — un choix offert et
+        // refuse. Absent de la requete = premiere visite = `fr` ; present et
+        // vide = demande explicite de tout voir.
+        //
+        // Le filtre Organization, lui, n'a PAS de defaut a poser : vide vaut
+        // deja « Toutes les organisations », ce que l'ecran fait depuis
+        // toujours.
+        $localeSelectionnee = $request->has('locale')
+            ? (string) $request->input('locale')
+            : self::LOCALE_PAR_DEFAUT;
+
+        if ($localeSelectionnee !== '') {
+            $query->where('locale', $localeSelectionnee);
         }
 
         // TASK-1659 : permet d'arriver directement sur les gabarits d'UNE
@@ -90,7 +113,7 @@ class AdminSystemEmailTemplatesController extends Controller
             ];
         }
 
-        return view('admin.system-email-templates.index', compact('templates', 'organizations', 'defaultTemplate', 'compteurs'));
+        return view('admin.system-email-templates.index', compact('templates', 'organizations', 'defaultTemplate', 'compteurs', 'localeSelectionnee'));
     }
 
     /**
