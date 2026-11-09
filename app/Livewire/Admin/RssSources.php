@@ -4,6 +4,7 @@ namespace App\Livewire\Admin;
 
 use App\Models\RssSource;
 use Illuminate\View\View;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -21,6 +22,7 @@ use Livewire\WithPagination;
  * de suppression physique — la seule facon de faire naitre une source reste
  * `AdminRssImportController::charger()` (ecran en lot).
  */
+#[Layout('layouts.admin')]
 class RssSources extends Component
 {
     use WithPagination;

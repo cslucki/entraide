@@ -356,8 +356,10 @@ class TASK1792RssCockpitTest extends TestCase
         // Temoin : le lien d'edition de l'article VIVANT doit bien etre
         // rendu, preuve que l'assertion d'absence ci-dessous sait distinguer
         // un lien present d'un lien absent.
-        $page->assertSee(route('admin.blog.edit', ['post' => $vivant->id]), escape: false);
-        $page->assertDontSee(route('admin.blog.edit', ['post' => $mort->id]), escape: false);
+        // TASK-1793 — l'URL est batie sur le SLUG (cle de route reelle) et
+        // porte l'Organization : un article ne va jamais sur un blog non scope.
+        $page->assertSee(route('admin.blog.edit', ['post' => $vivant->slug, 'organization_id' => $org->id]), escape: false);
+        $page->assertDontSee(route('admin.blog.edit', ['post' => $mort->slug, 'organization_id' => $org->id]), escape: false);
         $page->assertSee(__('admin.import_rss.supprime'));
     }
 

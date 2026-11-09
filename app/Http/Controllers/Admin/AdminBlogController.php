@@ -150,8 +150,18 @@ class AdminBlogController extends Controller
             );
         }
 
-        return redirect()->route('admin.blog.edit', $post)
-            ->with('success', __('blog.updated'));
+        // TASK-1793 — la redirection porte l'Organization EFFECTIVE de l'article
+        // apres enregistrement, et non celle d'avant : ce formulaire permet
+        // justement de changer d'Organization. Sans ce parametre, on retombe
+        // sur l'Organization par defaut, ou l'article qu'on vient d'enregistrer
+        // peut etre invisible. `refresh()` relit la ligne ecrite, donc le slug
+        // regenere par le hook `saving()` autant que l'Organization retenue.
+        $post->refresh();
+
+        return redirect()->route('admin.blog.edit', [
+            'post' => $post,
+            'organization_id' => $post->organization_id,
+        ])->with('success', __('blog.updated'));
     }
 
     public function updateStatus(Request $request, BlogPost $post): RedirectResponse

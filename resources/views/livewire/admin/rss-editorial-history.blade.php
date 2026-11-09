@@ -1,4 +1,6 @@
-<x-admin-layout :title="__('admin.import_rss.historique.title')">
+<div>
+    <x-slot:title>{{ __('admin.import_rss.historique.title') }}</x-slot:title>
+
     <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('admin.import_rss.historique.subtitle') }}</p>
 
@@ -101,7 +103,7 @@
                                                 @if($info['trashed'])
                                                     {{ __('admin.import_rss.supprime') }}
                                                 @else
-                                                    <a href="{{ route('admin.blog.edit', ['post' => $info['blog_post_id']]) }}" class="underline hover:no-underline">
+                                                    <a href="{{ route('admin.blog.edit', ['post' => $info['blog_post_slug'], 'organization_id' => $orgId]) }}" class="underline hover:no-underline">
                                                         {{ $info['statut'] === 'publie' ? __('admin.import_rss.fiche.statut_publie') : __('admin.import_rss.fiche.statut_brouillon') }}
                                                     </a>
                                                 @endif
@@ -120,4 +122,4 @@
             {{ $articles->links() }}
         </div>
     @endif
-</x-admin-layout>
+</div>

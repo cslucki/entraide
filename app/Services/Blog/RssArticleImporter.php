@@ -137,20 +137,24 @@ class RssArticleImporter
                 $article->loops()->syncWithoutDetaching([$boucle->id]);
             }
 
-            $resultat['crees'][] = ['titre' => $article->title, 'id' => (string) $article->id];
+            // TASK-1793 — le SLUG accompagne l'id : `BlogPost::getRouteKeyName()`
+            // rend 'slug', donc une URL batie sur l'id tombe en 404.
+            $resultat['crees'][] = ['titre' => $article->title, 'id' => (string) $article->id, 'slug' => $article->slug];
         }
 
         return $resultat;
     }
 
     /**
-     * @return array{titre: string, id: string, supprime: bool}
+     * @return array{titre: string, id: string, slug: string, supprime: bool}
      */
     private function ligneDoublon(BlogPost $post): array
     {
         return [
             'titre' => $post->title,
             'id' => (string) $post->id,
+            // TASK-1793 — cle de route reelle (voir `getRouteKeyName()`).
+            'slug' => $post->slug,
             // `trashed()` fonctionne ici parce que `dejaImporte()` a lu AVEC
             // `withTrashed()` : un article ordinaire rend toujours `false`.
             'supprime' => $post->trashed(),
