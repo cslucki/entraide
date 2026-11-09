@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BlogPost;
 use App\Models\Category;
 use App\Models\Organization;
+use App\Models\RssSourceArticle;
 use App\Models\Tag;
 use App\Models\User;
 use App\Support\Tenancy\DefaultOrganizationResolver;
@@ -97,7 +98,18 @@ class AdminBlogController extends Controller
             ->get(['id', 'name', 'email', 'organization_id'])
             ->groupBy(fn ($u) => $u->organization?->name ?? __('blog.organization_none'));
 
-        return view('admin.blog.edit', compact('post', 'organizations', 'categories', 'tags', 'usersByOrg'));
+        // TASK-1790 (correctif post-merge) — un article importe depuis un
+        // flux RSS porte `source_guid`, qui est EXACTEMENT la valeur de
+        // `rss_source_articles.source_identity` (meme fabrique,
+        // RssFeedReader::identite()). La fiche source peut avoir ete
+        // supprimee du cache depuis (rafraichissement d'une source qui ne
+        // sert plus cet article) : `null` dans ce cas, et aucun lien ne
+        // s'affiche — lecture seule, jamais une recreation.
+        $rssSourceArticle = $post->source_guid !== null
+            ? RssSourceArticle::where('source_identity', $post->source_guid)->first()
+            : null;
+
+        return view('admin.blog.edit', compact('post', 'organizations', 'categories', 'tags', 'usersByOrg', 'rssSourceArticle'));
     }
 
     public function update(Request $request, BlogPost $post): RedirectResponse
@@ -138,8 +150,18 @@ class AdminBlogController extends Controller
             );
         }
 
-        return redirect()->route('admin.blog.edit', $post)
-            ->with('success', __('blog.updated'));
+        // TASK-1793 — la redirection porte l'Organization EFFECTIVE de l'article
+        // apres enregistrement, et non celle d'avant : ce formulaire permet
+        // justement de changer d'Organization. Sans ce parametre, on retombe
+        // sur l'Organization par defaut, ou l'article qu'on vient d'enregistrer
+        // peut etre invisible. `refresh()` relit la ligne ecrite, donc le slug
+        // regenere par le hook `saving()` autant que l'Organization retenue.
+        $post->refresh();
+
+        return redirect()->route('admin.blog.edit', [
+            'post' => $post,
+            'organization_id' => $post->organization_id,
+        ])->with('success', __('blog.updated'));
     }
 
     public function updateStatus(Request $request, BlogPost $post): RedirectResponse

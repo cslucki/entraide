@@ -25,6 +25,7 @@ class Organization extends Model
         'description',
         'is_active',
         'is_public',
+        'registration_disabled',
         'is_default',
         'admin_id',
         'hero_image',
@@ -95,6 +96,9 @@ class Organization extends Model
             'loop_permissions' => 'array',
             'is_active' => 'boolean',
             'is_public' => 'boolean',
+            // TASK-1787 — independant de `is_public` : `main` reste PUBLIQUE
+            // (vitrine, connexion) tout en refusant les nouvelles inscriptions.
+            'registration_disabled' => 'boolean',
             'is_default' => 'boolean',
             'welcome_points' => 'integer',
             'service_points_min' => 'integer',

@@ -29,7 +29,7 @@
                      de dire QUI l'on est. Place apres le prenom, le menu
                      coupait la saisie d'identite en deux et pouvait faire
                      perdre ce qui venait d'etre tape, puisqu'il navigue. --}}
-                <x-auth.organization-selector :organizations="$organizationsOuvertes" :courante="$currentOrganization" />
+                <x-auth.organization-selector :organizations="$organizationsOuvertes" :courante="$currentOrganization" :obligatoire="$choixObligatoire ?? false" />
 
                 <!-- Prénom -->
                 <div>

@@ -58,10 +58,24 @@
     </div>
 
     <x-page-container>
+        {{-- TASK-1788 correctif 04 — `data-profile-entete` delimite l'en-tete.
+
+             Sans lui, aucun test ne pourrait dire « ce marqueur n'est PLUS dans
+             l'en-tete » : il le trouverait ailleurs dans la page et conclurait a
+             tort. Un marqueur de frontiere, pas de decoration. --}}
         <!-- Profile Header -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-7 mb-5 relative">
+        <div data-profile-entete
+             class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-7 mb-5 relative">
             @if(auth()->check() && auth()->id() === $user->id)
-            <div class="absolute top-4 right-4 z-10">
+            <div class="absolute top-4 right-4 z-10 flex items-center gap-2">
+                {{-- TASK-1788 correctif 12 (demande Cyril) — a cote de « Modifier
+                     mon profil », pas dedans : deux intentions differentes
+                     (corriger sa fiche / publier un article), deux boutons. --}}
+                <a href="{{ $urlOrg('blog.create') }}" data-profile-publish-blog
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-semibold rounded-lg transition">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    {{ __('profile.publish_to_blog') }}
+                </a>
                 <a href="{{ $urlOrg('profile.edit') }}" data-profile-edit
                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
@@ -78,7 +92,23 @@
 
             <div class="flex flex-col gap-5 sm:flex-row sm:gap-6">
                 <!-- Avatar -->
-                <div class="relative flex-shrink-0 mx-auto sm:mx-0">
+                {{-- TASK-1788 correctif 02 — `sm:self-start`, et c'est TOUTE la
+                     correction du crayon.
+
+                     Le crayon est pose `absolute bottom-0 right-0` sur ce bloc.
+                     Sur mobile (`flex-col`) le bloc a la hauteur de la photo, le
+                     crayon tombait donc sur la photo. Sur desktop (`sm:flex-row`)
+                     le conteneur flex applique `align-items: stretch` par defaut :
+                     ce bloc s'etirait sur TOUTE la hauteur de la colonne voisine —
+                     nom, slogan, pastilles, statistiques, badges — et `bottom-0`
+                     deposait le crayon tout en bas, a cote des badges, a plus de
+                     300 px de la photo qu'il pretend modifier.
+
+                     `self-start` ramene la hauteur du bloc a celle de son contenu,
+                     donc a celle de la photo. Prefixe `sm:` parce que sur mobile
+                     il n'y a rien a corriger, et qu'un `self-start` nu y
+                     remplacerait le `mx-auto` qui centre la photo. --}}
+                <div class="relative flex-shrink-0 mx-auto sm:mx-0 sm:self-start">
                     <img src="{{ $user->avatar_url }}" class="h-20 w-20 sm:h-24 sm:w-24 rounded-full object-cover ring-2 ring-gray-200 dark:ring-gray-600" alt="">
                     @if(auth()->check() && auth()->id() === $user->id)
                     {{-- TASK-1749 (demande Cyril, 04/11) — le crayon de l'avatar ouvre
@@ -146,80 +176,27 @@
                        data-profile-slogan>{{ $user->slogan }}</p>
                     @endif
 
-                    <!-- Stats chips -->
+                    {{-- TASK-1788 correctif 04 — l'en-tete ne porte plus que
+                         l'IDENTITE.
+
+                         Les pastilles de note, d'echanges et de temps, le bilan
+                         d'entraide, les remerciements et les badges sont partis
+                         dans la colonne de droite (`partials/apercu-public`) :
+                         ils noyaient ce qu'on vient chercher en premier sur une
+                         fiche — qui est cette personne.
+
+                         La LOCALISATION reste, elle : elle dit ou se trouve la
+                         personne, pas ce qu'elle a accompli. Elle etait melee aux
+                         compteurs dans la meme rangee ; elle a desormais la
+                         sienne. --}}
+                    @if($user->public_location)
                     <div class="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
-                        @if($user->rating)
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 rounded-lg text-xs font-medium">
-                            ⭐ {{ number_format($user->rating, 1) }}
-                        </span>
-                        @endif
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 rounded-lg text-xs font-medium">
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            {{ trans_choice('profile.exchanges', $completedCount, ['count' => $completedCount]) }}
-                        </span>
-                        {{-- TASK-1755 §9.6 — le TEMPS disponible, pas un solde
-                             comptable. Meme donnee, lecture d'entraide
-                             (arbitrage Q8 : double affichage). --}}
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-lg text-xs font-medium"
-                              data-entraide-temps>
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            {{ \App\Support\Entraide\TempsPartage::solde($user->points_balance) }}
-                        </span>
-                        @if($user->public_location)
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 rounded-lg text-xs font-medium">
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 rounded-lg text-xs font-medium"
+                              data-profile-localisation>
                             📍 {{ $user->public_location }}
                         </span>
-                        @endif
                     </div>
-
-                    {{-- TASK-1755 §9.6 (maquette M4 droite) — LE BILAN D'ENTRAIDE.
-
-                         Le profil disait un solde. C'est un chiffre de
-                         portefeuille : il ne raconte rien de ce que la personne
-                         a fait pour les autres. Trois nombres le remplacent, et
-                         les MOTS de remerciement les accompagnent — un compteur
-                         seul ne rend pas la gratitude.
-
-                         Rien ne s'affiche quand le bilan est vide : « 0 personne
-                         · 0 fois · 0 min » est un reproche, pas un bilan. --}}
-                    @unless(\App\Support\Entraide\BilanEntraide::estVide($bilan))
-                    <div class="mt-4" data-entraide-bilan>
-                        <div class="grid grid-cols-3 gap-2 text-center">
-                            @foreach([
-                                ['valeur' => $bilan['personnes_aidees'], 'cle' => 'personnes_aidees', 'marqueur' => 'personnes'],
-                                ['valeur' => $bilan['fois_aide'], 'cle' => 'fois_aide', 'marqueur' => 'fois'],
-                            ] as $_chiffre)
-                                <div class="rounded-xl border border-gray-200 bg-white px-2 py-3 dark:border-gray-700 dark:bg-gray-800">
-                                    <p class="text-xl font-bold text-indigo-600 dark:text-indigo-400 tabular-nums"
-                                       data-entraide-bilan-{{ $_chiffre['marqueur'] }}>{{ $_chiffre['valeur'] }}</p>
-                                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ trans_choice('profile.bilan.'.$_chiffre['cle'], $_chiffre['valeur']) }}</p>
-                                </div>
-                            @endforeach
-                            <div class="rounded-xl border border-gray-200 bg-white px-2 py-3 dark:border-gray-700 dark:bg-gray-800">
-                                <p class="text-xl font-bold text-indigo-600 dark:text-indigo-400 tabular-nums" data-entraide-bilan-temps>
-                                    {{ \App\Support\Entraide\BilanEntraide::tempsOffert($bilan['temps_offert']) }}
-                                </p>
-                                <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('profile.bilan.temps_offert') }}</p>
-                            </div>
-                        </div>
-
-                        @if($bilan['mercis'] > 0)
-                        <div class="mt-3">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400" data-entraide-bilan-mercis>
-                                🙏 {{ trans_choice('profile.bilan.mercis', $bilan['mercis']) }}
-                            </p>
-                            <div class="mt-2 space-y-2">
-                                @foreach($mercis as $_merci)
-                                    <blockquote class="border-s-2 border-amber-400 ps-2.5 text-xs italic text-gray-600 dark:text-gray-300">
-                                        « {{ $_merci->comment }} »
-                                        <span class="not-italic text-gray-400">— {{ $_merci->reviewer?->first_name ?: ($_merci->reviewer?->name ?: __('profile.deactivated_user')) }}</span>
-                                    </blockquote>
-                                @endforeach
-                            </div>
-                        </div>
-                        @endif
-                    </div>
-                    @endunless
+                    @endif
 
                     {{-- TASK-1750 — les liens declares s'ajoutent a la rangee
                          existante. La condition les prend en compte, sinon la
@@ -270,22 +247,6 @@
                     </div>
                     @endif
 
-                    <!-- Badges -->
-                    @if($badges->isNotEmpty())
-                    <div class="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
-                        @foreach($badges as $badge)
-                        {{-- TASK-1757 — `libelle()` et non `name` : le libelle en base
-                             porte encore l'ancien vocabulaire (« Prestataire ») et
-                             n'est traduit dans aucune langue. Voir `Badge::libelle()`. --}}
-                        <span title="{{ $badge->explication() }}" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-white cursor-default"
-                              style="background-color: {{ $badge->color }}"
-                              data-badge="{{ $badge->key }}">
-                            {{ $badge->icon }} {{ $badge->libelle() }}
-                        </span>
-                        @endforeach
-                    </div>
-                    @endif
-
                     <!-- Contact info -->
                     @if(($user->show_email && $user->email) || ($user->show_phone && $user->phone))
                     <div class="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1 mt-3 text-xs text-gray-400 dark:text-gray-500">
@@ -320,7 +281,11 @@
                          services (`services/show`), avec le meme reglage de
                          saut de ligne. `whitespace-pre-line` disparait : le
                          Markdown gouverne desormais les paragraphes. --}}
-                    <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300" data-profile-bio>
+                    {{-- TASK-1788 correctif 12 — les memes variantes arbitraires
+                         que `blog/show` pour `[data-media-embed]` : une video
+                         YouTube inseree depuis la barre d'outils de la bio suit
+                         le MEME rendu que dans un article de blog. --}}
+                    <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 [&_div[data-media-embed]]:rounded-lg [&_div[data-media-embed]]:overflow-hidden [&_div[data-media-embed]]:my-4 [&_div[data-media-embed]_iframe]:w-full [&_div[data-media-embed]_iframe]:h-full [&_div[data-media-embed]_iframe]:border-0" data-profile-bio>
                         {!! markdown($user->bio, ['renderer' => ['soft_break' => "<br />\n"]]) !!}
                     </div>
                 </div>
@@ -444,35 +409,6 @@
                 </section>
                 @endif
 
-                <!-- Blog posts -->
-                @if($blogPosts->isNotEmpty())
-                {{-- `id` : cible de l'ancre posee par l'annuaire (T1697 correctif 15). --}}
-                <section id="articles">
-                    <div class="flex items-center justify-between mb-3">
-                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.blog_section') }}</h2>
-                        <span class="text-xs text-gray-400">{{ trans_choice('profile.blog_count', $blogPosts->count(), ['count' => $blogPosts->count()]) }}</span>
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        @foreach($blogPosts as $post)
-                        <a href="{{ $urlOrg('blog.show', ['post' => $post]) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition">
-                            <div class="flex items-center justify-between mb-2">
-                                @if($post->category)
-                                <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $post->category->color }}">
-                                    {{ $post->category->displayName('blog') }}
-                                </span>
-                                @endif
-                                <span class="text-xs text-gray-400">{{ $post->published_at?->format('d/m/Y') }}</span>
-                            </div>
-                            <p class="font-medium text-gray-900 dark:text-gray-100 text-sm mb-1 line-clamp-2">{{ $post->title }}</p>
-                            @if($post->summary)
-                            <p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{{ $post->summary }}</p>
-                            @endif
-                        </a>
-                        @endforeach
-                    </div>
-                </section>
-                @endif
-
                 {{-- TASK-1697 — les Boucles dont cette personne est membre,
                      animateur ou proprietaire. Perimetre : voir le controleur.
                      Nommer une Boucle ne revele rien de plus que le catalogue
@@ -564,8 +500,65 @@
 
             </div>
 
-            <!-- Right column (desktop) -->
-            <aside class="hidden md:block md:col-span-1 space-y-4">
+            {{-- TASK-1788 correctif 04 — la colonne de droite n'est plus reservee
+                 au bureau.
+
+                 Elle l'etait (`hidden md:block`) parce qu'elle ne portait que des
+                 appels a l'action, que le smartphone rend deja ailleurs (bloc
+                 « Mobile CTAs » plus haut). Elle accueille desormais aussi
+                 l'apercu chiffre, qui doit se voir aux DEUX largeurs.
+
+                 D'ou le partage : les appels a l'action gardent leur
+                 `hidden md:block` — sinon le smartphone les afficherait deux fois
+                 —, l'apercu reste visible. Sous `md` la grille ne s'applique pas,
+                 les deux colonnes redeviennent des blocs empiles, et l'apercu
+                 tombe donc tout seul en fin d'ecran. --}}
+            <!-- Right column -->
+            <aside class="md:col-span-1 space-y-4">
+
+                {{-- TASK-1788 correctif 04 (suite) — le Blog passe a DROITE, et
+                     AVANT l'apercu chiffre. Demande de Cyril.
+
+                     `sm:grid-cols-2` est retire : c'est une media query sur la
+                     largeur de l'ECRAN, pas sur celle du conteneur. Dans une
+                     colonne qui fait un tiers de la page, elle aurait coupe les
+                     cartes en deux des 640 px.
+
+                     `id="articles"` est CONSERVE : c'est la cible de l'ancre
+                     posee par l'annuaire (T1697 correctif 15). Le deplacer sans
+                     lui aurait casse un lien qui ne se plaint jamais. --}}
+                <!-- Blog posts -->
+                @if($blogPosts->isNotEmpty())
+                {{-- `id` : cible de l'ancre posee par l'annuaire (T1697 correctif 15). --}}
+                <section id="articles">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.blog_section') }}</h2>
+                        <span class="text-xs text-gray-400">{{ trans_choice('profile.blog_count', $blogPosts->count(), ['count' => $blogPosts->count()]) }}</span>
+                    </div>
+                    <div class="grid gap-3">
+                        @foreach($blogPosts as $post)
+                        <a href="{{ $urlOrg('blog.show', ['post' => $post]) }}" class="group block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition">
+                            <div class="flex items-center justify-between mb-2">
+                                @if($post->category)
+                                <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $post->category->color }}">
+                                    {{ $post->category->displayName('blog') }}
+                                </span>
+                                @endif
+                                <span class="text-xs text-gray-400">{{ $post->published_at?->format('d/m/Y') }}</span>
+                            </div>
+                            <p class="font-medium text-gray-900 dark:text-gray-100 text-sm mb-1 line-clamp-2">{{ $post->title }}</p>
+                            @if($post->summary)
+                            <p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{{ $post->summary }}</p>
+                            @endif
+                        </a>
+                        @endforeach
+                    </div>
+                </section>
+                @endif
+
+                @include('profile.partials.apercu-public')
+
+                <div class="hidden md:block space-y-4">
 
                 <!-- AI agent CTA -->
                 @if($memberAiProfile && (auth()->guest() || auth()->id() !== $user->id))
@@ -629,6 +622,8 @@
                 @endif
                 @endauth
 
+                </div>
+
             </aside>
 
         </div>
@@ -650,17 +645,33 @@
          commande — simplement masque visuellement, pas `hidden` (un champ
          `hidden` ne se declenche pas au clavier). --}}
     @if(auth()->check() && auth()->id() === $user->id)
+    {{-- TASK-1788 correctif 02 — l'adresse de l'avatar PAR DEFAUT, demandee au
+         modele sur une COPIE dont l'avatar est vide plutot que recopiee ici :
+         `getAvatarUrlAttribute()` est la seule autorite sur « a quoi ressemble
+         quelqu'un sans photo ». `clone` ne touche pas l'original, le tableau
+         d'attributs etant copie par valeur. --}}
     <x-modal name="photo-profil" :show="false" focusable maxWidth="md">
         <form method="POST" action="{{ $urlOrg('profile.avatar') }}" enctype="multipart/form-data"
               x-data="{
                   apercu: null,
                   survol: false,
                   nom: null,
+                  /* TASK-1788 correctif 02 — la suppression depuis la fenetre.
+                     Meme modele que le formulaire de profil : une INTENTION que
+                     l'on voit a l'ecran avant de l'envoyer, et qui s'annule. */
+                  supprimer: false,
+                  get source() {
+                      if (this.apercu) return this.apercu;
+                      return this.supprimer ? '{{ (clone $user)->setAttribute('avatar', null)->avatar_url }}' : '{{ $user->avatar_url }}';
+                  },
                   choisir(fichiers) {
                       const f = fichiers && fichiers[0];
                       if (! f) return;
                       this.nom = f.name;
                       this.apercu = URL.createObjectURL(f);
+                      /* Choisir une photo annule la suppression : le dernier
+                         geste parle. */
+                      this.supprimer = false;
                   },
                   deposer(e) {
                       this.survol = false;
@@ -668,6 +679,14 @@
                          l'apercu changerait et l'envoi partirait vide. */
                       this.$refs.champ.files = e.dataTransfer.files;
                       this.choisir(e.dataTransfer.files);
+                  },
+                  basculerSuppression() {
+                      this.supprimer = ! this.supprimer;
+                      if (this.supprimer) {
+                          this.apercu = null;
+                          this.nom = null;
+                          this.$refs.champ.value = '';
+                      }
                   }
               }"
               class="p-6">
@@ -677,7 +696,7 @@
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('profile.avatar_modal_help') }}</p>
 
             <div class="mt-5 flex flex-col items-center">
-                <img :src="apercu ?? '{{ $user->avatar_url }}'"
+                <img :src="source"
                      class="h-28 w-28 rounded-full object-cover ring-4 ring-indigo-100 dark:ring-indigo-900/40" alt="">
 
                 <label for="avatar-modal"
@@ -693,10 +712,36 @@
                     <span class="mt-0.5 block text-xs text-gray-400" x-text="nom ?? '{{ __('profile.avatar_help') }}'"></span>
                 </label>
 
-                <input id="avatar-modal" name="avatar" type="file" accept="image/*" required
+                {{-- `required` devient CONDITIONNEL : un envoi qui supprime n'a
+                     pas de fichier, et un `required` nu le ferait refuser par le
+                     navigateur avant meme d'atteindre le serveur. --}}
+                <input id="avatar-modal" name="avatar" type="file" accept="image/*"
+                       x-bind:required="! supprimer"
                        x-ref="champ" @change="choisir($event.target.files)"
                        class="sr-only">
             </div>
+
+            {{-- TASK-1788 correctif 02 — SUPPRIMER sa photo, depuis la fenetre
+                 elle-meme : c'est ici qu'on vient quand on pense a sa photo.
+                 Propose seulement si une photo est posee. --}}
+            @if($user->avatar)
+            <input type="hidden" name="supprimer_avatar" x-bind:value="supprimer ? '1' : '0'">
+
+            <div class="mt-4 text-center">
+                <button type="button" @click="basculerSuppression()"
+                        data-avatar-remove-modal
+                        class="text-xs font-medium underline-offset-2 hover:underline"
+                        x-bind:class="supprimer
+                            ? 'text-gray-500 dark:text-gray-400'
+                            : 'text-red-600 dark:text-red-400'"
+                        x-text="supprimer
+                            ? @js(__('profile.avatar_remove_cancel'))
+                            : @js(__('profile.avatar_remove'))"></button>
+
+                <p x-show="supprimer" x-cloak
+                   class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.avatar_remove_pending') }}</p>
+            </div>
+            @endif
 
             <x-input-error class="mt-3" :messages="$errors->get('avatar')" />
 
@@ -705,11 +750,19 @@
                         class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
                     {{ __('profile.cancel') }}
                 </button>
+                {{-- Le bouton sert les DEUX gestes, et il le dit : enregistrer
+                     une photo choisie, ou supprimer celle qui est posee. Il
+                     reste inerte tant qu'aucun des deux n'est demande. --}}
                 <button type="submit"
-                        class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        :disabled="! apercu">
-                    {{ __('profile.avatar_save') }}
-                </button>
+                        data-avatar-submit
+                        class="rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                        x-bind:class="supprimer
+                            ? 'bg-red-600 hover:bg-red-700'
+                            : 'bg-indigo-600 hover:bg-indigo-700'"
+                        x-text="supprimer
+                            ? @js(__('profile.avatar_remove_confirm'))
+                            : @js(__('profile.avatar_save'))"
+                        :disabled="! apercu && ! supprimer"></button>
             </div>
         </form>
     </x-modal>

@@ -286,6 +286,36 @@ final class NotificationCatalogue
     public const TRANSACTION_PROPOSAL_CREATED = 'transaction.proposal_created';
 
     /**
+     * TASK-1786 — on a commente votre proposition de service ou votre demande
+     * d'aide.
+     *
+     * ## UNE cle pour les DEUX types d'annonce, et c'est deja la doctrine
+     *
+     * `TASK_1751` a tranche la meme question juste au-dessus, pour le meme
+     * domaine : « deux cles auraient duplique l'entree, la migration, le seeder
+     * et les quatre libelles pour une nuance de texte ». Le raisonnement vaut
+     * mot pour mot ici.
+     *
+     * Vu du destinataire, le fait ne change pas : quelqu'un a commente l'annonce
+     * que j'ai publiee. Que ce soit une proposition ou une demande est une
+     * nuance de LIBELLE, resolue a l'affichage — pas deux faits distincts.
+     *
+     * Et l'effet de bord compte autant : une cle unique donne **une seule
+     * entree** dans « Reglages des notifications », exactement ce que le CDC
+     * demande — « Commentaires sur mes propositions et demandes d'aide ». Deux
+     * cles auraient affiche deux blocs de trois cases pour un seul reglage
+     * percu.
+     *
+     * ## Distincte des commentaires de BLOG, et c'est exige
+     *
+     * Le CDC le demande explicitement : « creer un evenement metier explicite,
+     * distinct des commentaires de Blog », et « les preferences sont
+     * independantes des commentaires de Blog ». Couper l'un ne coupe donc pas
+     * l'autre.
+     */
+    public const ENTRAIDE_COMMENT_CREATED = 'entraide.comment.created';
+
+    /**
      * Le type d'objet de cette cle, expose comme constante.
      *
      * Le resolver de cible en a besoin pour brancher. Le lire ici plutot que de
@@ -353,6 +383,20 @@ final class NotificationCatalogue
      * texte sans rien pouvoir faire.
      */
     public const OBJECT_TRANSACTION = 'transaction';
+
+    /**
+     * TASK-1786 — un commentaire depose sous une annonce d'entraide.
+     *
+     * L'objet designe est le COMMENTAIRE, pas l'annonce — meme raison que
+     * `OBJECT_BLOG_COMMENT` : c'est lui qui disparait si on le supprime, et le
+     * resolver doit alors rendre `null` plutot que d'envoyer vers un fil ou il
+     * n'y a plus rien a lire.
+     *
+     * C'est aussi lui qui porte `commentable_type` : le resolver y lit s'il faut
+     * mener a `services.show` ou a `requests.show`, ce qui est precisement ce
+     * qui permet a UNE cle de couvrir les deux types d'annonce.
+     */
+    public const OBJECT_ENTRAIDE_COMMENT = 'entraide_comment';
 
     /**
      * Le registre.
@@ -601,9 +645,32 @@ final class NotificationCatalogue
                 // savoir qu'on lui repond.
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
 
-                // Pas de canal EMAIL : le catalogue ne declare que ce qui
-                // EXISTE, et Cyril a tranche « dans l'application ». L'ajouter
-                // plus tard tiendra en une ligne.
+                // TASK-1784 — Cyril revient sur deux decisions, les siennes :
+                // « il faut notifier l'auteur du billet par email ET PWA si
+                // quelqu'un a commente son billet. Et par defaut tout est
+                // coche ».
+                //
+                // Ce que cela remplace, et qui est consigne ici pour qu'on
+                // sache ce qu'on a change :
+                //
+                //  - l'EMAIL etait absent parce que « le catalogue ne declare
+                //    que ce qui EXISTE, et Cyril a tranche *dans
+                //    l'application* ». La note promettait « une ligne » ; c'est
+                //    faux, et TASK-1784 l'a mesure : `rendreDepuisGabarit()`
+                //    est un aiguillage ECRIT A LA MAIN, et un gabarit
+                //    administrable exige le catalogue du seeder ET une
+                //    migration. D'ou une TASK, pas une ligne ;
+                //
+                //  - le PUSH etait absent sur le CDC 6.2 : « un commentaire ne
+                //    vous est pas adresse, n'appelle aucune reponse, et un
+                //    auteur prolifique en recevrait des dizaines ».
+                //
+                // Cette derniere objection reste VRAIE, et c'est pourquoi les
+                // deux canaux sont `configurable => true` : un auteur prolifique
+                // doit pouvoir se taire canal par canal. « Tout coche par
+                // defaut » decide du DEFAUT, pas de l'irrevocabilite.
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
 
@@ -731,6 +798,34 @@ final class NotificationCatalogue
                 // Aligne sur `LOOP_INVITATION`, pas sur l'evenement collectif.
                 // Le defaut ne reveille personne a lui seul : il faut encore un
                 // appareil abonne ET la permission systeme.
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1786 — on a commente votre annonce d'entraide.
+        self::ENTRAIDE_COMMENT_CREATED => [
+            'category' => 'entraide',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_ENTRAIDE_COMMENT,
+            'channels' => [
+                // Les TROIS canaux actifs par defaut et TOUS configurables.
+                // C'est la demande du CDC, mot pour mot : « les trois canaux
+                // sont actives par defaut et configurables ».
+                //
+                // `configurable => true` partout, et c'est coherent avec le
+                // commentaire de blog plutot qu'avec une invitation : un
+                // commentaire ne vous est pas ADRESSE et n'appelle aucune
+                // reponse de vous. Un membre dont les annonces sont tres
+                // commentees doit pouvoir se taire canal par canal. « Tout
+                // coche par defaut » decide du DEFAUT, pas de
+                // l'irrevocabilite.
+                //
+                // Et le defaut ne reveille personne a lui seul : le Push exige
+                // encore un appareil abonne ET la permission du navigateur. Le
+                // CDC le rappelle — « la configuration ne doit pas declencher
+                // d'inscription Push automatique ».
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
                 self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],

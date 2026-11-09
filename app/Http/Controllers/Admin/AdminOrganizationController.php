@@ -49,6 +49,9 @@ class AdminOrganizationController extends Controller
             'accent_color' => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
             'welcome_points' => 'required|integer|min:0|max:10000',
             'is_public' => 'nullable|boolean',
+            // TASK-1787 — INDEPENDANT de `is_public` : une Organization peut
+            // rester publique (vitrine, connexion) et refuser les inscriptions.
+            'registration_disabled' => 'nullable|boolean',
             'is_default' => 'nullable|boolean',
             'blog_naming' => 'nullable|in:b2b,b2c',
             'transactions_naming' => 'nullable|in:b2b,b2c',
@@ -62,6 +65,11 @@ class AdminOrganizationController extends Controller
         $data['accent_color'] = $data['accent_color'] ?? '#6366f1';
         $data['is_active'] = true;
         $data['is_public'] = isset($data['is_public']);
+        // TASK-1787 — meme normalisation qu'a la mise a jour. La regle etait
+        // validee ici sans jamais etre normalisee : une Organization creee
+        // avec la case cochee serait nee avec la chaine '1' au lieu d'un
+        // booleen, et sans la case, avec rien du tout sur une colonne NOT NULL.
+        $data['registration_disabled'] = ($data['registration_disabled'] ?? '0') === '1';
         $data['blog_naming'] = $data['blog_naming'] ?? 'b2b';
         $data['transactions_naming'] = $data['transactions_naming'] ?? 'b2c';
         $data['locale'] = $data['locale'] ?? 'fr';
@@ -162,6 +170,11 @@ class AdminOrganizationController extends Controller
             // TASK-1563 : l'autorisation de reranker de cette Organization.
             'rerank_enabled' => 'nullable|boolean',
             'is_public' => 'nullable|boolean',
+            // TASK-1787 — la regle manquait ICI : elle n'etait posee que dans
+            // `store()`. `validate()` ne rend que les cles VALIDEES, donc la
+            // normalisation plus bas ne trouvait jamais le champ et la case
+            // n'avait aucun effet. Defaut trouve par le test de bascule.
+            'registration_disabled' => 'nullable|boolean',
             'is_default' => 'nullable|boolean',
             // TASK-1725 — « site multilingue » : le selecteur FR/EN s'affiche-t-il ?
             'multilingual_enabled' => 'nullable|boolean',
@@ -242,6 +255,10 @@ class AdminOrganizationController extends Controller
         // `value="0"`, et une absence totale doit valoir `false`, jamais `null`
         // — la colonne est NOT NULL.
         $data['requires_account_approval'] = ($data['requires_account_approval'] ?? '0') === '1';
+
+        // TASK-1787 — meme normalisation, meme raison : la colonne est NOT NULL,
+        // et une case decochee n'envoie que le champ cache `value="0"`.
+        $data['registration_disabled'] = ($data['registration_disabled'] ?? '0') === '1';
 
         if ($data['is_default']) {
             Organization::where('is_default', true)

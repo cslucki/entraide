@@ -31,7 +31,6 @@
                      `x-mobile-topbar` (`md:hidden`). Le titre reparait donc
                      pile ou la barre disparait — ni trou, ni doublon. --}}
                 <h1 class="hidden md:block text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">{{ __('blog.title') }}</h1>
-                <p class="mt-1 text-sm sm:text-base text-gray-500 dark:text-gray-400">{{ __('blog.subtitle') }}</p>
             </div>
             @auth
             <div class="flex items-center gap-2 w-full sm:w-auto">

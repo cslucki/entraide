@@ -488,8 +488,21 @@ class ServiceController extends Controller
             'category_id' => $data['category_id'],
             'delivery_mode' => $data['delivery_mode'],
             'points_cost' => $data['points_cost'],
-            'capacity' => $data['capacity'] ?? null,
-            'min_participants' => $data['min_participants'] ?? null,
+            // TASK-1788 correctif 01 — on CONSERVE la valeur enregistree quand le
+            // champ est absent, au lieu de la remettre a `null`.
+            //
+            // Le formulaire d'edition n'affiche plus l'option « atelier » : il
+            // n'envoie donc plus `capacity` ni `min_participants`. Avec l'ancien
+            // `?? null`, le premier enregistrement d'un atelier EXISTANT — meme
+            // pour n'en corriger que le titre — l'aurait silencieusement
+            // retransforme en aide individuelle, sans que rien ne l'annonce a
+            // l'ecran ni ne le signale dans un journal.
+            //
+            // Un ecran qui ne MONTRE plus un reglage ne doit pas l'EFFACER : il
+            // cesse de le gerer, c'est tout. `store()` garde `?? null` et c'est
+            // juste — une annonce qui nait sans capacite est individuelle.
+            'capacity' => $data['capacity'] ?? $service->capacity,
+            'min_participants' => $data['min_participants'] ?? $service->min_participants,
             'status' => $data['status'],
         ]);
 

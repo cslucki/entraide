@@ -43,6 +43,9 @@ return [
     'flash_account_already_exists' => 'Un compte existe déjà pour cette adresse. Connectez-vous avec votre adresse email.',
     'flash_expired' => 'Ce lien d\'invitation a expiré.',
     'flash_revoked' => 'Ce lien d\'invitation a été révoqué.',
+    // TASK-1787 — distinct de `flash_sandbox_forbidden` : les deux refusent,
+    // mais « monde de demonstration » serait faux pour une fermeture.
+    'flash_registration_closed' => 'Les inscriptions sont fermées sur cette organisation : cette invitation ne peut plus être acceptée.',
     'flash_sandbox_forbidden' => 'Cette organisation n\'accepte pas d\'invitation directe.',
     // TASK-1732 (A6) — remplace `flash_email_used_elsewhere`, qui disait
     // « cette adresse est déjà associée à un autre compte BouclePro » : une

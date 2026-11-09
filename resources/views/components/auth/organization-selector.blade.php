@@ -34,9 +34,18 @@
     `data-marqueur` n'est pas cosmetique : les gardes mesurent CETTE region, et
     non la page (lecon T1697).
 --}}
-@props(['organizations', 'courante' => null])
+@props(['organizations', 'courante' => null, 'obligatoire' => false])
 
-@if ($organizations->count() > 1)
+{{-- TASK-1787 — `obligatoire` rend le menu meme avec UNE SEULE entree.
+
+     La regle d'origine — « un choix sans alternative n'est pas un choix » —
+     reste juste tant que l'Organization d'ARRIVEE accepte les inscriptions :
+     on s'inscrit alors la ou l'on est, et le menu n'offre qu'un detour.
+
+     Elle devient fausse des que l'arrivee est FERMEE : l'unique Organization
+     ouverte n'est plus une alternative, c'est le seul chemin. Masquer le menu
+     laissait alors un formulaire qui ne pouvait que refuser. --}}
+@if ($organizations->count() > 1 || ($obligatoire && $organizations->isNotEmpty()))
     <div data-marqueur="selecteur-organisation">
         <label for="organisation-inscription" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {{ __('auth.organization_choice_label') }}

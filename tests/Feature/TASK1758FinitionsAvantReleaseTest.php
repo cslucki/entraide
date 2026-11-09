@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Badge;
 use App\Models\Category;
 use App\Models\Favorite;
 use App\Models\Organization;
@@ -108,51 +107,14 @@ class TASK1758FinitionsAvantReleaseTest extends TestCase
         }
     }
 
-    // ── Badge : la colonne qui n'existait pas ────────────────────────────────
-
-    /**
-     * 🔴 CE QUE J'AVAIS CONCLU A TORT EN T1757.
-     *
-     * La fiche T1757 affirmait que `Badge::$fillable` declarait une colonne
-     * inexistante. **C'etait faux** : je n'avais lu que la migration de
-     * CREATION (`2026_05_01_130000`) et pas cherche de migration ulterieure.
-     * `badges.organization_id` a bien ete ajoutee par la campagne
-     * multi-tenant (`2026_06_02_000020_add_organization_id_to_p2_tables`),
-     * nullable, avec cle etrangere et index.
-     *
-     * Le « nettoyage » que j'ai failli livrer etait donc une REGRESSION :
-     * retirer une colonne reelle de `$fillable` et supprimer une relation qui
-     * marche. Annule.
-     *
-     * Ce test fixe l'etat REEL, et la tension qui va avec : la colonne existe,
-     * mais `key` est `unique()` GLOBALEMENT (migration de creation, jamais
-     * modifiee). Deux Organizations ne peuvent donc pas avoir un badge de meme
-     * cle — **les badges par communaute sont a moitie cables**. C'est ce
-     * constat, et non une colonne morte, qu'une future TASK devra traiter.
-     *
-     * Lecon de methode : `grep` sur la migration de creation ne dit rien du
-     * schema COURANT. La seule autorite est `Schema::getColumnListing()`.
-     */
-    public function test_la_colonne_organization_id_des_badges_existe_et_la_cle_reste_globalement_unique(): void
-    {
-        $this->assertTrue(Schema::hasColumn('badges', 'organization_id'),
-            'La colonne existe depuis la campagne multi-tenant : ne pas la retirer de $fillable.');
-
-        $this->assertContains('organization_id', (new Badge)->getFillable());
-
-        // La tension : `key` unique GLOBALEMENT empeche deux Organizations
-        // d'avoir un badge de meme cle. Mesure, pas supposition.
-        $cle = 'badge_de_test_unicite';
-        Badge::create(['key' => $cle, 'name' => 'A', 'description' => 'A', 'icon' => '🅰', 'color' => '#000000',
-            'organization_id' => $this->organization->id]);
-
-        $autre = Organization::factory()->create(['slug' => 'org-1758-bis', 'is_active' => true]);
-
-        $this->expectException(UniqueConstraintViolationException::class);
-
-        Badge::create(['key' => $cle, 'name' => 'B', 'description' => 'B', 'icon' => '🅱', 'color' => '#111111',
-            'organization_id' => $autre->id]);
-    }
+    // ── Badge : section RETIREE par TASK-1788 correctif 05 ──────────────────
+    //
+    // Elle fixait l'etat reel de `badges.organization_id` et la tension de la
+    // cle unique GLOBALE. Le systeme de badges membre a ete supprime sur
+    // demande de Cyril : plus de modele `Badge`, plus d'attribution, plus
+    // d'affichage. Les deux TABLES subsistent (les retirer demande une
+    // migration, qui sort du perimetre d'un lot de correctifs), mais plus
+    // aucun code ne les lit — il n'y a donc plus rien a fixer ici.
 
     // ── L'interrupteur des evenements automatiques ───────────────────────────
 

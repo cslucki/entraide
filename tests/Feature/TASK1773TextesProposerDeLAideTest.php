@@ -65,7 +65,12 @@ class TASK1773TextesProposerDeLAideTest extends TestCase
             'Comment souhaitez-vous aider ?',
             'Temps estimé pour cette aide',
             'Indiquez le temps que vous prévoyez de consacrer à cette aide.',
-            'Proposer cette action sous forme d\'atelier',
+            // TASK-1788 correctif 01 (demande Cyril) — l'option est
+            // desormais MASQUEE sur ce formulaire : voir
+            // `TASK1788Correctif01AtelierMasqueTest`, qui prouve son absence
+            // sur les DEUX surfaces (creation et modification). Retiree
+            // d'ici plutot que laissee a verifier la presence d'un texte
+            // qui ne doit plus s'afficher.
             'Publier ma proposition',
             'Comment fonctionne l\'échange de temps',
             'le temps consacré à l\'entraide est comptabilisé en points',
@@ -128,7 +133,9 @@ class TASK1773TextesProposerDeLAideTest extends TestCase
             ->assertSee('Temps estimé pour cette aide')
             ->assertSee('Comment fonctionne l\'échange de temps')
             ->assertSee('Illustrations (facultatif)')
-            ->assertSee('Proposer cette action sous forme d\'atelier')
+            // TASK-1788 correctif 01 (demande Cyril) — masquee depuis, sur
+            // les DEUX formulaires. Voir `TASK1788Correctif01AtelierMasqueTest`.
+            ->assertDontSee('Proposer cette action sous forme d\'atelier')
             ->assertDontSee('barème de points');
     }
 

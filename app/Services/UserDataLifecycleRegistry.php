@@ -134,6 +134,18 @@ class UserDataLifecycleRegistry
             ['key' => 'dossier_members_added_by', 'type' => 'sql', 'table' => 'dossier_members', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_dossier', 'justification' => 'Membership grant audit can be detached.'],
             ['key' => 'dossier_members', 'type' => 'sql', 'table' => 'dossier_members', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'through_dossier', 'justification' => 'Dossier membership is user-specific participation.'],
             ['key' => 'dossiers', 'type' => 'sql', 'table' => 'dossiers', 'column' => 'owner_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'Owned dossiers require explicit transfer/ownership decision before deletion.'],
+            // TASK-1786 — les deux FK de `entraide_comments` vers `users`.
+            //
+            // L'AUTEUR du commentaire suit exactement la politique de ses deux
+            // jumeaux (`blog_comments`, `feed_post_comments`) : ANONYMIZE, parce
+            // que la paternite d'un commentaire ne se transfere jamais et que le
+            // contenu conserve a besoin d'une attribution anonymisee. La vue rend
+            // deja `profile.deactivated_user` sur un auteur nul.
+            ['key' => 'entraide_comments', 'type' => 'sql', 'table' => 'entraide_comments', 'column' => 'user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'Comment authorship is never transferred; retained mutual aid suggestions need anonymized attribution.'],
+            // Le MODERATEUR est une trace d'audit : meme politique que
+            // `blog_post_annotations.resolved_by`, l'acteur se detache et le
+            // geste reste.
+            ['key' => 'entraide_comments_moderated_by', 'type' => 'sql', 'table' => 'entraide_comments', 'column' => 'moderated_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Moderation audit can be detached: the act is retained, the moderator identity is not.'],
             ['key' => 'email_logs', 'type' => 'sql', 'table' => 'email_logs', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Email logs are operational audit.'],
             ['key' => 'favorites', 'type' => 'sql', 'table' => 'favorites', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'Favorites are personal user preferences and are not transferable.'],
             // TASK-1727 — a password reset token became account-scoped, so it is
@@ -284,6 +296,15 @@ class UserDataLifecycleRegistry
             ['key' => 'reports_filed', 'type' => 'sql', 'table' => 'reports', 'column' => 'reporter_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Reports are moderation audit data.'],
             ['key' => 'reviews_received', 'type' => 'sql', 'table' => 'reviews', 'column' => 'reviewed_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'user_organization', 'justification' => 'Reviews may need retained content with anonymized user.'],
             ['key' => 'reviews_given', 'type' => 'sql', 'table' => 'reviews', 'column' => 'reviewer_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'user_organization', 'justification' => 'Reviews may need retained content with anonymized author.'],
+            // TASK-1789 — le catalogue des flux RSS connus est une donnee de
+            // PLATEFORME (la table ne porte pas d'organization_id), au meme
+            // titre que `scenario_manifest_versions`/`custom_loop_types`
+            // au-dessus. Le createur n'est qu'une attribution d'audit : le
+            // catalogue n'a aucun sens sans l'URL qu'il memorise, mais il n'a
+            // pas besoin de son createur pour continuer d'exister. La FK est
+            // nullable + nullOnDelete, et la politique RECOPIE ce que le
+            // schema fait deja.
+            ['key' => 'rss_sources_created_by', 'type' => 'sql', 'table' => 'rss_sources', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'none', 'justification' => 'A known RSS source is PLATFORM tooling catalog data, not personal data and not tenant data: the table carries no organization_id. The catalog entry survives whoever first loaded it, who is simply detached. The FK is nullable with nullOnDelete, so the data is retained after the creator is removed (TASK-1789).'],
             ['key' => 'service_requests', 'type' => 'sql', 'table' => 'service_requests', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run considered service requests transferable.'],
             ['key' => 'services', 'type' => 'sql', 'table' => 'services', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run considered services transferable.'],
             // TASK-1635 : TRANSFER -> BLOCK, sur les deux cotes.

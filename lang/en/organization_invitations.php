@@ -43,6 +43,9 @@ return [
     'flash_account_already_exists' => 'An account already exists for this address. Sign in with your email address.',
     'flash_expired' => 'This invitation link has expired.',
     'flash_revoked' => 'This invitation link has been revoked.',
+    // TASK-1787 — distinct de `flash_sandbox_forbidden` : les deux refusent,
+    // mais « monde de demonstration » serait faux pour une fermeture.
+    'flash_registration_closed' => 'Registrations are closed on this organization: this invitation can no longer be accepted.',
     'flash_sandbox_forbidden' => 'This organization does not accept direct invitations.',
     // TASK-1732 (A6) — replaces `flash_email_used_elsewhere`: see the French
     // file for the reasoning. The remaining refusal says nothing about why.

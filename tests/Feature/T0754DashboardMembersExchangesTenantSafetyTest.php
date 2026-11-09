@@ -67,7 +67,7 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
         $response = $this->actingAs($user)
             ->get('/dashboard')
             ->assertOk()
-            ->assertSee('Votre progression dans la boucle')
+            ->assertSee('data-onboarding-total', false)
             ->assertSee('Créer ma présentation')
             ->assertSee('Demander de l’aide')
             ->assertSee('Proposer mon aide')
@@ -158,7 +158,7 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
         $response = $this->actingAs($user)
             ->get('/dashboard')
             ->assertOk()
-            ->assertSee('Votre progression dans la boucle');
+            ->assertSee('data-onboarding-total', false);
 
         $this->assertSame(4, substr_count($response->getContent(), 'À faire'));
     }

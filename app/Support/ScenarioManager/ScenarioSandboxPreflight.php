@@ -60,7 +60,7 @@ use Illuminate\Support\Facades\Schema;
  * jamais on suppose que ce n'est pas concerne. » Ici, c'est l'escalade : le
  * fait est ecrit, teste, et remonte.
  *
- * ET L'ESCALADE DOIT DIRE VRAI. Trois de ces quinze portent du TEXTE redige
+ * ET L'ESCALADE DOIT DIRE VRAI. Trois de ces dix-sept portent du TEXTE redige
  * par une personne — voir la liste. Les decrire comme des tables techniques
  * aurait vide l'escalade de son sens : elle aurait remonte un fait faux.
  */
@@ -79,13 +79,20 @@ class ScenarioSandboxPreflight
      * ne cree plus. En declarer une ici la ferait passer pour un fait du
      * schema, et le test ci-contre echouerait partout ailleurs.
      *
-     * Ce que ces QUINZE sont, exactement — et le nombre est tenu a jour
+     * Ce que ces DIX-SEPT sont, exactement — et le nombre est tenu a jour
      * parce que le docbloc ci-dessus exige que l'escalade dise vrai : il
      * annoncait encore « douze » alors que T1711 en avait ajoute une
-     * treizieme, T1727 la quatorzieme, et T1731 la quinzieme.
+     * treizieme, T1727 la quatorzieme, et T1731 la quinzieme. Mesure du
+     * 08/11 (TASK-1789) : la liste en portait deja SEIZE, `usage_references`
+     * (T1439) n'ayant jamais ete nommee dans cette chronologie — ecart
+     * preexistant, non introduit ici, corrige au passage puisque ce
+     * docbloc etait rouvert. T1789 ajoute la dix-septieme : `rss_sources`.
      *
      *
-     * - plateforme : `organizations`, `platform_ai_constitutions` ;
+     * - plateforme : `organizations`, `platform_ai_constitutions`,
+     *   `rss_sources` (T1789 — catalogue d'outillage SuperAdmin, n'appartient
+     *   a aucune sandbox puisqu'un meme flux RSS peut nourrir plusieurs
+     *   Organizations) ;
      * - administration du Manager lui-meme : `scenario_manifest_versions` ;
      * - demandes inter-tenants : `organization_requests` ;
      * - liens INTER-TENANTS entre comptes : `account_links` (T1731) — il
@@ -172,6 +179,17 @@ class ScenarioSandboxPreflight
         'platform_ai_constitutions',
         'scenario_manifest_versions',
         'usage_references',
+        // TASK-1789 — le catalogue des flux RSS connus (`rss_sources`).
+        //
+        // Hors portee par NATURE, et pour la meme raison que
+        // `scenario_manifest_versions` juste au-dessus : c'est de
+        // l'outillage SuperAdmin de PLATEFORME, pas une donnee appartenant a
+        // une Organization. Decision produit explicite (precheck TASK-1789) :
+        // une meme source peut nourrir plusieurs Organizations, donc elle ne
+        // peut par construction appartenir a aucune sandbox. La FK
+        // `created_by` est nullable + nullOnDelete et declaree
+        // `POLICY_DETACH` dans `UserDataLifecycleRegistry`.
+        'rss_sources',
     ];
 
     /**

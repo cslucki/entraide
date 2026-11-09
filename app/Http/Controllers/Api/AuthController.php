@@ -7,6 +7,7 @@ use App\Models\PointLedger;
 use App\Models\User;
 use App\Rules\UniqueEmailInOrganization;
 use App\Support\Tenancy\DefaultOrganizationResolver;
+use App\Support\Tenancy\RegistrationGuard;
 use App\Support\Tenancy\UserWriteLock;
 use Illuminate\Http\JsonResponse;
 use App\Support\ScenarioManager\SandboxGuard;
@@ -53,6 +54,21 @@ class AuthController extends Controller
             throw ValidationException::withMessages([
                 'email' => ['Aucune organisation active n\'est disponible pour l\'inscription.'],
             ]);
+        }
+
+        // TASK-1787 — le MEME refus que la route web, par le MEME predicat, et
+        // pour la raison que le commentaire TASK-1650 juste au-dessus donne
+        // deja : « la garde n'avait ete posee que sur l'une des deux ».
+        //
+        // Cette porte est la plus facile a oublier : elle n'a pas de prefixe
+        // d'Organization, donc `currentOrganization()` y est nul et c'est
+        // l'Organization PAR DEFAUT qui s'applique — `main`. Fermer `main` sans
+        // fermer celle-ci laisserait un `POST /api/auth/register` y creer des
+        // comptes, exactement ce que la TASK existe pour empecher.
+        if (RegistrationGuard::fermeeParLeReglage($organization)) {
+            return response()->json([
+                'message' => RegistrationGuard::messageFermeture($organization),
+            ], 422);
         }
 
         // TASK-1729 phase 2 — meme verrou, meme recontrole que la route web.

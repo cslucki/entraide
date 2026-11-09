@@ -10,7 +10,9 @@ return [
     'my_posts' => 'Mes articles',
     'edit_post' => 'Modifier',
     'delete_post' => 'Supprimer',
-    'subtitle' => 'Conseils, expertises et ressources de la boucle',
+    // TASK-1785 — attribution VISIBLE d'un article importe par RSS.
+    'rss_attribution' => 'Article publié initialement sur',
+    'rss_attribution_with_author' => 'Article de :auteur, publié initialement sur',
     'write' => 'Écrire',
     'empty' => "Aucun article publié pour l'instant.",
     'be_first' => 'Soyez le premier à publier',
@@ -25,6 +27,9 @@ return [
     'back_to_blog' => '← Retour au blog',
     'back_to_article' => '← Retour à l\'article',
     'back_to_list' => '← Retour à la liste des articles',
+    // TASK-1790 (correctif post-merge) — visible seulement quand une fiche
+    // source RSS persiste encore pour cet article (AdminBlogController::edit()).
+    'back_to_rss_article' => '← Retour à l\'article RSS',
     'title_create' => 'Écrire un article — Blog BouclePro',
     'heading_create' => 'Écrire un article',
     'title_edit' => 'Modifier — :title',

@@ -25,6 +25,11 @@ return [
         // rester publique au sens de `PublicHostPolicy`.
         'apercus_de_lien' => env('RECETTE_APERCUS_DE_LIEN', false),
 
+        // TASK-1785 — l'outil d'import RSS, et LUI SEUL : la requete doit
+        // porter le marqueur pose par `RssFeedFetcher`, et la destination
+        // rester publique au sens de `PublicHostPolicy`.
+        'import_rss' => env('RECETTE_IMPORT_RSS', false),
+
     ],
 
 ];

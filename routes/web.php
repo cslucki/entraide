@@ -41,6 +41,11 @@ use App\Http\Controllers\Admin\AdminNotificationCockpitController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminAssignDataController;
+use App\Http\Controllers\Admin\AdminRssImportController;
+use App\Livewire\Admin\RssArticleFiche;
+use App\Livewire\Admin\RssEditorialHistory;
+use App\Livewire\Admin\RssSourceArticles;
+use App\Livewire\Admin\RssSources;
 use App\Http\Controllers\Admin\AdminDataIntegrityController;
 use App\Http\Controllers\Admin\AdminDossierCleanupController;
 use App\Http\Controllers\Admin\AdminScenarioManagerController;
@@ -736,10 +741,31 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // TASK-1752 — le Flux, toutes Organizations. Meme groupe `['auth','admin']`
     // que la Roadmap : surface PLATEFORME, jamais un administrateur d'Org.
+    // TASK-1788 correctif 11 — la gestion des notifications.
+    //
+    // `/notifications/{notification}` apres les routes nommees : aucune
+    // collision ici, les deux chemins fixes (`/notifications` et
+    // `/notifications/{id}/lecture`) ne se recouvrent pas.
+    Route::get('/notifications', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'index'])->name('notifications');
+    Route::get('/notifications/{notification}', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'show'])->name('notifications.show');
+    Route::put('/notifications/{notification}/lecture', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'toggleRead'])->name('notifications.read');
+    Route::delete('/notifications/{notification}', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'destroy'])->name('notifications.destroy');
+
     Route::get('/flux', [\App\Http\Controllers\Admin\AdminFeedController::class, 'index'])->name('feed');
     Route::put('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'update'])->name('feed.update');
     Route::delete('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'destroy'])->name('feed.destroy');
     Route::put('/flux/commentaire/{comment}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'basculerCommentaire'])->name('feed.comment.toggle');
+    // TASK-1788 correctif 10 — la gestion des commentaires du Flux.
+    //
+    // `/flux/commentaires` AVANT `/flux/{post}` n'est pas necessaire ici : les
+    // deux routes de liste sont en GET sur des chemins distincts et aucune ne
+    // capture l'autre. En revanche les deux routes d'ecriture ci-dessous sont
+    // prefixees par `/flux/commentaire/`, comme la bascule existante : un
+    // identifiant de commentaire ne peut donc jamais etre pris pour un
+    // identifiant d'annonce.
+    Route::get('/flux/commentaires', [\App\Http\Controllers\Admin\AdminFeedController::class, 'commentaires'])->name('feed.comments');
+    Route::put('/flux/commentaire/{comment}/contenu', [\App\Http\Controllers\Admin\AdminFeedController::class, 'modifierCommentaire'])->name('feed.comment.update');
+    Route::delete('/flux/commentaire/{comment}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'supprimerCommentaire'])->name('feed.comment.destroy');
     Route::post('/flux/reprendre-historique', [\App\Http\Controllers\Admin\AdminFeedController::class, 'reprendreHistorique'])->name('feed.replay');
     Route::post('/flux/evenements-automatiques', [\App\Http\Controllers\Admin\AdminFeedController::class, 'basculerEvenementsAutomatiques'])->name('feed.auto-events');
 
@@ -1211,6 +1237,44 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // tableau sont desormais de vrais liens, pas un `window.open` fabrique en
     // JavaScript — ce qui les rend testables cote serveur. Les deux etapes
     // qui engagent quelque chose (preview, assign) sont en POST.
+    // TASK-1785 — l'import d'articles depuis un flux RSS WordPress.
+    //
+    // Dans le groupe `['auth', 'admin']` : `AdminMiddleware` exige `is_admin`
+    // et rend 403 sinon, en LECTURE comme en ECRITURE.
+    //
+    // `charger` et `importer` sont en POST et portent donc le jeton CSRF. Un
+    // `charger` en GET aurait permis de declencher une requete sortante depuis
+    // un lien — une porte SSRF ouverte par la methode elle-meme.
+    Route::get('/outils/import-rss', [AdminRssImportController::class, 'index'])->name('outils.import-rss');
+    Route::post('/outils/import-rss/charger', [AdminRssImportController::class, 'charger'])
+        ->middleware('throttle:10,1')
+        ->name('outils.import-rss.charger');
+    Route::post('/outils/import-rss/importer', [AdminRssImportController::class, 'importer'])
+        ->middleware('throttle:20,1')
+        ->name('outils.import-rss.importer');
+    // Le parametre s'appelle `organizationId`, et NON `organization` : ce
+    // dernier nom est RESERVE par `ResolveUrlOrganization`, qui le lit comme un
+    // slug de tenant et rend 404 quand il n'en est pas un. Mesure du 08/11 — la
+    // route matchait (verifie au routeur) mais le pipeline rendait 404, et le
+    // selecteur de Boucle restait vide a l'ecran sans la moindre erreur.
+    Route::get('/outils/import-rss/boucles/{organizationId}', [AdminRssImportController::class, 'boucles'])
+        ->name('outils.import-rss.boucles');
+
+    // TASK-1790 — le parcours individuel : source -> articles -> fiche.
+    //
+    // Trois composants Livewire plein-ecran, meme motif que `OrganizationFeed`/
+    // `MyFeedPosts` ailleurs dans ce depot (`Route::get(chemin, Composant::class)`).
+    // L'ecran en lot ci-dessus reste intact et inchange : ce sont deux parcours
+    // qui coexistent, pas une refonte.
+    Route::get('/outils/import-rss/sources', RssSources::class)->name('outils.import-rss.sources');
+    Route::get('/outils/import-rss/sources/{rssSource}', RssSourceArticles::class)
+        ->name('outils.import-rss.sources.show');
+    Route::get('/outils/import-rss/articles/{rssSourceArticle}', RssArticleFiche::class)
+        ->name('outils.import-rss.articles.show');
+    // TASK-1792 — l'historique editorial, toutes sources, toutes Organizations.
+    Route::get('/outils/import-rss/historique', RssEditorialHistory::class)
+        ->name('outils.import-rss.historique');
+
     Route::get('/outils/assign-data', [AdminAssignDataController::class, 'index'])->name('outils.assign-data');
     Route::get('/outils/assign-data/{dataset}', [AdminAssignDataController::class, 'detail'])->name('outils.assign-data.detail');
     Route::post('/outils/assign-data/preview', [AdminAssignDataController::class, 'preview'])->name('outils.assign-data.preview');

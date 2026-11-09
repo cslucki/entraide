@@ -86,8 +86,11 @@ class TASK1693OnboardingPanelTest extends TestCase
     {
         $html = $this->page($this->membre(toutFait: true));
 
+        // TASK-1788 correctif 03 — la phrase « Votre progression dans la boucle »
+        // ne figure plus sur la page : l'assertion qui la cherchait est retiree.
+        // `data-onboarding-total` reste le marqueur du panneau, et il ne depend
+        // d'aucun texte.
         $this->assertStringNotContainsString('data-onboarding-total', $html);
-        $this->assertStringNotContainsString(e(__('dashboard.onboarding_title')), $html);
     }
 
     /** Et il RESTE tant qu'il reste un geste : c'est l'autre moitie du test. */
@@ -96,7 +99,6 @@ class TASK1693OnboardingPanelTest extends TestCase
         $html = $this->page($this->membre(toutFait: false));
 
         $this->assertStringContainsString('data-onboarding-total="3"', $html);
-        $this->assertStringContainsString(e(__('dashboard.onboarding_title')), $html);
     }
 
     /**

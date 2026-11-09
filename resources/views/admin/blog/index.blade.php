@@ -1,4 +1,15 @@
 <x-admin-layout title="{{ __('blog.admin_title') }}">
+    {{-- TASK-1785 — navigation reciproque (CDC §6). Le pendant de ce bouton
+         vit sur `/admin/outils/import-rss`, qui renvoie ici : les deux ecrans
+         se repondent, pour qu'on n'ait pas a retenir l'adresse de l'outil. --}}
+    <div class="mb-5 flex justify-end">
+        <a href="{{ route('admin.outils.import-rss') }}"
+           class="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            {{ __('admin.import_rss.import_button') }}
+        </a>
+    </div>
+
     <!-- Filters -->
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
         {{-- TASK-1667 — sans ce report, un clic sur « Filtrer » ELARGIT la liste

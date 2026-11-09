@@ -21,8 +21,27 @@ class Explorer extends Component
     #[Locked]
     public ?string $orgId = null;
 
+    /**
+     * TASK-1788 correctif 07 — l'Entraide s'ouvre sur les DEMANDES.
+     *
+     * Demande de Cyril. Une plateforme d'entraide se lit d'abord par ce dont
+     * les gens ont besoin, pas par ce qu'on leur propose : l'arrivant voit a
+     * qui donner un coup de main avant de voir ce qu'on peut lui vendre.
+     *
+     * ## Ce que ce changement deplace, et ce qu'il ne touche pas
+     *
+     * `#[Url]` n'ecrit dans l'adresse que les valeurs DIFFERENTES du defaut :
+     * c'est desormais `?tab=services` qui apparait, et `?tab=requests` qui
+     * devient implicite. Les deux restent acceptees — aucun lien existant ne
+     * casse, ils deviennent simplement explicites ou implicites selon le cas.
+     *
+     * `filterByTag()` continue de forcer `services` : les etiquettes
+     * n'existent que sur les annonces (le filtre `tagFilter` ne vit que dans
+     * la branche `services` de `render()`), et cliquer une etiquette depuis
+     * les demandes doit donc bien basculer.
+     */
     #[Url]
-    public string $tab = 'services';
+    public string $tab = 'requests';
 
     #[Url]
     public string $search = '';

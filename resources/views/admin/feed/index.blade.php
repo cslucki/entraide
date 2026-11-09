@@ -38,6 +38,19 @@
         </div>
 
         <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">{{ __('admin.feed_filter') }}</button>
+
+        {{-- TASK-1788 correctif 10 — « Voir les commentaires ».
+
+             Il porte les filtres COURANTS : on vient de choisir une
+             Organization, on ne veut pas la rechoisir sur l'ecran suivant. Le
+             filtre de TYPE, lui, ne passe pas — il n'existe pas sur les
+             commentaires, et une adresse qui porte un parametre ignore ment
+             sur ce qu'elle filtre. --}}
+        <a href="{{ route('admin.feed.comments', array_filter(['organization_id' => $organizationId])) }}"
+           data-marqueur="lien-commentaires"
+           class="rounded-lg border border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50 dark:border-indigo-400 dark:text-indigo-400 dark:hover:bg-indigo-950">
+            {{ __('admin.feed_comments_link') }}
+        </a>
         <a href="{{ route('admin.feed') }}" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">{{ __('admin.feed_clear') }}</a>
     </form>
 
@@ -186,7 +199,19 @@
                             <span class="text-xs text-gray-600 dark:text-gray-300">{{ $post->visibility === 'loop' ? __('admin.feed_audience_loop') : __('admin.feed_audience_organization') }}</span>
                         </td>
                         <td class="px-4 py-3 align-top text-xs text-gray-500 dark:text-gray-400">
-                            {{ __('admin.feed_engagement', ['comments' => $post->comments_count, 'reactions' => $post->reactions_count]) }}
+                            {{-- TASK-1788 correctif 10 — le compte de commentaires
+                                 MENE aux commentaires. C'est de la que part la
+                                 moderation d'une annonce precise, sans avoir a
+                                 refaire le filtre sur l'ecran suivant. --}}
+                            @if($post->comments_count > 0)
+                                <a href="{{ route('admin.feed.comments', array_filter(['organization_id' => $post->organization_id, 'feed_post_id' => $post->id])) }}"
+                                   data-marqueur="lien-commentaires-annonce"
+                                   class="text-indigo-600 hover:underline dark:text-indigo-400">
+                                    {{ __('admin.feed_engagement', ['comments' => $post->comments_count, 'reactions' => $post->reactions_count]) }}
+                                </a>
+                            @else
+                                {{ __('admin.feed_engagement', ['comments' => $post->comments_count, 'reactions' => $post->reactions_count]) }}
+                            @endif
                         </td>
                         <td class="px-4 py-3 align-top text-right">
                             <form method="POST" action="{{ route('admin.feed.update', $post->id) }}" class="inline-flex flex-wrap items-center justify-end gap-2">

@@ -10,7 +10,9 @@ return [
     'my_posts' => 'My articles',
     'edit_post' => 'Edit',
     'delete_post' => 'Delete',
-    'subtitle' => 'Tips, expertise and resources from the loop',
+    // TASK-1785 — attribution VISIBLE d'un article importe par RSS.
+    'rss_attribution' => 'Article originally published on',
+    'rss_attribution_with_author' => 'Article by :auteur, originally published on',
     'write' => 'Write',
     'empty' => 'No articles published yet.',
     'be_first' => 'Be the first to publish',
@@ -25,6 +27,9 @@ return [
     'back_to_blog' => '← Back to blog',
     'back_to_article' => '← Back to article',
     'back_to_list' => '← Back to article list',
+    // TASK-1790 (post-merge fix) — only shown when a source RSS article is
+    // still persisted for this post (AdminBlogController::edit()).
+    'back_to_rss_article' => '← Back to the RSS article',
     'title_create' => 'Write an article — Blog',
     'heading_create' => 'Write an article',
     'title_edit' => 'Edit — :title',

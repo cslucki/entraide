@@ -8,6 +8,7 @@ use App\Models\Country;
 use App\Models\CrmContact;
 use App\Models\EmailLog;
 use App\Models\EmailTemplate;
+use App\Models\EntraideComment;
 use App\Models\LoginLog;
 use App\Models\Organization;
 use App\Models\PointLedger;
@@ -81,11 +82,34 @@ class AdminController extends Controller
     {
         $query = User::with(['organization'])->withCount(['services', 'buyerTransactions', 'sellerTransactions', 'reviewsReceived']);
 
+        // TASK-1788 correctif 08 — la recherche ne tenait pas compte de la CASSE.
+        //
+        // Les trois colonnes etaient deja interrogees : chercher par prenom
+        // n'etait pas « oublie », il ne RENDAIT RIEN des qu'on tapait en
+        // minuscules. `LIKE` est insensible a la casse sous SQLite et
+        // SENSIBLE sous PostgreSQL — le defaut etait donc invisible aux tests
+        // et bien reel en production.
+        //
+        // Mesure sur le jumeau avant correction :
+        //   LIKE  '%cyril%' -> 0 ligne
+        //   ILIKE '%cyril%' -> 6 lignes
+        //   LIKE  '%Cyril%' -> 5 lignes (et manquait « CYRIL »)
+        //
+        // `whereLike(..., caseSensitive: false)` emet `ilike` sous PostgreSQL et
+        // `like` ailleurs : UNE ecriture, le bon operateur sur chaque moteur.
+        // Ecrire `ilike` a la main aurait casse SQLite, et un `LOWER()` des deux
+        // cotes aurait ecarte l'index.
+        //
+        // ⚠️ Les ACCENTS restent distincts : « Prenom » ne trouve pas
+        // « Prénom ». Les replier demande une collation ou `unaccent`, qui est
+        // un sujet de base de donnees — pas de ce correctif.
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('first_name', 'like', '%'.$request->search.'%')
-                    ->orWhere('name', 'like', '%'.$request->search.'%')
-                    ->orWhere('email', 'like', '%'.$request->search.'%');
+                $motif = '%'.$request->search.'%';
+
+                $q->whereLike('first_name', $motif, caseSensitive: false)
+                    ->orWhereLike('name', $motif, caseSensitive: false)
+                    ->orWhereLike('email', $motif, caseSensitive: false);
             });
         }
 
@@ -1164,10 +1188,29 @@ class AdminController extends Controller
         }
     }
 
+    /**
+     * TASK-1786 — la purge des commentaires d'entraide accompagne la suppression
+     * definitive, dans la MEME transaction.
+     *
+     * `commentable_id` ne peut pas porter de cle etrangere — une relation
+     * polymorphique vise deux tables — donc la base ne nettoie pas, et des
+     * commentaires resteraient attaches a un service qui n'existe plus.
+     *
+     * Transaction : les deux reussissent ou aucune. Sans elle, un echec du
+     * `forceDelete()` laisserait les commentaires detruits sous une annonce
+     * toujours vivante — exactement l'inverse du defaut qu'on corrige.
+     *
+     * L'ordre importe peu a l'interieur d'une transaction ; la purge est placee
+     * AVANT pour que le dernier geste reste celui que la methode annonce.
+     */
     public function forceDeleteService(string $id): RedirectResponse
     {
         $service = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($id);
-        $service->forceDelete();
+
+        DB::transaction(function () use ($service) {
+            EntraideComment::purgerPourAnnonceSupprimee($service);
+            $service->forceDelete();
+        });
 
         return back()->with('success', 'Service définitivement supprimé.');
     }
@@ -1459,14 +1502,35 @@ class AdminController extends Controller
         return back()->with('success', __('admin.transaction_deleted'));
     }
 
+    /**
+     * TASK-1786 — meme purge, et ici la suppression est definitive PAR DEFAUT.
+     *
+     * `ServiceRequest` **n'a pas** `SoftDeletes` : ce `delete()` est irreversible,
+     * contrairement a celui d'un `Service`. Les commentaires de l'annonce doivent
+     * donc partir avec elle.
+     *
+     * A ne pas confondre avec `RequestController::destroy()`, qui ne supprime
+     * rien — il fait `update(['status' => 'closed'])`. Une demande clôturee garde
+     * ses commentaires, qui restent lisibles.
+     *
+     * Le corps est enveloppe dans UNE transaction, ce qui ne change ni l'ordre ni
+     * la nature des operations — seulement leur atomicite. Le cycle de vie des
+     * demandes et des transactions est inchange : memes gestes, memes effets.
+     */
     public function destroyRequest(string $requestId): RedirectResponse
     {
         $serviceRequest = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($requestId);
-        foreach ($serviceRequest->transactions as $transaction) {
-            PointLedger::where('transaction_id', $transaction->id)->update(['transaction_id' => null]);
-            $transaction->delete();
-        }
-        $serviceRequest->delete();
+
+        DB::transaction(function () use ($serviceRequest) {
+            EntraideComment::purgerPourAnnonceSupprimee($serviceRequest);
+
+            foreach ($serviceRequest->transactions as $transaction) {
+                PointLedger::where('transaction_id', $transaction->id)->update(['transaction_id' => null]);
+                $transaction->delete();
+            }
+
+            $serviceRequest->delete();
+        });
 
         return back()->with('success', __('admin.request_deleted'));
     }

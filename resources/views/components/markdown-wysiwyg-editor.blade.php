@@ -8,6 +8,24 @@
 --}}
 @props(['name' => 'description', 'value' => '', 'required' => false, 'minLength' => null, 'placeholder' => '', 'invalid' => false, 'rows' => 5, 'fullscreen' => false, 'tall' => false])
 
+{{--
+    TASK-1788 correctif 12 (demande Cyril) — « en plein ecran, les boutons
+    deviennent noirs ». `.dark .bp-editeur-plein` posait un fond sombre SANS
+    jamais poser de couleur de premier plan : tout ce qui compte sur
+    `currentColor` (les icones de la barre d'outils, avant leur premiere
+    interaction) heritait d'une couleur choisie pour un fond clair. Filet de
+    securite ci-dessous ; la cause racine (l'icone sans couleur explicite au
+    premier rendu) est corrigee dans `markdown-wysiwyg-editor.js`.
+
+    ⚠️ Cette explication vit ICI, en commentaire BLADE (strip au compile),
+    et non dans le commentaire CSS a cote de `color: #e5e7eb` plus bas :
+    le `<style>` de ce composant est envoye TEL QUEL a chaque page qui
+    l'utilise (services/create y compris, cf. le commentaire du haut de ce
+    fichier) — un commentaire CSS qui cite un numero de TASK y fuit
+    litteralement, et un test d'un AUTRE correctif qui verifie l'absence de
+    fuite de commentaire de code sur ces pages en rougit. Mesure sur CI,
+    pas en local.
+--}}
 <style>
     .ProseMirror-wrapper .ProseMirror {
         outline: none;
@@ -86,6 +104,12 @@
     }
     .dark .bp-editeur-plein {
         background-color: #111827;
+        /* Filet de securite : un fond sombre SANS couleur de premier plan
+           laisse tout ce qui compte sur `currentColor` heriter d'une teinte
+           pensee pour un fond clair. La cause racine (l'icone de la barre
+           d'outils sans couleur explicite au premier rendu) est corrigee
+           dans markdown-wysiwyg-editor.js. */
+        color: #e5e7eb;
     }
     .bp-editeur-plein .ProseMirror-wrapper {
         flex: 1;
@@ -131,8 +155,10 @@
      data-i18n-h2="{{ __('ai.markdown_h2') }}"
      data-i18n-h3="{{ __('ai.markdown_h3') }}"
      data-i18n-bullet-list="{{ __('ai.markdown_bullet_list') }}"
+     data-i18n-youtube="{{ __('ai.markdown_youtube') }}"
      data-i18n-toolbar="{{ __('ai.markdown_toolbar') }}"
-     data-i18n-url-prompt="{{ __('ai.markdown_url_prompt') }}">
+     data-i18n-url-prompt="{{ __('ai.markdown_url_prompt') }}"
+     data-i18n-youtube-prompt="{{ __('ai.markdown_youtube_prompt') }}">
     <textarea
         id="{{ $name }}"
         name="{{ $name }}"

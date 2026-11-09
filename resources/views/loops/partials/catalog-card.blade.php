@@ -113,15 +113,22 @@
             <p class="mt-1 line-clamp-2 text-sm leading-snug text-gray-500 dark:text-gray-400">{{ $cardDescription }}</p>
         @endif
 
-        {{-- Le type, discret mais présent : dans l'onglet « Toutes » on ne
-             saurait sinon pas ce qu'on regarde. --}}
-        <p class="mt-2 flex flex-wrap items-center gap-1.5">
-            <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                {{ app(\App\Support\Loops\LoopTypeRegistry::class)->label($item->type, $item->organization) }}
-            </span>
-        </p>
+        {{-- TASK-1788 correctif 06 — la carte est EPUREE : ni le type, ni les
+             categories.
 
-        <x-loops.domain-badges :loop="$item" class="mt-2" />
+             Le type portait une raison (« dans l'onglet Toutes on ne saurait
+             sinon pas ce qu'on regarde ») ; elle vaut moins que l'encombrement
+             de deux rangees de pastilles sur chaque carte, et les onglets de
+             type restent la pour trier.
+
+             Ce qui NE part pas, et c'est ce qui fait tenir le reste :
+             `data-type` sur l'article et les deux listes du `x-show` plus haut.
+             Elles ne s'affichent pas — elles servent aux filtres par type et
+             par domaine, qui continuent de fonctionner. Retirer l'affichage
+             n'est pas retirer la donnee.
+
+             Le composant `loops.domain-badges` est CONSERVE : la presentation
+             d'une Boucle et son invitation l'emploient toujours. --}}
 
         <div class="mt-auto pt-3">
             <div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400 dark:text-gray-500">

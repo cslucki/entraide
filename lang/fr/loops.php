@@ -5,6 +5,11 @@ return [
     'ask_for_help' => 'Demander de l\'aide',
     'offer_help' => 'Proposer de l\'aide',
     'my_loops' => 'Mes boucles',
+    // TASK-1788 correctif 06 — le titre de l'inventaire est « Boucles », et
+    // non « Mes boucles » : la page montre AUSSI celles qu'on peut decouvrir.
+    // `my_loops` reste definie bien que plus personne ne l'emploie — ce
+    // correctif est un changement d'ecran, pas un menage de lexique.
+    'index_title' => 'Boucles',
     'new' => 'Nouvelle',
     'collaboration_spaces' => 'Vos espaces de collaboration',
     'default_missing_title' => 'Attention :',

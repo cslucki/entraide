@@ -606,13 +606,6 @@ class User extends Authenticatable implements MustVerifyEmail
             ->count();
     }
 
-    public function badges(): BelongsToMany
-    {
-        return $this->belongsToMany(Badge::class, 'badge_user', 'user_id', 'badge_id')
-            ->withPivot('earned_at')
-            ->orderBy('badge_user.earned_at');
-    }
-
     public function sentReferrals(): HasMany
     {
         return $this->hasMany(Referral::class, 'referrer_user_id');

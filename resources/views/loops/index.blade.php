@@ -1,4 +1,4 @@
-<x-page :title="__('loops.my_loops')" :heading="__('loops.my_loops')">
+<x-page :title="__('loops.index_title')" :heading="__('loops.index_title')">
     @php
         $organizationRouteParam = request()->route('organization');
         $loopsCreateHref = $organizationRouteParam && request()->routeIs('organization.*')
@@ -50,11 +50,24 @@
         // commun.
         $tabOrganization = $organization ?? null;
 
-        // Tous les types proposables, plus ceux qu'une Boucle listée porte
-        // encore alors qu'ils ont été retirés de l'offre : sinon ces Boucles
-        // seraient visibles dans « Toutes » et introuvables ailleurs.
+        // TASK-1788 correctif 06 — SEULS les types qui ont au moins une Boucle.
+        //
+        // La règle était « tous les types proposables, PLUS ceux qu'une Boucle
+        // porte encore alors qu'ils ont été retirés de l'offre ». Elle rendait
+        // donc des onglets à zéro — « Coaching 0 » — qui ne mènent nulle part :
+        // les cliquer n'affiche rien, et ils poussent hors de l'écran les
+        // onglets qui, eux, ont quelque chose à montrer.
+        //
+        // Compter suffit, et conserve la seconde moitié de l'ancienne règle
+        // sans l'écrire : un type retiré de l'offre mais encore porté par une
+        // Boucle a un compte non nul, donc il garde son onglet. Sans quoi ces
+        // Boucles seraient visibles dans « Toutes » et introuvables ailleurs.
+        //
+        // `$loops` n'est jamais vide ici (ce bloc vit dans le `@else` de
+        // `@if($loops->isEmpty())`) : au moins un type reste donc affiché, et
+        // l'onglet « Toutes » ne se retrouve jamais seul.
         $tabTypes = collect($typeRegistry->all($tabOrganization))
-            ->filter(fn ($d, $key) => $typeRegistry->isAvailable($key, $tabOrganization) || ($countByType[$key] ?? 0) > 0);
+            ->filter(fn ($d, $key) => ($countByType[$key] ?? 0) > 0);
 
         $mineByType = $mine->countBy(fn ($l) => $typeRegistry->resolve($l->type));
         $discoverByType = $discover->countBy(fn ($l) => $typeRegistry->resolve($l->type));
@@ -72,21 +85,32 @@
         @endif
     </x-slot>
 
-    <div x-data="{ q: '', domain: '', type: '' }">
-        <div class="flex items-center justify-between gap-3 mb-6 md:block">
-            <p class="text-gray-500 dark:text-gray-400 text-sm">{{ __('loops.collaboration_spaces') }}</p>
-            @if($canCreate)
-                {{-- Mobile-only access: the desktop button lives in headingActions (hidden md:flex),
-                     which is not reachable on small viewports. Local to this page only. --}}
+    {{-- `mine` : TASK-1788 correctif 06. Un troisieme choix du meme selecteur,
+         pas une seconde dimension — « Mes boucles », « Toutes » et un type
+         s'excluent, et une seule rangee se lit d'un coup d'oeil. --}}
+    <div x-data="{ q: '', domain: '', type: '', mine: false }">
+        {{-- TASK-1788 correctif 06 — « Vos espaces de collaboration » est RETIREE,
+             sur demande de Cyril : elle n'apprend rien que le titre de la page
+             ne dise deja, et elle coute une ligne en haut d'ecran.
+
+             Le conteneur ne subsiste que pour le bouton de creation du
+             smartphone (le bouton de bureau vit dans `headingActions`). Il
+             passe donc en `md:hidden` : sans cela, le bureau garderait un bloc
+             vide et sa marge — la place qu'on vient justement de reprendre. La
+             cle `loops.collaboration_spaces` reste definie, ce correctif etant
+             un changement d'ecran et non un menage de lexique. --}}
+        @if($canCreate)
+            <div class="md:hidden flex items-center justify-end gap-3 mb-6">
                 <a href="{{ $loopsCreateHref }}"
-                   class="md:hidden shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
+                   data-loops-new-mobile
+                   class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                     </svg>
                     <span>{{ __('loops.new') }}</span>
                 </a>
-            @endif
-        </div>
+            </div>
+        @endif
 
         @if(session('success'))
             <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
@@ -134,15 +158,34 @@
             @if($tabTypes->isNotEmpty())
                 <div class="mb-6 -mx-4 overflow-x-auto border-b border-gray-200 px-4 no-scrollbar dark:border-gray-700">
                     <div class="flex min-w-max">
-                        <button type="button" @click="type = ''"
-                                :class="type === '' ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+                        {{-- TASK-1788 correctif 06 — « Mes boucles », et SEULEMENT
+                             pour qui en a.
+
+                             La condition est `$mine`, c'est-a-dire `is_member`
+                             : une appartenance ACTIVE, quel que soit le role.
+                             Proprietaire et animateur sont des roles de
+                             `loop_members`, ils y sont donc compris — la
+                             demande (« appartient, ou est proprietaire ou
+                             animateur ») est couverte par un seul critere, sans
+                             en recopier trois qui divergeraient. --}}
+                        @if($mine->isNotEmpty())
+                            <button type="button" @click="mine = true; type = ''"
+                                    data-loops-tab-mine
+                                    :class="mine ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+                                    class="px-5 py-3 text-sm font-medium whitespace-nowrap transition">
+                                {{ __('loops.my_loops_title') }}
+                                <span class="ml-1 text-xs font-normal opacity-70">{{ $mine->count() }}</span>
+                            </button>
+                        @endif
+                        <button type="button" @click="mine = false; type = ''"
+                                :class="! mine && type === '' ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
                                 class="px-5 py-3 text-sm font-medium transition">
                             {{ __('loops.types_tab_all') }}
                             <span class="ml-1 text-xs font-normal opacity-70">{{ $loops->count() }}</span>
                         </button>
                         @foreach($tabTypes as $key => $definition)
-                            <button type="button" @click="type = '{{ $key }}'"
-                                    :class="type === '{{ $key }}' ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+                            <button type="button" @click="mine = false; type = '{{ $key }}'"
+                                    :class="! mine && type === '{{ $key }}' ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
                                     class="px-5 py-3 text-sm font-medium whitespace-nowrap transition">
                                 {{-- Le registre, jamais la définition : un type
                                      créé n'a pas de clé de traduction, et le mot
@@ -187,7 +230,7 @@
             @endif
 
             @if($mine->isNotEmpty())
-                <h2 x-show="type === '' || ({{ \Illuminate\Support\Js::from($mineByType) }}[type] ?? 0) > 0"
+                <h2 x-show="mine || type === '' || ({{ \Illuminate\Support\Js::from($mineByType) }}[type] ?? 0) > 0"
                     class="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.my_loops_title') }}</h2>
                 <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     @foreach($mine as $item)
@@ -197,7 +240,7 @@
             @endif
 
             {{-- Un onglet vide ne doit pas être une page blanche. --}}
-            <div x-show="type !== '' && ({{ \Illuminate\Support\Js::from($countByType) }}[type] ?? 0) === 0"
+            <div x-show="! mine && type !== '' && ({{ \Illuminate\Support\Js::from($countByType) }}[type] ?? 0) === 0"
                  x-cloak
                  class="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center dark:border-gray-600 dark:bg-gray-800">
                 <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('loops.types_tab_empty') }}</p>
@@ -212,13 +255,22 @@
                 @endif
             </div>
 
+            {{-- TASK-1788 correctif 06 — « Decouvrir » tout entier derriere `mine`,
+                 EN-TETE ET GRILLE.
+
+                 Le piege : les cartes se filtrent elles-memes sur `q`, `domain`
+                 et `type` — jamais sur `mine`, qu'elles ne connaissent pas. Ne
+                 masquer que le titre aurait laisse la grille complete en
+                 dessous, et « Mes boucles » n'aurait rien filtre du tout. --}}
             @if($discover->isNotEmpty())
-                <h2 x-show="type === '' || ({{ \Illuminate\Support\Js::from($discoverByType) }}[type] ?? 0) > 0"
-                    class="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.discover_title') }}</h2>
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    @foreach($discover as $item)
-                        @include('loops.partials.catalog-card', ['item' => $item])
-                    @endforeach
+                <div x-show="! mine" data-loops-discover>
+                    <h2 x-show="type === '' || ({{ \Illuminate\Support\Js::from($discoverByType) }}[type] ?? 0) > 0"
+                        class="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.discover_title') }}</h2>
+                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        @foreach($discover as $item)
+                            @include('loops.partials.catalog-card', ['item' => $item])
+                        @endforeach
+                    </div>
                 </div>
             @endif
         @endif

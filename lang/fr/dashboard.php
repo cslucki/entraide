@@ -8,7 +8,12 @@ return [
     'available' => 'Disponible',
     'unavailable' => 'Indisponible',
     'availability_updated' => 'Disponibilité mise à jour.',
-    'onboarding_badge' => 'Onboarding beta',
+        // TASK-1788 correctif 03 — « Parcours d'accueil » plutot qu'« Onboarding
+    // beta » : BouclePro est une plateforme d'entraide, pas un produit en
+    // rodage. `onboarding_title` reste DEFINIE dans les deux langues bien que
+    // plus personne ne l'emploie — la supprimer serait un menage de lexique,
+    // et ce correctif est un changement de TEXTE.
+    'onboarding_badge' => 'Parcours d\'accueil',
     'onboarding_title' => 'Votre progression dans la boucle',
     'onboarding_intro' => 'Avancez étape par étape pour demander de l’aide, proposer votre aide et commencer à interagir.',
     'done' => 'Terminé',

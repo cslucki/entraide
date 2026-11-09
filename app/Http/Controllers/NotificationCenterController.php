@@ -6,8 +6,11 @@ use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
 use App\Models\LoopMessage;
+use App\Models\EntraideComment;
 use App\Models\MemberNotification;
 use App\Models\Organization;
+use App\Models\Service;
+use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Entraide\TempsPartage;
@@ -149,7 +152,13 @@ class NotificationCenterController extends Controller
             // troisieme aurait ete ignoree EN SILENCE.
             'sujets' => $this->sujetsDesBoucles($notifications->getCollection(), (string) $organization->id)
                 + $this->sujetsDEntraide($notifications->getCollection(), (string) $organization->id, $user)
-                + $this->sujetsDesMentions($notifications->getCollection(), (string) $organization->id),
+                + $this->sujetsDesMentions($notifications->getCollection(), (string) $organization->id)
+                // TASK-1786 — quatrieme carte, et la prémisse tient : son type
+                // d'objet est `OBJECT_ENTRAIDE_COMMENT`, DISJOINT des trois
+                // autres. C'est precisement pour ne pas la rompre que le
+                // commentaire d'entraide a recu son propre type d'objet au lieu
+                // de reutiliser `OBJECT_TRANSACTION`.
+                + $this->sujetsDesCommentairesDEntraide($notifications->getCollection(), (string) $organization->id, $user),
             'notifications' => $notifications,
             'filtre' => $filtre,
             'dejaUneNotification' => $dejaUneNotification,
@@ -343,6 +352,131 @@ class NotificationCenterController extends Controller
      * @param  Collection<int, MemberNotification>  $notifications
      * @return array<string, array{prenom: string, loop: string}>
      */
+    /**
+     * TASK-1786 — nommer le commentateur et l'annonce, dans le CENTRE seulement.
+     *
+     * ## Pourquoi ici et nulle part ailleurs
+     *
+     * Meme doctrine que `sujetsDEntraide()` juste au-dessus, et pour la meme
+     * raison : cette liste n'est lisible qu'une fois AUTHENTIFIE, donc le fait
+     * peut s'y raconter en entier. `push_title`, `push_body` et le sujet d'email
+     * restent generiques — un Push s'affiche sur un ecran verrouille, un email
+     * se previsualise sans deverrouiller.
+     *
+     * C'est le texte que le CDC T1786 §7 demande : « Marie a commente votre
+     * proposition d'aide : Creation d'un site web. »
+     *
+     * ## `:type` est resolu ICI, et c'est ce qui permet UNE seule cle
+     *
+     * Le libelle porte `:type`, rempli par « proposition d'entraide » ou
+     * « demande d'aide ». Le catalogue n'a donc qu'une cle pour les deux types
+     * d'annonce, et la nuance de vocabulaire est traitee a l'affichage — la ou
+     * elle appartient.
+     *
+     * ## Et le lecteur doit etre l'AUTEUR de l'annonce
+     *
+     * Version annonce de « le nom n'est montre que si la cible est joignable » :
+     * une notification survit a bien des changements, et si le lecteur n'est
+     * plus l'auteur de l'annonce, la ligne retombe sur la forme generique, qui
+     * reste vraie. Le destinataire EST l'auteur par construction ; on ne s'en
+     * remet pas a cette construction pour decider d'afficher un nom.
+     *
+     * Resolu AU RENDU (le stockage ne retient aucun texte), EN LOT (une requete
+     * pour la page, pas une par ligne), et borne au tenant par un
+     * `where('organization_id')` EXPLICITE apres `withoutGlobalScopes()` —
+     * jamais l'un sans l'autre, lecon de T1755.
+     *
+     * @param  Collection<int, MemberNotification>  $notifications
+     * @return array<string, array{prenom: string, titre: string, type: string}>
+     */
+    private function sujetsDesCommentairesDEntraide($notifications, string $organizationId, User $lecteur): array
+    {
+        $lignes = $notifications->groupBy('object_type')
+            ->get(NotificationCatalogue::OBJECT_ENTRAIDE_COMMENT);
+
+        if ($lignes === null || $lignes->isEmpty()) {
+            return [];
+        }
+
+        $identifiants = $lignes->pluck('object_id')->filter()->unique()->all();
+
+        if ($identifiants === []) {
+            return [];
+        }
+
+        $commentaires = EntraideComment::query()
+            ->withoutGlobalScopes()
+            ->whereIn('id', $identifiants)
+            ->where('organization_id', $organizationId)
+            ->with('user')
+            ->get()
+            ->keyBy('id');
+
+        // Les annonces en DEUX requetes groupees, une par type : une relation
+        // polymorphique ne se charge pas en un `whereIn` unique, et une requete
+        // par ligne ramenerait le probleme N+1 que cette methode existe pour
+        // eviter.
+        $annonces = [];
+
+        foreach ([Service::class, ServiceRequest::class] as $classe) {
+            $cibles = $commentaires
+                ->where('commentable_type', $classe)
+                ->pluck('commentable_id')
+                ->filter()
+                ->unique()
+                ->all();
+
+            if ($cibles === []) {
+                continue;
+            }
+
+            $annonces[$classe] = $classe::query()
+                ->withoutGlobalScopes()
+                ->whereIn('id', $cibles)
+                ->where('organization_id', $organizationId)
+                ->get()
+                ->keyBy('id');
+        }
+
+        $sujets = [];
+
+        foreach ($lignes as $notification) {
+            $commentaire = $commentaires[(string) $notification->object_id] ?? null;
+
+            if ($commentaire === null) {
+                continue;
+            }
+
+            $classe = (string) $commentaire->commentable_type;
+            $annonce = $annonces[$classe][(string) $commentaire->commentable_id] ?? null;
+
+            if ($annonce === null) {
+                continue;
+            }
+
+            // Le lecteur doit etre l'auteur de l'annonce commentee.
+            if ((string) $annonce->user_id !== (string) $lecteur->id) {
+                continue;
+            }
+
+            $prenom = $commentaire->user?->first_name ?: ($commentaire->user?->name ?: null);
+
+            if ($prenom === null || $prenom === '') {
+                continue;
+            }
+
+            $sujets[(string) $notification->id] = [
+                'prenom' => $prenom,
+                'titre' => (string) $annonce->title,
+                'type' => $annonce instanceof Service
+                    ? __('entraide.commentaires.type_proposition')
+                    : __('entraide.commentaires.type_demande'),
+            ];
+        }
+
+        return $sujets;
+    }
+
     private function sujetsDesMentions($notifications, string $organizationId): array
     {
         $lignes = $notifications->groupBy('object_type')
