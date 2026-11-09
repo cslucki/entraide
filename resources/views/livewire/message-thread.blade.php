@@ -487,11 +487,27 @@
         {{ __('messages.conversation_closed') }}
     </div>
     @endif
-</div>
 
-{{-- TASK-1771 — meme barre que sur le ChatLoop : le composant de bulle est
-     partage, le geste doit l'etre aussi. --}}
-<x-conversation.selection-bar />
+    {{-- TASK-1771 — meme barre que sur le ChatLoop : le composant de bulle est
+         partage, le geste doit l'etre aussi.
+
+         TASK-1796 — elle est DANS la racine, et non plus a cote.
+
+         Elle vivait apres `</div>`, ce qui faisait DEUX elements de premier
+         niveau. Livewire n'en accepte qu'un et levait
+         `MultipleRootElementsDetectedException` : toute conversation rendait
+         500 des que `app.debug` etait vrai. Le `<script>` final n'y est pour
+         rien — `getRootElementCount()` retire `<script>` et `<style>` avant de
+         parser.
+
+         Deplacer suffit, et ne change rien a l'affichage : la barre est un
+         `<template x-teleport="body">`, et Alpine en porte le contenu vers le
+         `<body>` au montage, d'ou qu'il parte. Son emplacement dans la source
+         ne decide donc pas de sa place a l'ecran. Elle reste rendue, et un test
+         l'exige — la supprimer aurait aussi fait disparaitre le 500, en cassant
+         le mode selection de TASK-1771. --}}
+    <x-conversation.selection-bar />
+</div>
 
 <script>
     function syncUnreadBadge(count) {

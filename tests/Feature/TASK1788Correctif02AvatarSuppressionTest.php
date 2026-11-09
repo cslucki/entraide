@@ -287,7 +287,47 @@ class TASK1788Correctif02AvatarSuppressionTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString($this->membre->fullName, $page, 'Temoin absent : ce n\'est pas le bon profil.');
+        // TASK-1796 — le temoin comparait le nom BRUT a du HTML ECHAPPE.
+        //
+        // Defaut PREEXISTANT, decouvert par la CI : `User::factory()->complete()`
+        // ne fixe pas le nom, et Faker a produit « Alycia O'Connell ». Blade
+        // rend `{{ $user->fullName }}` par `e()`, qui transforme l'apostrophe en
+        // `&#039;` — mesure : `e($membre->fullName)` = « Alycia O&#039;Connell »,
+        // present dans la page, alors que le nom BRUT ne l'est jamais des qu'il
+        // porte une apostrophe. Confirme comme present sur `develop`, sans
+        // rapport avec TASK-1796 : le fichier de test n'y est pas modifie.
+        //
+        // Seul le TEMOIN change — pas la garde de securite qui suit, ni la
+        // logique du composant.
+        $this->assertStringContainsString(e($this->membre->fullName), $page, 'Temoin absent : ce n\'est pas le bon profil.');
+        $this->assertStringNotContainsString('data-avatar-edit', $page, 'Le crayon est propose sur le profil de quelqu\'un d\'autre.');
+    }
+
+    /**
+     * Preuve DETERMINISTE, independante du hasard Faker.
+     *
+     * Le defaut ci-dessus n'apparaissait que les jours ou Faker tirait un nom
+     * avec apostrophe — la raison precise pour laquelle il a dormi jusqu'a ce
+     * qu'une CI le revele. Ce test fixe « O'Connell » explicitement : il
+     * echoue a coup sur sur l'ancienne assertion, et reste vert avec la
+     * nouvelle, sans dependre d'aucun tirage.
+     */
+    public function test_le_temoin_reconnait_un_nom_avec_apostrophe(): void
+    {
+        $this->membre->forceFill(['first_name' => 'Alycia', 'name' => "O'Connell"])->save();
+
+        $autre = User::factory()->complete()->create([
+            'organization_id' => $this->organization->id,
+            'email_verified_at' => now(),
+        ]);
+
+        $page = $this->actingAs($autre)
+            ->get(route('profile.show', $this->membre))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString($this->membre->fullName, $page, 'le nom BRUT ne doit jamais apparaitre tel quel dans du HTML echappe');
+        $this->assertStringContainsString(e($this->membre->fullName), $page, 'le nom ECHAPPE doit apparaitre : c\'est ce que Blade rend reellement');
         $this->assertStringNotContainsString('data-avatar-edit', $page, 'Le crayon est propose sur le profil de quelqu\'un d\'autre.');
     }
 }
