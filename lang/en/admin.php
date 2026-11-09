@@ -786,9 +786,10 @@ return [
     'all_locales' => 'All locales',
 
     // Emailer module
-    'emailer_title' => 'Emailer',
+    'emailer_title' => 'Email&Messages',
     'emailer_templates' => 'Templates',
-    'emailer_history' => 'History',
+    'emailer_history' => 'Sent emails',
+    'emailer_messages_history' => 'History of all messages',
     'notifications_cockpit' => 'Notifications health',
     'emailer_test' => 'Test',
     'emailer_system' => 'System emails',
