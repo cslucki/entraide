@@ -1939,6 +1939,9 @@ return [
     'users_stat_new' => 'Nouveaux ce mois',
     'users_stat_unverified' => 'Non vérifiés',
     'users_stat_unverified_hint' => 'Afficher ces comptes',
+    'users_org_counter_total' => 'sur :total au total',
+    'users_org_counter_filter' => 'N’afficher que les comptes de :name',
+    'users_org_counter_clear' => 'Retirer le filtre et revoir toutes les organisations',
     // TASK-1726 — les quatre cles `users_assign_organization*` ont ete retirees
     // avec le controle qu'elles libellaient : un compte ne change plus
     // d'Organization. Ces deux-la les remplacent, et ne libellent qu'un

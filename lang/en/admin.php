@@ -1921,6 +1921,9 @@ return [
     'users_stat_new' => 'New this month',
     'users_stat_unverified' => 'Unverified',
     'users_stat_unverified_hint' => 'Show these accounts',
+    'users_org_counter_total' => 'of :total in total',
+    'users_org_counter_filter' => 'Show only :name accounts',
+    'users_org_counter_clear' => 'Clear the filter and show all organizations',
     // TASK-1726 — see the French file: the account no longer moves between
     // Organizations, so these keys label a READ-ONLY display.
     'users_organization_none' => 'No organization',

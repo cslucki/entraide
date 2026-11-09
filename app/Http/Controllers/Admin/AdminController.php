@@ -169,6 +169,11 @@ class AdminController extends Controller
 
         return view('admin.users', compact('users', 'organizations', 'scopedOrganization') + [
             'stats' => $this->userListStats($scopedOrganization?->id),
+            // TASK-1795 correctif 9 — la repartition par Organization. Volontairement
+            // NON bornee par `$scopedOrganization` : filtrer sur une Organization ne
+            // doit pas faire disparaitre les autres tuiles, qui servent justement a
+            // passer de l'une a l'autre.
+            'comptesParOrganization' => $this->comptesParOrganization(),
             // TASK-1694 bug L — les gabarits de l'Emailer, pour le choix pose
             // DANS la ligne. Une seule requete, constante : le test de cout de
             // cet ecran mesure qu'il ne grandit pas avec le nombre de comptes.
@@ -217,6 +222,56 @@ class AdminController extends Controller
      *
      * @return array<string, int>
      */
+    /**
+     * TASK-1795 correctif 9 — les comptes ACTIFS, par Organization.
+     *
+     * Cyril : « on va organiser des compteurs pour le nombre d'utilisateurs
+     * actif par Org. Prévoir l'espace pour 10 organisations maximum, puisque
+     * la plateforme ne fera pas plus de 10 organisations. »
+     *
+     * ## « Actif » n'est pas redefini ici
+     *
+     * Le predicat est celui que `userListStats()` emploie deja pour
+     * « Disponibles » : `banned_at is null and is_available`. Le reecrire
+     * autrement aurait donne deux chiffres qui se contredisent sur le meme
+     * ecran — la somme des colonnes ne retomberait pas sur le compteur global.
+     *
+     * ## UNE requete, pas une par Organization
+     *
+     * `TASK1640UserDeleteFromListTest` mesure la PENTE de cet ecran : « neuf
+     * comptes de plus ne coutent pas trente requetes de plus ». Un compteur
+     * par Organization dans une boucle aurait ajoute une requete PAR
+     * Organization — meme famille de defaut, sur l'autre axe. L'agregat est
+     * donc groupe, et le cout reste constant quel que soit le nombre
+     * d'Organizations.
+     *
+     * Les deux pieges de moteur de `userListStats()` valent ici aussi :
+     * `count(*) FILTER` est du PostgreSQL pur, et `is_available = 1` echoue sur
+     * un vrai `boolean`. Le predicat NU passe des deux cotes.
+     *
+     * @return array<string, array{total: int, actifs: int}> indexe par organization_id
+     */
+    private function comptesParOrganization(): array
+    {
+        $lignes = User::query()
+            ->whereNotNull('organization_id')
+            ->toBase()
+            ->selectRaw(
+                'organization_id,'
+                .' count(*) as total,'
+                .' sum(case when banned_at is null and is_available then 1 else 0 end) as actifs'
+            )
+            ->groupBy('organization_id')
+            ->get();
+
+        return $lignes->mapWithKeys(fn ($ligne) => [
+            (string) $ligne->organization_id => [
+                'total' => (int) $ligne->total,
+                'actifs' => (int) $ligne->actifs,
+            ],
+        ])->all();
+    }
+
     private function userListStats(?string $organizationId = null): array
     {
         // Deux pieges de moteur evites ici, tous deux deja payes sur ce depot :
