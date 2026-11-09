@@ -190,6 +190,12 @@ return [
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).
         'loop_mention_created' => '“:prenom” mentioned you in the Loop “:loop”',
+        // TASK-1797 — separate key, not a rewrite of the one above: a
+        // collective mention never named you personally. Same
+        // `notification_key`, same recipient, same event — only the TEXT
+        // differs, read by `sujetsDesMentions()` when the message carries
+        // `mention_all`.
+        'loop_mention_all_created' => '“:prenom” mentioned all the members of the Loop “:loop”',
         // TASK-1757 — see the French file for why this surface only.
         'transaction_proposal_created' => ':prenom replies to your listing “:titre” — :temps',
         // TASK-1786 — named ONLY here. `:type` carries "mutual aid offer" or
@@ -266,6 +272,12 @@ return [
             // TASK-1772 — see the French file: both the excerpt and the
             // settings link stay placeholders, never hardcoded addresses.
             'body' => '<p>Hello,</p><p>Someone mentioned you in a message from a Loop.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">Read the message</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>No rush: the message will wait for you.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
+        // TASK-1797 — fallback for the COLLECTIVE mention. Mirrors the
+        // French file: never says "mentioned you", nobody was named.
+        'loop_mention_all_created' => [
+            'subject' => 'All members of a Loop were mentioned',
+            'body' => '<p>Hello,</p><p>Someone mentioned all the members of a Loop you belong to.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">Read the message</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>No rush: the message will wait for you.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
         ],
         'loop_join_request_created' => [
             'subject' => 'Someone is asking to join your Loop',

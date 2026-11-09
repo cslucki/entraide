@@ -227,6 +227,24 @@ class LoopMessageService
             return;
         }
 
+        // TASK-1797 — les verdicts des TROIS canaux, resolus EN MASSE, une
+        // seule fois. Jusqu'ici cette methode n'etait appelee que pour dix
+        // destinataires au plus (`LoopChat::MENTIONS_MAX`) et laissait le
+        // planificateur relire la preference de chacun a l'unite — un cout
+        // negligeable a cette echelle. `@tous` porte jusqu'a 49 destinataires
+        // d'un seul message : meme optimisation que `notifierLaDemandeDAide()`
+        // juste au-dessus, pour la meme raison (T1778 : 8 requetes par
+        // destinataire -> 3 requetes au total, quel que soit N).
+        $verdicts = app(NotificationPreferenceResolver::class)->allowsMany(
+            $destinataires,
+            NotificationCatalogue::LOOP_MENTION_CREATED,
+            [
+                NotificationCatalogue::CHANNEL_IN_APP,
+                NotificationCatalogue::CHANNEL_EMAIL,
+                NotificationCatalogue::CHANNEL_WEB_PUSH,
+            ],
+        );
+
         $emetteur = app(NotificationEmitter::class);
 
         foreach ($destinataires as $destinataire) {
@@ -240,6 +258,7 @@ class LoopMessageService
                 objectType: NotificationCatalogue::OBJECT_LOOP_MESSAGE,
                 objectId: (string) $message->getKey(),
                 actor: $auteur,
+                canauxAutorises: $verdicts[(string) $destinataire->id] ?? null,
             );
         }
     }
