@@ -1,4 +1,6 @@
-<x-admin-layout :title="$rssSource->label ?? $rssSource->url">
+<div>
+    <x-slot:title>{{ $rssSource->label ?? $rssSource->url }}</x-slot:title>
+
     <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="min-w-0">
             <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
@@ -88,4 +90,4 @@
             {{ $articles->links() }}
         </div>
     @endif
-</x-admin-layout>
+</div>

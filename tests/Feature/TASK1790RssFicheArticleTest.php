@@ -276,7 +276,10 @@ class TASK1790RssFicheArticleTest extends TestCase
         $this->assertNotNull($cree);
         $this->assertSame('draft', $cree->status);
         $this->assertNull($cree->published_at);
-        $test->assertRedirect(route('admin.blog.edit', ['post' => $cree->id]));
+        // TASK-1793 — redirection par SLUG (cle de route reelle) et SCOPEE sur
+        // l'Organization de destination : une URL batie sur l'id rendait 404,
+        // et un blog non scope ne montre pas l'article qu'on vient de creer.
+        $test->assertRedirect(route('admin.blog.edit', ['post' => $cree->slug, 'organization_id' => $org->id]));
     }
 
     public function test_creer_le_brouillon_lie_la_boucle_choisie(): void

@@ -7,6 +7,7 @@ use App\Services\Blog\RssFeedFetcher;
 use App\Services\Blog\RssFeedReader;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\View\View;
+use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -28,6 +29,7 @@ use RuntimeException;
  * (`AppServiceProvider::boot()`) — protection deja en place pour TOUT
  * composant `App\Livewire\Admin\*`, celui-ci inclus, sans redite necessaire.
  */
+#[Layout('layouts.admin')]
 class RssSourceArticles extends Component
 {
     use WithPagination;

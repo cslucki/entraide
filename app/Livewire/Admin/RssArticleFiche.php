@@ -9,6 +9,7 @@ use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Services\Blog\RssArticleImporter;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
+use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
@@ -53,6 +54,7 @@ use Livewire\Component;
  *    cette seconde garde continuerait de refuser seule. Defense en profondeur,
  *    pas une redite : les deux dependent de mecanismes differents.
  */
+#[Layout('layouts.admin')]
 class RssArticleFiche extends Component
 {
     #[Locked]
@@ -118,7 +120,7 @@ class RssArticleFiche extends Component
         );
 
         if ($resultat['crees'] !== []) {
-            $this->redirect(route('admin.blog.edit', ['post' => $resultat['crees'][0]['id']]), navigate: false);
+            $this->redirect(route('admin.blog.edit', ['post' => $resultat['crees'][0]['slug'], 'organization_id' => $this->organizationId]), navigate: false);
 
             return;
         }
@@ -127,7 +129,7 @@ class RssArticleFiche extends Component
             // Double clic / course concurrente : l'index unique a deja ete
             // honore par une autre requete. On rejoint l'article qui existe
             // desormais plutot que de laisser l'ecran dans un etat incoherent.
-            $this->redirect(route('admin.blog.edit', ['post' => $resultat['doublons'][0]['id']]), navigate: false);
+            $this->redirect(route('admin.blog.edit', ['post' => $resultat['doublons'][0]['slug'], 'organization_id' => $this->organizationId]), navigate: false);
         }
     }
 

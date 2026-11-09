@@ -1,6 +1,11 @@
 <x-admin-layout title="{{ __('blog.title_edit', ['title' => $post->title]) }}">
     <div class="mb-6 flex flex-wrap items-center gap-4">
-        <a href="{{ route('admin.blog') }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">
+        {{-- TASK-1793 — le retour va au blog SCOPE sur l'Organization de CET
+             article. Sans `organization_id`, la liste retombe sur
+             l'Organization par defaut : un article OFSH ouvert depuis le
+             cockpit RSS renvoyait vers le blog de BouclePro, ou il est
+             justement invisible. --}}
+        <a href="{{ route('admin.blog', ['organization_id' => $post->organization_id]) }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">
             {{ __('blog.back_to_list') }}
         </a>
 

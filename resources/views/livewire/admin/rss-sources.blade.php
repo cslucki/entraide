@@ -1,4 +1,6 @@
-<x-admin-layout :title="__('admin.import_rss.sources.title')">
+<div>
+    <x-slot:title>{{ __('admin.import_rss.sources.title') }}</x-slot:title>
+
     <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('admin.import_rss.sources.subtitle') }}</p>
 
@@ -68,4 +70,4 @@
             {{ $sources->links() }}
         </div>
     @endif
-</x-admin-layout>
+</div>

@@ -7,7 +7,9 @@
      echappe normalement. Affiches SEPAREMENT (correctif post-merge) : l'un
      n'est plus le repli de l'autre, a la difference de l'ecriture qui n'en
      garde qu'un. --}}
-<x-admin-layout :title="$rssSourceArticle->titre">
+<div>
+    <x-slot:title>{{ $rssSourceArticle->titre }}</x-slot:title>
+
     <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('admin.import_rss.fiche.title') }}</p>
 
@@ -117,7 +119,7 @@
                                          l'ecran en lot, TASK-1789). --}}
                                     <span class="shrink-0 text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('admin.import_rss.supprime') }}</span>
                                 @else
-                                    <a href="{{ route('admin.blog.edit', ['post' => $info['blog_post_id']]) }}"
+                                    <a href="{{ route('admin.blog.edit', ['post' => $info['blog_post_slug'], 'organization_id' => $orgId]) }}"
                                        class="shrink-0 text-xs text-indigo-600 underline hover:no-underline dark:text-indigo-400">
                                         {{ $info['statut'] === 'publie' ? __('admin.import_rss.fiche.statut_publie') : __('admin.import_rss.fiche.statut_brouillon') }}
                                     </a>
@@ -129,4 +131,4 @@
             @endif
         </div>
     </div>
-</x-admin-layout>
+</div>

@@ -3,6 +3,7 @@
 namespace App\Services\Blog;
 
 use App\Support\Ops\SortieDeRecette;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -82,7 +83,20 @@ class RssFeedFetcher
 
             $sauts[] = $courante;
 
-            $reponse = $this->appeler($courante, $examen['adresses']);
+            // TASK-1793 — le transport peut echouer SANS jamais produire de
+            // reponse : connexion refusee, delai depasse, poignee TLS ratee.
+            // Laravel leve alors `ConnectionException`, qui etend `Exception`
+            // et NON `RuntimeException` : elle traversait donc le `catch`
+            // des appelants et sortait en HTTP 500 brut, au mepris du contrat
+            // annonce par cette methode (« un code stable, jamais un message
+            // de transport »). Un flux injoignable est un cas NORMAL, pas une
+            // panne du site : il doit se lire a l'ecran comme les autres.
+            try {
+                $reponse = $this->appeler($courante, $examen['adresses']);
+            } catch (ConnectionException) {
+                throw new RuntimeException('flux_injoignable');
+            }
+
             $statut = $reponse->status();
 
             if (in_array($statut, [301, 302, 303, 307, 308], true)) {

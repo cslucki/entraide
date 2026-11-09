@@ -8,6 +8,7 @@ use App\Models\RssSourceArticle;
 use App\Services\Blog\RssArticleImporter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\View\View;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -41,6 +42,7 @@ use Livewire\WithPagination;
  * sous-requete corrélée sur `blog_posts` — la base filtre, jamais PHP apres
  * coup sur une page entiere chargee pour rien.
  */
+#[Layout('layouts.admin')]
 class RssEditorialHistory extends Component
 {
     use WithPagination;
