@@ -322,4 +322,151 @@ class TASK1793RssLayoutLivewireTest extends TestCase
         $reponse->assertSee(route('admin.blog', ['organization_id' => $org->id]), escape: false);
     }
 
+
+    // =====================================================================
+    // Revue MASTER du 09/11 — le SCOPE doit etre verifie, pas seulement le 200
+    // =====================================================================
+
+    /**
+     * Point 2 de la revue : l'enregistrement d'un article renvoie vers
+     * l'editeur AVEC `organization_id`, et cette destination repond 200.
+     *
+     * Un 200 seul ne prouverait rien : une URL sans scope repond 200 elle
+     * aussi. C'est la PRESENCE du parametre qui est le contrat.
+     */
+    public function test_l_enregistrement_d_un_article_redirige_avec_le_scope_organization_et_la_destination_repond(): void
+    {
+        $org = $this->organization('update-scope');
+        $admin = $this->superadmin($org);
+        $post = \App\Models\BlogPost::create([
+            'organization_id' => $org->id,
+            'user_id' => $admin->id,
+            'title' => 'Article avant enregistrement',
+            'content' => '<p>Contenu.</p>',
+            'status' => 'draft',
+        ]);
+
+        $reponse = $this->actingAs($admin)->put(route('admin.blog.update', ['post' => $post->slug]), [
+            'organization_id' => $org->id,
+            'user_id' => $admin->id,
+            'title' => 'Article apres enregistrement',
+            'summary' => 'Un resume.',
+            'content' => '<p>Un contenu assez long pour franchir la validation min:50 du controleur.</p>',
+            'status' => 'draft',
+        ]);
+
+        $post->refresh();
+
+        $cible = route('admin.blog.edit', ['post' => $post, 'organization_id' => $org->id]);
+        $reponse->assertRedirect($cible);
+
+        // Et la destination est reellement servie.
+        $this->actingAs($admin)->get($cible)->assertOk();
+    }
+
+    /**
+     * Meme contrat quand l'enregistrement CHANGE d'Organization : le scope
+     * suivi doit etre celui d'APRES, pas celui d'avant.
+     */
+    public function test_un_changement_d_organization_redirige_vers_le_scope_d_arrivee(): void
+    {
+        $depart = $this->organization('update-scope-depart');
+        $arrivee = $this->organization('update-scope-arrivee');
+        $admin = $this->superadmin($depart);
+        $post = \App\Models\BlogPost::create([
+            'organization_id' => $depart->id,
+            'user_id' => $admin->id,
+            'title' => 'Article qui change d Organization',
+            'content' => '<p>Contenu.</p>',
+            'status' => 'draft',
+        ]);
+
+        $reponse = $this->actingAs($admin)->put(route('admin.blog.update', ['post' => $post->slug]), [
+            'organization_id' => $arrivee->id,
+            'user_id' => $admin->id,
+            'title' => 'Article qui change d Organization',
+            'summary' => 'Un resume.',
+            'content' => '<p>Un contenu assez long pour franchir la validation min:50 du controleur.</p>',
+            'status' => 'draft',
+        ]);
+
+        $post->refresh();
+        $this->assertSame($arrivee->id, $post->organization_id, 'Precondition : l Organization doit avoir change.');
+
+        $reponse->assertRedirect(route('admin.blog.edit', ['post' => $post, 'organization_id' => $arrivee->id]));
+        $this->assertStringNotContainsString($depart->id, $reponse->headers->get('Location') ?? '',
+            'La redirection ne doit PAS porter l Organization de depart.');
+    }
+
+    /**
+     * Point 3 de la revue : les liens RSS -> Blog portent le scope. On ne se
+     * contente pas de verifier qu'une URL par slug repond 200 : on exige que
+     * `organization_id` soit present, et qu'il designe la BONNE Organization.
+     */
+    public function test_les_liens_du_cockpit_portent_le_scope_de_la_bonne_organization(): void
+    {
+        $orgA = $this->organization('lien-scope-a');
+        $orgB = $this->organization('lien-scope-b');
+        $admin = $this->superadmin($orgA);
+        $source = $this->source();
+        $article = $this->article($source);
+
+        // Le MEME article importe dans DEUX Organizations : chaque lien doit
+        // porter la sienne, jamais celle du voisin.
+        foreach ([$orgA, $orgB] as $org) {
+            \App\Models\BlogPost::create([
+                'organization_id' => $org->id,
+                'user_id' => $this->superadmin($org)->id,
+                'title' => 'Article partage '.$org->slug,
+                'content' => '<p>Contenu.</p>',
+                'status' => 'draft',
+                'source_guid' => $article->source_identity,
+            ]);
+        }
+
+        $this->actingAs($admin);
+
+        foreach (['historique' => route('admin.outils.import-rss.historique'),
+                  'fiche' => route('admin.outils.import-rss.articles.show', $article)] as $ecran => $url) {
+            $page = $this->actingAs($admin)->get($url);
+            $page->assertOk();
+
+            foreach ([$orgA, $orgB] as $org) {
+                $poste = \App\Models\BlogPost::withoutGlobalScopes()
+                    ->where('source_guid', $article->source_identity)
+                    ->where('organization_id', $org->id)
+                    ->firstOrFail();
+
+                $page->assertSee(
+                    route('admin.blog.edit', ['post' => $poste->slug, 'organization_id' => $org->id]),
+                    escape: false,
+                );
+            }
+        }
+    }
+
+    /**
+     * Et la redirection de `creerBrouillon()` porte, elle aussi, le scope de
+     * l'Organization choisie — pas seulement un slug joignable.
+     */
+    public function test_la_redirection_de_creer_brouillon_porte_le_scope_choisi(): void
+    {
+        $org = $this->organization('brouillon-scope');
+        $admin = $this->superadmin($org);
+        $source = $this->source();
+        $article = $this->article($source);
+
+        $this->actingAs($admin);
+
+        $composant = Livewire::test(\App\Livewire\Admin\RssArticleFiche::class, ['rssSourceArticle' => $article])
+            ->set('organizationId', (string) $org->id)
+            ->call('creerBrouillon');
+
+        $cible = $composant->effects['redirect'] ?? '';
+
+        $this->assertStringContainsString('organization_id='.$org->id, $cible,
+            'La redirection apres creation doit porter le scope de l Organization choisie.');
+        $this->actingAs($admin)->get($cible)->assertOk();
+    }
+
 }
