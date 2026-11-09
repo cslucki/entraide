@@ -339,4 +339,99 @@ class TASK1795AdminPrivateMessagesViewTest extends TestCase
         $this->assertDatabaseMissing('messages', ['id' => $prive->id]);
         $this->assertDatabaseHas('messages', ['id' => $echange->id]);
     }
+
+    // ---------------------------------------------------------------------
+    // Correctif 7 — « Se connecter sous » depuis l'ecran des messages
+    // ---------------------------------------------------------------------
+
+    public function test_le_lien_se_connecter_sous_est_pose_sur_l_expediteur_et_le_destinataire(): void
+    {
+        $this->conversationPrivee('Message prive');
+
+        $reponse = $this->commeSurLEcranAdmin()->actingAs($this->superAdmin)
+            ->get(route('admin.messages', ['filter' => 'private']))
+            ->assertOk();
+
+        // Les DEUX parties, pas seulement l'expediteur : c'est la demande.
+        $reponse->assertSee('data-login-as="'.$this->amandine->id.'"', false);
+        $reponse->assertSee('data-login-as="'.$this->benoit->id.'"', false);
+
+        // Et le formulaire vise bien la route d'impersonation, en POST — on
+        // demande l'URL au ROUTEUR, on ne la reecrit pas.
+        $reponse->assertSee(route('admin.users.login-as', $this->amandine), false);
+        $reponse->assertSee(route('admin.users.login-as', $this->benoit), false);
+    }
+
+    /**
+     * Aucun geste offert ne doit etre refuse (regle du bug K, TASK-1693).
+     *
+     * `AdminController::loginAsUser()` refuse un compte BANNI. `/admin/users`
+     * ne verifie que cela et propose quand meme le bouton sur un
+     * administrateur — on ne reproduit pas ce decalage ici.
+     *
+     * Ce test garde AUSSI la selection de colonnes : si `banned_at` quittait le
+     * `select` du chargement, la garde lirait `null` et le lien reapparaitrait.
+     * C'est le defaut du correctif 4, transpose.
+     */
+    public function test_aucun_lien_sur_un_compte_banni_et_la_raison_est_dite(): void
+    {
+        $this->conversationPrivee('Message prive');
+        $this->benoit->forceFill(['banned_at' => now()])->save();
+
+        $reponse = $this->commeSurLEcranAdmin()->actingAs($this->superAdmin)
+            ->get(route('admin.messages', ['filter' => 'private']))
+            ->assertOk();
+
+        $reponse->assertDontSee('data-login-as="'.$this->benoit->id.'"', false);
+        $reponse->assertSee('data-login-as-unavailable="'.$this->benoit->id.'"', false);
+        $reponse->assertSee(__('admin.login_as_banned'));
+
+        // L'expediteur, lui, reste joignable : la garde est par personne.
+        $reponse->assertSee('data-login-as="'.$this->amandine->id.'"', false);
+    }
+
+    /** Meme regle pour un AUTRE administrateur, que le serveur refuse aussi. */
+    public function test_aucun_lien_sur_un_autre_administrateur(): void
+    {
+        $this->conversationPrivee('Message prive');
+        $this->benoit->forceFill(['is_admin' => true])->save();
+
+        $reponse = $this->commeSurLEcranAdmin()->actingAs($this->superAdmin)
+            ->get(route('admin.messages', ['filter' => 'private']))
+            ->assertOk();
+
+        $reponse->assertDontSee('data-login-as="'.$this->benoit->id.'"', false);
+        $reponse->assertSee(__('admin.login_as_admin'));
+    }
+
+    /**
+     * Le lien pose TIENT : le serveur honore ce que l'ecran a propose.
+     *
+     * Un test qui verifierait seulement la presence du formulaire laisserait
+     * passer une route qui refuse ensuite. On POSTe donc vraiment.
+     */
+    public function test_le_lien_pose_aboutit_reellement_a_l_impersonation(): void
+    {
+        $this->conversationPrivee('Message prive');
+
+        $this->commeSurLEcranAdmin()->actingAs($this->superAdmin)
+            ->post(route('admin.users.login-as', $this->benoit))
+            ->assertRedirect('/');
+
+        $this->assertAuthenticatedAs($this->benoit->fresh());
+    }
+
+    /** Un message de ChatLoop n'a pas de destinataire : un seul lien, l'expediteur. */
+    public function test_un_message_de_boucle_n_offre_le_lien_que_sur_l_expediteur(): void
+    {
+        $this->messageDeBoucle('Message de boucle');
+
+        $reponse = $this->commeSurLEcranAdmin()->actingAs($this->superAdmin)
+            ->get(route('admin.messages', ['filter' => 'chatloop']))
+            ->assertOk();
+
+        $reponse->assertSee('data-login-as="'.$this->amandine->id.'"', false);
+        $reponse->assertSee('La Boucle');
+        $reponse->assertDontSee('data-login-as="'.$this->benoit->id.'"', false);
+    }
 }

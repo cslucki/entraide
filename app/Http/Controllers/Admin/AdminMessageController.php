@@ -40,12 +40,23 @@ class AdminMessageController extends Controller
      * quelles lignes l'administrateur voit — on charge la conversation des
      * lignes deja retenues.
      */
+    /**
+     * TASK-1795 correctif 7 — `banned_at` et `is_admin` sont AU SELECT.
+     *
+     * Le lien « Se connecter sous » n'est pose que la ou `loginAsUser()`
+     * l'honorera : ni soi-meme, ni un compte banni, ni un autre administrateur.
+     * Ces deux colonnes portent la garde — omises de la selection, elles
+     * vaudraient `null` et la garde laisserait passer. C'est exactement le
+     * defaut du correctif 4, ou `first_name` absent du select faisait rendre
+     * le seul patronyme : une selection de colonnes ne se devine pas depuis
+     * la vue qui la consomme.
+     */
     private function chargementDeLaConversation(): array
     {
         return [
             'transaction' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class),
-            'transaction.buyer:id,first_name,name,email',
-            'transaction.seller:id,first_name,name,email',
+            'transaction.buyer:id,first_name,name,email,banned_at,is_admin',
+            'transaction.seller:id,first_name,name,email,banned_at,is_admin',
         ];
     }
 
@@ -96,7 +107,7 @@ class AdminMessageController extends Controller
 
         $messages = match ($filter) {
             'chatloop' => $this->applyOrganizationFilter(LoopMessage::query(), $selectedOrganizationId)
-                ->with(['sender:id,first_name,name,email', 'loop:id,name'])
+                ->with(['sender:id,first_name,name,email,banned_at,is_admin', 'loop:id,name'])
                 ->latest()
                 ->paginate($perPage)
                 ->withQueryString(),
@@ -108,7 +119,7 @@ class AdminMessageController extends Controller
                 ),
                 $transactionId
             )
-                ->with(['sender:id,first_name,name,email', ...$this->chargementDeLaConversation()])
+                ->with(['sender:id,first_name,name,email,banned_at,is_admin', ...$this->chargementDeLaConversation()])
                 ->latest()
                 ->paginate($perPage)
                 ->withQueryString(),
@@ -120,7 +131,7 @@ class AdminMessageController extends Controller
                 ),
                 $transactionId
             )
-                ->with(['sender:id,first_name,name,email', ...$this->chargementDeLaConversation()])
+                ->with(['sender:id,first_name,name,email,banned_at,is_admin', ...$this->chargementDeLaConversation()])
                 ->latest()
                 ->paginate($perPage)
                 ->withQueryString(),
@@ -142,7 +153,7 @@ class AdminMessageController extends Controller
     private function unifiedFeed(string $organizationId, int $perPage): LengthAwarePaginator
     {
         $loopMessages = $this->applyOrganizationFilter(LoopMessage::query(), $organizationId)
-            ->with(['sender:id,first_name,name,email', 'loop:id,name'])
+            ->with(['sender:id,first_name,name,email,banned_at,is_admin', 'loop:id,name'])
             ->latest()
             ->limit(500)
             ->get()
@@ -156,7 +167,7 @@ class AdminMessageController extends Controller
         // transaction DEJA chargee — `isDirectConversation()`, le meme
         // predicat que les onglets — et non par une seconde requete.
         $exchangeMessages = $this->applyOrganizationFilter(Message::query(), $organizationId)
-            ->with(['sender:id,first_name,name,email', ...$this->chargementDeLaConversation()])
+            ->with(['sender:id,first_name,name,email,banned_at,is_admin', ...$this->chargementDeLaConversation()])
             ->latest()
             ->limit(500)
             ->get()

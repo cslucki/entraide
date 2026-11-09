@@ -215,6 +215,7 @@
                         @if($message->sender)
                         <p class="font-medium text-gray-900 dark:text-gray-100 text-xs">{{ $message->sender->full_name }}</p>
                         <p class="text-xs text-gray-500 truncate max-w-[120px]">{{ $message->sender->email }}</p>
+                        @include('admin.messages.partials.se-connecter-sous', ['utilisateur' => $message->sender])
                         @else
                         <span class="text-xs text-gray-400 italic">Système</span>
                         @endif
@@ -226,6 +227,7 @@
                         @if($destinataire)
                         <p class="font-medium text-gray-900 dark:text-gray-100 text-xs">{{ $destinataire->full_name }}</p>
                         <p class="text-xs text-gray-500 truncate max-w-[120px]">{{ $destinataire->email }}</p>
+                        @include('admin.messages.partials.se-connecter-sous', ['utilisateur' => $destinataire])
                         @elseif($isLoop)
                         <span class="text-xs text-gray-400" title="Un message de ChatLoop s'adresse à toute la Boucle.">La Boucle</span>
                         @else
