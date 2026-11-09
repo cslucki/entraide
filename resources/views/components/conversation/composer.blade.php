@@ -450,7 +450,20 @@
                      la personne, sans laisser le temps d'ecrire. --}}
                 x-on:keydown="if (mentionClavier($event, $el)) { $event.stopImmediatePropagation() }"
                 @endif
+                {{-- TASK-1797 — la substitution par `tenterEnvoi()` est elle-meme
+                     OPT-IN, et ce n'est pas cosmetique : des suites entieres
+                     (`TASK1365ShellComposerUxTest`, `LoopChatTest`) relisent le
+                     texte LITTERAL de ce gestionnaire pour prouver que le
+                     « contrat clavier » du composeur est identique partout —
+                     Messagerie, chat agent, ET ChatLoop pour qui n'a pas le
+                     droit `@tous`. Une substitution inconditionnelle aurait
+                     change ce texte pour TOUT LE MONDE et fait rougir ces
+                     gardes sans rien changer au comportement reel. --}}
+                @if($canMentionAll)
                 @keydown.enter="if (mentionOuvert ?? false) { return } /* ceinture : la bretelle est le stopImmediatePropagation ci-dessus */ if (enterEnvoie && !$event.shiftKey) { $event.preventDefault(); if (!uploading) { tenterEnvoi($el) } }"
+                @else
+                @keydown.enter="if (mentionOuvert ?? false) { return } /* ceinture : la bretelle est le stopImmediatePropagation ci-dessus */ if (enterEnvoie && !$event.shiftKey) { $event.preventDefault(); if (!uploading) { $wire.sendMessage() } }"
+                @endif
                 {{-- TASK-1769 — deux listes ENTIERES plutot qu'une liste avec
                      des `md:` greffes : la liste de droite est celle d'avant,
                      octet pour octet, donc la Messagerie et le chat agent sont
