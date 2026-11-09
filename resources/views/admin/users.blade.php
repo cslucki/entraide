@@ -453,7 +453,14 @@
                         </span>
                     </td>
                     @endif
-                    <td class="hidden sm:table-cell px-4 py-3 text-xs text-gray-400">{{ $u->created_at->format('d/m/Y') }}</td>
+                    {{-- TASK-1795 correctif 8 (demande Cyril) — l'HEURE en plus de la
+                         date. Deux comptes crees le meme jour n'etaient plus
+                         departageables a l'oeil, alors que la colonne est TRIABLE
+                         sur `created_at` : le tri connaissait l'heure, l'affichage
+                         non. `d/m/Y H:i` est le format maison (74 autres emplois).
+                         `whitespace-nowrap` : la colonne est etroite, et une date
+                         coupee en deux lignes se lit mal. --}}
+                    <td class="hidden sm:table-cell px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{{ $u->created_at->format('d/m/Y H:i') }}</td>
                     <td class="sticky right-0 z-10 w-full min-w-[32rem] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 px-4 py-3 align-top">
                         {{-- TASK-1714 volet 3 — ONZE actions tenaient dans une colonne
                              sans largeur : `flex-wrap` les empilait une par ligne, chacune
