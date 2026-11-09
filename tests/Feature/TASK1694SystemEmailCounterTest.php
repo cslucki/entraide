@@ -78,13 +78,27 @@ class TASK1694SystemEmailCounterTest extends TestCase
             ->getContent();
     }
 
+    /**
+     * TASK-1795 correctif 10 — « sans filtre » est devenu EXPLICITE.
+     *
+     * L'ecran s'ouvre desormais sur le francais (`locale=fr` par defaut, demande
+     * de Cyril : les 40 lignes montraient 20 gabarits vus deux fois). Ces tests
+     * posaient une ligne `fr` ET une ligne `en` puis lisaient la page SANS
+     * query : ils mesuraient donc « aucun filtre », ce que l'URL nue ne veut
+     * plus dire.
+     *
+     * Ce qu'ils verifient ne change pas d'un iota — le compteur compte ce qui
+     * est AFFICHE, et le total n'est repete que sous un filtre. Ils demandent
+     * maintenant « toutes les langues » (`locale=''`) au lieu de compter sur un
+     * defaut qui a bouge.
+     */
     /** LE compteur demandé. */
     public function test_the_screen_counts_the_templates(): void
     {
         $this->poser(null, 'fr', 'a');
         $this->poser(null, 'en', 'a');
 
-        $html = $this->html();
+        $html = $this->html(['locale' => '']);
 
         $this->assertStringContainsString('data-system-email-counters', $html);
         $this->assertStringContainsString('data-system-email-count-shown="2"', $html);
@@ -94,10 +108,10 @@ class TASK1694SystemEmailCounterTest extends TestCase
     public function test_the_counter_follows_the_table(): void
     {
         $this->poser(null, 'fr', 'a');
-        $this->assertStringContainsString('data-system-email-count-shown="1"', $this->html());
+        $this->assertStringContainsString('data-system-email-count-shown="1"', $this->html(['locale' => '']));
 
         $this->poser(null, 'en', 'a');
-        $this->assertStringContainsString('data-system-email-count-shown="2"', $this->html());
+        $this->assertStringContainsString('data-system-email-count-shown="2"', $this->html(['locale' => '']));
     }
 
     /**
@@ -129,7 +143,10 @@ class TASK1694SystemEmailCounterTest extends TestCase
         $this->poser(null, 'fr', 'a');
         $this->poser(null, 'en', 'a');
 
-        $this->assertStringNotContainsString('data-system-email-count-total=', $this->html());
+        // « Sans filtre » = toutes les langues, explicitement : l'URL nue porte
+        // desormais le defaut `fr`, qui EST un filtre et doit donc rappeler le
+        // total — ce que le test precedent verifie.
+        $this->assertStringNotContainsString('data-system-email-count-total=', $this->html(['locale' => '']));
     }
 
     /**

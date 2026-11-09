@@ -645,7 +645,12 @@ class SystemEmailTemplateTest extends TestCase
 
         $admin = User::factory()->create(['is_admin' => true]);
 
-        $response = $this->actingAs($admin)->get(route('admin.system-email-templates'));
+        // TASK-1795 correctif 10 — `locale=''` explicite : les deux gabarits de
+        // ce test vivent dans DEUX langues differentes (`fr` et `en`), et
+        // l'ecran s'ouvre desormais sur le francais. Ce que le test mesure —
+        // un SuperAdmin voit les gabarits de TOUTES les Organizations — est
+        // inchange ; seule la langue devait etre dite, puisqu'elle a un defaut.
+        $response = $this->actingAs($admin)->get(route('admin.system-email-templates', ['locale' => '']));
 
         $response->assertStatus(200);
         $response->assertSee('A Welcome');
