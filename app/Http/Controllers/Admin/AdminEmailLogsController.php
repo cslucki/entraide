@@ -33,8 +33,10 @@ class AdminEmailLogsController extends Controller
         // TASK-1800 — le "Contexte" (Boucle, article, message prive,
         // entraide, ou autre evenement) est resolu EN MASSE pour la page
         // affichee, jamais ligne par ligne : voir le docblock de
-        // `EmailLogContextResolver`.
-        $contextes = app(EmailLogContextResolver::class)->resoudrePour(collect($logs->items()));
+        // `EmailLogContextResolver`. L'admin COURANT est transmis : certains
+        // liens ne sont offerts que s'il appartient a la meme Organization
+        // que la ligne (voir `urlSiJoignable()`).
+        $contextes = app(EmailLogContextResolver::class)->resoudrePour(collect($logs->items()), $request->user());
 
         $stats = [
             'total' => EmailLog::count(),

@@ -12,6 +12,7 @@ use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
 use App\Models\LoopMessage;
 use App\Models\MemberNotification;
+use App\Models\Message;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -91,9 +92,9 @@ class TASK1800EmailLogContextTest extends TestCase
         $notification = $this->notification(NotificationCatalogue::LOOP_MENTION_CREATED, NotificationCatalogue::OBJECT_LOOP_MESSAGE, $message->id);
         $log = $this->emailLog($notification);
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('Boucle : Boucle du jardin', $contexte[(string) $log->id]);
+        $this->assertSame('Boucle : Boucle du jardin', $contexte[(string) $log->id]['label']);
     }
 
     public function test_un_ajout_direct_rend_boucle_et_son_nom(): void
@@ -102,9 +103,9 @@ class TASK1800EmailLogContextTest extends TestCase
         $notification = $this->notification(NotificationCatalogue::LOOP_MEMBER_ADDED, NotificationCatalogue::OBJECT_LOOP, (string) $boucle->id);
         $log = $this->emailLog($notification);
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('Boucle : Boucle des voisins', $contexte[(string) $log->id]);
+        $this->assertSame('Boucle : Boucle des voisins', $contexte[(string) $log->id]['label']);
     }
 
     public function test_une_invitation_rend_boucle_et_son_nom(): void
@@ -114,9 +115,9 @@ class TASK1800EmailLogContextTest extends TestCase
         $notification = $this->notification(NotificationCatalogue::LOOP_INVITATION, NotificationCatalogue::OBJECT_LOOP_INVITATION, $invitation->id);
         $log = $this->emailLog($notification);
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('Boucle : Boucle invitee', $contexte[(string) $log->id]);
+        $this->assertSame('Boucle : Boucle invitee', $contexte[(string) $log->id]['label']);
     }
 
     public function test_une_demande_d_adhesion_rend_boucle_et_son_nom(): void
@@ -126,9 +127,9 @@ class TASK1800EmailLogContextTest extends TestCase
         $notification = $this->notification(NotificationCatalogue::LOOP_JOIN_REQUEST_CREATED, NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST, $demande->id);
         $log = $this->emailLog($notification);
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('Boucle : Boucle demandee', $contexte[(string) $log->id]);
+        $this->assertSame('Boucle : Boucle demandee', $contexte[(string) $log->id]['label']);
     }
 
     // =====================================================================
@@ -156,9 +157,9 @@ class TASK1800EmailLogContextTest extends TestCase
         $notification = $this->notification(NotificationCatalogue::BLOG_COMMENT_CREATED, NotificationCatalogue::OBJECT_BLOG_COMMENT, $commentaire->id);
         $log = $this->emailLog($notification);
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('Article : Comment planter des tomates', $contexte[(string) $log->id]);
+        $this->assertSame('Article : Comment planter des tomates', $contexte[(string) $log->id]['label']);
     }
 
     public function test_un_ajout_de_co_auteur_rend_article_et_son_titre(): void
@@ -174,9 +175,9 @@ class TASK1800EmailLogContextTest extends TestCase
         $notification = $this->notification(NotificationCatalogue::BLOG_CO_AUTHOR_ADDED, NotificationCatalogue::OBJECT_BLOG_POST, (string) $article->id);
         $log = $this->emailLog($notification);
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('Article : Co-ecrit a quatre mains', $contexte[(string) $log->id]);
+        $this->assertSame('Article : Co-ecrit a quatre mains', $contexte[(string) $log->id]['label']);
     }
 
     // =====================================================================
@@ -201,9 +202,9 @@ class TASK1800EmailLogContextTest extends TestCase
         // exactement le contexte de l'ecran SuperAdmin. Si `Transaction`
         // n'etait pas lu avec son scope retire, cette assertion rougirait
         // avec « Message privé » SANS le sujet (fail-closed silencieux).
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('Message privé : Aide au jardinage', $contexte[(string) $log->id]);
+        $this->assertSame('Message privé : Aide au jardinage', $contexte[(string) $log->id]['label']);
     }
 
     // =====================================================================
@@ -232,9 +233,9 @@ class TASK1800EmailLogContextTest extends TestCase
         $notification = $this->notification(NotificationCatalogue::ENTRAIDE_COMMENT_CREATED, NotificationCatalogue::OBJECT_ENTRAIDE_COMMENT, $commentaire->id);
         $log = $this->emailLog($notification);
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('Entraide : Besoin d’un coup de main pour demenager', $contexte[(string) $log->id]);
+        $this->assertSame('Entraide : Besoin d’un coup de main pour demenager', $contexte[(string) $log->id]['label']);
     }
 
     // =====================================================================
@@ -249,9 +250,9 @@ class TASK1800EmailLogContextTest extends TestCase
 
         $boucle->forceDelete();
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('Boucle supprimée', $contexte[(string) $log->id]);
+        $this->assertSame('Boucle supprimée', $contexte[(string) $log->id]['label']);
     }
 
     public function test_une_notification_supprimee_rend_un_libelle_honnete(): void
@@ -261,36 +262,36 @@ class TASK1800EmailLogContextTest extends TestCase
 
         $notification->delete();
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('Notification supprimée', $contexte[(string) $log->id]);
+        $this->assertSame('Notification supprimée', $contexte[(string) $log->id]['label']);
     }
 
     public function test_un_envoi_hors_pipeline_avec_source_connue_rend_son_libelle(): void
     {
         $log = $this->emailLog(null, ['source' => 'admin-test']);
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('Test d’envoi (admin)', $contexte[(string) $log->id]);
+        $this->assertSame('Test d’envoi (admin)', $contexte[(string) $log->id]['label']);
     }
 
     public function test_un_envoi_hors_pipeline_avec_source_inconnue_affiche_la_source_brute(): void
     {
         $log = $this->emailLog(null, ['source' => 'un-futur-mailer-non-catalogue']);
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('Autre : un-futur-mailer-non-catalogue', $contexte[(string) $log->id]);
+        $this->assertSame('Autre : un-futur-mailer-non-catalogue', $contexte[(string) $log->id]['label']);
     }
 
     public function test_un_envoi_sans_notification_ni_source_rend_un_tiret(): void
     {
         $log = $this->emailLog(null, []);
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]));
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
 
-        $this->assertSame('—', $contexte[(string) $log->id]);
+        $this->assertSame('—', $contexte[(string) $log->id]['label']);
     }
 
     // =====================================================================
@@ -320,7 +321,7 @@ class TASK1800EmailLogContextTest extends TestCase
             }
         });
 
-        $contexte = app(EmailLogContextResolver::class)->resoudrePour($logs);
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour($logs, $this->admin);
         DB::getEventDispatcher()->forget(QueryExecuted::class);
 
         $this->assertCount(5, $contexte);
@@ -346,5 +347,188 @@ class TASK1800EmailLogContextTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('Contexte');
         $response->assertSee('Boucle : Boucle visible a l ecran');
+    }
+
+    // =====================================================================
+    // Les liens — demande de Cyril (10/11, meme jour) : « voir de quoi il
+    // s'agit ». Chaque route cible a sa PROPRE garde, lue et jamais recopiee.
+    // =====================================================================
+
+    /**
+     * `admin.loops.show` accepte tout `is_admin`, quelle que soit son
+     * Organization personnelle (`AdminLoopController::assertOrgAccess()`).
+     * Toujours offert.
+     */
+    public function test_l_ajout_direct_a_un_lien_toujours_offert_vers_la_boucle(): void
+    {
+        $boucle = Loop::factory()->create(['organization_id' => $this->org->id, 'name' => 'Boucle liee']);
+        $notification = $this->notification(NotificationCatalogue::LOOP_MEMBER_ADDED, NotificationCatalogue::OBJECT_LOOP, (string) $boucle->id);
+        $log = $this->emailLog($notification);
+
+        // Un admin D'UNE AUTRE Organization : si le lien exigeait une
+        // appartenance, il serait absent. Il ne doit pas l'exiger ici.
+        $autreOrg = Organization::factory()->create();
+        $adminDunAutreTenant = User::factory()->create(['is_admin' => true, 'organization_id' => $autreOrg->id]);
+
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $adminDunAutreTenant);
+
+        $this->assertSame(route('admin.loops.show', $boucle->id), $contexte[(string) $log->id]['url']);
+    }
+
+    /**
+     * `admin.loop-messages.show` rend 404 hors de l'Organization PERSONNELLE
+     * de l'admin (TASK-1693 bug R) : le lien n'est donc offert QUE si
+     * `organization_id` correspond — « lien vers le message de la Boucle »
+     * demande par Cyril, mais jamais un lien mort.
+     */
+    public function test_une_mention_a_un_lien_vers_le_message_quand_l_admin_est_du_meme_tenant(): void
+    {
+        $boucle = Loop::factory()->create(['organization_id' => $this->org->id]);
+        $message = LoopMessage::factory()->create(['loop_id' => $boucle->id, 'organization_id' => $this->org->id]);
+        $notification = $this->notification(NotificationCatalogue::LOOP_MENTION_CREATED, NotificationCatalogue::OBJECT_LOOP_MESSAGE, $message->id);
+        $log = $this->emailLog($notification);
+
+        $adminDuMemeTenant = User::factory()->create(['is_admin' => true, 'organization_id' => $this->org->id]);
+
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $adminDuMemeTenant);
+
+        $this->assertSame(route('admin.loop-messages.show', $message->id), $contexte[(string) $log->id]['url']);
+    }
+
+    public function test_une_mention_n_a_aucun_lien_quand_l_admin_est_d_un_autre_tenant(): void
+    {
+        $boucle = Loop::factory()->create(['organization_id' => $this->org->id]);
+        $message = LoopMessage::factory()->create(['loop_id' => $boucle->id, 'organization_id' => $this->org->id]);
+        $notification = $this->notification(NotificationCatalogue::LOOP_MENTION_CREATED, NotificationCatalogue::OBJECT_LOOP_MESSAGE, $message->id);
+        $log = $this->emailLog($notification);
+
+        $autreOrg = Organization::factory()->create();
+        $adminDunAutreTenant = User::factory()->create(['is_admin' => true, 'organization_id' => $autreOrg->id]);
+
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $adminDunAutreTenant);
+
+        $this->assertNull($contexte[(string) $log->id]['url']);
+        // Le libelle, lui, reste exact : seul le LIEN disparait.
+        $this->assertStringStartsWith('Boucle : ', $contexte[(string) $log->id]['label']);
+    }
+
+    /** `AdminBlogController::edit()` ne porte aucune garde d'Organization : toujours offert. */
+    public function test_un_article_a_un_lien_toujours_offert(): void
+    {
+        $article = BlogPost::create([
+            'user_id' => $this->recipient->id,
+            'organization_id' => $this->org->id,
+            'title' => 'Article lie',
+            'slug' => 'article-lie-'.Str::random(6),
+            'content' => 'Contenu.',
+            'status' => 'published',
+            'published_at' => now()->subDay(),
+        ]);
+        $notification = $this->notification(NotificationCatalogue::BLOG_CO_AUTHOR_ADDED, NotificationCatalogue::OBJECT_BLOG_POST, (string) $article->id);
+        $log = $this->emailLog($notification);
+
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
+
+        $this->assertSame(route('admin.blog.edit', $article->id), $contexte[(string) $log->id]['url']);
+    }
+
+    /**
+     * `admin.messages.show` prend un MESSAGE, pas une Transaction : le
+     * resolveur lie au PREMIER message de l'echange — celui qui porte la
+     * proposition — et seulement si l'admin est du meme tenant (meme garde
+     * que pour la mention).
+     */
+    public function test_un_message_prive_a_un_lien_vers_le_premier_message_quand_l_admin_est_du_meme_tenant(): void
+    {
+        $categorie = Category::factory()->create();
+        $service = Service::factory()
+            ->forUser($this->recipient)
+            ->forCategory($categorie)
+            ->create(['organization_id' => $this->org->id, 'status' => 'active']);
+        $transaction = Transaction::factory()->forService($service)->create(['organization_id' => $this->org->id]);
+        $premier = Message::factory()->forTransaction($transaction)->create([
+            'organization_id' => $this->org->id,
+            'created_at' => now()->subMinutes(10),
+        ]);
+        Message::factory()->forTransaction($transaction)->create([
+            'organization_id' => $this->org->id,
+            'created_at' => now(),
+        ]);
+
+        $notification = $this->notification(NotificationCatalogue::TRANSACTION_PROPOSAL_CREATED, NotificationCatalogue::OBJECT_TRANSACTION, $transaction->id);
+        $log = $this->emailLog($notification);
+
+        $adminDuMemeTenant = User::factory()->create(['is_admin' => true, 'organization_id' => $this->org->id]);
+
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $adminDuMemeTenant);
+
+        $this->assertSame(route('admin.messages.show', $premier->id), $contexte[(string) $log->id]['url']);
+    }
+
+    public function test_un_message_prive_n_a_aucun_lien_quand_l_admin_est_d_un_autre_tenant(): void
+    {
+        $categorie = Category::factory()->create();
+        $service = Service::factory()
+            ->forUser($this->recipient)
+            ->forCategory($categorie)
+            ->create(['organization_id' => $this->org->id, 'status' => 'active']);
+        $transaction = Transaction::factory()->forService($service)->create(['organization_id' => $this->org->id]);
+        Message::factory()->forTransaction($transaction)->create(['organization_id' => $this->org->id]);
+
+        $notification = $this->notification(NotificationCatalogue::TRANSACTION_PROPOSAL_CREATED, NotificationCatalogue::OBJECT_TRANSACTION, $transaction->id);
+        $log = $this->emailLog($notification);
+
+        $autreOrg = Organization::factory()->create();
+        $adminDunAutreTenant = User::factory()->create(['is_admin' => true, 'organization_id' => $autreOrg->id]);
+
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $adminDunAutreTenant);
+
+        $this->assertNull($contexte[(string) $log->id]['url']);
+    }
+
+    /** Aucune route admin ne couvre Service/ServiceRequest : jamais de lien. */
+    public function test_une_entraide_n_a_jamais_de_lien(): void
+    {
+        $categorie = Category::factory()->create();
+        $demande = ServiceRequest::factory()
+            ->forUser($this->recipient)
+            ->create(['organization_id' => $this->org->id, 'category_id' => $categorie->id, 'status' => 'open']);
+        $commentaire = EntraideComment::create([
+            'organization_id' => $this->org->id,
+            'commentable_type' => $demande->getMorphClass(),
+            'commentable_id' => $demande->getKey(),
+            'user_id' => $this->recipient->id,
+            'content' => 'Je peux aider.',
+            'is_approved' => true,
+        ]);
+        $notification = $this->notification(NotificationCatalogue::ENTRAIDE_COMMENT_CREATED, NotificationCatalogue::OBJECT_ENTRAIDE_COMMENT, $commentaire->id);
+        $log = $this->emailLog($notification);
+
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
+
+        $this->assertNull($contexte[(string) $log->id]['url']);
+    }
+
+    /** Une ligne hors pipeline (`data->source`) ne porte jamais de lien. */
+    public function test_un_envoi_hors_pipeline_n_a_jamais_de_lien(): void
+    {
+        $log = $this->emailLog(null, ['source' => 'admin-test']);
+
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
+
+        $this->assertNull($contexte[(string) $log->id]['url']);
+    }
+
+    /** L'ecran rend bien un `<a href>` quand le lien est offert. */
+    public function test_l_ecran_rend_un_lien_cliquable_quand_il_est_offert(): void
+    {
+        $boucle = Loop::factory()->create(['organization_id' => $this->org->id, 'name' => 'Boucle avec lien']);
+        $notification = $this->notification(NotificationCatalogue::LOOP_MEMBER_ADDED, NotificationCatalogue::OBJECT_LOOP, (string) $boucle->id);
+        $this->emailLog($notification);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.email-logs'));
+
+        $response->assertStatus(200);
+        $response->assertSee('href="'.route('admin.loops.show', $boucle->id).'"', false);
     }
 }

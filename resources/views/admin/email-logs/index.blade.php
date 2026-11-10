@@ -110,7 +110,14 @@
                                         {{ $log->subject }}
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 max-w-xs truncate">
-                                        {{ $contextes[(string) $log->id] ?? '—' }}
+                                        @php($contexte = $contextes[(string) $log->id] ?? ['label' => '—', 'url' => null])
+                                        @if($contexte['url'])
+                                            <a href="{{ $contexte['url'] }}" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 hover:underline">
+                                                {{ $contexte['label'] }}
+                                            </a>
+                                        @else
+                                            {{ $contexte['label'] }}
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                         {{ $log->template?->name ?? '-' }}

@@ -11,21 +11,24 @@ use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
 use App\Models\LoopMessage;
 use App\Models\MemberNotification;
+use App\Models\Message;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
- * TASK-1800 — le « Contexte » d'un email dans `/admin/email-logs`.
+ * TASK-1800 — le « Contexte » d'un email dans `/admin/email-logs`, et son lien.
  *
  * ## Le defaut que cet ecran avait
  *
  * `/admin/email-logs` montre QUI a recu quoi et QUAND, mais jamais DE QUOI
  * ca parlait : une mention dans une Boucle, un message prive d'echange, un
  * commentaire d'entraide et un test d'envoi d'admin se ressemblent tous une
- * fois reduits a une adresse et un sujet. Demande de Cyril (10/11).
+ * fois reduits a une adresse et un sujet. Demande de Cyril (10/11), puis
+ * demande d'un LIEN sur chaque libelle (10/11, meme jour).
  *
  * ## Deux familles de lignes dans `email_logs`, et deux sources de verite
  *
@@ -37,10 +40,31 @@ use Illuminate\Support\Collection;
  *   transaction, entraide), et l'`object_type` de la ligne elle-meme — pas
  *   une deuxieme copie du contrat — pour savoir QUEL modele charger ;
  * - les lignes qui n'en portent PAS (TASK-1659, `data->source`) viennent
- *   d'un mailer hors pipeline de notifications (invitation de Boucle ou
- *   d'Organization, parrainage, contribution au blog, test d'admin,
- *   reinitialisation de mot de passe, CRM, envoi manuel). Leur `source` est
- *   deja ecrit par CHAQUE appelant ; on ne fait que le TRADUIRE en texte lu.
+ *   d'un mailer hors pipeline de notifications. Leur `source` est deja ecrit
+ *   par CHAQUE appelant ; on ne fait que le TRADUIRE en texte lu, SANS lien :
+ *   aucune route admin dediee n'existe pour ces chemins-la.
+ *
+ * ## Le lien n'est JAMAIS celui du destinataire (`NotificationTargetResolver`)
+ *
+ * Celui-ci exige une adhesion ACTIVE et un tenant courant — c'est ce qui le
+ * rend sur pour un EMAIL. Mais l'ADMIN qui consulte `/admin/email-logs`
+ * n'est, le plus souvent, membre de AUCUNE des Organizations concernees :
+ * un lien qui exigerait son appartenance serait un lien mort pour la quasi
+ * totalite des lignes. Ce resolveur pointe donc vers les ecrans ADMIN
+ * dedies (`admin.loops.show`, `admin.loop-messages.show`,
+ * `admin.messages.show`, `admin.blog.edit`), dont les gardes sont LUES, pas
+ * recopiees : certaines verifient `is_admin` (toujours jacessibles), d'autres
+ * comparent l'`organization_id` PERSONNEL de l'admin a celui de la ligne
+ * (`AdminMessageController::show()`/`showLoopMessage()`, TASK-1693 bug R) —
+ * et un lien qui 404rait n'est PAS propose, exactement la discipline deja
+ * suivie par `/admin/messages`.
+ *
+ * ## Il n'existe aucun ecran admin pour l'entraide
+ *
+ * Categorie `entraide` : jamais de lien. Pas une omission — aucune route
+ * `admin.*` ne couvre `Service`/`ServiceRequest`, et les routes PUBLIQUES
+ * (`services.show`, `requests.show`) exigent l'appartenance a
+ * l'Organization, que l'admin n'a quasiment jamais.
  *
  * ## Resolu EN MASSE, jamais ligne par ligne
  *
@@ -54,9 +78,8 @@ use Illuminate\Support\Collection;
  *
  * Ces trois modeles portent `BelongsToOrganizationScope` (contrairement a
  * `Loop`, `LoopMessage`, `LoopInvitation`, `LoopJoinRequest`, `BlogPost`,
- * `BlogComment`, `EntraideComment`, qui ne le portent pas). Cet ecran est
- * reserve au SuperAdmin ('auth','admin' — `is_admin` est un attribut de
- * PLATEFORME, pas une appartenance a une Organization) et ne lie jamais
+ * `BlogComment`, `EntraideComment`, `Message`, qui ne le portent pas). Cet
+ * ecran est reserve au SuperAdmin ('auth','admin') et ne lie jamais
  * `current_organization` : sans retrait explicite, ces trois lectures
  * rendraient TOUJOURS vide, en silence — le meme piege que documente le
  * docblock de `LoopMentionMailer`.
@@ -66,7 +89,8 @@ use Illuminate\Support\Collection;
  * `email_logs` est une trace HISTORIQUE (TASK-1377) : `notification_id` ne
  * porte aucune cle etrangere, precisement pour que la preuve d'envoi
  * survive a la suppression de son origine. Le Contexte le dit honnetement
- * (« Boucle supprimee ») plutot que de masquer la ligne.
+ * (« Boucle supprimee ») plutot que de masquer la ligne, et ne porte
+ * evidemment aucun lien dans ce cas.
  */
 final class EmailLogContextResolver
 {
@@ -87,9 +111,13 @@ final class EmailLogContextResolver
 
     /**
      * @param  Collection<int, EmailLog>  $logs
-     * @return array<string, string> `email_logs.id` => libelle de contexte
+     * @param  User  $admin  l'administrateur qui CONSULTE l'ecran — son
+     *                       `organization_id` personnel decide si les liens
+     *                       vers `admin.loop-messages.show`/`admin.messages.show`
+     *                       sont offerts (voir le docblock de la classe).
+     * @return array<string, array{label: string, url: string|null}> `email_logs.id` => contexte
      */
-    public function resoudrePour(Collection $logs): array
+    public function resoudrePour(Collection $logs, User $admin): array
     {
         $idsNotification = $logs->pluck('notification_id')->filter()->unique()->values();
 
@@ -97,20 +125,21 @@ final class EmailLogContextResolver
             ? collect()
             : MemberNotification::query()->whereIn('id', $idsNotification)->get()->keyBy('id');
 
-        $nomsBoucle = $this->resoudreNomsBoucle($notifications);
-        $titresArticle = $this->resoudreTitresArticle($notifications);
-        $sujetsTransaction = $this->resoudreSujetsTransaction($notifications);
+        $boucles = $this->resoudreBoucles($notifications);
+        $articles = $this->resoudreArticles($notifications);
+        $transactions = $this->resoudreTransactions($notifications);
         $titresEntraide = $this->resoudreTitresEntraide($notifications);
 
         $libelles = [];
 
         foreach ($logs as $log) {
-            $libelles[(string) $log->id] = $this->libellePour(
+            $libelles[(string) $log->id] = $this->contextePour(
                 $log,
+                $admin,
                 $notifications,
-                $nomsBoucle,
-                $titresArticle,
-                $sujetsTransaction,
+                $boucles,
+                $articles,
+                $transactions,
                 $titresEntraide,
             );
         }
@@ -120,65 +149,122 @@ final class EmailLogContextResolver
 
     /**
      * @param  Collection<string, MemberNotification>  $notifications
-     * @param  array<string, string>  $nomsBoucle
-     * @param  array<string, string>  $titresArticle
-     * @param  array<string, string>  $sujetsTransaction
+     * @param  array<string, array{nom: string, loop_id: string}>  $boucles
+     * @param  array<string, array{titre: string, article_id: string}>  $articles
+     * @param  array<string, array{sujet: string, message_id: string|null}>  $transactions
      * @param  array<string, string>  $titresEntraide
+     * @return array{label: string, url: string|null}
      */
-    private function libellePour(
+    private function contextePour(
         EmailLog $log,
+        User $admin,
         Collection $notifications,
-        array $nomsBoucle,
-        array $titresArticle,
-        array $sujetsTransaction,
+        array $boucles,
+        array $articles,
+        array $transactions,
         array $titresEntraide,
-    ): string {
+    ): array {
         $notificationId = $log->notification_id;
 
         if ($notificationId !== null) {
             $notification = $notifications->get($notificationId);
 
             if ($notification === null) {
-                return 'Notification supprimée';
+                return ['label' => 'Notification supprimée', 'url' => null];
             }
 
             $categorie = NotificationCatalogue::definition((string) $notification->notification_key)['category'] ?? null;
             $objectId = $notification->object_id;
 
-            return match ($categorie) {
-                'loop' => $objectId !== null && isset($nomsBoucle[$objectId])
-                    ? 'Boucle : '.$nomsBoucle[$objectId]
-                    : 'Boucle supprimée',
-                'blog' => $objectId !== null && isset($titresArticle[$objectId])
-                    ? 'Article : '.$titresArticle[$objectId]
-                    : 'Article supprimé',
-                'transaction' => $objectId !== null && isset($sujetsTransaction[$objectId])
-                    ? 'Message privé : '.$sujetsTransaction[$objectId]
-                    : 'Message privé',
-                'entraide' => $objectId !== null && isset($titresEntraide[$objectId])
-                    ? 'Entraide : '.$titresEntraide[$objectId]
-                    : 'Annonce d’entraide supprimée',
-                default => 'Autre évènement',
-            };
+            if ($categorie === 'loop') {
+                if ($objectId === null || ! isset($boucles[$objectId])) {
+                    return ['label' => 'Boucle supprimée', 'url' => null];
+                }
+
+                $boucle = $boucles[$objectId];
+                // `OBJECT_LOOP_MESSAGE` (mention) mene DIRECTEMENT au message :
+                // c'est l'ecran dedie, et c'est ce que demande Cyril. Les
+                // trois autres chemins (ajout direct, invitation, demande)
+                // menent a la Boucle elle-meme.
+                $url = $notification->object_type === NotificationCatalogue::OBJECT_LOOP_MESSAGE
+                    ? $this->urlSiJoignable($admin, $notification, fn () => route('admin.loop-messages.show', $objectId))
+                    : route('admin.loops.show', $boucle['loop_id']);
+
+                return ['label' => 'Boucle : '.$boucle['nom'], 'url' => $url];
+            }
+
+            if ($categorie === 'blog') {
+                if ($objectId === null || ! isset($articles[$objectId])) {
+                    return ['label' => 'Article supprimé', 'url' => null];
+                }
+
+                $article = $articles[$objectId];
+
+                // `admin.blog.edit` n'exige aucune appartenance (pas de garde
+                // `organization_id` dans `AdminBlogController::edit()`) :
+                // toujours offert, contrairement aux deux routes ci-dessus.
+                return ['label' => 'Article : '.$article['titre'], 'url' => route('admin.blog.edit', $article['article_id'])];
+            }
+
+            if ($categorie === 'transaction') {
+                if ($objectId === null || ! isset($transactions[$objectId])) {
+                    return ['label' => 'Message privé', 'url' => null];
+                }
+
+                $transaction = $transactions[$objectId];
+                $url = $transaction['message_id'] === null
+                    ? null
+                    : $this->urlSiJoignable($admin, $notification, fn () => route('admin.messages.show', $transaction['message_id']));
+
+                return ['label' => 'Message privé : '.$transaction['sujet'], 'url' => $url];
+            }
+
+            if ($categorie === 'entraide') {
+                if ($objectId === null || ! isset($titresEntraide[$objectId])) {
+                    return ['label' => 'Annonce d’entraide supprimée', 'url' => null];
+                }
+
+                // Aucune route admin ne couvre Service/ServiceRequest : voir
+                // le docblock de la classe.
+                return ['label' => 'Entraide : '.$titresEntraide[$objectId], 'url' => null];
+            }
+
+            return ['label' => 'Autre évènement', 'url' => null];
         }
 
         $source = $log->data['source'] ?? null;
 
         if (! is_string($source) || $source === '') {
-            return '—';
+            return ['label' => '—', 'url' => null];
         }
 
-        return self::LABELS_SOURCE[$source] ?? 'Autre : '.$source;
+        return ['label' => self::LABELS_SOURCE[$source] ?? 'Autre : '.$source, 'url' => null];
+    }
+
+    /**
+     * `admin.loop-messages.show` et `admin.messages.show` rendent `404` hors
+     * de l'Organization PERSONNELLE de l'admin (`AdminMessageController`,
+     * TASK-1693 bug R — une garantie ecrite, pas un detail d'implementation).
+     * Offrir le lien quand meme produirait un clic mort ; `null` ici est donc
+     * la reponse honnete, exactement ce que fait deja `/admin/messages`.
+     */
+    private function urlSiJoignable(User $admin, MemberNotification $notification, callable $route): ?string
+    {
+        if ($admin->organization_id === null || $admin->organization_id !== $notification->organization_id) {
+            return null;
+        }
+
+        return $route();
     }
 
     /**
      * @param  Collection<string, MemberNotification>  $notifications
-     * @return array<string, string> `object_id` DE LA NOTIFICATION => nom de
-     *                                la Boucle — jamais l'identifiant de
-     *                                Boucle lui-meme, qui n'est PAS toujours
-     *                                `object_id` (voir plus bas).
+     * @return array<string, array{nom: string, loop_id: string}> `object_id`
+     *                                DE LA NOTIFICATION => Boucle atteinte —
+     *                                jamais l'identifiant de Boucle lui-meme,
+     *                                qui n'est PAS toujours `object_id`.
      */
-    private function resoudreNomsBoucle(Collection $notifications): array
+    private function resoudreBoucles(Collection $notifications): array
     {
         // `object_id` ne designe directement la Boucle que pour `OBJECT_LOOP`
         // (`loop.member_added`, `loop.help_request.created`). Pour les trois
@@ -199,9 +285,9 @@ final class EmailLogContextResolver
 
         $loopIdParObjectId = array_merge(
             $loopIdParObjectId,
-            $this->loopIdParObjectIdVia($notifications, NotificationCatalogue::OBJECT_LOOP_MESSAGE, LoopMessage::class),
-            $this->loopIdParObjectIdVia($notifications, NotificationCatalogue::OBJECT_LOOP_INVITATION, LoopInvitation::class),
-            $this->loopIdParObjectIdVia($notifications, NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST, LoopJoinRequest::class),
+            $this->idIntermediaireVia($notifications, NotificationCatalogue::OBJECT_LOOP_MESSAGE, LoopMessage::class),
+            $this->idIntermediaireVia($notifications, NotificationCatalogue::OBJECT_LOOP_INVITATION, LoopInvitation::class),
+            $this->idIntermediaireVia($notifications, NotificationCatalogue::OBJECT_LOOP_JOIN_REQUEST, LoopJoinRequest::class),
         );
 
         if ($loopIdParObjectId === []) {
@@ -216,7 +302,7 @@ final class EmailLogContextResolver
 
         foreach ($loopIdParObjectId as $objectId => $loopId) {
             if ($nomsParLoopId->has($loopId)) {
-                $resultat[$objectId] = $nomsParLoopId->get($loopId);
+                $resultat[$objectId] = ['nom' => $nomsParLoopId->get($loopId), 'loop_id' => $loopId];
             }
         }
 
@@ -228,7 +314,7 @@ final class EmailLogContextResolver
      * @param  class-string<LoopMessage|LoopInvitation|LoopJoinRequest>  $modele
      * @return array<string, string> `object_id` (du modele intermediaire) => `loop_id`
      */
-    private function loopIdParObjectIdVia(Collection $notifications, string $objectType, string $modele): array
+    private function idIntermediaireVia(Collection $notifications, string $objectType, string $modele): array
     {
         $idsObjet = $notifications
             ->filter(fn (MemberNotification $n) => $n->object_type === $objectType && $n->object_id !== null)
@@ -250,15 +336,15 @@ final class EmailLogContextResolver
 
     /**
      * @param  Collection<string, MemberNotification>  $notifications
-     * @return array<string, string> `object_id` DE LA NOTIFICATION => titre
-     *                                de l'article — meme principe que
-     *                                `resoudreNomsBoucle()` : `object_id` ne
-     *                                designe directement l'article que pour
-     *                                `OBJECT_BLOG_POST`, pas pour
-     *                                `OBJECT_BLOG_COMMENT` (qui designe le
-     *                                COMMENTAIRE).
+     * @return array<string, array{titre: string, article_id: string}> `object_id`
+     *                                DE LA NOTIFICATION => article atteint —
+     *                                meme principe que `resoudreBoucles()` :
+     *                                `object_id` ne designe directement
+     *                                l'article que pour `OBJECT_BLOG_POST`,
+     *                                pas pour `OBJECT_BLOG_COMMENT` (qui
+     *                                designe le COMMENTAIRE).
      */
-    private function resoudreTitresArticle(Collection $notifications): array
+    private function resoudreArticles(Collection $notifications): array
     {
         $articleIdParObjectId = [];
 
@@ -300,7 +386,7 @@ final class EmailLogContextResolver
 
         foreach ($articleIdParObjectId as $objectId => $articleId) {
             if ($titresParArticleId->has($articleId)) {
-                $resultat[$objectId] = $titresParArticleId->get($articleId);
+                $resultat[$objectId] = ['titre' => $titresParArticleId->get($articleId), 'article_id' => $articleId];
             }
         }
 
@@ -309,9 +395,9 @@ final class EmailLogContextResolver
 
     /**
      * @param  Collection<string, MemberNotification>  $notifications
-     * @return array<string, string> identifiant de Transaction => sujet
+     * @return array<string, array{sujet: string, message_id: string|null}> identifiant de Transaction => echange
      */
-    private function resoudreSujetsTransaction(Collection $notifications): array
+    private function resoudreTransactions(Collection $notifications): array
     {
         $idsTransaction = $notifications
             ->filter(fn (MemberNotification $n) => $n->object_type === NotificationCatalogue::OBJECT_TRANSACTION && $n->object_id !== null)
@@ -329,7 +415,7 @@ final class EmailLogContextResolver
         // — qui portent eux aussi `BelongsToOrganizationScope` — et la
         // retrouverait appliquee, rendant `null` en silence (meme piege que
         // pour la Transaction elle-meme).
-        return Transaction::query()
+        $sujets = Transaction::query()
             ->withoutGlobalScope(BelongsToOrganizationScope::class)
             ->whereIn('id', $idsTransaction)
             ->with([
@@ -337,8 +423,28 @@ final class EmailLogContextResolver
                 'serviceRequest' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class),
             ])
             ->get()
-            ->mapWithKeys(fn (Transaction $t) => [(string) $t->id => $t->subject])
-            ->all();
+            ->mapWithKeys(fn (Transaction $t) => [(string) $t->id => $t->subject]);
+
+        // `admin.messages.show` prend un MESSAGE, pas une Transaction : on
+        // lie au PREMIER message de l'echange — celui qui a pose la
+        // proposition, et donc toujours present quand la cle a ete emise.
+        $premierMessageParTransaction = Message::query()
+            ->whereIn('transaction_id', $idsTransaction)
+            ->orderBy('created_at')
+            ->get(['id', 'transaction_id'])
+            ->groupBy('transaction_id')
+            ->map(fn (Collection $messages) => (string) $messages->first()->id);
+
+        $resultat = [];
+
+        foreach ($sujets as $transactionId => $sujet) {
+            $resultat[$transactionId] = [
+                'sujet' => $sujet,
+                'message_id' => $premierMessageParTransaction->get($transactionId),
+            ];
+        }
+
+        return $resultat;
     }
 
     /**
