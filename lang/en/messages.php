@@ -162,6 +162,6 @@ return [
     'member_preview_close' => 'Close',
     'member_preview_title' => 'Directory card',
     'member_preview_full' => 'See full profile',
-    'member_preview_write' => 'Send a message',
+    'member_preview_write' => 'Send a private message',
     'member_preview_empty' => 'This person has not filled in their card yet.',
 ];

@@ -579,6 +579,17 @@
                                     fn ($c) => $c->push(\App\Livewire\LoopChat::MENTION_ALL_TOKEN),
                                 )
                                 ->values()->all()"
+                            {{-- TASK-1801 correctif 03 — `nom => identifiant`, pour
+                                 les SEULES mentions qui designent une vraie
+                                 personne. Le jeton `@tous` ci-dessus n'y figure
+                                 jamais : il n'est jamais dans
+                                 `$msg->metadata['mentions']`, qui ne porte que
+                                 des identifiants reels. --}}
+                            :mention-user-ids="collect($msg->metadata['mentions'] ?? [])
+                                ->mapWithKeys(fn ($id) => [$id => $nomsPourMentions[$id] ?? null])
+                                ->filter()
+                                ->flip()
+                                ->all()"
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"

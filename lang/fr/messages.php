@@ -182,6 +182,6 @@ return [
     'member_preview_close' => 'Fermer',
     'member_preview_title' => 'Fiche d’annuaire',
     'member_preview_full' => 'Voir le profil complet',
-    'member_preview_write' => 'Écrire un message',
+    'member_preview_write' => 'Écrire un message privé',
     'member_preview_empty' => 'Cette personne n’a pas encore renseigné sa fiche.',
 ];

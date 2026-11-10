@@ -4,6 +4,11 @@
         $loopsCreateHref = $organizationRouteParam && request()->routeIs('organization.*')
             ? route('organization.loops.create', ['organization' => $organizationRouteParam])
             : route('loops.create');
+        // TASK-1801 correctif 05 — « Derniers messages » vit sur sa PROPRE
+        // page (demande de Cyril : « une page c'est mieux qu'un pop-up »).
+        $latestMessagesHref = $organizationRouteParam && request()->routeIs('organization.*')
+            ? route('organization.loops.latest-messages', ['organization' => $organizationRouteParam])
+            : route('loops.latest-messages');
         $loopShowHref = function ($loop) use ($organizationRouteParam) {
             if ($organizationRouteParam && request()->routeIs('organization.*')) {
                 // TASK-1717 — le SLUG dans l'URL org-scopee, l'identifiant en
@@ -74,15 +79,31 @@
     @endphp
 
     <x-slot name="headingActions">
-        @if($canCreate)
-            <a href="{{ $loopsCreateHref }}"
-               class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
+        {{-- Le parent (`x-page`) restreint deja cette rangee au bureau
+             (`hidden md:flex`) : pas besoin de le repeter ici. --}}
+        <div class="flex items-center gap-3">
+            {{-- TASK-1801 correctif 05 — a la GAUCHE du bouton « Nouvelle »,
+                 toujours visible : sa page montre ou non quelque chose selon
+                 le role (voir `loops/latest-messages.blade.php`), pas la
+                 capacite a creer. --}}
+            <a href="{{ $latestMessagesHref }}"
+               data-loops-latest-messages-trigger
+               class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:border-indigo-400 hover:text-indigo-600 rounded-lg transition whitespace-nowrap dark:text-gray-200 dark:bg-gray-800 dark:border-gray-600 dark:hover:text-indigo-400">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/>
                 </svg>
-                <span>{{ __('loops.new') }}</span>
+                <span>{{ __('loops.latest_messages_button') }}</span>
             </a>
-        @endif
+            @if($canCreate)
+                <a href="{{ $loopsCreateHref }}"
+                   class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    <span>{{ __('loops.new') }}</span>
+                </a>
+            @endif
+        </div>
     </x-slot>
 
     {{-- `mine` : TASK-1788 correctif 06. Un troisieme choix du meme selecteur,
@@ -99,8 +120,19 @@
              vide et sa marge — la place qu'on vient justement de reprendre. La
              cle `loops.collaboration_spaces` reste definie, ce correctif etant
              un changement d'ecran et non un menage de lexique. --}}
-        @if($canCreate)
-            <div class="md:hidden flex items-center justify-end gap-3 mb-6">
+        {{-- TASK-1801 correctif 05 — « Derniers messages » rejoint « Nouvelle »
+             ici, a sa GAUCHE : le bloc ne depend donc plus de `$canCreate`
+             seul, il reste rendu pour qui ne peut que lire. --}}
+        <div class="md:hidden flex items-center justify-end gap-3 mb-6">
+            <a href="{{ $latestMessagesHref }}"
+               data-loops-latest-messages-trigger-mobile
+               class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:border-indigo-400 hover:text-indigo-600 rounded-lg transition whitespace-nowrap dark:text-gray-200 dark:bg-gray-800 dark:border-gray-600 dark:hover:text-indigo-400">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/>
+                </svg>
+                <span>{{ __('loops.latest_messages_button') }}</span>
+            </a>
+            @if($canCreate)
                 <a href="{{ $loopsCreateHref }}"
                    data-loops-new-mobile
                    class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
@@ -109,8 +141,8 @@
                     </svg>
                     <span>{{ __('loops.new') }}</span>
                 </a>
-            </div>
-        @endif
+            @endif
+        </div>
 
         @if(session('success'))
             <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
@@ -304,4 +336,5 @@
             </details>
         @endif
     </div>
+
 </x-page>

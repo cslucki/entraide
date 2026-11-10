@@ -413,6 +413,52 @@
     color: #c7d2fe; /* indigo-200, lisible sur l'aplat indigo-600 */
 }
 
+/* TASK-1801 correctif 03 — une mention qui OUVRE la fiche de la personne
+   (identifiant connu, `message-bubble.blade.php`) doit se voir cliquable,
+   comme le lien de correctif 02. Seul `[data-mention-user-id]` le porte : le
+   jeton `@tous` garde son gras-colore actuel SANS soulignement, puisqu'il
+   n'ouvre rien. La couleur n'a pas besoin d'etre redite : `currentColor`
+   suit deja celle de `.bp-mention` ci-dessus, aux trois fonds compris. */
+.bp-bulle-markdown .bp-mention[data-mention-user-id] {
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+/* TASK-1801 correctif 02 — un lien partage dans une Boucle doit SE VOIR.
+   « Quand on partage un lien [...] il faut que le lien apparaisse d'une
+   autre couleur [...] et un surlignage, comme cela on identifie bien que
+   c'est un lien cliquable. »
+
+   CommonMark (extension GFM, `markdown()`) transforme deja une URL nue en
+   vraie balise `<a href>` — le lien EST cliquable depuis le depart. Ce qui
+   manquait : le preflight Tailwind reinitialise `a` a `color: inherit` et
+   `text-decoration: inherit`, et le conteneur de la bulle porte
+   `cursor-default` (pour que le TEXTE courant ne ressemble pas a un bouton) —
+   un curseur hERITE, pas choisi par le lien lui-meme. Resultat : un lien
+   partage se lisait comme du texte ordinaire, curseur compris.
+
+   Meme teinte « bleu lien », distincte du violet des mentions ci-dessus pour
+   qu'un `@Nom` et une URL ne se confondent jamais. Memes cinq fonds de bulle,
+   meme raisonnement de contraste que `.bp-mention`. */
+.bp-bulle-markdown a {
+    color: #0369a1; /* sky-700 */
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.dark .bp-bulle-markdown a {
+    color: #7dd3fc; /* sky-300 */
+}
+
+[data-bulle-envoyee] .bp-bulle-markdown a,
+.dark [data-bulle-envoyee] .bp-bulle-markdown a {
+    color: #bae6fd; /* sky-200, lisible sur l'aplat indigo-600 */
+}
+
 /* TASK-1772 (recette Cyril, telephone) — le corps d'une bulle n'est plus en
    `pre-wrap` : les paragraphes Markdown s'espacent ici, d'une demi-ligne,
    et un `<br>` vaut UN retour. */

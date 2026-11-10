@@ -148,6 +148,15 @@
             $routeTitle = request()->route('loop')?->name;
         } elseif (request()->routeIs('loops.create', 'organization.loops.create')) {
             $routeTitle = __('navigation.create_loop');
+        } elseif (request()->routeIs('loops.latest-messages', 'organization.loops.latest-messages')) {
+            // TASK-1801 correctif 07 (demande de Cyril) — « Boucles », pas
+            // le repli « BouclePro » : cette route n'etait ni dans
+            // `$levelOneTitles` ni dans cette chaine, donc `$routeTitle`
+            // restait `null` et `$displayTitle` retombait sur
+            // `config('app.name')`. La fleche de retour, elle, existait
+            // deja (chaine `loops.*`/`organization.loops.*` plus bas) : on
+            // ne touche qu'au TITRE.
+            $routeTitle = __('navigation.loops');
         } elseif (request()->routeIs('messages.*', 'organization.messages.*')) {
             $routeTitle = __('navigation.messages');
         } elseif (request()->routeIs('points.*', 'organization.points.*')) {

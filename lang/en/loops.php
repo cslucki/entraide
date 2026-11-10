@@ -1580,4 +1580,14 @@ return [
     'member_added_mail_body' => 'You have been added to the :loop Loop on :organization. You are now a member.',
     'member_added_mail_cta' => 'Open the Loop',
     'member_added_mail_plain_link' => 'If the button does not work, copy this address into your browser:',
+
+    // TASK-1801 correctif 05 — the "Latest messages" button on the inventory.
+    'latest_messages_button' => 'Latest messages',
+    'latest_messages_title' => 'Latest messages',
+    'latest_messages_empty_before' => 'You are not a member of any Loop yet, you can join one by clicking',
+    'latest_messages_empty_link' => 'here',
+    'latest_messages_empty_after' => '.',
+    // Cyril's request: an image without a caption must not leave the row
+    // looking empty.
+    'latest_messages_image_only' => 'Shared an image',
 ];

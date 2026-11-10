@@ -1646,6 +1646,16 @@ class LoopChatTest extends TestCase
             'et aucune bulle de ce fil ne doit declarer l\'action « copier »');
     }
 
+    /**
+     * TASK-1801 correctif 06 — la promesse n'a pas bouge (le defilement vise
+     * le DEBUT de la bulle), seul le MOYEN a change : `scrollIntoView()` est
+     * programmatique et peut encore deplacer le scroll d'un ancetre meme
+     * sous `overflow: hidden` (mesure en recette, telephone — un pixel de
+     * defilement DOCUMENT suffisait a retracter la barre d'URL de Chrome et
+     * decoller l'en-tete/le composeur fixes de `loops/show.blade.php`,
+     * TASK-1684). Le calcul ajuste desormais UNIQUEMENT `$el.scrollTop`
+     * (ce conteneur) — jamais `window` ni `document`.
+     */
     public function test_pinned_message_scroll_targets_the_start_of_the_bubble(): void
     {
         LoopMessage::create([
@@ -1655,9 +1665,14 @@ class LoopChatTest extends TestCase
             'type' => 'user',
         ]);
 
-        Livewire::actingAs($this->member)
+        $html = Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSeeHtml("scrollIntoView({ block: 'start' })");
+            ->html();
+
+        $this->assertStringContainsString('cible.top - conteneur.top', $html,
+            'le defilement reste borne a CE conteneur (sa propre mesure), jamais a window/document');
+        $this->assertStringNotContainsString('scrollIntoView', $html,
+            'scrollIntoView() est programmatique : il peut deplacer un ancetre meme sous overflow:hidden');
     }
 
     /**
