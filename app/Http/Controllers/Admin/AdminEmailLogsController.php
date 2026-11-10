@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\EmailLog;
+use App\Support\Notifications\EmailLogContextResolver;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -29,13 +30,19 @@ class AdminEmailLogsController extends Controller
             ->paginate(30)
             ->withQueryString();
 
+        // TASK-1800 — le "Contexte" (Boucle, article, message prive,
+        // entraide, ou autre evenement) est resolu EN MASSE pour la page
+        // affichee, jamais ligne par ligne : voir le docblock de
+        // `EmailLogContextResolver`.
+        $contextes = app(EmailLogContextResolver::class)->resoudrePour(collect($logs->items()));
+
         $stats = [
             'total' => EmailLog::count(),
             'sent' => EmailLog::where('status', 'sent')->count(),
             'failed' => EmailLog::where('status', 'failed')->count(),
         ];
 
-        return view('admin.email-logs.index', compact('logs', 'stats', 'status', 'search', 'source'));
+        return view('admin.email-logs.index', compact('logs', 'stats', 'status', 'search', 'source', 'contextes'));
     }
 
     public function show(EmailLog $emailLog): View
