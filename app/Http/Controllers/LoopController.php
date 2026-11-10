@@ -341,39 +341,73 @@ class LoopController extends Controller
         $filterDomains = $loops->pluck('categories')->flatten()->unique('id')
             ->sortBy(fn ($c) => $c->displayName('loops'))->values();
 
-        // TASK-1801 correctif 05 — le bouton « Derniers messages ».
-        //
-        // `is_member` est deja posee par `VisibleLoops::query()` (une
-        // adhesion ACTIVE, quel que soit le role) : proprietaire, animateur
-        // et membre simple s'y melent sans distinction, exactement ce qui
-        // est demande (« dont on est proprietaire/animateur/membre »).
-        // `$loops` ne porte deja QUE des Boucles actives (`status = active`
-        // dans `VisibleLoops`) : une Boucle archivee n'y figure pas, donc pas
-        // davantage dans ses messages.
-        $loopIdsMembre = $loops->where('is_member', true)->pluck('id');
-
-        // Une Boucle sans message n'est simplement pas representee ici — il
-        // n'y a rien a construire pour elle, et la vue n'invente aucune ligne
-        // vide (demande explicite de Cyril : « s'il n'y a pas de messages
-        // dans la boucle, on affiche rien »).
-        $derniersMessages = $loopIdsMembre->isEmpty()
-            ? collect()
-            : LoopMessage::query()
-                ->whereIn('loop_id', $loopIdsMembre)
-                ->where('organization_id', $organizationId)
-                ->whereNotNull('sender_id')
-                ->notDeleted()
-                ->with(['sender', 'loop'])
-                ->latest('created_at')
-                ->limit(3)
-                ->get();
-
         // `organization` part avec le reste : les onglets de type se nomment
         // **dans la portee**, et un type cree par cette Organization doit y
         // avoir son onglet — `all()` sans portee ne le connait pas.
-        return view('loops.index', compact('loops', 'filterDomains', 'archivedLoops', 'organization', 'derniersMessages'))
-            ->with('aAuMoinsUneBoucle', $loopIdsMembre->isNotEmpty())
+        return view('loops.index', compact('loops', 'filterDomains', 'archivedLoops', 'organization'))
             ->with('canCreate', $canCreate);
+    }
+
+    /**
+     * TASK-1801 correctif 05 — « Derniers messages », en PAGE (pas en popup :
+     * demande de Cyril apres une premiere version en modale).
+     *
+     * La Boucle est mise en avant (son visuel, son nom — l'inverse de la
+     * version modale, qui mettait l'auteur en avant) : une section par
+     * Boucle ou cette personne est membre ET qui porte au moins un message,
+     * chacune listant ses 3 messages humains les plus recents, avec lien
+     * direct vers le message dans la Boucle (`?message=`).
+     *
+     * Les quatre memes regles que la version modale, inchangees :
+     * - `is_member` (role indifferent, pose par `VisibleLoops`) ;
+     * - Boucles ARCHIVEES deja exclues de `$loops` ;
+     * - aucun humain derriere (`sender_id` NULL, message IA) exclu ;
+     * - une Boucle sans message n'a simplement pas de section.
+     */
+    public function latestMessages(): View
+    {
+        $organizationId = $this->resolveOrganizationId();
+        $organization = $this->resolveOrganization();
+        $this->assertUserCanInspectOrganization($organization);
+
+        $user = auth()->user();
+
+        $loops = $organization->isMonoLoop()
+            ? collect()
+            : $this->getAccessibleLoopsQuery($organizationId, $user)->get();
+
+        $loopsMembre = $loops->where('is_member', true)->values();
+
+        $loopsAvecMessages = collect();
+
+        if ($loopsMembre->isNotEmpty()) {
+            $messagesParBoucle = LoopMessage::query()
+                ->whereIn('loop_id', $loopsMembre->pluck('id'))
+                ->where('organization_id', $organizationId)
+                ->whereNotNull('sender_id')
+                ->notDeleted()
+                ->with('sender')
+                ->latest('created_at')
+                ->get()
+                ->groupBy('loop_id');
+
+            $loopsAvecMessages = $loopsMembre
+                ->filter(fn ($loop) => $messagesParBoucle->has($loop->id))
+                ->map(fn ($loop) => [
+                    'loop' => $loop,
+                    'messages' => $messagesParBoucle->get($loop->id)->take(3),
+                ])
+                // La Boucle la plus RECEMMENT active d'abord — son propre
+                // message le plus recent, puisque `messages` est deja triee.
+                ->sortByDesc(fn (array $entree) => $entree['messages']->first()->created_at)
+                ->values();
+        }
+
+        return view('loops.latest-messages', [
+            'organization' => $organization,
+            'aAuMoinsUneBoucle' => $loopsMembre->isNotEmpty(),
+            'loopsAvecMessages' => $loopsAvecMessages,
+        ]);
     }
 
     /**

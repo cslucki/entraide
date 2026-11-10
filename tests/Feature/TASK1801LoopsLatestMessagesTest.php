@@ -11,16 +11,20 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * TASK-1801 correctif 05 — le bouton « Derniers messages » de `/loops`.
+ * TASK-1801 correctif 05 — « Derniers messages », en page.
  *
- * Demande de Cyril : un bouton a la gauche de « Nouvelle », qui montre les
- * trois derniers messages des Boucles dont la personne est proprietaire,
- * animateur ou membre — Boucle et horodatage inclus, lien direct vers la
- * Boucle — avec deux etats degrades explicites :
+ * Demande de Cyril, en deux temps :
  *
- * - **membre d'aucune Boucle** : un message d'invitation a en rejoindre une,
- *   dont le lien ferme le popup en renvoyant sur CETTE page ;
- * - **membre, mais aucun message nulle part** : rien d'autre ne s'affiche.
+ * 1. Un bouton a la gauche de « Nouvelle » sur `/loops`, menant aux derniers
+ *    messages des Boucles dont la personne est proprietaire/animateur/membre.
+ * 2. « Prevois une page, c'est mieux qu'un pop-up » — et sur cette page,
+ *    « c'est l'inverse de ce qu'on avait prevu » : la Boucle (visuel + nom)
+ *    est mise en avant, pas l'auteur. Chaque Boucle montre SES propres 3
+ *    derniers messages (avatar, date, heure), cliquables vers le message.
+ *
+ * Deux etats degrades explicites : aucune adhesion -> invitation a en
+ * rejoindre une (lien vers `/loops`) ; adhesion sans aucun message nulle
+ * part -> rien d'affiche.
  */
 class TASK1801LoopsLatestMessagesTest extends TestCase
 {
@@ -45,10 +49,18 @@ class TASK1801LoopsLatestMessagesTest extends TestCase
         app()->instance('current_organization', $this->org);
     }
 
-    private function page(User $user): string
+    private function loopsIndex(User $user): string
     {
         return $this->actingAs($user)
             ->get(route('organization.loops.index', ['organization' => $this->org->slug]))
+            ->assertOk()
+            ->getContent();
+    }
+
+    private function latestMessagesPage(User $user): string
+    {
+        return $this->actingAs($user)
+            ->get(route('organization.loops.latest-messages', ['organization' => $this->org->slug]))
             ->assertOk()
             ->getContent();
     }
@@ -60,7 +72,7 @@ class TASK1801LoopsLatestMessagesTest extends TestCase
      * (lecon deja consignee du depot). On le pose APRES, hors assignation
      * de masse, avant la sauvegarde.
      */
-    private function messageAt(Loop $loop, ?User $sender, string $body, string $type, \Illuminate\Support\Carbon $when): LoopMessage
+    private function messageAt(Loop $loop, ?User $sender, string $body, string $type, \Illuminate\Support\Carbon $when, ?string $imagePath = null): LoopMessage
     {
         $message = new LoopMessage([
             'loop_id' => $loop->id,
@@ -68,6 +80,7 @@ class TASK1801LoopsLatestMessagesTest extends TestCase
             'sender_id' => $sender?->id,
             'body' => $body,
             'type' => $type,
+            'image_path' => $imagePath,
         ]);
         $message->created_at = $when;
         $message->save();
@@ -75,7 +88,7 @@ class TASK1801LoopsLatestMessagesTest extends TestCase
         return $message;
     }
 
-    public function test_the_button_shows_even_when_the_viewer_cannot_create_a_loop(): void
+    public function test_the_button_on_loops_index_links_to_the_latest_messages_page_regardless_of_create_permission(): void
     {
         $owner = User::factory()->create(['organization_id' => $this->org->id]);
         $membre = User::factory()->create(['organization_id' => $this->org->id]);
@@ -88,15 +101,19 @@ class TASK1801LoopsLatestMessagesTest extends TestCase
         // affiche la liste au lieu de rediriger vers la Boucle unique.
         $service->createLoop($owner, 'Boucle B');
 
-        $html = $this->page($membre);
+        $html = $this->loopsIndex($membre);
 
         $this->assertStringContainsString('data-loops-latest-messages-trigger', $html);
-        // `loop_composition_policy = locked` : seul le proprietaire compose,
-        // ce membre ne voit donc pas « Nouvelle » — le bouton n'en depend pas.
+        $this->assertStringContainsString(
+            'href="'.route('organization.loops.latest-messages', ['organization' => $this->org->slug]).'"',
+            $html,
+        );
+        // `members_can_create_loops = false` : ce membre ne voit pas
+        // « Nouvelle » — le bouton « Derniers messages » n'en depend pas.
         $this->assertStringNotContainsString('data-loops-new-mobile', $html);
     }
 
-    public function test_a_member_sees_up_to_three_latest_messages_with_loop_link_and_timestamp(): void
+    public function test_the_page_groups_messages_by_loop_with_its_name_and_up_to_three_entries_each(): void
     {
         $moi = User::factory()->create(['organization_id' => $this->org->id]);
         $autreMembre = User::factory()->create(['organization_id' => $this->org->id]);
@@ -105,9 +122,8 @@ class TASK1801LoopsLatestMessagesTest extends TestCase
         $loopA = $service->createLoop($moi, 'Boucle des mentions');
         $loopB = $service->createLoop($moi, 'Boucle du jardin');
         $service->addMemberByUserId($loopB, $autreMembre->id, 'facilitator');
-        // Une 3e Boucle a laquelle « moi » n'appartient PAS : visible au
-        // catalogue (« decouvrir »), mais son message ne doit JAMAIS sortir
-        // dans ce panneau.
+        // Une 3e Boucle a laquelle « moi » n'appartient PAS : son message ne
+        // doit JAMAIS sortir sur cette page.
         $loopEtrangere = $service->createLoop($autreMembre, 'Boucle etrangere');
 
         $a1 = $this->messageAt($loopA, $moi, 'Plus ancien message de A', 'user', now()->subMinutes(9));
@@ -122,27 +138,39 @@ class TASK1801LoopsLatestMessagesTest extends TestCase
         $this->messageAt($loopEtrangere, $autreMembre, 'Message d une Boucle etrangere', 'user', now()->addMinute());
         $this->messageAt($loopA, null, 'Reponse IA', 'ai', now()->addMinutes(2));
 
-        $html = $this->page($moi);
+        $html = $this->latestMessagesPage($moi);
 
-        // Les 3 plus recents ELIGIBLES : dernierB, a4, a3 — pas a1 ni a2.
-        $this->assertStringContainsString($dernierB->body, $html);
+        // Boucle A : SES 3 plus recents — a4, a3, a2 — jamais a1 (le 4e).
         $this->assertStringContainsString($a4->body, $html);
         $this->assertStringContainsString($a3->body, $html);
-        $this->assertStringNotContainsString($a2->body, $html);
+        $this->assertStringContainsString($a2->body, $html);
         $this->assertStringNotContainsString($a1->body, $html);
+
+        // Boucle B : son seul message.
+        $this->assertStringContainsString($dernierB->body, $html);
+
         $this->assertStringNotContainsString('Message d une Boucle etrangere', $html);
         $this->assertStringNotContainsString('Reponse IA', $html);
 
+        // La Boucle est mise en avant : son NOM apparait (section groupee),
+        // et son visuel (`<x-loops.cover>`) est present pour chaque section.
         $this->assertStringContainsString($loopA->name, $html);
         $this->assertStringContainsString($loopB->name, $html);
+        $this->assertSame(2, substr_count($html, 'data-loops-latest-messages-section'));
+
+        // Chaque ligne de message mene DIRECTEMENT au message dans la Boucle.
         $this->assertStringContainsString(
-            route('organization.loops.show', ['organization' => $this->org->slug, 'loop' => $loopA->slug ?: $loopA->id]),
+            route('organization.loops.show', [
+                'organization' => $this->org->slug,
+                'loop' => $loopA->slug ?: $loopA->id,
+                'message' => $a4->id,
+            ]),
             $html,
         );
         $this->assertStringContainsString($dernierB->created_at->isoFormat('D MMM, HH:mm'), $html);
 
-        // Exactement 3 lignes de message dans le panneau, pas 5.
-        $this->assertSame(3, substr_count($html, 'data-loops-latest-message-row'));
+        // 4 lignes au total : 3 pour A (a2,a3,a4) + 1 pour B.
+        $this->assertSame(4, substr_count($html, 'data-loops-latest-message-row'));
     }
 
     public function test_a_user_with_no_loop_membership_sees_the_join_prompt(): void
@@ -154,7 +182,7 @@ class TASK1801LoopsLatestMessagesTest extends TestCase
 
         $sansBoucle = User::factory()->create(['organization_id' => $this->org->id]);
 
-        $html = $this->page($sansBoucle);
+        $html = $this->latestMessagesPage($sansBoucle);
 
         // L'apostrophe de `n'êtes`/`d'aucune` ressort HTML-echappee
         // (`&#039;`) dans le rendu Blade : `e()` reproduit la meme
@@ -174,10 +202,33 @@ class TASK1801LoopsLatestMessagesTest extends TestCase
         $service->createLoop($moi, 'Boucle silencieuse A');
         $service->createLoop($moi, 'Boucle silencieuse B');
 
-        $html = $this->page($moi);
+        $html = $this->latestMessagesPage($moi);
 
-        $this->assertStringContainsString('data-loops-latest-messages-trigger', $html);
         $this->assertStringNotContainsString(__('loops.latest_messages_empty_before'), $html);
         $this->assertStringNotContainsString('data-loops-latest-message-row', $html);
+        $this->assertStringNotContainsString('data-loops-latest-messages-section', $html);
+    }
+
+    /**
+     * Demande de Cyril : une image SANS commentaire ne doit pas rendre la
+     * ligne vide — sa vignette (et un libelle neutre) tiennent lieu de
+     * contenu.
+     */
+    public function test_an_image_only_message_shows_its_thumbnail_instead_of_an_empty_row(): void
+    {
+        $moi = User::factory()->create(['organization_id' => $this->org->id]);
+        $service = new LoopService;
+        $loop = $service->createLoop($moi, 'Boucle avec photo');
+
+        $sansCommentaire = $this->messageAt($loop, $moi, '', 'user', now(), 'loop-images/sans-commentaire.jpg');
+        $avecCommentaire = $this->messageAt($loop, $moi, 'Regardez ce coucher de soleil', 'user', now()->subMinute(), 'loop-images/avec-commentaire.jpg');
+
+        $html = $this->latestMessagesPage($moi);
+
+        $this->assertStringContainsString($sansCommentaire->imageUrl(), $html);
+        $this->assertStringContainsString(e(__('loops.latest_messages_image_only')), $html);
+
+        $this->assertStringContainsString($avecCommentaire->imageUrl(), $html);
+        $this->assertStringContainsString('Regardez ce coucher de soleil', $html);
     }
 }

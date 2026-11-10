@@ -1634,8 +1634,10 @@ return [
     // TASK-1801 correctif 05 — le bouton « Derniers messages » de l'inventaire.
     'latest_messages_button' => 'Derniers messages',
     'latest_messages_title' => 'Derniers messages',
-    'latest_messages_close' => 'Fermer',
     'latest_messages_empty_before' => 'Vous n\'êtes membre d\'aucune Boucle, vous pouvez rejoindre une Boucle en cliquant',
     'latest_messages_empty_link' => 'ici',
     'latest_messages_empty_after' => '.',
+    // Demande de Cyril : une image sans commentaire ne doit pas rendre la
+    // ligne vide.
+    'latest_messages_image_only' => 'A partagé une image',
 ];

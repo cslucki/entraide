@@ -607,6 +607,9 @@ Route::middleware('auth')->group(function () {
         // Precedent du navigateur rejoue la reponse en cache sans la revalider
         // et affiche une carte perimee ; `no-store` force la requete.
         Route::get('/loops', [LoopController::class, 'index'])->middleware('cache.headers:no_store')->name('loops.index');
+        // TASK-1801 correctif 05 — avant `/loops/{loop}` : un segment litteral
+        // ne doit jamais tomber derriere la capture d'un identifiant de Boucle.
+        Route::get('/loops/derniers-messages', [LoopController::class, 'latestMessages'])->name('loops.latest-messages');
         Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
         Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
         Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
@@ -1789,6 +1792,10 @@ Route::prefix('/org/{organization}')
             Route::middleware('loops.enabled')->group(function () {
                 // `no_store` : voir la route courte `loops.index` (TASK-1277).
                 Route::get('/loops', [LoopController::class, 'index'])->middleware('cache.headers:no_store')->name('loops.index');
+                // TASK-1801 correctif 05 — avant `/loops/{loop}` : un segment
+                // litteral ne doit jamais tomber derriere la capture d'un
+                // identifiant de Boucle.
+                Route::get('/loops/derniers-messages', [LoopController::class, 'latestMessages'])->name('loops.latest-messages');
                 Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
