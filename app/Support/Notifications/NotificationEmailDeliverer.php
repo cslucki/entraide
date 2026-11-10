@@ -18,6 +18,7 @@ use App\Services\Entraide\EntraideCommentMailer;
 use App\Services\Loops\LoopInvitationMailer;
 use App\Services\Loops\LoopMentionMailer;
 use App\Services\Transactions\TransactionProposalMailer;
+use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Mail;
@@ -587,6 +588,11 @@ final class NotificationEmailDeliverer
         }
 
         if ($cle === NotificationCatalogue::LOOP_MENTION_CREATED) {
+            // TASK-1799 (B1) — le MESSAGE n'est volontairement PAS memorise
+            // ici : voir le docblock de `NotificationTargetResolver::
+            // loopMessage()` pour la raison (deux tests TASK-1772 exigent
+            // qu'une modification du message DANS LA MEME portee reste
+            // visible a la relecture suivante).
             $message = LoopMessage::query()
                 ->withoutGlobalScopes()
                 ->whereKey((string) $notification->object_id)
@@ -599,22 +605,40 @@ final class NotificationEmailDeliverer
 
             // L'AUTEUR du message est l'acteur de la notification — pas le
             // destinataire, qui est la personne mentionnee.
-            $auteur = $notification->actor_id
-                ? User::find((string) $notification->actor_id)
-                : User::find((string) $message->sender_id);
+            //
+            // TASK-1799 (C1) — `with('organization')` : `GabaritEmail::rendre()`
+            // lit `$acteur->organization` (via `EmailerService::availableVariables()`)
+            // pour composer les DEUX rendus (reel + journal). Sans
+            // precharger, cette relation se charge paresseusement — une
+            // requete de plus, par destinataire, pour la MEME Organization
+            // que `compose()` lit deja par ailleurs. Aucun controle
+            // d'autorisation ne s'appuie sur cette relation : seul l'AFFICHAGE
+            // (nom de l'Organization dans le courriel) la consomme.
+            //
+            // TASK-1799 (B1) — « Auteur, lorsque sûr » : l'auteur du MESSAGE
+            // est IDENTIQUE pour tous les destinataires d'une meme mention
+            // (@tous ou individuelle), et rien ici ne s'appuie sur cette
+            // lecture pour une decision d'autorisation — seul l'AFFICHAGE
+            // (nom, Organization) la consomme. La cle inclut le tenant de la
+            // notification : un meme `actor_id` relu sous un autre tenant,
+            // dans un autre job, repartirait d'une lecture neuve.
+            $actorId = (string) ($notification->actor_id ?? $message->sender_id);
+            $auteur = app(ScopedReadCache::class)->souviens(
+                'cible-acteur:'.$notification->organization_id.':'.$actorId,
+                fn (): ?User => User::with('organization')->find($actorId),
+            );
 
-            $mentionMailer = app(LoopMentionMailer::class);
-            $reel = $mentionMailer->compose($message, $destinataire, $auteur, $cible, $locale);
-            // Le sixieme argument expurge AUSSI l'extrait du message : le
-            // courriel porte desormais la phrase ecrite par un membre, et
-            // `email_logs` n'a pas a archiver une conversation de Boucle
-            // privee (cf. `LoopMentionMailer::EXTRAIT_EXPURGE`).
-            $expurge = $mentionMailer->compose($message, $destinataire, $auteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+            // TASK-1799 (A1) — UN SEUL appel rend les deux variantes (reel +
+            // copie expurgee pour `email_logs`) a partir d'UNE SEULE
+            // resolution du gabarit administrable : voir le docblock de
+            // `LoopMentionMailer::compose()`.
+            $paire = app(LoopMentionMailer::class)
+                ->compose($message, $destinataire, $auteur, $cible, self::LIEN_EXPURGE, $locale);
 
             return [
-                'subject' => $reel['subject'],
-                'body' => $reel['body'],
-                'body_for_log' => $expurge['body'],
+                'subject' => $paire['reel']['subject'],
+                'body' => $paire['reel']['body'],
+                'body_for_log' => $paire['journal']['body'],
             ];
         }
 
