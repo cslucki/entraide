@@ -413,6 +413,19 @@
     color: #c7d2fe; /* indigo-200, lisible sur l'aplat indigo-600 */
 }
 
+/* TASK-1801 correctif 03 — une mention qui OUVRE la fiche de la personne
+   (identifiant connu, `message-bubble.blade.php`) doit se voir cliquable,
+   comme le lien de correctif 02. Seul `[data-mention-user-id]` le porte : le
+   jeton `@tous` garde son gras-colore actuel SANS soulignement, puisqu'il
+   n'ouvre rien. La couleur n'a pas besoin d'etre redite : `currentColor`
+   suit deja celle de `.bp-mention` ci-dessus, aux trois fonds compris. */
+.bp-bulle-markdown .bp-mention[data-mention-user-id] {
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
 /* TASK-1801 correctif 02 — un lien partage dans une Boucle doit SE VOIR.
    « Quand on partage un lien [...] il faut que le lien apparaisse d'une
    autre couleur [...] et un surlignage, comme cela on identifie bien que
