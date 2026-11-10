@@ -19,7 +19,12 @@ class AdminEmailLogsController extends Controller
         // `data->source` est pose par chaque mailer du depot.
         $source = $request->input('source');
 
-        $logs = EmailLog::with(['template:id,slug,name', 'user:id,name,email'])
+        // TASK-1800 correctif 3 — `banned_at`/`is_admin` AU SELECT : le
+        // partial `se-connecter-sous` (TASK-1795 correctif 7) en a besoin
+        // pour sa PROPRE garde. Les en omettre les rendrait `null` et la
+        // garde laisserait alors passer un lien qu'elle doit refuser — voir
+        // le docblock du partial.
+        $logs = EmailLog::with(['template:id,slug,name', 'user:id,name,first_name,email,banned_at,is_admin'])
             ->when($status, fn ($q) => $q->where('status', $status))
             ->when($source, fn ($q) => $q->where('data->source', $source))
             // Groupe a dessein : sans parentheses, le `orWhere` s'evaderait

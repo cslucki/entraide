@@ -116,7 +116,7 @@ final class EmailLogContextResolver
      *                       `organization_id` personnel decide si les liens
      *                       vers `admin.loop-messages.show`/`admin.messages.show`
      *                       sont offerts (voir le docblock de la classe).
-     * @return array<string, array{label: string, url: string|null, url_message: string|null}> `email_logs.id` => contexte
+     * @return array<string, array{label: string, url: string|null, url_message: string|null, expediteur: User|null}> `email_logs.id` => contexte
      */
     public function resoudrePour(Collection $logs, User $admin): array
     {
@@ -131,11 +131,12 @@ final class EmailLogContextResolver
         $transactions = $this->resoudreTransactions($notifications);
         $titresEntraide = $this->resoudreTitresEntraide($notifications);
         $slugsOrganization = $this->resoudreSlugsOrganization($notifications);
+        $acteurs = $this->resoudreActeurs($notifications);
 
         $libelles = [];
 
         foreach ($logs as $log) {
-            $libelles[(string) $log->id] = $this->contextePour(
+            $contexte = $this->contextePour(
                 $log,
                 $admin,
                 $notifications,
@@ -145,9 +146,42 @@ final class EmailLogContextResolver
                 $titresEntraide,
                 $slugsOrganization,
             );
+
+            // TASK-1800 correctif 3 — l'EXPEDITEUR (Cyril : « comme pour
+            // Destinataire »). C'est l'ACTEUR de la notification — celui qui
+            // a ecrit la mention, repondu a l'annonce, commente — jamais le
+            // destinataire. `null` pour une ligne hors pipeline (aucun acteur
+            // a y lire) ou une notification sans acteur (ex. systeme).
+            $notification = $notifications->get($log->notification_id);
+            $contexte['expediteur'] = $notification !== null && $notification->actor_id !== null
+                ? ($acteurs[$notification->actor_id] ?? null)
+                : null;
+
+            $libelles[(string) $log->id] = $contexte;
         }
 
         return $libelles;
+    }
+
+    /**
+     * Les ACTEURS des notifications, en UNE requete — jamais une par ligne.
+     * Colonnes completes (pas de `select` restreint) : le partial `se-
+     * connecter-sous` lit `banned_at`/`is_admin` pour sa propre garde
+     * (TASK-1795 correctif 7), et une selection partielle les rendrait `null`
+     * — la garde laisserait alors passer un lien qu'elle doit refuser.
+     *
+     * @param  Collection<string, MemberNotification>  $notifications
+     * @return Collection<string, User>
+     */
+    private function resoudreActeurs(Collection $notifications): Collection
+    {
+        $idsActeur = $notifications->pluck('actor_id')->filter()->unique()->values();
+
+        if ($idsActeur->isEmpty()) {
+            return collect();
+        }
+
+        return User::query()->whereIn('id', $idsActeur)->get()->keyBy('id');
     }
 
     /**

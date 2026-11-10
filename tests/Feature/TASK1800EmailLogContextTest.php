@@ -563,4 +563,127 @@ class TASK1800EmailLogContextTest extends TestCase
         );
         $response->assertSee('Voir le message');
     }
+
+    // =====================================================================
+    // L'EXPEDITEUR — Cyril : « comme pour Destinataire, un lien Se connecter
+    // sous ». C'est l'ACTEUR de la notification, jamais le destinataire.
+    // =====================================================================
+
+    public function test_le_resolveur_rend_l_acteur_comme_expediteur(): void
+    {
+        $boucle = Loop::factory()->create(['organization_id' => $this->org->id]);
+        $message = LoopMessage::factory()->create(['loop_id' => $boucle->id, 'organization_id' => $this->org->id]);
+        $acteur = User::factory()->create(['organization_id' => $this->org->id]);
+        $notification = MemberNotification::create([
+            'organization_id' => $this->org->id,
+            'recipient_id' => $this->recipient->id,
+            'notification_key' => NotificationCatalogue::LOOP_MENTION_CREATED,
+            'event_id' => (string) Str::uuid(),
+            'object_type' => NotificationCatalogue::OBJECT_LOOP_MESSAGE,
+            'object_id' => $message->id,
+            'actor_id' => $acteur->id,
+        ]);
+        $log = $this->emailLog($notification);
+
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
+
+        $this->assertNotNull($contexte[(string) $log->id]['expediteur']);
+        $this->assertSame($acteur->id, $contexte[(string) $log->id]['expediteur']->id);
+    }
+
+    public function test_le_resolveur_rend_null_quand_la_notification_n_a_aucun_acteur(): void
+    {
+        $notification = $this->notification(NotificationCatalogue::LOOP_MEMBER_ADDED, NotificationCatalogue::OBJECT_LOOP, (string) Str::uuid());
+        $log = $this->emailLog($notification);
+
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
+
+        $this->assertNull($contexte[(string) $log->id]['expediteur']);
+    }
+
+    public function test_un_envoi_hors_pipeline_n_a_aucun_expediteur(): void
+    {
+        $log = $this->emailLog(null, ['source' => 'admin-test']);
+
+        $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $this->admin);
+
+        $this->assertNull($contexte[(string) $log->id]['expediteur']);
+    }
+
+    public function test_l_ecran_affiche_l_expediteur_et_son_lien_se_connecter_sous(): void
+    {
+        $boucle = Loop::factory()->create(['organization_id' => $this->org->id]);
+        $message = LoopMessage::factory()->create(['loop_id' => $boucle->id, 'organization_id' => $this->org->id]);
+        $acteur = User::factory()->complete()->create(['organization_id' => $this->org->id, 'first_name' => 'Camille']);
+        $notification = MemberNotification::create([
+            'organization_id' => $this->org->id,
+            'recipient_id' => $this->recipient->id,
+            'notification_key' => NotificationCatalogue::LOOP_MENTION_CREATED,
+            'event_id' => (string) Str::uuid(),
+            'object_type' => NotificationCatalogue::OBJECT_LOOP_MESSAGE,
+            'object_id' => $message->id,
+            'actor_id' => $acteur->id,
+        ]);
+        $this->emailLog($notification);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.email-logs'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Expéditeur');
+        $response->assertSee($acteur->email);
+        // Le lien « Se connecter sous » est un FORMULAIRE POST (changer
+        // d'identite est une ECRITURE de session), jamais un `<a href>` — voir
+        // le docblock de `admin.messages.partials.se-connecter-sous`.
+        $response->assertSee('action="'.route('admin.users.login-as', $acteur).'"', false);
+    }
+
+    public function test_l_ecran_affiche_systeme_quand_la_ligne_n_a_aucun_expediteur(): void
+    {
+        $log = $this->emailLog(null, ['source' => 'admin-test']);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.email-logs'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Système');
+    }
+
+    /**
+     * Garde la plus importante de ce correctif : `AdminEmailLogsController`
+     * chargeait `user:id,name,email` — SANS `banned_at` ni `is_admin`. Le
+     * partial `se-connecter-sous` lirait alors `null` pour ces deux colonnes
+     * et sa propre garde laisserait PASSER le lien sur un destinataire banni.
+     * Corrige par l'ajout des deux colonnes au `with()` du controleur.
+     */
+    public function test_l_ecran_n_offre_pas_le_lien_se_connecter_sous_pour_un_destinataire_banni(): void
+    {
+        $destinataireBanni = User::factory()->create(['organization_id' => $this->org->id, 'banned_at' => now()]);
+        $log = EmailLog::factory()->create(['user_id' => $destinataireBanni->id, 'to_email' => $destinataireBanni->email]);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.email-logs'));
+
+        $response->assertStatus(200);
+        $response->assertDontSee('action="'.route('admin.users.login-as', $destinataireBanni).'"', false);
+    }
+
+    public function test_l_ecran_n_offre_pas_le_lien_se_connecter_sous_pour_un_expediteur_banni(): void
+    {
+        $boucle = Loop::factory()->create(['organization_id' => $this->org->id]);
+        $message = LoopMessage::factory()->create(['loop_id' => $boucle->id, 'organization_id' => $this->org->id]);
+        $acteurBanni = User::factory()->create(['organization_id' => $this->org->id, 'banned_at' => now()]);
+        $notification = MemberNotification::create([
+            'organization_id' => $this->org->id,
+            'recipient_id' => $this->recipient->id,
+            'notification_key' => NotificationCatalogue::LOOP_MENTION_CREATED,
+            'event_id' => (string) Str::uuid(),
+            'object_type' => NotificationCatalogue::OBJECT_LOOP_MESSAGE,
+            'object_id' => $message->id,
+            'actor_id' => $acteurBanni->id,
+        ]);
+        $this->emailLog($notification);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.email-logs'));
+
+        $response->assertStatus(200);
+        $response->assertDontSee('action="'.route('admin.users.login-as', $acteurBanni).'"', false);
+    }
 }

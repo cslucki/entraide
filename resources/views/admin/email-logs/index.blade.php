@@ -73,6 +73,9 @@
                                     Date
                                 </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Expéditeur
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Destinataire
                                 </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -99,11 +102,22 @@
                                         {{ $log->created_at->format('d/m/Y H:i') }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                        @php($expediteur = ($contextes[(string) $log->id] ?? [])['expediteur'] ?? null)
+                                        @if($expediteur)
+                                            <span class="block text-xs text-gray-700 dark:text-gray-300">{{ $expediteur->full_name }}</span>
+                                            <span class="block text-xs text-gray-500 dark:text-gray-500 truncate max-w-[160px]">{{ $expediteur->email }}</span>
+                                            @include('admin.messages.partials.se-connecter-sous', ['utilisateur' => $expediteur])
+                                        @else
+                                            <span class="text-xs text-gray-400 italic">Système</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                                         {{ $log->to_email }}
                                         @if($log->user)
                                             <span class="block text-xs text-gray-500 dark:text-gray-500">
                                                 {{ $log->user->fullName }}
                                             </span>
+                                            @include('admin.messages.partials.se-connecter-sous', ['utilisateur' => $log->user])
                                         @endif
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 max-w-xs truncate">
@@ -147,7 +161,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                    <td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                                         Aucun email trouvé.
                                     </td>
                                 </tr>
