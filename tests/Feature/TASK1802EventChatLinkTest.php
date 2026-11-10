@@ -142,6 +142,60 @@ class TASK1802EventChatLinkTest extends TestCase
         $this->assertStringNotContainsString('data-event-chat-meeting-link', $html);
     }
 
+    /**
+     * TASK-1802 (suite, demande Cyril, 10/11, image montrant le lien deux
+     * fois) — un message cree AVANT ce correctif porte encore l'ancien corps
+     * concatene (« — Lien : :url »). La vue doit retirer ce suffixe figE a
+     * l'affichage, sinon le lien apparait deux fois : une fois en texte brut
+     * historique, une fois en <a> cliquable.
+     */
+    public function test_a_legacy_message_with_the_old_concatenated_link_shows_it_only_once(): void
+    {
+        $event = app(LoopEventService::class)->create($this->owner, $this->loop, [
+            'title' => 'Reunion ouverte a tous',
+            'description' => null,
+            'format' => LoopEvent::FORMAT_ONLINE,
+            'starts_at' => CarbonImmutable::parse('2026-12-01 10:00')->format('Y-m-d\TH:i'),
+            'ends_at' => '',
+            'timezone' => 'Europe/Paris',
+            'location' => '',
+            'meeting_url' => 'https://meet.google.com/acx-mqxe-cgi',
+            'visibility' => LoopEvent::VISIBILITY_LOOP,
+        ]);
+
+        \App\Models\LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->owner->id,
+            'body' => 'Un nouvel événement a été proposé : Reunion ouverte a tous (1 déc. 2026, 10:00) — Lien : https://meet.google.com/acx-mqxe-cgi',
+            'type' => 'loop_event',
+            'metadata' => [
+                'event' => 'created',
+                'event_id' => $event->id,
+                'title' => $event->title,
+                'starts_at' => $event->starts_at?->toIso8601String(),
+                'ends_at' => $event->ends_at?->toIso8601String(),
+                'timezone' => $event->timezone,
+                'format' => $event->format,
+                'description' => $event->description,
+                'location' => $event->location,
+                'meeting_url' => $event->meeting_url,
+            ],
+            'organization_id' => $this->org->id,
+        ]);
+
+        $html = $this->actingAs($this->owner)->get(route('loops.show', $this->loop))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('— Lien :', $html);
+        $this->assertStringContainsString(
+            'Un nouvel événement a été proposé : Reunion ouverte a tous (1 déc. 2026, 10:00)',
+            $html,
+        );
+        $this->assertStringContainsString(
+            '<a href="https://meet.google.com/acx-mqxe-cgi" target="_blank" rel="noopener noreferrer"',
+            $html,
+        );
+    }
+
     /** Normalise l'espace insecable qu'`isoFormat` peut inserer avant les unites. */
     private function normaliser(string $valeur): string
     {
