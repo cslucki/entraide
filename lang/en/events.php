@@ -74,6 +74,7 @@ return [
     'maybe_short' => 'Maybe',
     'not_going_short' => 'Not coming',
     'your_response' => 'Your answer:',
+    'respond_menu_label' => 'Respond',
     'response_saved' => 'Answer recorded.',
     'attendees_show' => 'See who is coming',
     'attendees_hide' => 'Hide',

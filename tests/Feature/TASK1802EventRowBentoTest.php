@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Livewire\LoopEventsCard;
 use App\Models\Loop;
 use App\Models\LoopEvent;
+use App\Models\LoopEventResponse;
 use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
@@ -211,5 +212,51 @@ class TASK1802EventRowBentoTest extends TestCase
 
         $this->assertStringContainsString('Rencontre agenda', $html);
         $this->assertStringContainsString('Hall principal', $html);
+    }
+
+    /**
+     * TASK-1802 (suite, demande Cyril) — « le bouton "Je participe" [...]
+     * dans un menu 3 points [...] on gagne de l'espace ». Le declencheur du
+     * menu est neutre tant que personne n'a repondu.
+     */
+    public function test_the_rsvp_menu_trigger_is_neutral_before_any_response(): void
+    {
+        $this->event();
+
+        $html = $this->renderCard();
+
+        $this->assertStringContainsString(__('events.respond_menu_label'), $html);
+        $this->assertStringNotContainsString('bg-emerald-100 text-emerald-700', $html);
+    }
+
+    public function test_choosing_a_response_colors_the_trigger_and_checks_the_menu_item(): void
+    {
+        $event = $this->event();
+
+        $component = Livewire::actingAs($this->owner)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('respond', $event->id, LoopEventResponse::GOING);
+
+        $html = $component->html();
+
+        // Le declencheur porte la couleur de la reponse choisie...
+        $this->assertStringContainsString('bg-emerald-100 text-emerald-700', $html);
+        // ...et une SEULE option du menu est cochee.
+        $this->assertSame(1, substr_count($html, 'aria-pressed="true"'));
+    }
+
+    public function test_the_response_lives_in_the_menu_not_in_a_separate_button_row(): void
+    {
+        $event = $this->event();
+
+        $html = Livewire::actingAs($this->owner)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('respond', $event->id, LoopEventResponse::MAYBE)
+            ->html();
+
+        // L'ancien texte autonome « Ta reponse : » a disparu du corps de la
+        // Card : seul l'aria-label du declencheur du menu le porte encore
+        // (accessibilite), jamais un paragraphe visible a part.
+        $this->assertStringNotContainsString('<span class="font-semibold">'.__('events.your_response').'</span>', $html);
     }
 }

@@ -25,6 +25,15 @@
     sans l'autre ; `min-w-0` sur la tuile titre la laisse RETRECIR a
     l'interieur du bloc : c'est le TEXTE qui enjambe plusieurs lignes,
     jamais une tuile qui saute seule.
+
+    TASK-1802 (suite, demande Cyril) — « le bouton "Je participe" et "Je ne
+    participe pas" et peut-être dans un menu 3 points. Ainsi, on gagne de
+    l'espace [...] un joli aspect pour les boutons. » La reponse RSVP
+    quittait sa propre ligne de 3 boutons pour un menu ⋮ loge dans la tuile
+    presences (meme idiome `x-data`/`x-show`/`click.outside` que le menu
+    « Gerer la Boucle », `loops/partials/header-actions.blade.php`) — le
+    declencheur porte deja la couleur de la reponse en cours (vide = pas
+    encore repondu), la coche se voit une fois le menu ouvert.
 --}}
 @php
     $interactive = $interactive ?? true;
@@ -32,6 +41,28 @@
     $canPublishOrg = $canPublishOrg ?? false;
     $total = $event['counts']['going'] + $event['counts']['maybe'] + $event['counts']['not_going'];
     $hasWhere = (bool) ($event['location'] || $event['meeting_url']);
+    $rsvpOptions = [
+        \App\Models\LoopEventResponse::GOING => [
+            'label' => __('events.going'),
+            'dot' => 'bg-emerald-500',
+            'trigger' => 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+            'item_on' => 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+        ],
+        \App\Models\LoopEventResponse::MAYBE => [
+            'label' => __('events.maybe'),
+            'dot' => 'bg-amber-500',
+            'trigger' => 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+            'item_on' => 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+        ],
+        \App\Models\LoopEventResponse::NOT_GOING => [
+            'label' => __('events.not_going'),
+            'dot' => 'bg-gray-400',
+            'trigger' => 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+            'item_on' => 'bg-gray-100 text-gray-700 dark:bg-gray-700/60 dark:text-gray-200',
+        ],
+    ];
+    $rsvpTriggerClass = $rsvpOptions[$event['my_response']]['trigger']
+        ?? 'text-gray-400 hover:bg-gray-100 dark:text-gray-500 dark:hover:bg-gray-700';
 @endphp
 
 <div class="rounded-[26px] border p-3 shadow-sm {{ $event['is_cancelled']
@@ -122,7 +153,43 @@
 
         {{-- Tuile presences — les compteurs, toujours ; les noms, sur demande. --}}
         <div class="min-w-[10rem] flex-1 rounded-2xl bg-gray-50 p-3 dark:bg-gray-800/60">
-            <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('events.attendance_label') }}</p>
+            <div class="flex items-center justify-between gap-2">
+                <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('events.attendance_label') }}</p>
+
+                @if($interactive && $event['can_respond'])
+                    {{-- Menu ⋮ — meme idiome que « Gerer la Boucle »
+                         (`header-actions.blade.php`) : `x-data`/`x-show`/
+                         `click.outside`. Le declencheur porte deja la
+                         couleur de la reponse en cours ; vide, il invite a
+                         repondre. --}}
+                    <div class="relative" x-data="{ ouvert: false }" x-on:keydown.escape.window="ouvert = false">
+                        <button type="button" x-on:click="ouvert = ! ouvert" x-bind:aria-expanded="ouvert"
+                                aria-label="{{ $event['my_response']
+                                    ? __('events.your_response').' '.__('events.'.$event['my_response'])
+                                    : __('events.respond_menu_label') }}"
+                                class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition {{ $rsvpTriggerClass }}">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75h.007v.008H12V6.75Zm0 5.25h.007v.008H12V12Zm0 5.25h.007v.008H12v-.008Z"/></svg>
+                        </button>
+
+                        <div x-show="ouvert" x-cloak x-transition x-on:click.outside="ouvert = false"
+                             class="absolute right-0 z-10 mt-1 w-40 rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                            @foreach($rsvpOptions as $value => $opt)
+                                @php($chosen = $event['my_response'] === $value)
+                                <button type="button" wire:click="respond('{{ $event['id'] }}', '{{ $value }}')"
+                                        x-on:click="ouvert = false"
+                                        aria-pressed="{{ $chosen ? 'true' : 'false' }}"
+                                        class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold transition {{ $chosen ? $opt['item_on'] : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700' }}">
+                                    <span class="h-2 w-2 shrink-0 rounded-full {{ $opt['dot'] }}"></span>
+                                    <span class="truncate">{{ $opt['label'] }}</span>
+                                    @if($chosen)
+                                        <svg class="ml-auto h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                                    @endif
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+            </div>
             <div class="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
                 <span class="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                     {{ __('events.going_short') }} {{ $event['counts']['going'] }}
@@ -168,31 +235,12 @@
         </div>
     @endif
 
-    @if($event['my_response'])
-        <p class="mt-2.5 text-xs text-gray-600 dark:text-gray-300">
-            <span class="font-semibold">{{ __('events.your_response') }}</span>
-            {{ __('events.'.$event['my_response']) }}
-        </p>
-    @endif
+    {{-- TASK-1802 (demande Cyril) — la reponse RSVP (« Je participe » /
+         « Peut-être » / « Je ne participe pas ») vit desormais dans le menu
+         ⋮ de la tuile presences, ci-dessus : plus de ligne de 3 boutons ni
+         de texte « Votre reponse » ici, gain de place demande. --}}
 
     @if($interactive)
-        @if($event['can_respond'])
-            <div class="mt-2.5 flex flex-wrap gap-1.5">
-                @foreach([
-                    \App\Models\LoopEventResponse::GOING => ['label' => __('events.going'), 'on' => 'bg-emerald-600 text-white', 'off' => 'border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30'],
-                    \App\Models\LoopEventResponse::MAYBE => ['label' => __('events.maybe'), 'on' => 'bg-amber-600 text-white', 'off' => 'border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/30'],
-                    \App\Models\LoopEventResponse::NOT_GOING => ['label' => __('events.not_going'), 'on' => 'bg-gray-600 text-white', 'off' => 'border-gray-300 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'],
-                ] as $value => $style)
-                    @php($chosen = $event['my_response'] === $value)
-                    <button type="button" wire:click="respond('{{ $event['id'] }}', '{{ $value }}')"
-                            class="rounded-xl border px-3 py-1.5 text-xs font-semibold transition {{ $chosen ? $style['on'].' border-transparent' : $style['off'] }}"
-                            aria-pressed="{{ $chosen ? 'true' : 'false' }}">
-                        {{ $style['label'] }}
-                    </button>
-                @endforeach
-            </div>
-        @endif
-
         @if($event['can_manage'] && ! $event['is_cancelled'])
             <div class="mt-2.5 flex flex-wrap gap-1.5">
                 <button type="button" wire:click="openEditForm('{{ $event['id'] }}')"
