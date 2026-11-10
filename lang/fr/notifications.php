@@ -130,6 +130,10 @@ return [
 
         // TASK-1751 — ni la personne, ni le titre de l'annonce.
         'transaction_proposal_created' => 'Ouvrez BouclePro pour voir la proposition.',
+
+        // TASK-1802 — ni la Boucle ni l'Evenement : un Push s'affiche sur un
+        // ecran VERROUILLE, et la Boucle peut etre privee.
+        'loop_event_created' => 'Ouvrez BouclePro pour voir les details.',
     ],
 
     'push_title' => [
@@ -160,6 +164,10 @@ return [
         // exister : la garde de coherence l'exige des qu'un canal est
         // declare, et l'oublier ferait rougir le jour de l'ouverture.
         'loop_help_request_created' => 'Une demande d’aide dans votre Boucle',
+
+        // TASK-1802 — meme doctrine que sa voisine ci-dessus : ni la Boucle,
+        // ni l'Evenement, un Push s'affichant sur un ecran verrouille.
+        'loop_event_created' => 'Un nouvel évènement dans votre Boucle',
     ],
 
     'keys' => [
@@ -192,6 +200,9 @@ return [
         // doit savoir ce qui lui est arrivé sans avoir à ouvrir quoi que ce soit.
         'loop_join_request_accepted' => 'Votre demande d’adhésion a été acceptée',
         'loop_join_request_rejected' => 'Votre demande d’adhésion n’a pas été retenue',
+
+        // TASK-1802 (demande Cyril) — un nouvel évènement proposé dans une Boucle.
+        'loop_event_created' => 'Un nouvel évènement a été proposé',
     ],
 
     /*
@@ -245,6 +256,9 @@ return [
         // voisines : le Centre est derriere l'authentification, `push_title`
         // reste generique (ecran verrouille).
         'loop_help_request_created' => 'Une demande d’aide a été publiée dans la Boucle « :loop »',
+
+        // TASK-1802 — nommee UNIQUEMENT ici, meme raisonnement que sa voisine.
+        'loop_event_created' => 'Un nouvel évènement a été proposé dans la Boucle « :loop »',
     ],
 
     // TASK-1725 — « Ouvrir » ne disait pas quoi. Le libelle depend donc de
@@ -390,5 +404,35 @@ return [
                 .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
                 .'<p>À bientôt,<br>L\'équipe BouclePro</p>',
         ],
+
+        // TASK-1802 — REPLI. Le rendu passe normalement par le gabarit
+        // administrable `loop_event_created` (seeder + migration) ; ceci ne
+        // sert que si le gabarit est absent ou desactive. Volontairement
+        // neutre : a ce niveau, ni la Boucle ni l'Evenement ne sont plus
+        // connus. `:url`, `:reglages`, `:titre`, `:date`, `:boucle` et
+        // `:infos` restent des JETONS — une adresse en dur echapperait a
+        // l'expurgation du livreur (garde TASK1379…::
+        // test_every_email_body_uses_the_url_placeholder).
+        'loop_event_created' => [
+            'subject' => ':titre — :date',
+            'body' => '<p>Bonjour,</p>'
+                .'<p>Un nouvel évènement a été proposé dans la Boucle <strong>:boucle</strong> : <strong>:titre</strong>, le :date.</p>'
+                .'<p>:infos</p>'
+                .'<p>:description</p>'
+                .'<p><a href=":url">Ouvrir la Boucle</a></p>'
+                .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
+                .'<p>À bientôt,<br>L\'équipe BouclePro</p>'
+                .'<hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
+        ],
     ],
+
+    // TASK-1802 — les trois formes de rencontre, composees par
+    // `LoopEventMailer` SERVEUR COTE, jamais dans le gabarit (les courriels
+    // administrables n'ont pas de conditionnelle). Le lien de connexion est
+    // du texte ici, pas un `<a>` : c'est la ligne d'action dediee
+    // (« Ouvrir la Boucle ») qui porte le lien cliquable.
+    'loop_event_email_description_empty' => '(pas de description)',
+    'loop_event_email_practical_online' => 'En ligne — lien de connexion : :url',
+    'loop_event_email_practical_hybrid' => 'Hybride — sur place : :location, ou en ligne : :url',
+    'loop_event_email_practical_in_person' => 'Sur place : :location',
 ];

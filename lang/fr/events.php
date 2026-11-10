@@ -133,7 +133,11 @@ return [
     'error_delete_answered' => 'Des membres ont répondu : cet événement s\'annule, il ne se supprime pas.',
 
     // ── ChatLoop ────────────────────────────────────────────────────────────
-    'chat_created' => 'Un nouvel événement a été proposé : :title',
+    // TASK-1802 (demande Cyril) — « il faut ajouter date et heure » sur le
+    // message de creation. `:date` est deja formatee (fuseau de l'Evenement),
+    // jamais une date brute a interpreter dans la vue.
+    'chat_created' => 'Un nouvel événement a été proposé : :title (:date)',
+    'chat_created_online_suffix' => ' — Lien : :url',
     'chat_updated' => 'L\'événement « :title » a été mis à jour.',
     'chat_cancelled' => 'L\'événement « :title » a été annulé.',
     'chat_open_card' => 'Ouvrir l\'agenda',

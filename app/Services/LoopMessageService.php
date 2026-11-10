@@ -419,11 +419,25 @@ class LoopMessageService
     {
         $this->assertCanSend($loop, $sender);
 
+        // TASK-1802 (demande Cyril) — « sur le message qui est poste dans la
+        // boucle, il faut ajouter date et heure. Et URL si en ligne. » La date
+        // se lit dans le fuseau DE L'EVENEMENT (`startsAtLocal()`), pas celui
+        // du lecteur : une rencontre a Chicago reste a Chicago, meme relue
+        // depuis Paris — meme regle que `LoopEventPresenter`. Le lien ne
+        // s'ajoute qu'a la creation et seulement si le format en porte un
+        // (`needsMeetingUrl()` couvre online ET hybride, jamais re-derive a la
+        // main).
+        $date = $event->startsAtLocal()->isoFormat('D MMM YYYY, HH:mm');
+
         $body = match ($eventKind) {
             'cancelled' => __('events.chat_cancelled', ['title' => $event->title]),
             'updated' => __('events.chat_updated', ['title' => $event->title]),
-            default => __('events.chat_created', ['title' => $event->title]),
+            default => __('events.chat_created', ['title' => $event->title, 'date' => $date]),
         };
+
+        if ($eventKind === 'created' && $event->needsMeetingUrl()) {
+            $body .= __('events.chat_created_online_suffix', ['url' => (string) $event->meeting_url]);
+        }
 
         return DB::transaction(function () use ($loop, $sender, $event, $eventKind, $body) {
             $message = LoopMessage::create([
@@ -440,9 +454,20 @@ class LoopMessageService
                     'starts_at' => $event->starts_at?->toIso8601String(),
                     'timezone' => $event->timezone,
                     'format' => $event->format,
+                    // TASK-1802 — dupliques depuis l'Evenement pour que le
+                    // courriel de notification (qui relit CE message, jamais
+                    // l'Evenement directement — voir `notifierNouvelEvenement()`)
+                    // puisse composer son corps sans seconde lecture.
+                    'description' => $event->description,
+                    'location' => $event->location,
+                    'meeting_url' => $event->meeting_url,
                 ],
                 'organization_id' => $loop->organization_id,
             ]);
+
+            if ($eventKind === 'created') {
+                $this->notifierNouvelEvenement($loop, $sender, $message);
+            }
 
             event(new LoopMessageCreated($message));
 
@@ -450,6 +475,80 @@ class LoopMessageService
 
             return $message;
         });
+    }
+
+    /**
+     * TASK-1802 (demande Cyril) — prevenir la Boucle qu'un Evenement y est
+     * propose.
+     *
+     * Meme motif que `notifierLaDemandeDAide()` ci-dessus, pour la meme raison
+     * (voir son docblock) : un fait COLLECTIF, emis uniquement a la CREATION
+     * (jamais sur une modification ou une annulation — Cyril n'a demande que
+     * « nouvel evenement propose »), aux membres ACTIFS de la Boucle sauf son
+     * auteur.
+     *
+     * L'objet notifie est le MESSAGE d'annonce, pas la Boucle : meme doctrine
+     * que la mention (D5 du CDC) — la notification mene DIRECTEMENT a
+     * l'annonce dans ChatLoop, et son courriel y relit tout ce qu'il faut
+     * (titre, date, description, lieu/URL) sans seconde lecture de
+     * l'Evenement. La sourdine PAR BOUCLE reste verifiee a l'emission via le
+     * 4e argument d'`allowsMany()` — `loopScopeFor()` a ete etendue a cette
+     * cle pour que `LoopNotificationPreference` s'y applique, exactement comme
+     * pour une demande d'aide.
+     */
+    private function notifierNouvelEvenement(Loop $loop, User $auteur, LoopMessage $message): void
+    {
+        $destinataires = User::query()
+            ->whereIn(
+                'id',
+                LoopMember::query()
+                    ->where('loop_id', $loop->id)
+                    ->where('organization_id', $loop->organization_id)
+                    ->where('status', 'active')
+                    ->pluck('user_id'),
+            )
+            ->whereKeyNot($auteur->getKey())
+            ->get();
+
+        if ($destinataires->isEmpty()) {
+            return;
+        }
+
+        $preferences = app(NotificationPreferenceResolver::class);
+
+        $verdicts = $preferences->allowsMany(
+            $destinataires,
+            NotificationCatalogue::LOOP_EVENT_CREATED,
+            [
+                NotificationCatalogue::CHANNEL_IN_APP,
+                NotificationCatalogue::CHANNEL_EMAIL,
+                NotificationCatalogue::CHANNEL_WEB_PUSH,
+            ],
+            (string) $loop->id,
+        );
+
+        $destinataires = $destinataires->filter(
+            fn (User $destinataire): bool => (bool) ($verdicts[(string) $destinataire->id][NotificationCatalogue::CHANNEL_IN_APP] ?? false)
+        );
+
+        if ($destinataires->isEmpty()) {
+            return;
+        }
+
+        $emetteur = app(NotificationEmitter::class);
+
+        foreach ($destinataires as $destinataire) {
+            $emetteur->emit(
+                notificationKey: NotificationCatalogue::LOOP_EVENT_CREATED,
+                organization: (string) $loop->organization_id,
+                recipient: $destinataire,
+                eventId: (string) $message->getKey(),
+                objectType: NotificationCatalogue::OBJECT_LOOP,
+                objectId: (string) $loop->getKey(),
+                actor: $auteur,
+                canauxAutorises: $verdicts[(string) $destinataire->id] ?? null,
+            );
+        }
     }
 
     /**

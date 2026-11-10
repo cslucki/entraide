@@ -15,6 +15,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Blog\BlogCommentMailer;
 use App\Services\Entraide\EntraideCommentMailer;
+use App\Services\Loops\LoopEventMailer;
 use App\Services\Loops\LoopInvitationMailer;
 use App\Services\Loops\LoopMentionMailer;
 use App\Services\Transactions\TransactionProposalMailer;
@@ -477,6 +478,38 @@ final class NotificationEmailDeliverer
 
             $reel = $mailer->composeForMember($loop, $destinataire, $acteur, $cible, $locale);
             $expurge = $mailer->composeForMember($loop, $destinataire, $acteur, self::LIEN_EXPURGE, $locale);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
+        // TASK-1802 (demande Cyril) — un Evenement propose dans une Boucle.
+        //
+        // `object_id` designe la BOUCLE (object_type = OBJECT_LOOP, meme
+        // doctrine que LOOP_HELP_REQUEST_CREATED : c'est ce qui permet a la
+        // sourdine PAR BOUCLE de s'appliquer). Le FAIT precis vit dans
+        // `event_id`, qui porte l'identifiant du MESSAGE d'annonce ChatLoop —
+        // `LoopEventMailer` y relit titre/date/description/lieu depuis son
+        // `metadata`, sans seconde lecture de l'Evenement.
+        if ($cle === NotificationCatalogue::LOOP_EVENT_CREATED) {
+            $message = LoopMessage::query()
+                ->withoutGlobalScopes()
+                ->whereKey((string) $notification->event_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($message === null) {
+                return null;
+            }
+
+            $acteur = $notification->actor_id ? User::find((string) $notification->actor_id) : null;
+
+            $eventMailer = app(LoopEventMailer::class);
+            $reel = $eventMailer->compose($message, $destinataire, $acteur, $cible, $locale);
+            $expurge = $eventMailer->compose($message, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
 
             return [
                 'subject' => $reel['subject'],

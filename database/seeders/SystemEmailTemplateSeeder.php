@@ -412,6 +412,29 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        // TASK-1802 (demande Cyril) — un Evenement propose dans une Boucle.
+        //
+        // Pose AUSSI par la migration jumelle
+        // `..._add_loop_event_created_email_template`, qui sert les bases
+        // DEJA installees qu'un seeder ne revisite pas (meme doctrine que
+        // `loop_help_request_created` juste au-dessus). `event_practical_info`
+        // est COMPOSE par `LoopEventMailer` (en-ligne/sur-place/hybride) :
+        // le gabarit administrable n'a pas de conditionnelle.
+        'loop_event_created' => [
+            'name_fr' => 'Nouvel évènement proposé dans une Boucle',
+            'name_en' => 'New event proposed in a Loop',
+            'subject_fr' => '{{ event_title }} — {{ event_date }}',
+            'subject_en' => '{{ event_title }} — {{ event_date }}',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a proposé un nouvel évènement dans la Boucle <strong>{{ loop_name }}</strong> : <strong>{{ event_title }}</strong>, le {{ event_date }}.</p><p>{{ event_practical_info }}</p><p>{{ event_description }}</p><p><a href="{{ event_url }}">Ouvrir la Boucle</a></p><p>Rien ne presse : l’évènement vous attend, vous y répondrez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> proposed a new event in the Loop <strong>{{ loop_name }}</strong>: <strong>{{ event_title }}</strong>, on {{ event_date }}.</p><p>{{ event_practical_info }}</p><p>{{ event_description }}</p><p><a href="{{ event_url }}">Open the Loop</a></p><p>No rush: the event will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'author_name',
+                'organization_name', 'loop_name', 'event_title', 'event_date',
+                'event_description', 'event_practical_info', 'event_url',
+                'preferences_url', 'app_name',
+            ],
+        ],
+
         'loop_invitation' => [
             'name_fr' => 'Invitation à rejoindre une Boucle',
             'name_en' => 'Invitation to join a Loop',

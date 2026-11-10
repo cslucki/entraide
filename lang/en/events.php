@@ -126,7 +126,10 @@ return [
     'error_delete_answered' => 'Members have answered: this event gets cancelled, not deleted.',
 
     // ── ChatLoop ────────────────────────────────────────────────────────────
-    'chat_created' => 'A new event has been proposed: :title',
+    // TASK-1802 — `:date` is already formatted (the event's own timezone),
+    // never a raw date left for the view to interpret.
+    'chat_created' => 'A new event has been proposed: :title (:date)',
+    'chat_created_online_suffix' => ' — Link: :url',
     'chat_updated' => 'The event “:title” has been updated.',
     'chat_cancelled' => 'The event “:title” has been cancelled.',
     'chat_open_card' => 'Open the agenda',
