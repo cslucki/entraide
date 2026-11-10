@@ -599,9 +599,18 @@ final class NotificationEmailDeliverer
 
             // L'AUTEUR du message est l'acteur de la notification — pas le
             // destinataire, qui est la personne mentionnee.
+            //
+            // TASK-1799 (C1) — `with('organization')` : `GabaritEmail::rendre()`
+            // lit `$acteur->organization` (via `EmailerService::availableVariables()`)
+            // pour composer les DEUX rendus (reel + journal). Sans
+            // precharger, cette relation se charge paresseusement — une
+            // requete de plus, par destinataire, pour la MEME Organization
+            // que `compose()` lit deja par ailleurs. Aucun controle
+            // d'autorisation ne s'appuie sur cette relation : seul l'AFFICHAGE
+            // (nom de l'Organization dans le courriel) la consomme.
             $auteur = $notification->actor_id
-                ? User::find((string) $notification->actor_id)
-                : User::find((string) $message->sender_id);
+                ? User::with('organization')->find((string) $notification->actor_id)
+                : User::with('organization')->find((string) $message->sender_id);
 
             // TASK-1799 (A1) — UN SEUL appel rend les deux variantes (reel +
             // copie expurgee pour `email_logs`) a partir d'UNE SEULE
