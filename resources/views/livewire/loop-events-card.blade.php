@@ -91,15 +91,53 @@
             <div class="mt-3 grid gap-3 sm:grid-cols-2">
                 <div>
                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400" for="ev-start">{{ __('events.starts_at') }}</label>
-                    <input id="ev-start" type="datetime-local" wire:model="startsAt"
+                    {{-- `step="900"` (15 min) : la saisie des minutes a la souris
+                         n'offre plus que des quarts d'heure, ce qui regle deja
+                         l'essentiel de l'inconfort pour le DEBUT (demande de
+                         Cyril). --}}
+                    <input id="ev-start" type="datetime-local" step="900" wire:model.live="startsAt"
                            class="mt-1 w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-sky-500 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400" for="ev-end">{{ __('events.ends_at') }}</label>
-                    <input id="ev-end" type="datetime-local" wire:model="endsAt"
-                           class="mt-1 w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-sky-500 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
+                    {{-- TASK-1802 (demande Cyril) — la FIN se choisit comme une
+                         DUREE relative au debut plutot que comme une minute
+                         absolue : `applyDuration()` cote serveur calcule
+                         `$endsAt` tout seul. Le champ de date ne reapparait que
+                         si cette duree deborde sur un autre jour, ou en mode
+                         « dates personnalisees ». --}}
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400" for="ev-duration">{{ __('events.duration') }}</label>
+                    <select id="ev-duration" wire:model.live="duration"
+                            class="mt-1 w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-sky-500 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
+                        <option value="">{{ __('events.duration_none') }}</option>
+                        @foreach ([
+                            '30' => 'events.duration_30',
+                            '60' => 'events.duration_60',
+                            '90' => 'events.duration_90',
+                            '120' => 'events.duration_120',
+                            '180' => 'events.duration_180',
+                            '240' => 'events.duration_240',
+                            '480' => 'events.duration_480',
+                        ] as $valeur => $cle)
+                            <option value="{{ $valeur }}">{{ __($cle) }}</option>
+                        @endforeach
+                        <option value="{{ \App\Livewire\LoopEventsCard::DURATION_CUSTOM }}">{{ __('events.duration_custom') }}</option>
+                    </select>
                 </div>
             </div>
+
+            @if($durationCrossesDay)
+                <div class="mt-3" data-event-ends-at-field>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400" for="ev-end">{{ __('events.ends_at') }}</label>
+                    @if($duration !== \App\Livewire\LoopEventsCard::DURATION_CUSTOM)
+                        {{-- La duree reste la source : ce champ ne fait que MONTRER
+                             la fin qu'elle calcule, parce qu'elle tombe un autre
+                             jour et merite d'etre vue. --}}
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('events.duration_crosses_day') }}</p>
+                    @endif
+                    <input id="ev-end" type="datetime-local" step="900" wire:model.live="endsAt"
+                           class="mt-1 w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-sky-500 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
+                </div>
+            @endif
 
             {{-- Le fuseau est toujours visible : sans lui, « 19:00 » ne veut
                  rien dire. --}}
