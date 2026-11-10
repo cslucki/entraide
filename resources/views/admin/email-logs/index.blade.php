@@ -121,7 +121,12 @@
                                         @endif
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 max-w-xs truncate">
-                                        {{ $log->subject }}
+                                        {{-- Cyril : eviter de defiler jusqu'a "Actions" pour ouvrir le
+                                             detail — le Sujet y mene directement. Le lien "Details" de la
+                                             colonne Actions reste, pour qui prefere ce repere. --}}
+                                        <a href="{{ route('admin.email-logs.show', $log) }}" class="hover:underline hover:text-indigo-600 dark:hover:text-indigo-400">
+                                            {{ $log->subject }}
+                                        </a>
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 max-w-xs truncate">
                                         @php($contexte = $contextes[(string) $log->id] ?? ['label' => '—', 'url' => null, 'url_message' => null])

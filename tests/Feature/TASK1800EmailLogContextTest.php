@@ -686,4 +686,19 @@ class TASK1800EmailLogContextTest extends TestCase
         $response->assertStatus(200);
         $response->assertDontSee('action="'.route('admin.users.login-as', $acteurBanni).'"', false);
     }
+
+    // =====================================================================
+    // Le Sujet mene au detail — Cyril : « eviter de defiler jusqu'a Actions ».
+    // =====================================================================
+
+    public function test_le_sujet_mene_au_detail_de_la_ligne(): void
+    {
+        $log = EmailLog::factory()->create(['subject' => 'Sujet cliquable']);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.email-logs'));
+
+        $response->assertStatus(200);
+        $response->assertSee('href="'.route('admin.email-logs.show', $log).'"', false);
+        $response->assertSeeInOrder(['href="'.route('admin.email-logs.show', $log).'"', 'Sujet cliquable'], false);
+    }
 }
