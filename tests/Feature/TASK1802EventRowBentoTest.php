@@ -415,8 +415,8 @@ class TASK1802EventRowBentoTest extends TestCase
 
         $html = $component->call('toggleAttendees', $event->id)->html();
 
-        $this->assertStringContainsString($this->owner->publicDisplayName(), $html);
-        $this->assertStringNotContainsString($other->publicDisplayName(), $html);
+        $this->assertStringContainsString(e($this->owner->publicDisplayName()), $html);
+        $this->assertStringNotContainsString(e($other->publicDisplayName()), $html);
     }
 
     /**
@@ -440,7 +440,7 @@ class TASK1802EventRowBentoTest extends TestCase
         $this->assertStringContainsString('aria-haspopup="dialog"', $html);
         // ...et le nom est DEJA dans la page : aucun round-trip a attendre
         // pour un simple clic.
-        $this->assertStringContainsString($this->owner->publicDisplayName(), $html);
+        $this->assertStringContainsString(e($this->owner->publicDisplayName()), $html);
         $this->assertStringContainsString('x-teleport="body"', $html);
     }
 
