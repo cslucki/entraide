@@ -231,4 +231,38 @@ class TASK1801LoopsLatestMessagesTest extends TestCase
         $this->assertStringContainsString($avecCommentaire->imageUrl(), $html);
         $this->assertStringContainsString('Regardez ce coucher de soleil', $html);
     }
+
+    /**
+     * TASK-1801 correctif 07 — demande de Cyril : sur smartphone, la barre
+     * mobile doit afficher « Boucles » (pas le repli « BouclePro », cette
+     * route etant absente de `$levelOneTitles` et de la chaine
+     * `$routeTitle` de `mobile-topbar.blade.php`), et le lien « ← Boucles »
+     * propre a cette page doit disparaitre SUR SMARTPHONE SEULEMENT — la
+     * barre mobile porte deja sa propre fleche de retour (inchangee).
+     */
+    public function test_the_mobile_topbar_shows_boucles_and_keeps_its_own_back_arrow(): void
+    {
+        $owner = User::factory()->create(['organization_id' => $this->org->id]);
+        $service = new LoopService;
+        $service->createLoop($owner, 'Boucle A');
+        $service->createLoop($owner, 'Boucle B');
+
+        $html = $this->latestMessagesPage($owner);
+
+        $this->assertStringContainsString(
+            '<h1 class="truncate text-lg font-semibold text-gray-900 dark:text-gray-100 tracking-tight">'.__('navigation.loops').'</h1>',
+            $html,
+        );
+        $this->assertStringContainsString(
+            'data-bp-topbar-back="'.route('organization.loops.index', ['organization' => $this->org->slug]).'"',
+            $html,
+        );
+
+        // Le lien « ← Boucles » PROPRE a la page : cache sur smartphone,
+        // garde pour le bureau (qui n'a pas la barre mobile).
+        $this->assertStringContainsString(
+            'class="hidden md:inline-flex items-center gap-1.5 text-sm text-gray-500',
+            $html,
+        );
+    }
 }

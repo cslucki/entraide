@@ -32,7 +32,12 @@
     <x-slot name="title">{{ __('loops.latest_messages_title') }}</x-slot>
 
     <div class="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:px-8" data-loops-latest-messages-page>
-        <a href="{{ $loopsIndexHref }}" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
+        {{-- TASK-1801 correctif 07 (demande de Cyril) — masque sur
+             smartphone : la barre mobile (`components/mobile-topbar.blade.php`)
+             porte deja SA PROPRE fleche vers `/loops`, double ce lien la
+             rendrait redondant. Le bureau n'a pas cette barre : il garde le
+             sien. --}}
+        <a href="{{ $loopsIndexHref }}" class="hidden md:inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
             &larr; {{ __('loops.index_title') }}
         </a>
 
