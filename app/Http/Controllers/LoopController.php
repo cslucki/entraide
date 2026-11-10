@@ -8,6 +8,7 @@ use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
+use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\Referral;
 use App\Models\User;
@@ -340,10 +341,38 @@ class LoopController extends Controller
         $filterDomains = $loops->pluck('categories')->flatten()->unique('id')
             ->sortBy(fn ($c) => $c->displayName('loops'))->values();
 
+        // TASK-1801 correctif 05 — le bouton « Derniers messages ».
+        //
+        // `is_member` est deja posee par `VisibleLoops::query()` (une
+        // adhesion ACTIVE, quel que soit le role) : proprietaire, animateur
+        // et membre simple s'y melent sans distinction, exactement ce qui
+        // est demande (« dont on est proprietaire/animateur/membre »).
+        // `$loops` ne porte deja QUE des Boucles actives (`status = active`
+        // dans `VisibleLoops`) : une Boucle archivee n'y figure pas, donc pas
+        // davantage dans ses messages.
+        $loopIdsMembre = $loops->where('is_member', true)->pluck('id');
+
+        // Une Boucle sans message n'est simplement pas representee ici — il
+        // n'y a rien a construire pour elle, et la vue n'invente aucune ligne
+        // vide (demande explicite de Cyril : « s'il n'y a pas de messages
+        // dans la boucle, on affiche rien »).
+        $derniersMessages = $loopIdsMembre->isEmpty()
+            ? collect()
+            : LoopMessage::query()
+                ->whereIn('loop_id', $loopIdsMembre)
+                ->where('organization_id', $organizationId)
+                ->whereNotNull('sender_id')
+                ->notDeleted()
+                ->with(['sender', 'loop'])
+                ->latest('created_at')
+                ->limit(3)
+                ->get();
+
         // `organization` part avec le reste : les onglets de type se nomment
         // **dans la portee**, et un type cree par cette Organization doit y
         // avoir son onglet — `all()` sans portee ne le connait pas.
-        return view('loops.index', compact('loops', 'filterDomains', 'archivedLoops', 'organization'))
+        return view('loops.index', compact('loops', 'filterDomains', 'archivedLoops', 'organization', 'derniersMessages'))
+            ->with('aAuMoinsUneBoucle', $loopIdsMembre->isNotEmpty())
             ->with('canCreate', $canCreate);
     }
 

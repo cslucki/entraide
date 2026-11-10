@@ -1630,4 +1630,12 @@ return [
     'member_added_mail_body' => 'Vous avez été ajouté à la Boucle « :loop » sur :organization. Vous en êtes désormais membre.',
     'member_added_mail_cta' => 'Ouvrir la Boucle',
     'member_added_mail_plain_link' => 'Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :',
+
+    // TASK-1801 correctif 05 — le bouton « Derniers messages » de l'inventaire.
+    'latest_messages_button' => 'Derniers messages',
+    'latest_messages_title' => 'Derniers messages',
+    'latest_messages_close' => 'Fermer',
+    'latest_messages_empty_before' => 'Vous n\'êtes membre d\'aucune Boucle, vous pouvez rejoindre une Boucle en cliquant',
+    'latest_messages_empty_link' => 'ici',
+    'latest_messages_empty_after' => '.',
 ];

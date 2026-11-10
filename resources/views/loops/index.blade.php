@@ -4,6 +4,12 @@
         $loopsCreateHref = $organizationRouteParam && request()->routeIs('organization.*')
             ? route('organization.loops.create', ['organization' => $organizationRouteParam])
             : route('loops.create');
+        // TASK-1801 correctif 05 — la cible du lien « rejoindre une Boucle en
+        // cliquant ici » : cette MEME page, pour fermer le popup et la
+        // reafficher (demande explicite de Cyril).
+        $loopsIndexHref = $organizationRouteParam && request()->routeIs('organization.*')
+            ? route('organization.loops.index', ['organization' => $organizationRouteParam])
+            : route('loops.index');
         $loopShowHref = function ($loop) use ($organizationRouteParam) {
             if ($organizationRouteParam && request()->routeIs('organization.*')) {
                 // TASK-1717 — le SLUG dans l'URL org-scopee, l'identifiant en
@@ -74,15 +80,35 @@
     @endphp
 
     <x-slot name="headingActions">
-        @if($canCreate)
-            <a href="{{ $loopsCreateHref }}"
-               class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
+        {{-- Le parent (`x-page`) restreint deja cette rangee au bureau
+             (`hidden md:flex`) : pas besoin de le repeter ici. --}}
+        <div class="flex items-center gap-3">
+            {{-- TASK-1801 correctif 05 — a la GAUCHE du bouton « Nouvelle »,
+                 toujours visible : son propre contenu depend du role (voir
+                 la modale plus bas), pas de la capacite a creer. --}}
+            {{-- `x-data` nu : ce bouton vit dans `headingActions`, HORS du
+                 `x-data="{ q: ... }"` qui enveloppe le reste de la page —
+                 sans scope Alpine propre, `$dispatch` ne serait jamais lie
+                 (meme precedent que `profile/show.blade.php`, bouton photo). --}}
+            <button type="button" x-data
+                    x-on:click="$dispatch('open-modal', 'loops-derniers-messages')"
+                    data-loops-latest-messages-trigger
+                    class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:border-indigo-400 hover:text-indigo-600 rounded-lg transition whitespace-nowrap dark:text-gray-200 dark:bg-gray-800 dark:border-gray-600 dark:hover:text-indigo-400">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/>
                 </svg>
-                <span>{{ __('loops.new') }}</span>
-            </a>
-        @endif
+                <span>{{ __('loops.latest_messages_button') }}</span>
+            </button>
+            @if($canCreate)
+                <a href="{{ $loopsCreateHref }}"
+                   class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    <span>{{ __('loops.new') }}</span>
+                </a>
+            @endif
+        </div>
     </x-slot>
 
     {{-- `mine` : TASK-1788 correctif 06. Un troisieme choix du meme selecteur,
@@ -99,8 +125,24 @@
              vide et sa marge — la place qu'on vient justement de reprendre. La
              cle `loops.collaboration_spaces` reste definie, ce correctif etant
              un changement d'ecran et non un menage de lexique. --}}
-        @if($canCreate)
-            <div class="md:hidden flex items-center justify-end gap-3 mb-6">
+        {{-- TASK-1801 correctif 05 — « Derniers messages » rejoint « Nouvelle »
+             ici, a sa GAUCHE : le bloc ne depend donc plus de `$canCreate`
+             seul, il reste rendu pour qui ne peut que lire. --}}
+        <div class="md:hidden flex items-center justify-end gap-3 mb-6">
+            {{-- `x-data` nu : ce bouton vit dans `headingActions`, HORS du
+                 `x-data="{ q: ... }"` qui enveloppe le reste de la page —
+                 sans scope Alpine propre, `$dispatch` ne serait jamais lie
+                 (meme precedent que `profile/show.blade.php`, bouton photo). --}}
+            <button type="button" x-data
+                    x-on:click="$dispatch('open-modal', 'loops-derniers-messages')"
+                    data-loops-latest-messages-trigger-mobile
+                    class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:border-indigo-400 hover:text-indigo-600 rounded-lg transition whitespace-nowrap dark:text-gray-200 dark:bg-gray-800 dark:border-gray-600 dark:hover:text-indigo-400">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/>
+                </svg>
+                <span>{{ __('loops.latest_messages_button') }}</span>
+            </button>
+            @if($canCreate)
                 <a href="{{ $loopsCreateHref }}"
                    data-loops-new-mobile
                    class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
@@ -109,8 +151,8 @@
                     </svg>
                     <span>{{ __('loops.new') }}</span>
                 </a>
-            </div>
-        @endif
+            @endif
+        </div>
 
         @if(session('success'))
             <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
@@ -304,4 +346,50 @@
             </details>
         @endif
     </div>
+
+    {{-- TASK-1801 correctif 05 — « Derniers messages ». Trois etats, et un
+         seul composant : le QUATRIEME (« rien a afficher » pour qui est
+         membre mais dont aucune Boucle n'a de message) ne rend rien de plus
+         ici, a dessein — demande explicite de Cyril. --}}
+    <x-modal name="loops-derniers-messages" max-width="lg">
+        <div class="p-6">
+            <div class="mb-4 flex items-start justify-between gap-4">
+                <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ __('loops.latest_messages_title') }}</h2>
+                <button type="button" x-on:click="$dispatch('close-modal', 'loops-derniers-messages')"
+                        aria-label="{{ __('loops.latest_messages_close') }}"
+                        class="-mr-1 -mt-1 shrink-0 rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            @if(! ($aAuMoinsUneBoucle ?? false))
+                {{-- Personne membre d'aucune Boucle : le lien ferme ce popup
+                     EN NAVIGUANT vers cette meme page (demande de Cyril). --}}
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    {{ __('loops.latest_messages_empty_before') }}
+                    <a href="{{ $loopsIndexHref }}"
+                       x-on:click="$dispatch('close-modal', 'loops-derniers-messages')"
+                       class="font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('loops.latest_messages_empty_link') }}</a>{{ __('loops.latest_messages_empty_after') }}
+                </p>
+            @elseif(($derniersMessages ?? collect())->isNotEmpty())
+                <ul class="space-y-4">
+                    @foreach($derniersMessages as $message)
+                        <li class="flex gap-3" data-loops-latest-message-row="{{ $message->id }}">
+                            <img src="{{ $message->sender->avatar_url }}" alt=""
+                                 class="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-600">
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-baseline gap-x-2">
+                                    <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $message->sender->publicDisplayName() }}</span>
+                                    <a href="{{ $loopShowHref($message->loop) }}"
+                                       class="text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ $message->loop->name }}</a>
+                                    <span class="text-xs text-gray-400 dark:text-gray-500">{{ $message->created_at->isoFormat('D MMM, HH:mm') }}</span>
+                                </div>
+                                <p class="mt-0.5 break-words text-sm text-gray-600 dark:text-gray-300">{{ Str::limit(trim((string) $message->body), 140) }}</p>
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+    </x-modal>
 </x-page>
