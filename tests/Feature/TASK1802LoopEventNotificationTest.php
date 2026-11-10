@@ -85,7 +85,13 @@ class TASK1802LoopEventNotificationTest extends TestCase
     /** @param array<string, mixed> $overrides */
     private function creerEvenement(array $overrides = []): LoopEvent
     {
-        return app(LoopEventService::class)->create($this->auteur, $this->boucle, array_merge([
+        return $this->creerEvenementPar($this->auteur, $overrides);
+    }
+
+    /** @param array<string, mixed> $overrides */
+    private function creerEvenementPar(User $createur, array $overrides = []): LoopEvent
+    {
+        return app(LoopEventService::class)->create($createur, $this->boucle, array_merge([
             'title' => 'Atelier compost',
             'description' => 'On apprend à faire son compost ensemble.',
             'format' => LoopEvent::FORMAT_IN_PERSON,
@@ -100,7 +106,12 @@ class TASK1802LoopEventNotificationTest extends TestCase
 
     private function annoncer(LoopEvent $event, string $kind = 'created'): LoopMessage
     {
-        return app(LoopMessageService::class)->sendEventMessage($this->boucle, $this->auteur, $event, $kind);
+        // Le createur reel de l'Evenement, pas systematiquement `$this->
+        // auteur` : la production envoie toujours le message AU NOM de qui a
+        // agi (`LoopEventsCard::save()` -> `$this->user()`), jamais un tiers.
+        $createur = User::find($event->created_by) ?? $this->auteur;
+
+        return app(LoopMessageService::class)->sendEventMessage($this->boucle, $createur, $event, $kind);
     }
 
     /** @return \Illuminate\Database\Eloquent\Collection<int, MemberNotification> */
@@ -123,6 +134,81 @@ class TASK1802LoopEventNotificationTest extends TestCase
             0,
             $this->notificationsDeLEvenement()->where('recipient_id', $this->auteur->id)->count(),
             "l'auteur ne doit pas être prévenu de son propre évènement",
+        );
+    }
+
+    public function test_un_membre_simple_propose_aussi_une_notification_a_tous(): void
+    {
+        // `config/loop_permissions.php` : `events.create` n'est PAS reservee
+        // au proprietaire/animateur — « Tout membre actif le peut par
+        // defaut ». La notification ne doit donc JAMAIS discriminer selon le
+        // role de l'auteur : elle traite un evenement propose par un membre
+        // simple exactement comme un propose par le proprietaire.
+        $autreMembre = User::factory()->create(['organization_id' => $this->organization->id]);
+        LoopMember::create([
+            'loop_id' => $this->boucle->id,
+            'user_id' => $autreMembre->id,
+            'organization_id' => $this->organization->id,
+            'role' => 'member',
+            'status' => 'active',
+            'joined_at' => now(),
+        ]);
+
+        $service = app(LoopEventService::class);
+        $this->assertTrue(
+            $service->canCreate($this->membre, $this->boucle),
+            'un membre simple doit pouvoir proposer un Evenement par defaut',
+        );
+
+        $event = $this->creerEvenementPar($this->membre);
+        $this->annoncer($event);
+
+        $notifications = $this->notificationsDeLEvenement();
+
+        $this->assertCount(2, $notifications, 'le proprietaire ET l\'autre membre doivent être prévenus');
+        $this->assertContains($this->auteur->id, $notifications->pluck('recipient_id')->all());
+        $this->assertContains($autreMembre->id, $notifications->pluck('recipient_id')->all());
+        $this->assertNotContains(
+            $this->membre->id,
+            $notifications->pluck('recipient_id')->all(),
+            "l'auteur (membre simple) ne doit pas être prévenu de son propre évènement",
+        );
+    }
+
+    /**
+     * Mesure en recette (10/11, jumeau PROD) : une ligne `loop_members`
+     * ACTIVE peut survivre au depart de son titulaire vers une AUTRE
+     * Organization. Sans garde, `NotificationEmitter::emit()` refuse ce
+     * destinataire (fail-closed sur la frontiere de tenant) et son exception,
+     * non rattrapee, annulait la transaction ENTIERE de `sendEventMessage()`
+     * — ni message ChatLoop, ni notification pour PERSONNE, a cause d'UNE
+     * seule ligne perimee.
+     */
+    public function test_un_membre_dont_l_organization_a_change_ne_casse_pas_toute_lannonce(): void
+    {
+        $parti = User::factory()->create(['organization_id' => Organization::factory()->create(['is_active' => true])->id]);
+        // Ligne perimee : toujours ACTIVE dans la Boucle, avec l'ANCIENNE
+        // Organization figee sur la ligne `loop_members`, alors que
+        // `users.organization_id` pointe desormais ailleurs.
+        LoopMember::create([
+            'loop_id' => $this->boucle->id,
+            'user_id' => $parti->id,
+            'organization_id' => $this->organization->id,
+            'role' => 'member',
+            'status' => 'active',
+            'joined_at' => now(),
+        ]);
+
+        $message = $this->annoncer($this->creerEvenement());
+
+        $this->assertNotNull($message->id, 'le message ChatLoop doit exister malgre la ligne perimee');
+        $notifications = $this->notificationsDeLEvenement();
+        $this->assertCount(1, $notifications, 'le membre toujours dans la bonne Organization doit être prévenu');
+        $this->assertSame($this->membre->id, $notifications->first()->recipient_id);
+        $this->assertNotContains(
+            $parti->id,
+            $notifications->pluck('recipient_id')->all(),
+            "le membre parti vers une autre Organization ne doit pas recevoir de notification",
         );
     }
 

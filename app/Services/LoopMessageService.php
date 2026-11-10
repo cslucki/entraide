@@ -507,6 +507,19 @@ class LoopMessageService
                     ->where('status', 'active')
                     ->pluck('user_id'),
             )
+            // Mesure en recette (10/11, jumeau PROD) : une adhesion ACTIVE
+            // peut survivre au depart de son titulaire vers une AUTRE
+            // Organization (ligne `loop_members` non nettoyee). `emit()`
+            // refuse alors ce destinataire — a raison, fail-closed sur la
+            // frontiere de tenant (`NotificationInvariants::
+            // assertBelongsToOrganization()`) — mais son exception, non
+            // rattrapee ICI, remontait jusqu'a la transaction de
+            // `sendEventMessage()` et l'annulait ENTIERE : plus personne
+            // n'etait prevenu, pas meme le message ChatLoop, pour UNE seule
+            // ligne perimee. Le filtre se pose donc AVANT l'emission, sur
+            // l'organization COURANTE de la personne — jamais celle, figee,
+            // de `loop_members`.
+            ->where('organization_id', $loop->organization_id)
             ->whereKeyNot($auteur->getKey())
             ->get();
 
