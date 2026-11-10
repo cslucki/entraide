@@ -567,9 +567,18 @@
                                  resolus ICI sans requete : `$nomsPourMentions`
                                  est deja en memoire. La bulle ne cherche rien,
                                  sinon chaque message ferait sa requete. --}}
+                            {{-- TASK-1797 — le token `@tous` se met en valeur
+                                 EXACTEMENT comme une mention nominative : on
+                                 pousse le mot-cle litteral dans la meme liste,
+                                 la bulle ne sait pas la difference. --}}
                             :mention-names="collect($msg->metadata['mentions'] ?? [])
                                 ->map(fn ($id) => $nomsPourMentions[$id] ?? null)
-                                ->filter()->values()->all()"
+                                ->filter()
+                                ->when(
+                                    $msg->metadata['mention_all'] ?? false,
+                                    fn ($c) => $c->push(\App\Livewire\LoopChat::MENTION_ALL_TOKEN),
+                                )
+                                ->values()->all()"
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
@@ -969,6 +978,12 @@
             {{-- TASK-1772 — SEUL le ChatLoop passe cette prop : la Messagerie
                  et le chat agent n'ont pas de menu `@`, et c'est voulu. --}}
             :mentionables="$mentionables"
+            {{-- TASK-1797 — `false` pour tout le monde sauf le proprietaire et
+                 l'animateur de CETTE Boucle (voir le docblock de la propriete
+                 dans `LoopChat`). N'autorise rien a elle seule : l'affichage
+                 seul, l'autorisation reelle est re-controlee au serveur a
+                 l'envoi. --}}
+            :can-mention-all="$peutMentionnerTous"
             :photo="$photo ?? null"
             {{-- TASK-1621 — le composeur ne rend PLUS de pastille de mode, pour
                  AUCUN moteur.

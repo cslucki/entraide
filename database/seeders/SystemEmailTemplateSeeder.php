@@ -363,6 +363,26 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        // TASK-1797 — la mention COLLECTIVE (`@tous`), gabarit DISTINCT du
+        // precedent pour la meme raison que le sujet distinct de
+        // `notifications.keys_named` : « vous a mentionné » serait une
+        // interpellation nominative abusive quand personne n'a ete nomme.
+        // MEME liste de variables que `loop_mention_created` — aucune
+        // nouvelle variable n'etait necessaire, seul le texte change.
+        'loop_mention_all_created' => [
+            'name_fr' => 'Mention collective dans une Boucle',
+            'name_en' => 'Collective mention in a Loop',
+            'subject_fr' => '{{ author_name }} a mentionné tous les membres de « {{ loop_name }} »',
+            'subject_en' => '{{ author_name }} mentioned all the members of “{{ loop_name }}”',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a mentionné <strong>tous les membres</strong> de la Boucle <strong>{{ loop_name }}</strong>, dont vous.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Lire le message dans la Boucle</a></p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned <strong>all the members</strong> of the Loop <strong>{{ loop_name }}</strong>, including you.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Read the message in the Loop</a></p><p>No rush: the message will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'organization_name',
+                'loop_name', 'author_name', 'message_url', 'message_excerpt',
+                'preferences_url', 'app_name',
+            ],
+        ],
+
         'loop_join_request_created' => [
             'name_fr' => 'Demande pour rejoindre une Boucle',
             'name_en' => 'Request to join a Loop',

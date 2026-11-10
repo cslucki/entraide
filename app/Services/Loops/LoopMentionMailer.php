@@ -36,6 +36,17 @@ final class LoopMentionMailer
     public const SLUG = 'loop_mention_created';
 
     /**
+     * TASK-1797 — le gabarit de la mention COLLECTIVE.
+     *
+     * Un slug distinct, pas une variante du meme texte : « {{ author_name }}
+     * vous a mentionné » serait une interpellation nominative abusive quand
+     * `@tous` a ete employe — personne n'a ete nomme. Meme `notification_key`
+     * (`LOOP_MENTION_CREATED`), meme destinataire, meme evenement — seul le
+     * TEXTE differe, et c'est tout ce que ce second gabarit porte.
+     */
+    public const SLUG_TOUS = 'loop_mention_all_created';
+
+    /**
      * Ce que le courriel reprend du message, au plus.
      *
      * Le but est de pouvoir LIRE la phrase sans ouvrir l'application — pas de
@@ -116,8 +127,15 @@ final class LoopMentionMailer
                     ? route('organization.notifications.preferences.edit', ['organization' => $organization])
                     : route('notifications.preferences.edit'));
 
+            // TASK-1797 — le slug depend du FAIT, pas d'un choix de
+            // l'appelant : `mention_all` est pose sur le message lui-meme
+            // par `LoopMessageService`/`LoopChat`, donc identique pour TOUS
+            // ses destinataires, qu'ils soient lus a l'instant de l'envoi ou
+            // rejoues plus tard par un worker.
+            $slug = ($message->metadata['mention_all'] ?? false) ? self::SLUG_TOUS : self::SLUG;
+
             return app(GabaritEmail::class)->rendre(
-                slug: self::SLUG,
+                slug: $slug,
                 organizationId: (string) $message->organization_id,
                 langue: $langue,
                 sender: $acteur,
@@ -143,14 +161,14 @@ final class LoopMentionMailer
                 // serait relu comme un jeton. Et il est echappe a la main,
                 // parce que ce chemin-la ne traverse pas `interpolate()`.
                 repli: fn () => [
-                    'subject' => __('notifications.email.'.self::SLUG.'.subject'),
+                    'subject' => __('notifications.email.'.$slug.'.subject'),
                     'html' => str_replace(
                         ':extrait',
                         e($extrait),
                         str_replace(
                             [':url', ':reglages'],
                             [$url, $urlReglages],
-                            (string) __('notifications.email.'.self::SLUG.'.body'),
+                            (string) __('notifications.email.'.$slug.'.body'),
                         ),
                     ),
                 ],

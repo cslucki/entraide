@@ -868,6 +868,18 @@ return [
     'composer_more_actions' => 'Plus d\'actions',
     // TASK-1772 — refus explicite, jamais une troncature.
     'mentions_too_many' => 'Vous ne pouvez mentionner que :max personnes dans un même message.',
+    // TASK-1797 — la mention collective. `mention_all_unauthorized` est le
+    // refus EXPLICITE (`addError`) : aucun message publié, aucune
+    // notification émise. `mention_all_option` est le libellé de l'entrée
+    // du menu `@`, jamais vu par un membre ordinaire. Les trois suivantes
+    // portent la confirmation avant envoi (§7 du CDC) : `:count` est
+    // demandé aux membres éligibles RÉELS, jamais annoncé comme un nombre
+    // d'e-mails qui partiront forcément.
+    'mention_all_unauthorized' => 'Seuls le propriétaire et l\'animateur de cette Boucle peuvent mentionner tous les membres.',
+    'mention_all_option' => 'Tous les membres',
+    'mention_all_confirm_body' => 'Vous allez mentionner tous les membres de cette Boucle. Jusqu\'à :count autres membres pourront être notifiés selon leurs préférences.',
+    'mention_all_confirm_cancel' => 'Annuler',
+    'mention_all_confirm_send' => 'Envoyer',
     'composer_add_image' => 'Ajouter une image',
     // TASK-1684 : le fichier va dans le Dossier de la Boucle, pas dans le message.
     'composer_add_file' => 'Ajouter un fichier',
