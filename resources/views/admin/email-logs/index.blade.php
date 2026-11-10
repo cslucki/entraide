@@ -73,10 +73,16 @@
                                     Date
                                 </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Expéditeur
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Destinataire
                                 </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Sujet
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Contexte
                                 </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Template
@@ -96,15 +102,46 @@
                                         {{ $log->created_at->format('d/m/Y H:i') }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                        @php($expediteur = ($contextes[(string) $log->id] ?? [])['expediteur'] ?? null)
+                                        @if($expediteur)
+                                            <span class="block text-xs text-gray-700 dark:text-gray-300">{{ $expediteur->full_name }}</span>
+                                            <span class="block text-xs text-gray-500 dark:text-gray-500 truncate max-w-[160px]">{{ $expediteur->email }}</span>
+                                            @include('admin.messages.partials.se-connecter-sous', ['utilisateur' => $expediteur])
+                                        @else
+                                            <span class="text-xs text-gray-400 italic">Système</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                                         {{ $log->to_email }}
                                         @if($log->user)
                                             <span class="block text-xs text-gray-500 dark:text-gray-500">
                                                 {{ $log->user->fullName }}
                                             </span>
+                                            @include('admin.messages.partials.se-connecter-sous', ['utilisateur' => $log->user])
                                         @endif
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 max-w-xs truncate">
-                                        {{ $log->subject }}
+                                        {{-- Cyril : eviter de defiler jusqu'a "Actions" pour ouvrir le
+                                             detail — le Sujet y mene directement. Le lien "Details" de la
+                                             colonne Actions reste, pour qui prefere ce repere. --}}
+                                        <a href="{{ route('admin.email-logs.show', $log) }}" class="hover:underline hover:text-indigo-600 dark:hover:text-indigo-400">
+                                            {{ $log->subject }}
+                                        </a>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 max-w-xs truncate">
+                                        @php($contexte = $contextes[(string) $log->id] ?? ['label' => '—', 'url' => null, 'url_message' => null])
+                                        @if($contexte['url'])
+                                            <a href="{{ $contexte['url'] }}" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 hover:underline">
+                                                {{ $contexte['label'] }}
+                                            </a>
+                                        @else
+                                            {{ $contexte['label'] }}
+                                        @endif
+                                        @if($contexte['url_message'] ?? null)
+                                            <a href="{{ $contexte['url_message'] }}" class="block text-xs text-indigo-500 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 hover:underline">
+                                                Voir le message
+                                            </a>
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                         {{ $log->template?->name ?? '-' }}
@@ -129,7 +166,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                    <td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                                         Aucun email trouvé.
                                     </td>
                                 </tr>
