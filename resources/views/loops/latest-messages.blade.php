@@ -6,6 +6,22 @@
     ou cette personne est membre et qui porte au moins un message, chacune
     listant ses 3 messages humains les plus recents (avatar, nom, date et
     heure), chacun cliquable pour aller DIRECTEMENT au message dans la Boucle.
+
+    TASK-1801 correctif 08 (demande de Cyril) — cette page est une
+    SOUS-PAGE de « Boucles » : elle gagne donc la meme barre de navigation
+    qu'une sous-page sur BUREAU (`<x-page-topbar>`, deja posee pour dix
+    autres ecrans par TASK-1749 — favoris, points, profil...), au lieu d'un
+    `<h1>` et d'un lien de retour fait a la main. Sur smartphone, rien ne
+    change : `<x-page-topbar>` est `hidden md:flex` par construction, la
+    barre mobile (correctif 07) reste la seule a s'afficher.
+
+    TASK-1801 correctif 08 (suite, precision de Cyril) — la barre de
+    sous-page porte « Boucles » (`$heading`, section PARENTE), pas
+    « Derniers messages » : c'est la MEME etiquette que le `back-label` et
+    que la barre mobile. Le titre PROPRE a cette page, « Derniers
+    messages », redevient un `<h1>` dans le corps — mais SEULEMENT sur
+    bureau (`hidden md:block`) : sur smartphone, la barre mobile l'a deja
+    dit a sa maniere (correctif 07), et ce `<h1>` y ferait doublon.
 --}}
 @php
     $_org = request()->route('organization');
@@ -28,27 +44,20 @@
     };
 @endphp
 
-<x-app-layout>
-    <x-slot name="title">{{ __('loops.latest_messages_title') }}</x-slot>
-
-    <div class="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:px-8" data-loops-latest-messages-page>
-        {{-- TASK-1801 correctif 07 (demande de Cyril) — masque sur
-             smartphone : la barre mobile (`components/mobile-topbar.blade.php`)
-             porte deja SA PROPRE fleche vers `/loops`, double ce lien la
-             rendrait redondant. Le bureau n'a pas cette barre : il garde le
-             sien. --}}
-        <a href="{{ $loopsIndexHref }}" class="hidden md:inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
-            &larr; {{ __('loops.index_title') }}
-        </a>
-
-        <h1 class="mt-3 text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+<x-page :title="__('loops.latest_messages_title')"
+        :heading="__('loops.index_title')"
+        :back="$loopsIndexHref"
+        :back-label="__('loops.index_title')"
+        width="3xl">
+    <div data-loops-latest-messages-page>
+        <h1 class="hidden md:block mb-6 text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
             {{ __('loops.latest_messages_title') }}
         </h1>
 
         @if(! $aAuMoinsUneBoucle)
             {{-- Personne membre d'aucune Boucle : le lien renvoie sur CETTE
                  meme liste de Boucles (demande explicite de Cyril). --}}
-            <p class="mt-6 text-sm text-gray-600 dark:text-gray-400">
+            <p class="text-sm text-gray-600 dark:text-gray-400">
                 {{ __('loops.latest_messages_empty_before') }}
                 <a href="{{ $loopsIndexHref }}"
                    class="font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('loops.latest_messages_empty_link') }}</a>{{ __('loops.latest_messages_empty_after') }}
@@ -57,7 +66,7 @@
             {{-- Une Boucle membre mais sans aucun message n'a simplement pas
                  de section : rien a construire pour elle (demande explicite
                  de Cyril, « on affiche rien »). --}}
-            <div class="mt-6 space-y-6">
+            <div class="space-y-6">
                 @foreach($loopsAvecMessages as $entree)
                     @php($boucle = $entree['loop'])
                     <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800" data-loops-latest-messages-section="{{ $boucle->id }}">
@@ -108,4 +117,4 @@
             </div>
         @endif
     </div>
-</x-app-layout>
+</x-page>

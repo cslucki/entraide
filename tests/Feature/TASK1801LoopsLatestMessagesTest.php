@@ -257,12 +257,63 @@ class TASK1801LoopsLatestMessagesTest extends TestCase
             'data-bp-topbar-back="'.route('organization.loops.index', ['organization' => $this->org->slug]).'"',
             $html,
         );
+    }
 
-        // Le lien « ← Boucles » PROPRE a la page : cache sur smartphone,
-        // garde pour le bureau (qui n'a pas la barre mobile).
+    /**
+     * TASK-1801 correctif 08 — demande de Cyril : cette page est une
+     * SOUS-PAGE de « Boucles », elle doit donc porter la MEME barre de
+     * navigation qu'une sous-page sur BUREAU (`<x-page-topbar>`, TASK-1749)
+     * — pas un `<h1>` et un lien de retour faits a la main. Sur smartphone,
+     * rien ne change : ce composant est `hidden md:flex` par construction,
+     * la barre mobile (correctif 07) reste la seule a s'afficher.
+     *
+     * Precision de Cyril (suite) — la barre de sous-page porte « Boucles »,
+     * la section PARENTE (meme etiquette que le back-label et que la barre
+     * mobile), pas « Derniers messages ». Le titre PROPRE a cette page
+     * redevient un `<h1>` dans le corps, mais seulement sur bureau.
+     */
+    public function test_the_desktop_topbar_matches_other_loop_sub_pages(): void
+    {
+        $owner = User::factory()->create(['organization_id' => $this->org->id]);
+        $service = new LoopService;
+        $service->createLoop($owner, 'Boucle A');
+        $service->createLoop($owner, 'Boucle B');
+
+        $html = $this->latestMessagesPage($owner);
+
+        $this->assertStringContainsString('data-page-topbar', $html);
         $this->assertStringContainsString(
-            'class="hidden md:inline-flex items-center gap-1.5 text-sm text-gray-500',
+            'href="'.route('organization.loops.index', ['organization' => $this->org->slug]).'" data-page-topbar-back',
             $html,
         );
+        $this->assertStringContainsString(
+            '<span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100" data-page-topbar-title>'.__('loops.index_title').'</span>',
+            $html,
+        );
+
+        // L'ancien lien « ← Boucles » fait a la main a disparu : la barre
+        // de sous-page le remplace, desktop comme mobile.
+        $this->assertStringNotContainsString('&larr;', $html);
+    }
+
+    /**
+     * TASK-1801 correctif 08 (suite, precision de Cyril) — le titre PROPRE
+     * a cette page, « Derniers messages », reste visible dans le corps de
+     * la page (un `<h1>`), mais SEULEMENT sur bureau : sur smartphone la
+     * barre mobile (correctif 07) l'a deja dit a sa maniere.
+     */
+    public function test_the_page_keeps_its_own_title_as_a_desktop_only_heading(): void
+    {
+        $owner = User::factory()->create(['organization_id' => $this->org->id]);
+        $service = new LoopService;
+        $service->createLoop($owner, 'Boucle A');
+
+        $html = $this->latestMessagesPage($owner);
+
+        $this->assertStringContainsString(
+            '<h1 class="hidden md:block mb-6 text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">',
+            $html,
+        );
+        $this->assertStringContainsString(__('loops.latest_messages_title'), $html);
     }
 }
