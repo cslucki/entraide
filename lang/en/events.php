@@ -11,6 +11,8 @@ return [
     'empty_hint' => 'Propose a meeting: members will say whether they are coming.',
     'view_list' => 'List',
     'view_calendar' => 'Calendar',
+    'view_week' => 'Week',
+    'view_month' => 'Month',
     'previous_month' => 'Previous month',
     'next_month' => 'Next month',
     'today' => 'Today',

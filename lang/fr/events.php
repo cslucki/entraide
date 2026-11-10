@@ -11,6 +11,8 @@ return [
     'empty_hint' => 'Propose une rencontre : les membres diront s\'ils viennent.',
     'view_list' => 'Liste',
     'view_calendar' => 'Calendrier',
+    'view_week' => 'Semaine',
+    'view_month' => 'Mois',
     'previous_month' => 'Mois précédent',
     'next_month' => 'Mois suivant',
     'today' => 'Aujourd\'hui',

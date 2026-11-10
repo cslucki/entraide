@@ -220,50 +220,92 @@
     {{-- ── Vue calendrier ─────────────────────────────────────────────── --}}
     @if($view === 'calendar')
         <div class="rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
-            <div class="flex items-center justify-between gap-2">
-                <button type="button" wire:click="shiftMonth(-1)"
-                        class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 dark:hover:bg-gray-800"
-                        aria-label="{{ __('events.previous_month') }}">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
-                </button>
-                <p class="text-sm font-semibold capitalize text-gray-900 dark:text-gray-100">{{ $calendar['label'] ?? '' }}</p>
-                <button type="button" wire:click="shiftMonth(1)"
-                        class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 dark:hover:bg-gray-800"
-                        aria-label="{{ __('events.next_month') }}">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
-                </button>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                    <button type="button" wire:click="{{ $calendarGranularity === 'week' ? 'shiftWeek(-1)' : 'shiftMonth(-1)' }}"
+                            class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 dark:hover:bg-gray-800"
+                            aria-label="{{ __('events.previous_month') }}">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+                    </button>
+                    <p class="min-w-0 text-sm font-semibold capitalize text-gray-900 dark:text-gray-100">{{ $calendar['label'] ?? '' }}</p>
+                    <button type="button" wire:click="{{ $calendarGranularity === 'week' ? 'shiftWeek(1)' : 'shiftMonth(1)' }}"
+                            class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 dark:hover:bg-gray-800"
+                            aria-label="{{ __('events.next_month') }}">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+                    </button>
+                </div>
+
+                {{-- TASK-1802 (demande Cyril, 10/11) — « possibilite via un
+                     menu de selectionner semaine ou mois ». --}}
+                <div class="inline-flex rounded-lg border border-gray-200 p-0.5 dark:border-gray-700">
+                    @foreach(['week' => __('events.view_week'), 'month' => __('events.view_month')] as $granularity => $label)
+                        <button type="button" wire:click="setCalendarGranularity('{{ $granularity }}')"
+                                class="rounded-md px-2 py-1 text-[11px] font-semibold transition {{ $calendarGranularity === $granularity
+                                    ? 'bg-sky-600 text-white'
+                                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800' }}">
+                            {{ $label }}
+                        </button>
+                    @endforeach
+                </div>
             </div>
 
-            {{-- La grille deborde plutot que d'ecraser les jours : une semaine
-                 tient sur sept colonnes lisibles, ou elle defile. --}}
-            <div class="mt-2 overflow-x-auto">
-                <table class="w-full min-w-[22rem] table-fixed border-collapse">
-                    <thead>
-                        <tr>
-                            @foreach(['L', 'M', 'M', 'J', 'V', 'S', 'D'] as $dayLabel)
-                                <th class="pb-1 text-center text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">{{ $dayLabel }}</th>
-                            @endforeach
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($calendar['weeks'] ?? [] as $week)
+            @if($calendarGranularity === 'week')
+                {{-- Sept colonnes larges : assez de place pour l'heure et le
+                     titre complets, pas seulement une pastille tronquee. --}}
+                <div class="mt-2 grid grid-cols-7 gap-1 overflow-x-auto">
+                    @foreach($calendar['days'] ?? [] as $day)
+                        <div class="min-w-[6.5rem] rounded-lg border border-gray-100 p-1.5 dark:border-gray-800 {{ $day['is_today'] ? 'bg-sky-50/60 dark:bg-sky-900/10' : '' }}">
+                            <p class="text-[10px] font-semibold uppercase {{ $day['is_today'] ? 'text-sky-600 dark:text-sky-300' : 'text-gray-400 dark:text-gray-500' }}">
+                                {{ $day['date']->translatedFormat('D j') }}
+                            </p>
+                            <div class="mt-1 space-y-1">
+                                @foreach($day['events'] as $dayEvent)
+                                    <button type="button" wire:click="openEventDetail('{{ $dayEvent['id'] }}')"
+                                            class="block w-full truncate rounded px-1 py-0.5 text-left text-[10px] leading-4 {{ $dayEvent['is_cancelled']
+                                                ? 'bg-gray-100 text-gray-500 line-through dark:bg-gray-800 dark:text-gray-400'
+                                                : 'bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:hover:bg-sky-900/60' }}"
+                                            title="{{ $dayEvent['title'] }}">
+                                        <span class="font-semibold">{{ $dayEvent['starts_local']->format('H:i') }}</span>
+                                        {{ $dayEvent['title'] }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                {{-- La grille deborde plutot que d'ecraser les jours : une
+                     semaine tient sur sept colonnes lisibles, ou elle defile. --}}
+                <div class="mt-2 overflow-x-auto">
+                    <table class="w-full min-w-[22rem] table-fixed border-collapse">
+                        <thead>
                             <tr>
-                                @foreach($week as $day)
-                                    <td class="h-14 border border-gray-100 p-0.5 align-top dark:border-gray-800 {{ $day['in_month'] ? '' : 'opacity-40' }}">
-                                        <span class="block text-right text-[10px] {{ $day['is_today'] ? 'font-bold text-sky-600 dark:text-sky-300' : 'text-gray-400 dark:text-gray-500' }}">{{ $day['day'] }}</span>
-                                        @foreach($day['events'] as $dayEvent)
-                                            <span class="mt-0.5 block truncate rounded px-1 text-[10px] leading-4 {{ $dayEvent['is_cancelled']
-                                                    ? 'bg-gray-100 text-gray-500 line-through dark:bg-gray-800 dark:text-gray-400'
-                                                    : 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200' }}"
-                                                  title="{{ $dayEvent['title'] }}">{{ $dayEvent['title'] }}</span>
-                                        @endforeach
-                                    </td>
+                                @foreach(['L', 'M', 'M', 'J', 'V', 'S', 'D'] as $dayLabel)
+                                    <th class="pb-1 text-center text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">{{ $dayLabel }}</th>
                                 @endforeach
                             </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            @foreach($calendar['weeks'] ?? [] as $week)
+                                <tr>
+                                    @foreach($week as $day)
+                                        <td class="h-14 border border-gray-100 p-0.5 align-top dark:border-gray-800 {{ $day['in_month'] ? '' : 'opacity-40' }}">
+                                            <span class="block text-right text-[10px] {{ $day['is_today'] ? 'font-bold text-sky-600 dark:text-sky-300' : 'text-gray-400 dark:text-gray-500' }}">{{ $day['day'] }}</span>
+                                            @foreach($day['events'] as $dayEvent)
+                                                <button type="button" wire:click="openEventDetail('{{ $dayEvent['id'] }}')"
+                                                        class="mt-0.5 block w-full truncate rounded px-1 text-left text-[10px] leading-4 {{ $dayEvent['is_cancelled']
+                                                        ? 'bg-gray-100 text-gray-500 line-through dark:bg-gray-800 dark:text-gray-400'
+                                                        : 'bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:hover:bg-sky-900/60' }}"
+                                                        title="{{ $dayEvent['title'] }}">{{ $dayEvent['title'] }}</button>
+                                            @endforeach
+                                        </td>
+                                    @endforeach
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
         </div>
     @endif
 
@@ -285,6 +327,32 @@
                 @endforeach
             @endif
         @endforeach
+    @endif
+
+    {{-- ── Detail d'un evenement (depuis le calendrier) ─────────────────────
+         TASK-1802 (demande Cyril, 10/11) — « quand on clique sur un
+         evenement on voit son detail ». Meme partiel que la vue liste : un
+         clic dans le calendrier n'en montre pas moins qu'une ligne de liste. --}}
+    @if($selectedEvent)
+        <template x-teleport="body">
+            <div class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4"
+                 x-on:keydown.escape.window="$wire.closeEventDetail()"
+                 x-on:click.self="$wire.closeEventDetail()"
+                 role="dialog" aria-modal="true">
+                <div class="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-1 shadow-xl dark:bg-gray-800">
+                    <div class="flex items-center justify-end p-2">
+                        <button type="button" wire:click="closeEventDetail"
+                                class="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                aria-label="{{ __('events.cancel') }}">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    <div class="px-3 pb-3">
+                        @include('loops.partials.event-row', ['event' => $selectedEvent, 'canPublishOrg' => $canPublishOrg])
+                    </div>
+                </div>
+            </div>
+        </template>
     @endif
 
     {{-- ── Confirmations ──────────────────────────────────────────────────

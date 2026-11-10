@@ -32,6 +32,25 @@ class LoopEventsCard extends Component
     /** Mois affiche par le calendrier, au format Y-m. */
     public string $month = '';
 
+    /**
+     * TASK-1802 (demande Cyril, 10/11) — « par defaut un affichage sur 7
+     * jours [...] possibilite via un menu de selectionner semaine ou mois ».
+     * Une grille sur un mois entier repond a « quand en gros ? » ; une sur
+     * sept jours repond a « que se passe-t-il cette semaine ? » — la
+     * question la plus frequente en ouvrant la Card, d'ou le defaut.
+     */
+    public string $calendarGranularity = 'week'; // week | month
+
+    /** Lundi de la semaine affichee, au format Y-m-d (quand granularite = week). */
+    public string $weekStart = '';
+
+    /**
+     * Evenement dont le detail est ouvert depuis un clic dans le calendrier.
+     * Memes donnees et memes actions que la vue liste (`event-row` partage) :
+     * voir le detail d'un evenement ne doit pas en dire moins qu'en liste.
+     */
+    public ?string $selectedEventId = null;
+
     // ── Formulaire ──────────────────────────────────────────────────────────
 
     public bool $showForm = false;
@@ -124,9 +143,12 @@ class LoopEventsCard extends Component
     public function mount(Loop $loop): void
     {
         $this->loop = $loop;
-        // Le mois affiche par defaut : celui d'ici, pas celui d'un fuseau
-        // choisi d'avance.
+        // Le mois et la semaine affiches par defaut : ceux d'ici, pas ceux
+        // d'un fuseau choisi d'avance.
         $this->month = CarbonImmutable::now($this->preferredTimezone())->format('Y-m');
+        $this->weekStart = CarbonImmutable::now($this->preferredTimezone())
+            ->startOfWeek(CarbonImmutable::MONDAY)
+            ->format('Y-m-d');
     }
 
     private function service(): LoopEventService
@@ -269,6 +291,48 @@ class LoopEventsCard extends Component
             ->startOfMonth()
             ->addMonths($delta)
             ->format('Y-m');
+    }
+
+    public function shiftWeek(int $delta): void
+    {
+        $this->weekStart = CarbonImmutable::createFromFormat('!Y-m-d', $this->weekStart)
+            ->startOfWeek(CarbonImmutable::MONDAY)
+            ->addWeeks($delta)
+            ->format('Y-m-d');
+    }
+
+    /**
+     * Bascule semaine/mois en gardant les deux curseurs a peu pres au meme
+     * endroit : sans ca, revenir de « mois » a « semaine » rouvrirait sur LA
+     * semaine d'aujourd'hui, pas celle qu'on regardait a l'instant.
+     */
+    public function setCalendarGranularity(string $granularity): void
+    {
+        if (! in_array($granularity, ['week', 'month'], true) || $granularity === $this->calendarGranularity) {
+            return;
+        }
+
+        if ($granularity === 'week') {
+            $this->weekStart = CarbonImmutable::createFromFormat('!Y-m', $this->month)
+                ->startOfMonth()
+                ->startOfWeek(CarbonImmutable::MONDAY)
+                ->format('Y-m-d');
+        } else {
+            $this->month = CarbonImmutable::createFromFormat('!Y-m-d', $this->weekStart)
+                ->format('Y-m');
+        }
+
+        $this->calendarGranularity = $granularity;
+    }
+
+    public function openEventDetail(string $eventId): void
+    {
+        $this->selectedEventId = $eventId;
+    }
+
+    public function closeEventDetail(): void
+    {
+        $this->selectedEventId = null;
     }
 
     // ── Formulaire ──────────────────────────────────────────────────────────
@@ -537,6 +601,7 @@ class LoopEventsCard extends Component
         if (! $user || ! $service->canView($user, $this->loop)) {
             return view('livewire.loop-events-card', [
                 'upcoming' => collect(), 'past' => collect(), 'calendar' => [],
+                'selectedEvent' => null,
                 'canCreate' => false, 'canPublishOrg' => false, 'readOnly' => true,
                 'timezoneOptions' => LoopEvent::TIMEZONES,
             ]);
@@ -556,10 +621,17 @@ class LoopEventsCard extends Component
             fn (array $e) => $e['is_past'] || $e['is_cancelled'],
         );
 
+        $calendar = $this->calendarGranularity === 'week'
+            ? $presenter->weekGrid($this->weekStart, $events->all())
+            : $presenter->monthGrid($this->month, $events->all());
+
         return view('livewire.loop-events-card', [
             'upcoming' => $upcoming->sortBy('starts_at')->values(),
             'past' => $past->sortByDesc('starts_at')->values(),
-            'calendar' => $presenter->monthGrid($this->month, $events->all()),
+            'calendar' => $calendar,
+            'selectedEvent' => $this->selectedEventId !== null
+                ? $events->firstWhere('id', $this->selectedEventId)
+                : null,
             'canCreate' => $service->canCreate($user, $this->loop),
             'canPublishOrg' => $service->canPublishToOrganization($user, $this->loop),
             'readOnly' => ! $service->canCreate($user, $this->loop)
