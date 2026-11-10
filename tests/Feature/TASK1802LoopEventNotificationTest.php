@@ -137,41 +137,49 @@ class TASK1802LoopEventNotificationTest extends TestCase
         );
     }
 
-    public function test_un_membre_simple_propose_aussi_une_notification_a_tous(): void
+    /**
+     * TASK-1802 (demande Cyril, 10/11) — « il faut que ce soit les
+     * proprietaires ou animateurs de Boucle qui puissent poster un
+     * evenement, uniquement. » `events.create` a quitte le socle `member`
+     * (`config/loop_permissions.php`) : un membre simple ne peut DESORMAIS
+     * plus proposer de rencontre du tout — verifie ici a la source, et plus
+     * largement par `TASK1088EventCardTest`/`TASK1706AgendaCreateEventTest`.
+     *
+     * La notification, elle, reste role-agnostique ENTRE les deux roles qui
+     * PEUVENT creer : un evenement propose par l'ANIMATEUR previent les
+     * memes personnes, de la meme facon, qu'un propose par le proprietaire.
+     */
+    public function test_un_membre_simple_ne_peut_plus_proposer_mais_l_animateur_le_peut(): void
     {
-        // `config/loop_permissions.php` : `events.create` n'est PAS reservee
-        // au proprietaire/animateur — « Tout membre actif le peut par
-        // defaut ». La notification ne doit donc JAMAIS discriminer selon le
-        // role de l'auteur : elle traite un evenement propose par un membre
-        // simple exactement comme un propose par le proprietaire.
-        $autreMembre = User::factory()->create(['organization_id' => $this->organization->id]);
+        $service = app(LoopEventService::class);
+        $this->assertFalse(
+            $service->canCreate($this->membre, $this->boucle),
+            'un membre simple ne doit plus pouvoir proposer un Evenement',
+        );
+
+        $animateur = User::factory()->create(['organization_id' => $this->organization->id]);
         LoopMember::create([
             'loop_id' => $this->boucle->id,
-            'user_id' => $autreMembre->id,
+            'user_id' => $animateur->id,
             'organization_id' => $this->organization->id,
-            'role' => 'member',
+            'role' => 'facilitator',
             'status' => 'active',
             'joined_at' => now(),
         ]);
+        $this->assertTrue($service->canCreate($animateur, $this->boucle), 'un animateur doit pouvoir proposer un Evenement');
 
-        $service = app(LoopEventService::class);
-        $this->assertTrue(
-            $service->canCreate($this->membre, $this->boucle),
-            'un membre simple doit pouvoir proposer un Evenement par defaut',
-        );
-
-        $event = $this->creerEvenementPar($this->membre);
+        $event = $this->creerEvenementPar($animateur);
         $this->annoncer($event);
 
         $notifications = $this->notificationsDeLEvenement();
 
-        $this->assertCount(2, $notifications, 'le proprietaire ET l\'autre membre doivent être prévenus');
+        $this->assertCount(2, $notifications, 'le proprietaire ET le membre simple doivent être prévenus');
         $this->assertContains($this->auteur->id, $notifications->pluck('recipient_id')->all());
-        $this->assertContains($autreMembre->id, $notifications->pluck('recipient_id')->all());
+        $this->assertContains($this->membre->id, $notifications->pluck('recipient_id')->all());
         $this->assertNotContains(
-            $this->membre->id,
+            $animateur->id,
             $notifications->pluck('recipient_id')->all(),
-            "l'auteur (membre simple) ne doit pas être prévenu de son propre évènement",
+            "l'auteur (animateur) ne doit pas être prévenu de son propre évènement",
         );
     }
 
@@ -273,7 +281,14 @@ class TASK1802LoopEventNotificationTest extends TestCase
         $this->assertStringContainsString('18:00', $message->body);
     }
 
-    public function test_le_message_de_creation_porte_le_lien_SI_en_ligne(): void
+    /**
+     * TASK-1802 (suite, demande Cyril) — le lien n'est PLUS concatene dans
+     * `$message->body` en texte echappe (jamais cliquable une fois rendu
+     * par `{{ }}`) : il vit dans `metadata.meeting_url`, et c'est
+     * `loop-chat.blade.php` qui le rend en `<a href>` — voir
+     * `TASK1802EventChatLinkTest` pour la preuve du rendu.
+     */
+    public function test_le_message_de_creation_porte_le_lien_dans_les_metadonnees_SI_en_ligne(): void
     {
         $message = $this->annoncer($this->creerEvenement([
             'format' => LoopEvent::FORMAT_ONLINE,
@@ -281,7 +296,13 @@ class TASK1802LoopEventNotificationTest extends TestCase
             'meeting_url' => 'https://visio.example.org/jardin',
         ]));
 
-        $this->assertStringContainsString('https://visio.example.org/jardin', $message->body);
+        $this->assertStringNotContainsString(
+            'https://visio.example.org/jardin',
+            $message->body,
+            'le corps ne doit plus porter le lien en texte brut — il ne serait jamais cliquable.',
+        );
+        $this->assertSame('https://visio.example.org/jardin', $message->metadata['meeting_url']);
+        $this->assertSame(LoopEvent::FORMAT_ONLINE, $message->metadata['format']);
     }
 
     public function test_le_message_de_creation_ne_porte_AUCUN_lien_sur_place(): void
