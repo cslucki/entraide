@@ -171,24 +171,42 @@ class TASK1802EventRowBentoTest extends TestCase
         $this->assertSame(1, substr_count($html, __('events.format_in_person')));
     }
 
-    public function test_the_description_tile_renders_when_present(): void
+    /**
+     * TASK-1802 (suite, demande Cyril) — « il faut mettre le descriptif
+     * dans le bento ou il y a le titre » : la description a quitte sa tuile
+     * dediee (qui restait vide en dessous du titre sur un titre court) pour
+     * vivre dans la tuile titre elle-meme.
+     */
+    public function test_the_description_renders_inside_the_headline_tile_when_present(): void
     {
-        $this->event(['description' => 'Apporter son ordinateur portable.']);
+        $this->event(['title' => 'Atelier bento', 'description' => 'Apporter son ordinateur portable.']);
 
         $html = $this->renderCard();
 
         $this->assertStringContainsString('Apporter son ordinateur portable.', $html);
+        // Avant ce correctif, la description vivait dans sa PROPRE tuile,
+        // APRES celle des presences. Verifier qu'elle precede desormais le
+        // label « Presences » prouve qu'elle est remontee dans la tuile
+        // titre, pas simplement restee visible quelque part sur la page.
+        $this->assertTrue(
+            strpos($html, 'Apporter son ordinateur portable.') < strpos($html, __('events.attendance_label')),
+        );
     }
 
-    public function test_the_presence_tile_always_shows_the_three_counts(): void
+    /**
+     * TASK-1802 (suite, demande Cyril) — « concernant ceux qui participent,
+     * on met uniquement ceux-là [...] un icône et un chiffre » : jamais la
+     * repartition Peut-être/Absents.
+     */
+    public function test_the_presence_tile_shows_only_the_going_count(): void
     {
         $this->event();
 
         $html = $this->renderCard();
 
-        $this->assertStringContainsString(__('events.going_short').' 0', $html);
-        $this->assertStringContainsString(__('events.maybe_short').' 0', $html);
-        $this->assertStringContainsString(__('events.not_going_short').' 0', $html);
+        $this->assertStringContainsString(__('events.attendance_label'), $html);
+        $this->assertStringNotContainsString(__('events.maybe_short'), $html);
+        $this->assertStringNotContainsString(__('events.not_going_short'), $html);
     }
 
     public function test_the_title_and_author_remain_visible_in_the_headline_tile(): void
@@ -215,37 +233,70 @@ class TASK1802EventRowBentoTest extends TestCase
     }
 
     /**
-     * TASK-1802 (suite, demande Cyril) — « le bouton "Je participe" [...]
-     * dans un menu 3 points [...] on gagne de l'espace ». Le declencheur du
-     * menu est neutre tant que personne n'a repondu.
+     * TASK-1802 (suite, demande Cyril) — « Sur la page agenda, remplace le
+     * bouton "Je ne participe pas" par "Ajouter à l'agenda". » Demande
+     * LIMITEE a ce remplacement : « Je participe »/« Peut-être » gardent
+     * leur libelle d'origine sur CETTE page (la renomination en
+     * « Oui »/« Intéressé » ne concernait que la Card).
      */
-    public function test_the_rsvp_menu_trigger_is_neutral_before_any_response(): void
+    public function test_the_agenda_page_replaces_not_going_with_add_to_calendar(): void
     {
-        $this->event();
+        $this->event(['title' => 'Rencontre agenda RSVP']);
 
-        $html = $this->renderCard();
+        $html = $this->actingAs($this->owner)
+            ->get(route('organization.events.agenda', ['organization' => $this->org->slug]))
+            ->assertOk()
+            ->getContent();
 
-        $this->assertStringContainsString(__('events.respond_menu_label'), $html);
-        $this->assertStringNotContainsString('bg-emerald-100 text-emerald-700', $html);
+        $this->assertStringContainsString(e(__('events.going')), $html);
+        $this->assertStringContainsString(e(__('events.maybe')), $html);
+        $this->assertStringNotContainsString(e(__('events.not_going')), $html);
+        $this->assertStringContainsString('data-agenda-add-to-calendar', $html);
+        $this->assertStringContainsString('calendar.google.com', $html);
     }
 
-    public function test_choosing_a_response_colors_the_trigger_and_checks_the_menu_item(): void
+    /**
+     * TASK-1802 (suite, demande Cyril) — « fait deux boutons : oui et
+     * interessé » (remplace le bouton unique « Je participe » de l'iteration
+     * precedente). Les deux sont outline tant que personne n'a repondu.
+     */
+    public function test_two_rsvp_buttons_are_offered_yes_and_interested(): void
     {
         $event = $this->event();
 
-        $component = Livewire::actingAs($this->owner)
-            ->test(LoopEventsCard::class, ['loop' => $this->loop])
-            ->call('respond', $event->id, LoopEventResponse::GOING);
+        $html = $this->renderCard();
 
-        $html = $component->html();
-
-        // Le declencheur porte la couleur de la reponse choisie...
-        $this->assertStringContainsString('bg-emerald-100 text-emerald-700', $html);
-        // ...et une SEULE option du menu est cochee.
-        $this->assertSame(1, substr_count($html, 'aria-pressed="true"'));
+        $this->assertStringContainsString(e(__('events.rsvp_yes')), $html);
+        $this->assertStringContainsString(e(__('events.rsvp_interested')), $html);
+        // Verifie le CABLAGE statique bouton -> reponse (un `->call()` sur le
+        // composant ne passerait jamais par cet attribut, et ne proteger pas
+        // contre un copier-coller qui inverserait les deux valeurs).
+        $this->assertStringContainsString(
+            "wire:click=\"respond('".$event->id."', '".LoopEventResponse::GOING."')\"",
+            $html,
+        );
+        $this->assertStringContainsString(
+            "wire:click=\"respond('".$event->id."', '".LoopEventResponse::MAYBE."')\"",
+            $html,
+        );
+        $this->assertStringNotContainsString('bg-emerald-600 text-white', $html);
+        $this->assertStringNotContainsString('bg-amber-600 text-white', $html);
     }
 
-    public function test_the_response_lives_in_the_menu_not_in_a_separate_button_row(): void
+    public function test_choosing_yes_fills_the_first_button_and_marks_it_pressed(): void
+    {
+        $event = $this->event();
+
+        $html = Livewire::actingAs($this->owner)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('respond', $event->id, LoopEventResponse::GOING)
+            ->html();
+
+        $this->assertStringContainsString('bg-emerald-600 text-white', $html);
+        $this->assertStringContainsString('aria-pressed="true"', $html);
+    }
+
+    public function test_choosing_interested_fills_the_second_button_without_touching_going(): void
     {
         $event = $this->event();
 
@@ -254,9 +305,224 @@ class TASK1802EventRowBentoTest extends TestCase
             ->call('respond', $event->id, LoopEventResponse::MAYBE)
             ->html();
 
-        // L'ancien texte autonome « Ta reponse : » a disparu du corps de la
-        // Card : seul l'aria-label du declencheur du menu le porte encore
-        // (accessibilite), jamais un paragraphe visible a part.
-        $this->assertStringNotContainsString('<span class="font-semibold">'.__('events.your_response').'</span>', $html);
+        $this->assertStringContainsString('bg-amber-600 text-white', $html);
+        $this->assertStringNotContainsString('bg-emerald-600 text-white', $html);
+        // Une seule des deux reponses est cochee a la fois.
+        $this->assertSame(1, substr_count($html, 'aria-pressed="true"'));
+    }
+
+    public function test_the_presence_tile_shows_both_going_and_interested_counts(): void
+    {
+        $event = $this->event();
+        $interested1 = User::factory()->create(['organization_id' => $this->org->id]);
+        $interested2 = User::factory()->create(['organization_id' => $this->org->id]);
+        foreach ([$interested1, $interested2] as $member) {
+            LoopMember::create([
+                'organization_id' => $this->org->id,
+                'loop_id' => $this->loop->id,
+                'user_id' => $member->id,
+                'role' => 'member',
+                'status' => 'active',
+            ]);
+        }
+
+        $service = app(\App\Services\Loops\LoopEventService::class);
+        $service->respond($this->owner, $event, $this->loop, LoopEventResponse::GOING);
+        $service->respond($interested1, $event, $this->loop, LoopEventResponse::MAYBE);
+        $service->respond($interested2, $event, $this->loop, LoopEventResponse::MAYBE);
+
+        $html = $this->renderCard();
+
+        // 1 participant, 2 interesses : chaque chiffre apparait bien a sa
+        // place, et AUCUN compte d'absents (demande Cyril : jamais "ceux qui
+        // ne participent pas"). Deux valeurs distinctes (1 et 2) pour ne pas
+        // se contenter d'un hasard d'egalite entre les deux compteurs.
+        $this->assertStringContainsString(__('events.attendance_label'), $html);
+        $this->assertStringContainsString('>1<', $html);
+        $this->assertStringContainsString('>2<', $html);
+        $this->assertStringNotContainsString(__('events.not_going_short'), $html);
+    }
+
+    public function test_the_add_to_calendar_button_shows_only_the_short_verb(): void
+    {
+        $this->event();
+
+        $html = $this->renderCard();
+
+        $this->assertStringContainsString(e(__('events.add_cta')), $html);
+        // Le libelle complet reste accessible (lecteur d'ecran), simplement
+        // pas affiche a cote de l'icone : jamais les DEUX mots a la fois
+        // visibles (texte du bouton) — seul `aria-label` porte la phrase
+        // entiere.
+        $this->assertStringContainsString('aria-label="'.e(__('events.add_to_calendar')).'"', $html);
+        $this->assertSame(1, substr_count($html, e(__('events.add_to_calendar'))));
+    }
+
+    public function test_participating_again_toggles_back_to_not_going(): void
+    {
+        $event = $this->event();
+        $component = Livewire::actingAs($this->owner)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('respond', $event->id, LoopEventResponse::GOING);
+
+        // Le MEME bouton, actionne une seconde fois, retire la participation
+        // plutot que d'en proposer une troisieme (Peut-être a quitte l'ecran).
+        $component->call('respond', $event->id, LoopEventResponse::NOT_GOING);
+
+        $this->assertSame(
+            LoopEventResponse::NOT_GOING,
+            app(\App\Services\Loops\LoopEventService::class)->responseOf($this->owner, $event->fresh()),
+        );
+    }
+
+    /**
+     * TASK-1802 (suite, demande Cyril) — « un bouton pour ajouter à son
+     * agenda [...] compatible Google Agenda et si possible les autres [...]
+     * pop-up alpine qui permet de choisir le type d'agenda ».
+     */
+    public function test_the_add_to_calendar_menu_lists_google_outlook_yahoo_and_ics(): void
+    {
+        $event = $this->event();
+
+        $html = $this->renderCard();
+
+        $this->assertStringContainsString(e(__('events.add_to_calendar')), $html);
+        $this->assertStringContainsString('calendar.google.com', $html);
+        $this->assertStringContainsString('outlook.live.com', $html);
+        $this->assertStringContainsString('calendar.yahoo.com', $html);
+        $this->assertStringContainsString('data:text/calendar', $html);
+        $this->assertStringContainsString(__('events.calendar_download_ics'), $html);
+    }
+
+    public function test_the_attendee_list_shows_only_those_going(): void
+    {
+        $event = $this->event();
+        $other = User::factory()->create(['organization_id' => $this->org->id]);
+        LoopMember::create([
+            'organization_id' => $this->org->id,
+            'loop_id' => $this->loop->id,
+            'user_id' => $other->id,
+            'role' => 'member',
+            'status' => 'active',
+        ]);
+
+        $component = Livewire::actingAs($this->owner)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('respond', $event->id, LoopEventResponse::GOING);
+
+        $this->actingAs($other);
+        app(\App\Services\Loops\LoopEventService::class)->respond($other, $event, $this->loop, LoopEventResponse::NOT_GOING);
+
+        $html = $component->call('toggleAttendees', $event->id)->html();
+
+        $this->assertStringContainsString($this->owner->publicDisplayName(), $html);
+        $this->assertStringNotContainsString($other->publicDisplayName(), $html);
+    }
+
+    /**
+     * TASK-1802 (suite, demande Cyril) — « sur la page agenda, il faut
+     * qu'on puisse cliquer sur [...] les icones des nombres de participants
+     * [...] un pop-up alpine affiche les participants ». L'agenda n'est pas
+     * un composant Livewire : pas de `toggleAttendees()` a appeler, les noms
+     * doivent deja etre dans la page (charges par le controleur).
+     */
+    public function test_the_agenda_page_opens_an_attendee_popup_on_click(): void
+    {
+        $event = $this->event(['title' => 'Atelier popup presences']);
+        app(\App\Services\Loops\LoopEventService::class)->respond($this->owner, $event, $this->loop, LoopEventResponse::GOING);
+
+        $html = $this->actingAs($this->owner)
+            ->get(route('organization.events.agenda', ['organization' => $this->org->slug]))
+            ->assertOk()
+            ->getContent();
+
+        // Le declencheur est bien cliquable (pas un simple compteur statique)...
+        $this->assertStringContainsString('aria-haspopup="dialog"', $html);
+        // ...et le nom est DEJA dans la page : aucun round-trip a attendre
+        // pour un simple clic.
+        $this->assertStringContainsString($this->owner->publicDisplayName(), $html);
+        $this->assertStringContainsString('x-teleport="body"', $html);
+    }
+
+    public function test_the_agenda_popup_trigger_is_inert_without_any_attendee(): void
+    {
+        $this->event(['title' => 'Atelier sans reponse']);
+
+        $html = $this->actingAs($this->owner)
+            ->get(route('organization.events.agenda', ['organization' => $this->org->slug]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('aria-haspopup="dialog"', $html);
+    }
+
+    /**
+     * TASK-1802 (suite, demande Cyril) — « pouvoir cliquer sur la card et non
+     * pas sur les chiffres [...] plus facile pour afficher les participants ».
+     * Le declencheur du pop-up doit etre la tuile presences ENTIERE — pas
+     * seulement les deux pastilles icone+chiffre qu'elle contient.
+     */
+    public function test_the_whole_presence_tile_is_clickable_not_just_the_counts(): void
+    {
+        $event = $this->event(['title' => 'Atelier tuile cliquable']);
+        app(\App\Services\Loops\LoopEventService::class)->respond($this->owner, $event, $this->loop, LoopEventResponse::GOING);
+
+        $html = $this->actingAs($this->owner)
+            ->get(route('organization.events.agenda', ['organization' => $this->org->slug]))
+            ->assertOk()
+            ->getContent();
+
+        $triggerPos = strpos($html, 'x-on:click="ouvert = true"');
+        $rolePos = strpos($html, 'role="button"');
+        $labelPos = strpos($html, __('events.attendance_label'));
+
+        $this->assertNotFalse($triggerPos);
+        $this->assertNotFalse($rolePos);
+        $this->assertNotFalse($labelPos);
+        // Le declencheur (et le role bouton qui l'accompagne) precedent le
+        // LABEL de la tuile dans le document : ils portent donc sur la tuile
+        // ENTIERE, englobante, et non sur un element niche plus bas en son
+        // sein (ce que prouverait l'ordre inverse).
+        $this->assertLessThan($labelPos, $triggerPos);
+        $this->assertLessThan($labelPos, $rolePos);
+    }
+
+    /**
+     * TASK-1802 (suite, demande Cyril) — « sur smartphone [...] la page se
+     * rafraichit [...] il faudrait que ca se mette a jour sans rafraichir ».
+     * Le controleur doit repondre en JSON, sans redirection, a un appel
+     * `fetch()` (`Accept: application/json`) — c'est ce que l'Alpine de
+     * `agenda.blade.php` envoie desormais au lieu d'un POST de formulaire
+     * classique.
+     */
+    public function test_the_agenda_rsvp_answers_in_json_without_a_redirect_when_asked(): void
+    {
+        $event = $this->event(['title' => 'Atelier sans rafraichissement']);
+
+        $response = $this->actingAs($this->owner)
+            ->postJson(
+                route('organization.events.agenda.respond', ['organization' => $this->org->slug, 'event' => $event->id]),
+                ['response' => LoopEventResponse::GOING],
+            );
+
+        $response->assertOk()->assertJson(['status' => 'ok']);
+        $this->assertSame(
+            LoopEventResponse::GOING,
+            app(\App\Services\Loops\LoopEventService::class)->responseOf($this->owner, $event->fresh()),
+        );
+    }
+
+    public function test_the_agenda_rsvp_json_error_carries_the_message_without_a_redirect(): void
+    {
+        $event = $this->event(['title' => 'Atelier annule']);
+        app(\App\Services\Loops\LoopEventService::class)->cancel($this->owner, $event, $this->loop);
+
+        $response = $this->actingAs($this->owner)
+            ->postJson(
+                route('organization.events.agenda.respond', ['organization' => $this->org->slug, 'event' => $event->id]),
+                ['response' => LoopEventResponse::GOING],
+            );
+
+        $response->assertStatus(422)->assertJson(['message' => __('events.error_not_allowed')]);
     }
 }

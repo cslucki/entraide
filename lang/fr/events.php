@@ -170,4 +170,24 @@ return [
     'chat_cancelled' => 'L\'événement « :title » a été annulé.',
     'chat_open_card' => 'Ouvrir l\'agenda',
     'chat_join_link' => 'Rejoindre',
+
+    // TASK-1802 (suite, demande Cyril) — « juste un bouton pour participer
+    // et un bouton pour ajouter à son agenda [...] si on ne peut pas faire
+    // un truc compatible sur tout [...] pop-up alpine qui permet de choisir
+    // le type d'agenda ». Aucune API web ne couvre Google/Outlook/Yahoo ET
+    // Apple/le reste a la fois — d'ou le choix, pas une limitation evitee.
+    'add_to_calendar' => 'Ajouter à l\'agenda',
+    // TASK-1802 (suite, demande Cyril) — « fait deux boutons : oui et
+    // interessé [...] pour "ajouter à l'agenda", tu mets l'icône et juste
+    // le verbe "ajouter" ». Cles DEDIEES a ce bouton compact — ne jamais
+    // reutiliser `events.going`/`events.maybe` ('Je participe'/'Peut-être')
+    // ici : elles servent aussi le bouton de l'agenda plein format
+    // (`loops/agenda.blade.php`), qui n'a pas ete touche par cette demande.
+    'rsvp_yes' => 'Oui',
+    'rsvp_interested' => 'Intéressé',
+    'add_cta' => 'Ajouter',
+    'calendar_google' => 'Google Agenda',
+    'calendar_outlook' => 'Outlook',
+    'calendar_yahoo' => 'Yahoo Agenda',
+    'calendar_download_ics' => 'Télécharger (.ics)',
 ];

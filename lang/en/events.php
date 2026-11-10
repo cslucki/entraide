@@ -161,4 +161,13 @@ return [
     'chat_cancelled' => 'The event “:title” has been cancelled.',
     'chat_open_card' => 'Open the agenda',
     'chat_join_link' => 'Join',
+
+    'add_to_calendar' => 'Add to calendar',
+    'rsvp_yes' => 'Yes',
+    'rsvp_interested' => 'Interested',
+    'add_cta' => 'Add',
+    'calendar_google' => 'Google Calendar',
+    'calendar_outlook' => 'Outlook',
+    'calendar_yahoo' => 'Yahoo Calendar',
+    'calendar_download_ics' => 'Download (.ics)',
 ];

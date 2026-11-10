@@ -43,7 +43,12 @@
     @endif
 
     <div class="flex flex-wrap items-center gap-2">
-        <div class="inline-flex rounded-lg border border-gray-300 p-0.5 dark:border-gray-600">
+        {{-- TASK-1802 (suite, demande Cyril) — « supprime la vue calendrier
+             sur l'agenda et sur la boucle/card evenement [...] uniquement
+             sur la version smartphone car ça ne se voit pas ». Le bouton
+             bascule disparait en dessous de `md` : sur smartphone, seule la
+             liste reste proposee. --}}
+        <div class="hidden md:inline-flex rounded-lg border border-gray-300 p-0.5 dark:border-gray-600">
             @foreach(['list' => __('events.view_list'), 'calendar' => __('events.view_calendar')] as $mode => $label)
                 <button type="button" wire:click="setView('{{ $mode }}')"
                         class="rounded-md px-2.5 py-1 text-xs font-semibold transition {{ $view === $mode
@@ -219,7 +224,11 @@
 
     {{-- ── Vue calendrier ─────────────────────────────────────────────── --}}
     @if($view === 'calendar')
-        <div class="rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+        {{-- `hidden md:block` : meme raison que le bouton bascule ci-dessus.
+             La vue liste (plus bas) reste, elle, TOUJOURS montee — c'est ce
+             qui garantit qu'un redimensionnement vers un smartphone pendant
+             que ce calendrier est ouvert ne laisse jamais un ecran vide. --}}
+        <div class="hidden md:block rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
                     <button type="button" wire:click="{{ $calendarGranularity === 'week' ? 'shiftWeek(-1)' : 'shiftMonth(-1)' }}"
@@ -250,34 +259,98 @@
             </div>
 
             @if($calendarGranularity === 'week')
-                {{-- Sept colonnes larges : assez de place pour l'heure et le
-                     titre complets, pas seulement une pastille tronquee. --}}
-                <div class="mt-2 grid grid-cols-7 gap-1 overflow-x-auto">
-                    @foreach($calendar['days'] ?? [] as $day)
-                        <div class="min-w-[6.5rem] rounded-lg border border-gray-100 p-1.5 dark:border-gray-800 {{ $day['is_today'] ? 'bg-sky-50/60 dark:bg-sky-900/10' : '' }}">
-                            <p class="text-[10px] font-semibold uppercase {{ $day['is_today'] ? 'text-sky-600 dark:text-sky-300' : 'text-gray-400 dark:text-gray-500' }}">
+                {{-- TASK-1802 (demande Cyril, 10/11) — « il faut vraiment
+                     aerer [...] mettre des horaires ». Une vraie grille
+                     horaire (24h) plutot qu'une pile de pastilles : chaque
+                     Evenement est positionne a SA hauteur exacte
+                     (`top`/`height` calcules depuis son heure locale), comme
+                     un agenda papier.
+
+                     TASK-1802 (suite, demande Cyril) — « recentre sur 8h a
+                     19h [...] pour le reste il faut scroller. [...] on ne
+                     voit pas [...] le titre correctement, on va elargir les
+                     cases, quitte a ce qu'on scrolle horizontalement. » Un
+                     SEUL conteneur `overflow-auto` (vertical ET horizontal),
+                     hauteur bornee a la fenetre 8h-19h, ouvert directement
+                     dessus via `x-init` (`scrollTop`) plutot que sur minuit —
+                     le reste de la journee reste a un scroll de distance.
+                     L'en-tete des jours est `sticky` : il reste visible
+                     pendant qu'on descend dans les heures. Les colonnes
+                     passent d'une largeur elastique a une largeur FIXE
+                     (9rem) : assez pour lire un titre, au prix d'un defilement
+                     horizontal sur un ecran etroit — compromis demande
+                     explicitement plutot que subi. --}}
+                @php
+                    $hourPx = 40; // 1h = 2.5rem — resserre pour que 8h-19h tienne dans une fenetre raisonnable
+                    $dayHeight = $hourPx * 24;
+                    $visibleStartHour = 8;
+                @endphp
+                <div class="mt-2 overflow-auto rounded-xl border border-gray-100 dark:border-gray-800"
+                     style="max-height: 440px;"
+                     x-data x-init="$nextTick(() => { $el.scrollTop = {{ $visibleStartHour * $hourPx }}; })">
+                    <div class="grid" style="grid-template-columns: 2.75rem repeat(7, 9rem);">
+                        <div class="sticky top-0 z-20 bg-white dark:bg-gray-900"></div>
+                        @foreach($calendar['days'] ?? [] as $day)
+                            <p class="sticky top-0 z-20 bg-white pb-1 text-center text-[10px] font-semibold uppercase dark:bg-gray-900 {{ $day['is_today'] ? 'text-sky-600 dark:text-sky-300' : 'text-gray-400 dark:text-gray-500' }}">
                                 {{ $day['date']->translatedFormat('D j') }}
                             </p>
-                            <div class="mt-1 space-y-1">
+                        @endforeach
+
+                        {{-- Colonne des heures — alignee ligne a ligne sur les
+                             traits des colonnes de jours ci-dessous. --}}
+                        <div>
+                            @for($h = 0; $h < 24; $h++)
+                                <div class="border-t border-gray-100 pr-1 text-right text-[9px] leading-none text-gray-400 dark:border-gray-800 dark:text-gray-500"
+                                     style="height: {{ $hourPx }}px;">
+                                    <span class="relative -top-1.5">{{ sprintf('%02d:00', $h) }}</span>
+                                </div>
+                            @endfor
+                        </div>
+
+                        @foreach($calendar['days'] ?? [] as $day)
+                            <div class="relative border-l border-gray-100 dark:border-gray-800 {{ $day['is_today'] ? 'bg-sky-50/40 dark:bg-sky-900/10' : '' }}"
+                                 style="height: {{ $dayHeight }}px;">
+                                @for($h = 0; $h < 24; $h++)
+                                    <div class="absolute inset-x-0 border-t border-gray-100 dark:border-gray-800" style="top: {{ $h * $hourPx }}px;"></div>
+                                @endfor
+
                                 @foreach($day['events'] as $dayEvent)
+                                    @php
+                                        $startMin = $dayEvent['starts_local']->hour * 60 + $dayEvent['starts_local']->minute;
+                                        $endMin = $dayEvent['ends_local']
+                                            ? $dayEvent['ends_local']->hour * 60 + $dayEvent['ends_local']->minute
+                                            : $startMin + 60;
+                                        if ($endMin <= $startMin) {
+                                            $endMin = $startMin + 60;
+                                        }
+                                        $topPx = ($startMin / 60) * $hourPx;
+                                        $heightPx = max((($endMin - $startMin) / 60) * $hourPx, 22);
+                                    @endphp
                                     <button type="button" wire:click="openEventDetail('{{ $dayEvent['id'] }}')"
-                                            class="block w-full truncate rounded px-1 py-0.5 text-left text-[10px] leading-4 {{ $dayEvent['is_cancelled']
+                                            class="absolute inset-x-0.5 z-10 overflow-hidden rounded-lg px-1.5 py-0.5 text-left text-[10px] leading-tight shadow-sm {{ $dayEvent['is_cancelled']
                                                 ? 'bg-gray-100 text-gray-500 line-through dark:bg-gray-800 dark:text-gray-400'
-                                                : 'bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:hover:bg-sky-900/60' }}"
+                                                : 'bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/50 dark:text-sky-200 dark:hover:bg-sky-900/70' }}"
+                                            style="top: {{ $topPx }}px; height: {{ $heightPx }}px;"
                                             title="{{ $dayEvent['title'] }}">
                                         <span class="font-semibold">{{ $dayEvent['starts_local']->format('H:i') }}</span>
                                         {{ $dayEvent['title'] }}
                                     </button>
                                 @endforeach
                             </div>
-                        </div>
-                    @endforeach
+                        @endforeach
+                    </div>
                 </div>
             @else
-                {{-- La grille deborde plutot que d'ecraser les jours : une
-                     semaine tient sur sept colonnes lisibles, ou elle defile. --}}
+                {{-- TASK-1802 (suite, demande Cyril) — « idem sur la vue
+                     mensuelle, il faut agrandir verticalement et elargir
+                     horizontalement, quitte a ce qu'on scrolle, parce que
+                     sinon on ne voit pas les evenements. » Lignes plus
+                     hautes (`h-24` au lieu de `h-14`) et table bien plus
+                     large que le panneau (`min-w-[52rem]`) : le defilement,
+                     horizontal comme vertical, est assume plutot qu'evite —
+                     meme logique que la vue semaine. --}}
                 <div class="mt-2 overflow-x-auto">
-                    <table class="w-full min-w-[22rem] table-fixed border-collapse">
+                    <table class="w-full min-w-[52rem] table-fixed border-collapse">
                         <thead>
                             <tr>
                                 @foreach(['L', 'M', 'M', 'J', 'V', 'S', 'D'] as $dayLabel)
@@ -289,7 +362,7 @@
                             @foreach($calendar['weeks'] ?? [] as $week)
                                 <tr>
                                     @foreach($week as $day)
-                                        <td class="h-14 border border-gray-100 p-0.5 align-top dark:border-gray-800 {{ $day['in_month'] ? '' : 'opacity-40' }}">
+                                        <td class="h-24 border border-gray-100 p-1 align-top dark:border-gray-800 {{ $day['in_month'] ? '' : 'opacity-40' }}">
                                             <span class="block text-right text-[10px] {{ $day['is_today'] ? 'font-bold text-sky-600 dark:text-sky-300' : 'text-gray-400 dark:text-gray-500' }}">{{ $day['day'] }}</span>
                                             @foreach($day['events'] as $dayEvent)
                                                 <button type="button" wire:click="openEventDetail('{{ $dayEvent['id'] }}')"
@@ -309,8 +382,12 @@
         </div>
     @endif
 
-    {{-- ── Vue liste ──────────────────────────────────────────────────── --}}
-    @if($view === 'list')
+    {{-- ── Vue liste ──────────────────────────────────────────────────── ──
+         TOUJOURS montee, meme quand `$view === 'calendar'` : seul `md:hidden`
+         la cache alors, et seulement a partir de `md`. Sur smartphone, elle
+         reste donc TOUJOURS visible — y compris si `$view` valait deja
+         « calendar » avant un redimensionnement vers un petit ecran. --}}
+    <div class="{{ $view === 'calendar' ? 'md:hidden' : '' }} space-y-3">
         @if($upcoming->isEmpty() && $past->isEmpty() && ! $showForm)
             <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center dark:border-gray-700 dark:bg-gray-900">
                 <p class="text-sm font-semibold text-gray-700 dark:text-gray-200">{{ __('events.empty') }}</p>
@@ -327,7 +404,7 @@
                 @endforeach
             @endif
         @endforeach
-    @endif
+    </div>
 
     {{-- ── Detail d'un evenement (depuis le calendrier) ─────────────────────
          TASK-1802 (demande Cyril, 10/11) — « quand on clique sur un

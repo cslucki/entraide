@@ -65,6 +65,9 @@ class LoopEventPresenter
             'attendees' => ($options['with_attendees'] ?? false)
                 ? $this->events->respondents($event)
                 : null,
+            // TASK-1802 (suite, demande Cyril) — « un bouton pour ajouter à
+            // son agenda ». Calcule une fois ici, jamais recalcule par la vue.
+            'calendar_links' => LoopEventCalendarLinks::forEvent($event),
         ];
     }
 
