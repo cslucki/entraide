@@ -12,6 +12,7 @@ use App\Models\LoopJoinRequest;
 use App\Models\LoopMessage;
 use App\Models\MemberNotification;
 use App\Models\Message;
+use App\Models\Organization;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -44,20 +45,20 @@ use Illuminate\Support\Collection;
  *   par CHAQUE appelant ; on ne fait que le TRADUIRE en texte lu, SANS lien :
  *   aucune route admin dediee n'existe pour ces chemins-la.
  *
- * ## Le lien n'est JAMAIS celui du destinataire (`NotificationTargetResolver`)
+ * ## Deux liens pour une mention : l'ADMIN (Boucle) et le PUBLIC (message)
  *
- * Celui-ci exige une adhesion ACTIVE et un tenant courant — c'est ce qui le
- * rend sur pour un EMAIL. Mais l'ADMIN qui consulte `/admin/email-logs`
- * n'est, le plus souvent, membre de AUCUNE des Organizations concernees :
- * un lien qui exigerait son appartenance serait un lien mort pour la quasi
- * totalite des lignes. Ce resolveur pointe donc vers les ecrans ADMIN
- * dedies (`admin.loops.show`, `admin.loop-messages.show`,
- * `admin.messages.show`, `admin.blog.edit`), dont les gardes sont LUES, pas
- * recopiees : certaines verifient `is_admin` (toujours jacessibles), d'autres
- * comparent l'`organization_id` PERSONNEL de l'admin a celui de la ligne
- * (`AdminMessageController::show()`/`showLoopMessage()`, TASK-1693 bug R) —
- * et un lien qui 404rait n'est PAS propose, exactement la discipline deja
- * suivie par `/admin/messages`.
+ * `admin.loops.show` accepte tout SuperAdmin, quelle que soit son
+ * Organization — toujours offert comme lien PRINCIPAL. Mais pour la
+ * SOURCE du message lui-meme (demande explicite de Cyril, relecture en
+ * situation reelle), ce resolveur reutilise la MEME URL publique que
+ * `NotificationTargetResolver::loopMessage()` construit deja pour le lien
+ * de l'email (`organization.loops.show` + `?message=`) — pas un ecran
+ * admin dedie, qui n'existe que pour les echanges (`admin.messages.show`).
+ * Cette route PUBLIQUE exige l'appartenance a l'Organization
+ * (`organization.member`) : offerte seulement quand `organization_id` de
+ * l'admin correspond a celui de la ligne, exactement la discipline deja
+ * suivie par `/admin/messages` (`AdminMessageController`, TASK-1693 bug R) —
+ * un lien qui 404rait n'est PAS propose.
  *
  * ## Il n'existe aucun ecran admin pour l'entraide
  *
@@ -129,6 +130,7 @@ final class EmailLogContextResolver
         $articles = $this->resoudreArticles($notifications);
         $transactions = $this->resoudreTransactions($notifications);
         $titresEntraide = $this->resoudreTitresEntraide($notifications);
+        $slugsOrganization = $this->resoudreSlugsOrganization($notifications);
 
         $libelles = [];
 
@@ -141,6 +143,7 @@ final class EmailLogContextResolver
                 $articles,
                 $transactions,
                 $titresEntraide,
+                $slugsOrganization,
             );
         }
 
@@ -153,6 +156,7 @@ final class EmailLogContextResolver
      * @param  array<string, array{titre: string, article_id: string}>  $articles
      * @param  array<string, array{sujet: string, message_id: string|null}>  $transactions
      * @param  array<string, string>  $titresEntraide
+     * @param  array<string, string>  $slugsOrganization  `organization_id` => slug
      * @return array{label: string, url: string|null, url_message: string|null}
      */
     private function contextePour(
@@ -163,6 +167,7 @@ final class EmailLogContextResolver
         array $articles,
         array $transactions,
         array $titresEntraide,
+        array $slugsOrganization,
     ): array {
         $notificationId = $log->notification_id;
 
@@ -184,12 +189,19 @@ final class EmailLogContextResolver
                 $boucle = $boucles[$objectId];
                 // La Boucle elle-meme est TOUJOURS joignable (`admin.loops.
                 // show` accepte tout SuperAdmin). `OBJECT_LOOP_MESSAGE`
-                // (mention) porte EN PLUS un second lien, directement vers LE
-                // MESSAGE — demande explicite de Cyril (10/11) : « un lien
-                // vers la Boucle elle-meme ET si possible le message
-                // lui-meme ».
-                $urlMessage = $notification->object_type === NotificationCatalogue::OBJECT_LOOP_MESSAGE
-                    ? $this->urlSiJoignable($admin, $notification, fn () => route('admin.loop-messages.show', $objectId))
+                // (mention) porte EN PLUS un second lien, directement vers LA
+                // SOURCE du message — demande explicite de Cyril (10/11,
+                // relecture en situation reelle) : la page PUBLIQUE de la
+                // Boucle avec `?message=`, exactement l'URL que
+                // `NotificationTargetResolver::loopMessage()` construit deja
+                // pour le lien de l'email lui-meme — pas l'ecran admin.
+                $urlMessage = ($notification->object_type === NotificationCatalogue::OBJECT_LOOP_MESSAGE
+                    && isset($slugsOrganization[$notification->organization_id]))
+                    ? $this->urlSiJoignable($admin, $notification, fn () => route('organization.loops.show', [
+                        'organization' => $slugsOrganization[$notification->organization_id],
+                        'loop' => $boucle['slug'] ?: $boucle['loop_id'],
+                        'message' => $objectId,
+                    ]))
                     : null;
 
                 return [
@@ -252,11 +264,12 @@ final class EmailLogContextResolver
     }
 
     /**
-     * `admin.loop-messages.show` et `admin.messages.show` rendent `404` hors
-     * de l'Organization PERSONNELLE de l'admin (`AdminMessageController`,
-     * TASK-1693 bug R — une garantie ecrite, pas un detail d'implementation).
-     * Offrir le lien quand meme produirait un clic mort ; `null` ici est donc
-     * la reponse honnete, exactement ce que fait deja `/admin/messages`.
+     * `admin.messages.show` rend `404` hors de l'Organization PERSONNELLE de
+     * l'admin (`AdminMessageController`, TASK-1693 bug R — une garantie
+     * ecrite, pas un detail d'implementation), et `organization.loops.show`
+     * exige l'appartenance via le middleware `organization.member`. Offrir
+     * le lien quand meme produirait un clic mort ; `null` ici est donc la
+     * reponse honnete, exactement ce que fait deja `/admin/messages`.
      */
     private function urlSiJoignable(User $admin, MemberNotification $notification, callable $route): ?string
     {
@@ -269,7 +282,7 @@ final class EmailLogContextResolver
 
     /**
      * @param  Collection<string, MemberNotification>  $notifications
-     * @return array<string, array{nom: string, loop_id: string}> `object_id`
+     * @return array<string, array{nom: string, loop_id: string, slug: string|null}> `object_id`
      *                                DE LA NOTIFICATION => Boucle atteinte —
      *                                jamais l'identifiant de Boucle lui-meme,
      *                                qui n'est PAS toujours `object_id`.
@@ -304,15 +317,21 @@ final class EmailLogContextResolver
             return [];
         }
 
-        $nomsParLoopId = Loop::withoutGlobalScopes()
+        // `slug` est repris pour le lien PUBLIC de la mention (voir
+        // `contextePour()`) : meme forme que `NotificationTargetResolver::
+        // loopMessage()`, qui prefere deja le slug a l'UUID dans cette URL.
+        $boucleParLoopId = Loop::withoutGlobalScopes()
             ->whereIn('id', array_values(array_unique($loopIdParObjectId)))
-            ->pluck('name', 'id');
+            ->get(['id', 'name', 'slug'])
+            ->keyBy('id');
 
         $resultat = [];
 
         foreach ($loopIdParObjectId as $objectId => $loopId) {
-            if ($nomsParLoopId->has($loopId)) {
-                $resultat[$objectId] = ['nom' => $nomsParLoopId->get($loopId), 'loop_id' => $loopId];
+            $boucle = $boucleParLoopId->get($loopId);
+
+            if ($boucle !== null) {
+                $resultat[$objectId] = ['nom' => $boucle->name, 'loop_id' => $loopId, 'slug' => $boucle->slug];
             }
         }
 
@@ -485,6 +504,35 @@ final class EmailLogContextResolver
             ->get()
             ->filter(fn (EntraideComment $c) => $c->commentable instanceof Service || $c->commentable instanceof ServiceRequest)
             ->mapWithKeys(fn (EntraideComment $c) => [(string) $c->id => $c->commentable->title])
+            ->all();
+    }
+
+    /**
+     * Le SLUG de l'Organization de chaque notification `loop` — necessaire
+     * pour construire l'URL publique `organization.loops.show` (route-key
+     * `slug`, voir `Organization::getRouteKeyName()`), jamais pour une
+     * decision de securite : `urlSiJoignable()` compare toujours
+     * l'`organization_id`, pas le slug.
+     *
+     * @param  Collection<string, MemberNotification>  $notifications
+     * @return array<string, string> `organization_id` => slug
+     */
+    private function resoudreSlugsOrganization(Collection $notifications): array
+    {
+        $idsOrganization = $notifications
+            ->filter(fn (MemberNotification $n) => (NotificationCatalogue::definition((string) $n->notification_key)['category'] ?? null) === 'loop')
+            ->pluck('organization_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($idsOrganization->isEmpty()) {
+            return [];
+        }
+
+        return Organization::query()
+            ->whereIn('id', $idsOrganization)
+            ->pluck('slug', 'id')
             ->all();
     }
 }

@@ -377,11 +377,13 @@ class TASK1800EmailLogContextTest extends TestCase
 
     /**
      * Une mention porte DEUX liens : la Boucle (toujours, `admin.loops.show`
-     * accepte tout SuperAdmin) ET le message (`url_message`), qui lui rend
-     * 404 hors de l'Organization PERSONNELLE de l'admin (TASK-1693 bug R) —
-     * offert seulement quand `organization_id` correspond. « Un lien vers la
-     * Boucle elle-meme ET si possible le message lui-meme », demande de
-     * Cyril, mais jamais un lien mort.
+     * accepte tout SuperAdmin) ET la SOURCE du message (`url_message`) — la
+     * MEME URL publique que `NotificationTargetResolver::loopMessage()`
+     * construit deja pour le lien de l'email (`organization.loops.show` +
+     * `?message=`), pas un ecran admin. Elle exige l'appartenance via
+     * `organization.member` : offerte seulement quand `organization_id` de
+     * l'admin correspond. « Un lien vers la Boucle elle-meme ET si possible
+     * le message lui-meme », demande de Cyril, mais jamais un lien mort.
      */
     public function test_une_mention_a_un_lien_vers_la_boucle_et_vers_le_message_quand_l_admin_est_du_meme_tenant(): void
     {
@@ -395,7 +397,10 @@ class TASK1800EmailLogContextTest extends TestCase
         $contexte = app(EmailLogContextResolver::class)->resoudrePour(collect([$log]), $adminDuMemeTenant);
 
         $this->assertSame(route('admin.loops.show', $boucle->id), $contexte[(string) $log->id]['url']);
-        $this->assertSame(route('admin.loop-messages.show', $message->id), $contexte[(string) $log->id]['url_message']);
+        $this->assertSame(
+            route('organization.loops.show', ['organization' => $this->org->slug, 'loop' => $boucle->slug, 'message' => $message->id]),
+            $contexte[(string) $log->id]['url_message']
+        );
     }
 
     public function test_une_mention_garde_son_lien_boucle_mais_perd_le_lien_message_quand_l_admin_est_d_un_autre_tenant(): void
@@ -552,7 +557,10 @@ class TASK1800EmailLogContextTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('href="'.route('admin.loops.show', $boucle->id).'"', false);
-        $response->assertSee('href="'.route('admin.loop-messages.show', $message->id).'"', false);
+        $response->assertSee(
+            'href="'.route('organization.loops.show', ['organization' => $this->org->slug, 'loop' => $boucle->slug, 'message' => $message->id]).'"',
+            false
+        );
         $response->assertSee('Voir le message');
     }
 }
