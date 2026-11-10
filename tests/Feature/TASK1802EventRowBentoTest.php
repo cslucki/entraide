@@ -119,10 +119,10 @@ class TASK1802EventRowBentoTest extends TestCase
         $html = $this->renderCard();
 
         $this->assertStringContainsString('Salle du fond', $html);
-        // Le format n'apparait qu'UNE fois dans la meta du titre quand il n'y a
-        // pas de tuile « ou » dediee ; avec une tuile « ou », il reapparait en
-        // en-tete de cette tuile — deux occurrences.
-        $this->assertSame(2, substr_count($html, __('events.format_in_person')));
+        // Avec une tuile « ou », le format n'y figure QU'UNE fois — plus dans
+        // la meta du titre, qui ne le repete plus (demande Cyril, « optimiser
+        // encore » : jamais dire la meme chose deux fois).
+        $this->assertSame(1, substr_count($html, __('events.format_in_person')));
     }
 
     public function test_an_online_event_shows_the_where_tile_with_a_clickable_link(): void

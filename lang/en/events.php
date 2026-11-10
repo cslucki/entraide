@@ -69,6 +69,7 @@ return [
     'going' => 'I am coming',
     'maybe' => 'Maybe',
     'not_going' => 'I am not coming',
+    'attendance_label' => 'Attendance',
     'going_short' => 'Coming',
     'maybe_short' => 'Maybe',
     'not_going_short' => 'Not coming',

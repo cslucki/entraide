@@ -12,10 +12,19 @@
     que pourrait-on faire en mode bento ? ». L'information ne change pas, sa
     mise en page oui : une tuile date (la seule surface pleine couleur), une
     tuile titre, une tuile lieu/lien, une tuile presences, et une tuile
-    description — en `flex-wrap`, pas en `grid` fixe. C'est ce `flex-wrap`
-    qui fait tenir le MEME balisage dans la pleine largeur de l'agenda et
-    dans le panneau etroit de la Card : les tuiles refluent selon l'espace
-    REELLEMENT disponible, sans media query liee au viewport.
+    description.
+
+    TASK-1802 (suite, « optimiser encore [...] sur smartphone [...] mais
+    aussi sur desktop ») — date et titre sont groupes dans un SEUL bloc
+    `flex` interne (jamais `flex-wrap` entre eux), lui-meme UN SEUL element
+    du `flex-wrap` externe qui porte aussi lieu/presences/description.
+    Premiere version : date et titre etaient deux elements SEPARES de ce
+    `flex-wrap` externe — sur un telephone, la date restait seule sur sa
+    ligne (son voisin, trop large, retombait plus bas), avec tout l'espace a
+    sa droite perdu. Les grouper fait qu'ils refluent ENSEMBLE, jamais l'un
+    sans l'autre ; `min-w-0` sur la tuile titre la laisse RETRECIR a
+    l'interieur du bloc : c'est le TEXTE qui enjambe plusieurs lignes,
+    jamais une tuile qui saute seule.
 --}}
 @php
     $interactive = $interactive ?? true;
@@ -25,62 +34,72 @@
     $hasWhere = (bool) ($event['location'] || $event['meeting_url']);
 @endphp
 
-<div class="rounded-[26px] border p-3 {{ $event['is_cancelled']
-        ? 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/60'
-        : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900' }}"
+<div class="rounded-[26px] border p-3 shadow-sm {{ $event['is_cancelled']
+        ? 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/60 dark:shadow-none'
+        : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 dark:shadow-none' }}"
      wire:key="event-{{ $event['id'] }}" data-event-id="{{ $event['id'] }}">
 
     <div class="flex flex-wrap gap-2">
-        {{-- Tuile date — la seule surface pleine couleur : le reste reste
-             sobre pour ne pas lui faire concurrence. Le fuseau est toujours
-             ecrit, meme minuscule : sans lui une heure ne veut rien dire. --}}
-        <div class="flex w-20 flex-none flex-col items-center justify-center gap-0.5 rounded-2xl p-2.5 text-center text-white {{ $event['is_cancelled']
-                ? 'bg-gradient-to-br from-gray-400 to-gray-500 dark:from-gray-600 dark:to-gray-700'
-                : 'bg-gradient-to-br from-indigo-600 to-indigo-700 dark:from-indigo-500 dark:to-indigo-600' }}">
-            <span class="text-[10px] font-bold uppercase tracking-wide opacity-80">{{ $event['starts_local']->translatedFormat('D') }}</span>
-            <span class="font-mono text-2xl font-bold leading-none tabular-nums">{{ $event['starts_local']->translatedFormat('d') }}</span>
-            <span class="text-[10px] font-semibold opacity-90">{{ $event['starts_local']->translatedFormat('M') }} {{ $event['starts_local']->format('Y') }}</span>
-            <span class="mt-1 rounded-full bg-white/20 px-1.5 py-0.5 font-mono text-[10px] leading-tight tabular-nums">
-                {{ $event['starts_local']->format('H:i') }}{{ $event['ends_local'] ? '–'.$event['ends_local']->format('H:i') : '' }}
-            </span>
-            <span class="text-[9px] leading-tight opacity-70">{{ $event['timezone'] }}</span>
-        </div>
-
-        {{-- Tuile titre --}}
-        <div class="min-w-[14rem] flex-1 rounded-2xl bg-gray-50 p-3 dark:bg-gray-800/60">
-            @if($event['is_cancelled'] || $event['is_organization_wide'])
-                <span class="mb-1 flex flex-wrap items-center gap-1">
-                    @if($event['is_cancelled'])
-                        <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('events.status_cancelled') }}</span>
-                    @endif
-                    @if($event['is_organization_wide'])
-                        <span class="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">{{ __('events.scope_organization') }}</span>
-                    @endif
+        {{-- Bloc date + titre — un SEUL element du `flex-wrap` : ils refluent
+             ensemble, jamais l'un sans l'autre. --}}
+        <div class="flex min-w-[12rem] flex-[2_1_16rem] gap-2">
+            {{-- Tuile date — la seule surface pleine couleur : le reste reste
+                 sobre pour ne pas lui faire concurrence. Le fuseau est toujours
+                 ecrit, meme minuscule : sans lui une heure ne veut rien dire. --}}
+            <div class="flex w-20 flex-none flex-col items-center justify-center gap-0.5 rounded-2xl p-2.5 text-center text-white {{ $event['is_cancelled']
+                    ? 'bg-gradient-to-br from-gray-400 to-gray-500 dark:from-gray-600 dark:to-gray-700'
+                    : 'bg-gradient-to-br from-indigo-600 to-indigo-700 dark:from-indigo-500 dark:to-indigo-600' }}">
+                <span class="text-[10px] font-bold uppercase tracking-wide opacity-80">{{ $event['starts_local']->translatedFormat('D') }}</span>
+                <span class="font-mono text-2xl font-bold leading-none tabular-nums">{{ $event['starts_local']->translatedFormat('d') }}</span>
+                <span class="text-[10px] font-semibold opacity-90">{{ $event['starts_local']->translatedFormat('M') }} {{ $event['starts_local']->format('Y') }}</span>
+                <span class="mt-1 rounded-full bg-white/20 px-1.5 py-0.5 font-mono text-[10px] leading-tight tabular-nums">
+                    {{ $event['starts_local']->format('H:i') }}{{ $event['ends_local'] ? '–'.$event['ends_local']->format('H:i') : '' }}
                 </span>
-            @endif
+                <span class="text-[9px] leading-tight opacity-70">{{ $event['timezone'] }}</span>
+            </div>
 
-            <p class="text-sm font-semibold {{ $event['is_cancelled']
-                    ? 'text-gray-500 line-through dark:text-gray-400'
-                    : 'text-gray-900 dark:text-gray-100' }}">{{ $event['title'] }}</p>
+            {{-- Tuile titre — `min-w-0` : sans lui, un `flex` enfant ne retrecit
+                 jamais sous sa largeur de contenu, et c'est la tuile ENTIERE qui
+                 passerait a la ligne plutot que son texte. --}}
+            <div class="min-w-0 flex-1 rounded-2xl bg-gray-50 p-3 dark:bg-gray-800/60">
+                @if($event['is_cancelled'] || $event['is_organization_wide'])
+                    <span class="mb-1 flex flex-wrap items-center gap-1">
+                        @if($event['is_cancelled'])
+                            <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('events.status_cancelled') }}</span>
+                        @endif
+                        @if($event['is_organization_wide'])
+                            <span class="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">{{ __('events.scope_organization') }}</span>
+                        @endif
+                    </span>
+                @endif
 
-            <p class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-                <span>{{ __('events.format_'.$event['format']) }}</span>
-                @if($showLoopName && $event['loop_name'])
-                    <span>·</span>
-                    <span>{{ __('events.from_loop', ['name' => $event['loop_name']]) }}</span>
-                @endif
-                <span>·</span>
-                <span>{{ __('events.by', ['name' => $event['author']]) }}</span>
-                @if($event['is_cancelled'] && $event['cancelled_at'])
-                    <span>·</span>
-                    <span>{{ __('events.cancelled_notice', ['date' => $event['cancelled_at']->isoFormat('LL')]) }}</span>
-                @endif
-            </p>
+                <p class="text-sm font-semibold {{ $event['is_cancelled']
+                        ? 'text-gray-500 line-through dark:text-gray-400'
+                        : 'text-gray-900 dark:text-gray-100' }}">{{ $event['title'] }}</p>
+
+                <p class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                    {{-- Le format n'est repete ici QUE s'il n'a pas deja sa propre
+                         tuile « ou » plus bas — jamais le dire deux fois. --}}
+                    @unless($hasWhere)
+                        <span>{{ __('events.format_'.$event['format']) }}</span>
+                        <span>·</span>
+                    @endunless
+                    @if($showLoopName && $event['loop_name'])
+                        <span>{{ __('events.from_loop', ['name' => $event['loop_name']]) }}</span>
+                        <span>·</span>
+                    @endif
+                    <span>{{ __('events.by', ['name' => $event['author']]) }}</span>
+                    @if($event['is_cancelled'] && $event['cancelled_at'])
+                        <span>·</span>
+                        <span>{{ __('events.cancelled_notice', ['date' => $event['cancelled_at']->isoFormat('LL')]) }}</span>
+                    @endif
+                </p>
+            </div>
         </div>
 
         {{-- Tuile lieu / lien --}}
         @if($hasWhere)
-            <div class="min-w-[11rem] flex-1 rounded-2xl bg-gray-50 p-3 dark:bg-gray-800/60">
+            <div class="min-w-[10rem] flex-1 rounded-2xl bg-gray-50 p-3 dark:bg-gray-800/60">
                 <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('events.format_'.$event['format']) }}</p>
 
                 @if($event['location'])
@@ -102,8 +121,8 @@
         @endif
 
         {{-- Tuile presences — les compteurs, toujours ; les noms, sur demande. --}}
-        <div class="min-w-[11rem] flex-1 rounded-2xl bg-gray-50 p-3 dark:bg-gray-800/60">
-            <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('events.going_short') }}/{{ __('events.maybe_short') }}/{{ __('events.not_going_short') }}</p>
+        <div class="min-w-[10rem] flex-1 rounded-2xl bg-gray-50 p-3 dark:bg-gray-800/60">
+            <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('events.attendance_label') }}</p>
             <div class="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
                 <span class="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                     {{ __('events.going_short') }} {{ $event['counts']['going'] }}
@@ -166,7 +185,7 @@
                 ] as $value => $style)
                     @php($chosen = $event['my_response'] === $value)
                     <button type="button" wire:click="respond('{{ $event['id'] }}', '{{ $value }}')"
-                            class="rounded-lg border px-3 py-1.5 text-xs font-semibold transition {{ $chosen ? $style['on'].' border-transparent' : $style['off'] }}"
+                            class="rounded-xl border px-3 py-1.5 text-xs font-semibold transition {{ $chosen ? $style['on'].' border-transparent' : $style['off'] }}"
                             aria-pressed="{{ $chosen ? 'true' : 'false' }}">
                         {{ $style['label'] }}
                     </button>
@@ -177,7 +196,7 @@
         @if($event['can_manage'] && ! $event['is_cancelled'])
             <div class="mt-2.5 flex flex-wrap gap-1.5">
                 <button type="button" wire:click="openEditForm('{{ $event['id'] }}')"
-                        class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
+                        class="rounded-xl border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
                     {{ __('events.edit') }}
                 </button>
 
@@ -186,19 +205,19 @@
                         ? \App\Models\LoopEvent::VISIBILITY_LOOP
                         : \App\Models\LoopEvent::VISIBILITY_ORGANIZATION)
                     <button type="button" wire:click="confirmVisibility('{{ $event['id'] }}', '{{ $target }}')"
-                            class="rounded-lg border border-violet-300 px-3 py-1.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-900/30">
+                            class="rounded-xl border border-violet-300 px-3 py-1.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-900/30">
                         {{ $event['is_organization_wide'] ? __('events.restrict_loop_cta') : __('events.publish_org_cta') }}
                     </button>
                 @endif
 
                 <button type="button" wire:click="confirmCancel('{{ $event['id'] }}')"
-                        class="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/30">
+                        class="rounded-xl border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/30">
                     {{ __('events.cancel_event') }}
                 </button>
 
                 @if($event['can_delete'])
                     <button type="button" wire:click="confirmDelete('{{ $event['id'] }}')"
-                            class="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/30">
+                            class="rounded-xl border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/30">
                         {{ __('events.delete') }}
                     </button>
                 @endif

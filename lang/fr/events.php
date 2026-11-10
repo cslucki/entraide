@@ -69,6 +69,7 @@ return [
     'going' => 'Je participe',
     'maybe' => 'Peut-être',
     'not_going' => 'Je ne participe pas',
+    'attendance_label' => 'Présences',
     'going_short' => 'Participent',
     'maybe_short' => 'Peut-être',
     'not_going_short' => 'Absents',
