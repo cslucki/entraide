@@ -9,6 +9,7 @@ use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\User;
 use App\Support\Email\SystemEmailTemplateResolver;
 use App\Support\Notifications\GabaritEmail;
+use App\Support\ScopedReadCache;
 use Illuminate\Support\Str;
 
 /**
@@ -99,16 +100,29 @@ final class LoopMentionMailer
         app()->setLocale($langue);
 
         try {
-            $boucle = Loop::query()
-                ->withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->whereKey($message->loop_id)
-                ->where('organization_id', $message->organization_id)
-                ->first();
+            // TASK-1799 (B1) — memes cles que `NotificationTargetResolver::
+            // loopMessage()`/`loop()`, deja remplies dans l'immense majorite
+            // des cas par la resolution de cible qui precede systematiquement
+            // cet appel (`NotificationEmailDeliverer::livrer()`). Donnees de
+            // reference, identiques pour TOUS les destinataires d'une meme
+            // mention : voir le docblock de `ScopedReadCache` (precedent
+            // TASK-1778).
+            $boucle = app(ScopedReadCache::class)->souviens(
+                'cible-boucle:'.$message->organization_id.':'.$message->loop_id,
+                fn (): ?Loop => Loop::query()
+                    ->withoutGlobalScope(BelongsToOrganizationScope::class)
+                    ->whereKey($message->loop_id)
+                    ->where('organization_id', $message->organization_id)
+                    ->first(),
+            );
 
-            $organization = Organization::query()
-                ->withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->whereKey($message->organization_id)
-                ->first();
+            $organization = app(ScopedReadCache::class)->souviens(
+                'cible-organization:'.$message->organization_id,
+                fn (): ?Organization => Organization::query()
+                    ->withoutGlobalScope(BelongsToOrganizationScope::class)
+                    ->whereKey($message->organization_id)
+                    ->first(),
+            );
 
             // ## L'extrait, et pourquoi il est la
             //

@@ -101,6 +101,20 @@ class NotificationTargetResolver
             return null;
         }
 
+        // TASK-1799 (B1) — le MESSAGE n'est volontairement PAS memorise,
+        // a la difference de la Boucle/Organization/acteur juste en dessous.
+        //
+        // Tentative faite, puis RETIREE : `TASK1772MentionEmailEtCibleTest::
+        // test_un_message_supprime_ou_un_membre_sorti_ne_mene_plus_nulle_part`
+        // et `::test_un_message_sans_texte_affiche_une_mention_neutre`
+        // rougissaient — tous deux relisent CE MEME message apres l'avoir
+        // modifie (`deleted_at`, `body`) DANS LA MEME portee d'execution, et
+        // exigent que la lecture suivante voie le changement. Contrairement
+        // a la Boucle ou l'Organization (dont seule l'IDENTITE/le TENANT
+        // comptent ici), le contenu et l'etat du message SONT ce que cette
+        // methode existe pour verifier a jour — le memoriser aurait remplace
+        // un controle courant par une donnee potentiellement perimee,
+        // exactement ce que ce correctif s'interdit.
         $message = LoopMessage::query()
             ->withoutGlobalScope(BelongsToOrganizationScope::class)
             ->whereKey($notification->object_id)
@@ -111,11 +125,14 @@ class NotificationTargetResolver
             return null;
         }
 
-        $boucle = Loop::query()
-            ->withoutGlobalScope(BelongsToOrganizationScope::class)
-            ->whereKey($message->loop_id)
-            ->where('organization_id', $notification->organization_id)
-            ->first();
+        $boucle = app(ScopedReadCache::class)->souviens(
+            'cible-boucle:'.$notification->organization_id.':'.$message->loop_id,
+            fn (): ?Loop => Loop::query()
+                ->withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->whereKey($message->loop_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first(),
+        );
 
         if ($boucle === null) {
             return null;
@@ -139,10 +156,16 @@ class NotificationTargetResolver
             return null;
         }
 
-        $organisation = Organization::query()
-            ->withoutGlobalScope(BelongsToOrganizationScope::class)
-            ->whereKey($notification->organization_id)
-            ->first();
+        // Meme cle que celle de `loop()` ci-dessus : l'Organization est une
+        // donnee de reference partagee par TOUTE notification de ce tenant,
+        // quel que soit l'`object_type` qui la demande.
+        $organisation = app(ScopedReadCache::class)->souviens(
+            'cible-organization:'.$notification->organization_id,
+            fn (): ?Organization => Organization::query()
+                ->withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->whereKey($notification->organization_id)
+                ->first(),
+        );
 
         if ($organisation === null) {
             return null;

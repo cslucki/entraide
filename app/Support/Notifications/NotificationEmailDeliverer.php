@@ -18,6 +18,7 @@ use App\Services\Entraide\EntraideCommentMailer;
 use App\Services\Loops\LoopInvitationMailer;
 use App\Services\Loops\LoopMentionMailer;
 use App\Services\Transactions\TransactionProposalMailer;
+use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Mail;
@@ -587,6 +588,11 @@ final class NotificationEmailDeliverer
         }
 
         if ($cle === NotificationCatalogue::LOOP_MENTION_CREATED) {
+            // TASK-1799 (B1) — le MESSAGE n'est volontairement PAS memorise
+            // ici : voir le docblock de `NotificationTargetResolver::
+            // loopMessage()` pour la raison (deux tests TASK-1772 exigent
+            // qu'une modification du message DANS LA MEME portee reste
+            // visible a la relecture suivante).
             $message = LoopMessage::query()
                 ->withoutGlobalScopes()
                 ->whereKey((string) $notification->object_id)
@@ -608,9 +614,19 @@ final class NotificationEmailDeliverer
             // que `compose()` lit deja par ailleurs. Aucun controle
             // d'autorisation ne s'appuie sur cette relation : seul l'AFFICHAGE
             // (nom de l'Organization dans le courriel) la consomme.
-            $auteur = $notification->actor_id
-                ? User::with('organization')->find((string) $notification->actor_id)
-                : User::with('organization')->find((string) $message->sender_id);
+            //
+            // TASK-1799 (B1) — « Auteur, lorsque sûr » : l'auteur du MESSAGE
+            // est IDENTIQUE pour tous les destinataires d'une meme mention
+            // (@tous ou individuelle), et rien ici ne s'appuie sur cette
+            // lecture pour une decision d'autorisation — seul l'AFFICHAGE
+            // (nom, Organization) la consomme. La cle inclut le tenant de la
+            // notification : un meme `actor_id` relu sous un autre tenant,
+            // dans un autre job, repartirait d'une lecture neuve.
+            $actorId = (string) ($notification->actor_id ?? $message->sender_id);
+            $auteur = app(ScopedReadCache::class)->souviens(
+                'cible-acteur:'.$notification->organization_id.':'.$actorId,
+                fn (): ?User => User::with('organization')->find($actorId),
+            );
 
             // TASK-1799 (A1) — UN SEUL appel rend les deux variantes (reel +
             // copie expurgee pour `email_logs`) a partir d'UNE SEULE
