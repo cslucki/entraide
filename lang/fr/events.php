@@ -150,8 +150,20 @@ return [
     // message de creation. `:date` est deja formatee (fuseau de l'Evenement),
     // jamais une date brute a interpreter dans la vue.
     'chat_created' => 'Un nouvel événement a été proposé : :title (:date)',
-    'chat_created_online_suffix' => ' — Lien : :url',
+    // TASK-1802 (suite, demande Cyril) — « on ne voit pas la date de fin de
+    // l'évènement (ou la durée si c'est moins d'un jour d'écart) ». Deux
+    // formes de plus, choisies par `bodyPourNouvelEvenement()` selon que la
+    // fin tombe le MEME jour (durée) ou un AUTRE jour (date complete).
+    'chat_created_with_duration' => 'Un nouvel événement a été proposé : :title (:date, durée :duree)',
+    'chat_created_with_end' => 'Un nouvel événement a été proposé : :title (du :date au :date_fin)',
+    // Le lien de connexion n'est PLUS ici : texte echappe par `{{ }}`, il
+    // n'etait jamais cliquable. La vue le rend desormais en `<a href>` a
+    // partir de `metadata.meeting_url` (demande explicite de Cyril).
+    'duration_format_hours_minutes' => ':h h :m',
+    'duration_format_hours' => ':h h',
+    'duration_format_minutes' => ':m min',
     'chat_updated' => 'L\'événement « :title » a été mis à jour.',
     'chat_cancelled' => 'L\'événement « :title » a été annulé.',
     'chat_open_card' => 'Ouvrir l\'agenda',
+    'chat_join_link' => 'Rejoindre',
 ];

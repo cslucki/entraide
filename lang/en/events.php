@@ -142,8 +142,19 @@ return [
     // TASK-1802 — `:date` is already formatted (the event's own timezone),
     // never a raw date left for the view to interpret.
     'chat_created' => 'A new event has been proposed: :title (:date)',
-    'chat_created_online_suffix' => ' — Link: :url',
+    // TASK-1802 (follow-up) — two more forms, chosen by
+    // `bodyPourNouvelEvenement()` depending on whether the end falls on the
+    // SAME day (duration) or ANOTHER day (full date).
+    'chat_created_with_duration' => 'A new event has been proposed: :title (:date, duration :duree)',
+    'chat_created_with_end' => 'A new event has been proposed: :title (:date to :date_fin)',
+    // The meeting link no longer lives here: escaped by `{{ }}`, it was
+    // never clickable. The view now renders it as a real `<a href>` from
+    // `metadata.meeting_url`.
+    'duration_format_hours_minutes' => ':h h :m',
+    'duration_format_hours' => ':h h',
+    'duration_format_minutes' => ':m min',
     'chat_updated' => 'The event “:title” has been updated.',
     'chat_cancelled' => 'The event “:title” has been cancelled.',
     'chat_open_card' => 'Open the agenda',
+    'chat_join_link' => 'Join',
 ];

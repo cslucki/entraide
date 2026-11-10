@@ -253,6 +253,16 @@
                         @php
                             $evMeta = $msg->metadata ?? [];
                             $evCancelled = ($evMeta['event'] ?? null) === 'cancelled';
+                            // TASK-1802 (demande Cyril) — « si c'est un evenement
+                            // qui contient une URL [...] il faut que l'URL soit
+                            // cliquable ». Valide cote serveur a la creation
+                            // (`LoopEventService::isSafeUrl()`, http/https
+                            // uniquement) : sans risque a rendre tel quel en
+                            // `href`, jamais en texte echappe par `{{ }}` dans
+                            // `$msg->body` (ce qui le rendait illisible comme lien).
+                            $evLienConnexion = in_array($evMeta['format'] ?? null, ['online', 'hybrid'], true)
+                                ? trim((string) ($evMeta['meeting_url'] ?? ''))
+                                : '';
                         @endphp
                         <div class="flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 {{ $evCancelled
                                 ? 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/60'
@@ -264,6 +274,13 @@
                                     class="shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-white transition {{ $evCancelled ? 'bg-gray-500 hover:bg-gray-600' : 'bg-sky-600 hover:bg-sky-700' }}">
                                 {{ __('events.chat_open_card') }}
                             </button>
+                            @if($evLienConnexion !== '')
+                                <a href="{{ $evLienConnexion }}" target="_blank" rel="noopener noreferrer"
+                                   data-event-chat-meeting-link
+                                   class="w-full truncate text-xs font-medium text-sky-700 underline hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100">
+                                    {{ $evLienConnexion }}
+                                </a>
+                            @endif
                             <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
                         </div>
                     @elseif($msg->type === 'dossier_file')

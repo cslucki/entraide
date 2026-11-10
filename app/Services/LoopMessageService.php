@@ -432,21 +432,23 @@ class LoopMessageService
         // boucle, il faut ajouter date et heure. Et URL si en ligne. » La date
         // se lit dans le fuseau DE L'EVENEMENT (`startsAtLocal()`), pas celui
         // du lecteur : une rencontre a Chicago reste a Chicago, meme relue
-        // depuis Paris — meme regle que `LoopEventPresenter`. Le lien ne
-        // s'ajoute qu'a la creation et seulement si le format en porte un
-        // (`needsMeetingUrl()` couvre online ET hybride, jamais re-derive a la
-        // main).
+        // depuis Paris — meme regle que `LoopEventPresenter`.
+        //
+        // TASK-1802 (suite, demande Cyril) — « on ne voit pas la date de fin
+        // de l'evenement (ou la duree si c'est moins d'un jour d'ecart). Si
+        // c'est un evenement qui contient une URL [...] il faut que l'URL
+        // soit cliquable. » Le lien n'est donc PLUS concatene dans `$body` en
+        // texte brut (jamais cliquable une fois echappe par `{{ }}`) : il vit
+        // desormais dans `metadata`, et c'est la vue qui rend le `<a href>`
+        // (voir `loop-chat.blade.php`). `$body` ne porte que de la prose
+        // traduisible.
         $date = $event->startsAtLocal()->isoFormat('D MMM YYYY, HH:mm');
 
         $body = match ($eventKind) {
             'cancelled' => __('events.chat_cancelled', ['title' => $event->title]),
             'updated' => __('events.chat_updated', ['title' => $event->title]),
-            default => __('events.chat_created', ['title' => $event->title, 'date' => $date]),
+            default => $this->bodyPourNouvelEvenement($event, $date),
         };
-
-        if ($eventKind === 'created' && $event->needsMeetingUrl()) {
-            $body .= __('events.chat_created_online_suffix', ['url' => (string) $event->meeting_url]);
-        }
 
         return DB::transaction(function () use ($loop, $sender, $event, $eventKind, $body) {
             $message = LoopMessage::create([
@@ -461,12 +463,18 @@ class LoopMessageService
                     // Une date absolue en UTC plus le fuseau : le message reste
                     // juste meme relu depuis un autre continent.
                     'starts_at' => $event->starts_at?->toIso8601String(),
+                    // TASK-1802 (suite) — necessaire a la vue pour rendre la
+                    // meme comparaison « meme jour ou non » que ce fichier,
+                    // sans re-derive dans le template.
+                    'ends_at' => $event->ends_at?->toIso8601String(),
                     'timezone' => $event->timezone,
                     'format' => $event->format,
                     // TASK-1802 — dupliques depuis l'Evenement pour que le
                     // courriel de notification (qui relit CE message, jamais
                     // l'Evenement directement — voir `notifierNouvelEvenement()`)
-                    // puisse composer son corps sans seconde lecture.
+                    // puisse composer son corps sans seconde lecture, et pour
+                    // que la vue ChatLoop rende le lien de connexion en
+                    // `<a href>` cliquable, jamais en texte brut echappe.
                     'description' => $event->description,
                     'location' => $event->location,
                     'meeting_url' => $event->meeting_url,
@@ -484,6 +492,57 @@ class LoopMessageService
 
             return $message;
         });
+    }
+
+    /**
+     * TASK-1802 (demande Cyril) — le corps du message de creation, avec la
+     * fin : « la duree si c'est moins d'un jour d'ecart », sinon la date de
+     * fin explicite.
+     *
+     * Trois cas, jamais devines : sans fin du tout, le message ne change pas
+     * (`chat_created`, forme historique) ; une fin le MEME jour calendaire
+     * que le debut se dit en DUREE (« 1 h 30 »), plus parlant qu'une
+     * deuxieme heure a lire ; une fin un AUTRE jour se dit en DATE complete,
+     * parce qu'une duree de type « 14 h » ne dirait pas OU elle s'arrete.
+     */
+    private function bodyPourNouvelEvenement(LoopEvent $event, string $date): string
+    {
+        if ($event->ends_at === null) {
+            return __('events.chat_created', ['title' => $event->title, 'date' => $date]);
+        }
+
+        if ($event->startsAtLocal()->isSameDay($event->endsAtLocal())) {
+            $minutes = (int) $event->starts_at->diffInMinutes($event->ends_at);
+
+            return __('events.chat_created_with_duration', [
+                'title' => $event->title,
+                'date' => $date,
+                'duree' => $this->formatDuration($minutes),
+            ]);
+        }
+
+        return __('events.chat_created_with_end', [
+            'title' => $event->title,
+            'date' => $date,
+            'date_fin' => $event->endsAtLocal()->isoFormat('D MMM YYYY, HH:mm'),
+        ]);
+    }
+
+    /** « 1 h 30 », « 2 h » ou « 45 min » — jamais les deux formes a la fois pour un compte rond. */
+    private function formatDuration(int $minutes): string
+    {
+        $heures = intdiv($minutes, 60);
+        $reste = $minutes % 60;
+
+        if ($heures > 0 && $reste > 0) {
+            return __('events.duration_format_hours_minutes', ['h' => $heures, 'm' => $reste]);
+        }
+
+        if ($heures > 0) {
+            return __('events.duration_format_hours', ['h' => $heures]);
+        }
+
+        return __('events.duration_format_minutes', ['m' => $reste]);
     }
 
     /**
