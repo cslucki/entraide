@@ -115,7 +115,7 @@ final class EmailLogContextResolver
      *                       `organization_id` personnel decide si les liens
      *                       vers `admin.loop-messages.show`/`admin.messages.show`
      *                       sont offerts (voir le docblock de la classe).
-     * @return array<string, array{label: string, url: string|null}> `email_logs.id` => contexte
+     * @return array<string, array{label: string, url: string|null, url_message: string|null}> `email_logs.id` => contexte
      */
     public function resoudrePour(Collection $logs, User $admin): array
     {
@@ -153,7 +153,7 @@ final class EmailLogContextResolver
      * @param  array<string, array{titre: string, article_id: string}>  $articles
      * @param  array<string, array{sujet: string, message_id: string|null}>  $transactions
      * @param  array<string, string>  $titresEntraide
-     * @return array{label: string, url: string|null}
+     * @return array{label: string, url: string|null, url_message: string|null}
      */
     private function contextePour(
         EmailLog $log,
@@ -170,7 +170,7 @@ final class EmailLogContextResolver
             $notification = $notifications->get($notificationId);
 
             if ($notification === null) {
-                return ['label' => 'Notification supprimée', 'url' => null];
+                return ['label' => 'Notification supprimée', 'url' => null, 'url_message' => null];
             }
 
             $categorie = NotificationCatalogue::definition((string) $notification->notification_key)['category'] ?? null;
@@ -178,37 +178,47 @@ final class EmailLogContextResolver
 
             if ($categorie === 'loop') {
                 if ($objectId === null || ! isset($boucles[$objectId])) {
-                    return ['label' => 'Boucle supprimée', 'url' => null];
+                    return ['label' => 'Boucle supprimée', 'url' => null, 'url_message' => null];
                 }
 
                 $boucle = $boucles[$objectId];
-                // `OBJECT_LOOP_MESSAGE` (mention) mene DIRECTEMENT au message :
-                // c'est l'ecran dedie, et c'est ce que demande Cyril. Les
-                // trois autres chemins (ajout direct, invitation, demande)
-                // menent a la Boucle elle-meme.
-                $url = $notification->object_type === NotificationCatalogue::OBJECT_LOOP_MESSAGE
+                // La Boucle elle-meme est TOUJOURS joignable (`admin.loops.
+                // show` accepte tout SuperAdmin). `OBJECT_LOOP_MESSAGE`
+                // (mention) porte EN PLUS un second lien, directement vers LE
+                // MESSAGE — demande explicite de Cyril (10/11) : « un lien
+                // vers la Boucle elle-meme ET si possible le message
+                // lui-meme ».
+                $urlMessage = $notification->object_type === NotificationCatalogue::OBJECT_LOOP_MESSAGE
                     ? $this->urlSiJoignable($admin, $notification, fn () => route('admin.loop-messages.show', $objectId))
-                    : route('admin.loops.show', $boucle['loop_id']);
+                    : null;
 
-                return ['label' => 'Boucle : '.$boucle['nom'], 'url' => $url];
+                return [
+                    'label' => 'Boucle : '.$boucle['nom'],
+                    'url' => route('admin.loops.show', $boucle['loop_id']),
+                    'url_message' => $urlMessage,
+                ];
             }
 
             if ($categorie === 'blog') {
                 if ($objectId === null || ! isset($articles[$objectId])) {
-                    return ['label' => 'Article supprimé', 'url' => null];
+                    return ['label' => 'Article supprimé', 'url' => null, 'url_message' => null];
                 }
 
                 $article = $articles[$objectId];
 
                 // `admin.blog.edit` n'exige aucune appartenance (pas de garde
                 // `organization_id` dans `AdminBlogController::edit()`) :
-                // toujours offert, contrairement aux deux routes ci-dessus.
-                return ['label' => 'Article : '.$article['titre'], 'url' => route('admin.blog.edit', $article['article_id'])];
+                // toujours offert, contrairement aux routes de message ci-dessus.
+                return [
+                    'label' => 'Article : '.$article['titre'],
+                    'url' => route('admin.blog.edit', $article['article_id']),
+                    'url_message' => null,
+                ];
             }
 
             if ($categorie === 'transaction') {
                 if ($objectId === null || ! isset($transactions[$objectId])) {
-                    return ['label' => 'Message privé', 'url' => null];
+                    return ['label' => 'Message privé', 'url' => null, 'url_message' => null];
                 }
 
                 $transaction = $transactions[$objectId];
@@ -216,29 +226,29 @@ final class EmailLogContextResolver
                     ? null
                     : $this->urlSiJoignable($admin, $notification, fn () => route('admin.messages.show', $transaction['message_id']));
 
-                return ['label' => 'Message privé : '.$transaction['sujet'], 'url' => $url];
+                return ['label' => 'Message privé : '.$transaction['sujet'], 'url' => $url, 'url_message' => null];
             }
 
             if ($categorie === 'entraide') {
                 if ($objectId === null || ! isset($titresEntraide[$objectId])) {
-                    return ['label' => 'Annonce d’entraide supprimée', 'url' => null];
+                    return ['label' => 'Annonce d’entraide supprimée', 'url' => null, 'url_message' => null];
                 }
 
                 // Aucune route admin ne couvre Service/ServiceRequest : voir
                 // le docblock de la classe.
-                return ['label' => 'Entraide : '.$titresEntraide[$objectId], 'url' => null];
+                return ['label' => 'Entraide : '.$titresEntraide[$objectId], 'url' => null, 'url_message' => null];
             }
 
-            return ['label' => 'Autre évènement', 'url' => null];
+            return ['label' => 'Autre évènement', 'url' => null, 'url_message' => null];
         }
 
         $source = $log->data['source'] ?? null;
 
         if (! is_string($source) || $source === '') {
-            return ['label' => '—', 'url' => null];
+            return ['label' => '—', 'url' => null, 'url_message' => null];
         }
 
-        return ['label' => self::LABELS_SOURCE[$source] ?? 'Autre : '.$source, 'url' => null];
+        return ['label' => self::LABELS_SOURCE[$source] ?? 'Autre : '.$source, 'url' => null, 'url_message' => null];
     }
 
     /**
