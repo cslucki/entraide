@@ -7,100 +7,133 @@
 
     Les actions ne sont rendues que si l'appelant les fournit (`$interactive`).
     L'agenda, lui, montre et laisse agir dans la Boucle.
+
+    TASK-1802 (demande Cyril, 10/11) — « le design est loin d'etre premium,
+    que pourrait-on faire en mode bento ? ». L'information ne change pas, sa
+    mise en page oui : une tuile date (la seule surface pleine couleur), une
+    tuile titre, une tuile lieu/lien, une tuile presences, et une tuile
+    description — en `flex-wrap`, pas en `grid` fixe. C'est ce `flex-wrap`
+    qui fait tenir le MEME balisage dans la pleine largeur de l'agenda et
+    dans le panneau etroit de la Card : les tuiles refluent selon l'espace
+    REELLEMENT disponible, sans media query liee au viewport.
 --}}
 @php
     $interactive = $interactive ?? true;
     $showLoopName = $showLoopName ?? false;
     $canPublishOrg = $canPublishOrg ?? false;
     $total = $event['counts']['going'] + $event['counts']['maybe'] + $event['counts']['not_going'];
+    $hasWhere = (bool) ($event['location'] || $event['meeting_url']);
 @endphp
 
-<div class="rounded-2xl border p-4 {{ $event['is_cancelled']
+<div class="rounded-[26px] border p-3 {{ $event['is_cancelled']
         ? 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/60'
         : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900' }}"
      wire:key="event-{{ $event['id'] }}" data-event-id="{{ $event['id'] }}">
 
-    <div class="flex flex-wrap items-start justify-between gap-2">
-        <p class="min-w-0 flex-1 text-sm font-semibold {{ $event['is_cancelled']
-                ? 'text-gray-500 line-through dark:text-gray-400'
-                : 'text-gray-900 dark:text-gray-100' }}">{{ $event['title'] }}</p>
+    <div class="flex flex-wrap gap-2">
+        {{-- Tuile date — la seule surface pleine couleur : le reste reste
+             sobre pour ne pas lui faire concurrence. Le fuseau est toujours
+             ecrit, meme minuscule : sans lui une heure ne veut rien dire. --}}
+        <div class="flex w-20 flex-none flex-col items-center justify-center gap-0.5 rounded-2xl p-2.5 text-center text-white {{ $event['is_cancelled']
+                ? 'bg-gradient-to-br from-gray-400 to-gray-500 dark:from-gray-600 dark:to-gray-700'
+                : 'bg-gradient-to-br from-indigo-600 to-indigo-700 dark:from-indigo-500 dark:to-indigo-600' }}">
+            <span class="text-[10px] font-bold uppercase tracking-wide opacity-80">{{ $event['starts_local']->translatedFormat('D') }}</span>
+            <span class="font-mono text-2xl font-bold leading-none tabular-nums">{{ $event['starts_local']->translatedFormat('d') }}</span>
+            <span class="text-[10px] font-semibold opacity-90">{{ $event['starts_local']->translatedFormat('M') }} {{ $event['starts_local']->format('Y') }}</span>
+            <span class="mt-1 rounded-full bg-white/20 px-1.5 py-0.5 font-mono text-[10px] leading-tight tabular-nums">
+                {{ $event['starts_local']->format('H:i') }}{{ $event['ends_local'] ? '–'.$event['ends_local']->format('H:i') : '' }}
+            </span>
+            <span class="text-[9px] leading-tight opacity-70">{{ $event['timezone'] }}</span>
+        </div>
 
-        <span class="flex shrink-0 flex-wrap items-center gap-1">
-            @if($event['is_cancelled'])
-                <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('events.status_cancelled') }}</span>
+        {{-- Tuile titre --}}
+        <div class="min-w-[14rem] flex-1 rounded-2xl bg-gray-50 p-3 dark:bg-gray-800/60">
+            @if($event['is_cancelled'] || $event['is_organization_wide'])
+                <span class="mb-1 flex flex-wrap items-center gap-1">
+                    @if($event['is_cancelled'])
+                        <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('events.status_cancelled') }}</span>
+                    @endif
+                    @if($event['is_organization_wide'])
+                        <span class="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">{{ __('events.scope_organization') }}</span>
+                    @endif
+                </span>
             @endif
-            @if($event['is_organization_wide'])
-                <span class="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">{{ __('events.scope_organization') }}</span>
+
+            <p class="text-sm font-semibold {{ $event['is_cancelled']
+                    ? 'text-gray-500 line-through dark:text-gray-400'
+                    : 'text-gray-900 dark:text-gray-100' }}">{{ $event['title'] }}</p>
+
+            <p class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                <span>{{ __('events.format_'.$event['format']) }}</span>
+                @if($showLoopName && $event['loop_name'])
+                    <span>·</span>
+                    <span>{{ __('events.from_loop', ['name' => $event['loop_name']]) }}</span>
+                @endif
+                <span>·</span>
+                <span>{{ __('events.by', ['name' => $event['author']]) }}</span>
+                @if($event['is_cancelled'] && $event['cancelled_at'])
+                    <span>·</span>
+                    <span>{{ __('events.cancelled_notice', ['date' => $event['cancelled_at']->isoFormat('LL')]) }}</span>
+                @endif
+            </p>
+        </div>
+
+        {{-- Tuile lieu / lien --}}
+        @if($hasWhere)
+            <div class="min-w-[11rem] flex-1 rounded-2xl bg-gray-50 p-3 dark:bg-gray-800/60">
+                <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('events.format_'.$event['format']) }}</p>
+
+                @if($event['location'])
+                    <p class="mt-1 flex items-start gap-1.5 text-xs text-gray-600 dark:text-gray-300">
+                        <svg class="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+                        <span class="min-w-0">{{ $event['location'] }}</span>
+                    </p>
+                @endif
+
+                @if($event['meeting_url'])
+                    {{-- `noopener` systematique : le lien vient d'un membre, pas de nous. --}}
+                    <p class="mt-1 flex items-start gap-1.5 text-xs">
+                        <svg class="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>
+                        <a href="{{ $event['meeting_url'] }}" target="_blank" rel="noopener noreferrer"
+                           class="min-w-0 break-all text-sky-700 hover:underline dark:text-sky-300">{{ $event['meeting_url'] }}</a>
+                    </p>
+                @endif
+            </div>
+        @endif
+
+        {{-- Tuile presences — les compteurs, toujours ; les noms, sur demande. --}}
+        <div class="min-w-[11rem] flex-1 rounded-2xl bg-gray-50 p-3 dark:bg-gray-800/60">
+            <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('events.going_short') }}/{{ __('events.maybe_short') }}/{{ __('events.not_going_short') }}</p>
+            <div class="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span class="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                    {{ __('events.going_short') }} {{ $event['counts']['going'] }}
+                </span>
+                <span class="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                    {{ __('events.maybe_short') }} {{ $event['counts']['maybe'] }}
+                </span>
+                <span class="rounded-full bg-gray-100 px-2 py-0.5 font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                    {{ __('events.not_going_short') }} {{ $event['counts']['not_going'] }}
+                </span>
+            </div>
+
+            @if($interactive && $total > 0)
+                <button type="button" wire:click="toggleAttendees('{{ $event['id'] }}')"
+                        class="mt-1.5 text-[11px] font-semibold text-sky-700 transition hover:underline dark:text-sky-300">
+                    {{ $event['attendees'] !== null ? __('events.attendees_hide') : __('events.attendees_show') }}
+                </button>
             @endif
-        </span>
-    </div>
+        </div>
 
-    {{-- La date d'abord : c'est l'information qu'on cherche. Le fuseau est
-         toujours ecrit — sans lui, une heure ne veut rien dire. --}}
-    <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-700 dark:text-gray-300">
-        <span class="font-medium">{{ $event['starts_local']->translatedFormat('D j M Y · H:i') }}</span>
-        @if($event['ends_local'])
-            <span>→ {{ $event['ends_local']->translatedFormat('H:i') }}</span>
-        @endif
-        <span class="text-gray-400 dark:text-gray-500">{{ $event['timezone'] }}</span>
-    </p>
-
-    <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-400 dark:text-gray-500">
-        <span>{{ __('events.format_'.$event['format']) }}</span>
-        @if($showLoopName && $event['loop_name'])
-            <span>·</span>
-            <span>{{ __('events.from_loop', ['name' => $event['loop_name']]) }}</span>
-        @endif
-        <span>·</span>
-        <span>{{ __('events.by', ['name' => $event['author']]) }}</span>
-        @if($event['is_cancelled'] && $event['cancelled_at'])
-            <span>·</span>
-            <span>{{ __('events.cancelled_notice', ['date' => $event['cancelled_at']->isoFormat('LL')]) }}</span>
-        @endif
-    </p>
-
-    @if($event['description'])
-        <p class="mt-2 text-xs leading-5 text-gray-600 dark:text-gray-300">{{ $event['description'] }}</p>
-    @endif
-
-    @if($event['location'])
-        <p class="mt-1.5 flex items-start gap-1.5 text-xs text-gray-600 dark:text-gray-300">
-            <svg class="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
-            <span class="min-w-0">{{ $event['location'] }}</span>
-        </p>
-    @endif
-
-    @if($event['meeting_url'])
-        {{-- `noopener` systematique : le lien vient d'un membre, pas de nous. --}}
-        <p class="mt-1.5 flex items-start gap-1.5 text-xs">
-            <svg class="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>
-            <a href="{{ $event['meeting_url'] }}" target="_blank" rel="noopener noreferrer"
-               class="min-w-0 break-all text-sky-700 hover:underline dark:text-sky-300">{{ $event['meeting_url'] }}</a>
-        </p>
-    @endif
-
-    {{-- Les compteurs, toujours ; les noms, sur demande. --}}
-    <div class="mt-2.5 flex flex-wrap items-center gap-2 text-[11px]">
-        <span class="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-            {{ __('events.going_short') }} {{ $event['counts']['going'] }}
-        </span>
-        <span class="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-            {{ __('events.maybe_short') }} {{ $event['counts']['maybe'] }}
-        </span>
-        <span class="rounded-full bg-gray-100 px-2 py-0.5 font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-            {{ __('events.not_going_short') }} {{ $event['counts']['not_going'] }}
-        </span>
-
-        @if($interactive && $total > 0)
-            <button type="button" wire:click="toggleAttendees('{{ $event['id'] }}')"
-                    class="font-semibold text-sky-700 transition hover:underline dark:text-sky-300">
-                {{ $event['attendees'] !== null ? __('events.attendees_hide') : __('events.attendees_show') }}
-            </button>
+        {{-- Tuile description, pleine largeur --}}
+        @if($event['description'])
+            <div class="w-full rounded-2xl bg-gray-50 p-3 text-xs leading-5 text-gray-600 dark:bg-gray-800/60 dark:text-gray-300">
+                {{ $event['description'] }}
+            </div>
         @endif
     </div>
 
     @if($event['attendees'] !== null)
-        <div class="mt-2 space-y-1 border-t border-gray-100 pt-2 dark:border-gray-800">
+        <div class="mt-2.5 space-y-1 border-t border-gray-100 pt-2 dark:border-gray-800">
             @foreach([
                 \App\Models\LoopEventResponse::GOING => __('events.going_short'),
                 \App\Models\LoopEventResponse::MAYBE => __('events.maybe_short'),
@@ -117,7 +150,7 @@
     @endif
 
     @if($event['my_response'])
-        <p class="mt-2 text-xs text-gray-600 dark:text-gray-300">
+        <p class="mt-2.5 text-xs text-gray-600 dark:text-gray-300">
             <span class="font-semibold">{{ __('events.your_response') }}</span>
             {{ __('events.'.$event['my_response']) }}
         </p>
