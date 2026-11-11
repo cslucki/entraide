@@ -47,7 +47,17 @@
                                            class="border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
                                     {{ __('admin.bulk_email_scope_one_org') }}
                                 </label>
+                                {{-- `x-show` ne retire rien du DOM : sans `disabled`, ce
+                                     `<select>` partage `name="organization_id"` avec le radio
+                                     "all" juste au-dessus et serait soumis EN PLUS de lui —
+                                     navigateur comme serveur gardent alors la DERNIERE valeur
+                                     du formulaire (celle du select, vide), jamais celle du
+                                     radio, meme quand « Toutes les Organizations » est coche.
+                                     Trouve en recette navigateur (TASK-1803) : un formulaire
+                                     POSTE reellement par un navigateur, pas une requete de
+                                     test qui n'envoie que les champs qu'on lui donne. --}}
                                 <select name="organization_id" x-show="scope === 'one'" x-cloak
+                                        x-bind:disabled="scope !== 'one'"
                                         x-bind:required="scope === 'one'"
                                         class="mt-1 block w-full max-w-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                     <option value="">—</option>
@@ -151,8 +161,21 @@
                                               x-bind:required="contentSource === 'custom'"
                                               class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ old('content_raw') }}</textarea>
                                 </template>
+                                {{-- `x-if` n'accepte qu'un SEUL element racine dans son
+                                     `<template>` : `<x-markdown-wysiwyg-editor>` rend DEUX
+                                     freres (`<style>` puis `<div data-tiptap-container>`), et
+                                     sans ce `<div>` d'enveloppe Alpine ne montait que le
+                                     `<style>` en silence — aucune erreur, juste l'editeur
+                                     absent. `x-init` reprend le MEME idiome que
+                                     `dossiers/show.blade.php`/`roadmap-detail.blade.php` : le
+                                     script d'init de l'editeur ne scanne qu'au chargement de
+                                     page, un conteneur insere APRES (ici par `x-if`) reste une
+                                     simple textarea sans le evenement `bp:markdown-editor:init`.
+                                     Trouve en recette navigateur (TASK-1803). --}}
                                 <template x-if="format === 'html'">
-                                    <x-markdown-wysiwyg-editor name="content_raw" :value="old('content_raw')" rows="10" tall />
+                                    <div x-init="$nextTick(() => document.dispatchEvent(new CustomEvent('bp:markdown-editor:init')))">
+                                        <x-markdown-wysiwyg-editor name="content_raw" :value="old('content_raw')" rows="10" tall />
+                                    </div>
                                 </template>
                                 @error('content_raw')
                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
