@@ -105,6 +105,50 @@ class TASK1805PwaEnvironmentNameTest extends TestCase
         }
     }
 
+    private const UA_TELEPHONE = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36';
+
+    /**
+     * TASK-1805 correctif (recette Cyril du 11/11 sur un tunnel Cloudflare) —
+     * le bandeau d'installation ("Installer BouclePro") ne suivait PAS
+     * `PwaAppName` : `lang/fr/pwa.php` et `lang/en/pwa.php` codaient
+     * "BouclePro" en dur dans une douzaine de chaines (bandeau, ecran plein
+     * format, instructions iOS/Android, premier lancement des notifications).
+     * Toutes doivent desormais suivre le MEME nom que le manifest.
+     *
+     * Production et local sont deux METHODES separees, jamais un bascule
+     * d'environnement AU MILIEU d'un meme test : le `Translator` de Laravel
+     * met en cache un groupe de traductions des sa premiere lecture pour la
+     * duree du processus, et une bascule tardive de `app()->environment()`
+     * ne le ferait pas relire — un faux negatif aurait masque le vrai bug.
+     */
+    public function test_production_install_banner_still_says_bouclepro(): void
+    {
+        // Pas d'`assertDontSee('BoucleDev')` global sur la page : `/about`
+        // mentionne legitimement "BouclePro" ailleurs (titre, logo, texte de
+        // marque — `config('app.name')`, hors perimetre de cette TASK). Seul
+        // le WIDGET d'installation est concerne ici.
+        $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->withHeader('Accept-Language', 'fr-FR,fr;q=0.9')
+            ->get('/about')
+            ->assertSee('BouclePro s’installe sur votre téléphone', false)
+            ->assertSee('Installer l&#039;application BouclePro', false)
+            ->assertDontSee('BoucleDev s’installe sur votre téléphone', false)
+            ->assertDontSee('Installer l&#039;application BoucleDev', false);
+    }
+
+    public function test_local_install_banner_says_boucledev(): void
+    {
+        app()->detectEnvironment(fn () => 'local');
+
+        $this->withHeader('User-Agent', self::UA_TELEPHONE)
+            ->withHeader('Accept-Language', 'fr-FR,fr;q=0.9')
+            ->get('/about')
+            ->assertSee('BoucleDev s’installe sur votre téléphone', false)
+            ->assertSee('Installer l&#039;application BoucleDev', false)
+            ->assertDontSee('BouclePro s’installe sur votre téléphone', false)
+            ->assertDontSee('Installer l&#039;application BouclePro', false);
+    }
+
     /**
      * TASK-1805 correctif (demande Cyril) — icone MARRON en local, manifest
      * ET meta Apple, toutes deux gouvernees par `PwaAppName::isLocal()`.
