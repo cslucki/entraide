@@ -52,7 +52,13 @@ const PAGES = [
 
 // La langue du manifest. Lue ICI plutot qu'ecrite en dur : c'est elle qui
 // doit gouverner la capture, et les deux ne peuvent plus diverger.
-const LANGUE = JSON.parse(fs.readFileSync(path.resolve('public/site.webmanifest'), 'utf8')).lang;
+//
+// TASK-1805 — `/site.webmanifest` est desormais une route Laravel
+// (`PwaManifestController`), plus un fichier statique de `public/` : seul
+// `name`/`short_name` y varient par environnement, `lang` reste fixe et vit
+// dans le GABARIT (`resources/pwa/site-webmanifest-template.json`), lu ici
+// directement plutot que de dependre d'un serveur deja demarre.
+const LANGUE = JSON.parse(fs.readFileSync(path.resolve('resources/pwa/site-webmanifest-template.json'), 'utf8')).lang;
 
 test.describe('TASK-1737 captures du manifest', () => {
     test.use({
