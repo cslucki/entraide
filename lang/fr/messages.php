@@ -87,6 +87,7 @@ return [
         'accord' => 'Accord',
         'aide' => 'Aide',
         'confirmation' => 'Confirmation',
+        'evaluation' => 'Évaluation',
     ],
     'filtres' => [
         'tous' => 'Tous',
@@ -96,10 +97,25 @@ return [
     ],
     'autres_actions' => 'Autres actions',
     'review_exchange' => 'Dites merci à :prenom',
-    'review_intro' => 'L\'entraide est terminée — :temps partagées. Votre mot de remerciement sera affiché sur son profil.',
+    // TASK-1806 — l'intro ne repete plus « l'entraide est terminee, :temps
+    // partagees » : la carte recapitulative du Bento le dit deja juste
+    // au-dessus, le repeter ici serait un message redondant.
+    'review_intro' => 'Votre mot de remerciement sera affiché sur son profil.',
     'review_placeholder' => 'Un mot de remerciement (affiché sur son profil)…',
-    'review_rating_hint' => 'Vous pouvez ajuster la note.',
+    'review_rating_hint' => 'Choisissez une note.',
+    'review_rating_required' => 'Choisissez une note avant d’envoyer.',
     'send_review' => 'Envoyer le merci',
+    'review_sent' => 'Merci pour votre évaluation !',
+    'review_skip' => 'Ne pas évaluer',
+    'bento_title' => 'Entraide réalisée',
+    'bento_duree' => 'Durée',
+    'bento_duree_absente' => 'Durée non renseignée',
+    'bento_points' => 'Points attribués',
+    'bento_points_value' => '{1}:n pt|[2,*]:n pts',
+    'bento_aidant' => 'Aidant',
+    'bento_aide' => 'Aidé',
+    'bento_contribution_title' => 'Vous avez aidé :prenom',
+    'bento_contribution_body' => 'Merci pour votre contribution.',
     'composer_placeholder' => 'Votre message...',
     // TASK-1772 (recette Cyril) — le composeur de la Messagerie adopte la
     // pilule et le menu « + » du ChatLoop. Les libelles vivent ici et non

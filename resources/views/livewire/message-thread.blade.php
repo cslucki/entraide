@@ -293,79 +293,140 @@
         </x-slot:messages>
 
         <x-slot:after>
-            <!-- Review form — visible after completion si pas encore noté -->
-            {{-- TASK-1754 §9.4 (maquette M4) — « Dites merci » remplace
-                 « Évaluez cet échange ».
+            {{-- TASK-1806 §3.D — le Bento de fin d'entraide.
 
-                 Cinq etoiles et un « Commentaire (optionnel) », c'est Uber. La
-                 hierarchie est inversee : le MOT devient le geste principal, la
-                 note passe au second plan.
+                 Remplace l'ancien bloc « Dites merci » qui etait SYMETRIQUE :
+                 le formulaire d'evaluation s'affichait et pouvait etre soumis
+                 par les DEUX participants (bug TASK-1806), alors que la regle
+                 produit n'a toujours voulu qu'UN evaluateur (l'aide) et UN
+                 destinataire (l'aidant) — demande d'aide ou proposition
+                 d'aide, le sens ne s'inverse jamais (`estLAide`/`estLAidant`).
 
-                 ## Pourquoi la note reste OBLIGATOIRE
-
-                 Arbitrage Q6 de Cyril, pris sur une mesure : `reviews.rating`
-                 est NOT NULL sans defaut, la moyenne du profil se calcule sur
-                 TOUTES les notes (`User::recalculateRating()`). La rendre
-                 optionnelle sans migration aurait oblige a ecrire une note que
-                 personne n'a choisie, qui aurait compte dans la moyenne
-                 affichee. Et le critere d'acceptation n°8 du CDC interdit la
-                 migration.
-
-                 (TASK-1788 correctif 05 : `BadgeService` s'en nourrissait lui
-                 aussi ; le systeme de badges membre a ete supprime, cette
-                 seconde raison n'existe plus. La premiere suffit.)
-
-                 Elle est donc PRE-SELECTIONNEE et MODIFIABLE, et le libelle le
-                 dit honnetement — « Vous pouvez ajuster la note », et non
-                 « optionnelle » comme l'ecrit la maquette, ce qui serait faux. --}}
-            @if($transaction->status === 'completed' && !$transaction->hasReviewFrom(auth()->id()))
+                 Une seule carte recapitulative COMMUNE (duree, points,
+                 identite de l'aidant — jamais recalcules depuis des
+                 timestamps, toujours `TempsPartage` sur `points_agreed`,
+                 memes valeurs que `CarteEntraide`), puis UNE carte qui depend
+                 du role : evaluation cote aide, contribution cote aidant. Le
+                 texte ne repete plus ce que la carte recapitulative vient de
+                 dire — l'ancien `review_intro` redisait « l'entraide est
+                 terminee, :temps partagees », deja porte par cette carte. --}}
+            @if($transaction->status === 'completed' && !$transaction->isDirectConversation())
             @php
-                $_merciAutre = auth()->id() === $transaction->buyer_id ? $transaction->seller : $transaction->buyer;
-                $_merciTemps = \App\Support\Entraide\TempsPartage::duree($transaction->points_agreed ?? $transaction->points_proposed);
+                $_bentoLecteur = auth()->user();
+                $_bentoAidant = $transaction->seller;
+                $_bentoPoints = $transaction->points_agreed;
+                $_bentoDuree = $_bentoPoints !== null
+                    ? \App\Support\Entraide\TempsPartage::duree($_bentoPoints)
+                    : __('messages.bento_duree_absente');
             @endphp
             <div class="border-t-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-4"
-                 x-data="{ rating: 5, hovered: 0 }"
-                 data-entraide-merci>
-                <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
-                    🙏 {{ __('messages.review_exchange', ['prenom' => $_merciAutre?->first_name ?: $_merciAutre?->name]) }}
+                 data-entraide-bento>
+                {{-- La carte recapitulative — commune aux deux roles. Le
+                     statut « Terminé » est deja porte par le badge de
+                     `CarteEntraide` plus haut dans le fil : pas de doublon. --}}
+                <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-2" data-entraide-bento-titre>
+                    🎉 {{ __('messages.bento_title') }}
                 </p>
-                <p class="mt-1 mb-3 text-xs text-indigo-600/80 dark:text-indigo-300/80">
-                    {{ __('messages.review_intro', ['temps' => $_merciTemps]) }}
-                </p>
-                <form method="POST" action="{{ route('reviews.store', $transaction) }}">
-                    @csrf
-
-                    {{-- Le MOT d'abord : c'est lui le geste. --}}
-                    <textarea name="comment" rows="3" maxlength="1000"
-                        placeholder="{{ __('messages.review_placeholder') }}"
-                        data-entraide-merci-mot
-                        class="w-full px-3 py-2 border border-indigo-200 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500 mb-3 resize-none"></textarea>
-
-                    {{-- La note ensuite, petite, pre-selectionnee, modifiable. --}}
-                    <div class="flex flex-wrap items-center gap-2 mb-3">
-                        <div class="flex gap-0.5" data-entraide-merci-note>
-                            @for($i = 1; $i <= 5; $i++)
-                            <button type="button"
-                                @click="rating = {{ $i }}"
-                                @mouseenter="hovered = {{ $i }}"
-                                @mouseleave="hovered = 0"
-                                aria-label="{{ $i }}/5"
-                                class="text-base transition-transform hover:scale-110 focus:outline-none">
-                                <span x-text="(hovered || rating) >= {{ $i }} ? '★' : '☆'"
-                                      :class="(hovered || rating) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
-                            </button>
-                            @endfor
-                        </div>
-                        <input type="hidden" name="rating" :value="rating">
-                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('messages.review_rating_hint') }}</span>
+                <div class="flex flex-wrap gap-3 mb-3" data-entraide-bento-recap>
+                    <div class="min-w-[7rem]">
+                        <p class="text-[10px] uppercase tracking-wide text-indigo-500 dark:text-indigo-400">{{ __('messages.bento_duree') }}</p>
+                        <p class="text-sm font-semibold text-indigo-900 dark:text-indigo-100" data-entraide-bento-duree>{{ $_bentoDuree }}</p>
                     </div>
+                    @if($transaction->pointsAttribues())
+                        <div class="min-w-[7rem]">
+                            <p class="text-[10px] uppercase tracking-wide text-indigo-500 dark:text-indigo-400">{{ __('messages.bento_points') }}</p>
+                            <p class="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{{ trans_choice('messages.bento_points_value', $_bentoPoints, ['n' => $_bentoPoints]) }}</p>
+                        </div>
+                    @endif
+                    <div class="min-w-[7rem]">
+                        <p class="text-[10px] uppercase tracking-wide text-indigo-500 dark:text-indigo-400">{{ __('messages.bento_aidant') }}</p>
+                        <p class="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{{ $_bentoAidant?->first_name ?: ($_bentoAidant?->name ?: __('profile.deactivated_user')) }}</p>
+                    </div>
+                </div>
 
-                    <button type="submit"
-                        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg font-medium transition"
-                        data-entraide-merci-envoyer>
-                        {{ __('messages.send_review') }}
-                    </button>
-                </form>
+                {{-- Carte d'evaluation — UNIQUEMENT cote aide (TASK-1806). --}}
+                @if($transaction->estLAide($_bentoLecteur) && $transaction->evaluationEnAttente())
+                    <div class="border-t border-indigo-200 dark:border-indigo-800 pt-3"
+                         x-data="{ rating: 0, hovered: 0 }"
+                         data-entraide-merci>
+                        <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                            🙏 {{ __('messages.review_exchange', ['prenom' => $_bentoAidant?->first_name ?: $_bentoAidant?->name]) }}
+                        </p>
+                        <p class="mt-1 mb-3 text-xs text-indigo-600/80 dark:text-indigo-300/80">
+                            {{ __('messages.review_intro') }}
+                        </p>
+                        <form method="POST" action="{{ $_threadRoute('reviews.store', 'organization.reviews.store', ['transaction' => $transaction]) }}">
+                            @csrf
+
+                            {{-- Le MOT d'abord : c'est lui le geste. --}}
+                            <textarea name="comment" rows="3" maxlength="1000"
+                                placeholder="{{ __('messages.review_placeholder') }}"
+                                data-entraide-merci-mot
+                                class="w-full px-3 py-2 border border-indigo-200 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500 mb-3 resize-none"></textarea>
+
+                            {{-- TASK-1806 — la note n'est plus PRE-SELECTIONNEE
+                                 (`rating: 0` ci-dessus) : la consigne demande
+                                 explicitement de ne jamais presélectionner,
+                                 ce qui annule l'arbitrage Q6 anterieur sur ce
+                                 point precis. Elle reste NOT NULL en base
+                                 (`min:1` cote serveur) : zero est refuse, le
+                                 bouton le rappelle tant qu'aucune etoile n'est
+                                 choisie. --}}
+                            <div class="flex flex-wrap items-center gap-2 mb-3">
+                                <div class="flex gap-0.5" data-entraide-merci-note>
+                                    @for($i = 1; $i <= 5; $i++)
+                                    <button type="button"
+                                        @click="rating = {{ $i }}"
+                                        @mouseenter="hovered = {{ $i }}"
+                                        @mouseleave="hovered = 0"
+                                        aria-label="{{ $i }}/5"
+                                        class="text-base transition-transform hover:scale-110 focus:outline-none">
+                                        <span x-text="(hovered || rating) >= {{ $i }} ? '★' : '☆'"
+                                              :class="(hovered || rating) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
+                                    </button>
+                                    @endfor
+                                </div>
+                                <input type="hidden" name="rating" :value="rating">
+                                <span class="text-xs" :class="rating === 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'"
+                                      x-text="rating === 0 ? @js(__('messages.review_rating_required')) : @js(__('messages.review_rating_hint'))"></span>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button type="submit"
+                                    :disabled="rating === 0"
+                                    :class="rating === 0 ? 'opacity-50 cursor-not-allowed' : ''"
+                                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg font-medium transition"
+                                    data-entraide-merci-envoyer>
+                                    {{ __('messages.send_review') }}
+                                </button>
+                            </div>
+                        </form>
+
+                        {{-- TASK-1806 §3.A — possibilite de ne pas laisser
+                             d'avis, sans note inventee : un formulaire SEPARE,
+                             qui ne pose jamais `rating`. --}}
+                        <form method="POST" action="{{ $_threadRoute('reviews.skip', 'organization.reviews.skip', ['transaction' => $transaction]) }}" class="mt-2">
+                            @csrf
+                            <button type="submit" class="text-xs text-indigo-600/80 dark:text-indigo-300/80 underline underline-offset-2"
+                                    data-entraide-merci-ignorer>
+                                {{ __('messages.review_skip') }}
+                            </button>
+                        </form>
+                    </div>
+                @elseif($transaction->estLAidant($_bentoLecteur))
+                    {{-- Carte de contribution realisee — cote aidant. Aucun
+                         formulaire d'evaluation ici : l'aidant ne note jamais
+                         l'aide, et ne recoit jamais le formulaire qui lui est
+                         destine (TASK-1806). --}}
+                    <div class="border-t border-indigo-200 dark:border-indigo-800 pt-3" data-entraide-contribution>
+                        <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                            🤝 {{ __('messages.bento_contribution_title', ['prenom' => $transaction->buyer?->first_name ?: $transaction->buyer?->name]) }}
+                        </p>
+                        <p class="mt-1 text-xs text-indigo-600/80 dark:text-indigo-300/80">
+                            {{ __('messages.bento_contribution_body') }}
+                        </p>
+                    </div>
+                @endif
             </div>
             @endif
         </x-slot:after>

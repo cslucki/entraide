@@ -38,8 +38,15 @@ use App\Models\User;
  */
 final class CarteEntraide
 {
-    /** Les quatre etapes de l'entraide, dans l'ordre. */
-    public const ETAPES = ['proposition', 'accord', 'aide', 'confirmation'];
+    /**
+     * Les cinq etapes de l'entraide, dans l'ordre.
+     *
+     * TASK-1806 — « Evaluation » ajoutee apres « Confirmation ». La
+     * confirmation elle-meme (transfert de points) est deja arrivee au
+     * moment ou le statut passe a `completed` : cette 5e etape couvre donc
+     * tout ce qui suit, qu'un avis soit depose, en attente, ou ignore.
+     */
+    public const ETAPES = ['proposition', 'accord', 'aide', 'confirmation', 'evaluation'];
 
     /** Les filtres de la liste (§5.2.2). `tous` n'en est pas vraiment un. */
     public const FILTRES = ['tous', 'en_cours', 'discussions', 'termines'];
@@ -117,10 +124,14 @@ final class CarteEntraide
     }
 
     /**
-     * L'etape en cours, de 1 a 4. Zero quand l'echange n'a pas abouti.
+     * L'etape en cours, de 1 a 5. Zero quand l'echange n'a pas abouti.
      *
      * Un echange decline ou annule n'est pas « a l'etape 1 » : il est SORTI du
      * parcours. Allumer un point ferait croire qu'il attend quelque chose.
+     *
+     * TASK-1806 — `completed` allume desormais la 5e etape (« Evaluation »),
+     * pas la 4e (« Confirmation ») : au moment ou le statut devient
+     * `completed`, la confirmation (transfert de points) a DEJA eu lieu.
      */
     public static function etape(Transaction $echange): int
     {
@@ -128,7 +139,7 @@ final class CarteEntraide
             'pending' => 1,
             'accepted' => 2,
             'buyer_done' => 3,
-            'completed' => 4,
+            'completed' => 5,
             default => 0,
         };
     }

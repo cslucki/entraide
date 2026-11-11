@@ -460,6 +460,7 @@ Route::middleware('auth')->group(function () {
 
     // Reviews
     Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->name('reviews.store');
+    Route::post('/transactions/{transaction}/review/skip', [ReviewController::class, 'skip'])->middleware('throttle:5,1')->name('reviews.skip');
 
     // Messages
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
@@ -1733,6 +1734,7 @@ Route::prefix('/org/{organization}')
             Route::patch('/transactions/{transaction}/contest', [TransactionController::class, 'orgContest'])->name('transactions.contest');
 
             Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.store');
+            Route::post('/transactions/{transaction}/review/skip', [ReviewController::class, 'skip'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.skip');
 
             Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
             // TASK-1693 bug AA — « Ecrire a cette personne », sur la surface de

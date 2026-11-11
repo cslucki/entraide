@@ -124,18 +124,22 @@ class TASK1755CarteEntraideTest extends TestCase
     // ── L'etapier ────────────────────────────────────────────────────────────
 
     /**
-     * Les quatre etapes avancent, et un echange SORTI du parcours n'en allume
+     * Les cinq etapes avancent, et un echange SORTI du parcours n'en allume
      * aucune.
      *
      * Allumer « Proposition » sur un echange decline ferait croire qu'il attend
      * encore quelque chose.
+     *
+     * TASK-1806 — `completed` allume desormais la 5e etape (« Evaluation »),
+     * pas la 4e (« Confirmation ») : au moment ou le statut devient
+     * `completed`, la confirmation (transfert de points) a DEJA eu lieu.
      */
     public function test_l_etapier_avance_et_s_eteint_quand_l_echange_sort_du_parcours(): void
     {
         $this->assertSame(1, CarteEntraide::etape($this->echange('pending')));
         $this->assertSame(2, CarteEntraide::etape($this->echange('accepted')));
         $this->assertSame(3, CarteEntraide::etape($this->echange('buyer_done')));
-        $this->assertSame(4, CarteEntraide::etape($this->echange('completed')));
+        $this->assertSame(5, CarteEntraide::etape($this->echange('completed')));
 
         $this->assertSame(0, CarteEntraide::etape($this->echange('refused')));
         $this->assertSame(0, CarteEntraide::etape($this->echange('cancelled')));

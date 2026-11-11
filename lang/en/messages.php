@@ -71,6 +71,7 @@ return [
         'accord' => 'Agreement',
         'aide' => 'Help',
         'confirmation' => 'Confirmation',
+        'evaluation' => 'Evaluation',
     ],
     'filtres' => [
         'tous' => 'All',
@@ -80,10 +81,24 @@ return [
     ],
     'autres_actions' => 'More actions',
     'review_exchange' => 'Say thank you to :prenom',
-    'review_intro' => 'The exchange is complete — :temps shared. Your thank-you note will appear on their profile.',
+    // TASK-1806 — no longer repeats "the exchange is complete, :temps
+    // shared": the Bento recap card already says it right above.
+    'review_intro' => 'Your thank-you note will appear on their profile.',
     'review_placeholder' => 'A word of thanks (shown on their profile)…',
-    'review_rating_hint' => 'You can adjust the rating.',
+    'review_rating_hint' => 'Choose a rating.',
+    'review_rating_required' => 'Choose a rating before sending.',
     'send_review' => 'Send the thank-you',
+    'review_sent' => 'Thank you for your review!',
+    'review_skip' => 'Skip for now',
+    'bento_title' => 'Help completed',
+    'bento_duree' => 'Duration',
+    'bento_duree_absente' => 'Duration not available',
+    'bento_points' => 'Points awarded',
+    'bento_points_value' => '{1}:n pt|[2,*]:n pts',
+    'bento_aidant' => 'Helper',
+    'bento_aide' => 'Helped',
+    'bento_contribution_title' => 'You helped :prenom',
+    'bento_contribution_body' => 'Thank you for your contribution.',
     'composer_placeholder' => 'Your message...',
     // TASK-1772 — the private messaging composer now uses the ChatLoop pill
     // and its « + » sheet. Labels live here, not in `loops.php`.
