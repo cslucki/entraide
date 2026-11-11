@@ -49,6 +49,7 @@ return [
         // pour acteur `$echange->seller`, et `feed.events.help_completed` dit
         // « :name a donne :temps ». C'est donc le prenom de l'AIDANT qui
         // s'affiche, et celui de l'aide qui n'apparait jamais.
+        'partagee' => 'Entraide partagée dans le Flux.',
         'partager' => 'Partager cette entraide dans le Flux (le prénom de la personne qui vous a aidé et le temps partagé ; votre nom n’apparaît pas)',
     ],
 

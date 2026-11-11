@@ -13,7 +13,11 @@ class Review extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['transaction_id', 'reviewer_id', 'reviewed_id', 'rating', 'comment', 'organization_id'];
+    // TASK-1808 — `comment_skipped_at` distingue « pas encore de mot » de
+    // « l'aide a repondu Terminer sans commentaire ». Une chaine vide dans
+    // `comment` confondrait les deux, et le micro-ecran B reviendrait sans
+    // fin.
+    protected $fillable = ['transaction_id', 'reviewer_id', 'reviewed_id', 'rating', 'comment', 'comment_skipped_at', 'organization_id'];
 
     public function organization(): BelongsTo
     {
@@ -24,6 +28,7 @@ class Review extends Model
     {
         return [
             'created_at' => 'datetime',
+            'comment_skipped_at' => 'datetime',
             'rating' => 'integer',
         ];
     }

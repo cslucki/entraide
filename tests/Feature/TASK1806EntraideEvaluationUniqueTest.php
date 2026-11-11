@@ -129,15 +129,20 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
     {
         $transaction = $this->completedTransaction();
 
+        // TASK-1808 — les marqueurs ont change avec le parcours final :
+        // l'aide voit le micro-ecran A (les etoiles), l'aidant lit la phrase
+        // de remerciement et AUCUN formulaire d'evaluation.
         Livewire::actingAs($this->buyer)
             ->test(MessageThread::class, ['transaction' => $transaction])
-            ->assertSeeHtml('data-entraide-merci')
-            ->assertDontSeeHtml('data-entraide-contribution');
+            ->assertSeeHtml('data-entraide-etoiles')
+            ->assertSeeHtml('data-entraide-cloture-aide')
+            ->assertDontSeeHtml('data-entraide-cloture-aidant');
 
         Livewire::actingAs($this->seller)
             ->test(MessageThread::class, ['transaction' => $transaction])
-            ->assertDontSeeHtml('data-entraide-merci')
-            ->assertSeeHtml('data-entraide-contribution');
+            ->assertDontSeeHtml('data-entraide-etoiles')
+            ->assertDontSeeHtml('data-entraide-mot')
+            ->assertSeeHtml('data-entraide-cloture-aidant');
     }
 
     /** TASK-1806 — « aucune note presélectionnée automatiquement ». */
@@ -147,8 +152,9 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
 
         Livewire::actingAs($this->buyer)
             ->test(MessageThread::class, ['transaction' => $transaction])
-            ->assertSeeHtml('rating: 0')
-            ->assertDontSeeHtml('{ rating: 5, hovered: 0 }');
+            // TASK-1808 — l'etat Alpine du micro-ecran A s'appelle `note`.
+            ->assertSeeHtml('note: 0')
+            ->assertDontSeeHtml('note: 5');
     }
 
     // ── Scenario 4 — une deuxieme evaluation est refusee ──
@@ -349,7 +355,7 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
     }
 
     /** « ou ignorer l'evaluation » — confirmer sans note reste un choix entier. */
-    public function test_confirming_without_a_rating_closes_and_marks_the_evaluation_skipped(): void
+    public function test_confirming_without_a_rating_closes_and_leaves_the_evaluation_open(): void
     {
         $transaction = $this->acceptedTransaction(['points_proposed' => 20, 'points_agreed' => 20]);
 
@@ -360,8 +366,13 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
         $transaction->refresh();
         $this->assertSame('completed', $transaction->status);
         $this->assertDatabaseMissing('reviews', ['transaction_id' => $transaction->id]);
-        $this->assertNotNull($transaction->reviews_skipped_at);
-        $this->assertTrue($transaction->evaluationDeposeeOuIgnoree());
+        // TASK-1808 (clarification MASTER) — ce test attendait l'INVERSE :
+        // T1806 traitait une cloture sans note comme un renoncement et
+        // ecrivait `reviews_skipped_at`. Dans le parcours final, l'evaluation
+        // vient APRES la cloture : une cloture nue signifie « pas encore
+        // proposee », et l'ecran des etoiles doit pouvoir s'ouvrir ensuite.
+        $this->assertNull($transaction->reviews_skipped_at);
+        $this->assertTrue($transaction->evaluationEnAttente());
         // Aucune note inventee n'a pu entrer dans la moyenne de l'aidant.
         $this->assertNull($this->seller->fresh()->rating);
     }
@@ -520,14 +531,17 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
     {
         $transaction = $this->acceptedTransaction();
 
+        // TASK-1808 (clarification MASTER) — la cloture est UN BOUTON qui
+        // poste directement. Plus de panneau, et le partage dans le Flux a
+        // quitte cette etape : il n'existe plus d'ecran avant la cloture.
         Livewire::actingAs($this->buyer)
             ->test(MessageThread::class, ['transaction' => $transaction])
-            ->assertSeeHtml('data-entraide-confirmer')
-            ->assertSeeHtml('data-entraide-partager-flux');
+            ->assertSeeHtml('data-entraide-cloturer')
+            ->assertDontSeeHtml('data-entraide-partager-flux');
 
         Livewire::actingAs($this->seller)
             ->test(MessageThread::class, ['transaction' => $transaction])
-            ->assertDontSeeHtml('data-entraide-confirmer');
+            ->assertDontSeeHtml('data-entraide-cloturer');
     }
 
     /** Le bouton de cloture n'est JAMAIS desactive : confirmer sans avis est un choix. */
@@ -539,7 +553,8 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
             ->test(MessageThread::class, ['transaction' => $transaction])
             ->html();
 
-        $bouton = substr($html, strpos($html, 'data-entraide-confirmer-envoyer') - 400, 500);
+        // TASK-1808 — le bouton de validation du panneau de cloture.
+        $bouton = substr($html, strpos($html, 'data-entraide-cloturer-valider') - 400, 500);
         $this->assertStringNotContainsString(':disabled', $bouton);
     }
 }

@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\AdminAiReviewQueueController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
 use App\Http\Controllers\Admin\AdminAiTurnController;
 use App\Http\Controllers\Admin\AdminAiUsageController;
+use App\Http\Controllers\Admin\AdminAssignDataController;
 use App\Http\Controllers\Admin\AdminBlogController;
 use App\Http\Controllers\Admin\AdminBlogTodoController;
 use App\Http\Controllers\Admin\AdminBugReportController;
@@ -19,48 +20,44 @@ use App\Http\Controllers\Admin\AdminCategoryController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminCrmController;
 use App\Http\Controllers\Admin\AdminCrmOverviewController;
+use App\Http\Controllers\Admin\AdminDataIntegrityController;
+use App\Http\Controllers\Admin\AdminDossierCleanupController;
 use App\Http\Controllers\Admin\AdminDrivesController;
 use App\Http\Controllers\Admin\AdminEmailBulkSendingController;
 use App\Http\Controllers\Admin\AdminEmailController;
 use App\Http\Controllers\Admin\AdminEmailLogsController;
 use App\Http\Controllers\Admin\AdminEmailTemplatesController;
+use App\Http\Controllers\Admin\AdminFeedController;
 use App\Http\Controllers\Admin\AdminGuestShellController;
-use App\Http\Controllers\Admin\AdminUserBulkCreationController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
-use App\Http\Controllers\Admin\AdminNotificationInspectorController;
-use App\Http\Controllers\Admin\AdminTestNotificationController;
-use App\Http\Controllers\Admin\AdminRoadmapController;
 use App\Http\Controllers\Admin\AdminLoopPermissionController;
 use App\Http\Controllers\Admin\AdminLoopPluginController;
-use App\Http\Controllers\LoopPluginController;
 use App\Http\Controllers\Admin\AdminLoopTypeController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminNotificationCockpitController;
+use App\Http\Controllers\Admin\AdminNotificationController;
+use App\Http\Controllers\Admin\AdminNotificationInspectorController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
-use App\Http\Controllers\Admin\AdminAssignDataController;
-use App\Http\Controllers\Admin\AdminRssImportController;
-use App\Livewire\Admin\RssArticleFiche;
-use App\Livewire\Admin\RssEditorialHistory;
-use App\Livewire\Admin\RssSourceArticles;
-use App\Livewire\Admin\RssSources;
-use App\Http\Controllers\Admin\AdminDataIntegrityController;
-use App\Http\Controllers\Admin\AdminDossierCleanupController;
-use App\Http\Controllers\Admin\AdminScenarioManagerController;
-use App\Http\Controllers\Admin\AdminScenarioPersonaController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
+use App\Http\Controllers\Admin\AdminRoadmapController;
 use App\Http\Controllers\Admin\AdminRootDestinationController;
+use App\Http\Controllers\Admin\AdminRssImportController;
+use App\Http\Controllers\Admin\AdminScenarioManagerController;
 use App\Http\Controllers\Admin\AdminScenarioPackController;
+use App\Http\Controllers\Admin\AdminScenarioPersonaController;
 use App\Http\Controllers\Admin\AdminShortcutController;
 use App\Http\Controllers\Admin\AdminSystemEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminTagController;
+use App\Http\Controllers\Admin\AdminTestNotificationController;
 use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
 use App\Http\Controllers\Admin\AdminUsageReferenceController;
+use App\Http\Controllers\Admin\AdminUserBulkCreationController;
 use App\Http\Controllers\Admin\AdminWorkshopController;
 use App\Http\Controllers\Admin\OrgAcquisitionController;
 use App\Http\Controllers\Admin\OrgAdminController;
@@ -73,9 +70,9 @@ use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AccountLinkController;
 use App\Http\Controllers\Auth\AccountSwitchController;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\LinkedAccountSwitchController;
 use App\Http\Controllers\Auth\MyOrganizationsController;
-use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -95,10 +92,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DossierAnswerController;
 use App\Http\Controllers\DossierArticleController;
 use App\Http\Controllers\DossierController;
-use App\Http\Controllers\DossierFileShareController;
-use App\Http\Controllers\SharedDossierFileController;
 use App\Http\Controllers\DossierFileController;
-use App\Http\Controllers\MessageAttachmentController;
+use App\Http\Controllers\DossierFileShareController;
 use App\Http\Controllers\DossierInsightsController;
 use App\Http\Controllers\DossierMemberController;
 use App\Http\Controllers\DossierSemanticSearchController;
@@ -108,37 +103,40 @@ use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\GuestShellController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\InvitationPasswordController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\LoopCatchUpController;
 use App\Http\Controllers\LoopController;
 use App\Http\Controllers\LoopDossierArticleController;
 use App\Http\Controllers\LoopEventAgendaController;
-use App\Http\Controllers\InvitationPasswordController;
 use App\Http\Controllers\LoopInvitationController;
-use App\Http\Controllers\OrganizationInvitationController;
+use App\Http\Controllers\LoopPluginController;
 use App\Http\Controllers\LoopToolsController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
+use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MyceliumController;
 use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\OpenSourceController;
 use App\Http\Controllers\OrganizationFlowchartController;
+use App\Http\Controllers\OrganizationInvitationController;
 use App\Http\Controllers\OrganizationLandingController;
 use App\Http\Controllers\OrganizationRequestController;
 use App\Http\Controllers\PointController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Controllers\PwaManifestController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\SharedDossierFileController;
 use App\Http\Controllers\ShareTargetController;
 use App\Http\Controllers\ShortcutController;
-use App\Http\Controllers\PwaManifestController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TransactionController;
@@ -147,6 +145,10 @@ use App\Http\Controllers\WorkshopInterestController;
 use App\Http\Controllers\WorkshopPageController;
 use App\Http\Controllers\WorkshopRegistrationController;
 use App\Http\Middleware\OrgAdminMiddleware;
+use App\Livewire\Admin\RssArticleFiche;
+use App\Livewire\Admin\RssEditorialHistory;
+use App\Livewire\Admin\RssSourceArticles;
+use App\Livewire\Admin\RssSources;
 use App\Livewire\BoundedMemberAgent;
 use App\Livewire\CreateFeedPost;
 use App\Livewire\EditFeedPost;
@@ -461,6 +463,13 @@ Route::middleware('auth')->group(function () {
     // Reviews
     Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->name('reviews.store');
     Route::post('/transactions/{transaction}/review/skip', [ReviewController::class, 'skip'])->middleware('throttle:5,1')->name('reviews.skip');
+    // TASK-1808 §5 — le micro-ecran B. Deux gestes distincts, deux routes :
+    // publier le mot, ou terminer sans commentaire. Meme `throttle` que les
+    // deux au-dessus.
+    Route::post('/transactions/{transaction}/review/comment', [ReviewController::class, 'comment'])->middleware('throttle:5,1')->name('reviews.comment');
+    Route::post('/transactions/{transaction}/review/comment/skip', [ReviewController::class, 'skipComment'])->middleware('throttle:5,1')->name('reviews.comment.skip');
+    // TASK-1808 §7 — le partage dans le Flux, devenu un geste d'apres-cloture.
+    Route::post('/transactions/{transaction}/share-in-feed', [TransactionController::class, 'shareInFeed'])->middleware('throttle:5,1')->name('transactions.share-in-feed');
 
     // Messages
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
@@ -756,15 +765,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // `/notifications/{notification}` apres les routes nommees : aucune
     // collision ici, les deux chemins fixes (`/notifications` et
     // `/notifications/{id}/lecture`) ne se recouvrent pas.
-    Route::get('/notifications', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'index'])->name('notifications');
-    Route::get('/notifications/{notification}', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'show'])->name('notifications.show');
-    Route::put('/notifications/{notification}/lecture', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'toggleRead'])->name('notifications.read');
-    Route::delete('/notifications/{notification}', [\App\Http\Controllers\Admin\AdminNotificationController::class, 'destroy'])->name('notifications.destroy');
+    Route::get('/notifications', [AdminNotificationController::class, 'index'])->name('notifications');
+    Route::get('/notifications/{notification}', [AdminNotificationController::class, 'show'])->name('notifications.show');
+    Route::put('/notifications/{notification}/lecture', [AdminNotificationController::class, 'toggleRead'])->name('notifications.read');
+    Route::delete('/notifications/{notification}', [AdminNotificationController::class, 'destroy'])->name('notifications.destroy');
 
-    Route::get('/flux', [\App\Http\Controllers\Admin\AdminFeedController::class, 'index'])->name('feed');
-    Route::put('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'update'])->name('feed.update');
-    Route::delete('/flux/{post}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'destroy'])->name('feed.destroy');
-    Route::put('/flux/commentaire/{comment}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'basculerCommentaire'])->name('feed.comment.toggle');
+    Route::get('/flux', [AdminFeedController::class, 'index'])->name('feed');
+    Route::put('/flux/{post}', [AdminFeedController::class, 'update'])->name('feed.update');
+    Route::delete('/flux/{post}', [AdminFeedController::class, 'destroy'])->name('feed.destroy');
+    Route::put('/flux/commentaire/{comment}', [AdminFeedController::class, 'basculerCommentaire'])->name('feed.comment.toggle');
     // TASK-1788 correctif 10 — la gestion des commentaires du Flux.
     //
     // `/flux/commentaires` AVANT `/flux/{post}` n'est pas necessaire ici : les
@@ -773,11 +782,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // prefixees par `/flux/commentaire/`, comme la bascule existante : un
     // identifiant de commentaire ne peut donc jamais etre pris pour un
     // identifiant d'annonce.
-    Route::get('/flux/commentaires', [\App\Http\Controllers\Admin\AdminFeedController::class, 'commentaires'])->name('feed.comments');
-    Route::put('/flux/commentaire/{comment}/contenu', [\App\Http\Controllers\Admin\AdminFeedController::class, 'modifierCommentaire'])->name('feed.comment.update');
-    Route::delete('/flux/commentaire/{comment}', [\App\Http\Controllers\Admin\AdminFeedController::class, 'supprimerCommentaire'])->name('feed.comment.destroy');
-    Route::post('/flux/reprendre-historique', [\App\Http\Controllers\Admin\AdminFeedController::class, 'reprendreHistorique'])->name('feed.replay');
-    Route::post('/flux/evenements-automatiques', [\App\Http\Controllers\Admin\AdminFeedController::class, 'basculerEvenementsAutomatiques'])->name('feed.auto-events');
+    Route::get('/flux/commentaires', [AdminFeedController::class, 'commentaires'])->name('feed.comments');
+    Route::put('/flux/commentaire/{comment}/contenu', [AdminFeedController::class, 'modifierCommentaire'])->name('feed.comment.update');
+    Route::delete('/flux/commentaire/{comment}', [AdminFeedController::class, 'supprimerCommentaire'])->name('feed.comment.destroy');
+    Route::post('/flux/reprendre-historique', [AdminFeedController::class, 'reprendreHistorique'])->name('feed.replay');
+    Route::post('/flux/evenements-automatiques', [AdminFeedController::class, 'basculerEvenementsAutomatiques'])->name('feed.auto-events');
 
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
     Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');
@@ -1587,70 +1596,70 @@ Route::prefix('/org/{organization}')
         // necessite demontree, et il n'y en a pas — une carte hors
         // Organization n'aurait ni charte, ni Boucles, ni sens.
 
-          // TASK-1698 — l'opt-out qui MANQUAIT depuis l'origine.
-          //
-          // Le groupe `/org/{organization}` est FERME PAR DEFAUT
-          // (`auth` + `organization.member`) : une route publique doit s'en
-          // extraire, comme le font `home` et `mentions-legales`. Les trois
-          // routes ci-dessous ont ete ecrites publiques, DOCUMENTEES publiques
-          // et munies de leur garde propre — mais sans cette ligne. Le groupe
-          // les a refermees en silence.
-          //
-          // Mesure : les lignes concernees n'ont jamais ete touchees que par
-          // leurs TASK creatrices (T1604, T1608, T1613). T1692 est arrive
-          // apres, a constate la fermeture, et a ecrit un test qui l'epingle
-          // comme une decision — « ses deux destinations de pied ne le sont
-          // plus ». C'etait un accident, pas un arbitrage.
+        // TASK-1698 — l'opt-out qui MANQUAIT depuis l'origine.
+        //
+        // Le groupe `/org/{organization}` est FERME PAR DEFAUT
+        // (`auth` + `organization.member`) : une route publique doit s'en
+        // extraire, comme le font `home` et `mentions-legales`. Les trois
+        // routes ci-dessous ont ete ecrites publiques, DOCUMENTEES publiques
+        // et munies de leur garde propre — mais sans cette ligne. Le groupe
+        // les a refermees en silence.
+        //
+        // Mesure : les lignes concernees n'ont jamais ete touchees que par
+        // leurs TASK creatrices (T1604, T1608, T1613). T1692 est arrive
+        // apres, a constate la fermeture, et a ecrit un test qui l'epingle
+        // comme une decision — « ses deux destinations de pied ne le sont
+        // plus ». C'etait un accident, pas un arbitrage.
         Route::get('/flowchart', OrganizationFlowchartController::class)
             ->withoutMiddleware(['auth', 'organization.member'])
             ->name('flowchart');
 
-          // TASK-1602 — les mentions legales servies DANS le contexte de
-          // l'Organization : MEME vue, donc contenu unique, jamais duplique.
-          // Seuls la marque, la charte et la navigation changent, parce que le
-          // groupe `/org/{organization}` lie deja l'Organization courante.
-          // Mesure avant correctif : en invite, `/mentions-legales` depuis
-          // `launchpals` rendait 7 occurrences « BouclePro » et 0 « LaunchPals ».
-          Route::view('/mentions-legales', 'mentions-legales')
-              ->withoutMiddleware(['auth', 'organization.member'])
-              ->name('mentions-legales');
+        // TASK-1602 — les mentions legales servies DANS le contexte de
+        // l'Organization : MEME vue, donc contenu unique, jamais duplique.
+        // Seuls la marque, la charte et la navigation changent, parce que le
+        // groupe `/org/{organization}` lie deja l'Organization courante.
+        // Mesure avant correctif : en invite, `/mentions-legales` depuis
+        // `launchpals` rendait 7 occurrences « BouclePro » et 0 « LaunchPals ».
+        Route::view('/mentions-legales', 'mentions-legales')
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('mentions-legales');
 
-          // TASK-1613 — l'explorateur Open Source servi DANS le contexte de
-          // l'Organization, exactement comme les mentions legales ci-dessus :
-          // MEME controleur, MEME vue, MEME instantane. Rien n'est duplique.
-          //
-          // Le contenu ne depend d'aucun tenant — c'est le depot du produit —
-          // mais l'URL, elle, doit rester coherente avec la page d'ou l'on
-          // vient : un visiteur de `/org/launchpals` ne doit pas etre ejecte
-          // a la racine du site pour lire cette page. La route globale
-          // subsiste pour les surfaces qui n'EXPRIMENT pas d'Organization
-          // (`/login`, `/about`), et `organizationScopedUrl()` choisit entre
-          // les deux — jamais un tenant devine par defaut (borne TASK-1602).
-          Route::get('/open-source', [OpenSourceController::class, 'page'])
-              ->withoutMiddleware(['auth', 'organization.member'])
-              ->name('open-source');
+        // TASK-1613 — l'explorateur Open Source servi DANS le contexte de
+        // l'Organization, exactement comme les mentions legales ci-dessus :
+        // MEME controleur, MEME vue, MEME instantane. Rien n'est duplique.
+        //
+        // Le contenu ne depend d'aucun tenant — c'est le depot du produit —
+        // mais l'URL, elle, doit rester coherente avec la page d'ou l'on
+        // vient : un visiteur de `/org/launchpals` ne doit pas etre ejecte
+        // a la racine du site pour lire cette page. La route globale
+        // subsiste pour les surfaces qui n'EXPRIMENT pas d'Organization
+        // (`/login`, `/about`), et `organizationScopedUrl()` choisit entre
+        // les deux — jamais un tenant devine par defaut (borne TASK-1602).
+        Route::get('/open-source', [OpenSourceController::class, 'page'])
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('open-source');
 
-          // TASK-1604 — Mycelium servi DANS le contexte de l'Organization.
-          //
-          // MEME controleur, MEME vue, MEMES donnees : `MyceliumController@index`
-          // lit la Constitution plateforme et la liste des Organizations qui ont
-          // choisi de publier. Rien n'est duplique, et le PERIMETRE DES DONNEES ne
-          // bouge pas — un test compare explicitement les deux surfaces.
-          //
-          // Ce qui change est l'enveloppe : URL, navigation et charte, parce que le
-          // groupe `/org/{organization}` lie deja l'Organization courante et que
-          // `x-app-layout` s'y conforme.
-          //
-          // Mesure avant correctif : `/mycelium` en invite depuis `launchpals`
-          // rendait 0 occurrence « LaunchPals » et 0 lien `/org/launchpals` ;
-          // `/org/launchpals/mycelium` rendait 404.
-          //
-          // A ne pas confondre avec `/org/{organization}/constitution`, qui publie
-          // la Constitution de CETTE Organization et reste 404 tant que personne ne
-          // l'a explicitement rendue publique.
-          Route::get('/mycelium', [MyceliumController::class, 'index'])
-              ->withoutMiddleware(['auth', 'organization.member'])
-              ->name('mycelium');
+        // TASK-1604 — Mycelium servi DANS le contexte de l'Organization.
+        //
+        // MEME controleur, MEME vue, MEMES donnees : `MyceliumController@index`
+        // lit la Constitution plateforme et la liste des Organizations qui ont
+        // choisi de publier. Rien n'est duplique, et le PERIMETRE DES DONNEES ne
+        // bouge pas — un test compare explicitement les deux surfaces.
+        //
+        // Ce qui change est l'enveloppe : URL, navigation et charte, parce que le
+        // groupe `/org/{organization}` lie deja l'Organization courante et que
+        // `x-app-layout` s'y conforme.
+        //
+        // Mesure avant correctif : `/mycelium` en invite depuis `launchpals`
+        // rendait 0 occurrence « LaunchPals » et 0 lien `/org/launchpals` ;
+        // `/org/launchpals/mycelium` rendait 404.
+        //
+        // A ne pas confondre avec `/org/{organization}/constitution`, qui publie
+        // la Constitution de CETTE Organization et reste 404 tant que personne ne
+        // l'a explicitement rendue publique.
+        Route::get('/mycelium', [MyceliumController::class, 'index'])
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('mycelium');
 
         // TASK-1749 — les portes d'AUTHENTIFICATION sortent de la garde de
         // maintenance, et c'est necessaire.
@@ -1667,15 +1676,15 @@ Route::prefix('/org/{organization}')
         Route::middleware('guest')
             ->withoutMiddleware(['auth', 'organization.member', 'organization.maintenance'])
             ->group(function () {
-            Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
-            Route::post('/login', [AuthenticatedSessionController::class, 'store']);
-            Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
-            Route::post('/register', [RegisteredUserController::class, 'store']);
-            Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
-            Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
-            Route::get('/reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
-            Route::post('/reset-password', [NewPasswordController::class, 'store'])->name('password.store');
-        });
+                Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+                Route::post('/login', [AuthenticatedSessionController::class, 'store']);
+                Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
+                Route::post('/register', [RegisteredUserController::class, 'store']);
+                Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
+                Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+                Route::get('/reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
+                Route::post('/reset-password', [NewPasswordController::class, 'store'])->name('password.store');
+            });
 
         Route::get('/abonnements', [SubscriptionController::class, 'orgIndex'])->name('subscriptions');
 
@@ -1696,12 +1705,12 @@ Route::prefix('/org/{organization}')
             Route::middleware('organization.member:explain')
                 ->withoutMiddleware(['organization.member'])
                 ->group(function () {
-                Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-                Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
-                Route::get('/dashboard/requests/{serviceRequest}', [DashboardController::class, 'requestDetail'])->name('dashboard.requests.detail')->middleware('consume.org')->whereUuid('serviceRequest');
-                Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
-                Route::get('/dashboard/services/{service}', [DashboardController::class, 'serviceDetail'])->name('dashboard.services.detail')->middleware('consume.org')->whereUuid('service');
-            });
+                    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+                    Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
+                    Route::get('/dashboard/requests/{serviceRequest}', [DashboardController::class, 'requestDetail'])->name('dashboard.requests.detail')->middleware('consume.org')->whereUuid('serviceRequest');
+                    Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
+                    Route::get('/dashboard/services/{service}', [DashboardController::class, 'serviceDetail'])->name('dashboard.services.detail')->middleware('consume.org')->whereUuid('service');
+                });
             Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
             Route::middleware('profile.complete')->group(function () {
@@ -1735,6 +1744,10 @@ Route::prefix('/org/{organization}')
 
             Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.store');
             Route::post('/transactions/{transaction}/review/skip', [ReviewController::class, 'skip'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.skip');
+            // TASK-1808 §5 — les jumelles scopees du micro-ecran B.
+            Route::post('/transactions/{transaction}/review/comment', [ReviewController::class, 'comment'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.comment');
+            Route::post('/transactions/{transaction}/review/comment/skip', [ReviewController::class, 'skipComment'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.comment.skip');
+            Route::post('/transactions/{transaction}/share-in-feed', [TransactionController::class, 'orgShareInFeed'])->middleware('throttle:5,1')->middleware('consume.org')->name('transactions.share-in-feed');
 
             Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
             // TASK-1693 bug AA — « Ecrire a cette personne », sur la surface de

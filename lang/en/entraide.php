@@ -37,6 +37,7 @@ return [
     'flux' => [
         // TASK-1808 — see the French file: this label spoke for the HELPER,
         // but the person ticking the box is now the HELPED one.
+        'partagee' => 'Mutual aid shared in the Feed.',
         'partager' => 'Share this mutual aid in the Feed (the first name of the person who helped you and the time shared; your name is not shown)',
     ],
 

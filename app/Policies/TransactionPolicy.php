@@ -62,6 +62,21 @@ class TransactionPolicy
      * zero ligne sur le jumeau), mais une ligne heritee ne doit pas rester
      * sans issue si l'ancien parcours en avait laisse une.
      */
+    /**
+     * TASK-1808 §7 — partager l'entraide terminee dans le Flux.
+     *
+     * L'AIDE seul, et seulement une fois l'entraide close : avant la cloture
+     * il n'y a rien a raconter, et l'aidant n'a jamais eu ce pouvoir (c'est
+     * l'arbitrage produit, pas un oubli). Une discussion directe n'est pas une
+     * entraide et n'a ni annonce ni temps a publier.
+     */
+    public function shareInFeed(User $user, Transaction $transaction): bool
+    {
+        return $user->id === $transaction->buyer_id
+            && $transaction->status === 'completed'
+            && ! $transaction->isDirectConversation();
+    }
+
     public function complete(User $user, Transaction $transaction): bool
     {
         return $this->resourceBelongsToCurrentOrganization($transaction)

@@ -2,12 +2,14 @@
 
 namespace App\Livewire;
 
+use App\Models\FeedPost;
 use App\Models\Message;
 use App\Models\Organization;
 use App\Models\Reaction;
 use App\Models\Transaction;
 use App\Notifications\NewMessageReceived;
 use App\Services\UrlPreviewService;
+use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Files\TypesDeFichiersAcceptes;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -94,6 +96,22 @@ class MessageThread extends Component
 
     public $photo = null;
 
+    /**
+     * TASK-1808 §4 — la pluie de coeurs est-elle due MAINTENANT, a CE lecteur ?
+     *
+     * Decidee une seule fois, au montage, et jamais recalculee au rendu : le
+     * marqueur durable est pose dans le meme geste, donc une relecture
+     * repondrait toujours « non » et l'animation ne partirait jamais.
+     */
+    public bool $pluieDeCoeurs = false;
+
+    /**
+     * TASK-1808 §7 — l'entraide est-elle deja dans le Flux ?
+     *
+     * Reproposer le geste apres coup laisserait croire qu'il n'a pas pris.
+     */
+    public bool $fluxDejaPartage = false;
+
     public function mount(Transaction $transaction): void
     {
         $this->transactionId = $transaction->id;
@@ -101,6 +119,57 @@ class MessageThread extends Component
         $this->organizationSlug = currentOrganization()?->slug
             ?? Organization::findOrFail($transaction->organization_id)->slug;
         $this->markRead();
+        $this->celebrerSiCEstDu($transaction);
+        $this->fluxDejaPartage = $this->dejaDansLeFlux($transaction);
+    }
+
+    /**
+     * TASK-1808 §4 — « a sa PREMIERE ouverture de la conversation terminee ».
+     *
+     * Le marqueur s'ecrit ICI, cote serveur, et non dans le navigateur : le
+     * drapeau de l'animation vit en memoire de page et ne survit ni a un
+     * rechargement ni a un autre appareil. « Une seule fois par entraide ET
+     * par aidant » ne peut se tenir qu'en base.
+     *
+     * `update()` conditionne par `whereNull` : deux onglets ouverts en meme
+     * temps ne peuvent pas celebrer deux fois, c'est la base qui arbitre et
+     * non l'ordre des requetes. Le nombre de lignes touchees dit lequel des
+     * deux a gagne.
+     *
+     * Aucune evaluation n'intervient dans cette decision (§4 : « aucune
+     * dependance a une future evaluation »), et l'aide n'est jamais celebre —
+     * la pluie remercie celui qui a AIDE.
+     */
+    private function celebrerSiCEstDu(Transaction $transaction): void
+    {
+        if (! $transaction->celebrationDueALAidant()) {
+            return;
+        }
+
+        if (! $transaction->estLAidant(auth()->user())) {
+            return;
+        }
+
+        $pose = Transaction::whereKey($transaction->id)
+            ->whereNull('seller_celebrated_at')
+            ->update(['seller_celebrated_at' => now()]);
+
+        $this->pluieDeCoeurs = $pose === 1;
+    }
+
+    /** Une ligne de Flux existe-t-elle deja pour cette entraide terminee ? */
+    private function dejaDansLeFlux(Transaction $transaction): bool
+    {
+        if ($transaction->status !== 'completed' || $transaction->isDirectConversation()) {
+            return false;
+        }
+
+        return FeedPost::withTrashed()
+            ->where('organization_id', $transaction->organization_id)
+            ->where('type', FeedEventCatalogue::ENTRAIDE_TERMINEE)
+            ->where('object_type', Transaction::class)
+            ->where('object_id', $transaction->id)
+            ->exists();
     }
 
     public function replyTo(string $messageId): void
