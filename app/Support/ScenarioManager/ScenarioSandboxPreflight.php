@@ -79,7 +79,7 @@ class ScenarioSandboxPreflight
      * ne cree plus. En declarer une ici la ferait passer pour un fait du
      * schema, et le test ci-contre echouerait partout ailleurs.
      *
-     * Ce que ces DIX-SEPT sont, exactement — et le nombre est tenu a jour
+     * Ce que ces DIX-HUIT sont, exactement — et le nombre est tenu a jour
      * parce que le docbloc ci-dessus exige que l'escalade dise vrai : il
      * annoncait encore « douze » alors que T1711 en avait ajoute une
      * treizieme, T1727 la quatorzieme, et T1731 la quinzieme. Mesure du
@@ -87,12 +87,17 @@ class ScenarioSandboxPreflight
      * (T1439) n'ayant jamais ete nommee dans cette chronologie — ecart
      * preexistant, non introduit ici, corrige au passage puisque ce
      * docbloc etait rouvert. T1789 ajoute la dix-septieme : `rss_sources`.
+     * TASK-1803 ajoute la dix-huitieme : `bulk_email_send_recipients`.
      *
      *
      * - plateforme : `organizations`, `platform_ai_constitutions`,
      *   `rss_sources` (T1789 — catalogue d'outillage SuperAdmin, n'appartient
      *   a aucune sandbox puisqu'un meme flux RSS peut nourrir plusieurs
      *   Organizations) ;
+     * - destinataires d'un envoi en masse SuperAdmin : `bulk_email_send_recipients`
+     *   (T1803) — un seul envoi peut cibler « toutes les Organizations », donc
+     *   ses lignes de destinataires traversent par construction plusieurs
+     *   Organizations et n'appartiennent a aucune sandbox unique ;
      * - administration du Manager lui-meme : `scenario_manifest_versions` ;
      * - demandes inter-tenants : `organization_requests` ;
      * - liens INTER-TENANTS entre comptes : `account_links` (T1731) — il
@@ -140,6 +145,18 @@ class ScenarioSandboxPreflight
         'blog_post_user',
         'blog_snapshots',
         'blog_todo_threads',
+        // TASK-1803 — les destinataires d'un envoi en masse SuperAdmin
+        // (`/admin/email-bulksending`). Hors portee par NATURE, pas par
+        // omission : l'envoi parent (`bulk_email_sends`) peut cibler « toutes
+        // les Organizations » (`organization_id` NULL), auquel cas ses lignes
+        // de destinataires appartiennent chacune a l'Organization de LEUR
+        // membre, qui varie d'une ligne a l'autre dans le MEME envoi — cette
+        // table ne peut donc pas porter un `organization_id` qui la rendrait
+        // marchable par une seule sandbox. La FK `user_id` est nullable +
+        // nullOnDelete et declaree `POLICY_DETACH` dans
+        // `UserDataLifecycleRegistry` : la ligne reste comme trace d'audit si
+        // le membre est supprime.
+        'bulk_email_send_recipients',
         'loop_plugin_ai_models',
         'loop_roadmap_item_user',
         'member_notification_preferences',

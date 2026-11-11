@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminCrmController;
 use App\Http\Controllers\Admin\AdminCrmOverviewController;
 use App\Http\Controllers\Admin\AdminDrivesController;
+use App\Http\Controllers\Admin\AdminEmailBulkSendingController;
 use App\Http\Controllers\Admin\AdminEmailController;
 use App\Http\Controllers\Admin\AdminEmailLogsController;
 use App\Http\Controllers\Admin\AdminEmailTemplatesController;
@@ -137,6 +138,7 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\ShareTargetController;
 use App\Http\Controllers\ShortcutController;
+use App\Http\Controllers\PwaManifestController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TransactionController;
@@ -378,6 +380,10 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
+// TASK-1805 — le manifest PWA, desormais SERVI par Laravel (et non plus un
+// fichier statique de `public/`) pour que `name`/`short_name` varient par
+// environnement. Voir `PwaManifestController` pour le pourquoi complet.
+Route::get('/site.webmanifest', PwaManifestController::class)->name('pwa.manifest');
 // TASK-1488 (P0 privacy) — /search etait un CONTOURNEMENT vivant du correctif
 // deja merge par TASK-1479. Mesure : un anonyme obtenait 200 avec le nom
 // complet, la ville et la note de membres d'une Organization privee — les
@@ -1010,6 +1016,17 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/email-templates/{emailTemplate}/send', [AdminEmailTemplatesController::class, 'sendForm'])->name('email-templates.send');
     Route::get('/email-templates/{emailTemplate}/send/confirm', [AdminEmailTemplatesController::class, 'sendConfirm'])->name('email-templates.send.confirm');
     Route::post('/email-templates/{emailTemplate}/send', [AdminEmailTemplatesController::class, 'sendExecute'])->name('email-templates.send.execute');
+
+    // Email bulk sending (TASK-1803) — cibler toutes les Organizations ou une
+    // seule, tous les membres ou ceux sans presentation, contenu libre (brut
+    // ou HTML) ou un modele existant. Le contrôleur verifie lui-meme
+    // `is_admin` : le groupe admin ne suffit pas, meme idiome que les routes
+    // `loop-types`/`loop-plugins`/`loop-permissions` ci-dessous.
+    Route::get('/email-bulksending', [AdminEmailBulkSendingController::class, 'index'])->name('email-bulksending');
+    Route::post('/email-bulksending/preview', [AdminEmailBulkSendingController::class, 'preview'])->name('email-bulksending.preview');
+    Route::post('/email-bulksending', [AdminEmailBulkSendingController::class, 'store'])->name('email-bulksending.store');
+    Route::get('/email-bulksending/{bulkEmailSend}', [AdminEmailBulkSendingController::class, 'show'])->name('email-bulksending.show');
+    Route::post('/email-bulksending/{bulkEmailSend}/batch', [AdminEmailBulkSendingController::class, 'sendBatch'])->name('email-bulksending.batch');
 
     // Email logs
     // TASK-1380 — supervision des notifications. Il COMPTE, il ne lit pas :

@@ -114,6 +114,31 @@ class EmailerService
         }, $content);
     }
 
+    /**
+     * TASK-1803 — meme substitution que `interpolate()`, mais SANS `e()`.
+     *
+     * `interpolate()` echappe la valeur pour un rendu HTML : correct pour un
+     * `Mail::html()`, mais faux pour un `Mail::raw()` — un email texte verrait
+     * les accents/apostrophes des variables sortir en entites HTML
+     * (`&#039;`) au lieu du caractere lui-meme. L'outil d'envoi en masse est
+     * le premier appelant a envoyer du texte brut ; les deux usages HTML
+     * historiques (`sendFromTemplate`, `sendFromTemplateToContact`) restent
+     * sur `interpolate()`.
+     */
+    public function interpolateRaw(string $content, array $variables, array $extraAllowedVars = []): string
+    {
+        $allowed = array_merge(self::ALLOWED_VARS, $extraAllowedVars);
+
+        return preg_replace_callback('/\{\{\s*(\w+)\s*\}\}/', function ($matches) use ($variables, $allowed) {
+            $key = $matches[1];
+            if (in_array($key, $allowed, true) && isset($variables[$key])) {
+                return (string) $variables[$key];
+            }
+
+            return $matches[0];
+        }, $content);
+    }
+
     public function interpolateSubject(string $subject, array $variables, array $extraAllowedVars = []): string
     {
         $allowed = array_merge(self::ALLOWED_VARS, $extraAllowedVars);
