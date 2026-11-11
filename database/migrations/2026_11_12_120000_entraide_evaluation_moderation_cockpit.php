@@ -53,7 +53,14 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('review_id')->constrained('reviews')->cascadeOnDelete();
             $table->foreignUuid('organization_id')->constrained()->cascadeOnDelete();
-            $table->foreignUuid('actor_id')->constrained('users')->cascadeOnDelete();
+            // nullOnDelete, pas cascadeOnDelete : meme convention que
+            // `messages.edited_by` / `admin_ai_interactions.reviewed_by`.
+            // Un journal d'audit doit survivre a la suppression de son
+            // acteur — un `cascadeOnDelete()` effacerait l'historique de
+            // moderation exactement quand un compte SuperAdmin est
+            // offboarde, ce que le registre de cycle de vie interdit pour
+            // ce type de colonne.
+            $table->foreignUuid('actor_id')->nullable()->constrained('users')->nullOnDelete();
             // updated|hidden|unhidden|deleted|restored — verifie par le
             // modele, pas par une contrainte CHECK (meme choix que
             // `EmailLog::STATUSES`, pour rester identique sur SQLite et
