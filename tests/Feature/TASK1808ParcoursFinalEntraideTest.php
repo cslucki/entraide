@@ -325,4 +325,77 @@ class TASK1808ParcoursFinalEntraideTest extends TestCase
         // celebration de l'aidant.
         $this->assertNull($entraide->fresh()->seller_celebrated_at);
     }
+
+    // ── Precision MASTER (11/11 soir) — « Plus tard » ne revient plus ─────
+
+    public function test_plus_tard_ne_rouvre_plus_le_formulaire_aux_visites_suivantes(): void
+    {
+        $entraide = $this->entraideAcceptee();
+        $this->actingAs($this->aide)->patch(route('transactions.complete', $entraide));
+
+        // Premiere visite : le formulaire est ouvert en clair.
+        $premiere = Livewire::actingAs($this->aide)
+            ->test(MessageThread::class, ['transaction' => $entraide->fresh()])
+            ->html();
+        $this->assertStringContainsString('data-entraide-etoiles', $premiere);
+        $this->assertStringContainsString(__('messages.etoiles_titre', ['prenom' => $this->aidant->first_name]), $premiere);
+
+        $this->actingAs($this->aide)->post(route('reviews.defer', $entraide))
+            ->assertRedirect(route('messages.show', $entraide));
+
+        $entraide->refresh();
+        $this->assertNotNull($entraide->evaluation_deferred_at);
+        // « Plus tard » n'est PAS un refus.
+        $this->assertNull($entraide->reviews_skipped_at);
+        $this->assertTrue($entraide->etoilesEnAttente());
+
+        // Visites suivantes : la structure bascule vers la presentation
+        // « differee » — seule l'action secondaire est VISIBLE au chargement
+        // (`<template x-if>` : le formulaire n'est clone dans le DOM qu'au
+        // clic, Alpine a besoin de son contenu dans la page source pour
+        // pouvoir le cloner, ce qui n'est pas une relance — rien n'est
+        // affiche avant une action explicite du lecteur). La preuve VISUELLE
+        // de ce comportement est la recette navigateur, pas ce test PHP.
+        $html = Livewire::actingAs($this->aide)
+            ->test(MessageThread::class, ['transaction' => $entraide->fresh()])
+            ->html();
+        $this->assertStringContainsString('data-entraide-etoiles-differe', $html);
+        $this->assertStringContainsString('data-entraide-etoiles-reprendre', $html);
+        $this->assertStringContainsString(__('messages.etoiles_laisser_un_avis'), $html);
+        // La premiere presentation (ouverte en clair, sans wrapper "differe")
+        // n'est plus celle qui est rendue.
+        $this->assertStringNotContainsString('x-data="{ note: 0, survol: 0 }"', $html);
+
+        // La note reste utilisable « librement » depuis cette action.
+        $this->actingAs($this->aide)->post(route('reviews.store', $entraide), ['rating' => 5]);
+        $this->assertDatabaseHas('reviews', ['transaction_id' => $entraide->id, 'rating' => 5]);
+    }
+
+    public function test_un_second_plus_tard_reste_sans_effet(): void
+    {
+        $entraide = $this->entraideAcceptee();
+        $this->actingAs($this->aide)->patch(route('transactions.complete', $entraide));
+
+        $this->actingAs($this->aide)->post(route('reviews.defer', $entraide));
+        $premiereDate = $entraide->fresh()->evaluation_deferred_at;
+
+        $this->actingAs($this->aide)->post(route('reviews.defer', $entraide));
+        $this->assertEquals($premiereDate, $entraide->fresh()->evaluation_deferred_at);
+    }
+
+    public function test_defer_est_refuse_avant_la_cloture_et_apres_une_note_deposee(): void
+    {
+        $entraide = $this->entraideAcceptee();
+
+        // Avant cloture : refuse comme les autres portes d'evaluation.
+        $this->actingAs($this->aide)->post(route('reviews.defer', $entraide))
+            ->assertForbidden();
+
+        $this->actingAs($this->aide)->patch(route('transactions.complete', $entraide));
+        $this->actingAs($this->aide)->post(route('reviews.store', $entraide), ['rating' => 5]);
+
+        // Un avis existe deja : differer n'a plus de sens.
+        $this->actingAs($this->aide)->post(route('reviews.defer', $entraide))
+            ->assertForbidden();
+    }
 }

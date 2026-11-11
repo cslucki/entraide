@@ -463,6 +463,8 @@ Route::middleware('auth')->group(function () {
     // Reviews
     Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->name('reviews.store');
     Route::post('/transactions/{transaction}/review/skip', [ReviewController::class, 'skip'])->middleware('throttle:5,1')->name('reviews.skip');
+    // TASK-1808 (precision MASTER) — « Plus tard », qui persiste entre deux visites.
+    Route::post('/transactions/{transaction}/review/defer', [ReviewController::class, 'defer'])->middleware('throttle:5,1')->name('reviews.defer');
     // TASK-1808 §5 — le micro-ecran B. Deux gestes distincts, deux routes :
     // publier le mot, ou terminer sans commentaire. Meme `throttle` que les
     // deux au-dessus.
@@ -1744,6 +1746,7 @@ Route::prefix('/org/{organization}')
 
             Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.store');
             Route::post('/transactions/{transaction}/review/skip', [ReviewController::class, 'skip'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.skip');
+            Route::post('/transactions/{transaction}/review/defer', [ReviewController::class, 'defer'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.defer');
             // TASK-1808 §5 — les jumelles scopees du micro-ecran B.
             Route::post('/transactions/{transaction}/review/comment', [ReviewController::class, 'comment'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.comment');
             Route::post('/transactions/{transaction}/review/comment/skip', [ReviewController::class, 'skipComment'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.comment.skip');

@@ -37,6 +37,7 @@ class Transaction extends Model
         // une seule fois a l'aide.
         'seller_celebrated_at',
         'evaluation_invited_at',
+        'evaluation_deferred_at',
     ];
 
     protected function casts(): array
@@ -48,6 +49,7 @@ class Transaction extends Model
             'reviews_skipped_at' => 'datetime',
             'seller_celebrated_at' => 'datetime',
             'evaluation_invited_at' => 'datetime',
+            'evaluation_deferred_at' => 'datetime',
             'points_proposed' => 'integer',
             'points_agreed' => 'integer',
         ];
@@ -166,6 +168,19 @@ class Transaction extends Model
     public function etoilesEnAttente(): bool
     {
         return $this->evaluationEnAttente();
+    }
+
+    /**
+     * TASK-1808 (precision MASTER) — « Plus tard » a ete clique au moins une
+     * fois : le formulaire ne doit plus se reproposer seul a chaque visite,
+     * seulement une action secondaire discrete pour qui veut l'ouvrir.
+     *
+     * Distinct d'`evaluationIgnoree()` : un report n'est pas un renoncement,
+     * et l'un n'implique jamais l'autre.
+     */
+    public function evaluationDifferee(): bool
+    {
+        return $this->evaluation_deferred_at !== null;
     }
 
     /**

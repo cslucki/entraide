@@ -138,6 +138,7 @@ return [
     'etoiles_titre' => 'How do you rate :prenom’s help?',
     'etoiles_valider' => 'Save my rating',
     'etoiles_plus_tard' => 'Later',
+    'etoiles_laisser_un_avis' => 'Leave a review',
     'mot_titre' => 'Would you like to add a few words?',
     'mot_publier' => 'Publish my comment',
     'mot_terminer' => 'Finish without a comment',

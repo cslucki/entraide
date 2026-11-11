@@ -47,6 +47,26 @@ class ReviewController extends Controller
     }
 
     /**
+     * TASK-1808 (precision MASTER, 11/11 soir) — « Plus tard », persiste.
+     *
+     * Idempotent : une fois pose, un second clic ne change rien — c'est un
+     * report, pas un compteur. Ne touche jamais `reviews_skipped_at` : ce
+     * n'est pas un renoncement, et la note reste proposable « librement
+     * ulterieurement » (consigne explicite).
+     *
+     * Meme gate que `store()` : les conditions sont identiques (l'aide,
+     * entraide close, aucun avis depose, pas de renoncement).
+     */
+    public function defer(Request $request, Transaction $transaction): RedirectResponse
+    {
+        $this->authorize('create-review', $transaction);
+
+        $transaction->update(['evaluation_deferred_at' => $transaction->evaluation_deferred_at ?? now()]);
+
+        return $this->retourAuFil($transaction);
+    }
+
+    /**
      * TASK-1808 §5, micro-ecran B — « Publier mon commentaire ».
      *
      * Complete une note DEJA enregistree. Ne cree jamais d'avis : si l'ecran A

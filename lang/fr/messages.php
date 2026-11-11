@@ -167,6 +167,7 @@ return [
     'etoiles_titre' => 'Comment évaluez-vous l’aide de :prenom ?',
     'etoiles_valider' => 'Valider ma note',
     'etoiles_plus_tard' => 'Plus tard',
+    'etoiles_laisser_un_avis' => 'Laisser une évaluation',
     'mot_titre' => 'Souhaitez-vous ajouter quelques mots ?',
     'mot_publier' => 'Publier mon commentaire',
     'mot_terminer' => 'Terminer sans commentaire',
