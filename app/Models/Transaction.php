@@ -97,7 +97,13 @@ class Transaction extends Model
 
     public function hasReviewFrom(string $userId): bool
     {
-        return $this->reviews()->where('reviewer_id', $userId)->exists();
+        // TASK-1808 §2 (cockpit) — `withTrashed()` est deliberement : un avis
+        // SUPPRIME par moderation occupe toujours son unique emplacement
+        // (`unique(transaction_id)`) et ne doit jamais laisser croire que
+        // « personne n'a encore evalue ». Sans ce rappel, un second depot
+        // serait tente et heurterait la contrainte en base au lieu d'etre
+        // refuse proprement en amont.
+        return $this->reviews()->withTrashed()->where('reviewer_id', $userId)->exists();
     }
 
     /**

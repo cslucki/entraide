@@ -3,17 +3,18 @@
 namespace App\Models;
 
 use App\Models\Traits\HasOrganizationId;
-use App\Support\ProfileLinks;
+use App\Notifications\VerifyEmailWithTemplate;
 use App\Services\ReferralCodeGenerator;
 use App\Services\Users\Exceptions\UserOrganizationImmutableException;
+use App\Support\ProfileLinks;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\QueryException;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
@@ -46,7 +47,7 @@ class User extends Authenticatable implements MustVerifyEmail
         // global et bilingue. La classe ETEND celle du framework : l'url signee
         // et sa duree restent calculees au meme endroit, et si le gabarit manque
         // c'est l'email du framework qui part — jamais un email vide.
-        rescue(fn () => $this->notify(new \App\Notifications\VerifyEmailWithTemplate));
+        rescue(fn () => $this->notify(new VerifyEmailWithTemplate));
     }
 
     /** @use HasFactory<UserFactory> */
@@ -71,7 +72,7 @@ class User extends Authenticatable implements MustVerifyEmail
         // leur sens sans leur auteur, et le registre continue de les
         // transferer.
         static::deleting(function (User $user) {
-            \App\Models\FeedPost::withTrashed()
+            FeedPost::withTrashed()
                 ->where('user_id', $user->id)
                 ->whereNotNull('object_type')
                 ->forceDelete();
@@ -383,7 +384,7 @@ class User extends Authenticatable implements MustVerifyEmail
      * TASK-1693 bug Z — le registre des adresses publiques de ce membre,
      * courante ET passees. Les passees restent prises : voir `UserSlug`.
      */
-    public function slugs(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function slugs(): HasMany
     {
         return $this->hasMany(UserSlug::class);
     }
@@ -526,7 +527,13 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function recalculateRating(): void
     {
-        $avg = $this->reviewsReceived()->avg('rating');
+        // TASK-1808 §2.E — une evaluation MASQUEE ou SUPPRIMEE depuis le
+        // cockpit ne doit plus compter dans la moyenne publique.
+        // `whereNull('hidden_at')` pour le masquage ; la suppression, elle,
+        // est deja exclue sans rien ecrire ici — `Review` utilise
+        // `SoftDeletes`, dont le scope global retire `deleted_at` non nul de
+        // TOUTE requete Eloquent par defaut, celle-ci comprise.
+        $avg = $this->reviewsReceived()->whereNull('hidden_at')->avg('rating');
         $this->update(['rating' => $avg ? round($avg, 2) : null]);
     }
 

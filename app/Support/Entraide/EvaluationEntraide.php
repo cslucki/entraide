@@ -47,7 +47,10 @@ final class EvaluationEntraide
      */
     public static function enregistrer(Transaction $entraide, ?int $note, ?string $mot = null): void
     {
-        if ($entraide->reviews()->exists()) {
+        // TASK-1808 §2 (cockpit) — `withTrashed()` : un avis supprime par
+        // moderation garde son emplacement UNIQUE (`unique(transaction_id)`),
+        // voir le docbloc de `Transaction::hasReviewFrom()`.
+        if ($entraide->reviews()->withTrashed()->exists()) {
             return;
         }
 

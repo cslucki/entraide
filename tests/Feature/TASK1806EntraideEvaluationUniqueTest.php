@@ -458,6 +458,11 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
         $this->seller->update(['points_balance' => 0]);
         $transaction = $this->acceptedTransaction(['points_proposed' => 20, 'points_agreed' => 20]);
 
+        // TASK-1808 §2 (cockpit) — `review_moderation_logs` porte une FK
+        // vers `reviews` : en PostgreSQL, `DROP TABLE reviews` refuse tant
+        // qu'une table dependante existe encore. On la retire d'abord ; elle
+        // est vide a ce stade du test et n'est pas ce que ce test mesure.
+        Schema::dropIfExists('review_moderation_logs');
         Schema::drop('reviews');
 
         $reponse = $this->actingAs($this->buyer)
