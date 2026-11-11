@@ -326,6 +326,46 @@ class TASK1808ParcoursFinalEntraideTest extends TestCase
         $this->assertNull($entraide->fresh()->seller_celebrated_at);
     }
 
+    /**
+     * TASK-1808 (recette navigateur, 11/11) — DEFAUT TROUVE EN CONDITIONS
+     * REELLES, invisible depuis PHPUnit : `messages/index.blade.php` monte le
+     * MEME composant DEUX FOIS sur une seule page (une copie mobile
+     * `md:hidden`, une copie desktop `hidden md:flex`). Chaque copie appelle
+     * `mount()` independamment. Sans garde, le `whereNull` qui pose
+     * `seller_celebrated_at` ne laissait gagner QU'UNE des deux instances —
+     * et c'etait systematiquement la copie mobile, premiere dans le Blade,
+     * meme a un viewport desktop : la pluie de coeurs etait donc posee dans
+     * la copie INVISIBLE et jamais vue a l'ecran, quel que soit l'appareil.
+     *
+     * Ce test reproduit le double montage DANS LA MEME REQUETE (deux
+     * `Livewire::test()` pour la MEME transaction, sans rafraichir entre les
+     * deux) et prouve que les deux instances s'accordent desormais :
+     * laquelle que la CSS montre, elle montre la pluie.
+     */
+    public function test_les_deux_instances_mobile_et_desktop_s_accordent_sur_la_pluie(): void
+    {
+        $entraide = $this->entraideAcceptee();
+        $this->actingAs($this->aide)->patch(route('transactions.complete', $entraide));
+
+        $fraiche = $entraide->fresh();
+
+        $premiereInstance = Livewire::actingAs($this->aidant)
+            ->test(MessageThread::class, ['transaction' => $fraiche])
+            ->html();
+        $deuxiemeInstance = Livewire::actingAs($this->aidant)
+            ->test(MessageThread::class, ['transaction' => $fraiche])
+            ->html();
+
+        // Les deux copies recoivent la MEME reponse : soit les deux montrent
+        // les coeurs, soit aucune — jamais une seule au hasard de l'ordre.
+        $this->assertStringContainsString('data-entraide-coeurs', $premiereInstance);
+        $this->assertStringContainsString('data-entraide-coeurs', $deuxiemeInstance);
+
+        // Et une seule celebration a ete ecrite en base, quel que soit le
+        // nombre d'instances qui l'ont demandee dans la meme requete.
+        $this->assertNotNull($fraiche->fresh()->seller_celebrated_at);
+    }
+
     // ── Precision MASTER (11/11 soir) — « Plus tard » ne revient plus ─────
 
     public function test_plus_tard_ne_rouvre_plus_le_formulaire_aux_visites_suivantes(): void

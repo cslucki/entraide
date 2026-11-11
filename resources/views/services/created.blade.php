@@ -31,7 +31,7 @@
          24 coeurs, le drapeau de lecture unique, les regles d'`app.css` et le
          traitement de `prefers-reduced-motion` — vit desormais la-bas,
          inchange. --}}
-    <x-coeurs marqueur="data-coeurs-confirmation" />
+    <x-coeurs marqueur="data-coeurs-confirmation" cle="service-created-{{ $service?->id }}" />
 
     <div class="mx-auto max-w-xl text-center" data-service-created>
         {{-- La pastille et le titre disent l'ETAT REEL. Une proposition mise en

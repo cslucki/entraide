@@ -11,6 +11,7 @@ use App\Notifications\NewMessageReceived;
 use App\Services\UrlPreviewService;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Files\TypesDeFichiersAcceptes;
+use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -136,6 +137,21 @@ class MessageThread extends Component
      * non l'ordre des requetes. Le nombre de lignes touchees dit lequel des
      * deux a gagne.
      *
+     * TASK-1808 (recette navigateur, 11/11) — ET DEUX INSTANCES DANS LA MEME
+     * REQUETE NON PLUS. Mesure en conditions reelles : `messages/index.blade.php`
+     * monte CE MEME composant DEUX FOIS sur une seule vue — une copie
+     * `md:hidden` pour mobile, une copie `hidden md:flex` pour desktop — et
+     * chacune appelle `mount()`, donc `celebrerSiCEstDu()`, independamment.
+     * Sans garde, le `whereNull` ci-dessous ne laisse gagner QU'UNE des deux,
+     * au hasard de l'ordre d'execution — et c'etait systematiquement la copie
+     * mobile, TOUJOURS la premiere dans le Blade, meme a un viewport desktop :
+     * la pluie etait donc pose a chaque fois dans la copie INVISIBLE, et
+     * jamais vue. `ScopedReadCache` (T1778) memorise ici la decision pour la
+     * duree de LA REQUETE : la deuxieme instance lit le verdict de la
+     * premiere au lieu de retenter sa propre ecriture, et les deux copies
+     * s'accordent — celle que la CSS montre a l'ecran comme celle qu'elle
+     * cache recoivent la MEME reponse.
+     *
      * Aucune evaluation n'intervient dans cette decision (§4 : « aucune
      * dependance a une future evaluation »), et l'aide n'est jamais celebre —
      * la pluie remercie celui qui a AIDE.
@@ -150,11 +166,16 @@ class MessageThread extends Component
             return;
         }
 
-        $pose = Transaction::whereKey($transaction->id)
-            ->whereNull('seller_celebrated_at')
-            ->update(['seller_celebrated_at' => now()]);
+        $this->pluieDeCoeurs = app(ScopedReadCache::class)->souviens(
+            "entraide_celebration:{$transaction->id}",
+            function () use ($transaction) {
+                $pose = Transaction::whereKey($transaction->id)
+                    ->whereNull('seller_celebrated_at')
+                    ->update(['seller_celebrated_at' => now()]);
 
-        $this->pluieDeCoeurs = $pose === 1;
+                return $pose === 1;
+            },
+        );
     }
 
     /** Une ligne de Flux existe-t-elle deja pour cette entraide terminee ? */

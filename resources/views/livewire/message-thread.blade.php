@@ -416,7 +416,7 @@
                      Independante de toute evaluation, et elle ne bloque rien :
                      le calque est `pointer-events: none`. --}}
                 @if($pluieDeCoeurs)
-                    <x-coeurs marqueur="data-entraide-coeurs" />
+                    <x-coeurs marqueur="data-entraide-coeurs" cle="entraide-{{ $transaction->id }}" />
                 @endif
 
                 {{-- Recapitulatif compact — une ligne, separateurs discrets.
