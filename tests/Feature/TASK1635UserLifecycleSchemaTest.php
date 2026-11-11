@@ -156,17 +156,24 @@ class TASK1635UserLifecycleSchemaTest extends TestCase
     // §6 et §7 — les contraintes UNIQUE tolerent-elles plusieurs NULL ?
     // =====================================================================
 
-    public function test_plusieurs_avis_de_la_meme_transaction_survivent_avec_un_auteur_null(): void
+    public function test_plusieurs_avis_de_transactions_distinctes_survivent_avec_un_auteur_null(): void
     {
-        // unique(transaction_id, reviewer_id) : si NULL comptait comme une
-        // valeur ordinaire, le SET NULL du second avis heurterait le premier
-        // et la suppression du User echouerait — ou pire, detruirait la ligne.
-        $transactionId = $this->insertTransaction($this->other->id, $this->other->id);
+        // TASK-1806 — `reviews` porte desormais `unique(transaction_id)` SEUL
+        // (une evaluation au maximum par transaction, regle produit : seul
+        // l'aide evalue l'aidant). `reviewer_id` est SORTI de la contrainte
+        // unique : deux avis ne peuvent plus jamais partager un
+        // `transaction_id`, donc ce test ne peut plus poser deux avis sur LA
+        // MEME transaction (ce scenario est devenu structurellement
+        // impossible, et c'est voulu). Il verifie desormais la MEME
+        // propriete NULL — deux avis NULL ne se percutent jamais — sur DEUX
+        // transactions distinctes.
+        $transactionA = $this->insertTransaction($this->other->id, $this->other->id);
+        $transactionB = $this->insertTransaction($this->other->id, $this->other->id);
 
         $secondReviewer = User::factory()->for($this->organization)->create();
 
-        $first = $this->insertReview($transactionId, $this->user->id, $this->other->id);
-        $second = $this->insertReview($transactionId, $secondReviewer->id, $this->other->id);
+        $first = $this->insertReview($transactionA, $this->user->id, $this->other->id);
+        $second = $this->insertReview($transactionB, $secondReviewer->id, $this->other->id);
 
         $this->deleteUserAtDatabaseLevel($this->user);
         $this->deleteUserAtDatabaseLevel($secondReviewer);
@@ -176,8 +183,8 @@ class TASK1635UserLifecycleSchemaTest extends TestCase
 
         $this->assertSame(
             2,
-            DB::table('reviews')->where('transaction_id', $transactionId)->whereNull('reviewer_id')->count(),
-            'Deux avis de la meme transaction doivent pouvoir coexister avec reviewer_id NULL.'
+            DB::table('reviews')->whereIn('transaction_id', [$transactionA, $transactionB])->whereNull('reviewer_id')->count(),
+            'Deux avis de transactions distinctes doivent pouvoir coexister avec reviewer_id NULL.'
         );
     }
 

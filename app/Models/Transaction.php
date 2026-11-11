@@ -31,6 +31,7 @@ class Transaction extends Model
         'buyer_confirmed_at',
         'seller_confirmed_at',
         'completed_at',
+        'reviews_skipped_at',
     ];
 
     protected function casts(): array
@@ -39,6 +40,7 @@ class Transaction extends Model
             'buyer_confirmed_at' => 'datetime',
             'seller_confirmed_at' => 'datetime',
             'completed_at' => 'datetime',
+            'reviews_skipped_at' => 'datetime',
             'points_proposed' => 'integer',
             'points_agreed' => 'integer',
         ];
@@ -87,6 +89,63 @@ class Transaction extends Model
     public function hasReviewFrom(string $userId): bool
     {
         return $this->reviews()->where('reviewer_id', $userId)->exists();
+    }
+
+    /**
+     * TASK-1806 §3.B — les 5 etats du parcours, EXPLICITES et DERIVES de
+     * l'existant. Aucune nouvelle valeur dans l'enum `status` (6 valeurs deja
+     * dupliquees entre le controleur web et l'API) : ce sont des PROJECTIONS,
+     * au meme titre que `CarteEntraide`, pas une seconde machine a etats.
+     *
+     * L'absence d'evaluation ne bloque ni ne rejoue jamais le transfert de
+     * points : ces methodes ne font que LIRE, `confirm()` reste la seule
+     * ecriture qui transfere des points.
+     */
+
+    /** L'aide a ete rendue — l'aide (buyer) l'a declare via `complete()`. */
+    public function entraideRealisee(): bool
+    {
+        return $this->buyer_confirmed_at !== null;
+    }
+
+    /**
+     * L'entraide attend sa confirmation — le transfert de points n'a pas eu
+     * lieu.
+     *
+     * TASK-1806 (arbitrage du 11/11) : c'est desormais l'AIDE qui confirme,
+     * depuis `accepted`, et ce geste unique termine tout. `buyer_done` reste
+     * reconnu pour les lignes heritees, que plus aucun code ne produit.
+     */
+    public function confirmationEnAttente(): bool
+    {
+        return in_array($this->status, ['accepted', 'buyer_done'], true);
+    }
+
+    /** Le transfert de points a eu lieu. Un coup de main offert n'a rien a attribuer. */
+    public function pointsAttribues(): bool
+    {
+        return $this->status === 'completed' && (int) $this->points_agreed > 0;
+    }
+
+    /** L'aide a choisi de ne pas laisser d'avis — distinct de « pas encore ». */
+    public function evaluationIgnoree(): bool
+    {
+        return $this->reviews_skipped_at !== null;
+    }
+
+    /** L'aide peut encore evaluer l'aidant : transaction close, rien de depose ni d'ignore. */
+    public function evaluationEnAttente(): bool
+    {
+        return $this->status === 'completed'
+            && ! $this->evaluationIgnoree()
+            && ! $this->hasReviewFrom($this->buyer_id);
+    }
+
+    /** Etat terminal de l'evaluation : deposee par l'aide, ou explicitement ignoree. */
+    public function evaluationDeposeeOuIgnoree(): bool
+    {
+        return $this->status === 'completed'
+            && ($this->evaluationIgnoree() || $this->hasReviewFrom($this->buyer_id));
     }
 
     public function getOtherParticipant(User $user): User

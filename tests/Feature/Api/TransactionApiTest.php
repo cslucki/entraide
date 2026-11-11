@@ -167,13 +167,12 @@ class TransactionApiTest extends TestCase
             ->postJson("/api/transactions/{$txId}/approve")
             ->assertOk();
 
+        // TASK-1806 (arbitrage du 11/11) — l'API suit le MEME parcours a
+        // trois etapes que le web : l'aide confirme, et ce seul geste termine
+        // l'entraide et transfere les points. Plus d'etape `buyer_done`, plus
+        // de confirmation cote aidant.
         $this->actingAs($buyer, 'sanctum')
             ->postJson("/api/transactions/{$txId}/complete")
-            ->assertOk()
-            ->assertJsonFragment(['status' => 'buyer_done']);
-
-        $this->actingAs($seller, 'sanctum')
-            ->postJson("/api/transactions/{$txId}/confirm")
             ->assertOk()
             ->assertJsonFragment(['status' => 'completed']);
 

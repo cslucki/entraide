@@ -124,18 +124,23 @@ class TASK1755CarteEntraideTest extends TestCase
     // ── L'etapier ────────────────────────────────────────────────────────────
 
     /**
-     * Les quatre etapes avancent, et un echange SORTI du parcours n'en allume
-     * aucune.
+     * Les trois etapes avancent, et une entraide SORTIE du parcours n'en
+     * allume aucune.
      *
      * Allumer « Proposition » sur un echange decline ferait croire qu'il attend
      * encore quelque chose.
+     *
+     * TASK-1806 (arbitrage du 11/11) — TROIS etapes visibles : demande,
+     * accord, confirmation. `completed` allume la derniere.
      */
     public function test_l_etapier_avance_et_s_eteint_quand_l_echange_sort_du_parcours(): void
     {
         $this->assertSame(1, CarteEntraide::etape($this->echange('pending')));
         $this->assertSame(2, CarteEntraide::etape($this->echange('accepted')));
-        $this->assertSame(3, CarteEntraide::etape($this->echange('buyer_done')));
-        $this->assertSame(4, CarteEntraide::etape($this->echange('completed')));
+        // `buyer_done` est un statut HERITE : les points n'y sont pas encore
+        // transferes, il reste donc a l'etape 2 comme `accepted`.
+        $this->assertSame(2, CarteEntraide::etape($this->echange('buyer_done')));
+        $this->assertSame(3, CarteEntraide::etape($this->echange('completed')));
 
         $this->assertSame(0, CarteEntraide::etape($this->echange('refused')));
         $this->assertSame(0, CarteEntraide::etape($this->echange('cancelled')));
@@ -151,20 +156,24 @@ class TASK1755CarteEntraideTest extends TestCase
      */
     public function test_une_seule_partie_porte_l_action_principale(): void
     {
-        $cas = [
-            // statut      => [qui agit,        qui n'agit pas]
-            'pending' => [$this->aidant, $this->aide],      // l'auteur de l'annonce decide
-            'accepted' => [$this->aide, $this->aidant],     // celui qui recoit declare
-            'buyer_done' => [$this->aidant, $this->aide],   // celui qui a aide confirme
-        ];
+        // Au statut `pending`, c'est le DECIDEUR qui porte l'action.
+        $echange = $this->echange('pending');
+        $this->assertNotNull(CarteEntraide::actions($echange, $this->aidant)['principale']);
+        $this->assertNull(CarteEntraide::actions($echange, $this->aide)['principale']);
 
-        foreach ($cas as $statut => [$agit, $attend]) {
+        // TASK-1806 — une fois l'accord pris, PLUS AUCUNE action principale
+        // en en-tete, pour personne : la confirmation se prend en bas du fil,
+        // avec l'evaluation. Un bouton ici serait un second chemin, qui
+        // cloturerait sans jamais proposer de dire merci.
+        foreach (['accepted', 'buyer_done'] as $statut) {
             $echange = $this->echange($statut);
 
-            $this->assertNotNull(CarteEntraide::actions($echange, $agit)['principale'],
-                "Au statut [{$statut}], une action principale est attendue.");
-            $this->assertNull(CarteEntraide::actions($echange, $attend)['principale'],
-                "Au statut [{$statut}], l'autre partie ne doit PAS porter l'action principale.");
+            foreach ([$this->aide, $this->aidant] as $lecteur) {
+                $this->assertNull(CarteEntraide::actions($echange, $lecteur)['principale'],
+                    "Au statut [{$statut}], aucune action principale n'est attendue en en-tete.");
+                $this->assertNull(CarteEntraide::actions($echange, $lecteur)['secondaire'],
+                    "Au statut [{$statut}], aucune action secondaire n'est attendue en en-tete.");
+            }
         }
     }
 
@@ -336,13 +345,13 @@ class TASK1755CarteEntraideTest extends TestCase
     /** La phrase est TRADUITE — jamais figee en francais. */
     public function test_la_phrase_est_traduite(): void
     {
-        $echange = $this->echange('buyer_done');
+        $echange = $this->echange('accepted');
 
-        $fr = CarteEntraide::phrase($echange, $this->aidant);
+        $fr = CarteEntraide::phrase($echange, $this->aide);
         $this->app->setLocale('en');
-        $en = CarteEntraide::phrase($echange, $this->aidant);
+        $en = CarteEntraide::phrase($echange, $this->aide);
 
         $this->assertNotSame($fr, $en);
-        $this->assertStringContainsString('Confirm', $en);
+        $this->assertStringContainsString('confirm', $en);
     }
 }

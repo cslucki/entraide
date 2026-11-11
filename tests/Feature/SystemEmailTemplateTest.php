@@ -493,7 +493,7 @@ class SystemEmailTemplateTest extends TestCase
             'user_id' => $this->user->id,
         ]);
         $log = EmailLog::where('user_id', $this->user->id)->first();
-        $this->assertStringContainsString('Mise à jour de votre échange', $log->subject);
+        $this->assertStringContainsString('Mise à jour de votre entraide', $log->subject);
     }
 
     // ── New message ────────────────────────────────────
