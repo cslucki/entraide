@@ -305,6 +305,38 @@ class SystemEmailTemplateSeeder extends Seeder
         //
         // Le SUJET ne nomme personne : il se lit dans un apercu de boite mail,
         // sans deverrouiller. C'est le texte du CDC §8.
+        // TASK-1808 §6 — l'invitation a evaluer l'aidant, APRES la cloture.
+        //
+        // Pose AUSSI par la migration jumelle
+        // `2026_11_12_110000_add_entraide_evaluation_invite_email_template`,
+        // qui sert les bases DEJA installees qu'un seeder ne revisite pas.
+        // Les deux textes sont IDENTIQUES, et la migration a ete generee
+        // depuis cette entree.
+        //
+        // Destinataire UNIQUE : l'aide (D1). Jamais l'aidant — MASTER
+        // l'ecrit explicitement (« ne jamais envoyer a l'aidant un message
+        // indiquant qu'une evaluation lui a ete demandee ou qu'elle n'a pas
+        // ete donnee »). `EvaluationInviteMailer` est le seul emetteur, et
+        // il ne connait que `transaction->buyer`.
+        //
+        // Pas de `preferences_url` : cette invitation n'est pas une
+        // notification du catalogue (pas de canal in-app ni push a
+        // desactiver) — c'est un geste ponctuel, declenche par
+        // `entraide:invite-to-evaluate`, borne a UNE fois par entraide par
+        // `transactions.evaluation_invited_at`.
+        'entraide_evaluation_invite' => [
+            'name_fr' => 'Invitation à évaluer l’aidant',
+            'name_en' => 'Invitation to rate the helper',
+            'subject_fr' => 'Un petit retour sur l’aide de {{ aidant_name }} ?',
+            'subject_en' => 'A quick word on {{ aidant_name }}’s help?',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Votre entraide avec <strong>{{ aidant_name }}</strong> est terminée.</p><p>Vous pouvez lui laisser une évaluation pour reconnaître sa contribution et aider les autres membres de {{ organization_name }}.</p><p>Quelques étoiles suffisent. Un commentaire est facultatif.</p><p><a href="{{ evaluation_url }}">Laisser une évaluation</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ evaluation_url }}</p><p>Merci de faire vivre l’entraide sur {{ app_name }}.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>Your mutual aid with <strong>{{ aidant_name }}</strong> is complete.</p><p>You can leave them a review to recognize their contribution and help other members of {{ organization_name }}.</p><p>A few stars are enough. A comment is optional.</p><p><a href="{{ evaluation_url }}">Leave a review</a></p><p>If the link does not work, copy this address into your browser:<br>{{ evaluation_url }}</p><p>Thank you for keeping mutual aid alive on {{ app_name }}.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'aidant_name',
+                'organization_name', 'evaluation_url', 'app_name',
+            ],
+        ],
+
         'entraide_comment_created' => [
             'name_fr' => 'Commentaire sur votre entraide',
             'name_en' => 'Comment on your mutual aid',

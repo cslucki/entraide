@@ -272,6 +272,14 @@ return [
         // administrable `entraide_comment_created` (seeder + migration); this is
         // used only if it is missing. Generic subject: a mailbox preview is read
         // without unlocking, same doctrine as `push_title`.
+        // TASK-1808 §6 — fallback. The authoritative template is the
+        // administrable `entraide_evaluation_invite` (seeder + migration);
+        // this only serves if it is missing.
+        'entraide_evaluation_invite' => [
+            'subject' => 'A quick word on the help you received?',
+            'body' => '<p>Hello,</p><p>Your mutual aid with :aidant is complete.</p><p>You can leave them a review.</p><p><a href=":url">Leave a review</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>Thank you for keeping mutual aid alive on BouclePro.</p>',
+        ],
+
         'entraide_comment_created' => [
             'subject' => 'A member commented on your mutual aid',
             'body' => '<p>Hello,</p><p>A member left a comment on your mutual aid.</p><p><a href=":url">View the comment</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>A comment commits to nothing: no mutual aid started, no accepted help, no promised time.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
