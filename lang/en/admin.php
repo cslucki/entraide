@@ -812,6 +812,38 @@ return [
     'emailer_max_50' => 'Maximum 50 recipients per send.',
     'emailer_no_recipients' => 'No valid recipients.',
     'emailer_sent_count' => ':sent sent, :failed failed (of :total)',
+
+    // TASK-1803 — bulk email sending tool
+    'emailer_bulksending' => 'Bulk sending',
+    'bulk_email_title' => 'Bulk email sending',
+    'bulk_email_scope_label' => 'Recipients — Organizations',
+    'bulk_email_scope_all' => 'All Organizations',
+    'bulk_email_scope_one_org' => 'One Organization',
+    'bulk_email_scope_unknown' => 'Unknown Organization.',
+    'bulk_email_filter_label' => 'Recipients — members',
+    'bulk_email_filter_all' => 'All members',
+    'bulk_email_filter_no_presentation' => 'Members without a presentation (empty bio)',
+    'bulk_email_source_label' => 'Content',
+    'bulk_email_source_custom' => 'Free-form content',
+    'bulk_email_source_template' => 'Existing template',
+    'bulk_email_format_label' => 'Format',
+    'bulk_email_format_plain' => 'Plain text',
+    'bulk_email_format_html' => 'HTML',
+    'bulk_email_content_label' => 'Message content',
+    'bulk_email_template_label' => 'Template',
+    'bulk_email_preview_cta' => 'Preview',
+    'bulk_email_recipient_count' => 'This message will be sent to :count recipient(s).',
+    'bulk_email_no_recipients' => 'No recipient matches this filter.',
+    'bulk_email_confirm_send' => 'Confirm and start sending (:count)',
+    'bulk_email_back_cta' => 'Back',
+    'bulk_email_next_batch' => 'Send next batch (:count)',
+    'bulk_email_batch_result' => 'Batch sent: :sent succeeded, :failed failed, :remaining remaining.',
+    'bulk_email_sent_failed' => ':sent sent, :failed failed',
+    'bulk_email_completed' => 'Sending completed.',
+    'bulk_email_view_logs_cta' => 'View send history',
+    'bulk_email_in_progress_title' => 'Sends in progress',
+    'bulk_email_resume_cta' => 'Resume',
+
     // TASK-1694 bug W — la documentation des variables de l'Emailer.
     // TASK-1694 bug Z — la langue d'un gabarit de l'Emailer.
     // TASK-1694 bug AA — creer pour plusieurs Organizations d'un coup.

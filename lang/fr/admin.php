@@ -815,6 +815,38 @@ return [
     'emailer_max_50' => 'Maximum 50 destinataires par envoi.',
     'emailer_no_recipients' => 'Aucun destinataire valide.',
     'emailer_sent_count' => ':sent envoyé(s), :failed échoué(s) (sur :total)',
+
+    // TASK-1803 — outil « Envoi emails » (bulk sending)
+    'emailer_bulksending' => 'Envoi emails',
+    'bulk_email_title' => 'Envoi emails',
+    'bulk_email_scope_label' => 'Destinataires — Organizations',
+    'bulk_email_scope_all' => 'Toutes les Organizations',
+    'bulk_email_scope_one_org' => 'Une Organization',
+    'bulk_email_scope_unknown' => 'Organization inconnue.',
+    'bulk_email_filter_label' => 'Destinataires — membres',
+    'bulk_email_filter_all' => 'Tous les membres',
+    'bulk_email_filter_no_presentation' => "Membres sans présentation (bio vide)",
+    'bulk_email_source_label' => 'Contenu',
+    'bulk_email_source_custom' => 'Contenu libre',
+    'bulk_email_source_template' => 'Modèle existant',
+    'bulk_email_format_label' => 'Format',
+    'bulk_email_format_plain' => 'Format brut',
+    'bulk_email_format_html' => 'HTML',
+    'bulk_email_content_label' => 'Contenu du message',
+    'bulk_email_template_label' => 'Modèle',
+    'bulk_email_preview_cta' => 'Aperçu',
+    'bulk_email_recipient_count' => 'Ce message sera envoyé à :count destinataire(s).',
+    'bulk_email_no_recipients' => 'Aucun destinataire ne correspond à ce filtre.',
+    'bulk_email_confirm_send' => "Confirmer et démarrer l'envoi (:count)",
+    'bulk_email_back_cta' => 'Retour',
+    'bulk_email_next_batch' => 'Envoyer le lot suivant (:count)',
+    'bulk_email_batch_result' => 'Lot envoyé : :sent réussi(s), :failed échoué(s), :remaining restant(s).',
+    'bulk_email_sent_failed' => ':sent envoyé(s), :failed échoué(s)',
+    'bulk_email_completed' => 'Envoi terminé.',
+    'bulk_email_view_logs_cta' => "Voir l'historique des envois",
+    'bulk_email_in_progress_title' => 'Envois en cours',
+    'bulk_email_resume_cta' => 'Reprendre',
+
     // TASK-1694 bug W — la documentation des variables de l'Emailer.
     // TASK-1694 bug Z — la langue d'un gabarit de l'Emailer.
     // TASK-1694 bug AA — creer pour plusieurs Organizations d'un coup.

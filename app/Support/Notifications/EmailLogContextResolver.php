@@ -107,6 +107,7 @@ final class EmailLogContextResolver
         'admin-password-reset' => 'Réinitialisation de mot de passe (admin)',
         'public-password-reset' => 'Réinitialisation de mot de passe',
         'emailer' => 'Envoi manuel (gabarit)',
+        'bulk-email' => 'Envoi en masse (admin)',
         'crm' => 'CRM',
     ];
 
