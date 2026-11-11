@@ -1509,6 +1509,8 @@ return [
         'dataset_system_email_templates_trace_desc' => 'Etat d\'un gabarit AVANT qu\'une migration ne le modifie, pour pouvoir le rendre au retour en arriere (TASK-1709). Lecture seule : rattacher une ligne reecrirait la preuve.',
         'dataset_admin_ai_interactions' => 'Interactions IA administration',
         'dataset_admin_ai_interactions_desc' => 'Console d\'administration de la plateforme, hors Organization.',
+        'dataset_bulk_email_sends' => 'Envois d\'emails en masse',
+        'dataset_bulk_email_sends_desc' => 'NULL = ciblait toutes les Organizations au moment de l\'envoi (TASK-1803).',
         'dataset_ai_interactions' => 'Interactions IA',
         'dataset_ai_interactions_desc' => 'Journal d\'interactions IA. Un NULL est une trace ancienne : on la conserve.',
         'dataset_badge_user' => 'Badges et utilisateurs',

@@ -1498,6 +1498,8 @@ return [
         'dataset_system_email_templates_trace_desc' => 'A template\'s state BEFORE a migration changed it, so the rollback can put it back (TASK-1709). Read-only: reassigning a row would rewrite the evidence.',
         'dataset_admin_ai_interactions' => 'Admin AI interactions',
         'dataset_admin_ai_interactions_desc' => 'Platform administration console, outside any Organization.',
+        'dataset_bulk_email_sends' => 'Bulk email sends',
+        'dataset_bulk_email_sends_desc' => 'NULL = targeted all Organizations at send time (TASK-1803).',
         'dataset_ai_interactions' => 'AI interactions',
         'dataset_ai_interactions_desc' => 'AI interaction log. A NULL is an old trace: it is kept as is.',
         'dataset_badge_user' => 'Badges and users',
