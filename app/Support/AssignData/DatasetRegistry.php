@@ -260,6 +260,12 @@ class DatasetRegistry
             new Dataset('ai_credit_setting_changes', 'ai_credit_setting_changes', $g, ['id', 'scope', 'setting_kind', 'changed_by', 'organization_id', 'created_at']),
             new Dataset('system_email_templates', 'system_email_templates', $g, ['id', 'slug', 'name', 'locale', 'enabled', 'organization_id', 'created_at']),
             new Dataset('admin_ai_interactions', 'admin_ai_interactions', $g, ['id', 'user_id', 'provider', 'model', 'status', 'organization_id', 'created_at']),
+            // TASK-1803 — NULL signifie litteralement « toutes les
+            // Organizations » : c'est la cible deliberee d'un envoi en masse
+            // SuperAdmin (`/admin/email-bulksending`), pas du legacy
+            // d'avant le tenancy. Le rattacher a une Organization reecrirait
+            // silencieusement l'historique de QUI a ete cible par l'envoi.
+            new Dataset('bulk_email_sends', 'bulk_email_sends', $g, ['id', 'member_filter', 'content_source', 'status', 'organization_id', 'created_at']),
 
             // ── Historique : une trace, on la garde ──────────────────────
             // TASK-1694 bug U — l'archive des gabarits d'emails systeme.
