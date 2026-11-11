@@ -878,6 +878,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/transactions', [AdminController::class, 'transactions'])->name('transactions');
     Route::delete('/transactions/{transactionId}', [AdminController::class, 'destroyTransaction'])->name('transactions.destroy');
 
+    // Evaluations (TASK-1808 §2) — cockpit SuperAdmin.
+    Route::get('/reviews', [AdminController::class, 'reviews'])->name('reviews');
+    Route::get('/reviews/{review}/history', [AdminController::class, 'reviewHistory'])->name('reviews.history');
+    Route::patch('/reviews/{review}', [AdminController::class, 'updateReview'])->name('reviews.update');
+    Route::post('/reviews/{review}/hide', [AdminController::class, 'hideReview'])->name('reviews.hide');
+    Route::post('/reviews/{review}/unhide', [AdminController::class, 'unhideReview'])->name('reviews.unhide');
+    Route::delete('/reviews/{review}', [AdminController::class, 'destroyReview'])->name('reviews.destroy');
+    Route::post('/reviews/{review}/restore', [AdminController::class, 'restoreReview'])->name('reviews.restore');
+
     // Requests
     Route::get('/requests', [AdminController::class, 'requests'])->name('requests');
     Route::get('/requests/{serviceRequest}/edit', [AdminController::class, 'editRequest'])->name('requests.edit');

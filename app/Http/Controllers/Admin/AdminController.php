@@ -14,6 +14,8 @@ use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Report;
 use App\Models\RequestAttachment;
+use App\Models\Review;
+use App\Models\ReviewModerationLog;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -31,6 +33,7 @@ use App\Services\Users\Exceptions\UserDeletionBlockedException;
 use App\Services\Users\UserDeletionExecutor;
 use App\Support\ScenarioManifest\ManifestAvatarBank;
 use App\Support\Devices\DeviceKind;
+use App\Support\Entraide\ReviewModeration;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use App\Support\Tenancy\UserWriteLock;
 use Illuminate\Http\JsonResponse;
@@ -1555,6 +1558,123 @@ class AdminController extends Controller
         $transaction->delete();
 
         return back()->with('success', __('admin.transaction_deleted'));
+    }
+
+    // ── Evaluations (TASK-1808 §2) ──────────────────────────────────────────
+
+    /**
+     * Micro-sequence B — consultation et filtres. `withTrashed()` : un
+     * SuperAdmin doit pouvoir retrouver un avis supprime pour le restaurer,
+     * donc la liste par defaut les inclut — le filtre `visibility` les
+     * distingue plutot que de les cacher d'office.
+     */
+    public function reviews(Request $request): View
+    {
+        $query = Review::withTrashed()
+            ->with(['reviewer', 'reviewed', 'organization', 'transaction', 'moderateur']);
+
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
+
+        if ($request->filled('rating')) {
+            $query->where('rating', (int) $request->rating);
+        }
+
+        if ($request->filled('visibility')) {
+            match ($request->string('visibility')->toString()) {
+                'hidden' => $query->whereNull('deleted_at')->whereNotNull('hidden_at'),
+                'deleted' => $query->whereNotNull('deleted_at'),
+                'visible' => $query->whereNull('deleted_at')->whereNull('hidden_at'),
+                default => null,
+            };
+        }
+
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->whereHas('reviewer', fn ($u) => $u->where('name', 'like', '%'.$request->search.'%'))
+                    ->orWhereHas('reviewed', fn ($u) => $u->where('name', 'like', '%'.$request->search.'%'));
+            });
+        }
+
+        $reviews = $query->latest('created_at')->paginate(25)->withQueryString();
+
+        return view('admin.reviews', compact('organizations', 'selectedOrganizationId', 'reviews'));
+    }
+
+    /** Micro-sequence D — le journal d'audit d'un avis precis. */
+    public function reviewHistory(string $review): View
+    {
+        $avis = Review::withTrashed()->with(['reviewer', 'reviewed'])->findOrFail($review);
+        $journal = ReviewModerationLog::where('review_id', $avis->id)->with('actor')->latest('created_at')->get();
+
+        return view('admin.review-history', compact('avis', 'journal'));
+    }
+
+    /** Micro-sequence C — modifier la note et/ou le mot. */
+    public function updateReview(Request $request, string $review): RedirectResponse
+    {
+        $avis = Review::withTrashed()->findOrFail($review);
+
+        $data = $request->validate([
+            'rating' => 'nullable|integer|min:1|max:5',
+            'comment' => 'nullable|string|max:1000',
+            'reason' => 'nullable|string|max:1000',
+        ]);
+
+        ReviewModeration::modifier($avis, $request->user(), $data['rating'] ?? null, $data['comment'] ?? null, $data['reason'] ?? null);
+
+        return back()->with('success', __('admin.review_updated'));
+    }
+
+    /** Micro-sequence C — masquer (reversible, exclu de la moyenne publique). */
+    public function hideReview(Request $request, string $review): RedirectResponse
+    {
+        $avis = Review::withTrashed()->findOrFail($review);
+
+        $data = $request->validate(['reason' => 'nullable|string|max:1000']);
+
+        ReviewModeration::masquer($avis, $request->user(), $data['reason'] ?? null);
+
+        return back()->with('success', __('admin.review_hidden'));
+    }
+
+    public function unhideReview(Request $request, string $review): RedirectResponse
+    {
+        $avis = Review::withTrashed()->findOrFail($review);
+
+        $data = $request->validate(['reason' => 'nullable|string|max:1000']);
+
+        ReviewModeration::demasquer($avis, $request->user(), $data['reason'] ?? null);
+
+        return back()->with('success', __('admin.review_unhidden'));
+    }
+
+    /**
+     * Micro-sequence C — supprimer. SoftDeletes : jamais un DELETE SQL
+     * definitif depuis ce cockpit (voir le docbloc de `ReviewModeration`).
+     */
+    public function destroyReview(Request $request, string $review): RedirectResponse
+    {
+        $avis = Review::withTrashed()->findOrFail($review);
+
+        $data = $request->validate(['reason' => 'nullable|string|max:1000']);
+
+        ReviewModeration::supprimer($avis, $request->user(), $data['reason'] ?? null);
+
+        return back()->with('success', __('admin.review_deleted'));
+    }
+
+    public function restoreReview(Request $request, string $review): RedirectResponse
+    {
+        $avis = Review::withTrashed()->findOrFail($review);
+
+        $data = $request->validate(['reason' => 'nullable|string|max:1000']);
+
+        ReviewModeration::restaurer($avis, $request->user(), $data['reason'] ?? null);
+
+        return back()->with('success', __('admin.review_restored'));
     }
 
     /**
