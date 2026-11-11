@@ -268,7 +268,13 @@ class TransactionController extends Controller
 
         $avisEnregistre = rescue(
             function () use ($fresh, $donnees) {
-                EvaluationEntraide::enregistrer($fresh, $donnees['rating'] ?? null, $donnees['comment'] ?? null);
+                // Point de sauvegarde dedie — meme raison que dans le
+                // controleur web : sous PostgreSQL une requete en echec avorte
+                // la transaction englobante et la connexion refuse tout ordre
+                // suivant. Voir le commentaire detaille cote web.
+                DB::transaction(function () use ($fresh, $donnees) {
+                    EvaluationEntraide::enregistrer($fresh, $donnees['rating'] ?? null, $donnees['comment'] ?? null);
+                });
 
                 return true;
             },

@@ -537,11 +537,24 @@ class TransactionController extends Controller
 
         $avisEnregistre = rescue(
             function () use ($fresh, $donnees) {
-                EvaluationEntraide::enregistrer(
-                    $fresh,
-                    $donnees['rating'] ?? null,
-                    $donnees['comment'] ?? null,
-                );
+                // Enferme dans sa PROPRE transaction, et ce n'est pas une
+                // precaution de confort : sous PostgreSQL, une requete en
+                // echec AVORTE la transaction en cours et la connexion refuse
+                // tout ordre suivant (`SQLSTATE[25P02]`) — SQLite, lui, le
+                // tolere. Si cette action tourne un jour dans une transaction
+                // englobante, un avis perdu emporterait avec lui les
+                // notifications et le partage dans le Flux qui le suivent.
+                // Imbriquee, `DB::transaction()` pose un POINT DE SAUVEGARDE :
+                // le retour arriere rend la connexion utilisable et seule
+                // l'ecriture de l'avis est perdue. Mesure a l'appui : sans
+                // cela, la CI PostgreSQL rougit la ou SQLite passait.
+                DB::transaction(function () use ($fresh, $donnees) {
+                    EvaluationEntraide::enregistrer(
+                        $fresh,
+                        $donnees['rating'] ?? null,
+                        $donnees['comment'] ?? null,
+                    );
+                });
 
                 return true;
             },
