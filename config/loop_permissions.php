@@ -434,7 +434,11 @@ return [
         ],
         'events.create' => [
             'module' => 'events', 'label_fr' => 'Proposer une rencontre', 'label_en' => 'Propose an event',
-            'description' => 'Creer un Evenement dans la Boucle. Tout membre actif le peut par defaut.',
+            // TASK-1802 (demande Cyril, 10/11) — reserve au proprietaire et a
+            // l'animateur par defaut. Pas `locked` pour autant : une
+            // Organization reste libre de l'ouvrir a tout membre si elle le
+            // souhaite.
+            'description' => 'Creer un Evenement dans la Boucle. Reserve au proprietaire et a l\'animateur par defaut.',
             'locked' => false,
             'requires_card' => 'core.events',
         ],
@@ -630,7 +634,16 @@ return [
             'roadmap.view',
             'chatloop.view', 'chatloop.post',
             'polls.view', 'polls.create', 'polls.vote',
-            'events.view', 'events.create', 'events.respond',
+            // TASK-1802 (demande Cyril, 10/11) — « il faut que ce soit les
+            // proprietaires ou animateurs de Boucle qui puissent poster un
+            // evenement, uniquement. » `events.create` quitte donc ce socle :
+            // un membre simple garde `events.view` (consulter l'agenda) et
+            // `events.respond` (dire s'il vient), mais ne propose plus de
+            // rencontre lui-meme. Decision deja anticipee par le libelle
+            // `events.role_refus` (« Vous devez avoir le role de
+            // proprietaire ou animateur... »), ecrit des TASK-1706 mais
+            // jusqu'ici jamais atteignable par ce socle.
+            'events.view', 'events.respond',
             'dossiers.view',
             // TASK-1684, arbitrage MASTER : **deposer un fichier devient un
             // geste de membre.** T1313 l'avait reserve a l'owner en jugeant que

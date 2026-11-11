@@ -28,13 +28,23 @@ use Tests\TestCase;
  * fait dans la Boucle. » Cette TASK la renverse, explicitement, dans le
  * docblock lui-meme.
  *
- * ## Ce que la mesure a corrige dans la demande
+ * ## Ce que la mesure avait corrige dans la demande — puis que TASK-1802 a renverse
  *
  * La demande disait « on selectionne la boucle dont animateur ou
- * proprietaire ». Or `config/loop_permissions.php` accorde `events.create` a
- * **tout membre actif** : un membre simple cree deja des rencontres DEPUIS la
- * Boucle. Restreindre l'agenda aurait donne deux reponses au meme geste selon
- * l'ecran. **Cyril a tranche : refleter la regle de la Boucle.**
+ * proprietaire ». A l'ecriture de cette TASK, `config/loop_permissions.php`
+ * accordait `events.create` a **tout membre actif** : un membre simple
+ * creait deja des rencontres DEPUIS la Boucle, et Cyril avait tranche de
+ * refleter la regle de la Boucle plutot que de rendre l'agenda plus strict
+ * qu'elle.
+ *
+ * **TASK-1802 (10/11) a renverse cette regle a la source** : « il faut que
+ * ce soit les proprietaires ou animateurs de Boucle qui puissent poster un
+ * evenement, uniquement. » `events.create` a quitte le socle `member` dans
+ * `config/loop_permissions.php`. Cette page n'a eu AUCUN code a changer —
+ * elle lisait deja `canCreate()`/`creationContextFor()`, qui refletent
+ * desormais la nouvelle regle sans modification : la demande ORIGINALE de
+ * Cyril (« dont animateur ou proprietaire ») est donc, a present, exactement
+ * ce que l'agenda applique.
  *
  * Il a aussi tranche un cas qu'il n'avait pas nomme — etre proprietaire d'une
  * Boucle dont la card « Evenements » est desactivee — en lui donnant son
@@ -145,21 +155,19 @@ class TASK1706AgendaCreateEventTest extends TestCase
     }
 
     /**
-     * Un membre SIMPLE le peut aussi.
-     *
-     * C'est la decision de Cyril, et elle va contre la lettre de sa demande :
-     * `events.create` est accorde a tout membre actif, et un membre simple cree
-     * deja des rencontres depuis la Boucle. L'agenda ne doit pas etre plus
-     * strict que la Boucle.
+     * TASK-1802 (demande Cyril, 10/11) — renverse l'ancien
+     * `test_un_membre_simple_peut_organiser_comme_dans_la_boucle` : un membre
+     * simple n'a plus `events.create`, dans la Boucle comme dans l'agenda —
+     * les deux lisent la meme regle, donc la meme reponse.
      */
-    public function test_un_membre_simple_peut_organiser_comme_dans_la_boucle(): void
+    public function test_un_membre_simple_ne_peut_plus_organiser(): void
     {
         $html = $this->agenda($this->membre);
 
-        $this->assertNull($this->refus($html), 'Un membre simple est refuse ici alors que la Boucle l\'autorise.');
+        $this->assertSame('role', $this->refus($html), 'Un membre simple ne doit plus pouvoir organiser.');
 
-        // Et la mesure est faite a la SOURCE : le service dit bien oui.
-        $this->assertTrue(app(LoopEventService::class)->canCreate($this->membre, $this->boucle));
+        // Et la mesure est faite a la SOURCE : le service dit bien non.
+        $this->assertFalse(app(LoopEventService::class)->canCreate($this->membre, $this->boucle));
     }
 
     /** Membre d'aucune Boucle : le premier refus, avec le chemin pour en sortir. */
@@ -252,7 +260,10 @@ class TASK1706AgendaCreateEventTest extends TestCase
         // Une seconde Boucle, dont cette personne n'est PAS membre.
         $ailleurs = $this->creerBoucle('Boucle sans moi');
 
-        $html = $this->formulaire($this->membre)->assertOk()->getContent();
+        // TASK-1802 : le proprietaire, pas le membre simple — lui seul a
+        // `events.create` desormais, et c'est QUI PEUT CREER sur plusieurs
+        // Boucles que ce test verifie, pas le role en lui-meme.
+        $html = $this->formulaire($this->proprietaire)->assertOk()->getContent();
 
         $this->assertStringContainsString($this->boucle->id, $html);
         $this->assertStringNotContainsString(
@@ -295,13 +306,14 @@ class TASK1706AgendaCreateEventTest extends TestCase
 
     public function test_la_rencontre_est_creee_dans_la_boucle_choisie(): void
     {
-        $this->enregistrer($this->membre)->assertRedirect();
+        // TASK-1802 : le proprietaire, seul a avoir `events.create` desormais.
+        $this->enregistrer($this->proprietaire)->assertRedirect();
 
         $event = LoopEvent::where('loop_id', $this->boucle->id)->first();
 
         $this->assertNotNull($event, 'La rencontre n\'a pas ete creee.');
         $this->assertSame('Atelier Qualiopi', $event->title);
-        $this->assertSame((string) $this->membre->id, (string) $event->created_by);
+        $this->assertSame((string) $this->proprietaire->id, (string) $event->created_by);
         $this->assertSame((string) $this->org->id, (string) $event->organization_id);
         $this->assertSame(LoopEvent::VISIBILITY_LOOP, $event->visibility);
     }
@@ -309,7 +321,7 @@ class TASK1706AgendaCreateEventTest extends TestCase
     /** Et elle apparait ensuite dans l'agenda — la boucle est bouclee. */
     public function test_la_rencontre_apparait_ensuite_dans_l_agenda(): void
     {
-        $this->enregistrer($this->membre)->assertRedirect();
+        $this->enregistrer($this->proprietaire)->assertRedirect();
 
         $this->assertStringContainsString('Atelier Qualiopi', $this->agenda($this->membre));
     }
@@ -409,8 +421,19 @@ class TASK1706AgendaCreateEventTest extends TestCase
     }
 
     /** Un membre simple ne se voit PAS proposer la portee Organization. */
+    /**
+     * TASK-1802 : par defaut, un membre simple n'a plus `events.create` du
+     * tout — le cas « peut creer mais pas publier a l'Organization » n'existe
+     * donc plus NATURELLEMENT pour ce role. Il reste POSSIBLE : une
+     * Organization peut rouvrir `events.create` a ses membres sans leur
+     * donner `events.publish_organization`, et c'est precisement ce que ce
+     * test reconstruit pour garder la garde sur ce mecanisme separe.
+     */
     public function test_le_membre_simple_ne_choisit_pas_la_portee(): void
     {
+        app(LoopPermissionSettingsService::class)
+            ->setOrganization($this->org, 'general', 'member', 'events.create', true);
+
         $this->assertSame(
             0,
             preg_match('/data-agenda-visibility[\s>]/', $this->formulaire($this->membre)->assertOk()->getContent()),

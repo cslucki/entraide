@@ -115,6 +115,10 @@ return [
 
         // TASK-1751 — names neither the person nor the listing.
         'transaction_proposal_created' => 'Open BouclePro to see the proposal.',
+
+        // TASK-1802 — names neither the Boucle nor the event: a Push shows on
+        // a locked screen, and the Boucle may be private.
+        'loop_event_created' => 'Open BouclePro to see the details.',
     ],
 
     'push_title' => [
@@ -143,6 +147,10 @@ return [
 
         // TASK-1751 — shown on a LOCKED screen (CDC §6.4/6.5).
         'transaction_proposal_created' => 'Someone replied to your listing',
+
+        // TASK-1802 — names neither the Boucle nor the event, same reason as
+        // its collective neighbours: a Push shows on a locked screen.
+        'loop_event_created' => 'A new event in your Loop',
     ],
 
     'keys' => [
@@ -170,6 +178,9 @@ return [
         // know what happened without having to open anything.
         'loop_join_request_accepted' => 'Your request to join was accepted',
         'loop_join_request_rejected' => 'Your request to join was not accepted',
+
+        // TASK-1802 (Cyril's request) — a new event proposed in a Loop.
+        'loop_event_created' => 'A new event was proposed',
     ],
 
     /*
@@ -210,6 +221,9 @@ return [
         // TASK-1775 (CDC C4) — named ONLY here, same reasoning as the entries
         // above.
         'loop_help_request_created' => 'A help request was published in the :loop Loop',
+
+        // TASK-1802 — named ONLY here, same reasoning as the entries above.
+        'loop_event_created' => 'A new event was proposed in the :loop Loop',
     ],
 
     // TASK-1725 — « Open » did not say what. The label now follows the object.
@@ -336,5 +350,31 @@ return [
                 .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
                 .'<p>See you soon,<br>The BouclePro team</p>',
         ],
+
+        // TASK-1802 — fallback. The real render goes through the
+        // administrable `loop_event_created` template (seeder + migration);
+        // this only serves when it is missing or disabled. `:url`,
+        // `:reglages`, `:titre`, `:date`, `:boucle` and `:infos` stay
+        // TOKENS — a hardcoded address here would escape the deliverer's
+        // redaction (guard TASK1379…::test_every_email_body_uses_the_url_placeholder).
+        'loop_event_created' => [
+            'subject' => ':titre — :date',
+            'body' => '<p>Hello,</p>'
+                .'<p>A new event has been proposed in the <strong>:boucle</strong> Loop: <strong>:titre</strong>, on :date.</p>'
+                .'<p>:infos</p>'
+                .'<p>:description</p>'
+                .'<p><a href=":url">Open the Loop</a></p>'
+                .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
+                .'<p>See you soon,<br>The BouclePro team</p>'
+                .'<hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
     ],
+
+    // TASK-1802 — the three meeting shapes, composed by `LoopEventMailer`
+    // SERVER SIDE, never inside the template (administrable emails carry no
+    // conditional).
+    'loop_event_email_description_empty' => '(no description)',
+    'loop_event_email_practical_online' => 'Online — meeting link: :url',
+    'loop_event_email_practical_hybrid' => 'Hybrid — in person: :location, or online: :url',
+    'loop_event_email_practical_in_person' => 'In person: :location',
 ];

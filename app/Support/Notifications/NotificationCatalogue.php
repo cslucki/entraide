@@ -265,6 +265,20 @@ final class NotificationCatalogue
      */
     public const LOOP_HELP_REQUEST_CREATED = 'loop.help_request.created';
 
+    /**
+     * TASK-1802 (demande Cyril) — un Evenement vient d'etre propose dans une
+     * Boucle.
+     *
+     * Meme forme que `LOOP_HELP_REQUEST_CREATED` juste au-dessus, et pour la
+     * meme raison : un fait COLLECTIF, adresse a TOUS les membres actifs de la
+     * Boucle (sauf son auteur), pas a une personne designee. « Par defaut, les
+     * 3 options seront activees » (demande explicite) : in-app OBLIGATOIRE,
+     * email et Web Push actifs par defaut mais debrayables — memes valeurs que
+     * la demande d'aide, ajoutee ici a `loopScopeFor()` pour que la sourdine
+     * PAR BOUCLE (`LoopNotificationPreference`) s'applique aussi a ce fait.
+     */
+    public const LOOP_EVENT_CREATED = 'loop.event.created';
+
     public const BLOG_CO_AUTHOR_ADDED = 'blog.co_author.added';
 
     /**
@@ -766,6 +780,27 @@ final class NotificationCatalogue
         ],
 
         /*
+         * TASK-1802 (demande Cyril) — un Evenement propose dans une Boucle.
+         *
+         * MEME forme que `LOOP_HELP_REQUEST_CREATED` ci-dessus — collectif,
+         * destine a tous les membres actifs sauf l'auteur, calme par la
+         * sourdine PAR BOUCLE plutot que par un reglage global sur l'in-app.
+         * « Par defaut, les 3 options seront activees » (demande explicite) :
+         * les trois canaux demarrent ACTIFS, email et Web Push restant
+         * debrayables individuellement.
+         */
+        self::LOOP_EVENT_CREATED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        /*
          * TASK-1751 — quelqu'un repond a votre annonce.
          *
          * Le destinataire doit DECIDER (accepter ou refuser) : c'est une
@@ -968,7 +1003,10 @@ final class NotificationCatalogue
      */
     public static function loopScopeFor(string $notificationKey, ?string $objectId): ?string
     {
-        if ($notificationKey !== self::LOOP_HELP_REQUEST_CREATED) {
+        // TASK-1802 — LOOP_EVENT_CREATED rejoint LOOP_HELP_REQUEST_CREATED :
+        // meme fait collectif, meme `object_type` (OBJECT_LOOP), donc le meme
+        // `object_id` EST deja l'identifiant de la Boucle.
+        if (! in_array($notificationKey, [self::LOOP_HELP_REQUEST_CREATED, self::LOOP_EVENT_CREATED], true)) {
             return null;
         }
 

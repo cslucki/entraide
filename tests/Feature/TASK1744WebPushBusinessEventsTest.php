@@ -297,6 +297,10 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             NotificationCatalogue::LOOP_HELP_REQUEST_CREATED,
             NotificationCatalogue::TRANSACTION_PROPOSAL_CREATED,
             NotificationCatalogue::ENTRAIDE_COMMENT_CREATED,
+            // TASK-1802 (demande Cyril) — un nouvel Evenement propose dans une
+            // Boucle. Fait collectif de plus, meme regime que
+            // LOOP_HELP_REQUEST_CREATED juste au-dessus.
+            NotificationCatalogue::LOOP_EVENT_CREATED,
         ];
 
         sort($attendues);

@@ -65,6 +65,9 @@ class LoopEventPresenter
             'attendees' => ($options['with_attendees'] ?? false)
                 ? $this->events->respondents($event)
                 : null,
+            // TASK-1802 (suite, demande Cyril) — « un bouton pour ajouter à
+            // son agenda ». Calcule une fois ici, jamais recalcule par la vue.
+            'calendar_links' => LoopEventCalendarLinks::forEvent($event),
         ];
     }
 
@@ -121,5 +124,49 @@ class LoopEventPresenter
         }
 
         return ['label' => $first->translatedFormat('F Y'), 'weeks' => $weeks];
+    }
+
+    /**
+     * TASK-1802 (demande Cyril, 10/11) — « par defaut un affichage sur 7
+     * jours ». Meme decoupage par fuseau DE L'EVENEMENT que `monthGrid()`.
+     *
+     * @param  string  $weekStart  Y-m-d, n'importe quel jour de la semaine visee
+     * @param  array<int, array<string, mixed>>  $events  deja passes par present()
+     * @return array{label: string, days: array<int, array<string, mixed>>}
+     */
+    public function weekGrid(string $weekStart, array $events): array
+    {
+        try {
+            $monday = CarbonImmutable::createFromFormat('!Y-m-d', $weekStart)
+                ->startOfWeek(CarbonImmutable::MONDAY);
+        } catch (\Throwable) {
+            $monday = CarbonImmutable::now()->startOfWeek(CarbonImmutable::MONDAY);
+        }
+
+        $byDay = [];
+        foreach ($events as $event) {
+            $byDay[$event['starts_local']->format('Y-m-d')][] = $event;
+        }
+
+        $today = CarbonImmutable::now()->format('Y-m-d');
+        $cursor = $monday;
+        $days = [];
+        for ($d = 0; $d < 7; $d++) {
+            $key = $cursor->format('Y-m-d');
+            $days[] = [
+                'date' => $cursor,
+                'day' => $cursor->day,
+                'is_today' => $key === $today,
+                'events' => $byDay[$key] ?? [],
+            ];
+            $cursor = $cursor->addDay();
+        }
+
+        $sunday = $monday->addDays(6);
+        $label = $monday->month === $sunday->month
+            ? sprintf('%s – %s', $monday->translatedFormat('j'), $sunday->translatedFormat('j F Y'))
+            : sprintf('%s – %s', $monday->translatedFormat('j M'), $sunday->translatedFormat('j M Y'));
+
+        return ['label' => $label, 'days' => $days];
     }
 }

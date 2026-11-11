@@ -32,6 +32,25 @@ class LoopEventsCard extends Component
     /** Mois affiche par le calendrier, au format Y-m. */
     public string $month = '';
 
+    /**
+     * TASK-1802 (demande Cyril, 10/11) — « par defaut un affichage sur 7
+     * jours [...] possibilite via un menu de selectionner semaine ou mois ».
+     * Une grille sur un mois entier repond a « quand en gros ? » ; une sur
+     * sept jours repond a « que se passe-t-il cette semaine ? » — la
+     * question la plus frequente en ouvrant la Card, d'ou le defaut.
+     */
+    public string $calendarGranularity = 'week'; // week | month
+
+    /** Lundi de la semaine affichee, au format Y-m-d (quand granularite = week). */
+    public string $weekStart = '';
+
+    /**
+     * Evenement dont le detail est ouvert depuis un clic dans le calendrier.
+     * Memes donnees et memes actions que la vue liste (`event-row` partage) :
+     * voir le detail d'un evenement ne doit pas en dire moins qu'en liste.
+     */
+    public ?string $selectedEventId = null;
+
     // ── Formulaire ──────────────────────────────────────────────────────────
 
     public bool $showForm = false;
@@ -47,6 +66,38 @@ class LoopEventsCard extends Component
     public string $startsAt = '';
 
     public string $endsAt = '';
+
+    /**
+     * TASK-1802 (demande Cyril, 10/11) — « simplifier la saisie de la date
+     * de debut et de fin, car le choix des heures n'est pas pratique au
+     * niveau des minutes ». Plutot que de choisir une fin dans l'absolu
+     * (deuxieme selecteur minute par minute), on choisit une DUREE relative
+     * au debut — un geste plus proche de la vraie question (« combien de
+     * temps ? ») que « a quelle minute precise est-ce que ca s'arrete ? ».
+     *
+     * Valeurs : `''` (aucune fin), une cle de `DURATION_MINUTES`, ou
+     * `self::DURATION_CUSTOM` (dates libres, comportement d'avant cette
+     * TASK). `$endsAt` reste la SEULE verite envoyee au service — cette
+     * propriete ne fait que le calculer pour la personne.
+     */
+    public string $duration = '';
+
+    public const DURATION_CUSTOM = 'custom';
+
+    /** @var array<string, int> minutes, indexees par la valeur du menu. */
+    public const DURATION_MINUTES = [
+        '30' => 30, '60' => 60, '90' => 90, '120' => 120,
+        '180' => 180, '240' => 240, '480' => 480,
+    ];
+
+    /**
+     * Vrai quand la fin calculee deborde sur un AUTRE jour que le debut (ou
+     * en mode « dates personnalisees ») : c'est le seul cas ou revoir la
+     * date de fin sert a quelque chose, donc le seul ou le champ reapparait
+     * (demande explicite de Cyril : « si duree [...] fait qu'on depasse la
+     * date du jour, la on affiche le champ pour saisir la date »).
+     */
+    public bool $durationCrossesDay = false;
 
     public string $timezone = '';
 
@@ -92,9 +143,12 @@ class LoopEventsCard extends Component
     public function mount(Loop $loop): void
     {
         $this->loop = $loop;
-        // Le mois affiche par defaut : celui d'ici, pas celui d'un fuseau
-        // choisi d'avance.
+        // Le mois et la semaine affiches par defaut : ceux d'ici, pas ceux
+        // d'un fuseau choisi d'avance.
         $this->month = CarbonImmutable::now($this->preferredTimezone())->format('Y-m');
+        $this->weekStart = CarbonImmutable::now($this->preferredTimezone())
+            ->startOfWeek(CarbonImmutable::MONDAY)
+            ->format('Y-m-d');
     }
 
     private function service(): LoopEventService
@@ -122,6 +176,86 @@ class LoopEventsCard extends Component
         if ($this->browserTimezone === '' && LoopEvent::isValidTimezone($timezone)) {
             $this->browserTimezone = $timezone;
         }
+    }
+
+    // ── Duree (TASK-1802) ─────────────────────────────────────────────────
+
+    public function updatedDuration(): void
+    {
+        $this->applyDuration();
+    }
+
+    public function updatedStartsAt(): void
+    {
+        $this->applyDuration();
+    }
+
+    /**
+     * Calcule `$endsAt` depuis `$startsAt` + `$duration`, et decide si le
+     * champ de fin doit rester visible.
+     *
+     * Deux cas ou le champ REAPPARAIT, et un seul ou il reste cache :
+     *   - `DURATION_CUSTOM` : dates libres, le champ a toujours servi a ca ;
+     *   - une duree qui pousse la fin sur un AUTRE jour calendaire que le
+     *     debut — demande explicite de Cyril. Une duree qui reste dans la
+     *     meme journee n'a rien a montrer de plus : `$endsAt` est deja juste.
+     */
+    private function applyDuration(): void
+    {
+        if ($this->duration === '') {
+            $this->endsAt = '';
+            $this->durationCrossesDay = false;
+
+            return;
+        }
+
+        if ($this->duration === self::DURATION_CUSTOM) {
+            $this->durationCrossesDay = true;
+
+            return;
+        }
+
+        $minutes = self::DURATION_MINUTES[$this->duration] ?? null;
+
+        if ($minutes === null || $this->startsAt === '') {
+            return;
+        }
+
+        try {
+            $start = CarbonImmutable::createFromFormat('Y-m-d\TH:i', $this->startsAt);
+        } catch (\Throwable) {
+            return;
+        }
+
+        if ($start === false) {
+            return;
+        }
+
+        $end = $start->addMinutes($minutes);
+
+        $this->endsAt = $end->format('Y-m-d\TH:i');
+        $this->durationCrossesDay = ! $end->isSameDay($start);
+    }
+
+    /**
+     * La duree selectionnee pour un Evenement EXISTANT (edition) : celle du
+     * menu qui correspond EXACTEMENT a l'ecart deja enregistre, sinon
+     * `DURATION_CUSTOM` — un ecart qui ne tombe sur aucune case du menu
+     * (pose avant cette TASK, ou cree par l'ancien champ libre) reste
+     * modifiable tel quel, jamais arrondi en silence.
+     */
+    private function durationFor(LoopEvent $event): string
+    {
+        if ($event->ends_at === null) {
+            return '';
+        }
+
+        // `diffInMinutes()` rend un FLOAT : une comparaison stricte contre les
+        // entiers de `DURATION_MINUTES` echouerait toujours (120.0 !== 120).
+        $minutes = (int) $event->starts_at->diffInMinutes($event->ends_at);
+        $cle = array_search($minutes, self::DURATION_MINUTES, true);
+
+        return $cle === false ? self::DURATION_CUSTOM : $cle;
     }
 
     private function user()
@@ -157,6 +291,48 @@ class LoopEventsCard extends Component
             ->startOfMonth()
             ->addMonths($delta)
             ->format('Y-m');
+    }
+
+    public function shiftWeek(int $delta): void
+    {
+        $this->weekStart = CarbonImmutable::createFromFormat('!Y-m-d', $this->weekStart)
+            ->startOfWeek(CarbonImmutable::MONDAY)
+            ->addWeeks($delta)
+            ->format('Y-m-d');
+    }
+
+    /**
+     * Bascule semaine/mois en gardant les deux curseurs a peu pres au meme
+     * endroit : sans ca, revenir de « mois » a « semaine » rouvrirait sur LA
+     * semaine d'aujourd'hui, pas celle qu'on regardait a l'instant.
+     */
+    public function setCalendarGranularity(string $granularity): void
+    {
+        if (! in_array($granularity, ['week', 'month'], true) || $granularity === $this->calendarGranularity) {
+            return;
+        }
+
+        if ($granularity === 'week') {
+            $this->weekStart = CarbonImmutable::createFromFormat('!Y-m', $this->month)
+                ->startOfMonth()
+                ->startOfWeek(CarbonImmutable::MONDAY)
+                ->format('Y-m-d');
+        } else {
+            $this->month = CarbonImmutable::createFromFormat('!Y-m-d', $this->weekStart)
+                ->format('Y-m');
+        }
+
+        $this->calendarGranularity = $granularity;
+    }
+
+    public function openEventDetail(string $eventId): void
+    {
+        $this->selectedEventId = $eventId;
+    }
+
+    public function closeEventDetail(): void
+    {
+        $this->selectedEventId = null;
     }
 
     // ── Formulaire ──────────────────────────────────────────────────────────
@@ -196,7 +372,11 @@ class LoopEventsCard extends Component
         $this->timezone = $this->preferredTimezone();
         $this->startsAt = CarbonImmutable::now($this->timezone)
             ->addDay()->setTime(18, 0)->format('Y-m-d\TH:i');
-        $this->endsAt = '';
+        // 1 heure par defaut : la duree la plus frequente, et la fin se
+        // calcule toute seule — personne n'a besoin d'y toucher pour une
+        // rencontre ordinaire.
+        $this->duration = '60';
+        $this->applyDuration();
         $this->location = '';
         $this->meetingUrl = '';
         $this->visibility = LoopEvent::VISIBILITY_LOOP;
@@ -227,6 +407,9 @@ class LoopEventsCard extends Component
         $this->timezone = $event->timezone;
         $this->startsAt = $event->startsAtLocal()->format('Y-m-d\TH:i');
         $this->endsAt = $event->endsAtLocal()?->format('Y-m-d\TH:i') ?? '';
+        $this->duration = $this->durationFor($event);
+        $this->durationCrossesDay = $this->duration === self::DURATION_CUSTOM
+            || ($event->endsAtLocal() !== null && ! $event->endsAtLocal()->isSameDay($event->startsAtLocal()));
         $this->location = (string) $event->location;
         $this->meetingUrl = (string) $event->meeting_url;
         $this->visibility = $event->visibility;
@@ -418,6 +601,7 @@ class LoopEventsCard extends Component
         if (! $user || ! $service->canView($user, $this->loop)) {
             return view('livewire.loop-events-card', [
                 'upcoming' => collect(), 'past' => collect(), 'calendar' => [],
+                'selectedEvent' => null,
                 'canCreate' => false, 'canPublishOrg' => false, 'readOnly' => true,
                 'timezoneOptions' => LoopEvent::TIMEZONES,
             ]);
@@ -437,10 +621,17 @@ class LoopEventsCard extends Component
             fn (array $e) => $e['is_past'] || $e['is_cancelled'],
         );
 
+        $calendar = $this->calendarGranularity === 'week'
+            ? $presenter->weekGrid($this->weekStart, $events->all())
+            : $presenter->monthGrid($this->month, $events->all());
+
         return view('livewire.loop-events-card', [
             'upcoming' => $upcoming->sortBy('starts_at')->values(),
             'past' => $past->sortByDesc('starts_at')->values(),
-            'calendar' => $presenter->monthGrid($this->month, $events->all()),
+            'calendar' => $calendar,
+            'selectedEvent' => $this->selectedEventId !== null
+                ? $events->firstWhere('id', $this->selectedEventId)
+                : null,
             'canCreate' => $service->canCreate($user, $this->loop),
             'canPublishOrg' => $service->canPublishToOrganization($user, $this->loop),
             'readOnly' => ! $service->canCreate($user, $this->loop)

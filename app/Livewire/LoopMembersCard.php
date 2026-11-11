@@ -379,10 +379,18 @@ class LoopMembersCard extends Component
     /** @return Collection<int, LoopMember> */
     public function members(): Collection
     {
+        // TASK-1802 (demande Cyril, 10/11) — « il faut afficher […]
+        // uniquement aux membres de la Boucle qui sont dans l'Organization
+        // de la Boucle. » `currentlyInLoopOrganization()` exclut une
+        // adhesion ACTIVE dont le titulaire a change d'Organization depuis
+        // (ligne `loop_members` non nettoyee) : vestige mesure en recette
+        // sur le jumeau, qui l'afficherait sinon comme un membre a part
+        // entiere d'une Boucle qu'il a quittee.
         return LoopMember::query()
             ->with('user')
             ->where('loop_id', $this->loop->id)
             ->where('status', 'active')
+            ->currentlyInLoopOrganization()
             ->get();
     }
 

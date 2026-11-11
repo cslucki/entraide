@@ -11,6 +11,8 @@ return [
     'empty_hint' => 'Propose a meeting: members will say whether they are coming.',
     'view_list' => 'List',
     'view_calendar' => 'Calendar',
+    'view_week' => 'Week',
+    'view_month' => 'Month',
     'previous_month' => 'Previous month',
     'next_month' => 'Next month',
     'today' => 'Today',
@@ -38,6 +40,19 @@ return [
     'description_placeholder' => 'Agenda, useful details…',
     'starts_at' => 'Start',
     'ends_at' => 'End (optional)',
+    // TASK-1802 — the end is chosen as a duration relative to the start,
+    // simpler than an absolute minute.
+    'duration' => 'Duration',
+    'duration_none' => 'No end time',
+    'duration_30' => '30 minutes',
+    'duration_60' => '1 hour',
+    'duration_90' => '1 h 30',
+    'duration_120' => '2 hours',
+    'duration_180' => '3 hours',
+    'duration_240' => '4 hours',
+    'duration_480' => 'Full day (8 hours)',
+    'duration_custom' => 'Custom dates…',
+    'duration_crosses_day' => 'This duration ends on another day: check the end date.',
     'timezone' => 'Time zone',
     'timezone_hint' => 'Detected from your device. Check it if the meeting takes place in another zone.',
     'location' => 'Location',
@@ -54,10 +69,12 @@ return [
     'going' => 'I am coming',
     'maybe' => 'Maybe',
     'not_going' => 'I am not coming',
+    'attendance_label' => 'Attendance',
     'going_short' => 'Coming',
     'maybe_short' => 'Maybe',
     'not_going_short' => 'Not coming',
     'your_response' => 'Your answer:',
+    'respond_menu_label' => 'Respond',
     'response_saved' => 'Answer recorded.',
     'attendees_show' => 'See who is coming',
     'attendees_hide' => 'Hide',
@@ -126,8 +143,31 @@ return [
     'error_delete_answered' => 'Members have answered: this event gets cancelled, not deleted.',
 
     // ── ChatLoop ────────────────────────────────────────────────────────────
-    'chat_created' => 'A new event has been proposed: :title',
+    // TASK-1802 — `:date` is already formatted (the event's own timezone),
+    // never a raw date left for the view to interpret.
+    'chat_created' => 'A new event has been proposed: :title (:date)',
+    // TASK-1802 (follow-up) — two more forms, chosen by
+    // `bodyPourNouvelEvenement()` depending on whether the end falls on the
+    // SAME day (duration) or ANOTHER day (full date).
+    'chat_created_with_duration' => 'A new event has been proposed: :title (:date, duration :duree)',
+    'chat_created_with_end' => 'A new event has been proposed: :title (:date to :date_fin)',
+    // The meeting link no longer lives here: escaped by `{{ }}`, it was
+    // never clickable. The view now renders it as a real `<a href>` from
+    // `metadata.meeting_url`.
+    'duration_format_hours_minutes' => ':h h :m',
+    'duration_format_hours' => ':h h',
+    'duration_format_minutes' => ':m min',
     'chat_updated' => 'The event “:title” has been updated.',
     'chat_cancelled' => 'The event “:title” has been cancelled.',
     'chat_open_card' => 'Open the agenda',
+    'chat_join_link' => 'Join',
+
+    'add_to_calendar' => 'Add to calendar',
+    'rsvp_yes' => 'Yes',
+    'rsvp_interested' => 'Interested',
+    'add_cta' => 'Add',
+    'calendar_google' => 'Google Calendar',
+    'calendar_outlook' => 'Outlook',
+    'calendar_yahoo' => 'Yahoo Calendar',
+    'calendar_download_ics' => 'Download (.ics)',
 ];

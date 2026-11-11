@@ -11,6 +11,8 @@ return [
     'empty_hint' => 'Propose une rencontre : les membres diront s\'ils viennent.',
     'view_list' => 'Liste',
     'view_calendar' => 'Calendrier',
+    'view_week' => 'Semaine',
+    'view_month' => 'Mois',
     'previous_month' => 'Mois précédent',
     'next_month' => 'Mois suivant',
     'today' => 'Aujourd\'hui',
@@ -38,6 +40,19 @@ return [
     'description_placeholder' => 'Ordre du jour, précisions utiles…',
     'starts_at' => 'Début',
     'ends_at' => 'Fin (facultatif)',
+    // TASK-1802 (demande Cyril) — la fin se choisit comme une duree relative
+    // au debut, plus simple qu'une minute absolue.
+    'duration' => 'Durée',
+    'duration_none' => 'Sans heure de fin',
+    'duration_30' => '30 minutes',
+    'duration_60' => '1 heure',
+    'duration_90' => '1 h 30',
+    'duration_120' => '2 heures',
+    'duration_180' => '3 heures',
+    'duration_240' => '4 heures',
+    'duration_480' => 'Journée (8 heures)',
+    'duration_custom' => 'Dates personnalisées…',
+    'duration_crosses_day' => 'Cette durée se termine un autre jour : vérifiez la date de fin.',
     'timezone' => 'Fuseau horaire',
     'timezone_hint' => 'Détecté depuis votre appareil. Vérifiez-le si la rencontre a lieu dans une autre zone.',
     'location' => 'Lieu',
@@ -54,10 +69,12 @@ return [
     'going' => 'Je participe',
     'maybe' => 'Peut-être',
     'not_going' => 'Je ne participe pas',
+    'attendance_label' => 'Présences',
     'going_short' => 'Participent',
     'maybe_short' => 'Peut-être',
     'not_going_short' => 'Absents',
     'your_response' => 'Ta réponse :',
+    'respond_menu_label' => 'Répondre',
     'response_saved' => 'Réponse enregistrée.',
     'attendees_show' => 'Voir qui vient',
     'attendees_hide' => 'Masquer',
@@ -133,8 +150,44 @@ return [
     'error_delete_answered' => 'Des membres ont répondu : cet événement s\'annule, il ne se supprime pas.',
 
     // ── ChatLoop ────────────────────────────────────────────────────────────
-    'chat_created' => 'Un nouvel événement a été proposé : :title',
+    // TASK-1802 (demande Cyril) — « il faut ajouter date et heure » sur le
+    // message de creation. `:date` est deja formatee (fuseau de l'Evenement),
+    // jamais une date brute a interpreter dans la vue.
+    'chat_created' => 'Un nouvel événement a été proposé : :title (:date)',
+    // TASK-1802 (suite, demande Cyril) — « on ne voit pas la date de fin de
+    // l'évènement (ou la durée si c'est moins d'un jour d'écart) ». Deux
+    // formes de plus, choisies par `bodyPourNouvelEvenement()` selon que la
+    // fin tombe le MEME jour (durée) ou un AUTRE jour (date complete).
+    'chat_created_with_duration' => 'Un nouvel événement a été proposé : :title (:date, durée :duree)',
+    'chat_created_with_end' => 'Un nouvel événement a été proposé : :title (du :date au :date_fin)',
+    // Le lien de connexion n'est PLUS ici : texte echappe par `{{ }}`, il
+    // n'etait jamais cliquable. La vue le rend desormais en `<a href>` a
+    // partir de `metadata.meeting_url` (demande explicite de Cyril).
+    'duration_format_hours_minutes' => ':h h :m',
+    'duration_format_hours' => ':h h',
+    'duration_format_minutes' => ':m min',
     'chat_updated' => 'L\'événement « :title » a été mis à jour.',
     'chat_cancelled' => 'L\'événement « :title » a été annulé.',
     'chat_open_card' => 'Ouvrir l\'agenda',
+    'chat_join_link' => 'Rejoindre',
+
+    // TASK-1802 (suite, demande Cyril) — « juste un bouton pour participer
+    // et un bouton pour ajouter à son agenda [...] si on ne peut pas faire
+    // un truc compatible sur tout [...] pop-up alpine qui permet de choisir
+    // le type d'agenda ». Aucune API web ne couvre Google/Outlook/Yahoo ET
+    // Apple/le reste a la fois — d'ou le choix, pas une limitation evitee.
+    'add_to_calendar' => 'Ajouter à l\'agenda',
+    // TASK-1802 (suite, demande Cyril) — « fait deux boutons : oui et
+    // interessé [...] pour "ajouter à l'agenda", tu mets l'icône et juste
+    // le verbe "ajouter" ». Cles DEDIEES a ce bouton compact — ne jamais
+    // reutiliser `events.going`/`events.maybe` ('Je participe'/'Peut-être')
+    // ici : elles servent aussi le bouton de l'agenda plein format
+    // (`loops/agenda.blade.php`), qui n'a pas ete touche par cette demande.
+    'rsvp_yes' => 'Oui',
+    'rsvp_interested' => 'Intéressé',
+    'add_cta' => 'Ajouter',
+    'calendar_google' => 'Google Agenda',
+    'calendar_outlook' => 'Outlook',
+    'calendar_yahoo' => 'Yahoo Agenda',
+    'calendar_download_ics' => 'Télécharger (.ics)',
 ];

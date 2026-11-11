@@ -135,11 +135,20 @@ class TASK1088EventCardTest extends TestCase
         ], $overrides);
     }
 
-    /** @param array<string, mixed> $overrides */
+    /**
+     * TASK-1802 (demande Cyril, 10/11) — `events.create` a quitte le socle
+     * `member` : seuls le proprietaire et l'animateur proposent desormais une
+     * rencontre. Le repli par defaut devient `$this->owner`, et non plus
+     * `$this->member` — la plupart des tests d'ici testent la MECANIQUE d'un
+     * Evenement (dates, reponses, annulation...), pas QUI a le droit de le
+     * creer ; ce role-la est verifie explicitement par ses propres tests.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
     private function event(?User $author = null, array $overrides = [], ?Loop $loop = null): LoopEvent
     {
         return $this->service()->create(
-            $author ?? $this->member,
+            $author ?? $this->owner,
             $loop ?? $this->loop,
             $this->payload($overrides),
         );
@@ -210,7 +219,7 @@ class TASK1088EventCardTest extends TestCase
         // l'initialisation d'Alpine, l'appel partait avant l'hydratation de
         // Livewire et se perdait — un navigateur a Chicago recevait alors le
         // repli.
-        Livewire::actingAs($this->member)
+        Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('openCreateForm', 'America/Chicago')
             ->assertSet('browserTimezone', 'America/Chicago')
@@ -220,7 +229,7 @@ class TASK1088EventCardTest extends TestCase
     public function test_opening_without_any_detection_still_works(): void
     {
         // Le bouton peut n'envoyer qu'une chaine vide : cela ne doit rien casser.
-        $timezone = Livewire::actingAs($this->member)
+        $timezone = Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('openCreateForm', '')
             ->get('timezone');
@@ -230,7 +239,7 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_a_paris_browser_gets_paris(): void
     {
-        Livewire::actingAs($this->member)
+        Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('setBrowserTimezone', 'Europe/Paris')
             ->call('openCreateForm')
@@ -242,7 +251,7 @@ class TASK1088EventCardTest extends TestCase
         // Le defaut que cette correction repare : `Europe/Paris` etait ecrit en
         // dur, donc quelqu'un a Dallas voyait ses horaires decales de sept
         // heures sans qu'on le lui dise.
-        Livewire::actingAs($this->member)
+        Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('setBrowserTimezone', 'America/Chicago')
             ->call('openCreateForm')
@@ -252,7 +261,7 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_an_antananarivo_browser_gets_antananarivo(): void
     {
-        Livewire::actingAs($this->member)
+        Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('setBrowserTimezone', 'Indian/Antananarivo')
             ->call('openCreateForm')
@@ -265,7 +274,7 @@ class TASK1088EventCardTest extends TestCase
         // menu apres l'avoir quitte.
         $this->assertNotContains('Asia/Tokyo', LoopEvent::TIMEZONES);
 
-        $options = Livewire::actingAs($this->member)
+        $options = Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('setBrowserTimezone', 'Asia/Tokyo')
             ->call('openCreateForm')
@@ -278,7 +287,7 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_a_forged_browser_value_is_ignored(): void
     {
-        $component = Livewire::actingAs($this->member)
+        $component = Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop]);
 
         // Un decalage brut, un sigle, une chaine inventee : aucun n'est un
@@ -294,7 +303,7 @@ class TASK1088EventCardTest extends TestCase
     {
         // Navigateur sans Intl : rien n'est annonce, et le formulaire s'ouvre
         // quand meme sur quelque chose de valide.
-        $timezone = Livewire::actingAs($this->member)
+        $timezone = Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('openCreateForm')
             ->get('timezone');
@@ -305,7 +314,7 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_a_manual_choice_survives_a_later_detection(): void
     {
-        Livewire::actingAs($this->member)
+        Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('setBrowserTimezone', 'America/Chicago')
             ->call('openCreateForm')
@@ -317,7 +326,7 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_a_validation_error_keeps_the_chosen_zone(): void
     {
-        Livewire::actingAs($this->member)
+        Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('setBrowserTimezone', 'America/Chicago')
             ->call('openCreateForm')
@@ -331,9 +340,9 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_editing_keeps_the_recorded_zone_whatever_the_browser_says(): void
     {
-        $event = $this->event($this->member, ['timezone' => 'America/Chicago']);
+        $event = $this->event($this->owner, ['timezone' => 'America/Chicago']);
 
-        Livewire::actingAs($this->member)
+        Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             // Ouvert depuis Paris…
             ->call('setBrowserTimezone', 'Europe/Paris')
@@ -346,7 +355,7 @@ class TASK1088EventCardTest extends TestCase
     {
         // « Demain 18h » doit vouloir dire demain 18h chez la personne. Le
         // formulaire propose donc une heure locale dans le fuseau detecte.
-        $startsAt = Livewire::actingAs($this->member)
+        $startsAt = Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('setBrowserTimezone', 'America/Chicago')
             ->call('openCreateForm')
@@ -360,7 +369,7 @@ class TASK1088EventCardTest extends TestCase
     public function test_creating_from_a_chicago_browser_stores_the_right_instant(): void
     {
         // Le bout en bout : navigateur a Chicago, 19h locales, stockage UTC.
-        Livewire::actingAs($this->member)
+        Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('setBrowserTimezone', 'America/Chicago')
             ->call('openCreateForm')
@@ -415,11 +424,20 @@ class TASK1088EventCardTest extends TestCase
 
     // ── Creation et validation ──────────────────────────────────────────────
 
-    public function test_every_active_member_may_propose_a_meeting(): void
+    /**
+     * TASK-1802 (demande Cyril, 10/11) — « il faut que ce soit les
+     * proprietaires ou animateurs de Boucle qui puissent poster un
+     * evenement, uniquement. » Renverse l'ancien
+     * `test_every_active_member_may_propose_a_meeting` : le membre simple
+     * garde `events.respond` (repondre) mais perd `events.create`.
+     */
+    public function test_only_the_owner_and_facilitator_may_propose_a_meeting(): void
     {
-        foreach ([$this->owner, $this->facilitator, $this->member] as $user) {
+        foreach ([$this->owner, $this->facilitator] as $user) {
             $this->assertTrue($this->service()->canCreate($user, $this->loop));
         }
+
+        $this->assertFalse($this->service()->canCreate($this->member, $this->loop));
     }
 
     public function test_a_non_member_may_not_create(): void
@@ -573,8 +591,8 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_a_cancelled_event_accepts_no_answer(): void
     {
-        $event = $this->event($this->member);
-        $this->service()->cancel($this->member, $event, $this->loop);
+        $event = $this->event($this->owner);
+        $this->service()->cancel($this->owner, $event, $this->loop);
 
         $this->expectException(EventException::class);
         $this->service()->respond($this->other, $event->fresh(), $this->loop, LoopEventResponse::GOING);
@@ -629,10 +647,10 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_an_event_with_answers_stays_editable_and_keeps_them(): void
     {
-        $event = $this->event($this->member);
+        $event = $this->event($this->owner);
         $this->service()->respond($this->other, $event, $this->loop, LoopEventResponse::GOING);
 
-        $result = $this->service()->update($this->member, $event, $this->loop, $this->payload([
+        $result = $this->service()->update($this->owner, $event, $this->loop, $this->payload([
             'title' => 'Reunion deplacee',
             'starts_at' => CarbonImmutable::now()->addDays(5)->format('Y-m-d\TH:i'),
         ]));
@@ -644,56 +662,68 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_moving_the_date_is_worth_announcing_but_a_typo_is_not(): void
     {
-        $event = $this->event($this->member);
+        $event = $this->event($this->owner);
 
-        $renamed = $this->service()->update($this->member, $event, $this->loop, $this->payload([
+        $renamed = $this->service()->update($this->owner, $event, $this->loop, $this->payload([
             'title' => 'Autre titre',
         ]));
         $this->assertFalse($renamed['notable']);
 
-        $moved = $this->service()->update($this->member, $event->fresh(), $this->loop, $this->payload([
+        $moved = $this->service()->update($this->owner, $event->fresh(), $this->loop, $this->payload([
             'title' => 'Autre titre',
             'starts_at' => CarbonImmutable::now()->addDays(9)->format('Y-m-d\TH:i'),
         ]));
         $this->assertTrue($moved['notable']);
     }
 
+    /**
+     * TASK-1802 (demande Cyril, 10/11) — l'evenement est propose par le
+     * FACILITATEUR (plus par un membre simple, qui n'a plus `events.create`).
+     * Un simple membre, qui n'a ni cree l'Evenement ni `events.manage`, ne
+     * peut pas non plus le gerer — la derniere ligne de l'ancien test
+     * (`canManageEvent($this->owner, ...)` attendu vrai, parce que le
+     * membre en etait l'auteur) n'a plus de sens : ce role ne peut plus
+     * etre auteur d'aucun Evenement.
+     */
     public function test_another_member_may_not_edit_someone_elses_event(): void
     {
-        $event = $this->event($this->member);
+        $event = $this->event($this->facilitator);
 
         $this->assertFalse($this->service()->canManageEvent($this->other, $event, $this->loop));
-        $this->assertTrue($this->service()->canManageEvent($this->owner, $event, $this->loop));
+        $this->assertFalse($this->service()->canManageEvent($this->member, $event, $this->loop));
+        // L'auteur garde la main sur le sien...
         $this->assertTrue($this->service()->canManageEvent($this->facilitator, $event, $this->loop));
-        $this->assertTrue($this->service()->canManageEvent($this->member, $event, $this->loop));
+        // ...et le proprietaire gere tous les Evenements de la Boucle, pas
+        // seulement les siens (`events.manage`).
+        $this->assertTrue($this->service()->canManageEvent($this->owner, $event, $this->loop));
     }
 
     public function test_a_cancelled_event_is_no_longer_edited(): void
     {
-        $event = $this->event($this->member);
-        $this->service()->cancel($this->member, $event, $this->loop);
+        $event = $this->event($this->owner);
+        $this->service()->cancel($this->owner, $event, $this->loop);
 
         $this->expectException(EventException::class);
-        $this->service()->update($this->member, $event->fresh(), $this->loop, $this->payload());
+        $this->service()->update($this->owner, $event->fresh(), $this->loop, $this->payload());
     }
 
     // ── Annulation et suppression ───────────────────────────────────────────
 
     public function test_an_event_without_answers_can_be_deleted(): void
     {
-        $event = $this->event($this->member);
-        $this->service()->delete($this->member, $event, $this->loop);
+        $event = $this->event($this->owner);
+        $this->service()->delete($this->owner, $event, $this->loop);
 
         $this->assertDatabaseMissing('loop_events', ['id' => $event->id]);
     }
 
     public function test_an_event_with_an_answer_is_never_deleted(): void
     {
-        $event = $this->event($this->member);
+        $event = $this->event($this->owner);
         $this->service()->respond($this->other, $event, $this->loop, LoopEventResponse::GOING);
 
         try {
-            $this->service()->delete($this->member, $event, $this->loop);
+            $this->service()->delete($this->owner, $event, $this->loop);
             $this->fail('La suppression aurait dû être refusée.');
         } catch (EventException) {
             // Effacer effacerait la parole de quelqu'un d'autre.
@@ -704,24 +734,24 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_cancelling_keeps_the_history(): void
     {
-        $event = $this->event($this->member);
+        $event = $this->event($this->owner);
         $this->service()->respond($this->other, $event, $this->loop, LoopEventResponse::GOING);
 
-        $this->service()->cancel($this->member, $event, $this->loop);
+        $this->service()->cancel($this->owner, $event, $this->loop);
         $fresh = $event->fresh();
 
         $this->assertTrue($fresh->isCancelled());
         $this->assertNotNull($fresh->cancelled_at);
-        $this->assertSame($this->member->id, $fresh->cancelled_by);
+        $this->assertSame($this->owner->id, $fresh->cancelled_by);
         $this->assertSame(1, $this->service()->counts($fresh)['going']);
     }
 
     public function test_cancelling_twice_is_not_an_error_and_announces_once(): void
     {
-        $event = $this->event($this->member);
+        $event = $this->event($this->owner);
 
-        $first = $this->service()->cancel($this->member, $event, $this->loop);
-        $second = $this->service()->cancel($this->member, $event->fresh(), $this->loop);
+        $first = $this->service()->cancel($this->owner, $event, $this->loop);
+        $second = $this->service()->cancel($this->owner, $event->fresh(), $this->loop);
 
         $this->assertTrue($first['changed']);
         $this->assertFalse($second['changed']);
@@ -729,7 +759,7 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_another_member_may_not_cancel(): void
     {
-        $event = $this->event($this->member);
+        $event = $this->event($this->owner);
 
         $this->expectException(EventException::class);
         $this->service()->cancel($this->other, $event, $this->loop);
@@ -751,8 +781,8 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_an_event_survives_the_departure_of_its_author(): void
     {
-        $event = $this->event($this->member);
-        $this->member->delete();
+        $event = $this->event($this->facilitator);
+        $this->facilitator->delete();
 
         $fresh = LoopEvent::find($event->id);
 
@@ -830,9 +860,10 @@ class TASK1088EventCardTest extends TestCase
     {
         $otherLoop = $this->makeLoop('Seconde Boucle');
         $this->join($otherLoop, $this->member, 'member');
+        $this->join($otherLoop, $this->owner, 'owner');
 
-        $mine = $this->event($this->member, ['title' => 'Dans la premiere']);
-        $this->event($this->member, ['title' => 'Dans la seconde'], $otherLoop);
+        $mine = $this->event($this->owner, ['title' => 'Dans la premiere']);
+        $this->event($this->owner, ['title' => 'Dans la seconde'], $otherLoop);
 
         $this->actingAs($this->member)
             ->get(route('organization.events.agenda', [
@@ -882,7 +913,7 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_proposing_an_event_announces_it_in_chatloop(): void
     {
-        Livewire::actingAs($this->member)
+        Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('openCreateForm')
             ->set('title', 'Cafe du mardi')
@@ -900,9 +931,9 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_cancelling_announces_it(): void
     {
-        $event = $this->event($this->member);
+        $event = $this->event($this->owner);
 
-        Livewire::actingAs($this->member)
+        Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('cancelEvent', $event->id);
 
@@ -1077,10 +1108,12 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_the_card_separates_upcoming_from_past_and_cancelled(): void
     {
-        $upcoming = $this->event($this->member, ['title' => 'Bientot']);
-        $cancelled = $this->event($this->member, ['title' => 'Annule']);
-        $this->service()->cancel($this->member, $cancelled, $this->loop);
+        $upcoming = $this->event($this->owner, ['title' => 'Bientot']);
+        $cancelled = $this->event($this->owner, ['title' => 'Annule']);
+        $this->service()->cancel($this->owner, $cancelled, $this->loop);
 
+        // La lecture reste ouverte a tout membre : seule la CREATION a quitte
+        // son socle (TASK-1802).
         $component = Livewire::actingAs($this->member)
             ->test(LoopEventsCard::class, ['loop' => $this->loop]);
 
@@ -1090,7 +1123,10 @@ class TASK1088EventCardTest extends TestCase
 
     public function test_the_card_shows_the_refusal_instead_of_failing_silently(): void
     {
-        Livewire::actingAs($this->member)
+        // Acteur avec le droit de creer : cette garde porte sur la VALIDATION
+        // du formulaire (titre vide), pas sur la permission — deja couverte
+        // par `test_only_the_owner_and_facilitator_may_propose_a_meeting`.
+        Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('openCreateForm')
             ->set('title', '')
