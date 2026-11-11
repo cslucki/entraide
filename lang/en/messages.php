@@ -10,39 +10,53 @@ return [
     'select_conversation' => 'Select a conversation',
     'direct_conversation' => 'Discussion',
     'direct_conversation_started' => 'Discussion started.',
-    'exchange_subject' => 'Exchange #:id',
+    // TASK-1806 — the last marketplace word left in a conversation title,
+    // and it reached email subjects as a last-resort fallback.
+    'exchange_subject' => 'Mutual aid #:id',
 
     // TASK-1754 §3.2 — arbitrage Q2 de Cyril (05/11) : le BADGE reste court et
     // NEUTRE, c'est la PHRASE qui porte le sens (qui aide qui).
+    // TASK-1806 — these six labels also travel in the subject of status
+    // emails (`{{ status_label }}`). "To confirm" named a step that no longer
+    // exists for members: the visible journey has three, and the confirmation
+    // belongs to the helped person. `buyer_done` is now a LEGACY status that
+    // no code produces any more.
     'status' => [
         'pending' => 'Proposal',
-        'accepted' => 'Agreed',
-        'buyer_done' => 'To confirm',
-        'completed' => 'Done',
+        'accepted' => 'Help accepted',
+        'buyer_done' => 'Help under way',
+        'completed' => 'Help completed',
         'refused' => 'Declined',
         'cancelled' => 'Cancelled',
     ],
 
     'phrase' => [
-        'pending_decideur' => ':prenom is answering your listing “:titre” — :temps',
+        'pending_decideur' => ':prenom is answering “:titre” — :temps',
         'pending_proposant' => 'Your offer has been sent. :prenom needs to reply.',
-        'accepted' => 'You agreed on this exchange — :temps',
-        'buyer_done_aidant' => ':prenom says they received your help. Confirm to receive your :temps.',
-        'buyer_done_aide' => 'You said you received the help. :prenom needs to confirm.',
-        'completed' => 'Exchange complete — :temps transferred. Thank you!',
+        // TASK-1806 — once agreed, each side must know what is expected of
+        // THEM: the helped person confirms, the helper waits for it.
+        'accepted_aide' => 'Mutual aid agreed with :prenom — :temps. Once it is done, confirm to close it.',
+        'accepted_aidant' => 'Mutual aid agreed with :prenom — :temps. :prenom will confirm once it is done.',
+        // LEGACY: no code produces `buyer_done` any more.
+        'buyer_done_aidant' => ':prenom needs to confirm to close this mutual aid.',
+        'buyer_done_aide' => ':prenom is waiting for your confirmation to close this mutual aid — :temps.',
+        'completed' => 'Mutual aid completed — :temps transferred. Thank you!',
         'refused_proposant' => ':prenom declined your offer.',
         'refused_decideur' => 'You declined this offer.',
-        'cancelled' => 'This exchange was cancelled.',
+        'cancelled' => 'This mutual aid was cancelled.',
     ],
 
     'actions' => [
-        'accept' => 'Accept the exchange',
+        'accept' => 'Accept the mutual aid',
         'refuse' => 'Decline',
         'adjust' => 'Suggest a different time',
         'cancel' => 'Cancel',
         'cancel_withdraw' => 'Withdraw my offer',
-        'cancel_exchange' => 'Cancel the exchange',
+        'cancel_exchange' => 'Cancel the mutual aid',
+        // TASK-1806 — now the label of the CLOSING button, in the bottom-of-
+        // thread card that also carries the review. The only gesture of step 3.
         'mark_done' => 'I received the help',
+        // LEGACY: the helper's confirmation left the visible journey.
         'confirm' => 'Confirm — receive my :temps',
         'contest' => 'Not finished yet',
     ],
@@ -52,26 +66,30 @@ return [
     // TASK-1754 §3.4 — les faits du fil, desormais traduits.
     'systeme' => [
         'proposition_envoyee' => '🤝 Offer sent — :temps',
-        'echange_accepte' => '✅ Exchange accepted. The help is under way.',
+        // TASK-1806 — KEYS never change: they are stored in the database
+        // (`messages.metadata->system_key`) and renaming them would break the
+        // rendering of the whole history. Only the VALUES change.
+        'echange_accepte' => '✅ Help accepted. The mutual aid is under way.',
         'echange_decline' => 'Offer declined.',
         'temps_ajuste' => 'Time adjusted: :temps',
-        'echange_annule' => 'Exchange cancelled.',
-        'aide_recue' => ':prenom confirmed receiving the help. Awaiting your confirmation.',
-        'echange_termine' => '🎉 Exchange complete — :temps shared.',
-        'pas_encore_termine' => 'The help is not finished yet: the exchange is active again.',
+        'echange_annule' => 'Mutual aid cancelled.',
+        // LEGACY: no longer written — the helped person confirms and closes
+        // in a single gesture.
+        'aide_recue' => ':prenom confirmed receiving the help.',
+        'echange_termine' => '🎉 Mutual aid completed — :temps shared.',
+        'pas_encore_termine' => 'The help is not finished yet: the mutual aid is active again.',
     ],
     // TASK-1755 §5.2 — le SENS de l'aide, sur chaque ligne de la liste.
     'sens' => [
         'vous_aidez' => 'You are helping :prenom · :temps',
         'on_vous_demande' => ':prenom is asking for your help · :temps',
-        'terminee' => 'Exchange complete · :temps shared',
+        'terminee' => 'Mutual aid completed · :temps shared',
     ],
+    // TASK-1806 (product arbitration, 11/11) — THREE visible steps, not five.
     'etapes' => [
-        'proposition' => 'Offer',
+        'demande' => 'Request',
         'accord' => 'Agreement',
-        'aide' => 'Help',
         'confirmation' => 'Confirmation',
-        'evaluation' => 'Evaluation',
     ],
     'filtres' => [
         'tous' => 'All',
@@ -90,6 +108,12 @@ return [
     'send_review' => 'Send the thank-you',
     'review_sent' => 'Thank you for your review!',
     'review_skip' => 'Skip for now',
+    // TASK-1806 — step 3: confirm, and say thank you in the same gesture.
+    'confirmer_titre' => 'Did you receive :prenom’s help?',
+    'confirmer_intro' => 'Confirming closes the mutual aid and transfers :temps to :prenom.',
+    'confirmer_intro_offert' => 'Confirming closes the mutual aid. :prenom offered their help: no points are transferred.',
+    'confirmer_note_label' => 'Leave a rating and a thank-you note (optional)',
+    'confirmer_sans_note' => 'You can confirm without leaving a review.',
     'bento_title' => 'Help completed',
     'bento_duree' => 'Duration',
     'bento_duree_absente' => 'Duration not available',
@@ -161,15 +185,18 @@ return [
      * servent le jour ou il est desactive. La PHRASE de statut, elle, vient
      * de `CarteEntraide::phrase()` : une seule definition, orientee role.
      */
+    // TASK-1806 — the GROUP name stays (read by
+    // `emails/transaction_status.blade.php`); only the values leave the
+    // marketplace vocabulary.
     'email_exchange' => [
-        'title' => 'Your exchange has been updated',
+        'title' => 'Your mutual aid has been updated',
         'greeting' => 'Hello :prenom,',
-        'intro' => 'Your exchange status has changed: **:statut**.',
-        'label_exchange' => 'Exchange',
+        'intro' => 'Your mutual aid status has changed: **:statut**.',
+        'label_exchange' => 'Mutual aid',
         'label_time' => 'Time shared',
         'cta' => 'View the conversation',
-        'untitled' => 'Exchange',
-        'subject' => 'Your exchange has been updated — :statut',
+        'untitled' => 'Mutual aid',
+        'subject' => 'Your mutual aid has been updated — :statut',
     ],
 
     // TASK-1772 — the directory preview opened by the detached avatar.

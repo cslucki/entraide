@@ -108,10 +108,17 @@ class Transaction extends Model
         return $this->buyer_confirmed_at !== null;
     }
 
-    /** L'aidant n'a pas encore confirme — le transfert de points n'a pas eu lieu. */
+    /**
+     * L'entraide attend sa confirmation — le transfert de points n'a pas eu
+     * lieu.
+     *
+     * TASK-1806 (arbitrage du 11/11) : c'est desormais l'AIDE qui confirme,
+     * depuis `accepted`, et ce geste unique termine tout. `buyer_done` reste
+     * reconnu pour les lignes heritees, que plus aucun code ne produit.
+     */
     public function confirmationEnAttente(): bool
     {
-        return $this->status === 'buyer_done';
+        return in_array($this->status, ['accepted', 'buyer_done'], true);
     }
 
     /** Le transfert de points a eu lieu. Un coup de main offert n'a rien a attribuer. */

@@ -41,18 +41,18 @@ return [
     // provisioned for §9.2 and stays empty; an empty section is not shown.
     'intentions' => [
         'sollicitation_directe' => [
-            'title' => "When someone reaches out to me",
-            'hint' => "Addressed to you personally, and waiting for your reply.",
+            'title' => 'When someone reaches out to me',
+            'hint' => 'Addressed to you personally, and waiting for your reply.',
         ],
         'changements' => [
-            'title' => "Invitations and changes",
-            'hint' => "Things that concern you without asking anything: you are kept informed.",
+            'title' => 'Invitations and changes',
+            'hint' => 'Things that concern you without asking anything: you are kept informed.',
         ],
         'sollicitation_pertinente' => [
-            'title' => "Relevant requests",
+            'title' => 'Relevant requests',
             // TASK-1747 — widened: the section now also carries requests
             // posted in the Boucles you belong to, not just future matches.
-            'hint' => "Requests you could answer: those from your Boucles, and those matching what you know how to do.",
+            'hint' => 'Requests you could answer: those from your Boucles, and those matching what you know how to do.',
         ],
     ],
     'preferences_mandatory_hint' => 'This notification is addressed to you personally and calls for a reply: it cannot be turned off.',
@@ -62,7 +62,7 @@ return [
         'title' => 'My Loops',
         'hint' => 'Help requests published in your Loops are set Loop by Loop.',
         'master_label' => 'Receive notifications',
-        'empty_message' => "You haven't joined a Loop yet. Join one to take part in the exchanges and receive help requests.",
+        'empty_message' => "You haven't joined a Loop yet. Join one to take part in mutual aid and receive help requests.",
         'join_cta' => 'Join a loop',
     ],
     'preferences_link' => 'Settings',
@@ -138,7 +138,7 @@ return [
         'blog_co_author_added' => 'You have been added to an article',
 
         // TASK-1786 — names neither the person nor the listing.
-        'entraide_comment_created' => 'New suggestion on your listing',
+        'entraide_comment_created' => 'New suggestion on your mutual aid',
 
         // TASK-1747 — the channel is OFF by default, but the label must
         // exist: the coherence guard requires it as soon as a channel is
@@ -146,7 +146,7 @@ return [
         'loop_help_request_created' => 'A request for help in your Boucle',
 
         // TASK-1751 — shown on a LOCKED screen (CDC §6.4/6.5).
-        'transaction_proposal_created' => 'Someone replied to your listing',
+        'transaction_proposal_created' => 'Someone replied to your help request',
 
         // TASK-1802 — names neither the Boucle nor the event, same reason as
         // its collective neighbours: a Push shows on a locked screen.
@@ -160,8 +160,8 @@ return [
         // TASK-1747 (CDC §8.1)
         'loop_help_request_created' => 'A request for help was posted',
 
-        // TASK-1751 — one key for both directions of the exchange.
-        'transaction_proposal_created' => 'Someone replied to your listing',
+        // TASK-1751 — one key for both directions of the mutual aid.
+        'transaction_proposal_created' => 'Someone replied to your help request or offer',
 
         // TASK-1702
         'blog_co_author_added' => 'You were added as a co-author of an article',
@@ -208,7 +208,7 @@ return [
         // `mention_all`.
         'loop_mention_all_created' => '“:prenom” mentioned all the members of the Loop “:loop”',
         // TASK-1757 — see the French file for why this surface only.
-        'transaction_proposal_created' => ':prenom replies to your listing “:titre” — :temps',
+        'transaction_proposal_created' => ':prenom replies to “:titre” — :temps',
         // TASK-1786 — named ONLY here. `:type` carries "mutual aid offer" or
         // "help request", resolved by the controller, which is what lets ONE
         // key serve both listing types.
@@ -273,8 +273,8 @@ return [
         // used only if it is missing. Generic subject: a mailbox preview is read
         // without unlocking, same doctrine as `push_title`.
         'entraide_comment_created' => [
-            'subject' => 'A member commented on your mutual aid listing',
-            'body' => '<p>Hello,</p><p>A member left a comment on your mutual aid listing.</p><p><a href=":url">View the comment</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>A comment commits to nothing: no transaction, no accepted help, no promised time.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+            'subject' => 'A member commented on your mutual aid',
+            'body' => '<p>Hello,</p><p>A member left a comment on your mutual aid.</p><p><a href=":url">View the comment</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>A comment commits to nothing: no mutual aid started, no accepted help, no promised time.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
         ],
 
         'blog_comment_created' => [
@@ -305,10 +305,10 @@ return [
         // missing or disabled. The coherence suite requires it as soon as
         // the `email` channel is declared.
         'transaction_proposal_created' => [
-            'subject' => 'Someone replied to your listing',
+            'subject' => 'Someone replied to your help request or offer',
             'body' => '<p>Hello,</p>'
-                .'<p>Someone has just replied to a listing you published on BouclePro.</p>'
-                .'<p><a href=":url">View the exchange</a></p>'
+                .'<p>Someone has just replied to a help request or offer you published on BouclePro.</p>'
+                .'<p><a href=":url">View the mutual aid</a></p>'
                 .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
                 .'<p>See you soon,<br>The BouclePro team</p>',
         ],

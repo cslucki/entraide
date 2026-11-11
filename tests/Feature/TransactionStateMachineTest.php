@@ -138,10 +138,13 @@ class TransactionStateMachineTest extends TestCase
         $transaction = Transaction::factory()->forBuyer($this->buyer)->forSeller($this->seller)->create();
         $this->assertEquals('Proposition', $transaction->status_label);
 
+        // TASK-1806 — « À confirmer » nommait une etape qui n'existe plus
+        // cote membre, et ces libelles partent AUSSI dans l'objet des
+        // courriels de statut.
         foreach ([
-            'accepted' => 'Entraide convenue',
-            'buyer_done' => 'À confirmer',
-            'completed' => 'Terminé',
+            'accepted' => 'Aide acceptée',
+            'buyer_done' => 'Entraide en cours',
+            'completed' => 'Entraide terminée',
             'refused' => 'Déclinée',
             'cancelled' => 'Annulé',
         ] as $statut => $attendu) {

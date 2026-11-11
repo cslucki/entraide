@@ -48,18 +48,40 @@ class TransactionPolicy
             && in_array($transaction->status, ['pending', 'accepted']);
     }
 
+    /**
+     * TASK-1806 (arbitrage du 11/11) — LE geste final, et il appartient a
+     * l'aide.
+     *
+     * Le parcours visible compte desormais TROIS etapes : demande, accord,
+     * confirmation. Ce dernier geste termine l'entraide, credite les points a
+     * l'aidant et enregistre l'evaluation eventuelle — il n'y a plus de
+     * confirmation distincte cote aidant.
+     *
+     * `buyer_done` est accepte en PLUS d'`accepted` par pure compatibilite :
+     * le nouveau parcours ne produit plus jamais ce statut (mesure du 11/11 :
+     * zero ligne sur le jumeau), mais une ligne heritee ne doit pas rester
+     * sans issue si l'ancien parcours en avait laisse une.
+     */
     public function complete(User $user, Transaction $transaction): bool
     {
         return $this->resourceBelongsToCurrentOrganization($transaction)
-            && $user->id === $transaction->buyer_id && $transaction->status === 'accepted';
+            && $user->id === $transaction->buyer_id
+            && in_array($transaction->status, ['accepted', 'buyer_done'], true);
     }
 
+    /**
+     * CHEMIN HERITE — la confirmation de l'aidant n'existe plus dans le
+     * parcours visible (TASK-1806). Conservee uniquement pour denouer une
+     * eventuelle ligne restee en `buyer_done`, statut que plus aucun code ne
+     * produit. Aucune surface ne propose ce geste.
+     */
     public function confirm(User $user, Transaction $transaction): bool
     {
         return $this->resourceBelongsToCurrentOrganization($transaction)
             && $user->id === $transaction->seller_id && $transaction->status === 'buyer_done';
     }
 
+    /** CHEMIN HERITE, meme raison que `confirm()` ci-dessus (TASK-1806). */
     public function contest(User $user, Transaction $transaction): bool
     {
         return $this->resourceBelongsToCurrentOrganization($transaction)

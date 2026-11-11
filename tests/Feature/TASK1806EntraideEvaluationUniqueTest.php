@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Livewire\MessageThread;
 use App\Models\Organization;
+use App\Models\PointLedger;
 use App\Models\Review;
 use App\Models\Service;
 use App\Models\Transaction;
@@ -12,6 +13,9 @@ use App\Support\Entraide\CarteEntraide;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -143,7 +147,7 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
 
         Livewire::actingAs($this->buyer)
             ->test(MessageThread::class, ['transaction' => $transaction])
-            ->assertSeeHtml("rating: 0")
+            ->assertSeeHtml('rating: 0')
             ->assertDontSeeHtml('{ rating: 5, hovered: 0 }');
     }
 
@@ -182,7 +186,7 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
         $this->expectException(QueryException::class);
 
         DB::table('reviews')->insert([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'transaction_id' => $transaction->id,
             'organization_id' => $this->organization->id,
             'reviewer_id' => $this->seller->id,
@@ -281,24 +285,261 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
 
     // ── Diagramme §3.C — la 5e etape « Evaluation » ──
 
-    public function test_the_fifth_step_is_evaluation_and_lights_up_on_completion(): void
+    public function test_the_journey_has_exactly_three_visible_steps(): void
     {
-        $this->assertSame(
-            ['proposition', 'accord', 'aide', 'confirmation', 'evaluation'],
-            CarteEntraide::ETAPES
-        );
+        $this->assertSame(['demande', 'accord', 'confirmation'], CarteEntraide::ETAPES);
 
-        $transaction = $this->completedTransaction();
-        $this->assertSame(5, CarteEntraide::etape($transaction));
+        $this->assertSame(3, CarteEntraide::etape($this->completedTransaction()));
     }
 
-    public function test_the_stepper_renders_five_steps_including_evaluation(): void
+    public function test_the_stepper_renders_three_steps_and_lights_the_last_one(): void
     {
         $transaction = $this->completedTransaction();
 
         Livewire::actingAs($this->buyer)
             ->test(MessageThread::class, ['transaction' => $transaction])
-            ->assertSeeHtml('data-entraide-etapier="5"')
-            ->assertSee(__('messages.etapes.evaluation'));
+            ->assertSeeHtml('data-entraide-etapier="3"')
+            ->assertSee(__('messages.etapes.demande'))
+            ->assertSee(__('messages.etapes.accord'))
+            ->assertSee(__('messages.etapes.confirmation'))
+            // Aucune 4e ni 5e etape, meme cachee.
+            ->assertDontSee('Évaluation')
+            ->assertDontSeeHtml('data-entraide-etapier="5"');
+    }
+
+    // ── Le geste unique de la 3e etape (arbitrage du 11/11) ──────────────────
+
+    private function acceptedTransaction(array $overrides = []): Transaction
+    {
+        return Transaction::factory()
+            ->forBuyer($this->buyer)
+            ->forSeller($this->seller)
+            ->accepted()
+            ->create(array_merge(['organization_id' => $this->organization->id], $overrides));
+    }
+
+    public function test_confirming_closes_transfers_points_and_records_the_review_in_one_gesture(): void
+    {
+        $this->buyer->update(['points_balance' => 100]);
+        $this->seller->update(['points_balance' => 10]);
+        $transaction = $this->acceptedTransaction(['points_proposed' => 20, 'points_agreed' => 20]);
+
+        $this->actingAs($this->buyer)
+            ->patch(route('transactions.complete', $transaction), [
+                'rating' => 5,
+                'comment' => 'Merci beaucoup !',
+            ])
+            ->assertRedirect();
+
+        $transaction->refresh();
+        $this->assertSame('completed', $transaction->status);
+        $this->assertSame(80, $this->buyer->fresh()->points_balance);
+        $this->assertSame(30, $this->seller->fresh()->points_balance);
+        $this->assertDatabaseHas('reviews', [
+            'transaction_id' => $transaction->id,
+            'reviewer_id' => $this->buyer->id,
+            'reviewed_id' => $this->seller->id,
+            'rating' => 5,
+        ]);
+        // Un seul geste : il n'existe plus d'etat intermediaire `buyer_done`.
+        $this->assertDatabaseMissing('transactions', [
+            'id' => $transaction->id,
+            'status' => 'buyer_done',
+        ]);
+    }
+
+    /** « ou ignorer l'evaluation » — confirmer sans note reste un choix entier. */
+    public function test_confirming_without_a_rating_closes_and_marks_the_evaluation_skipped(): void
+    {
+        $transaction = $this->acceptedTransaction(['points_proposed' => 20, 'points_agreed' => 20]);
+
+        $this->actingAs($this->buyer)
+            ->patch(route('transactions.complete', $transaction), ['rating' => null])
+            ->assertRedirect();
+
+        $transaction->refresh();
+        $this->assertSame('completed', $transaction->status);
+        $this->assertDatabaseMissing('reviews', ['transaction_id' => $transaction->id]);
+        $this->assertNotNull($transaction->reviews_skipped_at);
+        $this->assertTrue($transaction->evaluationDeposeeOuIgnoree());
+        // Aucune note inventee n'a pu entrer dans la moyenne de l'aidant.
+        $this->assertNull($this->seller->fresh()->rating);
+    }
+
+    /** La confirmation distincte cote aidant a disparu du parcours. */
+    public function test_the_helper_cannot_confirm(): void
+    {
+        $transaction = $this->acceptedTransaction();
+
+        $this->actingAs($this->seller)
+            ->patch(route('transactions.complete', $transaction))
+            ->assertForbidden();
+
+        $this->assertSame('accepted', $transaction->fresh()->status);
+    }
+
+    public function test_a_second_confirmation_never_transfers_points_twice(): void
+    {
+        $this->buyer->update(['points_balance' => 100]);
+        $this->seller->update(['points_balance' => 0]);
+        $transaction = $this->acceptedTransaction(['points_proposed' => 20, 'points_agreed' => 20]);
+
+        $this->actingAs($this->buyer)->patch(route('transactions.complete', $transaction));
+        // Le second envoi est refuse par la policy : l'entraide n'est plus
+        // `accepted`. Ni ledger, ni solde ne bougent une seconde fois.
+        $this->actingAs($this->buyer)
+            ->patch(route('transactions.complete', $transaction))
+            ->assertForbidden();
+
+        $this->assertSame(80, $this->buyer->fresh()->points_balance);
+        $this->assertSame(20, $this->seller->fresh()->points_balance);
+        $this->assertSame(2, PointLedger::where('transaction_id', $transaction->id)->count());
+    }
+
+    /** `seller_confirmed_at` enregistrait un geste qui n'existe plus. */
+    public function test_the_new_flow_no_longer_writes_seller_confirmed_at(): void
+    {
+        $transaction = $this->acceptedTransaction(['points_proposed' => 20, 'points_agreed' => 20]);
+
+        $this->actingAs($this->buyer)->patch(route('transactions.complete', $transaction));
+
+        $transaction->refresh();
+        $this->assertNotNull($transaction->buyer_confirmed_at);
+        $this->assertNotNull($transaction->completed_at);
+        $this->assertNull($transaction->seller_confirmed_at);
+    }
+
+    /** Un coup de main OFFERT traverse tout le cycle sans rien transferer. */
+    public function test_a_free_help_confirms_without_touching_the_ledger(): void
+    {
+        $this->buyer->update(['points_balance' => 100]);
+        $transaction = $this->acceptedTransaction(['points_proposed' => 0, 'points_agreed' => 0]);
+
+        $this->actingAs($this->buyer)
+            ->patch(route('transactions.complete', $transaction), ['rating' => 4]);
+
+        $this->assertSame('completed', $transaction->fresh()->status);
+        $this->assertSame(100, $this->buyer->fresh()->points_balance);
+        $this->assertSame(0, PointLedger::where('transaction_id', $transaction->id)->count());
+        $this->assertDatabaseHas('reviews', ['transaction_id' => $transaction->id, 'rating' => 4]);
+    }
+
+    /**
+     * VERIFICATION MASTER du 11/11 — un avis qui ne s'ecrit pas ne doit pas
+     * passer pour publie.
+     *
+     * La panne est REELLE, pas simulee par une doublure : la table `reviews`
+     * est retiree juste avant la confirmation, donc l'ecriture echoue pour de
+     * bon. Trois proprietes sont mesurees d'un coup :
+     *
+     *   1. l'entraide est bien close et les points bien transferes ;
+     *   2. le message rendu ne dit PAS « merci » — il dit que l'avis n'est pas
+     *      parti ;
+     *   3. l'echec est identifiable dans le journal, avec son evenement nomme.
+     *
+     * La recuperation sans second transfert est mesuree par le test suivant.
+     */
+    public function test_a_failed_review_never_passes_for_a_published_one(): void
+    {
+        Log::spy();
+
+        $this->buyer->update(['points_balance' => 100]);
+        $this->seller->update(['points_balance' => 0]);
+        $transaction = $this->acceptedTransaction(['points_proposed' => 20, 'points_agreed' => 20]);
+
+        Schema::drop('reviews');
+
+        $reponse = $this->actingAs($this->buyer)
+            ->patch(route('transactions.complete', $transaction), [
+                'rating' => 5,
+                'comment' => 'Un mot qui ne sera pas enregistre.',
+            ]);
+
+        // 1 — la cloture et le transfert, eux, ont bien eu lieu.
+        $this->assertSame('completed', $transaction->fresh()->status);
+        $this->assertSame(80, $this->buyer->fresh()->points_balance);
+        $this->assertSame(20, $this->seller->fresh()->points_balance);
+
+        // 2 — aucune fausse confirmation : le message dit la verite.
+        $reponse->assertSessionHas('error', __('entraide.flash.echange_termine_avis_non_enregistre'));
+        $reponse->assertSessionMissing('success');
+
+        // 3 — l'echec est identifiable.
+        Log::shouldHaveReceived('error')
+            ->withArgs(function (string $message, array $contexte) use ($transaction) {
+                return $message === 'Evaluation could not be recorded after a successful closure'
+                    && $contexte['event'] === 'entraide_evaluation_not_recorded'
+                    && $contexte['transaction_id'] === $transaction->id;
+            });
+    }
+
+    /**
+     * VERIFICATION MASTER — et l'avis perdu reste redeposable, SANS que les
+     * points repartent une seconde fois.
+     *
+     * L'etat laisse par une ecriture ratee est exactement celui d'une
+     * entraide close sans avis : `evaluationEnAttente()` reste vrai, la carte
+     * d'evaluation revient, et `ReviewController` ne touche jamais au ledger.
+     */
+    public function test_a_lost_review_can_be_posted_again_without_a_second_transfer(): void
+    {
+        $this->buyer->update(['points_balance' => 100]);
+        $this->seller->update(['points_balance' => 0]);
+        $transaction = $this->acceptedTransaction(['points_proposed' => 20, 'points_agreed' => 20]);
+
+        $this->actingAs($this->buyer)->patch(route('transactions.complete', $transaction));
+        // L'etat d'apres-panne : close, sans avis, sans renoncement.
+        $transaction->update(['reviews_skipped_at' => null]);
+        $transaction->refresh();
+
+        $this->assertTrue($transaction->evaluationEnAttente(), 'L\'avis doit rester a deposer.');
+
+        // La carte d'evaluation est bien de retour pour l'aide.
+        Livewire::actingAs($this->buyer)
+            ->test(MessageThread::class, ['transaction' => $transaction])
+            ->assertSeeHtml('data-entraide-merci');
+
+        $this->actingAs($this->buyer)
+            ->post(route('reviews.store', $transaction), ['rating' => 5, 'comment' => 'Redepose.'])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('reviews', [
+            'transaction_id' => $transaction->id,
+            'reviewer_id' => $this->buyer->id,
+            'reviewed_id' => $this->seller->id,
+            'rating' => 5,
+        ]);
+
+        // AUCUN second transfert : les soldes et le ledger n'ont pas bouge.
+        $this->assertSame(80, $this->buyer->fresh()->points_balance);
+        $this->assertSame(20, $this->seller->fresh()->points_balance);
+        $this->assertSame(2, PointLedger::where('transaction_id', $transaction->id)->count());
+    }
+
+    public function test_the_confirmation_card_renders_only_for_the_aide(): void
+    {
+        $transaction = $this->acceptedTransaction();
+
+        Livewire::actingAs($this->buyer)
+            ->test(MessageThread::class, ['transaction' => $transaction])
+            ->assertSeeHtml('data-entraide-confirmer')
+            ->assertSeeHtml('data-entraide-partager-flux');
+
+        Livewire::actingAs($this->seller)
+            ->test(MessageThread::class, ['transaction' => $transaction])
+            ->assertDontSeeHtml('data-entraide-confirmer');
+    }
+
+    /** Le bouton de cloture n'est JAMAIS desactive : confirmer sans avis est un choix. */
+    public function test_the_confirmation_button_is_never_disabled(): void
+    {
+        $transaction = $this->acceptedTransaction();
+
+        $html = Livewire::actingAs($this->buyer)
+            ->test(MessageThread::class, ['transaction' => $transaction])
+            ->html();
+
+        $bouton = substr($html, strpos($html, 'data-entraide-confirmer-envoyer') - 400, 500);
+        $this->assertStringNotContainsString(':disabled', $bouton);
     }
 }

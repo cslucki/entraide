@@ -116,22 +116,11 @@
                 @if($_carteActions['principale'])
                     <form method="POST" action="{{ $_carteUrl($_carteActions['principale']) }}">
                         @csrf @method('PATCH')
-                        {{-- TASK-1757 §9.5 — l'opt-in du Flux se prend ICI.
-                             Arbitrage Cyril du 05/11 : plutot qu'un reglage a OFF
-                             enterre dans une page que personne n'ouvre — donc une
-                             fonctionnalite invisible —, la question se pose au moment
-                             ou l'on decide. Decochee, aucune ligne n'est ecrite : il
-                             n'y a rien a retenir, donc AUCUNE colonne nouvelle.
-                             Seul l'aidant voit ce bouton (`CarteEntraide::actions()`),
-                             et seul l'aidant est nomme sur la carte. --}}
-                        @if($_carteActions['principale']['marqueur'] === 'confirm')
-                            <label class="mb-2 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
-                                <input type="checkbox" name="partager_dans_le_flux" value="1"
-                                       data-entraide-partager-flux
-                                       class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600">
-                                <span>{{ __('entraide.flux.partager') }}</span>
-                            </label>
-                        @endif
+                        {{-- TASK-1806 — l'opt-in du Flux a quitte cet en-tete :
+                             il suit la CONFIRMATION, et la confirmation vit
+                             desormais dans la carte de bas de fil, avec
+                             l'evaluation. Une seule case, au seul endroit ou
+                             l'on cloture. --}}
                         <button data-entraide-action="{{ $_carteActions['principale']['marqueur'] }}"
                                 class="px-4 py-1.5 text-sm font-medium text-white rounded-lg transition
                                     {{ ($_carteActions['principale']['ton'] ?? '') === 'vert' ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700' }}">
@@ -293,6 +282,99 @@
         </x-slot:messages>
 
         <x-slot:after>
+            {{-- TASK-1806 (arbitrage du 11/11) — LA 3e ET DERNIERE ETAPE.
+
+                 « Apres l'entraide et les echanges dans le chat, D1 confirme
+                 avoir bien recu l'aide. Sur ce meme ecran, D1 peut laisser
+                 une note et un mot de remerciement a D2, ou ignorer
+                 l'evaluation. »
+
+                 D'ou sa place : EN BAS DU FIL, apres les messages — c'est la
+                 que le regard arrive quand la conversation est finie, et
+                 c'est le seul endroit du produit qui propose ce geste.
+                 `CarteEntraide::actions()` n'emet plus rien pour `accepted`
+                 precisement pour qu'il n'existe pas un second chemin, en
+                 haut, qui cloturerait sans jamais proposer de dire merci.
+
+                 Un seul bouton, et il n'est JAMAIS desactive : confirmer sans
+                 laisser d'avis est un choix legitime, pas un oubli a corriger.
+                 La note vaut `0` tant qu'aucune etoile n'est choisie, et le
+                 champ cache part alors vide — `nullable` cote serveur, aucune
+                 note inventee, `reviews_skipped_at` ecrit a la place. --}}
+            @if($transaction->confirmationEnAttente() && $transaction->estLAide(auth()->user()) && ! $transaction->isDirectConversation())
+            @php
+                $_confAidant = $transaction->seller;
+                $_confPrenom = $_confAidant?->first_name ?: ($_confAidant?->name ?: __('profile.deactivated_user'));
+                $_confPoints = $transaction->points_agreed ?? $transaction->points_proposed;
+                $_confOffert = \App\Support\Entraide\TempsPartage::estOffert($_confPoints);
+                $_confTemps = \App\Support\Entraide\TempsPartage::libelle($_confPoints);
+            @endphp
+            <div class="border-t-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-4"
+                 x-data="{ rating: 0, hovered: 0 }"
+                 data-entraide-confirmer>
+                <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                    🤝 {{ __('messages.confirmer_titre', ['prenom' => $_confPrenom]) }}
+                </p>
+                <p class="mt-1 mb-3 text-xs text-indigo-600/80 dark:text-indigo-300/80">
+                    {{ $_confOffert
+                        ? __('messages.confirmer_intro_offert', ['prenom' => $_confPrenom])
+                        : __('messages.confirmer_intro', ['prenom' => $_confPrenom, 'temps' => $_confTemps]) }}
+                </p>
+
+                <form method="POST" action="{{ $_threadRoute('transactions.complete', 'organization.transactions.complete', ['transaction' => $transaction]) }}">
+                    @csrf @method('PATCH')
+
+                    <p class="mb-1 text-xs font-medium text-indigo-700/90 dark:text-indigo-300/90">
+                        {{ __('messages.confirmer_note_label') }}
+                    </p>
+
+                    <textarea name="comment" rows="3" maxlength="1000"
+                        placeholder="{{ __('messages.review_placeholder') }}"
+                        data-entraide-confirmer-mot
+                        class="w-full px-3 py-2 border border-indigo-200 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500 mb-3 resize-none"></textarea>
+
+                    <div class="flex flex-wrap items-center gap-2 mb-3">
+                        <div class="flex gap-0.5" data-entraide-confirmer-note>
+                            @for($i = 1; $i <= 5; $i++)
+                            <button type="button"
+                                @click="rating = {{ $i }}"
+                                @mouseenter="hovered = {{ $i }}"
+                                @mouseleave="hovered = 0"
+                                aria-label="{{ $i }}/5"
+                                class="text-base transition-transform hover:scale-110 focus:outline-none">
+                                <span x-text="(hovered || rating) >= {{ $i }} ? '★' : '☆'"
+                                      :class="(hovered || rating) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
+                            </button>
+                            @endfor
+                        </div>
+                        {{-- Vide tant qu'aucune etoile n'est choisie : le
+                             serveur recoit `null`, jamais un zero qui serait
+                             refuse par la validation. --}}
+                        <input type="hidden" name="rating" :value="rating === 0 ? '' : rating">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('messages.confirmer_sans_note') }}</span>
+                    </div>
+
+                    {{-- TASK-1757 §9.5, arbitrage MASTER du 11/11 : la case
+                         suit la confirmation, donc elle est desormais cochee
+                         par l'AIDE. Voir le docbloc de
+                         `TransactionController::partagerDansLeFlux()`. --}}
+                    <label class="mb-3 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
+                        <input type="checkbox" name="partager_dans_le_flux" value="1"
+                               data-entraide-partager-flux
+                               class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600">
+                        <span>{{ __('entraide.flux.partager') }}</span>
+                    </label>
+
+                    <button type="submit"
+                        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg font-medium transition"
+                        data-entraide-action="mark_done"
+                        data-entraide-confirmer-envoyer>
+                        {{ __('messages.actions.mark_done') }}
+                    </button>
+                </form>
+            </div>
+            @endif
+
             {{-- TASK-1806 §3.D — le Bento de fin d'entraide.
 
                  Remplace l'ancien bloc « Dites merci » qui etait SYMETRIQUE :

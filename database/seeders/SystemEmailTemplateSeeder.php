@@ -47,7 +47,7 @@ class SystemEmailTemplateSeeder extends Seeder
             'subject_fr' => 'Bienvenue sur {{ organization }}, {{ name }} !',
             'subject_en' => 'Welcome to {{ organization }}, {{ name }}!',
             'content_html_fr' => '<h1>Bienvenue sur {{ organization }}, {{ name }} !</h1>
-<p>Votre compte a bien été créé. Vous avez reçu <strong>100 points de bienvenue</strong> pour démarrer vos premiers échanges.</p>
+<p>Votre compte a bien été créé. Vous avez reçu <strong>100 points de bienvenue</strong> pour démarrer vos premières entraides.</p>
 <p><a href="{{ url }}">Découvrir les services</a></p>',
             'content_html_en' => '<h1>Welcome to {{ organization }}, {{ name }}!</h1>
 <p>Your account has been created. You received <strong>100 welcome points</strong> to get started.</p>
@@ -61,7 +61,7 @@ class SystemEmailTemplateSeeder extends Seeder
             'subject_en' => 'New message from {{ sender_name }}',
             'content_html_fr' => '<h1>Nouveau message de {{ sender_name }}</h1>
 <p>Bonjour {{ name }},</p>
-<p><strong>{{ sender_name }}</strong> vous a envoyé un message à propos de l\'échange <strong>{{ transaction_title }}</strong>.</p>
+<p><strong>{{ sender_name }}</strong> vous a envoyé un message à propos de l\'entraide <strong>{{ transaction_title }}</strong>.</p>
 <blockquote>{{ message_preview }}</blockquote>
 <p><a href="{{ url }}">Voir la conversation</a></p>',
             'content_html_en' => '<h1>New message from {{ sender_name }}</h1>
@@ -106,18 +106,18 @@ class SystemEmailTemplateSeeder extends Seeder
         ],
 
         'transaction_status_changed' => [
-            'name_fr' => 'Mise à jour statut échange',
-            'name_en' => 'Exchange status update',
-            'subject_fr' => 'Mise à jour de votre échange — {{ status_label }}',
-            'subject_en' => 'Your exchange has been updated — {{ status_label }}',
-            'content_html_fr' => '<h1>Mise à jour de votre échange</h1>
+            'name_fr' => 'Mise à jour de votre entraide',
+            'name_en' => 'Mutual aid status update',
+            'subject_fr' => 'Mise à jour de votre entraide — {{ status_label }}',
+            'subject_en' => 'Your mutual aid has been updated — {{ status_label }}',
+            'content_html_fr' => '<h1>Mise à jour de votre entraide</h1>
 <p>Bonjour {{ name }},</p>
-<p>Le statut de votre échange <strong>{{ title }}</strong> a changé : <strong>{{ status_label }}</strong>.</p>
+<p>Le statut de votre entraide <strong>{{ title }}</strong> a changé : <strong>{{ status_label }}</strong>.</p>
 <p>Points : {{ points }} pts</p>
 <p><a href="{{ url }}">Voir la conversation</a></p>',
-            'content_html_en' => '<h1>Your exchange has been updated</h1>
+            'content_html_en' => '<h1>Your mutual aid has been updated</h1>
 <p>Hello {{ name }},</p>
-<p>The status of your exchange <strong>{{ title }}</strong> changed to: <strong>{{ status_label }}</strong>.</p>
+<p>The status of your mutual aid <strong>{{ title }}</strong> changed to: <strong>{{ status_label }}</strong>.</p>
 <p>Points: {{ points }} pts</p>
 <p><a href="{{ url }}">View conversation</a></p>',
             'variables' => ['name', 'title', 'status_label', 'points', 'url'],
@@ -256,12 +256,12 @@ class SystemEmailTemplateSeeder extends Seeder
          * catalogue et hors preferences.
          */
         'transaction_proposal_created' => [
-            'name_fr' => 'Proposition reçue sur votre annonce',
-            'name_en' => 'Proposal received on your listing',
-            'subject_fr' => 'Quelqu’un répond à votre annonce « {{ subject_title }} »',
-            'subject_en' => 'Someone replied to your listing “{{ subject_title }}”',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ sender_name }} vient de répondre à votre annonce <strong>{{ subject_title }}</strong> au sein de {{ organization_name }}, pour {{ points_proposed }} points.</p><p>Vous pouvez accepter ou refuser cette proposition depuis la conversation.</p><p><a href="{{ exchange_url }}">Voir la proposition</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ exchange_url }}</p><p>À bientôt,<br>{{ app_name }}</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ sender_name }} has just replied to your listing <strong>{{ subject_title }}</strong> in {{ organization_name }}, for {{ points_proposed }} points.</p><p>You can accept or decline this proposal from the conversation.</p><p><a href="{{ exchange_url }}">View the proposal</a></p><p>If the link does not work, copy this address into your browser:<br>{{ exchange_url }}</p><p>See you soon,<br>{{ app_name }}</p>',
+            'name_fr' => 'Réponse à votre demande ou proposition d’aide',
+            'name_en' => 'Reply to your help request or offer',
+            'subject_fr' => 'Quelqu’un répond à « {{ subject_title }} »',
+            'subject_en' => 'Someone replied to “{{ subject_title }}”',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ sender_name }} vient de répondre à <strong>{{ subject_title }}</strong> au sein de {{ organization_name }}, pour {{ points_proposed }} points.</p><p>Vous pouvez accepter ou refuser cette proposition depuis la conversation.</p><p><a href="{{ exchange_url }}">Voir la proposition</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ exchange_url }}</p><p>À bientôt,<br>{{ app_name }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ sender_name }} has just replied to <strong>{{ subject_title }}</strong> in {{ organization_name }}, for {{ points_proposed }} points.</p><p>You can accept or decline this proposal from the conversation.</p><p><a href="{{ exchange_url }}">View the proposal</a></p><p>If the link does not work, copy this address into your browser:<br>{{ exchange_url }}</p><p>See you soon,<br>{{ app_name }}</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
                 'subject_title', 'points_proposed', 'exchange_url', 'app_name',
@@ -306,12 +306,12 @@ class SystemEmailTemplateSeeder extends Seeder
         // Le SUJET ne nomme personne : il se lit dans un apercu de boite mail,
         // sans deverrouiller. C'est le texte du CDC §8.
         'entraide_comment_created' => [
-            'name_fr' => 'Commentaire sur votre annonce d\'entraide',
-            'name_en' => 'Comment on your mutual aid listing',
+            'name_fr' => 'Commentaire sur votre entraide',
+            'name_en' => 'Comment on your mutual aid',
             'subject_fr' => 'Un membre a commenté votre {{ listing_type }}',
             'subject_en' => 'A member commented on your {{ listing_type }}',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a laissé un commentaire sur votre {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Voir le commentaire</a></p><p>Un commentaire n’engage rien : ni échange, ni acceptation d’aide, ni temps promis. Vous répondrez si vous le souhaitez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> left a comment on your {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">View the comment</a></p><p>A comment commits to nothing: no exchange, no accepted help, no promised time. You may reply if you wish.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a laissé un commentaire sur votre {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Voir le commentaire</a></p><p>Un commentaire n’engage rien : ni entraide engagée, ni acceptation d’aide, ni temps promis. Vous répondrez si vous le souhaitez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> left a comment on your {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">View the comment</a></p><p>A comment commits to nothing: no mutual aid started, no accepted help, no promised time. You may reply if you wish.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
             // Obligatoire : `ligne()` lit `$def['variables']` SANS repli
             // (`SystemEmailTemplateSeeder:450`). L'omettre ne casse pas le
             // seeder tout seul — il casse TOUT ce qui l'invoque, soit 209 tests

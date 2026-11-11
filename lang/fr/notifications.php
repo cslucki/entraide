@@ -47,19 +47,19 @@ return [
      */
     'intentions' => [
         'sollicitation_directe' => [
-            'title' => "Quand on me sollicite",
-            'hint' => "Ce qui vous est adressé personnellement et attend une réponse de votre part.",
+            'title' => 'Quand on me sollicite',
+            'hint' => 'Ce qui vous est adressé personnellement et attend une réponse de votre part.',
         ],
         'changements' => [
-            'title' => "Invitations et changements",
-            'hint' => "Ce qui vous concerne sans rien exiger : on vous tient au courant.",
+            'title' => 'Invitations et changements',
+            'hint' => 'Ce qui vous concerne sans rien exiger : on vous tient au courant.',
         ],
         'sollicitation_pertinente' => [
-            'title' => "Sollicitations pertinentes",
+            'title' => 'Sollicitations pertinentes',
             // TASK-1747 — elargi : la section n'est plus seulement celle du
             // matching a venir, elle porte des maintenant les demandes
             // publiees dans les Boucles dont on est membre.
-            'hint' => "Les demandes auxquelles vous pourriez répondre : celles de vos Boucles, et celles qui correspondent à ce que vous savez faire.",
+            'hint' => 'Les demandes auxquelles vous pourriez répondre : celles de vos Boucles, et celles qui correspondent à ce que vous savez faire.',
         ],
     ],
     'preferences_mandatory_hint' => 'Cette notification vous est adressée personnellement et appelle une réponse : elle ne peut pas être désactivée.',
@@ -71,7 +71,7 @@ return [
         'title' => 'Mes Boucles',
         'hint' => "Les demandes d'aide publiées dans vos Boucles se règlent Boucle par Boucle.",
         'master_label' => 'Recevoir les notifications',
-        'empty_message' => "Vous n'avez pas encore rejoint de Boucle. Rejoignez-en une pour participer aux échanges et recevoir les demandes d'aide.",
+        'empty_message' => "Vous n'avez pas encore rejoint de Boucle. Rejoignez-en une pour participer aux entraides et recevoir les demandes d'aide.",
         'join_cta' => 'Rejoindre une boucle',
     ],
     'preferences_link' => 'Réglages',
@@ -146,7 +146,7 @@ return [
 
         // TASK-1751 — ni le nom de la personne, ni le titre de l'annonce :
         // ce texte s'affiche sur un écran VERROUILLÉ (CDC §6.4/6.5).
-        'transaction_proposal_created' => 'On répond à votre annonce',
+        'transaction_proposal_created' => 'On répond à votre demande d’aide',
         'loop_member_added' => 'Vous avez rejoint une Boucle',
         'loop_join_request_accepted' => 'Votre demande a été acceptée',
 
@@ -158,7 +158,7 @@ return [
 
         // TASK-1786 — le titre exact du CDC §9, qui ne nomme ni la personne ni
         // l'annonce : il est donc compatible avec l'ecran verrouille.
-        'entraide_comment_created' => 'Nouvelle suggestion sur votre annonce',
+        'entraide_comment_created' => 'Nouvelle suggestion sur votre entraide',
 
         // TASK-1747 — le canal est ETEINT par defaut, mais le libelle doit
         // exister : la garde de coherence l'exige des qu'un canal est
@@ -194,7 +194,7 @@ return [
         // TASK-1751 — le libellé ne dit pas « service » ou « demande » :
         // une seule clé sert les deux sens de l'échange, et le fait vu du
         // destinataire est le même — on répond à SON annonce.
-        'transaction_proposal_created' => 'Quelqu’un répond à votre annonce',
+        'transaction_proposal_created' => 'Quelqu’un répond à votre demande ou proposition d’aide',
 
         // TASK-1381 — deux libellés, parce que ce sont deux faits. Le membre
         // doit savoir ce qui lui est arrivé sans avoir à ouvrir quoi que ce soit.
@@ -241,7 +241,7 @@ return [
         // TASK-1757 — nommee UNIQUEMENT ici : la liste en-appli est derriere
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).
-        'transaction_proposal_created' => ':prenom répond à votre annonce « :titre » — :temps',
+        'transaction_proposal_created' => ':prenom répond à « :titre » — :temps',
         // TASK-1786 — nommee UNIQUEMENT ici, meme doctrine que ses voisines : le
         // Centre est derriere l'authentification. C'est le texte du CDC §7, et
         // `:type` porte « proposition d'entraide » ou « demande d'aide », resolu
@@ -310,8 +310,8 @@ return [
         // ne sert que s'il manque. Sujet GENERIQUE : un apercu de boite mail se
         // lit sans deverrouiller, meme doctrine que `push_title`.
         'entraide_comment_created' => [
-            'subject' => 'Un membre a commenté votre annonce d’entraide',
-            'body' => '<p>Bonjour,</p><p>Un membre a laissé un commentaire sur votre annonce d’entraide.</p><p><a href=":url">Voir le commentaire</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>Un commentaire n’engage rien : ni transaction, ni acceptation d’aide, ni temps promis.</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
+            'subject' => 'Un membre a commenté votre entraide',
+            'body' => '<p>Bonjour,</p><p>Un membre a laissé un commentaire sur votre entraide.</p><p><a href=":url">Voir le commentaire</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>Un commentaire n’engage rien : ni entraide engagée, ni acceptation d’aide, ni temps promis.</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
         ],
 
         'blog_comment_created' => [
@@ -349,10 +349,10 @@ return [
         // le gabarit est absent ou désactivé. La suite de cohérence
         // l'exige dès que le canal `email` est déclaré.
         'transaction_proposal_created' => [
-            'subject' => 'Quelqu’un répond à votre annonce',
+            'subject' => 'Quelqu’un répond à votre demande ou proposition d’aide',
             'body' => '<p>Bonjour,</p>'
-                .'<p>Quelqu’un vient de répondre à une annonce que vous avez publiée sur BouclePro.</p>'
-                .'<p><a href=":url">Voir l’échange</a></p>'
+                .'<p>Quelqu’un vient de répondre à une demande ou une proposition d’aide que vous avez publiée sur BouclePro.</p>'
+                .'<p><a href=":url">Voir l’entraide</a></p>'
                 .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
                 .'<p>À bientôt,<br>L’équipe BouclePro</p>',
         ],

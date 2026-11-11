@@ -2,20 +2,30 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Review;
 use App\Models\Transaction;
+use App\Support\Entraide\EvaluationEntraide;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class ReviewController extends Controller
 {
     /**
-     * TASK-1806 — un seul destinataire possible : l'aidant (`seller_id`).
+     * TASK-1806 — l'evaluation d'une entraide DEJA terminee.
      *
-     * `ReviewPolicy::create()` garantit deja que seule l'aide (`buyer_id`)
-     * atteint cette methode ; `reviewed_id` n'a donc plus besoin d'etre
-     * calcule comme « l'autre participant » — il est fixe sur l'aidant, dans
-     * les deux sens du parcours (demande comme proposition).
+     * Depuis l'arbitrage du 11/11 (parcours a trois etapes), le chemin normal
+     * d'une evaluation est la CONFIRMATION elle-meme
+     * (`TransactionController::complete()`) : l'aide confirme et evalue dans
+     * le meme geste, et il n'y a pas d'etape « evaluation » separee.
+     *
+     * Ce controleur sert les entraides closes AVANT cet arbitrage — `completed`
+     * sans avis ni renoncement (7 lignes mesurees sur le jumeau le 11/11) —
+     * que MASTER a voulu garder evaluables. Sans lui, elles ne pourraient plus
+     * jamais l'etre et le rattrapage prevu en T1807 n'aurait plus de porte.
+     *
+     * Un seul evaluateur (l'aide), un seul evalue (l'aidant) : la regle est
+     * portee par `ReviewPolicy::create()` et par `EvaluationEntraide`, partagee
+     * avec le chemin de confirmation — une seule ecriture d'avis dans tout le
+     * depot.
      */
     public function store(Request $request, Transaction $transaction): RedirectResponse
     {
@@ -26,33 +36,24 @@ class ReviewController extends Controller
             'comment' => 'nullable|string|max:1000',
         ]);
 
-        Review::create([
-            'transaction_id' => $transaction->id,
-            'organization_id' => $transaction->organization_id,
-            'reviewer_id' => $transaction->buyer_id,
-            'reviewed_id' => $transaction->seller_id,
-            'rating' => $data['rating'],
-            'comment' => $data['comment'] ?? null,
-        ]);
-
-        $transaction->seller->recalculateRating();
+        EvaluationEntraide::enregistrer($transaction, (int) $data['rating'], $data['comment'] ?? null);
 
         return redirect()->route('messages.show', $transaction)
             ->with('success', __('messages.review_sent'));
     }
 
     /**
-     * TASK-1806 §3.A — « possibilite de ne pas laisser d'avis ».
-     *
-     * `reviews_skipped_at` distingue « pas encore evalue » de « a choisi de
-     * ne pas evaluer » (§3.B) — aucune ligne `Review` n'est creee, le rating
-     * NOT NULL n'est jamais contourne par une valeur inventee.
+     * « Possibilite de ne pas laisser d'avis », pour ces memes entraides
+     * closes avant l'arbitrage. `reviews_skipped_at` distingue « pas encore
+     * evalue » de « a choisi de ne pas evaluer » — aucune ligne `Review`
+     * n'est creee, le `rating` NOT NULL n'est jamais contourne par une valeur
+     * inventee.
      */
     public function skip(Request $request, Transaction $transaction): RedirectResponse
     {
         $this->authorize('create-review', $transaction);
 
-        $transaction->update(['reviews_skipped_at' => now()]);
+        EvaluationEntraide::enregistrer($transaction, null);
 
         return redirect()->route('messages.show', $transaction);
     }
