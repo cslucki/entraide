@@ -130,6 +130,71 @@ class TASK1803EmailBulkSendingTest extends TestCase
     }
 
     // =========================================================================
+    // L'apercu interpole les variables du destinataire courant, et navigue
+    // entre les destinataires reels (correctif demande par Cyril apres
+    // recette : l'ecran affichait `{{ first_name }}` au mot pres).
+    // =========================================================================
+
+    public function test_preview_interpolates_variables_for_the_first_recipient(): void
+    {
+        $org = Organization::factory()->create(['name' => 'OFSH']);
+        $this->member($org, ['first_name' => 'Stephanie']);
+
+        $html = $this->actingAs($this->superAdmin)
+            ->post(route('admin.email-bulksending.preview'), $this->payload([
+                'organization_id' => $org->id,
+                'content_raw' => 'Bonjour {{ first_name }}, ton organisation : {{ organization }}.',
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        // Pas d'assertion "ne contient pas {{ first_name }}" : le formulaire
+        // repasse le `content_raw` BRUT en input cache pour `store()` (il
+        // doit survivre tel quel a chaque destinataire du lot), seul le
+        // bloc d'APERCU doit montrer la valeur interpolee.
+        $this->assertStringContainsString('Bonjour Stephanie, ton organisation : OFSH.', $html);
+    }
+
+    public function test_preview_next_and_previous_navigate_between_real_recipients(): void
+    {
+        $org = Organization::factory()->create();
+        // `resolveRecipients()` trie par `id` (UUID ordonnes) : l'ordre de
+        // creation EST l'ordre de l'apercu, comme ailleurs dans ce fichier.
+        $this->member($org, ['first_name' => 'Alice']);
+        $this->member($org, ['first_name' => 'Bruno']);
+
+        $payload = $this->payload([
+            'organization_id' => $org->id,
+            'content_raw' => 'Bonjour {{ first_name }}.',
+        ]);
+
+        $first = $this->actingAs($this->superAdmin)
+            ->post(route('admin.email-bulksending.preview'), $payload)
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Bonjour Alice.', $first);
+        $this->assertStringNotContainsString('Bonjour Bruno.', $first);
+
+        $second = $this->actingAs($this->superAdmin)
+            ->post(route('admin.email-bulksending.preview'), array_merge($payload, ['preview_index' => 1]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Bonjour Bruno.', $second);
+        $this->assertStringNotContainsString('Bonjour Alice.', $second);
+
+        // Un index perime (le filtre ne cible plus que 2 personnes) retombe
+        // sur le DERNIER destinataire plutot que de planter.
+        $outOfRange = $this->actingAs($this->superAdmin)
+            ->post(route('admin.email-bulksending.preview'), array_merge($payload, ['preview_index' => 999]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Bonjour Bruno.', $outOfRange);
+    }
+
+    // =========================================================================
     // store() fige les destinataires, sendBatch() plafonne a 50
     // =========================================================================
 

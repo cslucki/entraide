@@ -24,11 +24,45 @@
                 <div class="p-6">
                     <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">{{ __('admin.common_subject') }}</h3>
                     <p class="text-sm text-gray-900 dark:text-gray-100 mb-4">
-                        {{ $template?->subject ?? $validated['subject'] }}
+                        {{ $preview['subject'] ?? ($template?->subject ?? $validated['subject']) }}
                     </p>
+                    @if($previewUser)
+                        <div class="flex items-center justify-between gap-4 mb-2">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                {{ __('admin.bulk_email_preview_for', ['name' => $previewUser->fullName]) }}
+                            </p>
+                            <div class="flex items-center gap-2 text-xs shrink-0">
+                                <form method="POST" action="{{ route('admin.email-bulksending.preview') }}">
+                                    @csrf
+                                    @include('admin.email-bulksending.partials.hidden-fields')
+                                    <input type="hidden" name="preview_index" value="{{ max($previewIndex - 1, 0) }}">
+                                    <button type="submit" @disabled($previewIndex === 0)
+                                            class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700">
+                                        ← {{ __('admin.bulk_email_preview_prev') }}
+                                    </button>
+                                </form>
+                                <span class="text-gray-400 dark:text-gray-500 tabular-nums">{{ $previewIndex + 1 }} / {{ $count }}</span>
+                                <form method="POST" action="{{ route('admin.email-bulksending.preview') }}">
+                                    @csrf
+                                    @include('admin.email-bulksending.partials.hidden-fields')
+                                    <input type="hidden" name="preview_index" value="{{ min($previewIndex + 1, $count - 1) }}">
+                                    <button type="submit" @disabled($previewIndex >= $count - 1)
+                                            class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700">
+                                        {{ __('admin.bulk_email_preview_next') }} →
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    @endif
                     <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">{{ __('admin.common_content') }}</h3>
                     <div class="bg-gray-50 dark:bg-gray-900 rounded-md p-4 max-h-96 overflow-auto border border-gray-200 dark:border-gray-700 text-sm">
-                        @if($template)
+                        @if($preview)
+                            @if($preview['isHtml'])
+                                {!! $preview['body'] !!}
+                            @else
+                                <pre class="whitespace-pre-wrap font-sans">{{ $preview['body'] }}</pre>
+                            @endif
+                        @elseif($template)
                             {!! $template->content_html !!}
                         @elseif($validated['content_format'] === \App\Models\BulkEmailSend::CONTENT_FORMAT_HTML)
                             {!! markdown($validated['content_raw']) !!}
@@ -44,16 +78,7 @@
                  complet comme si ce recapitulatif n'avait jamais existe. --}}
             <form method="POST" action="{{ route('admin.email-bulksending.store') }}">
                 @csrf
-                <input type="hidden" name="organization_id" value="{{ $validated['organization_id'] }}">
-                <input type="hidden" name="member_filter" value="{{ $validated['member_filter'] }}">
-                <input type="hidden" name="content_source" value="{{ $validated['content_source'] }}">
-                @if($validated['content_source'] === \App\Models\BulkEmailSend::CONTENT_SOURCE_TEMPLATE)
-                    <input type="hidden" name="email_template_id" value="{{ $validated['email_template_id'] }}">
-                @else
-                    <input type="hidden" name="subject" value="{{ $validated['subject'] }}">
-                    <input type="hidden" name="content_format" value="{{ $validated['content_format'] }}">
-                    <input type="hidden" name="content_raw" value="{{ $validated['content_raw'] }}">
-                @endif
+                @include('admin.email-bulksending.partials.hidden-fields')
 
                 <div class="flex items-center justify-between">
                     <a href="{{ route('admin.email-bulksending') }}" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">

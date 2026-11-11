@@ -57,12 +57,31 @@ class AdminEmailBulkSendingController extends Controller
             ? EmailTemplate::find($validated['email_template_id'])
             : null;
 
+        // TASK-1803 correctif — sans ca, le recapitulatif affichait
+        // `{{ first_name }}` au mot pres : un destinataire REEL sert
+        // d'exemple, avec SES vraies valeurs (chaque autre recoit les
+        // siennes a l'envoi). `previewIndex` vient d'un bouton "suivant"/
+        // "precedent" (re-POST du meme ecran), pas d'un champ valide par
+        // `validatePayload()` — il ne fait pas partie du contrat soumis a
+        // `store()`, juste de la navigation dans l'apercu. Fige entre 0 et
+        // `count - 1` : un index perime (le filtre a change entre deux
+        // clics) retombe sur le premier destinataire plutot que planter.
+        $previewIndex = $count > 0 ? max(0, min($request->integer('preview_index'), $count - 1)) : 0;
+        $previewUser = $this->service->resolveRecipients($organizationId, $validated['member_filter'])
+            ->with('organization')
+            ->skip($previewIndex)
+            ->first();
+        $preview = $previewUser ? $this->service->previewFor($validated, $template, $previewUser) : null;
+
         return view('admin.email-bulksending.confirm', [
             'organizationId' => $organizationId,
             'organization' => $organizationId ? Organization::find($organizationId) : null,
             'count' => $count,
             'validated' => $validated,
             'template' => $template,
+            'previewUser' => $previewUser,
+            'preview' => $preview,
+            'previewIndex' => $previewIndex,
         ]);
     }
 

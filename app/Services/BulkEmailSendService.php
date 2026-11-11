@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\BulkEmailSend;
 use App\Models\BulkEmailSendRecipient;
 use App\Models\EmailLog;
+use App\Models\EmailTemplate;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -174,31 +175,71 @@ class BulkEmailSendService
         return ['sent' => $sent, 'failed' => $failed, 'remaining' => $remaining];
     }
 
-    private function sendOne(User $user, BulkEmailSend $send, ?User $sender): EmailLog
+    /**
+     * Un apercu de ce qu'UN destinataire donne recevrait reellement — meme
+     * rendu que `sendOne()`, jamais re-derive : l'ecran de confirmation
+     * affichait `{{ first_name }}` au mot pres (TASK-1803 correctif), ce
+     * qu'aucun test Feature (qui ne regarde jamais le HTML du recapitulatif
+     * au pixel pres) ne pouvait voir. Les variables sont REELLES pour ce
+     * destinataire precis ; chaque autre destinataire recevra les siennes.
+     *
+     * @param  array<string, mixed>  $data  champs deja valides par le contrôleur
+     * @return array{subject: string, body: string, isHtml: bool}
+     */
+    public function previewFor(array $data, ?EmailTemplate $template, User $sampleUser): array
     {
-        $variables = $this->emailer->availableVariables($user);
+        return $this->renderContent(
+            $data['content_source'],
+            $template,
+            $data['subject'] ?? null,
+            $data['content_format'] ?? null,
+            $data['content_raw'] ?? null,
+            $this->emailer->availableVariables($sampleUser),
+        );
+    }
 
-        if ($send->content_source === BulkEmailSend::CONTENT_SOURCE_TEMPLATE) {
-            $template = $send->template;
+    /**
+     * @param  array<string, mixed>  $variables
+     * @return array{subject: string, body: string, isHtml: bool}
+     */
+    private function renderContent(string $contentSource, ?EmailTemplate $template, ?string $subjectRaw, ?string $contentFormat, ?string $contentRaw, array $variables): array
+    {
+        if ($contentSource === BulkEmailSend::CONTENT_SOURCE_TEMPLATE) {
             $subject = $this->emailer->interpolateSubject($template->subject, $variables);
             $body = $this->emailer->interpolate($template->content_html, $variables);
             $isHtml = true;
-        } elseif ($send->content_format === BulkEmailSend::CONTENT_FORMAT_HTML) {
-            $subject = $this->emailer->interpolateSubject((string) $send->subject, $variables);
+        } elseif ($contentFormat === BulkEmailSend::CONTENT_FORMAT_HTML) {
+            $subject = $this->emailer->interpolateSubject((string) $subjectRaw, $variables);
             // TASK-1803 — meme conversion que l'affichage de la bio
             // (`resources/views/profile/show.blade.php`), jamais une nouvelle :
             // le composant TipTap reutilise sans modification serialise en
             // Markdown, converti en HTML seulement au moment d'envoyer.
             $body = markdown(
-                $this->emailer->interpolateRaw((string) $send->content_raw, $variables),
+                $this->emailer->interpolateRaw((string) $contentRaw, $variables),
                 ['renderer' => ['soft_break' => "<br />\n"]],
             );
             $isHtml = true;
         } else {
-            $subject = $this->emailer->interpolateSubject((string) $send->subject, $variables);
-            $body = $this->emailer->interpolateRaw((string) $send->content_raw, $variables);
+            $subject = $this->emailer->interpolateSubject((string) $subjectRaw, $variables);
+            $body = $this->emailer->interpolateRaw((string) $contentRaw, $variables);
             $isHtml = false;
         }
+
+        return ['subject' => $subject, 'body' => $body, 'isHtml' => $isHtml];
+    }
+
+    private function sendOne(User $user, BulkEmailSend $send, ?User $sender): EmailLog
+    {
+        $variables = $this->emailer->availableVariables($user);
+
+        ['subject' => $subject, 'body' => $body, 'isHtml' => $isHtml] = $this->renderContent(
+            $send->content_source,
+            $send->content_source === BulkEmailSend::CONTENT_SOURCE_TEMPLATE ? $send->template : null,
+            $send->subject,
+            $send->content_format,
+            $send->content_raw,
+            $variables,
+        );
 
         try {
             if ($isHtml) {
