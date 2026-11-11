@@ -65,6 +65,17 @@ return [
     */
     'manifest_path' => '/site.webmanifest',
 
+    /*
+    | TASK-1805 — l'override explicite du nom PWA, pour un environnement de
+    | preproduction qui voudrait un troisieme nom sans toucher au code. Le
+    | CALCUL (local -> BoucleDev, le reste -> BouclePro) vit dans
+    | `App\Support\Pwa\PwaAppName`, jamais ici : ce fichier n'est traverse
+    | qu'une fois, et y appeler `app()->environment()` figerait la decision
+    | au mauvais moment pour les tests qui veulent l'exercer avec plusieurs
+    | environnements.
+    */
+    'app_name_override' => env('PWA_APP_NAME'),
+
     'install' => [
 
         /*
