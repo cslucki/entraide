@@ -42,7 +42,14 @@ return [
         // TASK-1757 §9.5 — dit ce qui sera publie ET ce qui ne le sera pas.
         // Une case « Partager dans le Flux » sans cette precision laisserait
         // croire que le nom du beneficiaire y passe aussi.
-        'partager' => 'Partager cette entraide dans le Flux (votre prénom et le temps donné ; le nom de la personne aidée n’apparaît pas)',
+        // TASK-1808 (observation de Cyril, 11/11) — ce libelle parlait au nom
+        // de l'AIDANT (« votre prenom et le temps donne »), alors que celui
+        // qui coche la case est desormais l'AIDE. Et il annoncait l'inverse de
+        // ce que la carte rend : `partagerDansLeFlux()` emet l'evenement avec
+        // pour acteur `$echange->seller`, et `feed.events.help_completed` dit
+        // « :name a donne :temps ». C'est donc le prenom de l'AIDANT qui
+        // s'affiche, et celui de l'aide qui n'apparait jamais.
+        'partager' => 'Partager cette entraide dans le Flux (le prénom de la personne qui vous a aidé et le temps partagé ; votre nom n’apparaît pas)',
     ],
 
     'atelier' => [

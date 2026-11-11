@@ -107,6 +107,10 @@ return [
     'sens' => [
         'vous_aidez' => 'Vous aidez :prenom · :temps',
         'on_vous_demande' => ':prenom vous demande de l’aide · :temps',
+        // TASK-1808 — les deux cas de l'AIDE, qui manquaient : il heritait de
+        // la phrase de l'aidant et lisait l'inverse de la verite.
+        'vous_demandez' => 'Vous demandez de l’aide à :prenom · :temps',
+        'on_vous_aide' => ':prenom vous aide · :temps',
         'terminee' => 'Entraide terminée · :temps partagées',
     ],
     // TASK-1806 (arbitrage du 11/11) — TROIS etapes visibles, pas cinq.

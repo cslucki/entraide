@@ -769,8 +769,12 @@ class TransactionController extends Controller
         rescue(fn () => app(FeedEventEmitter::class)->emettre(
             FeedEventCatalogue::ENTRAIDE_TERMINEE,
             $echange,
-            // L'acteur est l'AIDANT, celui qui vient de confirmer — et celui
-            // que la carte nomme.
+            // L'acteur est l'AIDANT — et celui que la carte nomme.
+            //
+            // TASK-1808 : ce commentaire disait « celui qui vient de
+            // confirmer ». C'est FAUX depuis T1806 : celui qui confirme est
+            // l'aide. Le choix d'acteur, lui, ne change pas — le Flux celebre
+            // celui qui a aide, et le nom de l'aide n'y apparait jamais.
             $echange->seller,
             $echange->organization_id,
         ), report: true);

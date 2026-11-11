@@ -83,6 +83,10 @@ return [
     'sens' => [
         'vous_aidez' => 'You are helping :prenom · :temps',
         'on_vous_demande' => ':prenom is asking for your help · :temps',
+        // TASK-1808 — the two cases of the HELPED person, which were missing:
+        // they inherited the helper's sentence and read the exact opposite.
+        'vous_demandez' => 'You are asking :prenom for help · :temps',
+        'on_vous_aide' => ':prenom is helping you · :temps',
         'terminee' => 'Mutual aid completed · :temps shared',
     ],
     // TASK-1806 (product arbitration, 11/11) — THREE visible steps, not five.
