@@ -19,22 +19,55 @@
             $_servicesCreateHref = $_orgSlug ? route('organization.services.create', ['organization' => $_orgSlug]) : route('services.create');
             $_requestsCreateHref = $_orgSlug ? route('organization.requests.create', ['organization' => $_orgSlug]) : route('requests.create');
         @endphp
+        {{-- TASK-1812 correctif 01 — sur smartphone, ce bouton fait doublon
+             avec le FAB (`components/mobile-fab.blade.php`), qui propose deja
+             « Demander/Proposer de l'aide ». Le FAB est `md:hidden` : ce
+             bouton prend le relais a partir de `md`, jamais avant, pour ne
+             jamais laisser l'ecran sans aucun moyen de creer. --}}
         @auth
         <div class="pb-1">
             @if($tab === 'services')
-            <a href="{{ $_servicesCreateHref }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
-                <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                <span class="hidden sm:inline">{{ __('explorer.offer_service') }}</span>
+            <a href="{{ $_servicesCreateHref }}" class="hidden md:inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>{{ __('explorer.offer_service') }}</span>
             </a>
             @else
-            <a href="{{ $_requestsCreateHref }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
-                <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                <span class="hidden sm:inline">{{ __('explorer.create_request', ['request' => __('explorer.request')]) }}</span>
+            <a href="{{ $_requestsCreateHref }}" class="hidden md:inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>{{ __('explorer.create_request', ['request' => __('explorer.request')]) }}</span>
             </a>
             @endif
         </div>
         @endauth
     </div>
+
+    {{-- TASK-1812 correctif 01 — raccourcis vers les listes personnelles de
+         l'utilisateur. Les trois pages existent deja (`dashboard.requests`,
+         `dashboard.services`, `favorites.index`) : on y ajoute seulement un
+         acces direct depuis l'Entraide. Scrollable horizontalement sur
+         smartphone (meme recette que la rangee de categories plus bas),
+         `md:overflow-visible` au-dela puisque la largeur suffit alors. --}}
+    @auth
+    @php
+        $_myRequestsHref = $_orgSlug ? route('organization.dashboard.requests', ['organization' => $_orgSlug]) : route('dashboard.requests');
+        $_myServicesHref = $_orgSlug ? route('organization.dashboard.services', ['organization' => $_orgSlug]) : route('dashboard.services');
+        $_myFavoritesHref = $_orgSlug ? route('organization.favorites.index', ['organization' => $_orgSlug]) : route('favorites.index');
+    @endphp
+    <div class="flex gap-2 overflow-x-auto md:overflow-visible pb-2 md:pb-0 mb-4 -mx-2 md:mx-0 px-2 md:px-0 no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
+        <a href="{{ $_myRequestsHref }}" class="shrink-0 inline-flex items-center gap-2 px-4 py-2 h-10 rounded-full text-sm font-medium border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition whitespace-nowrap active:scale-95">
+            <svg class="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            {{ __('dashboard.my_requests') }}
+        </a>
+        <a href="{{ $_myServicesHref }}" class="shrink-0 inline-flex items-center gap-2 px-4 py-2 h-10 rounded-full text-sm font-medium border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition whitespace-nowrap active:scale-95">
+            <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            {{ __('dashboard.my_services') }}
+        </a>
+        <a href="{{ $_myFavoritesHref }}" class="shrink-0 inline-flex items-center gap-2 px-4 py-2 h-10 rounded-full text-sm font-medium border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition whitespace-nowrap active:scale-95">
+            <svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+            {{ __('dashboard.my_favorites') }}
+        </a>
+    </div>
+    @endauth
 
     <!-- Filtres -->
     <div class="mb-6 space-y-3">
