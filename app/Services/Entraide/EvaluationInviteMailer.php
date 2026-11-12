@@ -99,6 +99,12 @@ final class EvaluationInviteMailer
 
             $aidantNom = $aidant->publicDisplayName();
 
+            // Demande Cyril (12/11) — le gabarit nomme l'aidant par son
+            // PRENOM dans la phrase d'invitation, pas par un pronom : meme
+            // garde de confidentialite que `publicDisplayName()` (un compte
+            // desactive ne revele jamais son prenom reel).
+            $aidantPrenom = $aidant->isDeactivated() ? __('profile.deactivated_user') : $aidant->first_name;
+
             $rendu = app(GabaritEmail::class)->rendre(
                 slug: self::SLUG,
                 organizationId: (string) $transaction->organization_id,
@@ -108,6 +114,7 @@ final class EvaluationInviteMailer
                     'recipient_name' => $aide->publicDisplayName(),
                     'recipient_email' => $aide->email,
                     'aidant_name' => $aidantNom,
+                    'aidant_first_name' => $aidantPrenom,
                     'organization_name' => $organization?->name ?? '',
                     'evaluation_url' => $url,
                     'app_name' => config('app.name'),

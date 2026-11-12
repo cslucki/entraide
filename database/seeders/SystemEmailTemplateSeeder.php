@@ -329,10 +329,14 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Invitation to rate the helper',
             'subject_fr' => 'Un petit retour sur l’aide de {{ aidant_name }} ?',
             'subject_en' => 'A quick word on {{ aidant_name }}’s help?',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Votre entraide avec <strong>{{ aidant_name }}</strong> est terminée.</p><p>Vous pouvez lui laisser une évaluation pour reconnaître sa contribution et aider les autres membres de {{ organization_name }}.</p><p>Quelques étoiles suffisent. Un commentaire est facultatif.</p><p><a href="{{ evaluation_url }}">Laisser une évaluation</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ evaluation_url }}</p><p>Merci de faire vivre l’entraide sur {{ app_name }}.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>Your mutual aid with <strong>{{ aidant_name }}</strong> is complete.</p><p>You can leave them a review to recognize their contribution and help other members of {{ organization_name }}.</p><p>A few stars are enough. A comment is optional.</p><p><a href="{{ evaluation_url }}">Leave a review</a></p><p>If the link does not work, copy this address into your browser:<br>{{ evaluation_url }}</p><p>Thank you for keeping mutual aid alive on {{ app_name }}.</p>',
+            // Demande Cyril (12/11) — la phrase d'invitation nomme l'aidant
+            // par son PRENOM (`aidant_first_name`), plus chaleureux qu'un
+            // pronom ; le reste (fait de la cloture, nom complet a
+            // l'ouverture) est inchange.
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Votre entraide avec <strong>{{ aidant_name }}</strong> est terminée.</p><p>Vous pouvez laisser une évaluation à {{ aidant_first_name }} pour reconnaître sa contribution et aider les autres membres de {{ organization_name }}.</p><p>Quelques étoiles suffisent. Un commentaire est facultatif.</p><p><a href="{{ evaluation_url }}">Laisser une évaluation</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ evaluation_url }}</p><p>Merci de faire vivre l’entraide sur {{ app_name }}.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>Your mutual aid with <strong>{{ aidant_name }}</strong> is complete.</p><p>You can leave a review for {{ aidant_first_name }} to recognize their contribution and help other members of {{ organization_name }}.</p><p>A few stars are enough. A comment is optional.</p><p><a href="{{ evaluation_url }}">Leave a review</a></p><p>If the link does not work, copy this address into your browser:<br>{{ evaluation_url }}</p><p>Thank you for keeping mutual aid alive on {{ app_name }}.</p>',
             'variables' => [
-                'recipient_name', 'recipient_email', 'aidant_name',
+                'recipient_name', 'recipient_email', 'aidant_name', 'aidant_first_name',
                 'organization_name', 'evaluation_url', 'app_name',
             ],
         ],

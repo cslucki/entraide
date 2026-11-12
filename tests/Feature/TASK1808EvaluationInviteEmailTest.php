@@ -269,4 +269,30 @@ class TASK1808EvaluationInviteEmailTest extends TestCase
         $this->assertNotNull($entraide->fresh()->evaluation_invited_at);
         $this->assertDatabaseHas('email_logs', ['to_email' => $this->aide->email, 'status' => EmailLog::STATUS_SENT]);
     }
+
+    /**
+     * TASK-1809 — demande Cyril (12/11) : l'email nomme l'aidant par son
+     * PRENOM dans la phrase d'invitation, et dit explicitement que
+     * l'echange est termine — les deux faits dans le MEME courriel.
+     */
+    public function test_le_courriel_nomme_le_prenom_de_l_aidant_et_dit_que_l_echange_est_termine(): void
+    {
+        $this->aidant->update(['first_name' => 'Alex', 'name' => 'Alex Martin']);
+
+        config(['mail.default' => 'array']);
+        Mail::forgetMailers();
+        Mail::mailer()->getSymfonyTransport()->flush();
+
+        $this->entraideClose();
+
+        $this->artisan('entraide:invite-to-evaluate');
+
+        $messages = array_values(Mail::mailer()->getSymfonyTransport()->messages()->all());
+        $this->assertCount(1, $messages);
+
+        $corps = (string) $messages[0]->getOriginalMessage()->getHtmlBody();
+
+        $this->assertStringContainsString('terminée', $corps, 'Le courriel dit explicitement que l\'echange est termine.');
+        $this->assertStringContainsString('Alex', $corps, 'Le prenom de l\'aidant doit apparaitre dans la phrase d\'invitation.');
+    }
 }
