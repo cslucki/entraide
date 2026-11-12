@@ -68,6 +68,13 @@ final class FeedEventRenderer
             // gabarits ne contiennent pas `:temps`, et `__()` ignore simplement
             // un parametre qu'aucun gabarit ne reclame.
             'temps' => self::tempsDeLEntraide($post),
+            // TASK-1809 (decision Cyril, 12/11, REMPLACE l'arbitrage du 05/11
+            // « seul l'aidant est nomme ») — « Si on nomme les deux, c'est une
+            // plateforme de confiance et ouverte. Et il faut etre connecte et
+            // membre accepte. » Le beneficiaire est donc nomme AUSSI, de facon
+            // bienveillante. Meme idiome que `:temps` : seul l'evenement
+            // d'entraide s'en sert.
+            'beneficiaire' => self::beneficiaireDeLEntraide($post),
         ]);
     }
 
@@ -117,8 +124,20 @@ final class FeedEventRenderer
             ? '<a href="'.e($objetUrl).'" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">'.e($objetNom).'</a>'
             : '<span class="font-medium">'.e($objetNom).'</span>';
 
-        // `__($clef)` SANS remplacement rend le gabarit, `:name`, `:object` et
-        // `:temps` intacts — aucun caractere que `e()` transformerait.
+        // TASK-1809 (decision Cyril, 12/11) — le beneficiaire est nomme AUSSI,
+        // avec le MEME traitement que l'acteur (lien profil si possible, sinon
+        // texte neutre). Remplace l'arbitrage du 05/11 qui le taisait.
+        $beneficiaireUser = self::beneficiaireUser($post);
+        $beneficiaireNom = $beneficiaireUser?->publicDisplayName() ?? __('feed.member_fallback');
+        $beneficiaireProfil = self::lienProfil($beneficiaireUser, $organizationSlug);
+
+        $beneficiaireHtml = $beneficiaireProfil !== null
+            ? '<a href="'.e($beneficiaireProfil).'" class="font-semibold text-gray-900 hover:underline dark:text-gray-100">'.e($beneficiaireNom).'</a>'
+            : '<span class="font-semibold text-gray-500 dark:text-gray-400">'.e($beneficiaireNom).'</span>';
+
+        // `__($clef)` SANS remplacement rend le gabarit, `:name`, `:object`,
+        // `:temps` et `:beneficiaire` intacts — aucun caractere que `e()`
+        // transformerait.
         //
         // TASK-1757 — `:temps` passe par `e()` comme tout le reste. Il vient
         // d'un entier, donc rien a echapper aujourd'hui ; l'echapper quand meme
@@ -126,8 +145,8 @@ final class FeedEventRenderer
         // dynamique passe par `e()` ») se verifie a la lecture, sans avoir a
         // remonter a la source de chaque valeur.
         return str_replace(
-            [':name', ':object', ':temps'],
-            [$nomHtml, $objetHtml, '<span class="font-medium">'.e(self::tempsDeLEntraide($post)).'</span>'],
+            [':name', ':object', ':temps', ':beneficiaire'],
+            [$nomHtml, $objetHtml, '<span class="font-medium">'.e(self::tempsDeLEntraide($post)).'</span>', $beneficiaireHtml],
             e(__($clef))
         );
     }
@@ -292,32 +311,49 @@ final class FeedEventRenderer
             ];
         }
 
+        // TASK-1809 (correctif Cyril, 12/11) — « la card n'est pas assez
+        // renseignee ». La carte d'une entraide montre desormais, comme les
+        // autres types, une piece jointe : l'icone « Entraide » du rail
+        // (`config('navigation_icons.exchanges')`, la MEME qu'a gauche de
+        // l'application — jamais une seconde icone inventee), et l'evaluation
+        // quand elle existe (etoiles + chiffre + commentaire). Le titre de
+        // l'annonce, lui, vit dans la LIGNE compacte (`:object`), pas ici —
+        // une seule ligne de verite, pas deux endroits a tenir alignes.
+        if ($objet instanceof \App\Models\Transaction) {
+            $avis = $objet->reviews()->where('reviewer_id', $objet->buyer_id)->first();
+
+            if ($avis === null) {
+                return null;
+            }
+
+            $etoiles = str_repeat('★', $avis->rating).str_repeat('☆', 5 - $avis->rating);
+
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => null,
+                'icone' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4',
+                'ronde' => false,
+                'titre' => $etoiles.' ('.$avis->rating.'/5)',
+                'texte' => filled($avis->comment) ? trim($avis->comment) : null,
+            ];
+        }
+
         return null;
     }
 
     /**
-     * La categorie de l'annonce qui portait l'entraide.
+     * Le TITRE de l'annonce qui portait l'entraide, pour la LIGNE compacte.
      *
-     * Repli NEUTRE et non « un contenu supprime » : une annonce sans categorie
-     * n'est pas une annonce disparue, et afficher « supprime » sur une entraide
-     * bien reelle serait faux.
+     * TASK-1809 (correctif Cyril, 12/11) — remplace la CATEGORIE
+     * (`categorieDeLEntraide()`, arbitrage du 05/11) : « il faut le nom de la
+     * proposition/demande ». Repli NEUTRE si l'annonce a disparu depuis — une
+     * entraide bien reelle n'a pas a se lire « supprime ».
      */
-    private static function categorieDeLEntraide(\App\Models\Transaction $echange): string
+    private static function titreDeLEntraide(\App\Models\Transaction $echange): string
     {
-        $annonce = $echange->service ?? $echange->serviceRequest;
+        $titre = ($echange->service ?? $echange->serviceRequest)?->title;
 
-        // `displayName('transactions')` et NON `->name` : `categories` n'a pas
-        // de colonne `name` — elle porte `name_b2c` et `name_b2b`, et
-        // l'Organization choisit le registre par `transactions_naming`.
-        //
-        // Defaut trouve par le test de ce lot : `->name` rendait `null` SANS
-        // erreur, et la carte retombait donc toujours sur le libelle neutre.
-        // Une categorie ne se serait jamais affichee, en silence.
-        $categorie = $annonce?->category?->displayName('transactions');
-
-        return $categorie !== null && $categorie !== ''
-            ? (string) $categorie
-            : __('feed.events.help_category_fallback');
+        return filled($titre) ? (string) $titre : __('feed.events.help_category_fallback');
     }
 
     /** Le temps partage, pour le seul gabarit qui le demande. */
@@ -344,15 +380,42 @@ final class FeedEventRenderer
             $objet instanceof ServiceRequest, $objet instanceof Service => (string) $objet->title,
             $objet instanceof LoopEvent => (string) $objet->title,
             $objet instanceof User => $objet->publicDisplayName(),
-            // TASK-1757 §9.5 — l'objet d'une entraide est sa CATEGORIE, et non
-            // le titre de l'annonce ni le nom du beneficiaire.
-            //
-            // Arbitrage Cyril du 05/11 : seul l'aidant est nomme. La categorie
-            // donne le contexte utile (« Bricolage ») sans designer personne,
-            // et elle reste vraie quand l'annonce a ete retiree depuis.
-            $objet instanceof \App\Models\Transaction => self::categorieDeLEntraide($objet),
+            // TASK-1809 (correctif Cyril, 12/11) — l'objet d'une entraide est
+            // desormais le TITRE de l'annonce. REMPLACE l'arbitrage du 05/11
+            // (« la categorie, jamais le titre ni le beneficiaire ») : « il
+            // faut le nom de la proposition/demande, entre qui et qui ».
+            $objet instanceof \App\Models\Transaction => self::titreDeLEntraide($objet),
             default => __('feed.events.object_gone'),
         };
+    }
+
+    /**
+     * Le BENEFICIAIRE de l'entraide (l'aide), pour le placeholder
+     * `:beneficiaire`.
+     *
+     * TASK-1809 (decision Cyril, 12/11) — REMPLACE l'arbitrage du 05/11
+     * (« seul l'aidant est nomme ») : « Si on nomme les deux, c'est une
+     * plateforme de confiance et ouverte. Et il faut etre connecte et membre
+     * accepte. » Chaine vide pour les six autres gabarits (aucun ne reclame
+     * ce placeholder), meme idiome que `tempsDeLEntraide()`.
+     */
+    private static function beneficiaireDeLEntraide(FeedPost $post): string
+    {
+        $objet = self::objet($post);
+
+        if (! $objet instanceof \App\Models\Transaction) {
+            return '';
+        }
+
+        return self::beneficiaireUser($post)?->publicDisplayName() ?? __('feed.member_fallback');
+    }
+
+    /** Le MEME beneficiaire, mais en User — pour `ligneHtml()` qui a besoin du lien profil. */
+    private static function beneficiaireUser(FeedPost $post): ?User
+    {
+        $objet = self::objet($post);
+
+        return $objet instanceof \App\Models\Transaction ? $objet->buyer : null;
     }
 
     /**

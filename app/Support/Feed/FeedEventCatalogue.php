@@ -62,11 +62,14 @@ final class FeedEventCatalogue
     public const EVENEMENT_CREE = 'event.loop_event_created';
 
     /**
-     * TASK-1757 §9.5 — une entraide terminee, et c'est le SEUL type soumis a un
-     * accord explicite : les six autres portent des faits que la personne a
-     * deliberement publies (une annonce, une Boucle). La porte est dans
-     * `TransactionController::partagerDansLeFlux()`, pas ici — ce registre dit
-     * ce qu'un evenement EST, pas quand il a le droit de naitre.
+     * TASK-1757 §9.5, puis TASK-1809 §2 — une entraide terminee.
+     *
+     * Le declencheur a change : `TransactionController::partagerDansLeFlux()`
+     * (opt-in par case a cocher, chemin HERITE de `confirm()`, non atteignable
+     * depuis le parcours visible) existe toujours, mais le chemin COURANT est
+     * desormais `EvaluationEntraide::enregistrer()` — le partage est
+     * AUTOMATIQUE des que l'aide depose son evaluation, plus de case a
+     * cocher. Ce registre dit ce qu'un evenement EST, pas quand il nait.
      */
     public const ENTRAIDE_TERMINEE = 'event.help_completed';
 
