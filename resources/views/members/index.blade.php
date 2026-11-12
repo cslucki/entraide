@@ -375,6 +375,13 @@
                 @if($aEchanges || $nombreArticles > 0)
                 <div class="mt-auto pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3 text-xs text-gray-400" data-member-counters="{{ $member->id }}">
                     @if($aEchanges)
+                    {{-- TASK-1812 correctif 05 — demande de Cyril : la meme
+                         icone « Entraide » que le rail gauche, EN PETIT,
+                         comme repere visuel a cote de la mention des
+                         propositions/demandes. Decorative : le libelle de
+                         chaque lien porte deja l'information, `aria-hidden`
+                         evite de la lire deux fois au lecteur d'ecran. --}}
+                    <svg class="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ config('navigation_icons.exchanges') }}"/></svg>
                     {{-- TASK-1697 correctif 15 — « micro-services » devient
                          « propositions ». Le terme global `$T['service']` vient
                          de `config/terms.php`, surchargeable par Organization :

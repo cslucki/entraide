@@ -26,9 +26,17 @@
     $bouclesVisibles = $boucles->take(3);
     $bouclesRepliees = $boucles->slice(3);
 @endphp
-<div class="flex flex-wrap {{ $gap ?? 'gap-1' }}" title="{{ __('directory.loops_title') }}"
+{{--
+    TASK-1812 correctif 05 — demande de Cyril : la meme icone « Boucles » que
+    le rail gauche, EN PETIT, comme repere visuel a cote des noms de Boucles.
+    Decorative : le `title` du conteneur et le nom de chaque badge portent
+    deja l'information, `aria-hidden` evite de la lire deux fois au lecteur
+    d'ecran.
+--}}
+<div class="flex flex-wrap items-center {{ $gap ?? 'gap-1' }}" title="{{ __('directory.loops_title') }}"
      data-member-loops="{{ $member->id }}"
      @if($bouclesRepliees->isNotEmpty()) x-data="{ deplie: false }" @endif>
+    <svg class="h-3.5 w-3.5 shrink-0 text-violet-400 dark:text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ config('navigation_icons.loops') }}"/></svg>
     @foreach($bouclesVisibles as $boucle)
     <a href="{{ $orgParamAnnuaire && Route::has('organization.loops.show')
             ? route('organization.loops.show', ['organization' => $orgParamAnnuaire, 'loop' => $boucle->slug ?: $boucle->getKey()])
