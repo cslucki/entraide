@@ -194,4 +194,40 @@ class TASK1809EvaluationInviteImmediateEmailTest extends TestCase
         $this->assertStringContainsString('Alex', $corps);
         $this->assertStringContainsString('15', $corps);
     }
+
+    /**
+     * TASK-1810 — BUG CONFIRME EN RECETTE (Cyril, 12/11) : meme defaut que
+     * `ReviewReceivedMailer`, trouve sur le MEME compte de demonstration.
+     * `first_name` NULL (mais pas desactive) laissait `{{ aidant_first_name }}`
+     * litteral dans le sujet ET le corps de l'email reel.
+     */
+    public function test_un_aidant_sans_prenom_renseigne_ne_laisse_jamais_le_jeton_brut(): void
+    {
+        $this->aidant->update(['first_name' => null, 'name' => 'Demo Admin']);
+
+        config(['mail.default' => 'array']);
+        Mail::forgetMailers();
+        Mail::mailer()->getSymfonyTransport()->flush();
+
+        $entraide = $this->entraideAcceptee();
+
+        $this->actingAs($this->aide)->patch(route('transactions.complete', $entraide));
+
+        $messages = array_values(Mail::mailer()->getSymfonyTransport()->messages()->all());
+        $invitation = array_values(array_filter(
+            $messages,
+            fn ($m) => str_contains((string) $m->getOriginalMessage()->getSubject(), 'évaluer'),
+        ));
+        $this->assertCount(1, $invitation);
+
+        $sujet = (string) $invitation[0]->getOriginalMessage()->getSubject();
+        $corps = (string) $invitation[0]->getOriginalMessage()->getHtmlBody();
+
+        foreach ([$sujet, $corps] as $rendu) {
+            $this->assertStringNotContainsString('{{ aidant_first_name }}', $rendu,
+                'Le jeton brut ne doit JAMAIS apparaitre dans un email reel.');
+            $this->assertStringContainsString('Demo Admin', $rendu,
+                'A defaut de prenom, le nom complet doit servir de repli.');
+        }
+    }
 }

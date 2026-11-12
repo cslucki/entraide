@@ -126,6 +126,39 @@ class TASK1809ReviewReceivedEmailTest extends TestCase
         $this->assertStringContainsString('Dominique', $corps);
     }
 
+    /**
+     * TASK-1810 — BUG CONFIRME EN RECETTE (Cyril, 12/11, screenshot a
+     * l'appui) : le compte de demonstration « Demo Admin » a `first_name`
+     * NULL (mais n'est pas desactive). `isset($variables['aide_first_name'])`
+     * dans `EmailerService::interpolate()` echoue sur une valeur `null`, et
+     * le jeton `{{ aide_first_name }}` ressortait LITTERALEMENT dans le
+     * sujet ET le corps de l'email reel. Le repli doit retomber sur le nom
+     * complet, jamais laisser le jeton brut.
+     */
+    public function test_un_aide_sans_prenom_renseigne_ne_laisse_jamais_le_jeton_brut(): void
+    {
+        $this->aide->update(['first_name' => null, 'name' => 'Demo Admin']);
+
+        config(['mail.default' => 'array']);
+        Mail::forgetMailers();
+        Mail::mailer()->getSymfonyTransport()->flush();
+
+        $entraide = $this->entraideCompletee();
+
+        $this->actingAs($this->aide)->post(route('reviews.store', $entraide), ['rating' => 5]);
+
+        $messages = array_values(Mail::mailer()->getSymfonyTransport()->messages()->all());
+        $sujet = (string) $messages[0]->getOriginalMessage()->getSubject();
+        $corps = (string) $messages[0]->getOriginalMessage()->getHtmlBody();
+
+        foreach ([$sujet, $corps] as $rendu) {
+            $this->assertStringNotContainsString('{{ aide_first_name }}', $rendu,
+                'Le jeton brut ne doit JAMAIS apparaitre dans un email reel.');
+            $this->assertStringContainsString('Demo Admin', $rendu,
+                'A defaut de prenom, le nom complet doit servir de repli.');
+        }
+    }
+
     public function test_une_note_sans_commentaire_envoie_quand_meme_l_email(): void
     {
         $entraide = $this->entraideCompletee();

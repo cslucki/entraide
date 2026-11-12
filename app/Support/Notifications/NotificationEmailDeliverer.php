@@ -5,6 +5,7 @@ namespace App\Support\Notifications;
 use App\Models\BlogComment;
 use App\Models\EmailLog;
 use App\Models\EntraideComment;
+use App\Models\FeedPostComment;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
@@ -15,6 +16,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Blog\BlogCommentMailer;
 use App\Services\Entraide\EntraideCommentMailer;
+use App\Services\Feed\FeedCommentMailer;
 use App\Services\Loops\LoopEventMailer;
 use App\Services\Loops\LoopInvitationMailer;
 use App\Services\Loops\LoopMentionMailer;
@@ -701,6 +703,45 @@ final class NotificationEmailDeliverer
             // (cf. `EntraideCommentMailer::EXTRAIT_EXPURGE`). Exigence nommee du
             // CDC §8.
             $expurge = $entraideMailer->compose($commentaire, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
+        // TASK-1810 — le commentaire depose sous un item du Flux.
+        //
+        // Meme avertissement que les deux branches voisines : sans elle,
+        // `rendreDepuisGabarit()` rendrait `null` et l'email partirait quand
+        // meme par le repli de langue, sans contexte ni extrait — en silence.
+        if ($cle === NotificationCatalogue::FEED_POST_COMMENT_CREATED) {
+            // Ni `FeedPostComment` ni `Organization` ne portent de portee
+            // d'Organization (confirme par grep) : rien a retirer, la
+            // frontiere de tenant est posee a la main par le
+            // `where('organization_id', …)` ci-dessous.
+            $commentaire = FeedPostComment::query()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($commentaire === null) {
+                return null;
+            }
+
+            // L'AUTEUR DU COMMENTAIRE est l'acteur — pas le destinataire, qui
+            // est la personne evoquee par l'item du Flux.
+            $acteur = $notification->actor_id
+                ? User::find((string) $notification->actor_id)
+                : User::find((string) $commentaire->user_id);
+
+            $feedMailer = app(FeedCommentMailer::class);
+            $reel = $feedMailer->compose($commentaire, $destinataire, $acteur, $cible, $locale);
+            // Le sixieme argument expurge AUSSI l'extrait : le courriel porte
+            // la phrase ecrite par un membre, et `email_logs` n'a pas a
+            // l'archiver (cf. `FeedCommentMailer::EXTRAIT_EXPURGE`).
+            $expurge = $feedMailer->compose($commentaire, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
 
             return [
                 'subject' => $reel['subject'],

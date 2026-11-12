@@ -285,6 +285,21 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         //
         // La garde reste donc ce qu'elle est : un inventaire qui force la
         // decision a se prendre AILLEURS, dans la TASK qui introduit la cle.
+        //
+        // TASK-1810 : SIXIEME et SEPTIEME fois. Deux cles, decidees dans leur
+        // propre TASK sur demande explicite de Cyril (12/11) : « quand
+        // quelqu'un commente un evenement du flux, email + app + pwa » et
+        // « si la personne fait juste une reaction, la notification est
+        // juste dans l'application ».
+        //
+        // `FEED_POST_COMMENT_CREATED` : les TROIS canaux ON et configurables
+        // — meme regime que `ENTRAIDE_COMMENT_CREATED` juste au-dessus et
+        // pour la meme raison : un commentaire ne vous est pas ADRESSE et
+        // n'appelle aucune reponse de vous.
+        //
+        // `FEED_POST_REACTION_CREATED` : PREMIERE cle du catalogue dont
+        // `channels` ne declare QUE `in_app` — demande explicite de ne
+        // JAMAIS envoyer d'email pour une simple reaction.
         $attendues = [
             NotificationCatalogue::LOOP_MENTION_CREATED,
             NotificationCatalogue::LOOP_INVITATION,
@@ -301,6 +316,8 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             // Boucle. Fait collectif de plus, meme regime que
             // LOOP_HELP_REQUEST_CREATED juste au-dessus.
             NotificationCatalogue::LOOP_EVENT_CREATED,
+            NotificationCatalogue::FEED_POST_COMMENT_CREATED,
+            NotificationCatalogue::FEED_POST_REACTION_CREATED,
         ];
 
         sort($attendues);

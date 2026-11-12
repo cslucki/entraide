@@ -111,7 +111,16 @@ final class EvaluationInviteMailer
             // PRENOM dans la phrase d'invitation, pas par un pronom : meme
             // garde de confidentialite que `publicDisplayName()` (un compte
             // desactive ne revele jamais son prenom reel).
-            $aidantPrenom = $aidant->isDeactivated() ? __('profile.deactivated_user') : $aidant->first_name;
+            //
+            // BUG CONFIRME (recette Cyril, 12/11) — meme defaut que
+            // `ReviewReceivedMailer::envoyer()` : `$aidant->first_name` seul
+            // peut etre NULL, et `EmailerService::interpolate()` laisse alors
+            // le jeton `{{ aidant_first_name }}` litteral dans l'email reel.
+            // Meme repli a trois etages que `$_bentoPrenomAidant` dans
+            // `message-thread.blade.php`.
+            $aidantPrenom = $aidant->isDeactivated()
+                ? __('profile.deactivated_user')
+                : ($aidant->first_name ?: ($aidant->name ?: __('profile.deactivated_user')));
 
             $rendu = app(GabaritEmail::class)->rendre(
                 slug: self::SLUG,

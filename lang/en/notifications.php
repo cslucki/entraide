@@ -119,6 +119,10 @@ return [
         // TASK-1802 — names neither the Boucle nor the event: a Push shows on
         // a locked screen, and the Boucle may be private.
         'loop_event_created' => 'Open BouclePro to see the details.',
+
+        // TASK-1810 — neither the person nor the item's context: a Push
+        // shows on a LOCKED screen, same doctrine as its neighbours.
+        'feed_post_comment_created' => 'Open the Feed to read the comment.',
     ],
 
     'push_title' => [
@@ -151,6 +155,10 @@ return [
         // TASK-1802 — names neither the Boucle nor the event, same reason as
         // its collective neighbours: a Push shows on a locked screen.
         'loop_event_created' => 'A new event in your Loop',
+
+        // TASK-1810 — same doctrine: neither the person nor the item's
+        // context, on a locked screen.
+        'feed_post_comment_created' => 'New comment on the Feed',
     ],
 
     'keys' => [
@@ -181,6 +189,10 @@ return [
 
         // TASK-1802 (Cyril's request) — a new event proposed in a Loop.
         'loop_event_created' => 'A new event was proposed',
+
+        // TASK-1810 (demande Cyril, 12/11) — comments or reactions on my Feed items.
+        'feed_post_comment_created' => 'Comments on my Feed items',
+        'feed_post_reaction_created' => 'Reactions on my Feed items',
     ],
 
     /*
@@ -255,6 +267,8 @@ return [
     'blog_comment_email_excerpt_empty' => '(comment without text)',
     // TASK-1786 — meme repli pour un commentaire d'entraide sans texte.
     'entraide_comment_email_excerpt_empty' => '(comment without text)',
+    // TASK-1810 — same fallback for a Feed comment without text.
+    'feed_post_comment_email_excerpt_empty' => '(comment without text)',
 
     'email' => [
         // TASK-1772 — REPLI. Le rendu passe normalement par le gabarit
@@ -296,6 +310,15 @@ return [
         'blog_comment_created' => [
             'subject' => 'Someone commented on your article',
             'body' => '<p>Hello,</p><p>Someone left a comment on your article <strong>:titre</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">Read the comment</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>No rush: the comment will wait for you.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
+
+        // TASK-1810 — fallback, same doctrine: `:prenom` (the commenter's
+        // first name), `:contexte` (what the Feed card shows) and
+        // `:extrait` (the comment text) stay PLACEHOLDERS, never a
+        // hardcoded address.
+        'feed_post_comment_created' => [
+            'subject' => 'Comment on the Feed',
+            'body' => '<p>Hello,</p><p><strong>:prenom</strong> just commented on the Feed about something that concerns you: <strong>:contexte</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">View in the Feed</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>No rush: you don’t need to sign in to read it.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
         ],
         'loop_mention_created' => [
             'subject' => 'You were mentioned in a Loop',
