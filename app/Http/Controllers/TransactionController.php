@@ -798,44 +798,16 @@ class TransactionController extends Controller
      * Flux a eu un probleme.
      */
     /**
-     * TASK-1808 §7 — PARTAGER L'ENTRAIDE DANS LE FLUX, APRES LA CLOTURE.
-     *
-     * Pourquoi une action separee. La clarification MASTER du 11/11 impose
-     * qu'un clic sur « Marquer l'entraide comme terminee » cloture
-     * IMMEDIATEMENT : il n'existe donc plus d'ecran avant la cloture ou poser
-     * une case a cocher. Le partage devient un geste d'apres-coup — et il y
-     * gagne, puisqu'il ne depend plus de l'evaluation, ce que le §7 demandait
-     * (« sans rendre l'evaluation obligatoire »).
-     *
-     * L'arbitrage produit, lui, ne bouge pas : c'est l'AIDE qui decide seul,
-     * sans validation supplementaire de l'aidant, et la carte du Flux nomme
-     * l'AIDANT. Voir le docbloc de `partagerDansLeFlux()`.
-     *
-     * Une seule ligne de Flux, toujours : `FeedEventEmitter::emettre()` est
-     * idempotent par la cle (organization, type, objet) et la contrainte
-     * d'unicite en base le garantit meme en concurrence. Un double envoi ne
-     * peut donc pas publier deux fois.
+     * TASK-1809 (correctif Cyril, 12/11) — le partage dans le Flux n'est
+     * PLUS une action distincte (`shareInFeed()`/`orgShareInFeed()`,
+     * supprimees avec leurs deux routes et `TransactionPolicy::
+     * shareInFeed()`) : le lien explicite menait a une erreur 500 et
+     * demandait un clic de plus pour un geste qui devrait etre acquis. Le
+     * partage est desormais AUTOMATIQUE, declenche par
+     * `EvaluationEntraide::enregistrer()` des qu'un avis est reellement
+     * depose — meme emetteur (`FeedEventEmitter::emettre()`, idempotent),
+     * meme acteur (l'AIDANT), seul le declencheur change.
      */
-    public function shareInFeed(Request $request, Transaction $transaction): RedirectResponse
-    {
-        $this->authorize('shareInFeed', $transaction);
-
-        rescue(fn () => app(FeedEventEmitter::class)->emettre(
-            FeedEventCatalogue::ENTRAIDE_TERMINEE,
-            $transaction,
-            $transaction->seller,
-            $transaction->organization_id,
-        ), report: true);
-
-        return $this->redirectToMessage($transaction)
-            ->with('success', __('entraide.flux.partagee'));
-    }
-
-    public function orgShareInFeed(Request $request, string $org, Transaction $transaction): RedirectResponse
-    {
-        return $this->shareInFeed($request, $transaction);
-    }
-
     private function partagerDansLeFlux(Request $request, Transaction $echange): void
     {
         if (! $request->boolean('partager_dans_le_flux')) {

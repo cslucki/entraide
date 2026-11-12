@@ -465,8 +465,8 @@ Route::middleware('auth')->group(function () {
     // `comment.skip` (ecrans separes, « Plus tard », renoncement explicite)
     // sont retirees avec le parcours visible qui les appelait.
     Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->name('reviews.store');
-    // TASK-1808 §7 — le partage dans le Flux, devenu un geste d'apres-cloture.
-    Route::post('/transactions/{transaction}/share-in-feed', [TransactionController::class, 'shareInFeed'])->middleware('throttle:5,1')->name('transactions.share-in-feed');
+    // TASK-1809 (correctif Cyril) — partage dans le Flux desormais
+    // AUTOMATIQUE a l'evaluation, route `share-in-feed` retiree.
 
     // Messages
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
@@ -1752,7 +1752,6 @@ Route::prefix('/org/{organization}')
             Route::patch('/transactions/{transaction}/contest', [TransactionController::class, 'orgContest'])->name('transactions.contest');
 
             Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.store');
-            Route::post('/transactions/{transaction}/share-in-feed', [TransactionController::class, 'orgShareInFeed'])->middleware('throttle:5,1')->middleware('consume.org')->name('transactions.share-in-feed');
 
             Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
             // TASK-1693 bug AA — « Ecrire a cette personne », sur la surface de

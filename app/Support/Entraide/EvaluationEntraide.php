@@ -5,6 +5,8 @@ namespace App\Support\Entraide;
 use App\Models\Review;
 use App\Models\Transaction;
 use App\Services\Entraide\ReviewReceivedMailer;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 
 /**
  * TASK-1806 (arbitrage du 11/11, parcours a TROIS etapes) — l'evaluation
@@ -87,5 +89,24 @@ final class EvaluationEntraide
             fn (\Throwable $e) => report($e),
             false,
         );
+
+        // TASK-1809 (correctif Cyril, 12/11) — le partage dans le Flux
+        // n'est plus un geste distinct, demande en plus de l'evaluation : il
+        // est desormais AUTOMATIQUE, au MEME instant que l'avis. Meme
+        // acteur que l'ancien geste explicite (l'AIDANT, jamais l'aide) et
+        // meme emetteur idempotent — une discussion directe n'a toujours
+        // rien a publier.
+        if (! $entraide->isDirectConversation() && $entraide->seller !== null) {
+            rescue(
+                fn () => app(FeedEventEmitter::class)->emettre(
+                    FeedEventCatalogue::ENTRAIDE_TERMINEE,
+                    $entraide,
+                    $entraide->seller,
+                    $entraide->organization_id,
+                ),
+                fn (\Throwable $e) => report($e),
+                false,
+            );
+        }
     }
 }

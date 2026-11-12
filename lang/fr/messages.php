@@ -161,10 +161,19 @@ return [
     'cloture_aidant_titre' => 'Merci pour votre aide !',
     'cloture_aidant_corps' => 'Vous avez reçu :temps de la part de :prenom.',
     'cloture_aidant_corps_offert' => 'Vous avez offert votre aide à :prenom.',
+    // TASK-1809 (correctif Cyril, 12/11) — l'aidant voit sa note DANS le fil,
+    // sans avoir besoin de l'email pour la decouvrir. Remplace le message
+    // generique ci-dessus des qu'un avis existe.
+    'cloture_aidant_evalue_titre' => ':prenom vient de vous laisser une évaluation',
     // TASK-1809 §2 — UNE carte compacte (note + commentaire facultatif en
     // une seule soumission), remplace les deux micro-ecrans de T1808 §5.
     'etoiles_titre' => 'Comment évaluez-vous l’aide de :prenom ?',
     'etoiles_valider' => 'Valider mon évaluation',
+    // TASK-1809 (correctif Cyril, 12/11) — l'ecran qui remplace la carte une
+    // fois l'avis depose ; le partage dans le Flux est desormais AUTOMATIQUE
+    // (plus de case a cocher ni de lien distinct).
+    'evaluation_effectuee_titre' => 'Évaluation effectuée',
+    'evaluation_effectuee_lien' => 'Voir dans le Flux',
     'bento_title' => 'Entraide réalisée',
     'bento_duree' => 'Durée',
     'bento_duree_absente' => 'Durée non renseignée',

@@ -3,11 +3,13 @@
 namespace Tests\Feature;
 
 use App\Livewire\MessageThread;
+use App\Models\FeedPost;
 use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Review;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\Feed\FeedEventCatalogue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -73,7 +75,6 @@ class TASK1808ParcoursFinalEntraideTest extends TestCase
 
         foreach ([
             'data-entraide-evaluation',
-            'data-entraide-partager-flux',
             'name="rating"',
             'name="comment"',
             '★', '☆',
@@ -97,12 +98,14 @@ class TASK1808ParcoursFinalEntraideTest extends TestCase
         $this->assertSame(0, Review::where('transaction_id', $entraide->id)->count());
     }
 
-    public function test_avant_la_cloture_le_partage_dans_le_flux_est_refuse_aussi(): void
+    /**
+     * TASK-1809 (correctif Cyril, 12/11) — le partage explicite (lien
+     * distinct, qui rendait une erreur 500) est retire : plus aucune route
+     * ne le sert, le partage est desormais automatique a l'evaluation.
+     */
+    public function test_la_route_de_partage_explicite_n_existe_plus(): void
     {
-        $entraide = $this->entraideAcceptee();
-
-        $this->actingAs($this->aide)->post(route('transactions.share-in-feed', $entraide))
-            ->assertForbidden();
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('transactions.share-in-feed'));
     }
 
     // ── Invariant 2 — le clic cloture REELLEMENT, sans formulaire ──────────
@@ -194,11 +197,110 @@ class TASK1808ParcoursFinalEntraideTest extends TestCase
         $this->assertSame(80, $this->aide->fresh()->points_balance);
         $this->assertSame(30, $this->aidant->fresh()->points_balance);
 
-        // La carte ne revient plus une fois l'avis depose.
+        // TASK-1809 (correctif Cyril) — la carte cede la place a la
+        // confirmation "Evaluation effectuee" une fois l'avis depose, elle
+        // ne revient jamais une fois soumise.
         $html = Livewire::actingAs($this->aide)
             ->test(MessageThread::class, ['transaction' => $entraide->fresh()])
             ->html();
-        $this->assertStringNotContainsString('data-entraide-evaluation', $html);
+        $this->assertStringNotContainsString('name="rating"', $html);
+        $this->assertStringContainsString('data-entraide-evaluation-faite', $html);
+        $this->assertStringContainsString(__('messages.evaluation_effectuee_titre'), $html);
+    }
+
+    /**
+     * TASK-1809 (correctif Cyril, 12/11) — le partage dans le Flux est
+     * desormais AUTOMATIQUE a l'evaluation : plus de case a cocher, plus de
+     * lien distinct (qui menait a une erreur 500). L'acteur reste l'AIDANT,
+     * jamais l'aide — meme regle qu'avant.
+     */
+    public function test_l_evaluation_partage_automatiquement_l_entraide_dans_le_flux(): void
+    {
+        $entraide = $this->entraideAcceptee();
+        $this->actingAs($this->aide)->patch(route('transactions.complete', $entraide));
+
+        $this->assertSame(0, FeedPost::where('type', FeedEventCatalogue::ENTRAIDE_TERMINEE)
+            ->where('object_id', $entraide->id)->count());
+
+        $this->actingAs($this->aide)->post(route('reviews.store', $entraide), ['rating' => 5]);
+
+        $this->assertDatabaseHas('feed_posts', [
+            'organization_id' => $this->organization->id,
+            'type' => FeedEventCatalogue::ENTRAIDE_TERMINEE,
+            'object_type' => Transaction::class,
+            'object_id' => $entraide->id,
+            'user_id' => $this->aidant->id,
+        ]);
+
+        // Et le lien de la confirmation pointe bien vers cet item. Le fil
+        // resout sa propre Organization depuis la transaction (voir
+        // `$_threadRoute` dans le Blade) : le lien attendu est donc
+        // forcement le variant `organization.flux.show`.
+        $feedPost = FeedPost::where('object_id', $entraide->id)->firstOrFail();
+        $html = Livewire::actingAs($this->aide)
+            ->test(MessageThread::class, ['transaction' => $entraide->fresh()])
+            ->html();
+        $lienAttendu = route('organization.flux.show', ['organization' => $this->organization->slug, 'feedPost' => $feedPost]);
+        $this->assertStringContainsString($lienAttendu, $html);
+    }
+
+    /**
+     * TASK-1809 (correctif Cyril, 12/11) — l'aidant voit sa note ET son
+     * commentaire DANS LE FIL des qu'un avis existe, sans avoir besoin de
+     * l'email pour les decouvrir. Remplace le message generique.
+     */
+    public function test_l_aidant_voit_la_note_et_le_commentaire_dans_le_fil_une_fois_evalue(): void
+    {
+        $entraide = $this->entraideAcceptee();
+        $this->actingAs($this->aide)->patch(route('transactions.complete', $entraide));
+
+        $html = Livewire::actingAs($this->aidant)
+            ->test(MessageThread::class, ['transaction' => $entraide->fresh()])
+            ->html();
+        $this->assertStringContainsString('data-entraide-cloture-aidant', $html);
+        $this->assertStringNotContainsString('data-entraide-cloture-aidant-evalue', $html);
+
+        $this->actingAs($this->aide)->post(route('reviews.store', $entraide), [
+            'rating' => 4,
+            'comment' => 'Un vrai plaisir, merci !',
+        ]);
+
+        $apres = Livewire::actingAs($this->aidant)
+            ->test(MessageThread::class, ['transaction' => $entraide->fresh()])
+            ->html();
+        $this->assertStringContainsString('data-entraide-cloture-aidant-evalue', $apres);
+        $this->assertStringContainsString(__('messages.cloture_aidant_evalue_titre', ['prenom' => $this->aide->first_name]), $apres);
+        $this->assertStringContainsString('★★★★☆', $apres);
+        $this->assertStringContainsString('Un vrai plaisir, merci !', $apres);
+        // Le message generique anterieur ("Merci pour votre aide !") a
+        // disparu, remplace par le message nommant l'evaluation.
+        $this->assertStringNotContainsString(__('messages.cloture_aidant_titre'), $apres);
+    }
+
+    /** Une note sans commentaire n'affiche aucune ligne de commentaire vide. */
+    public function test_l_aidant_ne_voit_pas_de_ligne_de_commentaire_si_aucun_n_existe(): void
+    {
+        $entraide = $this->entraideAcceptee();
+        $this->actingAs($this->aide)->patch(route('transactions.complete', $entraide));
+        $this->actingAs($this->aide)->post(route('reviews.store', $entraide), ['rating' => 3]);
+
+        $html = Livewire::actingAs($this->aidant)
+            ->test(MessageThread::class, ['transaction' => $entraide->fresh()])
+            ->html();
+        $this->assertStringNotContainsString('data-entraide-cloture-aidant-commentaire', $html);
+    }
+
+    /** TASK-1809 (correctif Cyril) — la ligne de recapitulatif dupliquee a disparu. */
+    public function test_la_ligne_de_recapitulatif_dupliquee_a_disparu(): void
+    {
+        $entraide = $this->entraideAcceptee();
+        $this->actingAs($this->aide)->patch(route('transactions.complete', $entraide));
+
+        $html = Livewire::actingAs($this->aide)
+            ->test(MessageThread::class, ['transaction' => $entraide->fresh()])
+            ->html();
+        $this->assertStringNotContainsString('data-entraide-bento-recap', $html);
+        $this->assertStringNotContainsString(__('messages.bento_aidant'), $html);
     }
 
     public function test_la_note_seule_est_une_evaluation_complete_sans_commentaire(): void

@@ -545,10 +545,12 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
         // TASK-1808 (clarification MASTER) — la cloture est UN BOUTON qui
         // poste directement. Plus de panneau, et le partage dans le Flux a
         // quitte cette etape : il n'existe plus d'ecran avant la cloture.
+        // TASK-1809 (correctif Cyril) — le partage est devenu automatique a
+        // l'evaluation, le marqueur `data-entraide-partager-flux` n'existe
+        // plus nulle part dans le code.
         Livewire::actingAs($this->buyer)
             ->test(MessageThread::class, ['transaction' => $transaction])
-            ->assertSeeHtml('data-entraide-cloturer')
-            ->assertDontSeeHtml('data-entraide-partager-flux');
+            ->assertSeeHtml('data-entraide-cloturer');
 
         Livewire::actingAs($this->seller)
             ->test(MessageThread::class, ['transaction' => $transaction])
