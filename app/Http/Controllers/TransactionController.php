@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Notifications\TransactionStatusChanged;
+use App\Services\Entraide\EvaluationInviteMailer;
 use App\Services\ServiceRequestLifecycle;
 use App\Support\Entraide\Atelier;
 use App\Support\Entraide\EvaluationEntraide;
@@ -602,6 +603,39 @@ class TransactionController extends Controller
             ]),
             false,
         );
+
+        // TASK-1809 §3 — l'email d'invitation a evaluer, desormais
+        // IMMEDIAT (MASTER a retire la relance planifiee a dix minutes :
+        // « BouclePro lutte contre l'infobesite », un seul email, jamais
+        // deux). Idempotent par une mise a jour conditionnelle ATOMIQUE
+        // (`whereNull`, 0 ou 1 ligne touchee) — meme garde que l'ancienne
+        // commande `entraide:invite-to-evaluate`, deplacee ici puisque le
+        // declencheur est desormais synchrone a la cloture et non plus un
+        // balayage planifie. Une discussion directe n'a rien a evaluer.
+        // `rescue()` : un echec d'envoi ne doit jamais faire echouer la
+        // cloture, deja validee et irreversible a ce stade.
+        if (! $fresh->isDirectConversation()) {
+            rescue(
+                function () use ($fresh) {
+                    $aEnvoyer = Transaction::whereKey($fresh->id)->whereNull('evaluation_invited_at')->exists();
+
+                    if (! $aEnvoyer) {
+                        return;
+                    }
+
+                    if (app(EvaluationInviteMailer::class)->envoyer($fresh)) {
+                        Transaction::whereKey($fresh->id)->whereNull('evaluation_invited_at')->update(['evaluation_invited_at' => now()]);
+                    }
+                },
+                fn (\Throwable $e) => Log::error('Evaluation invitation email failed after successful closure', [
+                    'event' => 'entraide_evaluation_invite_not_sent',
+                    'transaction_id' => $fresh->id,
+                    'organization_id' => $fresh->organization_id,
+                    'exception_class' => $e::class,
+                ]),
+                false,
+            );
+        }
 
         $this->partagerDansLeFlux($request, $fresh);
 
