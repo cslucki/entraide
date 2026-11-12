@@ -1093,6 +1093,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'store'])->name('system-email-templates.store');
     Route::get('/system-email-templates/{systemEmailTemplate}/edit', [AdminSystemEmailTemplatesController::class, 'edit'])->name('system-email-templates.edit');
     Route::put('/system-email-templates/{systemEmailTemplate}', [AdminSystemEmailTemplatesController::class, 'update'])->name('system-email-templates.update');
+    // TASK-1809 (micro-sequence C) — apercu fidele : rendu REEL (theme +
+    // interpolation de variables de demonstration), jamais un envoi.
+    Route::post('/system-email-templates/{systemEmailTemplate}/preview', [AdminSystemEmailTemplatesController::class, 'preview'])->name('system-email-templates.preview');
 
     // IA Design Lab (test interne)
     Route::get('/ia-design-lab', [AdminIaDesignLabController::class, 'index'])->name('ia-design-lab');
