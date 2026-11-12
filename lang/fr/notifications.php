@@ -318,6 +318,15 @@ return [
             'body' => '<p>Bonjour,</p><p>Votre entraide avec :aidant est terminée.</p><p>Vous pouvez lui laisser une évaluation.</p><p><a href=":url">Laisser une évaluation</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>Merci de faire vivre l’entraide sur BouclePro.</p>',
         ],
 
+        // TASK-1809 §4 — REPLI. Le gabarit qui fait foi est l'administrable
+        // `entraide_review_received` (seeder + migration) ; ceci ne sert que
+        // s'il manque. `:aide`, `:etoiles`, `:note`, `:commentaire` restent
+        // des JETONS, meme regle que les reprs ci-dessus.
+        'entraide_review_received' => [
+            'subject' => ':aide vous a laissé une évaluation !',
+            'body' => '<p>Bonjour,</p><p>:aide vous a laissé une évaluation pour votre entraide.</p><p style="font-size:20px;letter-spacing:2px">:etoiles <span style="font-size:14px;color:#777">(:note)</span></p><p>:commentaire</p><p>Merci de faire vivre l’entraide sur BouclePro.</p>',
+        ],
+
         'entraide_comment_created' => [
             'subject' => 'Un membre a commenté votre entraide',
             'body' => '<p>Bonjour,</p><p>Un membre a laissé un commentaire sur votre entraide.</p><p><a href=":url">Voir le commentaire</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>Un commentaire n’engage rien : ni entraide engagée, ni acceptation d’aide, ni temps promis.</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',

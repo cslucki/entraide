@@ -280,6 +280,14 @@ return [
             'body' => '<p>Hello,</p><p>Your mutual aid with :aidant is complete.</p><p>You can leave them a review.</p><p><a href=":url">Leave a review</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>Thank you for keeping mutual aid alive on BouclePro.</p>',
         ],
 
+        // TASK-1809 §4 — fallback. The authoritative template is the
+        // administrable `entraide_review_received` (seeder + migration);
+        // this only serves if it is missing.
+        'entraide_review_received' => [
+            'subject' => ':aide left you a review!',
+            'body' => '<p>Hello,</p><p>:aide left you a review for your mutual aid.</p><p style="font-size:20px;letter-spacing:2px">:etoiles <span style="font-size:14px;color:#777">(:note)</span></p><p>:commentaire</p><p>Thank you for keeping mutual aid alive on BouclePro.</p>',
+        ],
+
         'entraide_comment_created' => [
             'subject' => 'A member commented on your mutual aid',
             'body' => '<p>Hello,</p><p>A member left a comment on your mutual aid.</p><p><a href=":url">View the comment</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>A comment commits to nothing: no mutual aid started, no accepted help, no promised time.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
