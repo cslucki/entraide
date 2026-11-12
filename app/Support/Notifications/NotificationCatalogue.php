@@ -330,6 +330,43 @@ final class NotificationCatalogue
     public const ENTRAIDE_COMMENT_CREATED = 'entraide.comment.created';
 
     /**
+     * TASK-1810 (demande Cyril, 12/11) — on a commente un item du Flux.
+     *
+     * ## Le destinataire est TOUJOURS le meme : l'« emetteur ou la personne
+     * evoquee » par l'item
+     *
+     * Demande explicite : « sur les items du flux (annonces ou evenements
+     * automatiques), on a toujours un emetteur ou quelqu'un qui est evoque,
+     * donc c'est cette personne qu'il faut notifier ». Mesure dans
+     * `FeedEventEmitter::emettre()` : `feed_posts.user_id` vaut TOUJOURS
+     * l'acteur de l'evenement pour les sept types automatiques, et l'auteur
+     * pour une annonce manuelle. Une seule regle de ciblage suffit donc :
+     * `$post->user`, jamais une relecture au cas par cas de chaque type.
+     *
+     * ## UNE cle pour les deux familles d'item (automatique et manuelle)
+     *
+     * Meme doctrine que `ENTRAIDE_COMMENT_CREATED` juste au-dessus : vu du
+     * destinataire, le fait ne change pas (on a commente mon item), seul le
+     * CONTEXTE affiche varie — et il est resolu a l'envoi, pas fige dans une
+     * seconde cle.
+     */
+    public const FEED_POST_COMMENT_CREATED = 'feed.post_comment.created';
+
+    /**
+     * TASK-1810 — on a reagi a un item du Flux.
+     *
+     * « Si la personne fait juste une reaction, dans ce cas la notification
+     * est juste dans l'application pas besoin d'envoyer un email » (demande
+     * explicite) — PREMIERE cle du catalogue dont `channels` ne declare QUE
+     * `in_app`. Aucune branche n'est donc necessaire dans
+     * `NotificationEmailDeliverer::rendreDepuisGabarit()` : le planificateur
+     * ne cree jamais de livraison EMAIL pour une cle qui ne declare pas ce
+     * canal (`NotificationDeliveryPlanner::JOB_PAR_CANAL`), donc
+     * `deliver()` n'est jamais invoque pour cette cle.
+     */
+    public const FEED_POST_REACTION_CREATED = 'feed.post_reaction.created';
+
+    /**
      * Le type d'objet de cette cle, expose comme constante.
      *
      * Le resolver de cible en a besoin pour brancher. Le lire ici plutot que de
@@ -411,6 +448,25 @@ final class NotificationCatalogue
      * qui permet a UNE cle de couvrir les deux types d'annonce.
      */
     public const OBJECT_ENTRAIDE_COMMENT = 'entraide_comment';
+
+    /**
+     * TASK-1810 — le commentaire depose sous un item du Flux.
+     *
+     * L'objet designe est le COMMENTAIRE, pas l'item — meme raison que
+     * `OBJECT_BLOG_COMMENT`/`OBJECT_ENTRAIDE_COMMENT` : c'est lui qui
+     * disparait si on le retire, et le resolver doit alors rendre `null`.
+     */
+    public const OBJECT_FEED_POST_COMMENT = 'feed_post_comment';
+
+    /**
+     * TASK-1810 — l'item du Flux lui-meme, cible d'une REACTION.
+     *
+     * Distinct de `OBJECT_FEED_POST_COMMENT` : une reaction ne cree aucune
+     * ligne perenne (`toggleReaction()` supprime la ligne `Reaction` sur un
+     * second clic du meme type) — l'objet notifiable est donc l'ITEM, qui
+     * survit, jamais la reaction elle-meme.
+     */
+    public const OBJECT_FEED_POST = 'feed_post';
 
     /**
      * Le registre.
@@ -862,6 +918,47 @@ final class NotificationCatalogue
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
                 self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
                 self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1810 — on a commente un item du Flux (annonce manuelle ou
+        // evenement automatique).
+        self::FEED_POST_COMMENT_CREATED => [
+            'category' => 'feed',
+
+            // Ni « on me sollicite » (un commentaire n'appelle aucune
+            // reponse de ma part), ni une sollicitation DIRECTE : meme
+            // classement que `ENTRAIDE_COMMENT_CREATED` et
+            // `BLOG_COMMENT_CREATED` juste au-dessus, pour la meme raison.
+            'intention' => self::INTENTION_CHANGEMENTS,
+
+            'object_type' => self::OBJECT_FEED_POST_COMMENT,
+            'channels' => [
+                // Les TROIS canaux actifs par defaut et TOUS configurables —
+                // demande explicite de Cyril (« faut envoyer une
+                // notification par email + app + pwa »), et le meme
+                // raisonnement que les commentaires de blog/entraide : un
+                // commentaire ne vous est pas ADRESSE et n'appelle aucune
+                // reponse de vous, donc aucun canal n'est OBLIGATOIRE.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1810 — on a reagi a un item du Flux.
+        self::FEED_POST_REACTION_CREATED => [
+            'category' => 'feed',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_FEED_POST,
+            'channels' => [
+                // PREMIERE cle du catalogue sans aucun canal asynchrone —
+                // voir le docblock de la constante pour ce que cela entraine
+                // (aucune branche requise dans `NotificationEmailDeliverer`).
+                // « Juste une reaction » reste configurable : un membre dont
+                // les items recoivent beaucoup de reactions doit pouvoir se
+                // taire, exactement comme pour un commentaire.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
             ],
         ],
     ];

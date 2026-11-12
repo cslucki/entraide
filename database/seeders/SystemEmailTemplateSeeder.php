@@ -412,6 +412,36 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        // TASK-1810 (demande Cyril, 12/11) — « Commentaire sur le flux ».
+        //
+        // Pose AUSSI par la migration jumelle
+        // `2026_11_12_170000_add_feed_post_comment_created_email_template`, qui
+        // sert les bases DEJA installees qu'un seeder ne revisite pas. Les
+        // deux textes sont IDENTIQUES.
+        //
+        // Le SUJET est litteral, SANS variable — demande explicite : « Sujet
+        // : Commentaire sur le flux ». `feed_context` reprend EXACTEMENT ce
+        // qui est affiche dans la carte du Flux (`FeedCommentMailer::
+        // contexteDuFlux()`), pour que le destinataire comprenne de QUOI il
+        // s'agit sans se connecter. `author_first_name`, pas `author_name` :
+        // demande explicite (« $prenom_commentateur »).
+        'feed_post_comment_created' => [
+            'name_fr' => 'Commentaire sur le flux',
+            'name_en' => 'Comment on the Feed',
+            'subject_fr' => 'Commentaire sur le flux',
+            'subject_en' => 'Comment on the Feed',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vient de commenter le flux à propos d\'un sujet qui vous concerne : <strong>{{ feed_context }}</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Voir dans le Flux</a></p><p>Rien ne presse : vous n\'avez pas besoin de vous connecter pour en prendre connaissance.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> just commented on the Feed about something that concerns you: <strong>{{ feed_context }}</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">View in the Feed</a></p><p>No rush: you don\'t need to sign in to read it.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            // Obligatoire : `ligne()` lit `$def['variables']` SANS repli — voir
+            // le commentaire identique sur `blog_comment_created` ci-dessus.
+            // Meme liste que la migration jumelle.
+            'variables' => [
+                'recipient_name', 'recipient_email', 'author_first_name',
+                'organization_name', 'feed_context', 'comment_url',
+                'comment_excerpt', 'preferences_url', 'app_name',
+            ],
+        ],
+
         'loop_mention_created' => [
             'name_fr' => 'Mention dans une Boucle',
             'name_en' => 'Mention in a Loop',
