@@ -4,6 +4,34 @@
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Connexions réussies des utilisateurs</p>
     </div>
 
+    {{-- TASK-1812 correctif 10 (demande de Cyril) — des compteurs par type
+         d'appareil, nombre ET pourcentage : desktop, smartphone Android,
+         smartphone iOS, tablette, autre.
+
+         Calcules sur la recherche et l'Organisation deja filtrees, mais
+         JAMAIS sur le filtre d'appareil lui-meme (voir
+         `AdminController::statistiquesAppareils()`) : afficher cette
+         repartition alors qu'on a deja choisi « Smartphone » rendrait
+         toujours 100 %, un chiffre vrai par construction et donc muet.
+
+         Absent du DOM si le journal filtre est vide : une rangee de
+         pourcentages a 0 % partout n'apprend rien. --}}
+    @if(!empty($deviceStats))
+    <div class="mb-5">
+        <h2 class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">{{ __('admin.device_stats_title') }}</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-login-device-stats>
+            @foreach($deviceStats as $stat)
+            <div class="relative overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 shadow-sm"
+                 data-login-device-stat="{{ $stat['cle'] }}">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate mb-1">{{ $stat['libelle'] }}</p>
+                <p class="text-2xl font-bold tabular-nums text-gray-900 dark:text-gray-100">{{ number_format($stat['total'], 0, ',', ' ') }}</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500 tabular-nums">{{ number_format($stat['pourcentage'], 1, ',', ' ') }} %</p>
+            </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
         <input type="text" name="search" value="{{ request('search') }}" placeholder="Nom ou email..."
             class="flex-1 min-w-48 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">

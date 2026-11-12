@@ -1814,6 +1814,13 @@ class AdminController extends Controller
             });
         }
 
+        // TASK-1812 correctif 10 — les compteurs par type d'appareil, calcules
+        // sur la MEME population que la liste (recherche + Organisation deja
+        // appliquees), mais AVANT le filtre d'appareil lui-meme : un lecteur
+        // qui a deja choisi « Smartphone » verrait sinon « 100 % Smartphone »,
+        // une statistique vraie par construction et donc inutile.
+        $deviceStats = $this->statistiquesAppareils(clone $query);
+
         // TASK-1694 bug AK — filtrer par type d'appareil.
         //
         // Demande de Cyril : « savoir qui se connecte avec un smartphone, qui se
@@ -1848,10 +1855,51 @@ class AdminController extends Controller
         $loginLogs = $query->paginate(25)->withQueryString();
         $organizations = Organization::where('is_active', true)->orderBy('name')->get();
 
-        return view('admin.login-history.index', compact('loginLogs', 'organizations') + [
+        return view('admin.login-history.index', compact('loginLogs', 'organizations', 'deviceStats') + [
             'currentDevice' => $device?->value ?? '',
             'deviceKinds' => DeviceKind::cases(),
         ]);
+    }
+
+    /**
+     * TASK-1812 correctif 10 — repartition des connexions par type d'appareil
+     * (nombre et pourcentage), sur une requete DEJA filtree (recherche,
+     * Organisation) mais JAMAIS sur le filtre d'appareil lui-meme.
+     *
+     * Classifie en PHP, comme `DeviceKind::scope()` juste au-dessus : la
+     * classification porte sur des regles qui ne s'expriment pas toutes en
+     * SQL simple (« Android SANS le jeton Mobile », voir `DeviceKind`). Plutot
+     * que de charger les lignes completes, seule la colonne `user_agent` est
+     * ramenee — ce journal compte quelques centaines de lignes (mesure du
+     * 24/10, docblock de `DeviceKind`), largement sous ce qui justifierait une
+     * autre approche.
+     *
+     * @return list<array{cle: string, libelle: string, total: int, pourcentage: float}>
+     */
+    private function statistiquesAppareils(\Illuminate\Database\Eloquent\Builder $query): array
+    {
+        $cles = $query->pluck('user_agent')->map(fn (?string $agent) => DeviceKind::statKey($agent));
+
+        $total = $cles->count();
+
+        if ($total === 0) {
+            return [];
+        }
+
+        $comptes = $cles->countBy();
+
+        return collect(DeviceKind::statKeysOrdonnees())
+            ->map(function (string $cle) use ($comptes, $total) {
+                $compte = $comptes->get($cle, 0);
+
+                return [
+                    'cle' => $cle,
+                    'libelle' => __('admin.device_stat_'.$cle),
+                    'total' => $compte,
+                    'pourcentage' => round($compte / $total * 100, 1),
+                ];
+            })
+            ->all();
     }
 
     public function loginHistoryUser(Request $request, User $user): View

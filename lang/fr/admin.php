@@ -879,6 +879,15 @@ return [
     'device_tablet' => 'Tablette',
     'device_desktop' => 'Ordinateur',
     'device_other' => 'Autre / outil',
+    // TASK-1812 correctif 10 — les compteurs par type d'appareil. Cles
+    // distinctes de `device_phone` ci-dessus : le filtre n'a jamais eu besoin
+    // de distinguer Android et iOS, les statistiques si.
+    'device_stats_title' => 'Répartition par appareil',
+    'device_stat_desktop' => 'Ordinateur',
+    'device_stat_phone_android' => 'Smartphone Android',
+    'device_stat_phone_ios' => 'Smartphone iOS',
+    'device_stat_tablet' => 'Tablette',
+    'device_stat_other' => 'Autre',
     'emailer_locale_label' => 'Langue du gabarit',
     'emailer_locale_unset' => '— Non précisée —',
     'emailer_locale_any' => 'Toutes les langues',

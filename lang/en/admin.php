@@ -876,6 +876,15 @@ return [
     'device_tablet' => 'Tablet',
     'device_desktop' => 'Computer',
     'device_other' => 'Other / tool',
+    // TASK-1812 correctif 10 — device-type counters. Distinct keys from
+    // `device_phone` above: the filter never needed to tell Android and iOS
+    // apart, the stats do.
+    'device_stats_title' => 'Breakdown by device',
+    'device_stat_desktop' => 'Computer',
+    'device_stat_phone_android' => 'Android phone',
+    'device_stat_phone_ios' => 'iOS phone',
+    'device_stat_tablet' => 'Tablet',
+    'device_stat_other' => 'Other',
     'emailer_locale_label' => 'Template language',
     'emailer_locale_unset' => '— Not specified —',
     'emailer_locale_any' => 'All languages',
