@@ -38,20 +38,11 @@ return [
         'contestation_impossible' => 'Cette entraide ne peut pas être relancée.',
         'pas_encore_termine' => 'C’est noté : l’entraide est remise en cours.',
     ],
-    'flux' => [
-        // TASK-1757 §9.5 — dit ce qui sera publie ET ce qui ne le sera pas.
-        // Une case « Partager dans le Flux » sans cette precision laisserait
-        // croire que le nom du beneficiaire y passe aussi.
-        // TASK-1808 (observation de Cyril, 11/11) — ce libelle parlait au nom
-        // de l'AIDANT (« votre prenom et le temps donne »), alors que celui
-        // qui coche la case est desormais l'AIDE. Et il annoncait l'inverse de
-        // ce que la carte rend : `partagerDansLeFlux()` emet l'evenement avec
-        // pour acteur `$echange->seller`, et `feed.events.help_completed` dit
-        // « :name a donne :temps ». C'est donc le prenom de l'AIDANT qui
-        // s'affiche, et celui de l'aide qui n'apparait jamais.
-        'partagee' => 'Entraide partagée dans le Flux.',
-        'partager' => 'Partager cette entraide dans le Flux (le prénom de la personne qui vous a aidé et le temps partagé ; votre nom n’apparaît pas)',
-    ],
+    // TASK-1809 (correctif Cyril, 12/11) — le partage explicite dans le Flux
+    // (lien distinct, apres cloture) est retire : le partage est desormais
+    // AUTOMATIQUE des que l'avis est depose (`EvaluationEntraide::
+    // enregistrer()`). Les deux libelles qui vivaient ici (`partager`/
+    // `partagee`) n'ont plus aucun appelant.
 
     'atelier' => [
         'complet' => 'Cet atelier est complet.',

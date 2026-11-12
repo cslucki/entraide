@@ -11,16 +11,16 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 
 /**
- * TASK-1808 §6 — l'email d'invitation a evaluer l'aidant.
+ * TASK-1808 §6, puis TASK-1809 §3 — l'email d'invitation a evaluer l'aidant.
  *
  * ## Pourquoi ce fichier, et pas la machinerie du catalogue
  *
  * Ce gabarit n'est PAS une notification routee : aucun canal in-app, aucun
  * push, aucune preference a desactiver. C'est un geste ponctuel — UNE
- * invitation, jamais plus — declenche par une commande planifiee, pas par un
- * evenement de domaine. Le brancher sur `NotificationEmitter`/`MemberNotification`
- * ferait apparaitre une ligne dans le Centre de notifications de l'aide, ce
- * qu'aucune demande n'a jamais evoque et que §6 ne mentionne pas.
+ * invitation, jamais plus. Le brancher sur
+ * `NotificationEmitter`/`MemberNotification` ferait apparaitre une ligne dans
+ * le Centre de notifications de l'aide, ce qu'aucune demande n'a jamais
+ * evoque.
  *
  * Le patron repris est donc celui d'`OrganizationInvitationMailer` — un envoi
  * `Mail::html()` direct, journalise dans `email_logs` — mais le RENDU passe
@@ -28,6 +28,14 @@ use Illuminate\Support\Facades\Route;
  * (`EntraideCommentMailer`, `TransactionProposalMailer`) : « pas un nouveau
  * systeme d'envoi email », le texte vient du meme catalogue administrable,
  * la meme resolution tenant+langue, la meme interpolation.
+ *
+ * ## TASK-1809 §3 — IMMEDIAT a la cloture, plus un second email differe
+ *
+ * MASTER (12/11, « simplification finale ») a retire la relance planifiee a
+ * dix minutes (`entraide:invite-to-evaluate`, supprimee) — « BouclePro lutte
+ * contre l'infobesite » : un seul email, envoye par
+ * `TransactionController::complete()` immediatement apres la cloture, jamais
+ * deux. L'idempotence (voir plus bas) est ce qui garantit ce « jamais deux ».
  *
  * ## Le destinataire est UNIQUE, et c'est une regle, pas un detail
  *
@@ -39,7 +47,7 @@ use Illuminate\Support\Facades\Route;
  * ## L'idempotence ne vit PAS ici
  *
  * `transactions.evaluation_invited_at` est pose par l'appelant
- * (`EntraideInviteToEvaluateCommand`) sous une garde `whereNull`, pas par ce
+ * (`TransactionController::complete()`) sous une garde `whereNull`, pas par ce
  * mailer — exactement comme `seller_celebrated_at` est pose par
  * `MessageThread::celebrerSiCEstDu()` et non par le composant qui affiche les
  * coeurs. Un mailer qui ecrirait lui-meme son propre marqueur de succes ne
@@ -99,6 +107,12 @@ final class EvaluationInviteMailer
 
             $aidantNom = $aidant->publicDisplayName();
 
+            // Demande Cyril (12/11) — le gabarit nomme l'aidant par son
+            // PRENOM dans la phrase d'invitation, pas par un pronom : meme
+            // garde de confidentialite que `publicDisplayName()` (un compte
+            // desactive ne revele jamais son prenom reel).
+            $aidantPrenom = $aidant->isDeactivated() ? __('profile.deactivated_user') : $aidant->first_name;
+
             $rendu = app(GabaritEmail::class)->rendre(
                 slug: self::SLUG,
                 organizationId: (string) $transaction->organization_id,
@@ -108,9 +122,17 @@ final class EvaluationInviteMailer
                     'recipient_name' => $aide->publicDisplayName(),
                     'recipient_email' => $aide->email,
                     'aidant_name' => $aidantNom,
+                    'aidant_first_name' => $aidantPrenom,
                     'organization_name' => $organization?->name ?? '',
                     'evaluation_url' => $url,
                     'app_name' => config('app.name'),
+                    // TASK-1809 §3 — le nombre de points transferes a la
+                    // cloture, dit explicitement dans le corps. Un coup de
+                    // main OFFERT (T1754 §9.3) transfere 0 point par choix
+                    // de produit : la phrase reste alors litteralement vraie
+                    // ("0 points ont ete transferes"), cas limite connu, non
+                    // reformule ici faute de demande explicite sur ce point.
+                    'points' => (int) $transaction->points_agreed,
                 ],
                 // Repli minimal : ce gabarit n'a pas de version Blade
                 // dediee, a la difference des chemins plus anciens — le CDC

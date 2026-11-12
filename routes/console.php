@@ -70,14 +70,13 @@ Schedule::command('queue:work', [
 // ou le deriver compare l'empreinte de la source avant toute depense.
 Schedule::command('knowledge:derive-due')->everyTenMinutes()->withoutOverlapping(10);
 
-// TASK-1808 §6 — l'invitation a evaluer l'aidant. Meme cadence que le
-// balayeur ci-dessus et pour la meme famille de raison : `QUEUE_CONNECTION=
-// sync` en PROD ignore tout `->delay()`, et l'allowlist de `queue:work` plus
-// haut exclut deliberement `default` — le planificateur est la seule voie
-// fiable. La fenetre de `EntraideInviteToEvaluate::DELAI_MINUTES` fait le
-// reste : rien n'est envoye avant que la sequence immediate ait eu le temps
-// de se jouer.
-Schedule::command('entraide:invite-to-evaluate')->everyTenMinutes()->withoutOverlapping(10);
+// TASK-1808 §6 — l'invitation a evaluer l'aidant tournait ici, planifiee a
+// dix minutes apres la cloture (`EntraideInviteToEvaluate`, commande
+// supprimee). TASK-1809 §3 (MASTER, « simplification finale ») : « BouclePro
+// lutte contre l'infobesite » — un seul email, envoye IMMEDIATEMENT par
+// `TransactionController::complete()` a la cloture, plus de balayage
+// planifie. `transactions.evaluation_invited_at` garde le MEME role
+// (une invitation maximum), poste desormais depuis ce point synchrone.
 
 // TASK-1433 — SW-3 : la retention des visiteurs du Shell Welcome est une promesse.
 Schedule::command('guest:purge-expired')->daily();

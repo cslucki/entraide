@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Category;
 use App\Models\FeedPost;
 use App\Models\Organization;
+use App\Models\Review;
 use App\Models\Service;
 use App\Models\Transaction;
 use App\Models\User;
@@ -14,20 +15,33 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * TASK-1757 (§9.5 du CDC entraide) — l'entraide entre dans le Flux, sur accord.
+ * TASK-1757 (§9.5 du CDC entraide) — l'entraide entre dans le Flux.
  *
  * ## Les deux decisions que ce fichier garde
  *
- * Arbitrages Cyril du 05/11, et ce sont des decisions de CONFIDENTIALITE : si
- * ces tests disparaissent, plus rien n'empeche de publier l'entraide de tout le
- * monde, ni d'y nommer le beneficiaire.
+ * 1. **L'accord est explicite et par echange** (arbitrage du 05/11, toujours
+ *    vrai pour le chemin HERITE `confirm()`/`partagerDansLeFlux()` — voir son
+ *    docbloc). Le §9.5 dit « opt-in » et aucun stockage n'existait pour ca.
+ *    La case vit dans le formulaire de confirmation : decochee, aucune ligne.
+ *    Donc aucune colonne, aucune migration.
  *
- * 1. **L'accord est explicite et par echange.** Le §9.5 dit « opt-in » et aucun
- *    stockage n'existait pour ca. La case vit dans le formulaire de
- *    confirmation : decochee, aucune ligne. Donc aucune colonne, aucune
- *    migration.
- * 2. **Seul l'AIDANT est nomme.** « Barnabe a RECU 30 min d'aide » exposerait
- *    quelqu'un qui n'a rien decide — celui qui coche est l'aidant.
+ *    TASK-1809 §2 (12/11) a ouvert un SECOND chemin, desormais le chemin
+ *    COURANT : `EvaluationEntraide::enregistrer()` partage AUTOMATIQUEMENT,
+ *    sans case, des que l'aide depose son evaluation — plus de parcours
+ *    visible ne pose la case. Ce fichier ne teste QUE le chemin herite ; le
+ *    partage automatique est teste dans
+ *    `TASK1808ParcoursFinalEntraideTest::test_l_evaluation_partage_
+ *    automatiquement_l_entraide_dans_le_flux`.
+ *
+ * 2. **Les DEUX personnes sont nommees** (decision Cyril, 12/11 — REMPLACE
+ *    l'arbitrage du 05/11, qui ne nommait que l'aidant : « Barnabe a RECU
+ *    30 min d'aide » exposait quelqu'un qui n'avait rien decide). Mot pour
+ *    mot : « Si on nomme les deux, c'est une plateforme de confiance et
+ *    ouverte. Et il faut etre connecte et membre accepte. Donc aucun
+ *    probleme a dire les choses et de facon bienveillante. » La carte nomme
+ *    donc l'aidant ET l'aide, et l'annonce par son TITRE (plus par sa seule
+ *    categorie) — BouclePro est une plateforme de pedagogie par entraide, pas
+ *    de troc.
  */
 class TASK1757EntraideDansLeFluxTest extends TestCase
 {
@@ -121,15 +135,13 @@ class TASK1757EntraideDansLeFluxTest extends TestCase
     }
 
     /**
-     * 🔴 LA DECISION DE CONFIDENTIALITE — la carte ne nomme PAS le beneficiaire.
-     *
-     * C'est la moitie qui protege. Un accord de l'aidant ne peut pas engager le
-     * beneficiaire : Barnabe n'a rien coche, son nom ne doit nulle part
-     * apparaitre.
+     * 🔴 LA DECISION — la carte nomme les DEUX personnes, et le TITRE de
+     * l'annonce (decision Cyril du 12/11, REMPLACE l'arbitrage du 05/11).
      */
-    public function test_la_carte_nomme_l_aidant_le_temps_et_la_categorie_jamais_le_beneficiaire(): void
+    public function test_la_carte_nomme_l_aidant_l_aide_le_temps_et_le_titre_de_l_annonce(): void
     {
         $echange = $this->pretAConfirmer(points: 30, categorie: 'Bricolage');
+        $titre = $echange->service->title;
         $this->confirmer($echange, partager: true);
 
         $ligne = $this->lignesDEntraide()->first();
@@ -137,13 +149,44 @@ class TASK1757EntraideDansLeFluxTest extends TestCase
         foreach ([FeedEventRenderer::libelle($ligne), FeedEventRenderer::ligneHtml($ligne, $this->organization->slug)] as $rendu)
         {
             $this->assertStringContainsString('Ottoline', $rendu, 'L\'aidant doit etre nomme.');
+            $this->assertStringContainsString('Barnabe', $rendu, 'L\'aide doit desormais etre nomme aussi.');
             $this->assertStringContainsString('30 min', $rendu, 'Le temps donne doit apparaitre.');
-            $this->assertStringContainsString('Bricolage', $rendu, 'La categorie donne le contexte.');
-
-            $this->assertStringNotContainsString('Barnabe', $rendu,
-                'Le beneficiaire est nomme alors qu\'il n\'a rien decide.');
-            $this->assertStringNotContainsString($this->aide->name, $rendu);
+            $this->assertStringContainsString($titre, $rendu, 'Le titre de l\'annonce doit apparaitre, plus la seule categorie.');
         }
+    }
+
+    /**
+     * TASK-1809 (correctif Cyril, 12/11) — la piece jointe « premium » :
+     * l'icone Entraide toujours, l'evaluation (etoiles + chiffre +
+     * commentaire) SEULEMENT quand elle existe. Sans avis, la ligne se
+     * suffit (contrat deja tenu par `apercu()` — `null` = pas de piece
+     * jointe).
+     */
+    public function test_la_carte_porte_l_icone_et_l_evaluation_quand_elle_existe(): void
+    {
+        $echange = $this->pretAConfirmer();
+        $this->confirmer($echange, partager: true);
+        $ligne = $this->lignesDEntraide()->first();
+
+        $this->assertNull(FeedEventRenderer::apercu($ligne, $this->organization->slug),
+            'Sans avis depose, aucune piece jointe ne doit etre proposee.');
+
+        Review::create([
+            'transaction_id' => $echange->id,
+            'organization_id' => $this->organization->id,
+            'reviewer_id' => $this->aide->id,
+            'reviewed_id' => $this->aidant->id,
+            'rating' => 4,
+            'comment' => 'Un vrai plaisir, merci !',
+        ]);
+
+        $apercu = FeedEventRenderer::apercu($ligne, $this->organization->slug);
+        $this->assertNotNull($apercu);
+        $this->assertSame('M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4', $apercu['icone'],
+            'La MEME icone que le rail gauche, jamais une seconde icone inventee.');
+        $this->assertStringContainsString('★★★★☆', $apercu['titre']);
+        $this->assertStringContainsString('4/5', $apercu['titre']);
+        $this->assertSame('Un vrai plaisir, merci !', $apercu['texte']);
     }
 
     /**
@@ -170,6 +213,7 @@ class TASK1757EntraideDansLeFluxTest extends TestCase
         $rendu = FeedEventRenderer::libelle($this->lignesDEntraide()->first()->fresh());
 
         $this->assertStringContainsString('Ottoline', $rendu, 'L\'aidant reste nomme.');
+        $this->assertStringContainsString('Barnabe', $rendu, 'L\'aide reste nomme aussi.');
         $this->assertStringContainsString('Entraide', $rendu);
         $this->assertStringNotContainsString('supprimé', $rendu);
     }

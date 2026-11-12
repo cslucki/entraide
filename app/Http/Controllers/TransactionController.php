@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Notifications\TransactionStatusChanged;
+use App\Services\Entraide\EvaluationInviteMailer;
 use App\Services\ServiceRequestLifecycle;
 use App\Support\Entraide\Atelier;
 use App\Support\Entraide\EvaluationEntraide;
@@ -603,6 +604,39 @@ class TransactionController extends Controller
             false,
         );
 
+        // TASK-1809 §3 — l'email d'invitation a evaluer, desormais
+        // IMMEDIAT (MASTER a retire la relance planifiee a dix minutes :
+        // « BouclePro lutte contre l'infobesite », un seul email, jamais
+        // deux). Idempotent par une mise a jour conditionnelle ATOMIQUE
+        // (`whereNull`, 0 ou 1 ligne touchee) — meme garde que l'ancienne
+        // commande `entraide:invite-to-evaluate`, deplacee ici puisque le
+        // declencheur est desormais synchrone a la cloture et non plus un
+        // balayage planifie. Une discussion directe n'a rien a evaluer.
+        // `rescue()` : un echec d'envoi ne doit jamais faire echouer la
+        // cloture, deja validee et irreversible a ce stade.
+        if (! $fresh->isDirectConversation()) {
+            rescue(
+                function () use ($fresh) {
+                    $aEnvoyer = Transaction::whereKey($fresh->id)->whereNull('evaluation_invited_at')->exists();
+
+                    if (! $aEnvoyer) {
+                        return;
+                    }
+
+                    if (app(EvaluationInviteMailer::class)->envoyer($fresh)) {
+                        Transaction::whereKey($fresh->id)->whereNull('evaluation_invited_at')->update(['evaluation_invited_at' => now()]);
+                    }
+                },
+                fn (\Throwable $e) => Log::error('Evaluation invitation email failed after successful closure', [
+                    'event' => 'entraide_evaluation_invite_not_sent',
+                    'transaction_id' => $fresh->id,
+                    'organization_id' => $fresh->organization_id,
+                    'exception_class' => $e::class,
+                ]),
+                false,
+            );
+        }
+
         $this->partagerDansLeFlux($request, $fresh);
 
         // `error` et non `warning` : le layout ne rend QUE `success`, `error`
@@ -764,44 +798,16 @@ class TransactionController extends Controller
      * Flux a eu un probleme.
      */
     /**
-     * TASK-1808 §7 — PARTAGER L'ENTRAIDE DANS LE FLUX, APRES LA CLOTURE.
-     *
-     * Pourquoi une action separee. La clarification MASTER du 11/11 impose
-     * qu'un clic sur « Marquer l'entraide comme terminee » cloture
-     * IMMEDIATEMENT : il n'existe donc plus d'ecran avant la cloture ou poser
-     * une case a cocher. Le partage devient un geste d'apres-coup — et il y
-     * gagne, puisqu'il ne depend plus de l'evaluation, ce que le §7 demandait
-     * (« sans rendre l'evaluation obligatoire »).
-     *
-     * L'arbitrage produit, lui, ne bouge pas : c'est l'AIDE qui decide seul,
-     * sans validation supplementaire de l'aidant, et la carte du Flux nomme
-     * l'AIDANT. Voir le docbloc de `partagerDansLeFlux()`.
-     *
-     * Une seule ligne de Flux, toujours : `FeedEventEmitter::emettre()` est
-     * idempotent par la cle (organization, type, objet) et la contrainte
-     * d'unicite en base le garantit meme en concurrence. Un double envoi ne
-     * peut donc pas publier deux fois.
+     * TASK-1809 (correctif Cyril, 12/11) — le partage dans le Flux n'est
+     * PLUS une action distincte (`shareInFeed()`/`orgShareInFeed()`,
+     * supprimees avec leurs deux routes et `TransactionPolicy::
+     * shareInFeed()`) : le lien explicite menait a une erreur 500 et
+     * demandait un clic de plus pour un geste qui devrait etre acquis. Le
+     * partage est desormais AUTOMATIQUE, declenche par
+     * `EvaluationEntraide::enregistrer()` des qu'un avis est reellement
+     * depose — meme emetteur (`FeedEventEmitter::emettre()`, idempotent),
+     * meme acteur (l'AIDANT), seul le declencheur change.
      */
-    public function shareInFeed(Request $request, Transaction $transaction): RedirectResponse
-    {
-        $this->authorize('shareInFeed', $transaction);
-
-        rescue(fn () => app(FeedEventEmitter::class)->emettre(
-            FeedEventCatalogue::ENTRAIDE_TERMINEE,
-            $transaction,
-            $transaction->seller,
-            $transaction->organization_id,
-        ), report: true);
-
-        return $this->redirectToMessage($transaction)
-            ->with('success', __('entraide.flux.partagee'));
-    }
-
-    public function orgShareInFeed(Request $request, string $org, Transaction $transaction): RedirectResponse
-    {
-        return $this->shareInFeed($request, $transaction);
-    }
-
     private function partagerDansLeFlux(Request $request, Transaction $echange): void
     {
         if (! $request->boolean('partager_dans_le_flux')) {

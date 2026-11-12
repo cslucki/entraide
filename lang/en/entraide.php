@@ -34,12 +34,9 @@ return [
         'contestation_impossible' => 'This mutual aid cannot be reopened.',
         'pas_encore_termine' => 'Noted: the mutual aid is active again.',
     ],
-    'flux' => [
-        // TASK-1808 — see the French file: this label spoke for the HELPER,
-        // but the person ticking the box is now the HELPED one.
-        'partagee' => 'Mutual aid shared in the Feed.',
-        'partager' => 'Share this mutual aid in the Feed (the first name of the person who helped you and the time shared; your name is not shown)',
-    ],
+    // TASK-1809 (Cyril's fix, 12/11) — explicit Feed sharing (separate
+    // link, after closure) is removed: sharing is now AUTOMATIC as soon as
+    // the review is submitted (`EvaluationEntraide::enregistrer()`).
 
     'atelier' => [
         'complet' => 'This workshop is full.',

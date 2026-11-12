@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use App\Models\SystemEmailTemplate;
+use App\Services\EmailerService;
 use Database\Seeders\SystemEmailTemplateSeeder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Mail\Markdown;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -183,5 +186,97 @@ class AdminSystemEmailTemplatesController extends Controller
 
         return redirect($redirect)
             ->with('success', __('admin.emailer_updated'));
+    }
+
+    /**
+     * TASK-1809 (micro-sequence C) — l'apercu REEL d'un gabarit, variables
+     * de demonstration interpolees, habille par le MEME theme que l'envoi
+     * reel.
+     *
+     * Avant ce correctif, l'iframe de `edit.blade.php` affichait le HTML
+     * BRUT du textarea — ni habillage, ni interpolation (les `{{ token }}`
+     * restaient litteraux) — un apercu qui ne ressemblait a rien de ce
+     * qu'un destinataire recoit vraiment.
+     *
+     * Prend `subject`/`content_html` dans la REQUETE, jamais ceux deja
+     * enregistres : l'administrateur doit pouvoir visualiser une
+     * modification AVANT de l'enregistrer.
+     *
+     * N'envoie RIEN — aucun appel a `Mail`, uniquement le rendu de
+     * `Illuminate\Mail\Markdown`, la meme bibliotheque que les envois
+     * reels des notifications natives utilisent deja.
+     */
+    public function preview(Request $request, SystemEmailTemplate $systemEmailTemplate): JsonResponse
+    {
+        $validated = $request->validate([
+            'subject' => 'required|string|max:255',
+            'content_html' => 'required|string',
+        ]);
+
+        $locale = $systemEmailTemplate->locale ?: self::LOCALE_PAR_DEFAUT;
+        app()->setLocale($locale);
+
+        $cles = $systemEmailTemplate->variables ?? [];
+        $demo = $this->variablesDeDemonstration($cles, $locale);
+
+        $emailer = app(EmailerService::class);
+        $subject = $emailer->interpolateSubject($validated['subject'], $demo, $cles);
+        $html = $emailer->interpolate($validated['content_html'], $demo, $cles);
+
+        $rendu = (string) app(Markdown::class)->render('emails.system-email', ['html' => $html]);
+
+        return response()->json(['subject' => $subject, 'html' => $rendu]);
+    }
+
+    /**
+     * Une valeur plausible par variable DECLAREE par le gabarit — jamais une
+     * donnee reelle, jamais un envoi : c'est uniquement ce que `preview()`
+     * interpole pour donner a voir un rendu credible.
+     *
+     * @param  list<string>  $cles
+     * @return array<string, string>
+     */
+    private function variablesDeDemonstration(array $cles, string $locale): array
+    {
+        $fr = $locale !== 'en';
+
+        $connues = [
+            'app_name' => (string) config('app.name'),
+            'organization_name' => $fr ? 'Entraide du Quartier' : 'Neighbourhood Mutual Aid',
+            'organization' => $fr ? 'Entraide du Quartier' : 'Neighbourhood Mutual Aid',
+            'organisation' => $fr ? 'Entraide du Quartier' : 'Neighbourhood Mutual Aid',
+            'organization_slug' => 'entraide-du-quartier',
+            'organisation_slug' => 'entraide-du-quartier',
+            'recipient_name' => $fr ? 'Camille Durand' : 'Jordan Smith',
+            'sender_name' => $fr ? 'Alex Martin' : 'Alex Martin',
+            'aidant_name' => $fr ? 'Alex Martin' : 'Alex Martin',
+            'aidant_first_name' => 'Alex',
+            'name' => $fr ? 'Camille Durand' : 'Jordan Smith',
+            'full_name' => $fr ? 'Camille Durand' : 'Jordan Smith',
+            'first_name' => $fr ? 'Camille' : 'Jordan',
+            'email' => 'camille.durand@example.com',
+            'city' => $fr ? 'Lyon' : 'London',
+            'loop_name' => $fr ? 'Entraide du quartier' : 'Neighbourhood Circle',
+            'loop_tagline' => $fr ? 'Ensemble, on va plus loin' : 'Together we go further',
+            'personal_message' => $fr ? 'Au plaisir de vous accueillir parmi nous !' : 'Looking forward to welcoming you!',
+            'expires_at' => now()->addDays(7)->isoFormat('LL'),
+        ];
+
+        $demo = [];
+
+        foreach ($cles as $cle) {
+            if (isset($connues[$cle])) {
+                $demo[$cle] = $connues[$cle];
+
+                continue;
+            }
+
+            $demo[$cle] = match (true) {
+                str_ends_with($cle, '_url'), $cle === 'url' => '#apercu',
+                default => $fr ? 'Exemple' : 'Example',
+            };
+        }
+
+        return $demo;
     }
 }

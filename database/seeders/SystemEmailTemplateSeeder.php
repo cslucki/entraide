@@ -305,13 +305,15 @@ class SystemEmailTemplateSeeder extends Seeder
         //
         // Le SUJET ne nomme personne : il se lit dans un apercu de boite mail,
         // sans deverrouiller. C'est le texte du CDC §8.
-        // TASK-1808 §6 — l'invitation a evaluer l'aidant, APRES la cloture.
+        // TASK-1808 §6, puis TASK-1809 §3 — l'invitation a evaluer l'aidant,
+        // APRES la cloture.
         //
         // Pose AUSSI par la migration jumelle
-        // `2026_11_12_110000_add_entraide_evaluation_invite_email_template`,
-        // qui sert les bases DEJA installees qu'un seeder ne revisite pas.
-        // Les deux textes sont IDENTIQUES, et la migration a ete generee
-        // depuis cette entree.
+        // `2026_11_12_110000_add_entraide_evaluation_invite_email_template`
+        // (insertion) puis `2026_11_12_150000_update_..._immediate_copy`
+        // (texte immediat), qui servent les bases DEJA installees qu'un
+        // seeder ne revisite pas. Les textes sont IDENTIQUES, generes depuis
+        // cette entree.
         //
         // Destinataire UNIQUE : l'aide (D1). Jamais l'aidant — MASTER
         // l'ecrit explicitement (« ne jamais envoyer a l'aidant un message
@@ -319,21 +321,56 @@ class SystemEmailTemplateSeeder extends Seeder
         // ete donnee »). `EvaluationInviteMailer` est le seul emetteur, et
         // il ne connait que `transaction->buyer`.
         //
+        // TASK-1809 §3 — MASTER a retire la relance PLANIFIEE (dix minutes
+        // apres cloture, `entraide:invite-to-evaluate`, supprimee) :
+        // « BouclePro lutte contre l'infobesite ». Desormais UN SEUL email,
+        // envoye IMMEDIATEMENT par `TransactionController::complete()`,
+        // borne a UNE fois par entraide par la MEME colonne
+        // `transactions.evaluation_invited_at` (semantique inchangee, seul
+        // le declencheur change : synchrone a la cloture, plus un balayage
+        // planifie). `{{ points }}` (nouvelle variable) nomme le nombre de
+        // points transferes.
+        //
         // Pas de `preferences_url` : cette invitation n'est pas une
         // notification du catalogue (pas de canal in-app ni push a
-        // desactiver) — c'est un geste ponctuel, declenche par
-        // `entraide:invite-to-evaluate`, borne a UNE fois par entraide par
-        // `transactions.evaluation_invited_at`.
+        // desactiver).
         'entraide_evaluation_invite' => [
             'name_fr' => 'Invitation à évaluer l’aidant',
             'name_en' => 'Invitation to rate the helper',
-            'subject_fr' => 'Un petit retour sur l’aide de {{ aidant_name }} ?',
-            'subject_en' => 'A quick word on {{ aidant_name }}’s help?',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Votre entraide avec <strong>{{ aidant_name }}</strong> est terminée.</p><p>Vous pouvez lui laisser une évaluation pour reconnaître sa contribution et aider les autres membres de {{ organization_name }}.</p><p>Quelques étoiles suffisent. Un commentaire est facultatif.</p><p><a href="{{ evaluation_url }}">Laisser une évaluation</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ evaluation_url }}</p><p>Merci de faire vivre l’entraide sur {{ app_name }}.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>Your mutual aid with <strong>{{ aidant_name }}</strong> is complete.</p><p>You can leave them a review to recognize their contribution and help other members of {{ organization_name }}.</p><p>A few stars are enough. A comment is optional.</p><p><a href="{{ evaluation_url }}">Leave a review</a></p><p>If the link does not work, copy this address into your browser:<br>{{ evaluation_url }}</p><p>Thank you for keeping mutual aid alive on {{ app_name }}.</p>',
+            'subject_fr' => 'Terminer et évaluer l’entraide de {{ aidant_first_name }}',
+            'subject_en' => 'Finish and rate your exchange with {{ aidant_first_name }}',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Vous avez indiqué que votre échange avec {{ aidant_first_name }} est terminé et {{ points }} points lui ont été transférés depuis votre compte.</p><p>Merci d’avance de lui laisser une évaluation pour reconnaître sa contribution. Ce sera sûrement apprécié !</p><p><a href="{{ evaluation_url }}">Évaluer l’entraide avec {{ aidant_first_name }}</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ evaluation_url }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>You’ve marked your exchange with {{ aidant_first_name }} as complete, and {{ points }} points have been transferred from your account.</p><p>We’d really appreciate it if you could leave them a review to recognize their contribution!</p><p><a href="{{ evaluation_url }}">Rate your exchange with {{ aidant_first_name }}</a></p><p>If the link does not work, copy this address into your browser:<br>{{ evaluation_url }}</p>',
             'variables' => [
-                'recipient_name', 'recipient_email', 'aidant_name',
-                'organization_name', 'evaluation_url', 'app_name',
+                'recipient_name', 'recipient_email', 'aidant_name', 'aidant_first_name',
+                'organization_name', 'evaluation_url', 'app_name', 'points',
+            ],
+        ],
+
+        // TASK-1809 §4 — l'email a l'aidant QUAND son evaluation arrive.
+        // Destinataire UNIQUE : l'aidant (D2, `reviewed_id`). Declenche
+        // SEULEMENT par `EvaluationEntraide::enregistrer()` (jamais par
+        // `ReviewModeration` — modifier/masquer/demasquer/supprimer/
+        // restaurer ne cree jamais de ligne et ne declenche donc jamais cet
+        // envoi). Pose AUSSI par la migration jumelle
+        // `2026_11_12_160000_add_entraide_review_received_email_template`.
+        //
+        // « Jean ne doit pas avoir besoin de revenir sur BouclePro pour
+        // connaitre sa note et lire le commentaire » (MASTER) : la note
+        // est portee en etoiles ET en chiffre, le commentaire s'il existe —
+        // jamais de HTML non echappe issu d'un commentaire membre,
+        // `EmailerService::interpolate()` applique `e()` a chaque variable.
+        'entraide_review_received' => [
+            'name_fr' => 'Vous avez reçu une évaluation',
+            'name_en' => 'You received a review',
+            'subject_fr' => '{{ aide_first_name }} vous a laissé une évaluation !',
+            'subject_en' => '{{ aide_first_name }} left you a review!',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ aide_first_name }} vous a laissé une évaluation pour votre entraide.</p><p style="font-size:20px;letter-spacing:2px">{{ rating_stars }} <span style="font-size:14px;color:#777">({{ rating_fraction }})</span></p><p>{{ comment_text }}</p><p><a href="{{ conversation_url }}">Voir la conversation</a></p><p>Merci de faire vivre l’entraide sur {{ app_name }}.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ aide_first_name }} left you a review for your mutual aid.</p><p style="font-size:20px;letter-spacing:2px">{{ rating_stars }} <span style="font-size:14px;color:#777">({{ rating_fraction }})</span></p><p>{{ comment_text }}</p><p><a href="{{ conversation_url }}">View the conversation</a></p><p>Thank you for keeping mutual aid alive on {{ app_name }}.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'aide_name', 'aide_first_name',
+                'rating_stars', 'rating_fraction', 'comment_text', 'conversation_url',
+                'organization_name', 'app_name',
             ],
         ],
 

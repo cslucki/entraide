@@ -460,18 +460,13 @@ Route::middleware('auth')->group(function () {
     Route::patch('/transactions/{transaction}/confirm', [TransactionController::class, 'confirm'])->name('transactions.confirm');
     Route::patch('/transactions/{transaction}/contest', [TransactionController::class, 'contest'])->name('transactions.contest');
 
-    // Reviews
+    // Reviews — TASK-1809 §2 : UNE seule route, `store` recoit rating et
+    // commentaire dans la meme requete. `skip`/`defer`/`comment`/
+    // `comment.skip` (ecrans separes, « Plus tard », renoncement explicite)
+    // sont retirees avec le parcours visible qui les appelait.
     Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->name('reviews.store');
-    Route::post('/transactions/{transaction}/review/skip', [ReviewController::class, 'skip'])->middleware('throttle:5,1')->name('reviews.skip');
-    // TASK-1808 (precision MASTER) — « Plus tard », qui persiste entre deux visites.
-    Route::post('/transactions/{transaction}/review/defer', [ReviewController::class, 'defer'])->middleware('throttle:5,1')->name('reviews.defer');
-    // TASK-1808 §5 — le micro-ecran B. Deux gestes distincts, deux routes :
-    // publier le mot, ou terminer sans commentaire. Meme `throttle` que les
-    // deux au-dessus.
-    Route::post('/transactions/{transaction}/review/comment', [ReviewController::class, 'comment'])->middleware('throttle:5,1')->name('reviews.comment');
-    Route::post('/transactions/{transaction}/review/comment/skip', [ReviewController::class, 'skipComment'])->middleware('throttle:5,1')->name('reviews.comment.skip');
-    // TASK-1808 §7 — le partage dans le Flux, devenu un geste d'apres-cloture.
-    Route::post('/transactions/{transaction}/share-in-feed', [TransactionController::class, 'shareInFeed'])->middleware('throttle:5,1')->name('transactions.share-in-feed');
+    // TASK-1809 (correctif Cyril) — partage dans le Flux desormais
+    // AUTOMATIQUE a l'evaluation, route `share-in-feed` retiree.
 
     // Messages
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
@@ -1093,6 +1088,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'store'])->name('system-email-templates.store');
     Route::get('/system-email-templates/{systemEmailTemplate}/edit', [AdminSystemEmailTemplatesController::class, 'edit'])->name('system-email-templates.edit');
     Route::put('/system-email-templates/{systemEmailTemplate}', [AdminSystemEmailTemplatesController::class, 'update'])->name('system-email-templates.update');
+    // TASK-1809 (micro-sequence C) — apercu fidele : rendu REEL (theme +
+    // interpolation de variables de demonstration), jamais un envoi.
+    Route::post('/system-email-templates/{systemEmailTemplate}/preview', [AdminSystemEmailTemplatesController::class, 'preview'])->name('system-email-templates.preview');
 
     // IA Design Lab (test interne)
     Route::get('/ia-design-lab', [AdminIaDesignLabController::class, 'index'])->name('ia-design-lab');
@@ -1754,12 +1752,6 @@ Route::prefix('/org/{organization}')
             Route::patch('/transactions/{transaction}/contest', [TransactionController::class, 'orgContest'])->name('transactions.contest');
 
             Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.store');
-            Route::post('/transactions/{transaction}/review/skip', [ReviewController::class, 'skip'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.skip');
-            Route::post('/transactions/{transaction}/review/defer', [ReviewController::class, 'defer'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.defer');
-            // TASK-1808 §5 — les jumelles scopees du micro-ecran B.
-            Route::post('/transactions/{transaction}/review/comment', [ReviewController::class, 'comment'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.comment');
-            Route::post('/transactions/{transaction}/review/comment/skip', [ReviewController::class, 'skipComment'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.comment.skip');
-            Route::post('/transactions/{transaction}/share-in-feed', [TransactionController::class, 'orgShareInFeed'])->middleware('throttle:5,1')->middleware('consume.org')->name('transactions.share-in-feed');
 
             Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
             // TASK-1693 bug AA — « Ecrire a cette personne », sur la surface de

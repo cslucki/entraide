@@ -426,10 +426,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('view-transaction', [MessagePolicy::class, 'view']);
         Gate::define('store-message', [MessagePolicy::class, 'store']);
         Gate::define('create-review', [ReviewPolicy::class, 'create']);
-        // TASK-1808 §5 — le micro-ecran B complete une note deja posee, ce que
-        // `create-review` refuse par construction. Voir le docbloc de
-        // `ReviewPolicy::complete()`.
-        Gate::define('complete-review', [ReviewPolicy::class, 'complete']);
 
         View::composer('layouts.admin', function ($view) {
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());

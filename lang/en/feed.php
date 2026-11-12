@@ -11,8 +11,11 @@ return [
         'loop_joined' => ':name joined the :object Loop',
         'loop_created' => ':name created the :object Loop',
         'loop_event_created' => ':name created the event :object',
-        // TASK-1757 §9.5 — only the HELPER is named, never the recipient.
-        'help_completed' => ':name gave :temps — :object',
+        // TASK-1809 (Cyril's decision, 12/11) — REPLACES the 05/11
+        // arbitrage (only the helper was named): a trust-based platform
+        // names both. The listing by its TITLE (:object) — BouclePro is a
+        // peer-learning platform, not a barter marketplace.
+        'help_completed' => ':name helped :beneficiaire with “:object” (:temps)',
         'help_category_fallback' => 'Help',
         'object_gone' => 'a deleted item',
     ],
