@@ -5,7 +5,10 @@ return [
     'title' => 'Legal notices',
     'intro' => 'Information about the publishing and hosting of the BouclePro platform.',
     'editor_title' => 'Publisher',
-    'editor_text' => 'The site <strong>amteletravail.fr</strong> is published by:',
+    // TASK-1812 correctif 06 — see the French file: this page is a SINGLE
+    // page scoped to every Organization, whose domains are not
+    // amteletravail.fr. The fixed domain name was only true for one of them.
+    'editor_text' => 'This site is published by:',
     'director_title' => 'Publication director',
     'host_title' => 'Hosting provider',
     'opensource_title' => 'Open source project',
