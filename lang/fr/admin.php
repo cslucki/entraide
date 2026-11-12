@@ -2015,6 +2015,8 @@ return [
     'users_profile_section_contributions' => 'Ce qu’il ou elle apporte',
     'users_profile_section_interactions' => 'Ses échanges avec les autres',
     'users_profile_section_ai' => 'Son usage de l’IA',
+    // TASK-1812 correctif 09 — les Boucles REJOINTES, par leur nom.
+    'users_profile_section_loops_joined' => 'Boucles rejointes',
     'users_profile_services' => 'Services proposés',
     'users_profile_requests' => 'Demandes publiées',
     'users_profile_articles' => 'Articles',
@@ -2041,6 +2043,8 @@ return [
     'users_profile_registered' => 'Inscrit le',
     'users_profile_points' => 'Solde de points',
     'users_profile_rating' => 'Note',
+    // TASK-1812 correctif 09 — le telephone portable.
+    'users_profile_phone' => 'Téléphone',
     'users_profile_org' => 'Organisation',
     'users_profile_org_none' => 'Globale',
     'users_profile_close' => 'Fermer',

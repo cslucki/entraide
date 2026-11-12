@@ -10,6 +10,7 @@ use App\Models\EmailLog;
 use App\Models\EmailTemplate;
 use App\Models\EntraideComment;
 use App\Models\LoginLog;
+use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Report;
@@ -1984,6 +1985,13 @@ class AdminController extends Controller
      * Rendre les lignes elles-memes aurait fait passer du contenu personnel
      * (messages, prompts IA) dans une reponse d'administration.
      *
+     * TASK-1812 correctif 09 — email, telephone et noms de Boucles REJOINTES ne
+     * sont pas du « contenu » au sens ci-dessus : ce sont des coordonnees et une
+     * appartenance, deja visibles ailleurs (l'email l'etait deja dans l'en-tete
+     * de cette fiche ; les noms de Boucles le sont publiquement sur l'annuaire,
+     * TASK-1812 correctif 05). La regle ne change pas, ces trois-la n'y
+     * contrevenaient simplement pas.
+     *
      * Les tables absentes du schema sont ignorees plutot que de faire echouer la
      * fiche : ce depot a des tables qui apparaissent par TASK, et une fiche qui
      * jette parce qu'une table n'existe pas encore serait un faux defaut.
@@ -2008,10 +2016,34 @@ class AdminController extends Controller
             ? DB::table('login_logs')->where('user_id', $user->id)->max('created_at')
             : null;
 
+        // TASK-1812 correctif 09 — les Boucles REJOINTES, par leur NOM. Un
+        // comptage ('admin.users_profile_memberships', deja plus bas) existait
+        // deja mais restait muet sur LESQUELLES. Meme perimetre de garde que
+        // `HomeController::members()` pour la meme notion ($loopsByUser) :
+        // adhesion ACTIVE a une Boucle elle-meme ACTIVE — jamais une Boucle
+        // archivee, jamais une adhesion revoquee.
+        $bouclesRejointes = LoopMember::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->whereHas('loop', fn ($q) => $q->where('status', 'active'))
+            ->with(['loop:id,name'])
+            ->get()
+            ->pluck('loop.name')
+            ->filter()
+            ->unique()
+            ->values();
+
         return response()->json([
             'identite' => [
                 'name' => $user->fullName,
                 'email' => $user->email,
+                // TASK-1812 correctif 09 — le telephone PORTABLE : seule colonne
+                // que ce modele connaisse (`users.phone`), deja utilisee comme
+                // tel sur le profil public lorsque le membre a choisi de
+                // l'afficher (`show_phone`). Cet ecran est de l'administration
+                // interne : comme l'email juste au-dessus, deja rendu ici sans
+                // tenir compte de `show_email`, il se lit sans ce filtre.
+                'telephone' => $user->phone,
                 'organization' => $user->organization?->name,
                 'statut' => $user->banned_at !== null
                     ? __('admin.users_status_banned')
@@ -2022,6 +2054,7 @@ class AdminController extends Controller
                 'derniere_connexion' => $derniereConnexion ? Carbon::parse($derniereConnexion)->format('d/m/Y H:i') : null,
                 'note' => $user->rating ? number_format((float) $user->rating, 1).'/5' : null,
             ],
+            'boucles_rejointes' => $bouclesRejointes,
             'contributions' => [
                 __('admin.users_profile_services') => $compte('services', 'user_id'),
                 __('admin.users_profile_requests') => $compte('service_requests', 'user_id'),

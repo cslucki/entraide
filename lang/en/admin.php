@@ -1993,6 +1993,8 @@ return [
     'users_profile_section_contributions' => 'What they contribute',
     'users_profile_section_interactions' => 'Their exchanges with others',
     'users_profile_section_ai' => 'Their AI usage',
+    // TASK-1812 correctif 09 — Loops JOINED, by name.
+    'users_profile_section_loops_joined' => 'Loops joined',
     'users_profile_services' => 'Services offered',
     'users_profile_requests' => 'Requests posted',
     'users_profile_articles' => 'Articles',
@@ -2019,6 +2021,8 @@ return [
     'users_profile_registered' => 'Registered on',
     'users_profile_points' => 'Points balance',
     'users_profile_rating' => 'Rating',
+    // TASK-1812 correctif 09 — mobile phone number.
+    'users_profile_phone' => 'Phone',
     'users_profile_org' => 'Organisation',
     'users_profile_org_none' => 'Global',
     'users_profile_close' => 'Close',
