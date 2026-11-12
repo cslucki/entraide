@@ -102,6 +102,16 @@ class UserDataLifecycleRegistry
             ['key' => 'blog_todos_assigned_to', 'type' => 'sql', 'table' => 'blog_todos', 'column' => 'assigned_to', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_blog_post', 'justification' => 'Assignment can be detached.'],
             ['key' => 'blog_todos_user_id', 'type' => 'sql', 'table' => 'blog_todos', 'column' => 'user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_blog_post', 'justification' => 'Todo author identity needs anonymization.'],
             ['key' => 'bug_reports', 'type' => 'sql', 'table' => 'bug_reports', 'column' => 'reporter_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Bug reports are platform support records.'],
+            // TASK-1803 — `bulk_email_sends.organization_id` ne designe PAS
+            // l'Organization du createur mais la CIBLE de l'envoi (NULL = toutes
+            // les Organizations) : un `org_scope` 'direct' serait donc un
+            // mensonge, pas une approximation. L'outil est reserve au
+            // SuperAdmin (platform, sans Organization), d'ou 'none'.
+            ['key' => 'bulk_email_sends_created_by', 'type' => 'sql', 'table' => 'bulk_email_sends', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'none', 'justification' => 'Trace of which admin triggered a bulk send, nullable and ON DELETE SET NULL. The send record (recipients, content, counters) is platform audit history and must outlive whoever happened to create it (TASK-1803).'],
+            // TASK-1803 — table sans `organization_id` propre (voir
+            // `BulkEmailSendService::sendNextBatch()` : « le membre a ete
+            // supprime pendant l'envoi, la ligne reste comme trace »).
+            ['key' => 'bulk_email_send_recipients_user_id', 'type' => 'sql', 'table' => 'bulk_email_send_recipients', 'column' => 'user_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'none', 'justification' => 'A recipient row is operational audit of one send attempt, nullable and ON DELETE SET NULL. It stays as a trace (recipient status, which email_log it produced) if the member is deleted mid-send; the campaign history must not depend on the recipient still existing (TASK-1803).'],
             ['key' => 'community_requests', 'type' => 'sql', 'table' => 'community_requests', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'legacy', 'justification' => 'Legacy table only; do not add Community code.'],
             ['key' => 'dossier_blog_posts_added_by', 'type' => 'sql', 'table' => 'dossier_blog_posts', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_dossier', 'justification' => 'Dossier article audit can be detached.'],
             // TASK-1695 — le partage d'un fichier, par ses DEUX axes.
@@ -296,6 +306,8 @@ class UserDataLifecycleRegistry
             ['key' => 'reports_filed', 'type' => 'sql', 'table' => 'reports', 'column' => 'reporter_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Reports are moderation audit data.'],
             ['key' => 'reviews_received', 'type' => 'sql', 'table' => 'reviews', 'column' => 'reviewed_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'user_organization', 'justification' => 'Reviews may need retained content with anonymized user.'],
             ['key' => 'reviews_given', 'type' => 'sql', 'table' => 'reviews', 'column' => 'reviewer_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'user_organization', 'justification' => 'Reviews may need retained content with anonymized author.'],
+            ['key' => 'reviews_moderated_by', 'type' => 'sql', 'table' => 'reviews', 'column' => 'moderated_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'user_organization', 'justification' => 'TASK-1808 — who last moderated a review is an administration decision, not personal data: it must outlive its author, who is simply detached. The FK is nullOnDelete; the full detail of every intervention lives in review_moderation_logs, not here.'],
+            ['key' => 'review_moderation_logs_actor_id', 'type' => 'sql', 'table' => 'review_moderation_logs', 'column' => 'actor_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'TASK-1808 — the review moderation audit trail must remain answerable: who moderated what must stay readable even after the actor leaves. The FK is nullOnDelete (same convention as messages.edited_by).'],
             // TASK-1789 — le catalogue des flux RSS connus est une donnee de
             // PLATEFORME (la table ne porte pas d'organization_id), au meme
             // titre que `scenario_manifest_versions`/`custom_loop_types`

@@ -1,14 +1,21 @@
 /**
- * QA-04: Mutual Reviews After Transaction (Happy Path - P0)
+ * QA-04: Single-Sided Review After Transaction (Happy Path - P0)
+ *
+ * TASK-1806 — corrige la doctrine de ce fichier. Il affirmait auparavant
+ * « Both parties can leave reviews » : c'etait la documentation du BUG
+ * (l'aidant pouvait evaluer l'aide), jamais une regle produit. La regle
+ * reelle : UN SEUL evaluateur (l'aide, « user1 » dans ce fichier), UN SEUL
+ * destinataire (l'aidant, « user2 »), quel que soit le sens du parcours.
  *
  * Tests review functionality after transaction completion:
- * 1. Both parties can leave reviews
- * 2. Reviews include rating (1-5 stars)
+ * 1. Only the aidé (buyer, user1) can leave a review
+ * 2. Reviews include rating (1-5 stars), never preselected
  * 3. Reviews include optional comment
- * 4. Reviews are visible to both parties
+ * 4. The review is visible to both parties, but only ever authored by the aidé
  * 5. Reviews cannot be modified once submitted
  * 6. Cannot review twice
  * 7. Cannot review before transaction is completed
+ * 8. The aidant (seller, user2) never sees nor can submit a review form
  *
  * Priority: P0 (Critical Happy Path)
  * Complexity: Low
@@ -264,81 +271,49 @@ test.describe('QA-04: Mutual Reviews After Transaction', () => {
     });
 
     /**
-     * STEP 4: User2 can also leave review
+     * STEP 4 (TASK-1806) — User2 (l'aidant) ne peut PAS laisser d'avis
      *
      * Validates:
-     * - Both parties can leave reviews independently
-     * - User2's review is distinct from User1's
+     * - The review form/action never appears for the aidant
+     * - Only a "contribution réalisée" card is shown on their side
      */
-    test('step4: user2 can also leave review', async ({ page }) => {
+    test('step4: user2 (aidant) cannot leave a review', async ({ page }) => {
         test.skip(!completedTransactionId, 'No completed transaction available');
 
         await login(page, USER2_EMAIL, USER2_PASSWORD);
 
         await goToMessageThread(page, completedTransactionId, communitySlug);
 
-        // Check if review form is visible
-        const reviewForm = page.locator('form:has-text("avis"), form:has-text("notation"), form:has-text("évaluation")').first();
+        const reviewForm = page.locator('form:has-text("avis"), form:has-text("notation"), form:has-text("évaluation"), [data-entraide-merci]').first();
+        const formVisible = await reviewForm.isVisible({ timeout: 2000 }).catch(() => false);
 
-        if (!(await reviewForm.isVisible({ timeout: 2000 }))) {
-            // Check if review already exists
-            const existingReview = page.locator(`text=${reviewData.user2.comment.substring(0, 30)}`).first();
-            if (await existingReview.isVisible()) {
-                console.log('⚠️ Review already exists - skipping submission');
-            }
-            test.skip(true, 'Review form not visible (possibly already reviewed)');
-        }
+        expect(formVisible).toBe(false);
 
-        // Select rating
-        const ratingInput = page.locator(`${SELECTORS.ratingInput}[value="${reviewData.user2.rating}"]`);
-        if (await ratingInput.isVisible()) {
-            await ratingInput.click();
-        } else {
-            const starRating = page.locator(`[data-rating="${reviewData.user2.rating}"], .star:nth-child(${reviewData.user2.rating})`).first();
-            if (await starRating.isVisible()) {
-                await starRating.click();
-            }
-        }
+        await captureScreenshot(page, 'QA-04-step4-user2-no-review-form');
 
-        // Add comment
-        await page.fill(SELECTORS.reviewComment, reviewData.user2.comment);
-
-        // Submit review
-        const submitButton = page.locator(SELECTORS.submitReview).first();
-        await submitButton.click();
-
-        // Wait for submission
-        await page.waitForTimeout(1000);
-
-        await captureScreenshot(page, 'QA-04-step4-user2-review-submitted');
-
-        console.log('✅ STEP 4: User2 submitted review successfully');
+        console.log('✅ STEP 4: User2 (aidant) never sees a review form');
     });
 
     /**
-     * STEP 5: Both reviews are visible to both users
+     * STEP 5 (TASK-1806) — Le seul avis (user1 -> user2) est visible aux deux
      *
      * Validates:
-     * - Reviews are stored correctly
-     * - Both parties can see each other's reviews
-     * - Reviews display rating and comment
+     * - The aidé's review is stored and visible to both parties
+     * - No review authored by the aidant ever exists
      */
-    test('step5: both reviews visible to both users', async ({ page }) => {
+    test('step5: the single review is visible to both, none from the aidant', async ({ page }) => {
         test.skip(!completedTransactionId, 'No completed transaction available');
 
-        // Check as User1
+        // Check as User1 (aidé, auteur de l'avis)
         await login(page, USER1_EMAIL, USER1_PASSWORD);
         await goToMessageThread(page, completedTransactionId, communitySlug);
 
-        // Look for both reviews
         const hasUser1Review = await page.locator(`text=${reviewData.user1.comment.substring(0, 20)}`).count() > 0;
         const hasUser2Review = await page.locator(`text=${reviewData.user2.comment.substring(0, 20)}`).count() > 0;
 
         await captureScreenshot(page, 'QA-04-step5-reviews-visible-user1');
 
-        console.log(`User1 can see reviews: User1=${hasUser1Review}, User2=${hasUser2Review}`);
-
-        // Check as User2
+        // Check as User2 (aidant — ne doit JAMAIS avoir sa propre ligne d'avis)
         await login(page, USER2_EMAIL, USER2_PASSWORD);
         await goToMessageThread(page, completedTransactionId, communitySlug);
 
@@ -347,12 +322,10 @@ test.describe('QA-04: Mutual Reviews After Transaction', () => {
 
         await captureScreenshot(page, 'QA-04-step5-reviews-visible-user2');
 
-        console.log(`User2 can see reviews: User1=${hasUser1Review2}, User2=${hasUser2Review2}`);
+        expect(hasUser1Review && hasUser1Review2).toBe(true);
+        expect(hasUser2Review || hasUser2Review2).toBe(false);
 
-        // Both users should see both reviews
-        expect(hasUser1Review && hasUser2Review).toBe(true);
-
-        console.log('✅ STEP 5: Both reviews visible to both users');
+        console.log('✅ STEP 5: single review (aidé → aidant) visible to both, none in the other direction');
     });
 
     /**

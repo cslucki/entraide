@@ -253,17 +253,46 @@
                         @php
                             $evMeta = $msg->metadata ?? [];
                             $evCancelled = ($evMeta['event'] ?? null) === 'cancelled';
+                            // TASK-1802 (demande Cyril) — « si c'est un evenement
+                            // qui contient une URL [...] il faut que l'URL soit
+                            // cliquable ». Valide cote serveur a la creation
+                            // (`LoopEventService::isSafeUrl()`, http/https
+                            // uniquement) : sans risque a rendre tel quel en
+                            // `href`, jamais en texte echappe par `{{ }}` dans
+                            // `$msg->body` (ce qui le rendait illisible comme lien).
+                            $evLienConnexion = in_array($evMeta['format'] ?? null, ['online', 'hybrid'], true)
+                                ? trim((string) ($evMeta['meeting_url'] ?? ''))
+                                : '';
+                            // Les messages crees avant ce correctif portaient le
+                            // lien concatene dans le corps (« — Lien : :url » /
+                            // « — Link: :url »). On le retire a l'affichage pour
+                            // ces messages figes, sinon le lien apparait deux
+                            // fois : une fois en texte brut, une fois en <a>.
+                            $evCorps = $evLienConnexion !== ''
+                                ? preg_replace(
+                                    '/\s*[—-]\s*(?:Lien|Link)\s*:\s*'.preg_quote($evLienConnexion, '/').'\s*$/u',
+                                    '',
+                                    $msg->body,
+                                )
+                                : $msg->body;
                         @endphp
                         <div class="flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 {{ $evCancelled
                                 ? 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/60'
                                 : 'border-sky-200 bg-sky-50/70 dark:border-sky-800/50 dark:bg-sky-900/20' }}">
                             <svg class="h-4 w-4 shrink-0 {{ $evCancelled ? 'text-gray-400' : 'text-sky-600 dark:text-sky-300' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0V11.25A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
-                            <span class="min-w-0 flex-1 text-xs leading-5 {{ $evCancelled ? 'text-gray-600 line-through dark:text-gray-400' : 'text-sky-900 dark:text-sky-100' }}">{{ $msg->body }}</span>
+                            <span class="min-w-0 flex-1 text-xs leading-5 {{ $evCancelled ? 'text-gray-600 line-through dark:text-gray-400' : 'text-sky-900 dark:text-sky-100' }}">{{ $evCorps }}</span>
                             <button type="button"
                                     x-on:click="$dispatch('bp-open-loop-card', { card: 'core.events' })"
                                     class="shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-white transition {{ $evCancelled ? 'bg-gray-500 hover:bg-gray-600' : 'bg-sky-600 hover:bg-sky-700' }}">
                                 {{ __('events.chat_open_card') }}
                             </button>
+                            @if($evLienConnexion !== '')
+                                <a href="{{ $evLienConnexion }}" target="_blank" rel="noopener noreferrer"
+                                   data-event-chat-meeting-link
+                                   class="w-full truncate text-xs font-medium text-sky-700 underline hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100">
+                                    {{ $evLienConnexion }}
+                                </a>
+                            @endif
                             <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
                         </div>
                     @elseif($msg->type === 'dossier_file')
@@ -567,9 +596,29 @@
                                  resolus ICI sans requete : `$nomsPourMentions`
                                  est deja en memoire. La bulle ne cherche rien,
                                  sinon chaque message ferait sa requete. --}}
+                            {{-- TASK-1797 — le token `@tous` se met en valeur
+                                 EXACTEMENT comme une mention nominative : on
+                                 pousse le mot-cle litteral dans la meme liste,
+                                 la bulle ne sait pas la difference. --}}
                             :mention-names="collect($msg->metadata['mentions'] ?? [])
                                 ->map(fn ($id) => $nomsPourMentions[$id] ?? null)
-                                ->filter()->values()->all()"
+                                ->filter()
+                                ->when(
+                                    $msg->metadata['mention_all'] ?? false,
+                                    fn ($c) => $c->push(\App\Livewire\LoopChat::MENTION_ALL_TOKEN),
+                                )
+                                ->values()->all()"
+                            {{-- TASK-1801 correctif 03 — `nom => identifiant`, pour
+                                 les SEULES mentions qui designent une vraie
+                                 personne. Le jeton `@tous` ci-dessus n'y figure
+                                 jamais : il n'est jamais dans
+                                 `$msg->metadata['mentions']`, qui ne porte que
+                                 des identifiants reels. --}}
+                            :mention-user-ids="collect($msg->metadata['mentions'] ?? [])
+                                ->mapWithKeys(fn ($id) => [$id => $nomsPourMentions[$id] ?? null])
+                                ->filter()
+                                ->flip()
+                                ->all()"
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
@@ -969,6 +1018,12 @@
             {{-- TASK-1772 — SEUL le ChatLoop passe cette prop : la Messagerie
                  et le chat agent n'ont pas de menu `@`, et c'est voulu. --}}
             :mentionables="$mentionables"
+            {{-- TASK-1797 — `false` pour tout le monde sauf le proprietaire et
+                 l'animateur de CETTE Boucle (voir le docblock de la propriete
+                 dans `LoopChat`). N'autorise rien a elle seule : l'affichage
+                 seul, l'autorisation reelle est re-controlee au serveur a
+                 l'envoi. --}}
+            :can-mention-all="$peutMentionnerTous"
             :photo="$photo ?? null"
             {{-- TASK-1621 — le composeur ne rend PLUS de pastille de mode, pour
                  AUCUN moteur.

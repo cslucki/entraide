@@ -105,6 +105,25 @@
 
         {{-- Filtres en GET : une vue filtree se partage par son URL. --}}
         <form method="GET" class="mb-5 flex flex-wrap items-center gap-2">
+            {{-- TASK-1802 (suite, demande Cyril) — « on va réutiliser cette
+                 vue "Calendrier" sur la page Agenda ». Cette page n'est pas
+                 un composant Livewire : la bascule est un lien GET, pas un
+                 `wire:click` — chaque vue reste une URL qui se partage.
+
+                 Puis, demande suivante — « supprime la vue calendrier [...]
+                 uniquement sur la version smartphone car ça ne se voit pas »
+                 : le bouton disparait en dessous de `md`, comme sur la Card. --}}
+            <div class="hidden md:inline-flex rounded-lg border border-gray-300 p-0.5 dark:border-gray-600">
+                @foreach(['list' => __('events.view_list'), 'calendar' => __('events.view_calendar')] as $mode => $label)
+                    <a href="{{ request()->fullUrlWithQuery(['view' => $mode]) }}"
+                       class="rounded-md px-2.5 py-1 text-xs font-semibold transition {{ $view === $mode
+                            ? 'bg-sky-600 text-white'
+                            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800' }}">
+                        {{ $label }}
+                    </a>
+                @endforeach
+            </div>
+
             <div class="inline-flex rounded-lg border border-gray-300 p-0.5 dark:border-gray-600">
                 @foreach(['upcoming' => __('events.filter_upcoming'), 'past' => __('events.filter_past')] as $value => $label)
                     <a href="{{ request()->fullUrlWithQuery(['when' => $value]) }}"
@@ -142,61 +161,185 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('events.agenda_empty') }}</p>
             </div>
         @else
-            <div class="space-y-3">
-                @foreach($events as $event)
-                    <div>
-                        @include('loops.partials.event-row', [
-                            'event' => $event,
-                            'interactive' => false,
-                            'showLoopName' => true,
-                        ])
-                        {{-- TASK-1656 — REPONDRE depuis l'agenda.
+            {{-- `selectedEventId` est partage par les pop-up de detail de la
+                 vue calendrier ci-dessous : un seul etat Alpine, commun aux
+                 deux vues, meme si la vue liste ne s'en sert jamais. --}}
+            <div x-data="{ selectedEventId: null }">
+                {{-- Vue liste — TOUJOURS montee, meme quand `$view ===
+                     'calendar'` : seul `md:hidden` la cache alors, et
+                     seulement a partir de `md` (TASK-1802, suite, demande
+                     Cyril : « supprime la vue calendrier [...] uniquement
+                     sur la version smartphone car ça ne se voit pas »). Sur
+                     smartphone, la liste reste donc TOUJOURS visible, meme
+                     derriere un lien `?view=calendar` partage depuis un
+                     ordinateur. --}}
+                <div class="space-y-3 {{ $view === 'calendar' ? 'md:hidden' : '' }}">
+                    @foreach($events as $event)
+                        @include('loops.partials.agenda-event', ['event' => $event])
+                    @endforeach
+                </div>
 
-                             `can_respond` est calcule par le presentateur, qui
-                             interroge `LoopEventService::canRespondTo()` : la
-                             MEME autorite que la Card de la Boucle. Aucune regle
-                             n'est reecrite ici, et il n'est pas demande de
-                             rejoindre la Boucle — un evenement remonte au niveau
-                             Organization se repond par tout membre actif, c'est
-                             le sens de l'avoir remonte.
+                @if($view === 'calendar')
+                    {{-- TASK-1802 (suite, demande Cyril) — « on va réutiliser
+                         cette vue "Calendrier" sur la page Agenda ». Memes
+                         grilles que la Card (`LoopEventPresenter::weekGrid()`/
+                         `monthGrid()`), mais navigation par LIENS GET — cette
+                         page n'est pas un composant Livewire — et detail au
+                         clic par un pop-up Alpine (plus bas) plutot qu'un
+                         `openEventDetail()` cote serveur, qui n'existe pas ici. --}}
+                    <div class="hidden md:block mt-3 rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                        @php
+                            $calendarShiftKey = $calendarGranularity === 'week' ? 'week' : 'month';
+                        @endphp
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <a href="{{ request()->fullUrlWithQuery(['view' => 'calendar', $calendarShiftKey => $calendarGranularity === 'week' ? $calendarPrevWeek : $calendarPrevMonth]) }}"
+                                   class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 dark:hover:bg-gray-800"
+                                   aria-label="{{ __('events.previous_month') }}">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+                                </a>
+                                <p class="min-w-0 text-sm font-semibold capitalize text-gray-900 dark:text-gray-100">{{ $calendar['label'] ?? '' }}</p>
+                                <a href="{{ request()->fullUrlWithQuery(['view' => 'calendar', $calendarShiftKey => $calendarGranularity === 'week' ? $calendarNextWeek : $calendarNextMonth]) }}"
+                                   class="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 dark:hover:bg-gray-800"
+                                   aria-label="{{ __('events.next_month') }}">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+                                </a>
+                            </div>
 
-                             Des formulaires, pas `wire:click` : l'agenda n'est
-                             pas un composant Livewire, et en faire un pour trois
-                             boutons couterait plus que le geste ne vaut. Les
-                             libelles sont ceux de la Card — `events.going`,
-                             `events.maybe`, `events.not_going` — pour que la
-                             meme action ne porte pas deux noms. --}}
-                        @if($event['can_respond'] && ! $event['is_past'] && ! $event['is_cancelled'])
-                            <div data-agenda-rsvp="{{ $event['id'] }}" class="mt-2 flex flex-wrap gap-1.5 pl-1">
-                                @foreach([
-                                    \App\Models\LoopEventResponse::GOING => ['label' => __('events.going'), 'on' => 'bg-emerald-600 text-white border-transparent', 'off' => 'border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30'],
-                                    \App\Models\LoopEventResponse::MAYBE => ['label' => __('events.maybe'), 'on' => 'bg-amber-600 text-white border-transparent', 'off' => 'border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/30'],
-                                    \App\Models\LoopEventResponse::NOT_GOING => ['label' => __('events.not_going'), 'on' => 'bg-gray-600 text-white border-transparent', 'off' => 'border-gray-300 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'],
-                                ] as $valeur => $style)
-                                    @php($choisi = $event['my_response'] === $valeur)
-                                    <form method="POST"
-                                          action="{{ route('organization.events.agenda.respond', ['organization' => $organization->slug, 'event' => $event['id']]) }}">
-                                        @csrf
-                                        <input type="hidden" name="response" value="{{ $valeur }}">
-                                        <button type="submit"
-                                                data-rsvp="{{ $valeur }}"
-                                                aria-pressed="{{ $choisi ? 'true' : 'false' }}"
-                                                class="rounded-lg border px-3 py-1.5 text-xs font-semibold transition {{ $choisi ? $style['on'] : $style['off'] }}">
-                                            {{ $style['label'] }}
-                                        </button>
-                                    </form>
+                            <div class="inline-flex rounded-lg border border-gray-200 p-0.5 dark:border-gray-700">
+                                @foreach(['week' => __('events.view_week'), 'month' => __('events.view_month')] as $granularity => $label)
+                                    <a href="{{ request()->fullUrlWithQuery(['view' => 'calendar', 'granularity' => $granularity]) }}"
+                                       class="rounded-md px-2 py-1 text-[11px] font-semibold transition {{ $calendarGranularity === $granularity
+                                            ? 'bg-sky-600 text-white'
+                                            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800' }}">
+                                        {{ $label }}
+                                    </a>
                                 @endforeach
                             </div>
-                        @endif
+                        </div>
 
-                        <p class="mt-1 pl-1">
-                            <a href="{{ route('organization.loops.show', ['organization' => $organization->slug, 'loop' => $event['loop_id']]) }}"
-                               class="text-[11px] font-semibold text-sky-700 hover:underline dark:text-sky-300">
-                                {{ __('events.open_loop') }} →
-                            </a>
-                        </p>
+                        @if($calendarGranularity === 'week')
+                            @php
+                                $hourPx = 40;
+                                $dayHeight = $hourPx * 24;
+                                $visibleStartHour = 8;
+                            @endphp
+                            <div class="mt-2 overflow-auto rounded-xl border border-gray-100 dark:border-gray-800"
+                                 style="max-height: 440px;"
+                                 x-data x-init="$nextTick(() => { $el.scrollTop = {{ $visibleStartHour * $hourPx }}; })">
+                                <div class="grid" style="grid-template-columns: 2.75rem repeat(7, 9rem);">
+                                    <div class="sticky top-0 z-20 bg-white dark:bg-gray-900"></div>
+                                    @foreach($calendar['days'] ?? [] as $day)
+                                        <p class="sticky top-0 z-20 bg-white pb-1 text-center text-[10px] font-semibold uppercase dark:bg-gray-900 {{ $day['is_today'] ? 'text-sky-600 dark:text-sky-300' : 'text-gray-400 dark:text-gray-500' }}">
+                                            {{ $day['date']->translatedFormat('D j') }}
+                                        </p>
+                                    @endforeach
+
+                                    <div>
+                                        @for($h = 0; $h < 24; $h++)
+                                            <div class="border-t border-gray-100 pr-1 text-right text-[9px] leading-none text-gray-400 dark:border-gray-800 dark:text-gray-500"
+                                                 style="height: {{ $hourPx }}px;">
+                                                <span class="relative -top-1.5">{{ sprintf('%02d:00', $h) }}</span>
+                                            </div>
+                                        @endfor
+                                    </div>
+
+                                    @foreach($calendar['days'] ?? [] as $day)
+                                        <div class="relative border-l border-gray-100 dark:border-gray-800 {{ $day['is_today'] ? 'bg-sky-50/40 dark:bg-sky-900/10' : '' }}"
+                                             style="height: {{ $dayHeight }}px;">
+                                            @for($h = 0; $h < 24; $h++)
+                                                <div class="absolute inset-x-0 border-t border-gray-100 dark:border-gray-800" style="top: {{ $h * $hourPx }}px;"></div>
+                                            @endfor
+
+                                            @foreach($day['events'] as $dayEvent)
+                                                @php
+                                                    $startMin = $dayEvent['starts_local']->hour * 60 + $dayEvent['starts_local']->minute;
+                                                    $endMin = $dayEvent['ends_local']
+                                                        ? $dayEvent['ends_local']->hour * 60 + $dayEvent['ends_local']->minute
+                                                        : $startMin + 60;
+                                                    if ($endMin <= $startMin) {
+                                                        $endMin = $startMin + 60;
+                                                    }
+                                                    $topPx = ($startMin / 60) * $hourPx;
+                                                    $heightPx = max((($endMin - $startMin) / 60) * $hourPx, 22);
+                                                @endphp
+                                                <button type="button" x-on:click="selectedEventId = '{{ $dayEvent['id'] }}'"
+                                                        class="absolute inset-x-0.5 z-10 overflow-hidden rounded-lg px-1.5 py-0.5 text-left text-[10px] leading-tight shadow-sm {{ $dayEvent['is_cancelled']
+                                                            ? 'bg-gray-100 text-gray-500 line-through dark:bg-gray-800 dark:text-gray-400'
+                                                            : 'bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/50 dark:text-sky-200 dark:hover:bg-sky-900/70' }}"
+                                                        style="top: {{ $topPx }}px; height: {{ $heightPx }}px;"
+                                                        title="{{ $dayEvent['title'] }}">
+                                                    <span class="font-semibold">{{ $dayEvent['starts_local']->format('H:i') }}</span>
+                                                    {{ $dayEvent['title'] }}
+                                                </button>
+                                            @endforeach
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @else
+                            <div class="mt-2 overflow-x-auto">
+                                <table class="w-full min-w-[52rem] table-fixed border-collapse">
+                                    <thead>
+                                        <tr>
+                                            @foreach(['L', 'M', 'M', 'J', 'V', 'S', 'D'] as $dayLabel)
+                                                <th class="pb-1 text-center text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">{{ $dayLabel }}</th>
+                                            @endforeach
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($calendar['weeks'] ?? [] as $week)
+                                            <tr>
+                                                @foreach($week as $day)
+                                                    <td class="h-24 border border-gray-100 p-1 align-top dark:border-gray-800 {{ $day['in_month'] ? '' : 'opacity-40' }}">
+                                                        <span class="block text-right text-[10px] {{ $day['is_today'] ? 'font-bold text-sky-600 dark:text-sky-300' : 'text-gray-400 dark:text-gray-500' }}">{{ $day['day'] }}</span>
+                                                        @foreach($day['events'] as $dayEvent)
+                                                            <button type="button" x-on:click="selectedEventId = '{{ $dayEvent['id'] }}'"
+                                                                    class="mt-0.5 block w-full truncate rounded px-1 text-left text-[10px] leading-4 {{ $dayEvent['is_cancelled']
+                                                                    ? 'bg-gray-100 text-gray-500 line-through dark:bg-gray-800 dark:text-gray-400'
+                                                                    : 'bg-sky-100 text-sky-800 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:hover:bg-sky-900/60' }}"
+                                                                    title="{{ $dayEvent['title'] }}">{{ $dayEvent['title'] }}</button>
+                                                        @endforeach
+                                                    </td>
+                                                @endforeach
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
                     </div>
-                @endforeach
+
+                    {{-- Detail d'un Evenement clique dans le calendrier — un
+                         pop-up par Evenement, MEME partiel que la vue liste
+                         (`agenda-event`), teleporte au `<body>`. Cette page
+                         n'a pas de round-trip serveur a offrir pour l'ouvrir
+                         (pas de Livewire), contrairement a `openEventDetail()`
+                         sur la Card : tout est deja en memoire, rien a
+                         charger de plus au clic. --}}
+                    @foreach($events as $event)
+                        <template x-teleport="body">
+                            <div x-show="selectedEventId === '{{ $event['id'] }}'" x-cloak x-transition
+                                 class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4"
+                                 x-on:keydown.escape.window="selectedEventId = null"
+                                 x-on:click.self="selectedEventId = null"
+                                 role="dialog" aria-modal="true">
+                                <div class="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-1 shadow-xl dark:bg-gray-800">
+                                    <div class="flex items-center justify-end p-2">
+                                        <button type="button" x-on:click="selectedEventId = null"
+                                                class="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                                aria-label="{{ __('events.cancel') }}">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </div>
+                                    <div class="px-3 pb-3">
+                                        @include('loops.partials.agenda-event', ['event' => $event])
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    @endforeach
+                @endif
             </div>
         @endif
     </x-page-container>

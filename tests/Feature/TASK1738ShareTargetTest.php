@@ -98,7 +98,10 @@ class TASK1738ShareTargetTest extends TestCase
 
     public function test_le_manifest_declare_la_cible_de_partage(): void
     {
-        $manifest = json_decode((string) file_get_contents(public_path('site.webmanifest')), true);
+        // TASK-1805 — `/site.webmanifest` est desormais une route Laravel,
+        // plus un fichier statique de `public/` : lecture via une vraie
+        // requete HTTP.
+        $manifest = $this->get('/site.webmanifest')->json();
 
         $this->assertSame('/partage', $manifest['share_target']['action'] ?? null);
         $this->assertSame('GET', $manifest['share_target']['method'] ?? null);

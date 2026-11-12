@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "BouclePro",
-  "short_name": "BouclePro",
+  "name": "__APP_NAME__",
+  "short_name": "__APP_NAME__",
   "description": "Plateforme d'entraide et de micro-services",
   "start_url": "/",
   "scope": "/",

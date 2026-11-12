@@ -20,7 +20,16 @@
                     <div class="mt-3 flex flex-wrap items-center gap-2 text-xs" data-system-email-counters>
                         <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 font-medium text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200"
                               data-system-email-count-shown="{{ $compteurs['affiches'] }}">
-                            {{ __('admin.system_email_count_shown', ['count' => $compteurs['affiches']]) }}
+                            {{-- TASK-1795 correctif 10 — `trans_choice()`, pas `__()`.
+                                 La cle est une chaine de PLURALISATION
+                                 (`{0}…|{1}…|[2,*]…`). `__()` ne la resout pas :
+                                 il rendait les trois branches collees, ce que
+                                 Cyril a lu comme « une mention non traduite ».
+                                 Mesure : `__()` -> « {0}Aucun gabarit
+                                 affiché|{1}1 gabarit affiché|[2,*]40 gabarits
+                                 affichés » ; `trans_choice()` -> « 40 gabarits
+                                 affichés ». Le fichier de langue etait juste. --}}
+                            {{ trans_choice('admin.system_email_count_shown', $compteurs['affiches'], ['count' => $compteurs['affiches']]) }}
                         </span>
 
                         @if($compteurs['affiches'] !== $compteurs['total'])
@@ -65,15 +74,20 @@
                         <div>
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.locale') }}</label>
                             <select name="locale" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 text-sm">
-                                <option value="">{{ __('admin.all_locales') }}</option>
-                                <option value="fr" @selected(request('locale') === 'fr')>FR</option>
-                                <option value="en" @selected(request('locale') === 'en')>EN</option>
+                                {{-- TASK-1795 correctif 10 — `@selected` lit la langue RETENUE,
+                                     pas la requete. Avec un defaut cote serveur, lire
+                                     `request('locale')` aurait laisse le selecteur sur
+                                     « Toutes les langues » pendant que la liste n'en montrait
+                                     qu'une : l'ecran aurait menti sur son propre filtre. --}}
+                                <option value="" @selected($localeSelectionnee === '')>{{ __('admin.all_locales') }}</option>
+                                <option value="fr" @selected($localeSelectionnee === 'fr')>FR</option>
+                                <option value="en" @selected($localeSelectionnee === 'en')>EN</option>
                             </select>
                         </div>
                         <button type="submit" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700">
                             {{ __('admin.filter') }}
                         </button>
-                        @if(request('organization_id') || request('locale'))
+                        @if(request('organization_id') || $localeSelectionnee !== \App\Http\Controllers\Admin\AdminSystemEmailTemplatesController::LOCALE_PAR_DEFAUT)
                             <a href="{{ route('admin.system-email-templates', array_filter(['slug' => request('slug')])) }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                                 {{ __('admin.clear') }}
                             </a>
@@ -136,19 +150,37 @@
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead class="bg-gray-50 dark:bg-gray-900/50">
+                                {{-- TASK-1795 correctif 10 — l'ordre et le nombre de colonnes.
+
+                                     Demande de Cyril : « Mettre la colonne "Nom", après la
+                                     colonne "Sujet" » et « Supprimer la colonne "LOCALE" ».
+
+                                     La LOCALE part parce que l'ecran s'ouvre desormais sur UNE
+                                     langue : une colonne qui repete la meme valeur sur toutes
+                                     les lignes ne renseigne rien. Elle reste lisible quand le
+                                     filtre autorise plusieurs langues — voir la pastille posee
+                                     sur le Sujet plus bas.
+
+                                     RESPONSIVE : `Organisation` et `Slug` ne s'affichent qu'a
+                                     partir de `md`. Ce sont les deux colonnes dont on peut se
+                                     passer sur un telephone — l'Organization est deja le filtre
+                                     en haut de page, et le slug est un identifiant technique.
+                                     Le Sujet, le Nom et le Statut restent, qui sont ce qu'on
+                                     vient lire. Le rembourrage passe de `px-6` a `px-3` sous
+                                     `sm` : six fois 48 px de marge suffisaient a forcer le
+                                     defilement horizontal. --}}
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.organization') }}</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.locale') }}</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.common_name') }}</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.slug') }}</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.common_subject') }}</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.status') }}</th>
+                                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden md:table-cell">{{ __('admin.organization') }}</th>
+                                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.common_subject') }}</th>
+                                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.common_name') }}</th>
+                                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden md:table-cell">{{ __('admin.slug') }}</th>
+                                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('admin.status') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                 @forelse($templates as $template)
                                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                        <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 hidden md:table-cell">
                                             @if($template->organization)
                                                 <a href="{{ route('admin.organizations.edit', $template->organization) }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">
                                                     {{ $template->organization->name }}
@@ -157,10 +189,20 @@
                                                 <span class="text-gray-400 italic">{{ __('admin.global') }}</span>
                                             @endif
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">
-                                            {{ strtoupper($template->locale ?? '-') }}
+                                        <td class="px-3 sm:px-6 py-4 text-sm text-gray-700 dark:text-gray-300 max-w-[14rem] sm:max-w-xs truncate">
+                                            {{-- TASK-1795 correctif 10 — la LANGUE, seulement quand elle
+                                                 distingue quelque chose. La colonne LOCALE est retiree ;
+                                                 mais si le filtre autorise plusieurs langues, deux lignes
+                                                 du meme gabarit deviendraient indiscernables. La pastille
+                                                 ne s'affiche donc que dans ce cas — une information qui
+                                                 n'apparait que lorsqu'elle departage. --}}
+                                            @if($localeSelectionnee === '')
+                                                <span class="mr-1.5 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-mono font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                                                      data-template-locale="{{ $template->locale }}">{{ strtoupper($template->locale ?? '-') }}</span>
+                                            @endif
+                                            {{ $template->subject }}
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <td class="px-3 sm:px-6 py-4 text-sm font-medium">
                                             {{-- TASK-1681 — le NOM est le lien d'edition : la
                                                  colonne Action vivait hors ecran a droite, et
                                                  la ligne semblait inerte. --}}
@@ -169,13 +211,10 @@
                                                 {{ $template->name }}
                                             </a>
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">
+                                        <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono hidden md:table-cell">
                                             {{ $template->slug }}
                                         </td>
-                                        <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 max-w-xs truncate">
-                                            {{ $template->subject }}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm">
                                             @if($template->enabled)
                                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                                                     {{ __('admin.active') }}
@@ -189,7 +228,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                        <td colspan="5" class="px-3 sm:px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                                             {{-- TASK-1681 — arrive filtre par slug (lien de
                                                  bulk-create), une liste vide est l'etat NORMAL :
                                                  la surcharge est facultative, l'email part avec

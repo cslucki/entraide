@@ -10,18 +10,28 @@ return [
     'select_conversation' => 'Sélectionnez une conversation',
     'direct_conversation' => 'Discussion',
     'direct_conversation_started' => 'Discussion démarrée.',
-    'exchange_subject' => 'Échange #:id',
+    // TASK-1806 — « Échange » etait le dernier reste du lexique marchand dans
+    // le TITRE d'une conversation, et il remontait jusque dans l'objet des
+    // courriels (`TransactionProposalMailer::titreDeLAnnonce()`, dernier
+    // recours).
+    'exchange_subject' => 'Entraide #:id',
 
     // TASK-1754 §3.2 — arbitrage Q2 de Cyril (05/11) : le BADGE reste court et
     // NEUTRE, c'est la PHRASE qui porte le sens (qui aide qui). Deux fois moins
     // de libellés à maintenir, et c'est la phrase qui supprime la confusion
     // constatée en recette — un badge, aussi bien écrit soit-il, ne dira jamais
     // « Ottoline dit avoir reçu l'aide, confirmez pour recevoir vos 30 min ».
+    // TASK-1806 — ces six libelles partent AUSSI dans l'objet des courriels de
+    // statut (`{{ status_label }}`). « À confirmer » nommait une etape qui
+    // n'existe plus cote membre : le parcours visible en compte trois, et la
+    // confirmation est le geste de l'aide. `buyer_done` est desormais un
+    // statut HERITE que plus aucun code ne produit — son libelle ne promet
+    // donc plus rien a personne.
     'status' => [
         'pending' => 'Proposition',
-        'accepted' => 'Entraide convenue',
-        'buyer_done' => 'À confirmer',
-        'completed' => 'Terminé',
+        'accepted' => 'Aide acceptée',
+        'buyer_done' => 'Entraide en cours',
+        'completed' => 'Entraide terminée',
         'refused' => 'Déclinée',
         'cancelled' => 'Annulé',
     ],
@@ -29,28 +39,39 @@ return [
     // Les phrases orientées rôle. `:temps` reçoit le double affichage
     // (« 30 min · 30 pts »), jamais un nombre de points nu.
     'phrase' => [
-        'pending_decideur' => ':prenom répond à votre annonce « :titre » — :temps',
+        'pending_decideur' => ':prenom répond à « :titre » — :temps',
         'pending_proposant' => 'Votre proposition est partie. :prenom doit répondre.',
-        'accepted' => 'Vous avez convenu de cet échange — :temps',
-        'buyer_done_aidant' => ':prenom dit avoir reçu l\'aide. Confirmez pour recevoir vos :temps.',
-        'buyer_done_aide' => 'Vous avez dit avoir reçu l\'aide. :prenom doit confirmer.',
-        'completed' => 'Échange terminé — :temps transférés. Merci !',
+        // TASK-1806 — l'accord pris, chacun doit savoir ce qu'on attend de
+        // LUI : l'aide confirmera, l'aidant attend cette confirmation. Une
+        // phrase unique ne pouvait pas dire les deux.
+        'accepted_aide' => 'Entraide convenue avec :prenom — :temps. Quand ce sera fait, confirmez pour clôturer.',
+        'accepted_aidant' => 'Entraide convenue avec :prenom — :temps. :prenom confirmera quand ce sera fait.',
+        // Statuts HERITES : plus aucun code ne produit `buyer_done`. Ces deux
+        // phrases ne servent qu'a une eventuelle ligne ancienne, et elles
+        // disent le nouveau denouement — c'est l'aide qui cloture.
+        'buyer_done_aidant' => ':prenom doit confirmer pour clôturer cette entraide.',
+        'buyer_done_aide' => ':prenom attend votre confirmation pour clôturer cette entraide — :temps.',
+        'completed' => 'Entraide terminée — :temps transférés. Merci !',
         'refused_proposant' => ':prenom a décliné votre proposition.',
         'refused_decideur' => 'Vous avez décliné cette proposition.',
-        'cancelled' => 'Cet échange a été annulé.',
+        'cancelled' => 'Cette entraide a été annulée.',
     ],
 
     // TASK-1754 §3.3 — des verbes d'entraide. `cancel` se dédouble : retirer SA
     // proposition n'est pas annuler un échange déjà convenu, et les confondre
     // sous « Annuler » cachait ce qui se passe vraiment.
     'actions' => [
-        'accept' => 'Accepter l\'échange',
+        'accept' => 'Accepter l\'entraide',
         'refuse' => 'Décliner',
         'adjust' => 'Proposer un autre temps',
         'cancel' => 'Annuler',
         'cancel_withdraw' => 'Retirer ma proposition',
-        'cancel_exchange' => 'Annuler l\'échange',
+        'cancel_exchange' => 'Annuler l\'entraide',
+        // TASK-1806 — `mark_done` est desormais le libelle du BOUTON DE
+        // CLOTURE, dans la carte de bas de fil qui porte aussi l'evaluation.
+        // C'est le seul geste de la 3e etape.
         'mark_done' => 'J\'ai bien reçu l\'aide',
+        // HERITE : la confirmation de l'aidant a quitte le parcours visible.
         'confirm' => 'Confirmer — recevoir mes :temps',
         // « Contester » était un mot de litige pour dire « l'aide n'est pas
         // encore finie ». Même route `contest()`, geste dédramatisé.
@@ -66,13 +87,19 @@ return [
     // `:temps` est reconstruit depuis les points au moment du rendu.
     'systeme' => [
         'proposition_envoyee' => '🤝 Proposition envoyée — :temps',
-        'echange_accepte' => '✅ Échange accepté. L’entraide est en cours.',
+        // TASK-1806 — les CLES ne bougent pas : elles sont ecrites en base
+        // dans `messages.metadata->system_key` et les renommer casserait le
+        // rendu de tout l'historique (`MessageSysteme::rendre()` retombe sur
+        // `body` pour une clef inconnue). Seules les VALEURS changent.
+        'echange_accepte' => '✅ Aide acceptée. L’entraide est en cours.',
         'echange_decline' => 'Proposition déclinée.',
         'temps_ajuste' => 'Temps ajusté : :temps',
-        'echange_annule' => 'Échange annulé.',
-        'aide_recue' => ':prenom a confirmé avoir reçu l’aide. En attente de votre confirmation.',
+        'echange_annule' => 'Entraide annulée.',
+        // HERITE : ce message n'est plus ecrit (l'aide confirme et cloture
+        // d'un seul geste), il ne sert qu'a relire l'historique.
+        'aide_recue' => ':prenom a confirmé avoir reçu l’aide.',
         'echange_termine' => '🎉 Entraide terminée — :temps partagées.',
-        'pas_encore_termine' => 'L’aide n’est pas encore terminée : l’échange est remis en cours.',
+        'pas_encore_termine' => 'L’aide n’est pas encore terminée : l’entraide est remise en cours.',
     ],
     // TASK-1755 §5.2 — le SENS de l'aide, sur chaque ligne de la liste.
     // C'est ce qui manquait le plus : la meme personne apparaissait N fois et
@@ -80,12 +107,17 @@ return [
     'sens' => [
         'vous_aidez' => 'Vous aidez :prenom · :temps',
         'on_vous_demande' => ':prenom vous demande de l’aide · :temps',
+        // TASK-1808 — les deux cas de l'AIDE, qui manquaient : il heritait de
+        // la phrase de l'aidant et lisait l'inverse de la verite.
+        'vous_demandez' => 'Vous demandez de l’aide à :prenom · :temps',
+        'on_vous_aide' => ':prenom vous aide · :temps',
         'terminee' => 'Entraide terminée · :temps partagées',
     ],
+    // TASK-1806 (arbitrage du 11/11) — TROIS etapes visibles, pas cinq.
+    // La confirmation de l'aidant et l'evaluation ont ete fondues dans la 3e.
     'etapes' => [
-        'proposition' => 'Proposition',
+        'demande' => 'Demande',
         'accord' => 'Accord',
-        'aide' => 'Aide',
         'confirmation' => 'Confirmation',
     ],
     'filtres' => [
@@ -96,10 +128,61 @@ return [
     ],
     'autres_actions' => 'Autres actions',
     'review_exchange' => 'Dites merci à :prenom',
-    'review_intro' => 'L\'entraide est terminée — :temps partagées. Votre mot de remerciement sera affiché sur son profil.',
+    // TASK-1806 — l'intro ne repete plus « l'entraide est terminee, :temps
+    // partagees » : la carte recapitulative du Bento le dit deja juste
+    // au-dessus, le repeter ici serait un message redondant.
+    'review_intro' => 'Votre mot de remerciement sera affiché sur son profil.',
     'review_placeholder' => 'Un mot de remerciement (affiché sur son profil)…',
-    'review_rating_hint' => 'Vous pouvez ajuster la note.',
+    'review_rating_hint' => 'Choisissez une note.',
+    'review_rating_required' => 'Choisissez une note avant d’envoyer.',
     'send_review' => 'Envoyer le merci',
+    'review_sent' => 'Merci pour votre évaluation !',
+    // TASK-1806 (arbitrage du 11/11) — la 3e et derniere etape : confirmer,
+    // et dire merci dans le meme geste. Le mot « facultatif » est dit
+    // explicitement : une personne qui ne veut pas noter doit le comprendre
+    // sans avoir a chercher un bouton pour s'echapper.
+    'confirmer_titre' => 'Avez-vous reçu l’aide de :prenom ?',
+    'confirmer_intro' => 'En confirmant, l’entraide est terminée et :temps sont transférés à :prenom.',
+    'confirmer_intro_offert' => 'En confirmant, l’entraide est terminée. :prenom vous a offert son aide : aucun point n’est transféré.',
+    'confirmer_note_label' => 'Laisser une note et un mot de remerciement (facultatif)',
+    'confirmer_sans_note' => 'Vous pouvez confirmer sans laisser d’avis.',
+    // TASK-1808 §2/§3 — LA CLOTURE, en un bouton compact puis un panneau.
+    'cloturer_bouton' => 'Marquer l’entraide comme terminée',
+    'cloturer_titre' => 'Confirmer la fin de l’entraide',
+    'cloturer_intro' => 'Cela clôture l’entraide et transfère :temps à :prenom. La conversation passera en lecture seule.',
+    'cloturer_intro_offert' => 'Cela clôture l’entraide. :prenom a offert son aide : aucun point n’est transféré.',
+    'cloturer_valider' => 'Confirmer',
+    'en_cours_titre' => 'Entraide en cours',
+    'en_cours_intro' => 'Discutez avec :prenom. Quand l’aide aura été reçue, confirmez-le ici.',
+    // TASK-1808 §3 — ce que chacun lit APRES la cloture.
+    'cloture_aide_titre' => 'Entraide terminée !',
+    'cloture_aide_corps' => ':temps ont été transférés à :prenom.',
+    'cloture_aide_corps_offert' => ':prenom a offert son aide : aucun point n’a été transféré.',
+    'cloture_aidant_titre' => 'Merci pour votre aide !',
+    'cloture_aidant_corps' => 'Vous avez reçu :temps de la part de :prenom.',
+    'cloture_aidant_corps_offert' => 'Vous avez offert votre aide à :prenom.',
+    // TASK-1809 (correctif Cyril, 12/11) — l'aidant voit sa note DANS le fil,
+    // sans avoir besoin de l'email pour la decouvrir. Remplace le message
+    // generique ci-dessus des qu'un avis existe.
+    'cloture_aidant_evalue_titre' => ':prenom vient de vous laisser une évaluation',
+    // TASK-1809 §2 — UNE carte compacte (note + commentaire facultatif en
+    // une seule soumission), remplace les deux micro-ecrans de T1808 §5.
+    'etoiles_titre' => 'Comment évaluez-vous l’aide de :prenom ?',
+    'etoiles_valider' => 'Valider mon évaluation',
+    // TASK-1809 (correctif Cyril, 12/11) — l'ecran qui remplace la carte une
+    // fois l'avis depose ; le partage dans le Flux est desormais AUTOMATIQUE
+    // (plus de case a cocher ni de lien distinct).
+    'evaluation_effectuee_titre' => 'Évaluation effectuée',
+    'evaluation_effectuee_lien' => 'Voir dans le Flux',
+    'bento_title' => 'Entraide réalisée',
+    'bento_duree' => 'Durée',
+    'bento_duree_absente' => 'Durée non renseignée',
+    'bento_points' => 'Points attribués',
+    'bento_points_value' => '{1}:n pt|[2,*]:n pts',
+    'bento_aidant' => 'Aidant',
+    'bento_aide' => 'Aidé',
+    'bento_contribution_title' => 'Vous avez aidé :prenom',
+    'bento_contribution_body' => 'Merci pour votre contribution.',
     'composer_placeholder' => 'Votre message...',
     // TASK-1772 (recette Cyril) — le composeur de la Messagerie adopte la
     // pilule et le menu « + » du ChatLoop. Les libelles vivent ici et non
@@ -165,15 +248,18 @@ return [
      * servent le jour ou il est desactive. La PHRASE de statut, elle, vient
      * de `CarteEntraide::phrase()` : une seule definition, orientee role.
      */
+    // TASK-1806 — le nom du GROUPE (`email_exchange`) reste : il est lu par
+    // `emails/transaction_status.blade.php` et le renommer n'apporterait rien
+    // de visible. Les VALEURS, elles, quittent le lexique marchand.
     'email_exchange' => [
-        'title' => 'Mise à jour de votre échange',
+        'title' => 'Mise à jour de votre entraide',
         'greeting' => 'Bonjour :prenom,',
-        'intro' => 'Le statut de votre échange a changé : **:statut**.',
-        'label_exchange' => 'Échange',
+        'intro' => 'Le statut de votre entraide a changé : **:statut**.',
+        'label_exchange' => 'Entraide',
         'label_time' => 'Temps partagé',
         'cta' => 'Voir la conversation',
-        'untitled' => 'Échange',
-        'subject' => 'Mise à jour de votre échange — :statut',
+        'untitled' => 'Entraide',
+        'subject' => 'Mise à jour de votre entraide — :statut',
     ],
 
     // TASK-1772 (recette Cyril, 06/11) — l'apercu d'annuaire au clic sur
@@ -182,6 +268,6 @@ return [
     'member_preview_close' => 'Fermer',
     'member_preview_title' => 'Fiche d’annuaire',
     'member_preview_full' => 'Voir le profil complet',
-    'member_preview_write' => 'Écrire un message',
+    'member_preview_write' => 'Écrire un message privé',
     'member_preview_empty' => 'Cette personne n’a pas encore renseigné sa fiche.',
 ];

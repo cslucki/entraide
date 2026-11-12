@@ -99,6 +99,15 @@
                     @if($_apercu['image'])
                         <img src="{{ $_apercu['image'] }}" alt=""
                              class="{{ $_apercu['ronde'] ? 'h-14 w-14 rounded-full' : 'h-14 w-20 rounded-xl' }} shrink-0 object-cover">
+                    @elseif(! empty($_apercu['icone']))
+                        {{-- TASK-1809 (correctif Cyril) — la MEME icone que le
+                             rail gauche (« Entraide »), jamais une seconde
+                             icone inventee pour le meme concept. --}}
+                        <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
+                            <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="{{ $_apercu['icone'] }}" />
+                            </svg>
+                        </span>
                     @endif
                     <span class="min-w-0 flex-1">
                         @if($_apercu['titre'])

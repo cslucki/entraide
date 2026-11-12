@@ -1,10 +1,10 @@
 <?php
 
 use App\Console\Commands\CheckAiBudgets;
+use App\Console\Commands\FeedPublishScheduled;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use App\Services\Dossiers\DossierFileIndexingDispatcher;
 use App\Services\Knowledge\LoopConversationKnowledgeDispatcher;
-use App\Console\Commands\FeedPublishScheduled;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -69,6 +69,14 @@ Schedule::command('queue:work', [
 // Le balayeur ne compile rien : il met en file. Le cout reel se decide en aval,
 // ou le deriver compare l'empreinte de la source avant toute depense.
 Schedule::command('knowledge:derive-due')->everyTenMinutes()->withoutOverlapping(10);
+
+// TASK-1808 §6 — l'invitation a evaluer l'aidant tournait ici, planifiee a
+// dix minutes apres la cloture (`EntraideInviteToEvaluate`, commande
+// supprimee). TASK-1809 §3 (MASTER, « simplification finale ») : « BouclePro
+// lutte contre l'infobesite » — un seul email, envoye IMMEDIATEMENT par
+// `TransactionController::complete()` a la cloture, plus de balayage
+// planifie. `transactions.evaluation_invited_at` garde le MEME role
+// (une invitation maximum), poste desormais depuis ce point synchrone.
 
 // TASK-1433 — SW-3 : la retention des visiteurs du Shell Welcome est une promesse.
 Schedule::command('guest:purge-expired')->daily();

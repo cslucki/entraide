@@ -29,10 +29,17 @@
 |
 */
 
+// TASK-1805 — toutes les occurrences de « BouclePro » ci-dessous nomment
+// L'APPLICATION QU'ON INSTALLE : elles doivent dire « BoucleDev » en local
+// (recette Cyril sur un tunnel Cloudflare, 11/11 — le bandeau disait encore
+// « Installer BouclePro »), jamais un hostname. Une SEULE lecture, en tete de
+// fichier, plutot qu'un appel dans chaque chaine.
+$appName = \App\Support\Pwa\PwaAppName::current();
+
 return [
 
     // ── Ecran plein format ──────────────────────────────────────────────────
-    'title' => 'Installez BouclePro sur votre téléphone',
+    'title' => "Installez {$appName} sur votre téléphone",
     'promise' => 'Vos Boucles, à portée de pouce.',
 
     'benefits' => [
@@ -50,7 +57,7 @@ return [
         ],
     ],
 
-    'install' => 'Installer BouclePro',
+    'install' => "Installer {$appName}",
     'continue_in_browser' => 'Continuer dans le navigateur',
 
     // Sur `/installer`, l'action secondaire n'est PAS un renoncement : la
@@ -63,9 +70,9 @@ return [
     // On ne dit JAMAIS « c'est installe » : l'installation se termine hors de
     // notre page, et sur iOS elle n'est meme pas observable. On invite a ouvrir
     // l'icone, ce qui est verifiable par la personne elle-meme.
-    'installing_title' => "BouclePro s’installe sur votre téléphone",
+    'installing_title' => "{$appName} s’installe sur votre téléphone",
     'installing_body' => "Vous êtes encore dans votre navigateur. Retrouvez son icône sur votre écran d’accueil ou dans vos applications, puis ouvrez-la.",
-    'installing_note' => "Lors du premier lancement, BouclePro vous proposera d’activer les notifications importantes.",
+    'installing_note' => "Lors du premier lancement, {$appName} vous proposera d’activer les notifications importantes.",
 
     // ── Quand `/installer` n'a rien a proposer ───────────────────────────────
     //
@@ -75,16 +82,16 @@ return [
     // le meme defaut que la recette du 31/10/2026 a remonte par une autre
     // porte. Une page atteignable doit toujours dire quelque chose.
     'unavailable_title' => 'Installation indisponible',
-    'unavailable_body' => 'L\'installation de BouclePro sur votre appareil n\'est pas proposée pour le moment. Le site reste accessible depuis votre navigateur.',
+    'unavailable_body' => "L'installation de {$appName} sur votre appareil n'est pas proposée pour le moment. Le site reste accessible depuis votre navigateur.",
 
     // ── Instructions par plateforme ─────────────────────────────────────────
-    'manual_title' => 'Pour installer BouclePro',
+    'manual_title' => "Pour installer {$appName}",
 
     'ios' => [
         'intro' => 'Trois gestes, depuis Safari :',
         'step_share' => 'Touchez le bouton Partager, en bas de l\'écran',
         'step_add' => 'Choisissez « Sur l\'écran d\'accueil »',
-        'step_confirm' => 'Touchez « Ajouter », puis ouvrez l\'icône BouclePro',
+        'step_confirm' => "Touchez « Ajouter », puis ouvrez l'icône {$appName}",
         // Honnetete : les libelles des menus iOS changent d'une version a
         // l'autre, et on ne peut pas les connaitre toutes.
         'disclaimer' => 'Selon votre version d\'iOS, les libellés peuvent différer.',
@@ -105,14 +112,14 @@ return [
 
     // ── Bandeau non bloquant ────────────────────────────────────────────────
     'banner' => [
-        'title' => 'BouclePro s\'installe sur votre téléphone',
+        'title' => "{$appName} s'installe sur votre téléphone",
         'body' => 'Vos Boucles en un geste, plein écran.',
         'action' => 'Installer',
         'dismiss' => 'Masquer',
     ],
 
     // ── Accessibilite ───────────────────────────────────────────────────────
-    'dialog_label' => 'Installer l\'application BouclePro',
+    'dialog_label' => "Installer l'application {$appName}",
     'close' => 'Fermer',
 
     /*
@@ -126,7 +133,7 @@ return [
      * permission qu'on sait reversible se refuse moins par reflexe.
      */
     'first_run_title' => "Activer les notifications ?",
-    'first_run_body' => "BouclePro vous préviendra lorsqu’on vous invite, qu’on vous ajoute à une Boucle ou qu’on accepte votre demande. Vous pourrez changer d’avis à tout moment dans vos réglages.",
+    'first_run_body' => "{$appName} vous préviendra lorsqu’on vous invite, qu’on vous ajoute à une Boucle ou qu’on accepte votre demande. Vous pourrez changer d’avis à tout moment dans vos réglages.",
     'first_run_accept' => "Activer les notifications",
     'first_run_later' => "Plus tard",
     'first_run_failed' => "Les notifications n’ont pas pu être activées. Vous pourrez réessayer depuis vos réglages.",
@@ -144,7 +151,7 @@ return [
      * nomme le geste Android réel : les réglages du site.
      */
     'first_run_granted_body' => "Votre autorisation est déjà accordée : il ne reste qu’à activer cet appareil, sans nouvelle demande.",
-    'first_run_denied_body' => "Les notifications sont bloquées pour BouclePro dans votre navigateur. Pour les rouvrir : réglages du site (icône à côté de l’adresse, ou Paramètres › Notifications), autorisez les notifications, puis revenez ici.",
+    'first_run_denied_body' => "Les notifications sont bloquées pour {$appName} dans votre navigateur. Pour les rouvrir : réglages du site (icône à côté de l’adresse, ou Paramètres › Notifications), autorisez les notifications, puis revenez ici.",
     'first_run_understood' => "Compris",
 
     /*
@@ -157,8 +164,8 @@ return [
      * promettre une question qui ne sera pas posee.
      */
     'installing_step_wait' => "Android termine l’installation, cela prend quelques secondes.",
-    'installing_step_icon' => "Retrouvez l’icône BouclePro sur votre écran d’accueil ou dans vos applications.",
+    'installing_step_icon' => "Retrouvez l’icône {$appName} sur votre écran d’accueil ou dans vos applications.",
     'installing_step_open' => "Ouvrez-la : vous êtes encore dans votre navigateur, pas dans l’application.",
-    'installing_step_notifications' => "Au premier lancement, BouclePro vous proposera d’activer les notifications importantes.",
+    'installing_step_notifications' => "Au premier lancement, {$appName} vous proposera d’activer les notifications importantes.",
     'installing_step_notifications_done' => "Les notifications sont déjà actives sur cet appareil : rien à refaire.",
 ];

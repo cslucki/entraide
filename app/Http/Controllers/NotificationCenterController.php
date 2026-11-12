@@ -534,6 +534,12 @@ class NotificationCenterController extends Controller
             $sujets[(string) $notification->id] = [
                 'prenom' => $auteur->publicDisplayName(),
                 'loop' => $nomBoucle,
+                // TASK-1797 — lu sur le MESSAGE, jamais recalcule ici : c'est
+                // `LoopChat`/`LoopMessageService` qui decident `mention_all`
+                // au moment de l'envoi, et cette ligne ne fait que le
+                // transmettre a la vue, qui choisit entre `keys_named.
+                // loop_mention_created` et sa variante `_all_created`.
+                'tous' => (bool) ($message->metadata['mention_all'] ?? false),
             ];
         }
 

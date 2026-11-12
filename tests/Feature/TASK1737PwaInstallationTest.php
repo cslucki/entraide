@@ -55,6 +55,10 @@ class TASK1737PwaInstallationTest extends TestCase
         // rel="manifest">` dans un email est au mieux ignore, au pire suspect.
         'emails/blog-invitation.blade.php' => 'gabarit d\'email',
         'emails/referral-invitation.blade.php' => 'gabarit d\'email',
+        // TASK-1809 — meme raison : aucun client de messagerie n'a rien a
+        // installer. Ce fichier habille le HTML administre que
+        // `NotificationEmailDeliverer` livre (voir son docbloc).
+        'emails/notification-shell.blade.php' => 'gabarit d\'email',
 
         // Gabarit par defaut de Laravel, qu'AUCUNE route ne rend : verifie le
         // 31/10/2026, aucun `view('welcome')` dans `routes/` ni dans les
@@ -300,13 +304,19 @@ class TASK1737PwaInstallationTest extends TestCase
         );
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * TASK-1805 — `/site.webmanifest` est desormais une route Laravel
+     * (`PwaManifestController`), plus un fichier statique de `public/` : la
+     * lecture passe par une vraie requete HTTP, comme un navigateur le
+     * ferait, plutot que par une lecture directe du disque.
+     *
+     * @return array<string, mixed>
+     */
     private function manifest(): array
     {
-        $chemin = public_path('site.webmanifest');
-        $this->assertFileExists($chemin);
+        $reponse = $this->get('/site.webmanifest')->assertOk();
 
-        $manifest = json_decode(file_get_contents($chemin), true);
+        $manifest = json_decode($reponse->getContent(), true);
 
         $this->assertIsArray($manifest, 'site.webmanifest n\'est pas un JSON valide.');
 
@@ -528,12 +538,22 @@ class TASK1737PwaInstallationTest extends TestCase
 
         $this->assertNotEmpty($chemins);
 
-        foreach ($chemins as $url) {
+        // TASK-1805 — `/site.webmanifest` n'est plus un fichier statique mais
+        // une route Laravel (`PwaManifestController`) : une existence sur
+        // disque n'a plus de sens pour elle, `addAll` l'echouerait quand meme
+        // sur un 404 HTTP, donc la garde devient une vraie requete.
+        $cheminsStatiques = array_values(array_diff($chemins, ['/site.webmanifest']));
+
+        foreach ($cheminsStatiques as $url) {
             $this->assertFileExists(
                 public_path(ltrim($url, '/')),
                 "SHELL_ASSETS precharge [{$url}], absent du disque : `addAll` etant atomique, "
                 .'le Service Worker ne s\'installerait pas du tout.'
             );
+        }
+
+        if (in_array('/site.webmanifest', $chemins, true)) {
+            $this->get('/site.webmanifest')->assertOk();
         }
 
         // Les quatre icones du manifest doivent etre prechargees : ce sont
@@ -561,10 +581,11 @@ class TASK1737PwaInstallationTest extends TestCase
         $this->assertMatchesRegularExpression('/^bouclepro-v\d+$/', $m[1]);
 
         $this->assertNotSame(
-            'bouclepro-v6',
+            'bouclepro-v7',
             $m[1],
-            'SHELL_ASSETS a change mais CACHE_NAME est reste a v6 : les navigateurs '
-            .'deja installes garderaient l\'ancienne coquille, orphelins compris.'
+            'TASK-1805 a change le contenu de /site.webmanifest (nom par environnement) mais '
+            .'CACHE_NAME est reste a v7 : les navigateurs deja installes garderaient '
+            .'l\'ancien manifest fige sur "BouclePro" en cache.'
         );
     }
 

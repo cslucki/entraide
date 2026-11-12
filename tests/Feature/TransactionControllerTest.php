@@ -147,8 +147,10 @@ class TransactionControllerTest extends TestCase
             'points_agreed' => 50,
         ]);
 
+        // TASK-1806 — la confirmation de l'aide termine l'entraide d'un seul
+        // geste : plus d'etape `buyer_done` intermediaire.
         $response = $this->actingAs($buyer)->patch(route('transactions.complete', $transaction));
-        $this->assertEquals('buyer_done', $transaction->fresh()->status);
+        $this->assertEquals('completed', $transaction->fresh()->status);
     }
 
     public function test_cannot_approve_if_not_seller(): void
@@ -271,16 +273,17 @@ class TransactionControllerTest extends TestCase
             'points_agreed' => 50,
         ]);
 
-        $this->mockMailTransportFailure();
+        // TASK-1806 — la confirmation notifie desormais les DEUX parties
+        // (elle a absorbe `confirm()`), d'ou deux envois simules en echec.
+        $this->mockMailTransportFailure(2);
 
         $this->actingAs($buyer)->patch(route('transactions.complete', $transaction));
-        $this->assertEquals('buyer_done', $transaction->fresh()->status);
+        $this->assertEquals('completed', $transaction->fresh()->status);
 
         Log::shouldHaveReceived('error')
-            ->once()
             ->withArgs(function (string $message, array $context) use ($transaction, $seller) {
                 return $message === 'Email notification failed after successful business action'
-                    && $context['event'] === 'transaction_completed_by_buyer'
+                    && $context['event'] === 'entraide_confirmed_seller_notification'
                     && $context['transaction_id'] === $transaction->id
                     && $context['notifiable_id'] === $seller->id
                     && $context['exception_class'] === TransportException::class;

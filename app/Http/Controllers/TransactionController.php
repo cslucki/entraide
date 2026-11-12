@@ -9,8 +9,10 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Notifications\TransactionStatusChanged;
+use App\Services\Entraide\EvaluationInviteMailer;
 use App\Services\ServiceRequestLifecycle;
 use App\Support\Entraide\Atelier;
+use App\Support\Entraide\EvaluationEntraide;
 use App\Support\Entraide\MessageSysteme;
 use App\Support\Entraide\TempsPartage;
 use App\Support\Feed\FeedEventCatalogue;
@@ -419,37 +421,250 @@ class TransactionController extends Controller
         return $this->cancel($transaction);
     }
 
-    public function complete(Transaction $transaction): RedirectResponse
+    /**
+     * TASK-1806 (arbitrage du 11/11) — LA 3e ET DERNIERE ETAPE : l'aide
+     * confirme, et tout se termine dans ce seul geste.
+     *
+     * ## Ce que cette methode a absorbe
+     *
+     * Le parcours comptait deux confirmations : l'aide declarait l'aide recue
+     * (`buyer_done`), puis l'AIDANT confirmait a son tour pour declencher le
+     * transfert de points. Cette seconde confirmation disparait du parcours
+     * visible : l'aide confirme, les points partent, l'evaluation se prend au
+     * meme endroit. Trois etapes, pas cinq, et aucune quatrieme cachee.
+     *
+     * `confirm()` plus bas reste en place pour denouer une eventuelle ligne
+     * heritee en `buyer_done` — statut que plus aucun code ne produit (zero
+     * ligne mesuree sur le jumeau le 11/11).
+     *
+     * ## L'atomicite porte sur la CLOTURE ET LES POINTS, pas sur le reste
+     *
+     * Le verrou `lockForUpdate()` + la garde de statut tiennent ensemble, dans
+     * UNE transaction : le passage a `completed`, les deux lignes de ledger,
+     * les deux soldes et la cloture de la demande. Un second envoi ne peut
+     * donc pas transferer deux fois — il ressort sur `deja_traite`.
+     *
+     * Ce qui vient APRES (message systeme, evaluation, notifications, Flux)
+     * vit hors de la transaction, sous `rescue()` : l'entraide EST close et
+     * les points SONT transferes a ce stade. Faire echouer la requete — ou
+     * pire, annuler le transfert — parce qu'un courriel ou un avis a bronche
+     * serait le mauvais arbitrage. Meme doctrine que les six autres points de
+     * bascule de ce controleur.
+     */
+    public function complete(Request $request, Transaction $transaction): RedirectResponse
     {
         $this->authorize('complete', $transaction);
 
-        $transaction->update([
-            'status' => 'buyer_done',
-            'buyer_confirmed_at' => now(),
+        $donnees = $request->validate([
+            // L'evaluation est FACULTATIVE : « ou ignorer l'evaluation ».
+            // Absente, aucune ligne `reviews` n'est ecrite et le renoncement
+            // est trace (`reviews_skipped_at`) — jamais une note inventee.
+            'rating' => 'nullable|integer|min:1|max:5',
+            'comment' => 'nullable|string|max:1000',
         ]);
 
-        MessageSysteme::ecrire($transaction, 'aide_recue', ['prenom' => $transaction->buyer?->first_name ?: $transaction->buyer?->name]);
+        DB::transaction(function () use ($transaction) {
+            $tx = Transaction::where('id', $transaction->id)->lockForUpdate()->first();
+
+            if (! in_array($tx->status, ['accepted', 'buyer_done'], true)) {
+                return;
+            }
+
+            $points = (int) $tx->points_agreed;
+
+            // TASK-1754 §9.3 — un coup de main OFFERT ne touche NI le ledger NI
+            // les soldes : deux lignes a zero seraient du bruit comptable dans
+            // la piece justificative des soldes. Le reste de la choregraphie
+            // est inchange, un don traverse tout le cycle sans rien transferer.
+            if ($points > 0) {
+                PointLedger::create([
+                    'user_id' => $tx->buyer_id,
+                    'transaction_id' => $tx->id,
+                    'delta' => -$points,
+                    'organization_id' => $tx->organization_id,
+                    'reason' => 'exchange_spent',
+                ]);
+
+                PointLedger::create([
+                    'user_id' => $tx->seller_id,
+                    'transaction_id' => $tx->id,
+                    'delta' => $points,
+                    'organization_id' => $tx->organization_id,
+                    'reason' => 'exchange_earned',
+                ]);
+
+                $tx->buyer()->update(['points_balance' => DB::raw('points_balance - '.$points)]);
+                $tx->seller()->update(['points_balance' => DB::raw('points_balance + '.$points)]);
+            }
+
+            // `seller_confirmed_at` n'est PLUS renseigne : la colonne
+            // enregistrait un geste de l'aidant qui n'existe plus. Elle reste
+            // en base pour l'historique (arbitrage MASTER du 11/11).
+            $tx->update([
+                'status' => 'completed',
+                'buyer_confirmed_at' => $tx->buyer_confirmed_at ?? now(),
+                'completed_at' => now(),
+            ]);
+
+            app(ServiceRequestLifecycle::class)->close($tx);
+        });
+
+        $fresh = $transaction->fresh();
+
+        if ($fresh->status !== 'completed') {
+            return $this->redirectToMessage($transaction)
+                ->with('error', __('entraide.flash.deja_traite'));
+        }
+
+        MessageSysteme::ecrire($transaction, 'echange_termine', ['points' => (int) ($transaction->points_agreed ?? $transaction->points_proposed)]);
+
+        // L'avis se prend dans le MEME ecran que la confirmation. Hors
+        // transaction et sous `rescue()` : perdre un mot de remerciement est
+        // regrettable, annuler un transfert de points deja valide le serait
+        // bien davantage.
+        //
+        // MAIS on retient si l'ecriture a abouti (verification demandee par
+        // MASTER le 11/11) : annoncer « merci ! » alors que l'avis n'est pas
+        // parti serait une FAUSSE confirmation. Trois proprietes tenues :
+        //
+        // 1. l'echec est IDENTIFIABLE — journal structure, meme forme que les
+        //    six autres points de bascule de ce controleur ;
+        // 2. le message dit la verite — l'entraide est close, l'avis non ;
+        // 3. l'avis reste RECUPERABLE sans second transfert : rien n'a ete
+        //    ecrit, donc `evaluationEnAttente()` reste vrai, la carte
+        //    d'evaluation revient, et `ReviewController` ne touche jamais aux
+        //    points.
+        $avisDemande = ($donnees['rating'] ?? null) !== null;
+
+        // TASK-1808 (clarification MASTER) — cloturer SANS note n'est PLUS un
+        // renoncement. T1806 appelait `enregistrer(null)` ici, ce qui ecrivait
+        // `reviews_skipped_at` : l'ecran des etoiles, qui vient APRES la
+        // cloture dans le nouveau parcours, ne serait alors jamais apparu.
+        // L'evaluation n'a simplement pas encore ete proposee — on n'ecrit
+        // RIEN. Le renoncement explicite reste possible, par `reviews.skip`.
+        // Le test de recette `TASK1808ParcoursFinal...` epingle precisement
+        // cette ligne : une cloture nue laisse `reviews_skipped_at` a NULL.
+        $avisEnregistre = ! $avisDemande || rescue(
+            function () use ($fresh, $donnees) {
+                // Enferme dans sa PROPRE transaction, et ce n'est pas une
+                // precaution de confort : sous PostgreSQL, une requete en
+                // echec AVORTE la transaction en cours et la connexion refuse
+                // tout ordre suivant (`SQLSTATE[25P02]`) — SQLite, lui, le
+                // tolere. Si cette action tourne un jour dans une transaction
+                // englobante, un avis perdu emporterait avec lui les
+                // notifications et le partage dans le Flux qui le suivent.
+                // Imbriquee, `DB::transaction()` pose un POINT DE SAUVEGARDE :
+                // le retour arriere rend la connexion utilisable et seule
+                // l'ecriture de l'avis est perdue. Mesure a l'appui : sans
+                // cela, la CI PostgreSQL rougit la ou SQLite passait.
+                DB::transaction(function () use ($fresh, $donnees) {
+                    EvaluationEntraide::enregistrer(
+                        $fresh,
+                        $donnees['rating'] ?? null,
+                        $donnees['comment'] ?? null,
+                    );
+                });
+
+                return true;
+            },
+            function (\Throwable $e) use ($fresh) {
+                Log::error('Evaluation could not be recorded after a successful closure', [
+                    'event' => 'entraide_evaluation_not_recorded',
+                    'transaction_id' => $fresh->id,
+                    'organization_id' => $fresh->organization_id,
+                    'reviewer_id' => $fresh->buyer_id,
+                    'exception_class' => $e::class,
+                ]);
+
+                return false;
+            },
+            false,
+        );
 
         rescue(
-            fn () => $transaction->seller->notify(new TransactionStatusChanged($transaction->fresh())),
+            fn () => $fresh->buyer->notify(new TransactionStatusChanged($fresh)),
             fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
-                'event' => 'transaction_completed_by_buyer',
-                'transaction_id' => $transaction->id,
-                'organization_id' => $transaction->organization_id,
-                'notifiable_id' => $transaction->seller->id,
+                'event' => 'entraide_confirmed_buyer_notification',
+                'transaction_id' => $fresh->id,
+                'organization_id' => $fresh->organization_id,
+                'notifiable_id' => $fresh->buyer->id,
+                'exception_class' => $e::class,
+            ]),
+            false,
+        );
+        rescue(
+            fn () => $fresh->seller->notify(new TransactionStatusChanged($fresh)),
+            fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
+                'event' => 'entraide_confirmed_seller_notification',
+                'transaction_id' => $fresh->id,
+                'organization_id' => $fresh->organization_id,
+                'notifiable_id' => $fresh->seller->id,
                 'exception_class' => $e::class,
             ]),
             false,
         );
 
-        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.aide_recue', ['prenom' => $transaction->seller?->first_name ?: $transaction->seller?->name]));
+        // TASK-1809 §3 — l'email d'invitation a evaluer, desormais
+        // IMMEDIAT (MASTER a retire la relance planifiee a dix minutes :
+        // « BouclePro lutte contre l'infobesite », un seul email, jamais
+        // deux). Idempotent par une mise a jour conditionnelle ATOMIQUE
+        // (`whereNull`, 0 ou 1 ligne touchee) — meme garde que l'ancienne
+        // commande `entraide:invite-to-evaluate`, deplacee ici puisque le
+        // declencheur est desormais synchrone a la cloture et non plus un
+        // balayage planifie. Une discussion directe n'a rien a evaluer.
+        // `rescue()` : un echec d'envoi ne doit jamais faire echouer la
+        // cloture, deja validee et irreversible a ce stade.
+        if (! $fresh->isDirectConversation()) {
+            rescue(
+                function () use ($fresh) {
+                    $aEnvoyer = Transaction::whereKey($fresh->id)->whereNull('evaluation_invited_at')->exists();
+
+                    if (! $aEnvoyer) {
+                        return;
+                    }
+
+                    if (app(EvaluationInviteMailer::class)->envoyer($fresh)) {
+                        Transaction::whereKey($fresh->id)->whereNull('evaluation_invited_at')->update(['evaluation_invited_at' => now()]);
+                    }
+                },
+                fn (\Throwable $e) => Log::error('Evaluation invitation email failed after successful closure', [
+                    'event' => 'entraide_evaluation_invite_not_sent',
+                    'transaction_id' => $fresh->id,
+                    'organization_id' => $fresh->organization_id,
+                    'exception_class' => $e::class,
+                ]),
+                false,
+            );
+        }
+
+        $this->partagerDansLeFlux($request, $fresh);
+
+        // `error` et non `warning` : le layout ne rend QUE `success`, `error`
+        // et `info` (`layouts/app.blade.php`) — un `warning` serait un message
+        // invisible, exactement le no-op silencieux qu'on veut eviter ici. Et
+        // `info` se lit comme une remarque : celui-ci appelle un geste.
+        if ($avisDemande && ! $avisEnregistre) {
+            return $this->redirectToMessage($transaction)
+                ->with('error', __('entraide.flash.echange_termine_avis_non_enregistre'));
+        }
+
+        return $this->redirectToMessage($transaction)->with('success', __('entraide.flash.echange_termine'));
     }
 
-    public function orgComplete(string $org, Transaction $transaction): RedirectResponse
+    public function orgComplete(Request $request, string $org, Transaction $transaction): RedirectResponse
     {
-        return $this->complete($transaction);
+        return $this->complete($request, $transaction);
     }
 
+    /**
+     * CHEMIN HERITE (TASK-1806) — la confirmation de l'aidant a quitte le
+     * parcours visible : l'aide confirme seul, et `complete()` fait tout.
+     *
+     * Conservee pour une seule raison : denouer une ligne restee en
+     * `buyer_done`, statut que plus aucun code ne produit (zero ligne mesuree
+     * sur le jumeau le 11/11). Aucune surface ne propose ce geste —
+     * `CarteEntraide::actions()` ne l'emet plus.
+     */
     public function confirm(Request $request, Transaction $transaction): RedirectResponse
     {
         $this->authorize('confirm', $transaction);
@@ -558,20 +773,40 @@ class TransactionController extends Controller
      * decide. **Aucune colonne, aucune migration** : si la case n'est pas
      * cochee, aucune ligne n'est ecrite, et il n'y a rien a retenir.
      *
-     * ## Seul l'AIDANT est nomme
+     * ## Seul l'AIDANT est nomme — et depuis T1806, c'est l'AIDE qui coche
      *
      * La carte dit « 🤝 Ottoline a donne 30 min — Bricolage », jamais « a
-     * Barnabe ». Et c'est ce qui rend l'opt-in coherent : celui qui coche est
-     * l'aidant (`confirm()` est SON geste), donc la seule personne exposee est
-     * celle qui a choisi de l'etre. Un accord de l'aidant ne peut pas engager
-     * le beneficiaire — « Barnabe a RECU 30 min d'aide » l'exposerait sans
-     * qu'il ait rien decide.
+     * Barnabe » : le beneficiaire n'est jamais expose, et cela n'a pas change.
+     *
+     * Ce qui a change avec le parcours a trois etapes (TASK-1806) : la case
+     * vit dans l'ecran de CONFIRMATION, et la confirmation est desormais le
+     * geste de l'AIDE. Celui qui coche n'est donc plus celui qui est nomme —
+     * l'invariant pose par T1757 s'inverse.
+     *
+     * ARBITRAGE MASTER du 11/11, explicite : « L'aide peut decider de partager
+     * l'entraide dans le Flux, sans demander une autorisation supplementaire a
+     * l'aidant. Il ne faut pas multiplier les validations entre membres. »
+     * Motif retenu : BouclePro repose sur des communautes professionnelles de
+     * confiance, et l'avis public du profil fonctionne DEJA ainsi — l'aide
+     * ecrit, l'aidant est nomme publiquement. La doctrine communautaire sera
+     * rendue explicite pour les membres.
      *
      * ## `rescue()`, comme les six autres points de bascule
      *
      * L'echange EST clos a ce stade, les points sont transferes. La personne ne
      * doit pas voir une erreur pour une entraide pourtant terminee parce que le
      * Flux a eu un probleme.
+     */
+    /**
+     * TASK-1809 (correctif Cyril, 12/11) — le partage dans le Flux n'est
+     * PLUS une action distincte (`shareInFeed()`/`orgShareInFeed()`,
+     * supprimees avec leurs deux routes et `TransactionPolicy::
+     * shareInFeed()`) : le lien explicite menait a une erreur 500 et
+     * demandait un clic de plus pour un geste qui devrait etre acquis. Le
+     * partage est desormais AUTOMATIQUE, declenche par
+     * `EvaluationEntraide::enregistrer()` des qu'un avis est reellement
+     * depose — meme emetteur (`FeedEventEmitter::emettre()`, idempotent),
+     * meme acteur (l'AIDANT), seul le declencheur change.
      */
     private function partagerDansLeFlux(Request $request, Transaction $echange): void
     {
@@ -587,8 +822,12 @@ class TransactionController extends Controller
         rescue(fn () => app(FeedEventEmitter::class)->emettre(
             FeedEventCatalogue::ENTRAIDE_TERMINEE,
             $echange,
-            // L'acteur est l'AIDANT, celui qui vient de confirmer — et celui
-            // que la carte nomme.
+            // L'acteur est l'AIDANT — et celui que la carte nomme.
+            //
+            // TASK-1808 : ce commentaire disait « celui qui vient de
+            // confirmer ». C'est FAUX depuis T1806 : celui qui confirme est
+            // l'aide. Le choix d'acteur, lui, ne change pas — le Flux celebre
+            // celui qui a aide, et le nom de l'aide n'y apparait jamais.
             $echange->seller,
             $echange->organization_id,
         ), report: true);

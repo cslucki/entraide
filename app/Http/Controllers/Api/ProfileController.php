@@ -92,6 +92,10 @@ class ProfileController extends Controller
             ->get(['id', 'title', 'points_cost', 'delivery_mode', 'category_id']);
 
         $reviews = $user->reviewsReceived()
+            // TASK-1808 §2.E — un avis MASQUE par le cockpit ne doit
+            // jamais apparaitre sur le profil public. La suppression, elle,
+            // est deja exclue sans rien ecrire ici (SoftDeletes).
+            ->whereNull('hidden_at')
             ->with('reviewer:id,name,avatar')
             ->latest()
             ->limit(5)

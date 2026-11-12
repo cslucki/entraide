@@ -33,8 +33,10 @@ use App\Support\Ai\AiTurnLock;
 use App\Support\Ai\AiTurnReason;
 use App\Support\Ai\LoopAiTurnSignal;
 use App\Support\Loops\LoopPermissionResolver;
+use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -948,6 +950,35 @@ class LoopChat extends Component
     public const MENTIONS_MAX = 10;
 
     /**
+     * TASK-1797 — le TOKEN litteral de la mention collective.
+     *
+     * Jamais traduit : c'est une commande ecrite dans le corps du message,
+     * pas un libelle d'interface. `MENTION_ALL_TOKEN` est la seule chaine qui
+     * doit changer si le token change un jour, et elle est partagee par la
+     * detection serveur (`corpsContientMentionTous()`) et le rendu de la
+     * bulle (`loop-chat.blade.php`, qui la pousse dans `mention-names`).
+     */
+    public const MENTION_ALL_TOKEN = 'tous';
+
+    /**
+     * TASK-1797 — seuls le proprietaire et l'animateur de CETTE Boucle.
+     *
+     * Calculee UNE FOIS, aux cotes de `$mentionables` (meme methode,
+     * `rafraichirMentionables()`) : meme discipline de cout que T1772, pour
+     * la meme raison — `wire:poll.3s` la recalculerait sinon trente fois par
+     * minute par spectateur, pour un role qui ne change presque jamais.
+     *
+     * Elle ne sert QU'A L'AFFICHAGE (montrer ou cacher l'option « Tous les
+     * membres » dans le composeur). Elle n'est JAMAIS lue pour autoriser
+     * l'envoi : `sendMessage()` et `saveEdit()` re-interrogent la base a
+     * chaque fois, exactement comme `mentionsRecadrees()` ne fait jamais
+     * confiance a `mentionsSelectionnees`. Une valeur perimee ici degraderait
+     * l'affichage, jamais la securite.
+     */
+    #[Locked]
+    public bool $peutMentionnerTous = false;
+
+    /**
      * Les personnes mentionnables, calculees UNE FOIS au montage.
      *
      * `#[Locked]` : le navigateur ne doit pas pouvoir y ajouter quelqu'un. Et
@@ -1065,6 +1096,63 @@ class LoopChat extends Component
             ->reject(fn (array $m) => $m['nom'] === '')
             ->values()
             ->all();
+    }
+
+    /**
+     * TASK-1797 — l'AUTORITE serveur sur `@tous`, re-derivee depuis la base.
+     *
+     * Deliberement PAS `LoopPermissionResolver::can()`. Ce resolveur accorde
+     * `is_admin` et l'administrateur d'Organization a toute permission AVANT
+     * meme de regarder le role (ses etapes 3 et 4) — c'est voulu pour la
+     * plupart des permissions de Boucle, mais le CDC T1797 l'exclut
+     * explicitement ici : « ne pas donner automatiquement ce droit a un
+     * administrateur qui n'est ni proprietaire ni animateur de CETTE
+     * Boucle ». Passer par le resolveur commun aurait installe exactement
+     * l'exception qu'on refuse.
+     *
+     * Les quatre gardes, toutes necessaires :
+     *
+     * 1. compte actif, non banni ;
+     * 2. adhesion ACTIVE a CETTE Boucle, dans SON Organization — une
+     *    adhesion d'une autre Boucle, meme active, ne compte pas ;
+     * 3. role CANONIQUE owner/facilitator, alias historiques resolus par
+     *    `LoopRoleRegistry` (donc `moderator` compte comme `facilitator`) ;
+     * 4. rien d'autre : un simple membre, un visiteur ou un administrateur
+     *    qui n'est ni l'un ni l'autre ICI est refuse.
+     */
+    private function calculerPeutMentionnerTous(User $utilisateur): bool
+    {
+        if ($utilisateur->isDeactivated()) {
+            return false;
+        }
+
+        $membership = LoopMember::query()
+            ->where('loop_id', $this->loop->id)
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('user_id', $utilisateur->id)
+            ->where('status', 'active')
+            ->first();
+
+        if ($membership === null) {
+            return false;
+        }
+
+        $role = app(LoopRoleRegistry::class)->canonical($membership->role);
+
+        return in_array($role, [LoopRoleRegistry::OWNER, LoopRoleRegistry::FACILITATOR], true);
+    }
+
+    /**
+     * TASK-1797 — le token `@tous` est-il REELLEMENT ecrit dans ce texte ?
+     *
+     * Mot ENTIER (`\b`) : `@tousled` ou `@Toussaint` ne doivent jamais
+     * declencher la commande — meme discipline que `mentionsRecadrees()`,
+     * qui ne fait confiance qu'a ce qui est effectivement ecrit dans le
+     * corps, jamais a une intention annoncee par le navigateur.
+     */
+    private function corpsContientMentionTous(string $corps): bool
+    {
+        return (bool) preg_match('/@'.self::MENTION_ALL_TOKEN.'\b/ui', $corps);
     }
 
     /**
@@ -1260,6 +1348,11 @@ class LoopChat extends Component
         }
 
         $this->nomsPourMentions = $noms;
+
+        // TASK-1797 — re-derive a chaque fois que la composition de la Boucle
+        // change, jamais lue depuis une propriete recopiee. Affichage
+        // seulement : voir le docblock de la propriete.
+        $this->peutMentionnerTous = $moi !== null && $this->calculerPeutMentionnerTous($moi);
     }
 
     public function sendMessage(LoopMessageService $service): void
@@ -1290,6 +1383,19 @@ class LoopChat extends Component
             return;
         }
 
+        // TASK-1797 — le token est re-derive du corps REELLEMENT envoye, et
+        // l'autorisation est re-interrogee EN BASE : ni l'un ni l'autre ne
+        // vient d'une propriete que le navigateur aurait pu renvoyer. Un
+        // refus est EXPLICITE et n'ecrit rien — ni message, ni notification,
+        // exactement comme le plafond de dix mentions juste au-dessus.
+        $mentionTousDemandee = $this->corpsContientMentionTous($this->body);
+
+        if ($mentionTousDemandee && ! $this->calculerPeutMentionnerTous($user)) {
+            $this->addError('body', __('loops.mention_all_unauthorized'));
+
+            return;
+        }
+
         $mode = $this->loop->isAiAgent() ? 'normal' : $this->composerMode;
 
         if ($mode !== 'normal' && trim($this->body) === '') {
@@ -1305,7 +1411,7 @@ class LoopChat extends Component
         // les deux moities d'un meme tour, qui doivent tenir sous un seul
         // verrou. Rendu ici sous forme de fermeture pour cette seule raison ;
         // le corps n'a pas change.
-        $tour = function () use ($service, $mode, $user): bool {
+        $tour = function () use ($service, $mode, $user, $mentionTousDemandee): bool {
             try {
                 $imagePath = null;
 
@@ -1328,6 +1434,34 @@ class LoopChat extends Component
                 // TASK-1772 — re-cadrage SERVEUR : rien de ce que le
                 // navigateur a envoye n'est cru sur parole.
                 $mentions = $this->mentionsRecadrees($this->body);
+
+                // TASK-1797 — l'union des destinataires EXPLICITES et de ceux
+                // de `@tous`, deduplique AVANT l'appel : c'est ce qui donne
+                // gratuitement « aucun doublon si `@tous` et une mention
+                // individuelle figurent dans le meme texte » — la meme
+                // personne ne sera emise qu'UNE fois pour ce message.
+                if ($mentionTousDemandee) {
+                    $destinatairesTous = $this->mentionablesReels();
+
+                    // Jamais de troncature silencieuse. 50 est le maximum
+                    // documente de membres par Boucle (49 destinataires,
+                    // l'auteur excepte) ; le depasser est une anomalie
+                    // d'ailleurs, pas une raison de couper la liste — on
+                    // notifie tout le monde quand meme et on le signale.
+                    if (count($destinatairesTous) + 1 > 50) {
+                        Log::warning('loop.mention_all.over_capacity', [
+                            'loop_id' => (string) $this->loop->id,
+                            'actifs' => count($destinatairesTous) + 1,
+                        ]);
+                    }
+
+                    $mentions = array_values(array_unique(array_merge(
+                        $mentions,
+                        array_column($destinatairesTous, 'id'),
+                    )));
+
+                    $metadata = ($metadata ?? []) + ['mention_all' => true];
+                }
 
                 $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath, $mentions);
                 $this->body = '';
@@ -2834,6 +2968,19 @@ class LoopChat extends Component
             return;
         }
 
+        // TASK-1797 — meme refus EXPLICITE qu'a l'envoi : re-derive du texte
+        // EDITE et re-interroge en base, jamais de la metadonnee deja posee
+        // sur le message (qui dirait seulement ce qu'etait le DROIT a la
+        // creation, pas a cet instant). Rien n'est sauvegarde si le refus
+        // s'applique — l'edition entiere echoue, pas seulement la mention.
+        $mentionTousDemandee = $this->corpsContientMentionTous($this->editingBody);
+
+        if ($mentionTousDemandee && ! $this->calculerPeutMentionnerTous($user)) {
+            $this->addError('editingBody', __('loops.mention_all_unauthorized'));
+
+            return;
+        }
+
         try {
             $url = UrlPreviewService::extractFirstUrl($this->editingBody);
             $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
@@ -2851,7 +2998,30 @@ class LoopChat extends Component
             // frappe depuis toujours.
             $this->mentionsSelectionnees = $this->mentionsDejaEnregistrees($message);
             $mentions = $this->mentionsRecadrees($this->editingBody);
-            $metadata = ($metadata ?? []) + ['mentions' => $mentions];
+
+            // TASK-1797 — recalculee sur le texte EDITE, jamais reprise de
+            // `$message->metadata` : si `@tous` a ete retire, ce message ne
+            // doit plus se presenter comme collectif aux PROCHAINS lecteurs
+            // de `mention_all` (bulle, gabarit d'email) — sans que cela ne
+            // retire la moindre notification deja partie (le CDC l'interdit,
+            // et l'identifiant d'evenement deterministe ne le fait jamais).
+            if ($mentionTousDemandee) {
+                $destinatairesTous = $this->mentionablesReels();
+
+                if (count($destinatairesTous) + 1 > 50) {
+                    Log::warning('loop.mention_all.over_capacity', [
+                        'loop_id' => (string) $this->loop->id,
+                        'actifs' => count($destinatairesTous) + 1,
+                    ]);
+                }
+
+                $mentions = array_values(array_unique(array_merge(
+                    $mentions,
+                    array_column($destinatairesTous, 'id'),
+                )));
+            }
+
+            $metadata = ($metadata ?? []) + ['mentions' => $mentions, 'mention_all' => $mentionTousDemandee];
 
             app(LoopMessageService::class)->updateUserMessage($this->loop, $message, $user, $this->editingBody, $metadata);
             $this->mentionsSelectionnees = [];

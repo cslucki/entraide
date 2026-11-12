@@ -37,6 +37,11 @@
     // par l'appelant. La bulle ne cherche aucun nom : on les lui donne, sans
     // quoi chaque bulle ferait sa requete (N+1 sur un fil de trente).
     'mentionNames' => [],
+    // TASK-1801 correctif 03 — `nom => identifiant`, pour les SEULES mentions
+    // qui designent une vraie personne (le jeton `@tous` n'y figure jamais :
+    // rien a ouvrir pour lui). Meme provenance que `mentionNames`, deja en
+    // memoire cote appelant — aucune requete de plus.
+    'mentionUserIds' => [],
     'reactionCounts' => [],
     'myReaction' => null,
     'sources' => null,
@@ -296,6 +301,12 @@ $renderableBody = preg_replace_callback(
 // donc rien de legitime ne les porte, et CommonMark les laisse passer.
 $_mentionDebut = "\u{E000}";
 $_mentionFin = "\u{E001}";
+// TASK-1801 correctif 03 — un TROISIEME caractere de la meme zone, pour
+// separer l'identifiant (facultatif) du texte visible A L'INTERIEUR du
+// meme couple de sentinelles. Un identifiant systeme (ULID), jamais du
+// texte libre : rien dans son alphabet ne ressemble a `@`, `*` ou `_`, donc
+// CommonMark ne peut pas le couper en deux.
+$_mentionIdSep = "\u{E002}";
 
 $_mentionNames = array_values(array_filter(array_map('strval', (array) $mentionNames)));
 
@@ -303,7 +314,7 @@ if ($_mentionNames !== []) {
     // Un membre pourrait coller ces caracteres dans son message. Ils sont
     // retires AVANT la passe : sans cela, une sentinelle orpheline ferait
     // teindre tout le texte jusqu'a la mention suivante.
-    $renderableBody = str_replace([$_mentionDebut, $_mentionFin], '', $renderableBody);
+    $renderableBody = str_replace([$_mentionDebut, $_mentionFin, $_mentionIdSep], '', $renderableBody);
 
     // Du plus long au plus court : sans cela, « @Anne » mis en gras en
     // premier couperait « @Anne Agricola » en deux.
@@ -314,6 +325,14 @@ if ($_mentionNames !== []) {
             continue;
         }
 
+        // TASK-1801 correctif 03 — l'identifiant de la personne, QUAND on en
+        // connait un : absent pour le jeton `@tous` (personne a ouvrir) et
+        // pour toute mention dont l'appelant n'a pas fourni l'identifiant.
+        $_mentionId = (string) ($mentionUserIds[$_nom] ?? '');
+        $_mentionContenu = $_mentionId !== ''
+            ? $_mentionId.$_mentionIdSep.'@'.$_nom
+            : '@'.$_nom;
+
         $renderableBody = str_replace(
             '@'.$_nom,
             // Les sentinelles vont DEDANS, pas autour. CommonMark exige
@@ -321,7 +340,7 @@ if ($_mentionNames !== []) {
             // ponctuation ; un caractere de la zone privee compte comme une
             // LETTRE, et le gras ne se formait pas — mesure du 06/11, le
             // message rendait « **@Bob Durand** » en clair.
-            '**'.$_mentionDebut.'@'.$_nom.$_mentionFin.'**',
+            '**'.$_mentionDebut.$_mentionContenu.$_mentionFin.'**',
             $renderableBody,
         );
     }
@@ -331,21 +350,48 @@ if ($_mentionNames !== []) {
  * Convertit les sentinelles en balise, APRES `markdown()`.
  *
  * Le contenu entre les deux sentinelles est deja echappe par CommonMark : on
- * ne le touche pas, on ne fait que l'envelopper. Aucune donnee de membre
- * n'entre dans un attribut — la classe est une constante.
+ * ne le touche pas, on ne fait que l'envelopper.
+ *
+ * TASK-1801 correctif 03 — « comme on vient de le faire quand on mentionne
+ * quelqu'un [correctif 02, les liens], on va faire un lien qui affiche la
+ * card de l'utilisateur ». Quand un identifiant accompagne la mention
+ * (separe par `$_mentionIdSep`), la mention devient l'exact declencheur deja
+ * pose sur l'avatar (`apercu-membre`, TASK-1772) : MEME evenement, MEME
+ * panneau, aucun mecanisme nouveau. L'identifiant est un ULID systeme, pas
+ * une saisie libre — mais il entre desormais dans un attribut, donc
+ * echappe comme `@js()` le ferait (`Illuminate\Support\Js`), par coherence
+ * avec le reste de ce fichier.
  *
  * Le `str_replace` final retire toute sentinelle restee seule (corps tronque,
  * mention coupee par une balise). Mieux vaut un gras sans couleur qu'un
  * caractere invisible dans le presse-papier.
  */
-$_teindreLesMentions = static function (string $html) use ($_mentionDebut, $_mentionFin): string {
-    $html = preg_replace(
+$_teindreLesMentions = static function (string $html) use ($_mentionDebut, $_mentionFin, $_mentionIdSep): string {
+    $html = preg_replace_callback(
         '/'.preg_quote($_mentionDebut, '/').'(.*?)'.preg_quote($_mentionFin, '/').'/us',
-        '<span class="bp-mention">$1</span>',
+        static function (array $m) use ($_mentionIdSep): string {
+            $_position = strpos($m[1], $_mentionIdSep);
+
+            if ($_position === false) {
+                return '<span class="bp-mention">'.$m[1].'</span>';
+            }
+
+            $_id = substr($m[1], 0, $_position);
+            $_texte = substr($m[1], $_position + strlen($_mentionIdSep));
+            $_idAttr = htmlspecialchars($_id, ENT_QUOTES, 'UTF-8');
+            $_idJs = \Illuminate\Support\Js::from($_id)->toHtml();
+
+            return '<span class="bp-mention" role="button" tabindex="0"'
+                .' data-mention-user-id="'.$_idAttr.'"'
+                .' x-on:click.stop="$dispatch(\'apercu-membre\', { userId: '.$_idJs.' })"'
+                .' x-on:keydown.enter.prevent.stop="$dispatch(\'apercu-membre\', { userId: '.$_idJs.' })"'
+                .' x-on:keydown.space.prevent.stop="$dispatch(\'apercu-membre\', { userId: '.$_idJs.' })"'
+                .'>'.$_texte.'</span>';
+        },
         $html,
     ) ?? $html;
 
-    return str_replace([$_mentionDebut, $_mentionFin], '', $html);
+    return str_replace([$_mentionDebut, $_mentionFin, $_mentionIdSep], '', $html);
 };
 
 // =====================================================================

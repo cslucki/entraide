@@ -1,6 +1,11 @@
 <x-admin-layout title="Messages">
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
-        Messages filtrés par organisation. Par défaut : organisation principale.
+        {{-- TASK-1795 correctif 3 — la phrase disait « Par défaut : organisation
+             principale », ce qui est devenu FAUX le jour ou le defaut est passe
+             a « Toutes les organisations ». Un ecran qui decrit un comportement
+             qu'il n'a plus est pire qu'un ecran muet : il fait douter de ce
+             qu'on voit. --}}
+        Messages de toutes les organisations et de tous les types par défaut. Utilisez les filtres pour restreindre.
     </p>
 
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
@@ -44,6 +49,16 @@
            class="px-4 py-2 text-sm rounded-md transition
                   {{ $filter === 'exchanges' ? 'bg-white dark:bg-gray-700 shadow-sm font-medium text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100' }}">
             Échanges
+        </a>
+        {{-- TASK-1795 correctif 4 — les discussions privees ont leur onglet.
+             Elles vivent dans la meme table que l'entraide, adossees a une
+             ligne `transactions` sans service, sans demande et a zero point :
+             sous « Echanges » elles n'affichaient ni service, ni points, ni
+             statut. « Echanges » est desormais leur COMPLEMENT exact. --}}
+        <a href="{{ route('admin.messages', ['filter' => 'private', 'organization_id' => $selectedOrganizationId]) }}"
+           class="px-4 py-2 text-sm rounded-md transition
+                  {{ $filter === 'private' ? 'bg-white dark:bg-gray-700 shadow-sm font-medium text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100' }}">
+            Messages privés
         </a>
         <a href="{{ route('admin.messages', ['filter' => 'all', 'organization_id' => $selectedOrganizationId]) }}"
            class="px-4 py-2 text-sm rounded-md transition
@@ -127,6 +142,7 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Type</th>
                     @endif
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Expéditeur</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Destinataire</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:table-cell">Contexte</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Contenu</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
@@ -134,7 +150,31 @@
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($messages as $message)
-                @php $isLoop = $filter === 'chatloop' || (($message->message_type ?? null) === 'chatloop'); @endphp
+                @php
+                    $isLoop = $filter === 'chatloop' || (($message->message_type ?? null) === 'chatloop');
+
+                    /* TASK-1795 correctif 4 — la nature vient de la TRANSACTION,
+                       jamais d'une regle reecrite ici : `isDirectConversation()`
+                       est le meme predicat que celui des onglets. Dans l'onglet
+                       « Tous », `message_type` l'a deja tranchee cote serveur. */
+                    $isPrive = ! $isLoop && (
+                        $filter === 'private'
+                        || ($message->message_type ?? null) === 'private'
+                        || (isset($message->transaction) && $message->transaction->isDirectConversation())
+                    );
+
+                    /* Le DESTINATAIRE d'un message d'echange ou de discussion :
+                       l'autre partie de la conversation. Un message de ChatLoop
+                       s'adresse a la Boucle entiere — la colonne « Contexte » la
+                       nomme deja, celle-ci reste donc vide plutot que d'inventer
+                       un destinataire unique. */
+                    $destinataire = null;
+                    if (! $isLoop && isset($message->transaction)) {
+                        $destinataire = $message->sender_id === $message->transaction->buyer_id
+                            ? $message->transaction->seller
+                            : $message->transaction->buyer;
+                    }
+                @endphp
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
                     @if($filter !== 'all')
                     <td class="px-4 py-3">
@@ -164,6 +204,8 @@
                     <td class="px-4 py-3">
                         @if($isLoop)
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">ChatLoop</span>
+                        @elseif($isPrive)
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200">Message privé</span>
                         @else
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Échange</span>
                         @endif
@@ -173,8 +215,23 @@
                         @if($message->sender)
                         <p class="font-medium text-gray-900 dark:text-gray-100 text-xs">{{ $message->sender->full_name }}</p>
                         <p class="text-xs text-gray-500 truncate max-w-[120px]">{{ $message->sender->email }}</p>
+                        @include('admin.messages.partials.se-connecter-sous', ['utilisateur' => $message->sender])
                         @else
                         <span class="text-xs text-gray-400 italic">Système</span>
+                        @endif
+                    </td>
+                    {{-- TASK-1795 correctif 4 — Cyril : « ajouter le destinataire ».
+                         Pour un ChatLoop il n'y en a pas UN : le message va a la
+                         Boucle, que la colonne « Contexte » nomme deja. --}}
+                    <td class="px-4 py-3">
+                        @if($destinataire)
+                        <p class="font-medium text-gray-900 dark:text-gray-100 text-xs">{{ $destinataire->full_name }}</p>
+                        <p class="text-xs text-gray-500 truncate max-w-[120px]">{{ $destinataire->email }}</p>
+                        @include('admin.messages.partials.se-connecter-sous', ['utilisateur' => $destinataire])
+                        @elseif($isLoop)
+                        <span class="text-xs text-gray-400" title="Un message de ChatLoop s'adresse à toute la Boucle.">La Boucle</span>
+                        @else
+                        <span class="text-xs text-gray-400">—</span>
                         @endif
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 hidden sm:table-cell">
@@ -225,9 +282,16 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="{{ $filter === 'all' ? 6 : 6 }}" class="px-4 py-12 text-center">
+                    {{-- TASK-1795 correctif 4 — le colspan suit les colonnes reellement
+                         rendues. Six sont toujours la (Date, Expediteur,
+                         Destinataire, Contexte, Contenu, Actions) ; la septieme
+                         est la case a cocher hors de « Tous », et la colonne Type
+                         dans « Tous » — jamais les deux, jamais aucune. --}}
+                    <td colspan="{{ 6 + 1 }}" class="px-4 py-12 text-center">
                         @if($filter === 'chatloop')
                         <p class="text-sm text-gray-500 dark:text-gray-400">Aucun message ChatLoop</p>
+                        @elseif($filter === 'private')
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Aucun message privé</p>
                         <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Les messages de vos boucles apparaîtront ici.</p>
                         @elseif($filter === 'exchanges')
                         <p class="text-sm text-gray-500 dark:text-gray-400">Aucun échange</p>

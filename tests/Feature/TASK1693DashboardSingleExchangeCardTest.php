@@ -234,9 +234,9 @@ class TASK1693DashboardSingleExchangeCardTest extends TestCase
         $html = $this->tableauDeBord();
 
         $this->assertStringContainsString('Proposition', $this->ligne($html, $enAttente->id));
-        $this->assertStringNotContainsString('Entraide convenue', $this->ligne($html, $enAttente->id));
+        $this->assertStringNotContainsString('Aide acceptée', $this->ligne($html, $enAttente->id));
 
-        $this->assertStringContainsString('Entraide convenue', $this->ligne($html, $convenu->id));
+        $this->assertStringContainsString('Aide acceptée', $this->ligne($html, $convenu->id));
     }
 
     /**

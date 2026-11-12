@@ -38,8 +38,24 @@ use App\Models\User;
  */
 final class CarteEntraide
 {
-    /** Les quatre etapes de l'entraide, dans l'ordre. */
-    public const ETAPES = ['proposition', 'accord', 'aide', 'confirmation'];
+    /**
+     * Les TROIS etapes de l'entraide, dans l'ordre.
+     *
+     * TASK-1806, arbitrage produit du 11/11 : le parcours visible compte
+     * trois etapes, pas cinq.
+     *
+     *   1. **Demande**      — l'aide demande, l'aidant est prevenu ;
+     *   2. **Accord**       — l'aidant accepte, l'aide est prevenu ;
+     *   3. **Confirmation** — apres l'entraide et les echanges du fil, l'aide
+     *      confirme avoir recu l'aide ET laisse (ou non) sa note dans le MEME
+     *      geste. Ce geste termine l'entraide et credite les points.
+     *
+     * Il n'y a donc PAS d'etape « evaluation » separee, et pas davantage de
+     * confirmation distincte cote aidant : les deux ont ete fondues dans la
+     * 3e. Consigne explicite — « ne pas reintroduire une 4e ou 5e etape
+     * cachee dans l'UX ».
+     */
+    public const ETAPES = ['demande', 'accord', 'confirmation'];
 
     /** Les filtres de la liste (§5.2.2). `tous` n'en est pas vraiment un. */
     public const FILTRES = ['tous', 'en_cours', 'discussions', 'termines'];
@@ -99,7 +115,12 @@ final class CarteEntraide
                 ])
                 : __('messages.phrase.pending_proposant', ['prenom' => $autre, 'temps' => $temps]),
 
-            'accepted' => __('messages.phrase.accepted', ['prenom' => $autre, 'temps' => $temps]),
+            // TASK-1806 — l'accord pris, c'est l'AIDE qui cloture. La phrase
+            // doit donc dire a chacun ce qu'on attend de lui : l'aide
+            // confirmera, l'aidant attend cette confirmation.
+            'accepted' => $echange->estLAide($lecteur)
+                ? __('messages.phrase.accepted_aide', ['prenom' => $autre, 'temps' => $temps])
+                : __('messages.phrase.accepted_aidant', ['prenom' => $autre, 'temps' => $temps]),
 
             // Ici le role qui compte est celui de l'AIDE, pas du proposant.
             'buyer_done' => $echange->estLAidant($lecteur)
@@ -117,18 +138,23 @@ final class CarteEntraide
     }
 
     /**
-     * L'etape en cours, de 1 a 4. Zero quand l'echange n'a pas abouti.
+     * L'etape en cours, de 1 a 3. Zero quand l'entraide n'a pas abouti.
      *
-     * Un echange decline ou annule n'est pas « a l'etape 1 » : il est SORTI du
-     * parcours. Allumer un point ferait croire qu'il attend quelque chose.
+     * Une entraide declinee ou annulee n'est pas « a l'etape 1 » : elle est
+     * SORTIE du parcours. Allumer un point ferait croire qu'elle attend
+     * quelque chose.
+     *
+     * TASK-1806 (arbitrage du 11/11) : `accepted` est l'etape 2 et c'est la
+     * que l'entraide se vit ; `completed` allume la 3e et derniere.
+     * `buyer_done` est une valeur HERITEE que plus aucun code ne produit —
+     * elle reste a l'etape 2, puisque les points n'y ont pas ete transferes.
      */
     public static function etape(Transaction $echange): int
     {
         return match ($echange->status) {
             'pending' => 1,
-            'accepted' => 2,
-            'buyer_done' => 3,
-            'completed' => 4,
+            'accepted', 'buyer_done' => 2,
+            'completed' => 3,
             default => 0,
         };
     }
@@ -164,9 +190,33 @@ final class CarteEntraide
 
         // `estLAidant` et non `decisionMakerId` : on dit le SENS DE L'AIDE,
         // pas qui doit cliquer.
-        return $echange->estLAidant($lecteur)
-            ? ['emoji' => '👀', 'texte' => __('messages.sens.vous_aidez', ['prenom' => $autre, 'temps' => $temps]), 'classe' => 'text-green-600 dark:text-green-400']
-            : ['emoji' => '🤝', 'texte' => __('messages.sens.on_vous_demande', ['prenom' => $autre, 'temps' => $temps]), 'classe' => 'text-amber-600 dark:text-amber-400'];
+        //
+        // TASK-1808 (observation de Cyril, 11/11) — le ROLE ne suffisait pas,
+        // et la vue de l'aide disait l'INVERSE de la verite : « :prenom vous
+        // demande de l'aide » s'affichait a celui qui, justement, recevait
+        // l'aide. La phrase n'etait pas fausse en soi — elle est juste pour
+        // l'AIDANT AVANT l'accord. Les deux libelles couvraient donc quatre
+        // cas, et deux manquaient. Il faut croiser le role ET l'etape :
+        //
+        //   aidant + pending          -> « :prenom vous demande de l'aide »
+        //   aidant + accord et apres  -> « Vous aidez :prenom »
+        //   aide   + pending          -> « Vous demandez de l'aide a :prenom »
+        //   aide   + accord et apres  -> « :prenom vous aide »
+        //
+        // `completed` est deja sorti plus haut ; `refused` et `cancelled`
+        // tombent ici et restent au temps de la DEMANDE, qui est ce qu'ils
+        // decrivent : une demande qui n'a pas abouti.
+        $avantLAccord = $echange->status === 'pending';
+
+        if ($echange->estLAidant($lecteur)) {
+            return $avantLAccord
+                ? ['emoji' => '🤝', 'texte' => __('messages.sens.on_vous_demande', ['prenom' => $autre, 'temps' => $temps]), 'classe' => 'text-amber-600 dark:text-amber-400']
+                : ['emoji' => '👀', 'texte' => __('messages.sens.vous_aidez', ['prenom' => $autre, 'temps' => $temps]), 'classe' => 'text-green-600 dark:text-green-400'];
+        }
+
+        return $avantLAccord
+            ? ['emoji' => '🙋', 'texte' => __('messages.sens.vous_demandez', ['prenom' => $autre, 'temps' => $temps]), 'classe' => 'text-amber-600 dark:text-amber-400']
+            : ['emoji' => '🤲', 'texte' => __('messages.sens.on_vous_aide', ['prenom' => $autre, 'temps' => $temps]), 'classe' => 'text-indigo-600 dark:text-indigo-400'];
     }
 
     /**
@@ -196,7 +246,6 @@ final class CarteEntraide
         }
 
         $decide = $lecteur->id === $echange->decisionMakerId();
-        $temps = TempsPartage::libelle($echange->points_agreed ?? $echange->points_proposed);
 
         $acte = fn (string $nom, string $cle, array $extra = []) => array_merge([
             'route' => 'transactions.'.$nom,
@@ -216,18 +265,22 @@ final class CarteEntraide
                     $decide ? $acte('cancel', 'cancel_exchange') : $acte('cancel', 'cancel_withdraw'),
                 ],
             ],
+            // TASK-1806 (arbitrage du 11/11) — plus AUCUNE action principale
+            // ici une fois l'accord pris. La confirmation est la 3e etape, et
+            // elle se prend en BAS DU FIL, dans la carte qui porte aussi
+            // l'evaluation : un bouton « j'ai recu l'aide » ici en serait un
+            // second chemin, qui terminerait l'entraide sans jamais proposer
+            // de dire merci. Un seul endroit, un seul geste.
             'accepted' => [
-                'principale' => $echange->estLAide($lecteur) ? $acte('complete', 'mark_done', ['ton' => 'indigo']) : null,
+                'principale' => null,
                 'secondaire' => null,
                 'menu' => [$acte('cancel', 'cancel_exchange')],
             ],
-            'buyer_done' => [
-                'principale' => $echange->estLAidant($lecteur)
-                    ? $acte('confirm', 'confirm', ['ton' => 'vert', 'libelle' => __('messages.actions.confirm', ['temps' => $temps])])
-                    : null,
-                'secondaire' => $echange->estLAidant($lecteur) ? $acte('contest', 'contest') : null,
-                'menu' => [],
-            ],
+            // `buyer_done` est un statut HERITE que plus aucun code ne
+            // produit. Il n'emet plus aucune action : la confirmation de
+            // l'aidant a quitte le parcours visible, et une telle ligne se
+            // denoue par la meme carte de bas de fil que les autres, cote
+            // aide (`TransactionPolicy::complete()` l'accepte).
             default => $vide,
         };
     }

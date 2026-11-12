@@ -1212,6 +1212,15 @@ class LoopChatTest extends TestCase
      * POSEES, pas qu'elles s'executent — la preuve d'execution a ete faite en
      * navigateur sur les deux chemins (bouton desactive + sablier pendant la
      * montee, image conservee, envoi reussi ensuite).
+     *
+     * TASK-1797 (relecture) — le test a rougi, et il demandait d'etre RELU,
+     * pas contourne. `$this->member` est le PROPRIETAIRE de cette Boucle
+     * (voir `setUp()`), et `@tous` a donne au proprietaire/animateur un
+     * second gestionnaire clavier, `tenterEnvoi()`, qui porte la MEME garde
+     * `!uploading` avant de choisir entre confirmation et envoi reel. Le
+     * contrat mesure ici n'a pas change — Entree porte toujours la garde du
+     * bouton — seul le NOM de l'appel differe selon le role, et c'est
+     * desormais mesure des DEUX cotes.
      */
     public function test_le_composeur_interdit_l_envoi_pendant_la_montee_d_une_image(): void
     {
@@ -1235,10 +1244,39 @@ class LoopChatTest extends TestCase
         $this->assertStringContainsString('wire:loading.attr="disabled"', $html,
             'Le double-appui pendant un envoi en vol produit le MEME message faux.');
 
-        // La touche Entree est un SECOND chemin d'envoi, qui ne passe pas par
-        // le bouton : sans cette garde la course reste ouverte au clavier.
-        $this->assertStringContainsString('if (!uploading) { $wire.sendMessage() }', $html,
-            'Le chemin clavier doit porter la meme garde que le bouton.');
+        // TASK-1797 — `$this->member` EST le proprietaire de cette Boucle
+        // (`createLoop()` dans `setUp()` en fait l'owner) : son gestionnaire
+        // clavier passe desormais par `tenterEnvoi()`, qui porte la MEME
+        // garde `!uploading` AVANT de choisir entre la confirmation `@tous`
+        // et l'envoi reel — voir le second bloc ci-dessous pour la preuve
+        // que cette substitution est bien PROPRE AU ROLE, pas un defaut
+        // general qui affaiblirait la garde pour tout le monde.
+        $this->assertStringContainsString('if (!uploading) { tenterEnvoi($el) }', $html,
+            'Le proprietaire doit voir SON gestionnaire, avec la meme garde `!uploading`.');
+        $this->assertStringNotContainsString('if (!uploading) { $wire.sendMessage() }', $html,
+            'Le proprietaire ne doit PAS voir le gestionnaire nu : il a le droit a la confirmation `@tous`.');
+
+        // Un membre ORDINAIRE de la MEME Boucle garde le contrat clavier
+        // D'AVANT, a l'identique : aucun droit `@tous`, donc aucune
+        // substitution. Sans ce second rendu, un defaut qui remplacerait
+        // `tenterEnvoi()` par autre chose POUR TOUT LE MONDE passerait
+        // inapercu — seul le proprietaire serait mesure.
+        $membreOrdinaire = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->service->addMemberByUserId($this->loop, $membreOrdinaire->id, 'member');
+
+        $htmlMembreOrdinaire = $this->actingAs($membreOrdinaire)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('if (!uploading) { $wire.sendMessage() }', $htmlMembreOrdinaire,
+            'Le chemin clavier d\'un membre ordinaire doit porter la meme garde que le bouton, SANS substitution.');
+        // `tenterEnvoi` tout court appartient a la DEFINITION de la methode,
+        // toujours presente des que `mentionables` est passe — la mesure
+        // porte sur l'APPEL depuis la garde `!uploading`, qui lui ne doit
+        // exister que pour le proprietaire/animateur.
+        $this->assertStringNotContainsString('if (!uploading) { tenterEnvoi($el) }', $htmlMembreOrdinaire,
+            'Un membre ordinaire ne doit jamais ETRE REDIRIGE vers le mecanisme reserve au proprietaire/animateur.');
     }
 
     /**
@@ -1608,6 +1646,16 @@ class LoopChatTest extends TestCase
             'et aucune bulle de ce fil ne doit declarer l\'action « copier »');
     }
 
+    /**
+     * TASK-1801 correctif 06 — la promesse n'a pas bouge (le defilement vise
+     * le DEBUT de la bulle), seul le MOYEN a change : `scrollIntoView()` est
+     * programmatique et peut encore deplacer le scroll d'un ancetre meme
+     * sous `overflow: hidden` (mesure en recette, telephone — un pixel de
+     * defilement DOCUMENT suffisait a retracter la barre d'URL de Chrome et
+     * decoller l'en-tete/le composeur fixes de `loops/show.blade.php`,
+     * TASK-1684). Le calcul ajuste desormais UNIQUEMENT `$el.scrollTop`
+     * (ce conteneur) — jamais `window` ni `document`.
+     */
     public function test_pinned_message_scroll_targets_the_start_of_the_bubble(): void
     {
         LoopMessage::create([
@@ -1617,11 +1665,26 @@ class LoopChatTest extends TestCase
             'type' => 'user',
         ]);
 
-        Livewire::actingAs($this->member)
+        $html = Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSeeHtml("scrollIntoView({ block: 'start' })");
+            ->html();
+
+        $this->assertStringContainsString('cible.top - conteneur.top', $html,
+            'le defilement reste borne a CE conteneur (sa propre mesure), jamais a window/document');
+        $this->assertStringNotContainsString('scrollIntoView', $html,
+            'scrollIntoView() est programmatique : il peut deplacer un ancetre meme sous overflow:hidden');
     }
 
+    /**
+     * TASK-1797 (relecture) — le test a rougi, et il demandait d'etre RELU,
+     * pas contourne. `$this->member` est le PROPRIETAIRE de cette Boucle
+     * (voir `setUp()`) : son Entree passe desormais par `tenterEnvoi()`,
+     * pas `$wire.sendMessage()` nu. Le contrat qui compte — Maj+Entree
+     * garde la ligne, `enterEnvoie` arbitre, la garde `!uploading` tient —
+     * n'a pas bouge ; seul le NOM de l'appel final differe selon le role.
+     * Mesure donc des DEUX cotes : le proprietaire ET un membre ordinaire
+     * de la meme Boucle, qui doit garder le contrat nu d'avant.
+     */
     public function test_chat_composer_starts_on_one_row_and_shift_enter_keeps_new_line(): void
     {
         Livewire::actingAs($this->member)
@@ -1646,10 +1709,28 @@ class LoopChatTest extends TestCase
             // `uploading` (un envoi lance pendant la montee d'une image la
             // perdait). D'ou la mesure en morceaux plutot qu'en chaine figee.
             ->assertSeeHtml('if (enterEnvoie && !$event.shiftKey) { $event.preventDefault();')
-            ->assertSeeHtml('$wire.sendMessage() }')
+            // TASK-1797 — `$this->member` est le proprietaire : SON appel,
+            // avec la MEME garde `!uploading` juste avant (verifiee par le
+            // fragment commun ci-dessus, partage par les deux roles).
+            ->assertSeeHtml('tenterEnvoi($el) }')
+            ->assertDontSeeHtml('if (!uploading) { $wire.sendMessage() }')
             // Le discriminant est le POINTEUR, jamais la largeur : une fenetre
             // etroite sur un portable garde son clavier et garde donc l'envoi.
             ->assertSeeHtml('(hover: none) and (pointer: coarse)');
+
+        // Un membre ORDINAIRE de la MEME Boucle garde le contrat clavier
+        // NU d'avant TASK-1797, a l'identique.
+        $membreOrdinaire = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->service->addMemberByUserId($this->loop, $membreOrdinaire->id, 'member');
+
+        Livewire::actingAs($membreOrdinaire)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml('if (enterEnvoie && !$event.shiftKey) { $event.preventDefault();')
+            ->assertSeeHtml('if (!uploading) { $wire.sendMessage() }')
+            // `tenterEnvoi` seul appartient a la definition de la methode,
+            // toujours presente : la mesure porte sur l'APPEL depuis la
+            // garde, qui ne doit exister que pour le proprietaire/animateur.
+            ->assertDontSeeHtml('if (!uploading) { tenterEnvoi($el) }');
     }
 
     public function test_ai_message_without_requested_by_renders_without_subtitle(): void

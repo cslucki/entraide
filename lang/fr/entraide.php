@@ -11,8 +11,8 @@
  */
 return [
     'proposer_autre_temps' => 'Proposer un autre temps',
-    'conversation_d_abord' => 'L’échange commence par une conversation — vous confirmerez le temps ensemble.',
-    'deja_en_discussion' => 'Vous êtes déjà en discussion pour cette annonce.',
+    'conversation_d_abord' => 'L’entraide commence par une conversation — vous confirmerez le temps ensemble.',
+    'deja_en_discussion' => 'Vous êtes déjà en discussion à ce sujet.',
     'discuter_avec' => 'Discuter avec :prenom',
     'echange_en_cours' => 'Votre proposition du :date est en cours — :temps, en attente de réponse.',
     // TASK-1754 §3 — les toasts. Ils etaient ecrits EN DUR dans le controleur,
@@ -20,26 +20,29 @@ return [
     // terminee ». Et c'est la que vivaient trois des mots les plus visibles du
     // vocabulaire e-commerce.
     'flash' => [
-        'soi_meme' => 'Vous ne pouvez pas proposer un échange avec vous-même.',
-        'solde_insuffisant' => 'Votre temps disponible ne suffit pas pour cet échange.',
+        'soi_meme' => 'Vous ne pouvez pas proposer une entraide avec vous-même.',
+        'solde_insuffisant' => 'Votre temps disponible ne suffit pas pour cette entraide.',
         'proposition_envoyee' => 'Proposition envoyée !',
-        'echange_accepte' => 'Échange accepté.',
+        'echange_accepte' => 'Aide acceptée.',
         'echange_decline' => 'Proposition déclinée.',
         'ajustement_impossible' => 'Le temps ne peut être ajusté que tant que la proposition est en attente.',
         'temps_ajuste' => 'Temps ajusté.',
-        'echange_annule' => 'Échange annulé.',
+        'echange_annule' => 'Entraide annulée.',
         'aide_recue' => 'Merci, c’est noté : :prenom doit maintenant confirmer.',
-        'deja_traite' => 'Cet échange a déjà été traité.',
+        'deja_traite' => 'Cette entraide a déjà été traitée.',
         'echange_termine' => 'Entraide terminée — merci !',
-        'contestation_impossible' => 'Cet échange ne peut pas être relancé.',
-        'pas_encore_termine' => 'C’est noté : l’échange est remis en cours.',
+        // TASK-1806 (verification MASTER du 11/11) — l'entraide EST close et les
+        // points SONT transferes ; seul l'avis n'a pas pu etre ecrit. Le dire,
+        // plutot que de laisser croire que le remerciement est parti.
+        'echange_termine_avis_non_enregistre' => 'Entraide terminée et points transférés. Votre avis n’a pas pu être enregistré : vous pouvez le redéposer ci-dessous.',
+        'contestation_impossible' => 'Cette entraide ne peut pas être relancée.',
+        'pas_encore_termine' => 'C’est noté : l’entraide est remise en cours.',
     ],
-    'flux' => [
-        // TASK-1757 §9.5 — dit ce qui sera publie ET ce qui ne le sera pas.
-        // Une case « Partager dans le Flux » sans cette precision laisserait
-        // croire que le nom du beneficiaire y passe aussi.
-        'partager' => 'Partager cette entraide dans le Flux (votre prénom et le temps donné ; le nom de la personne aidée n’apparaît pas)',
-    ],
+    // TASK-1809 (correctif Cyril, 12/11) — le partage explicite dans le Flux
+    // (lien distinct, apres cloture) est retire : le partage est desormais
+    // AUTOMATIQUE des que l'avis est depose (`EvaluationEntraide::
+    // enregistrer()`). Les deux libelles qui vivaient ici (`partager`/
+    // `partagee`) n'ont plus aucun appelant.
 
     'atelier' => [
         'complet' => 'Cet atelier est complet.',

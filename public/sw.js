@@ -31,7 +31,15 @@
 // RIEN D'AUTRE NE CHANGE dans ce fichier. Les strategies de TASK-1692 restent
 // intactes : documents en reseau seul, liste blanche de chemins pour les
 // assets, reseau seul pour tout le reste.
-const CACHE_NAME = 'bouclepro-v7';
+//
+// TASK-1805 — v7 -> v8 : `/site.webmanifest` n'est plus un fichier statique,
+// son `name`/`short_name` varie desormais par environnement (BoucleDev en
+// local, BouclePro en production — voir `PwaManifestController`). Ce fichier
+// fait partie de `SHELL_ASSETS` et est servi CACHE-FIRST (voir
+// `isCacheableAsset()` plus bas) : sans ce bump, un navigateur ayant deja
+// installe la PWA locale AVANT ce correctif garderait indefiniment en cache
+// l'ancien manifest fige sur "BouclePro".
+const CACHE_NAME = 'bouclepro-v8';
 
 // TASK-1740 — la version du Service Worker, pour la RENDRE OBSERVABLE.
 //

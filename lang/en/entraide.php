@@ -11,29 +11,32 @@
  */
 return [
     'proposer_autre_temps' => 'Suggest a different time',
-    'conversation_d_abord' => 'The exchange starts with a conversation — you will agree on the time together.',
+    'conversation_d_abord' => 'Mutual aid starts with a conversation — you will agree on the time together.',
     'deja_en_discussion' => 'You are already in a discussion about this listing.',
     'discuter_avec' => 'Chat with :prenom',
     'echange_en_cours' => 'Your offer from :date is in progress — :temps, awaiting a reply.',
     // TASK-1754 §3 — les toasts, desormais traduits.
     'flash' => [
-        'soi_meme' => 'You cannot start an exchange with yourself.',
-        'solde_insuffisant' => 'You do not have enough available time for this exchange.',
+        'soi_meme' => 'You cannot start a mutual aid with yourself.',
+        'solde_insuffisant' => 'You do not have enough available time for this mutual aid.',
         'proposition_envoyee' => 'Offer sent!',
-        'echange_accepte' => 'Exchange accepted.',
+        'echange_accepte' => 'Help accepted.',
         'echange_decline' => 'Offer declined.',
         'ajustement_impossible' => 'The time can only be adjusted while the offer is pending.',
         'temps_ajuste' => 'Time adjusted.',
-        'echange_annule' => 'Exchange cancelled.',
+        'echange_annule' => 'Mutual aid cancelled.',
         'aide_recue' => 'Noted — :prenom now needs to confirm.',
-        'deja_traite' => 'This exchange has already been handled.',
-        'echange_termine' => 'Exchange complete — thank you!',
-        'contestation_impossible' => 'This exchange cannot be reopened.',
-        'pas_encore_termine' => 'Noted: the exchange is active again.',
+        'deja_traite' => 'This mutual aid has already been handled.',
+        'echange_termine' => 'Mutual aid completed — thank you!',
+        // TASK-1806 — the mutual aid IS closed and the points ARE transferred;
+        // only the review could not be written. Say so.
+        'echange_termine_avis_non_enregistre' => 'Mutual aid completed and points transferred. Your review could not be saved: you can post it again below.',
+        'contestation_impossible' => 'This mutual aid cannot be reopened.',
+        'pas_encore_termine' => 'Noted: the mutual aid is active again.',
     ],
-    'flux' => [
-        'partager' => 'Share this help in the Feed (your first name and the time given; the name of the person you helped is not shown)',
-    ],
+    // TASK-1809 (Cyril's fix, 12/11) — explicit Feed sharing (separate
+    // link, after closure) is removed: sharing is now AUTOMATIC as soon as
+    // the review is submitted (`EvaluationEntraide::enregistrer()`).
 
     'atelier' => [
         'complet' => 'This workshop is full.',
@@ -52,7 +55,7 @@ return [
     ],
     'csv' => [
         'fichier' => 'mutual-aid',
-        'entetes' => ['Date', 'Direction', 'Exchange', 'With', 'Time', 'Points', 'Status'],
+        'entetes' => ['Date', 'Direction', 'Mutual aid', 'With', 'Time', 'Points', 'Status'],
         'aide_recue' => 'Help received',
         'aide_apportee' => 'Help given',
     ],

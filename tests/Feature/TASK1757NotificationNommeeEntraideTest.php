@@ -150,7 +150,7 @@ class TASK1757NotificationNommeeEntraideTest extends TestCase
         $this->assertStringContainsString('Barnabe', $page, 'Le prenom du repondant doit apparaitre.');
         $this->assertStringContainsString('Reparer un velo', $page, 'Le titre de l\'annonce doit apparaitre.');
         $this->assertStringContainsString('30 min', $page, 'Le temps doit apparaitre.');
-        $this->assertStringNotContainsString('Quelqu’un répond à votre annonce', $page,
+        $this->assertStringNotContainsString('Quelqu’un répond à votre demande ou proposition d’aide', $page,
             'La forme generique ne doit plus servir quand l\'objet est nommable.');
     }
 
@@ -216,7 +216,7 @@ class TASK1757NotificationNommeeEntraideTest extends TestCase
 
         $this->assertStringNotContainsString('ANNONCE SECRETE DE B', $page, 'Fuite inter-tenant dans le centre de notifications.');
         $this->assertStringNotContainsString('Zelda', $page);
-        $this->assertStringContainsString('Quelqu’un répond à votre annonce', $page, 'Le repli generique doit prendre le relais.');
+        $this->assertStringContainsString('Quelqu’un répond à votre demande ou proposition d’aide', $page, 'Le repli generique doit prendre le relais.');
     }
 
     /** Un lecteur qui n'est PARTIE a rien ne lit aucun nom. */
@@ -230,7 +230,7 @@ class TASK1757NotificationNommeeEntraideTest extends TestCase
         $page = $this->centre($curieux);
 
         $this->assertStringNotContainsString('Barnabe', $page);
-        $this->assertStringContainsString('Quelqu’un répond à votre annonce', $page);
+        $this->assertStringContainsString('Quelqu’un répond à votre demande ou proposition d’aide', $page);
     }
 
     /**
@@ -251,6 +251,6 @@ class TASK1757NotificationNommeeEntraideTest extends TestCase
         $echange = $this->repondreALAnnonce($this->annonce($this->orgA, $this->auteurDeLAnnonce), $this->repondant);
         $this->repointer($this->notificationDe($echange), ['object_id' => $directe->id]);
 
-        $this->assertStringContainsString('Quelqu’un répond à votre annonce', $this->centre($this->auteurDeLAnnonce));
+        $this->assertStringContainsString('Quelqu’un répond à votre demande ou proposition d’aide', $this->centre($this->auteurDeLAnnonce));
     }
 }

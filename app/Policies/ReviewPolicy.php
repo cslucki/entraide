@@ -7,14 +7,22 @@ use App\Models\User;
 
 class ReviewPolicy
 {
+    /**
+     * TASK-1806 — une seule evaluatrice possible : l'aide, jamais l'aidant.
+     *
+     * Avant ce correctif, la garde ne verifiait que « participant a la
+     * transaction » (buyer OU seller) — exactement le defaut qui laissait
+     * l'aidant evaluer l'aide, dans les deux sens du parcours (demande comme
+     * proposition). `estLAide()` resout le role depuis les colonnes
+     * canoniques (`buyer_id`), jamais depuis qui a initie la transaction.
+     */
     public function create(User $user, Transaction $transaction): bool
     {
-        $isParticipant = $user->id === $transaction->buyer_id || $user->id === $transaction->seller_id;
-
         return $this->resourceBelongsToCurrentOrganization($transaction)
-            && $isParticipant
+            && $transaction->estLAide($user)
             && $transaction->status === 'completed'
-            && ! $transaction->hasReviewFrom($user->id);
+            && ! $transaction->hasReviewFrom($user->id)
+            && ! $transaction->evaluationIgnoree();
     }
 
     private function resourceBelongsToCurrentOrganization($resource): bool

@@ -2,6 +2,7 @@
 
 namespace App\Support\Notifications;
 
+use App\Models\SystemEmailTemplate;
 use App\Models\User;
 use App\Services\EmailerService;
 use App\Support\Email\SystemEmailTemplateResolver;
@@ -39,6 +40,14 @@ final class GabaritEmail
     /**
      * @param  array<string, string>  $vars
      * @param  callable(): array{subject: string, html: string}  $repli
+     * @param  SystemEmailTemplate|null  $templateResolu  TASK-1799 (A1) — quand
+     *                                    l'appelant a DEJA resolu la meme ligne
+     *                                    (meme slug, Organization, langue) pour
+     *                                    un autre rendu de ce meme destinataire
+     *                                    (ex. la copie expurgee de `email_logs`),
+     *                                    il la passe ici pour eviter de relire
+     *                                    deux fois une ligne identique. `null` ->
+     *                                    comportement inchange, resolution ici.
      * @return array{subject: string, body: string, fallback_reason: string|null}
      */
     public function rendre(
@@ -48,9 +57,10 @@ final class GabaritEmail
         ?User $sender,
         array $vars,
         callable $repli,
+        ?SystemEmailTemplate $templateResolu = null,
     ): array {
         $resolver = app(SystemEmailTemplateResolver::class);
-        $template = $resolver->resolve($slug, $organizationId, $langue);
+        $template = $templateResolu ?? $resolver->resolve($slug, $organizationId, $langue);
 
         $emailer = app(EmailerService::class);
         $extraKeys = array_keys($vars);

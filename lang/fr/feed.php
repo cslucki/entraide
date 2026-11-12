@@ -15,10 +15,13 @@ return [
         'loop_joined' => ':name a rejoint la Boucle :object',
         'loop_created' => ':name a créé la Boucle :object',
         'loop_event_created' => ':name a créé l\'évènement :object',
-        // TASK-1757 §9.5 — seul l'AIDANT est nomme : jamais « a Barnabe ».
-        // Celui qui coche la case est l'aidant, donc la seule personne
-        // exposee est celle qui a choisi de l'etre.
-        'help_completed' => ':name a donné :temps — :object',
+        // TASK-1809 (decision Cyril, 12/11) — REMPLACE l'arbitrage du 05/11
+        // (« seul l'AIDANT est nomme, jamais Barnabe ») : « Si on nomme les
+        // deux, c'est une plateforme de confiance et ouverte. Et il faut
+        // etre connecte et membre accepte. » Les deux personnes sont donc
+        // nommees, et l'annonce par son TITRE (:object) — BouclePro est une
+        // plateforme de pedagogie par entraide, pas de troc.
+        'help_completed' => ':name a aidé :beneficiaire avec « :object » (:temps)',
         'help_category_fallback' => 'Entraide',
         'object_gone' => 'un contenu supprimé',
     ],

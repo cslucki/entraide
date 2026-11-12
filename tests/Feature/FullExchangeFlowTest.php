@@ -45,13 +45,12 @@ class FullExchangeFlowTest extends TestCase
             ->assertRedirect();
         $this->assertEquals('accepted', $transaction->fresh()->status);
 
+        // TASK-1806 (arbitrage du 11/11) — TROIS etapes : l'aide confirme, et
+        // ce seul geste termine l'entraide et transfere les points. Il n'y a
+        // plus de confirmation distincte cote aidant, donc plus d'etat
+        // `buyer_done` traverse.
         $this->actingAs($buyer)
             ->patch(route('transactions.complete', $transaction))
-            ->assertRedirect();
-        $this->assertEquals('buyer_done', $transaction->fresh()->status);
-
-        $this->actingAs($seller)
-            ->patch(route('transactions.confirm', $transaction))
             ->assertRedirect();
         $this->assertEquals('completed', $transaction->fresh()->status);
 

@@ -5,6 +5,8 @@ namespace App\Support\Notifications;
 use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Models\EntraideComment;
+use App\Models\FeedPost;
+use App\Models\FeedPostComment;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
@@ -18,6 +20,7 @@ use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 
 /**
  * TASK-1374 — resoudre la CIBLE d'une notification, au moment du clic.
@@ -65,6 +68,11 @@ class NotificationTargetResolver
             // TASK-1751 — un echange mene a SA conversation.
             NotificationCatalogue::OBJECT_TRANSACTION => $this->transaction($notification),
             NotificationCatalogue::OBJECT_ENTRAIDE_COMMENT => $this->entraideComment($notification),
+            // TASK-1810 — un commentaire de Flux mene A LA LIGNE commentee ;
+            // une reaction mene a l'ITEM lui-meme (il n'existe pas de fiche
+            // dediee a une reaction).
+            NotificationCatalogue::OBJECT_FEED_POST_COMMENT => $this->feedPostComment($notification),
+            NotificationCatalogue::OBJECT_FEED_POST => $this->feedPost($notification),
             default => null,
         };
     }
@@ -101,6 +109,20 @@ class NotificationTargetResolver
             return null;
         }
 
+        // TASK-1799 (B1) — le MESSAGE n'est volontairement PAS memorise,
+        // a la difference de la Boucle/Organization/acteur juste en dessous.
+        //
+        // Tentative faite, puis RETIREE : `TASK1772MentionEmailEtCibleTest::
+        // test_un_message_supprime_ou_un_membre_sorti_ne_mene_plus_nulle_part`
+        // et `::test_un_message_sans_texte_affiche_une_mention_neutre`
+        // rougissaient — tous deux relisent CE MEME message apres l'avoir
+        // modifie (`deleted_at`, `body`) DANS LA MEME portee d'execution, et
+        // exigent que la lecture suivante voie le changement. Contrairement
+        // a la Boucle ou l'Organization (dont seule l'IDENTITE/le TENANT
+        // comptent ici), le contenu et l'etat du message SONT ce que cette
+        // methode existe pour verifier a jour — le memoriser aurait remplace
+        // un controle courant par une donnee potentiellement perimee,
+        // exactement ce que ce correctif s'interdit.
         $message = LoopMessage::query()
             ->withoutGlobalScope(BelongsToOrganizationScope::class)
             ->whereKey($notification->object_id)
@@ -111,11 +133,14 @@ class NotificationTargetResolver
             return null;
         }
 
-        $boucle = Loop::query()
-            ->withoutGlobalScope(BelongsToOrganizationScope::class)
-            ->whereKey($message->loop_id)
-            ->where('organization_id', $notification->organization_id)
-            ->first();
+        $boucle = app(ScopedReadCache::class)->souviens(
+            'cible-boucle:'.$notification->organization_id.':'.$message->loop_id,
+            fn (): ?Loop => Loop::query()
+                ->withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->whereKey($message->loop_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first(),
+        );
 
         if ($boucle === null) {
             return null;
@@ -139,10 +164,16 @@ class NotificationTargetResolver
             return null;
         }
 
-        $organisation = Organization::query()
-            ->withoutGlobalScope(BelongsToOrganizationScope::class)
-            ->whereKey($notification->organization_id)
-            ->first();
+        // Meme cle que celle de `loop()` ci-dessus : l'Organization est une
+        // donnee de reference partagee par TOUTE notification de ce tenant,
+        // quel que soit l'`object_type` qui la demande.
+        $organisation = app(ScopedReadCache::class)->souviens(
+            'cible-organization:'.$notification->organization_id,
+            fn (): ?Organization => Organization::query()
+                ->withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->whereKey($notification->organization_id)
+                ->first(),
+        );
 
         if ($organisation === null) {
             return null;
@@ -540,13 +571,69 @@ class NotificationTargetResolver
         $nue = $annonce instanceof Service ? 'services.show' : 'requests.show';
         $parametre = $annonce instanceof Service ? 'service' : 'request';
 
-        $url = $organization !== null && \Illuminate\Support\Facades\Route::has($scopee)
+        $url = $organization !== null && Route::has($scopee)
             ? route($scopee, ['organization' => $organization->slug, $parametre => $annonce->getKey()])
             : route($nue, [$parametre => $annonce->getKey()]);
 
         // L'ancre vise LE commentaire, pas la section : le CDC §7 demande « un
         // lien d'ancrage vers le commentaire concerne ».
         return $url.'#commentaire-'.$commentaire->id;
+    }
+
+    /**
+     * TASK-1810 — le commentaire depose sous un item du Flux.
+     *
+     * Ni `FeedPost` ni `FeedPostComment` ne portent `BelongsToOrganizationScope`
+     * (confirme par grep avant d'ecrire cette methode) : rien a retirer, la
+     * frontiere de tenant est posee a la main par le `where('organization_id', …)`
+     * ci-dessous, comme pour `entraideComment()`.
+     */
+    private function feedPostComment(MemberNotification $notification): ?string
+    {
+        if ($notification->object_id === null) {
+            return null;
+        }
+
+        $commentaire = FeedPostComment::query()
+            ->whereKey($notification->object_id)
+            ->where('organization_id', $notification->organization_id)
+            ->where('is_approved', true)
+            ->first();
+
+        if ($commentaire === null) {
+            return null;
+        }
+
+        $post = FeedPost::query()
+            ->whereKey($commentaire->feed_post_id)
+            ->where('organization_id', $notification->organization_id)
+            ->first();
+
+        if ($post === null) {
+            return null;
+        }
+
+        // L'ancre vise LE commentaire, meme idiome que `entraideComment()`.
+        return $post->announcementUrl().'#commentaire-'.$commentaire->id;
+    }
+
+    /**
+     * TASK-1810 — une reaction mene a l'ITEM lui-meme : il n'existe aucune
+     * fiche dediee a une reaction, et `object_id` designe directement
+     * `feed_posts.id` (voir `OBJECT_FEED_POST`).
+     */
+    private function feedPost(MemberNotification $notification): ?string
+    {
+        if ($notification->object_id === null) {
+            return null;
+        }
+
+        $post = FeedPost::query()
+            ->whereKey($notification->object_id)
+            ->where('organization_id', $notification->organization_id)
+            ->first();
+
+        return $post?->announcementUrl();
     }
 
     private function blogComment(MemberNotification $notification): ?string
@@ -578,7 +665,7 @@ class NotificationTargetResolver
             ->whereKey($notification->organization_id)
             ->first();
 
-        $url = $organization !== null && \Illuminate\Support\Facades\Route::has('organization.blog.show')
+        $url = $organization !== null && Route::has('organization.blog.show')
             ? route('organization.blog.show', ['organization' => $organization->slug, 'post' => $post->slug])
             : route('blog.show', $post->slug);
 
@@ -632,7 +719,7 @@ class NotificationTargetResolver
             ->whereKey($notification->organization_id)
             ->first();
 
-        if ($organization === null || ! \Illuminate\Support\Facades\Route::has('organization.blog.edit')) {
+        if ($organization === null || ! Route::has('organization.blog.edit')) {
             return null;
         }
 
@@ -691,7 +778,7 @@ class NotificationTargetResolver
             return null;
         }
 
-        return \Illuminate\Support\Facades\Route::has('organization.messages.show')
+        return Route::has('organization.messages.show')
             ? route('organization.messages.show', [
                 'organization' => $organization->slug,
                 'transaction' => $transaction->id,

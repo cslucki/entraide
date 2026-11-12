@@ -1,3 +1,8 @@
+{{-- TASK-1795 correctif 1 — l'URL arrive de la notification, elle n'est PLUS
+     fabriquee ici. `route('messages.show', $transaction)` rendait la surface
+     courte, ou l'Organization par defaut est liee : une conversation d'une
+     autre Organization y repond 404. Le repli Blade reintroduisait donc le
+     defaut meme une fois le chemin gabarit corrige. --}}
 @component('mail::message')
 # Nouveau message reçu
 
@@ -9,7 +14,7 @@ Bonjour {{ $user->fullName }},
 {{ Str::limit($message->body, 300) }}
 @endcomponent
 
-@component('mail::button', ['url' => route('messages.show', $transaction), 'color' => 'primary'])
+@component('mail::button', ['url' => $url, 'color' => 'primary'])
 Répondre
 @endcomponent
 

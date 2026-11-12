@@ -70,6 +70,49 @@
         @endforeach
     </div>
 
+    {{-- TASK-1795 correctif 9 — les comptes ACTIFS par Organization.
+
+         Cyril : « prévoir l'espace pour 10 organisations maximum, puisque la
+         plateforme ne fera pas plus de 10 organisations ». La grille est donc
+         calibree pour DIX : `lg:grid-cols-5` les range en deux rangees pleines.
+         Au-dela, elle enroule au lieu de tronquer — masquer une Organization
+         ferait disparaitre ses comptes d'un ecran de comptage, ce qui est pire
+         qu'une rangee de trop.
+
+         Chaque tuile est CLIQUABLE et mene au filtre `organization_id`, qui
+         existe deja sur cet ecran : aucun geste offert n'est refuse. La tuile
+         de l'Organization filtree est marquee, et son lien retire le filtre —
+         recliquer dessus revient a « Toutes les organisations ».
+
+         « Actif » = le predicat de `userListStats()`, `banned_at is null and
+         is_available`. La somme des tuiles retombe donc sur le compteur
+         « Disponibles » ci-dessus, ce qu'un test mesure. --}}
+    @if($organizations->count() > 1)
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5" data-users-org-counters>
+        @foreach($organizations as $organisation)
+        @php
+            $compte = $comptesParOrganization[$organisation->id] ?? ['total' => 0, 'actifs' => 0];
+            $estFiltree = $scopedOrganization?->id === $organisation->id;
+        @endphp
+        <a href="{{ route('admin.users', array_filter(array_merge(request()->except(['page', 'organization_id']), $estFiltree ? [] : ['organization_id' => $organisation->id]))) }}"
+           data-users-org-counter="{{ $organisation->id }}"
+           title="{{ $estFiltree ? __('admin.users_org_counter_clear') : __('admin.users_org_counter_filter', ['name' => $organisation->name]) }}"
+           class="relative overflow-hidden rounded-xl border px-4 py-3 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500
+                  {{ $estFiltree
+                     ? 'border-indigo-400 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                     : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-indigo-300 hover:shadow' }}">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="w-1.5 h-1.5 rounded-full {{ $estFiltree ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600' }}"></span>
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">{{ $organisation->name }}</span>
+            </div>
+            <p class="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400"
+               data-users-org-actifs="{{ $organisation->id }}">{{ number_format($compte['actifs'], 0, ',', ' ') }}</p>
+            <p class="text-[11px] text-gray-400">{{ __('admin.users_org_counter_total', ['total' => number_format($compte['total'], 0, ',', ' ')]) }}</p>
+        </a>
+        @endforeach
+    </div>
+    @endif
+
     @if($scopedOrganization)
     {{-- TASK-1683 BUG-07 — la ligne de portee offre les DEUX sorties : elargir
          a toutes les organisations, et revenir a l'Organization d'ou l'on
@@ -453,7 +496,14 @@
                         </span>
                     </td>
                     @endif
-                    <td class="hidden sm:table-cell px-4 py-3 text-xs text-gray-400">{{ $u->created_at->format('d/m/Y') }}</td>
+                    {{-- TASK-1795 correctif 8 (demande Cyril) — l'HEURE en plus de la
+                         date. Deux comptes crees le meme jour n'etaient plus
+                         departageables a l'oeil, alors que la colonne est TRIABLE
+                         sur `created_at` : le tri connaissait l'heure, l'affichage
+                         non. `d/m/Y H:i` est le format maison (74 autres emplois).
+                         `whitespace-nowrap` : la colonne est etroite, et une date
+                         coupee en deux lignes se lit mal. --}}
+                    <td class="hidden sm:table-cell px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{{ $u->created_at->format('d/m/Y H:i') }}</td>
                     <td class="sticky right-0 z-10 w-full min-w-[32rem] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 px-4 py-3 align-top">
                         {{-- TASK-1714 volet 3 — ONZE actions tenaient dans une colonne
                              sans largeur : `flex-wrap` les empilait une par ligne, chacune

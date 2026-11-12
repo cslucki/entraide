@@ -47,7 +47,7 @@ class SystemEmailTemplateSeeder extends Seeder
             'subject_fr' => 'Bienvenue sur {{ organization }}, {{ name }} !',
             'subject_en' => 'Welcome to {{ organization }}, {{ name }}!',
             'content_html_fr' => '<h1>Bienvenue sur {{ organization }}, {{ name }} !</h1>
-<p>Votre compte a bien été créé. Vous avez reçu <strong>100 points de bienvenue</strong> pour démarrer vos premiers échanges.</p>
+<p>Votre compte a bien été créé. Vous avez reçu <strong>100 points de bienvenue</strong> pour démarrer vos premières entraides.</p>
 <p><a href="{{ url }}">Découvrir les services</a></p>',
             'content_html_en' => '<h1>Welcome to {{ organization }}, {{ name }}!</h1>
 <p>Your account has been created. You received <strong>100 welcome points</strong> to get started.</p>
@@ -61,7 +61,7 @@ class SystemEmailTemplateSeeder extends Seeder
             'subject_en' => 'New message from {{ sender_name }}',
             'content_html_fr' => '<h1>Nouveau message de {{ sender_name }}</h1>
 <p>Bonjour {{ name }},</p>
-<p><strong>{{ sender_name }}</strong> vous a envoyé un message à propos de l\'échange <strong>{{ transaction_title }}</strong>.</p>
+<p><strong>{{ sender_name }}</strong> vous a envoyé un message à propos de l\'entraide <strong>{{ transaction_title }}</strong>.</p>
 <blockquote>{{ message_preview }}</blockquote>
 <p><a href="{{ url }}">Voir la conversation</a></p>',
             'content_html_en' => '<h1>New message from {{ sender_name }}</h1>
@@ -69,21 +69,55 @@ class SystemEmailTemplateSeeder extends Seeder
 <p><strong>{{ sender_name }}</strong> sent you a message about <strong>{{ transaction_title }}</strong>.</p>
 <blockquote>{{ message_preview }}</blockquote>
 <p><a href="{{ url }}">View conversation</a></p>',
-            'variables' => ['name', 'sender_name', 'transaction_title', 'message_preview', 'url'],
+            // `sender_first_name` est fourni par `NewMessageReceived` et donc
+            // utilisable dans le gabarit ; l'ecran d'administration doit le dire.
+            'variables' => ['name', 'sender_first_name', 'sender_name', 'transaction_title', 'message_preview', 'url'],
         ],
+
+        // TASK-1795 correctif 2 — la DISCUSSION PRIVEE, distincte de l'entraide.
+        //
+        // `new_message` juste au-dessus reste le gabarit des messages d'un
+        // ECHANGE : son texte parle d'echange et interpole
+        // `{{ transaction_title }}`. Une discussion privee n'a ni service ni
+        // demande — cette variable y valait « Echange », un mot invente par un
+        // repli. `Transaction::isDirectConversation()` tranche entre les deux,
+        // et `NewMessageReceived::toMail()` choisit le slug a partir d'elle.
+        //
+        // Pose AUSSI par la migration jumelle
+        // `2026_11_09_160000_add_private_message_received_email_template`, qui
+        // sert les bases DEJA installees qu'un seeder ne revisite pas. Les deux
+        // textes sont identiques, et la migration a ete GENEREE depuis cette
+        // entree — la divergence est impossible a la naissance. Ecrire la
+        // migration seule avait fait rougir les deux gates en T1720 : une base
+        // reconstruite n'aurait JAMAIS eu le gabarit.
+        'private_message_received' => [
+            'name_fr' => 'Message privé reçu',
+            'name_en' => 'Private message received',
+            'subject_fr' => 'Message privé de {{ sender_first_name }} {{ sender_name }}',
+            'subject_en' => 'Private message from {{ sender_first_name }} {{ sender_name }}',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Vous avez reçu un message privé de <strong>{{ sender_first_name }} {{ sender_name }}</strong> sur {{ organization_name }}.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_preview }}</blockquote><p><a href="{{ message_url }}" style="display:inline-block;padding:10px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px">Lire le message et répondre</a></p><p style="font-size:12px;color:#777">Lien : {{ message_url }}</p><p>À bientôt,<br>L’équipe {{ app_name }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>You received a private message from <strong>{{ sender_first_name }} {{ sender_name }}</strong> on {{ organization_name }}.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_preview }}</blockquote><p><a href="{{ message_url }}" style="display:inline-block;padding:10px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px">Read and reply</a></p><p style="font-size:12px;color:#777">Link: {{ message_url }}</p><p>See you soon,<br>The {{ app_name }} team</p>',
+            // Obligatoire : `ligne()` lit `$def['variables']` SANS repli.
+            // Meme liste que la migration jumelle.
+            'variables' => [
+                'sender_first_name', 'sender_name', 'recipient_name',
+                'organization_name', 'message_preview', 'message_url', 'app_name',
+            ],
+        ],
+
         'transaction_status_changed' => [
-            'name_fr' => 'Mise à jour statut échange',
-            'name_en' => 'Exchange status update',
-            'subject_fr' => 'Mise à jour de votre échange — {{ status_label }}',
-            'subject_en' => 'Your exchange has been updated — {{ status_label }}',
-            'content_html_fr' => '<h1>Mise à jour de votre échange</h1>
+            'name_fr' => 'Mise à jour de votre entraide',
+            'name_en' => 'Mutual aid status update',
+            'subject_fr' => 'Mise à jour de votre entraide — {{ status_label }}',
+            'subject_en' => 'Your mutual aid has been updated — {{ status_label }}',
+            'content_html_fr' => '<h1>Mise à jour de votre entraide</h1>
 <p>Bonjour {{ name }},</p>
-<p>Le statut de votre échange <strong>{{ title }}</strong> a changé : <strong>{{ status_label }}</strong>.</p>
+<p>Le statut de votre entraide <strong>{{ title }}</strong> a changé : <strong>{{ status_label }}</strong>.</p>
 <p>Points : {{ points }} pts</p>
 <p><a href="{{ url }}">Voir la conversation</a></p>',
-            'content_html_en' => '<h1>Your exchange has been updated</h1>
+            'content_html_en' => '<h1>Your mutual aid has been updated</h1>
 <p>Hello {{ name }},</p>
-<p>The status of your exchange <strong>{{ title }}</strong> changed to: <strong>{{ status_label }}</strong>.</p>
+<p>The status of your mutual aid <strong>{{ title }}</strong> changed to: <strong>{{ status_label }}</strong>.</p>
 <p>Points: {{ points }} pts</p>
 <p><a href="{{ url }}">View conversation</a></p>',
             'variables' => ['name', 'title', 'status_label', 'points', 'url'],
@@ -222,12 +256,12 @@ class SystemEmailTemplateSeeder extends Seeder
          * catalogue et hors preferences.
          */
         'transaction_proposal_created' => [
-            'name_fr' => 'Proposition reçue sur votre annonce',
-            'name_en' => 'Proposal received on your listing',
-            'subject_fr' => 'Quelqu’un répond à votre annonce « {{ subject_title }} »',
-            'subject_en' => 'Someone replied to your listing “{{ subject_title }}”',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ sender_name }} vient de répondre à votre annonce <strong>{{ subject_title }}</strong> au sein de {{ organization_name }}, pour {{ points_proposed }} points.</p><p>Vous pouvez accepter ou refuser cette proposition depuis la conversation.</p><p><a href="{{ exchange_url }}">Voir la proposition</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ exchange_url }}</p><p>À bientôt,<br>{{ app_name }}</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ sender_name }} has just replied to your listing <strong>{{ subject_title }}</strong> in {{ organization_name }}, for {{ points_proposed }} points.</p><p>You can accept or decline this proposal from the conversation.</p><p><a href="{{ exchange_url }}">View the proposal</a></p><p>If the link does not work, copy this address into your browser:<br>{{ exchange_url }}</p><p>See you soon,<br>{{ app_name }}</p>',
+            'name_fr' => 'Réponse à votre demande ou proposition d’aide',
+            'name_en' => 'Reply to your help request or offer',
+            'subject_fr' => 'Quelqu’un répond à « {{ subject_title }} »',
+            'subject_en' => 'Someone replied to “{{ subject_title }}”',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ sender_name }} vient de répondre à <strong>{{ subject_title }}</strong> au sein de {{ organization_name }}, pour {{ points_proposed }} points.</p><p>Vous pouvez accepter ou refuser cette proposition depuis la conversation.</p><p><a href="{{ exchange_url }}">Voir la proposition</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ exchange_url }}</p><p>À bientôt,<br>{{ app_name }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ sender_name }} has just replied to <strong>{{ subject_title }}</strong> in {{ organization_name }}, for {{ points_proposed }} points.</p><p>You can accept or decline this proposal from the conversation.</p><p><a href="{{ exchange_url }}">View the proposal</a></p><p>If the link does not work, copy this address into your browser:<br>{{ exchange_url }}</p><p>See you soon,<br>{{ app_name }}</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
                 'subject_title', 'points_proposed', 'exchange_url', 'app_name',
@@ -271,13 +305,82 @@ class SystemEmailTemplateSeeder extends Seeder
         //
         // Le SUJET ne nomme personne : il se lit dans un apercu de boite mail,
         // sans deverrouiller. C'est le texte du CDC §8.
+        // TASK-1808 §6, puis TASK-1809 §3 — l'invitation a evaluer l'aidant,
+        // APRES la cloture.
+        //
+        // Pose AUSSI par la migration jumelle
+        // `2026_11_12_110000_add_entraide_evaluation_invite_email_template`
+        // (insertion) puis `2026_11_12_150000_update_..._immediate_copy`
+        // (texte immediat), qui servent les bases DEJA installees qu'un
+        // seeder ne revisite pas. Les textes sont IDENTIQUES, generes depuis
+        // cette entree.
+        //
+        // Destinataire UNIQUE : l'aide (D1). Jamais l'aidant — MASTER
+        // l'ecrit explicitement (« ne jamais envoyer a l'aidant un message
+        // indiquant qu'une evaluation lui a ete demandee ou qu'elle n'a pas
+        // ete donnee »). `EvaluationInviteMailer` est le seul emetteur, et
+        // il ne connait que `transaction->buyer`.
+        //
+        // TASK-1809 §3 — MASTER a retire la relance PLANIFIEE (dix minutes
+        // apres cloture, `entraide:invite-to-evaluate`, supprimee) :
+        // « BouclePro lutte contre l'infobesite ». Desormais UN SEUL email,
+        // envoye IMMEDIATEMENT par `TransactionController::complete()`,
+        // borne a UNE fois par entraide par la MEME colonne
+        // `transactions.evaluation_invited_at` (semantique inchangee, seul
+        // le declencheur change : synchrone a la cloture, plus un balayage
+        // planifie). `{{ points }}` (nouvelle variable) nomme le nombre de
+        // points transferes.
+        //
+        // Pas de `preferences_url` : cette invitation n'est pas une
+        // notification du catalogue (pas de canal in-app ni push a
+        // desactiver).
+        'entraide_evaluation_invite' => [
+            'name_fr' => 'Invitation à évaluer l’aidant',
+            'name_en' => 'Invitation to rate the helper',
+            'subject_fr' => 'Terminer et évaluer l’entraide de {{ aidant_first_name }}',
+            'subject_en' => 'Finish and rate your exchange with {{ aidant_first_name }}',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Vous avez indiqué que votre échange avec {{ aidant_first_name }} est terminé et {{ points }} points lui ont été transférés depuis votre compte.</p><p>Merci d’avance de lui laisser une évaluation pour reconnaître sa contribution. Ce sera sûrement apprécié !</p><p><a href="{{ evaluation_url }}">Évaluer l’entraide avec {{ aidant_first_name }}</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ evaluation_url }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>You’ve marked your exchange with {{ aidant_first_name }} as complete, and {{ points }} points have been transferred from your account.</p><p>We’d really appreciate it if you could leave them a review to recognize their contribution!</p><p><a href="{{ evaluation_url }}">Rate your exchange with {{ aidant_first_name }}</a></p><p>If the link does not work, copy this address into your browser:<br>{{ evaluation_url }}</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'aidant_name', 'aidant_first_name',
+                'organization_name', 'evaluation_url', 'app_name', 'points',
+            ],
+        ],
+
+        // TASK-1809 §4 — l'email a l'aidant QUAND son evaluation arrive.
+        // Destinataire UNIQUE : l'aidant (D2, `reviewed_id`). Declenche
+        // SEULEMENT par `EvaluationEntraide::enregistrer()` (jamais par
+        // `ReviewModeration` — modifier/masquer/demasquer/supprimer/
+        // restaurer ne cree jamais de ligne et ne declenche donc jamais cet
+        // envoi). Pose AUSSI par la migration jumelle
+        // `2026_11_12_160000_add_entraide_review_received_email_template`.
+        //
+        // « Jean ne doit pas avoir besoin de revenir sur BouclePro pour
+        // connaitre sa note et lire le commentaire » (MASTER) : la note
+        // est portee en etoiles ET en chiffre, le commentaire s'il existe —
+        // jamais de HTML non echappe issu d'un commentaire membre,
+        // `EmailerService::interpolate()` applique `e()` a chaque variable.
+        'entraide_review_received' => [
+            'name_fr' => 'Vous avez reçu une évaluation',
+            'name_en' => 'You received a review',
+            'subject_fr' => '{{ aide_first_name }} vous a laissé une évaluation !',
+            'subject_en' => '{{ aide_first_name }} left you a review!',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ aide_first_name }} vous a laissé une évaluation pour votre entraide.</p><p style="font-size:20px;letter-spacing:2px">{{ rating_stars }} <span style="font-size:14px;color:#777">({{ rating_fraction }})</span></p><p>{{ comment_text }}</p><p><a href="{{ conversation_url }}">Voir la conversation</a></p><p>Merci de faire vivre l’entraide sur {{ app_name }}.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ aide_first_name }} left you a review for your mutual aid.</p><p style="font-size:20px;letter-spacing:2px">{{ rating_stars }} <span style="font-size:14px;color:#777">({{ rating_fraction }})</span></p><p>{{ comment_text }}</p><p><a href="{{ conversation_url }}">View the conversation</a></p><p>Thank you for keeping mutual aid alive on {{ app_name }}.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'aide_name', 'aide_first_name',
+                'rating_stars', 'rating_fraction', 'comment_text', 'conversation_url',
+                'organization_name', 'app_name',
+            ],
+        ],
+
         'entraide_comment_created' => [
-            'name_fr' => 'Commentaire sur votre annonce d\'entraide',
-            'name_en' => 'Comment on your mutual aid listing',
+            'name_fr' => 'Commentaire sur votre entraide',
+            'name_en' => 'Comment on your mutual aid',
             'subject_fr' => 'Un membre a commenté votre {{ listing_type }}',
             'subject_en' => 'A member commented on your {{ listing_type }}',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a laissé un commentaire sur votre {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Voir le commentaire</a></p><p>Un commentaire n’engage rien : ni échange, ni acceptation d’aide, ni temps promis. Vous répondrez si vous le souhaitez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> left a comment on your {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">View the comment</a></p><p>A comment commits to nothing: no exchange, no accepted help, no promised time. You may reply if you wish.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a laissé un commentaire sur votre {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Voir le commentaire</a></p><p>Un commentaire n’engage rien : ni entraide engagée, ni acceptation d’aide, ni temps promis. Vous répondrez si vous le souhaitez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> left a comment on your {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">View the comment</a></p><p>A comment commits to nothing: no mutual aid started, no accepted help, no promised time. You may reply if you wish.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
             // Obligatoire : `ligne()` lit `$def['variables']` SANS repli
             // (`SystemEmailTemplateSeeder:450`). L'omettre ne casse pas le
             // seeder tout seul — il casse TOUT ce qui l'invoque, soit 209 tests
@@ -309,6 +412,36 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        // TASK-1810 (demande Cyril, 12/11) — « Commentaire sur le flux ».
+        //
+        // Pose AUSSI par la migration jumelle
+        // `2026_11_12_170000_add_feed_post_comment_created_email_template`, qui
+        // sert les bases DEJA installees qu'un seeder ne revisite pas. Les
+        // deux textes sont IDENTIQUES.
+        //
+        // Le SUJET est litteral, SANS variable — demande explicite : « Sujet
+        // : Commentaire sur le flux ». `feed_context` reprend EXACTEMENT ce
+        // qui est affiche dans la carte du Flux (`FeedCommentMailer::
+        // contexteDuFlux()`), pour que le destinataire comprenne de QUOI il
+        // s'agit sans se connecter. `author_first_name`, pas `author_name` :
+        // demande explicite (« $prenom_commentateur »).
+        'feed_post_comment_created' => [
+            'name_fr' => 'Commentaire sur le flux',
+            'name_en' => 'Comment on the Feed',
+            'subject_fr' => 'Commentaire sur le flux',
+            'subject_en' => 'Comment on the Feed',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vient de commenter le flux à propos d\'un sujet qui vous concerne : <strong>{{ feed_context }}</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Voir dans le Flux</a></p><p>Rien ne presse : vous n\'avez pas besoin de vous connecter pour en prendre connaissance.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> just commented on the Feed about something that concerns you: <strong>{{ feed_context }}</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">View in the Feed</a></p><p>No rush: you don\'t need to sign in to read it.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            // Obligatoire : `ligne()` lit `$def['variables']` SANS repli — voir
+            // le commentaire identique sur `blog_comment_created` ci-dessus.
+            // Meme liste que la migration jumelle.
+            'variables' => [
+                'recipient_name', 'recipient_email', 'author_first_name',
+                'organization_name', 'feed_context', 'comment_url',
+                'comment_excerpt', 'preferences_url', 'app_name',
+            ],
+        ],
+
         'loop_mention_created' => [
             'name_fr' => 'Mention dans une Boucle',
             'name_en' => 'Mention in a Loop',
@@ -322,6 +455,26 @@ class SystemEmailTemplateSeeder extends Seeder
             // chaines ne divergent pas.
             'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> vous a mentionné dans un message de la Boucle <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Lire le message dans la Boucle</a></p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
             'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned you in a message from the Loop <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Read the message in the Loop</a></p><p>No rush: the message will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'organization_name',
+                'loop_name', 'author_name', 'message_url', 'message_excerpt',
+                'preferences_url', 'app_name',
+            ],
+        ],
+
+        // TASK-1797 — la mention COLLECTIVE (`@tous`), gabarit DISTINCT du
+        // precedent pour la meme raison que le sujet distinct de
+        // `notifications.keys_named` : « vous a mentionné » serait une
+        // interpellation nominative abusive quand personne n'a ete nomme.
+        // MEME liste de variables que `loop_mention_created` — aucune
+        // nouvelle variable n'etait necessaire, seul le texte change.
+        'loop_mention_all_created' => [
+            'name_fr' => 'Mention collective dans une Boucle',
+            'name_en' => 'Collective mention in a Loop',
+            'subject_fr' => '{{ author_name }} a mentionné tous les membres de « {{ loop_name }} »',
+            'subject_en' => '{{ author_name }} mentioned all the members of “{{ loop_name }}”',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a mentionné <strong>tous les membres</strong> de la Boucle <strong>{{ loop_name }}</strong>, dont vous.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Lire le message dans la Boucle</a></p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned <strong>all the members</strong> of the Loop <strong>{{ loop_name }}</strong>, including you.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Read the message in the Loop</a></p><p>No rush: the message will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'organization_name',
                 'loop_name', 'author_name', 'message_url', 'message_excerpt',
@@ -355,6 +508,29 @@ class SystemEmailTemplateSeeder extends Seeder
             'variables' => [
                 'recipient_name', 'recipient_email', 'organization_name',
                 'loop_name', 'requester_name', 'request_url', 'app_name',
+            ],
+        ],
+
+        // TASK-1802 (demande Cyril) — un Evenement propose dans une Boucle.
+        //
+        // Pose AUSSI par la migration jumelle
+        // `..._add_loop_event_created_email_template`, qui sert les bases
+        // DEJA installees qu'un seeder ne revisite pas (meme doctrine que
+        // `loop_help_request_created` juste au-dessus). `event_practical_info`
+        // est COMPOSE par `LoopEventMailer` (en-ligne/sur-place/hybride) :
+        // le gabarit administrable n'a pas de conditionnelle.
+        'loop_event_created' => [
+            'name_fr' => 'Nouvel évènement proposé dans une Boucle',
+            'name_en' => 'New event proposed in a Loop',
+            'subject_fr' => '{{ event_title }} — {{ event_date }}',
+            'subject_en' => '{{ event_title }} — {{ event_date }}',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a proposé un nouvel évènement dans la Boucle <strong>{{ loop_name }}</strong> : <strong>{{ event_title }}</strong>, le {{ event_date }}.</p><p>{{ event_practical_info }}</p><p>{{ event_description }}</p><p><a href="{{ event_url }}">Ouvrir la Boucle</a></p><p>Rien ne presse : l’évènement vous attend, vous y répondrez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> proposed a new event in the Loop <strong>{{ loop_name }}</strong>: <strong>{{ event_title }}</strong>, on {{ event_date }}.</p><p>{{ event_practical_info }}</p><p>{{ event_description }}</p><p><a href="{{ event_url }}">Open the Loop</a></p><p>No rush: the event will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'author_name',
+                'organization_name', 'loop_name', 'event_title', 'event_date',
+                'event_description', 'event_practical_info', 'event_url',
+                'preferences_url', 'app_name',
             ],
         ],
 

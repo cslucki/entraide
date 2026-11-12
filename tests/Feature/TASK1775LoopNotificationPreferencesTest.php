@@ -365,7 +365,7 @@ class TASK1775LoopNotificationPreferencesTest extends TestCase
 
         $reponse = $this->actingAs($sansBoucle)->get(route('notifications.preferences.edit'))
             ->assertOk()
-            ->assertSee("Vous n'avez pas encore rejoint de Boucle. Rejoignez-en une pour participer aux échanges et recevoir les demandes d'aide.")
+            ->assertSee("Vous n'avez pas encore rejoint de Boucle. Rejoignez-en une pour participer aux entraides et recevoir les demandes d'aide.")
             ->assertSee('Rejoindre une boucle');
 
         $reponse->assertSee('href="'.route('loops.index').'"', false);

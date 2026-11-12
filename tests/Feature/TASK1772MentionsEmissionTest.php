@@ -249,10 +249,20 @@ class TASK1772MentionsEmissionTest extends TestCase
         // `e()` — il laisse `'` tel quel là où `e()` écrit `&#039;`. C'est
         // précisément pourquoi le marqueur est posé par des sentinelles avant
         // le rendu, et pas par un `str_replace` sur la sortie.
+        //
+        // TASK-1801 correctif 03 — `[^>]*` après `class="bp-mention"` : la
+        // mention retenue porte désormais aussi les attributs qui ouvrent la
+        // fiche (`data-mention-user-id`, `x-on:click`...). Ce test garde la
+        // PROMESSE d'origine (gras + couleur) ; il ne gèle plus ces attributs
+        // comme un MOYEN, exactement la leçon que son propre commentaire
+        // donnait déjà pour `<strong>@Nom</strong>`.
         $this->assertMatchesRegularExpression(
-            '#<strong><span class="bp-mention">@'.preg_quote($nom, '#').'</span></strong>#',
+            '#<strong><span class="bp-mention"[^>]*>@'.preg_quote($nom, '#').'</span></strong>#',
             $html,
             'la mention retenue doit etre mise en valeur — gras ET couleur');
+
+        $this->assertStringContainsString('data-mention-user-id="'.$this->cible->id.'"', $html,
+            'TASK-1801 correctif 03 — la mention retenue doit porter l\'identifiant qui ouvre sa fiche');
 
         $this->assertStringNotContainsString('bp-mention">@PersonneInventee', $html,
             'un @mot qui n\'est pas une mention retenue reste du texte ordinaire');

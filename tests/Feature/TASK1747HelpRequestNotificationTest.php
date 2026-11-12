@@ -188,6 +188,40 @@ class TASK1747HelpRequestNotificationTest extends TestCase
         );
     }
 
+    /**
+     * TASK-1802 (demande Cyril, 10/11, mesure en recette sur une AUTRE
+     * cle de ce meme producteur) — une adhesion ACTIVE peut survivre au
+     * depart de son titulaire vers une AUTRE Organization (ligne
+     * `loop_members` non nettoyee). Sans garde, `NotificationEmitter::
+     * emit()` refuse ce destinataire (fail-closed sur la frontiere de
+     * tenant) et son exception, non rattrapee, annulait la transaction
+     * ENTIERE : ni message ChatLoop, ni notification pour PERSONNE, a cause
+     * d'UNE seule ligne perimee.
+     */
+    public function test_un_membre_dont_l_organization_a_change_ne_casse_pas_toute_lannonce(): void
+    {
+        $parti = User::factory()->create(['organization_id' => Organization::factory()->create(['is_active' => true])->id]);
+        LoopMember::create([
+            'loop_id' => $this->boucle->id,
+            'user_id' => $parti->id,
+            'organization_id' => $this->organization->id,
+            'role' => 'member',
+            'status' => 'active',
+            'joined_at' => now(),
+        ]);
+
+        $this->poserUneDemande();
+
+        $notifications = $this->notificationsDeDemande();
+        $this->assertCount(1, $notifications, 'le membre toujours dans la bonne Organization doit être prévenu');
+        $this->assertSame($this->membre->id, $notifications->first()->recipient_id);
+        $this->assertNotContains(
+            $parti->id,
+            $notifications->pluck('recipient_id')->all(),
+            'le membre parti vers une autre Organization ne doit pas recevoir de notification',
+        );
+    }
+
     public function test_la_PROJECTION_d_une_Demande_canonique_previent_aussi(): void
     {
         // Du point de vue des membres, c'est le même fait : un besoin vient

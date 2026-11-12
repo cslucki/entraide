@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\LoopMessage;
 use App\Models\Message;
 use App\Models\Organization;
+use App\Models\Scopes\BelongsToOrganizationScope;
+use App\Models\Transaction;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,13 +20,67 @@ use Illuminate\View\View;
 
 class AdminMessageController extends Controller
 {
+    /**
+     * TASK-1795 correctif 4 — charger la conversation SUR UN ECRAN SANS TENANT.
+     *
+     * `Transaction` porte `BelongsToOrganizationScope`, qui est FAIL-CLOSED :
+     * sans `current_organization` liee il pose `whereRaw('0 = 1')`. Or
+     * `/admin/*` est une surface « plateforme globale »
+     * (`ResolveUrlOrganization::$platformGlobalPrefixes`) et n'en lie AUCUNE.
+     *
+     * Consequence mesuree le 09/11/2026 sur le jumeau : `$message->transaction`
+     * valait `null` pour TOUTES les lignes de cet ecran. La colonne
+     * « Contexte » — censee montrer « acheteur ↔ vendeur » — rendait donc un
+     * tiret partout, en silence, depuis toujours. Avec le scope retire, la
+     * meme requete rend bien la transaction et son acheteur.
+     *
+     * Retirer le scope ICI n'ouvre rien : la restriction tenant de cet ecran
+     * porte sur `messages.organization_id`, posee par
+     * `applyOrganizationFilter()` et jamais retiree. On ne choisit pas ici
+     * quelles lignes l'administrateur voit — on charge la conversation des
+     * lignes deja retenues.
+     */
+    /**
+     * TASK-1795 correctif 7 — `banned_at` et `is_admin` sont AU SELECT.
+     *
+     * Le lien « Se connecter sous » n'est pose que la ou `loginAsUser()`
+     * l'honorera : ni soi-meme, ni un compte banni, ni un autre administrateur.
+     * Ces deux colonnes portent la garde — omises de la selection, elles
+     * vaudraient `null` et la garde laisserait passer. C'est exactement le
+     * defaut du correctif 4, ou `first_name` absent du select faisait rendre
+     * le seul patronyme : une selection de colonnes ne se devine pas depuis
+     * la vue qui la consomme.
+     */
+    private function chargementDeLaConversation(): array
+    {
+        return [
+            'transaction' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class),
+            'transaction.buyer:id,first_name,name,email,banned_at,is_admin',
+            'transaction.seller:id,first_name,name,email,banned_at,is_admin',
+        ];
+    }
+
     public function index(Request $request): View
     {
-        $filter = $request->input('filter', 'chatloop');
-        $allowedFilters = ['chatloop', 'exchanges', 'all'];
-        $filter = in_array($filter, $allowedFilters) ? $filter : 'chatloop';
+        // TASK-1795 correctif 3 — la liste s'ouvre sur TOUT, pas sur un coin.
+        //
+        // Cyril : « Actuellement c'est sur `main`. Donc il faut passer par le
+        // menu, et c'est perte de temps. » Les deux defauts se cumulaient : le
+        // type `chatloop` ET l'Organization par defaut. Un SuperAdmin qui
+        // cherche un message devait donc deviner DEUX filtres avant de le voir,
+        // et une liste vide ne disait pas qu'elle etait filtree.
+        //
+        // `all` n'ouvre aucune donnee nouvelle : `applyOrganizationFilter()` ne
+        // fait que NE PAS restreindre, et `/admin/messages` est deja derriere
+        // les gardes SuperAdmin. Le detail de chaque ligne garde ses propres
+        // permissions — `show()` rend toujours 404 hors de l'Organization de
+        // l'administrateur, et la vue n'offre un lien que sur les lignes dont
+        // le detail est joignable (`$adminOrganizationId`, TASK-1693 bug R).
+        $filter = $request->input('filter', 'all');
+        $allowedFilters = ['chatloop', 'exchanges', 'private', 'all'];
+        $filter = in_array($filter, $allowedFilters) ? $filter : 'all';
         $organizations = $this->adminOrganizations();
-        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request, 'all');
         $perPage = 25;
 
         // TASK-1666 — une conversation d'echange ne vit que dans les messages
@@ -37,21 +93,45 @@ class AdminMessageController extends Controller
             : null;
 
         if ($transactionId !== null) {
-            $filter = 'exchanges';
+            // TASK-1795 correctif 4 — l'onglet impose est celui qui CONTIENT
+            // la conversation, pas `exchanges` en dur.
+            //
+            // La garantie de TASK-1666 est « un lien ne doit pas tomber sur un
+            // onglet vide ». Avec un quatrieme onglet, `exchanges` ne contient
+            // plus les discussions privees : forcer `exchanges` sur une
+            // conversation directe aurait recree EXACTEMENT le faux « il n'y a
+            // rien » que T1666 avait ferme. On demande donc a la transaction
+            // elle-meme de quelle nature elle est.
+            $filter = $this->ongletDeLaConversation($transactionId);
         }
 
         $messages = match ($filter) {
             'chatloop' => $this->applyOrganizationFilter(LoopMessage::query(), $selectedOrganizationId)
-                ->with(['sender:id,name,email', 'loop:id,name'])
+                ->with(['sender:id,first_name,name,email,banned_at,is_admin', 'loop:id,name'])
                 ->latest()
                 ->paginate($perPage)
                 ->withQueryString(),
 
             'exchanges' => $this->applyTransactionFilter(
-                $this->applyOrganizationFilter(Message::query(), $selectedOrganizationId),
+                $this->natureDeConversation(
+                    $this->applyOrganizationFilter(Message::query(), $selectedOrganizationId),
+                    'exchanges'
+                ),
                 $transactionId
             )
-                ->with(['sender:id,name,email', 'transaction.buyer:id,name', 'transaction.seller:id,name'])
+                ->with(['sender:id,first_name,name,email,banned_at,is_admin', ...$this->chargementDeLaConversation()])
+                ->latest()
+                ->paginate($perPage)
+                ->withQueryString(),
+
+            'private' => $this->applyTransactionFilter(
+                $this->natureDeConversation(
+                    $this->applyOrganizationFilter(Message::query(), $selectedOrganizationId),
+                    'private'
+                ),
+                $transactionId
+            )
+                ->with(['sender:id,first_name,name,email,banned_at,is_admin', ...$this->chargementDeLaConversation()])
                 ->latest()
                 ->paginate($perPage)
                 ->withQueryString(),
@@ -73,18 +153,28 @@ class AdminMessageController extends Controller
     private function unifiedFeed(string $organizationId, int $perPage): LengthAwarePaginator
     {
         $loopMessages = $this->applyOrganizationFilter(LoopMessage::query(), $organizationId)
-            ->with(['sender:id,name,email', 'loop:id,name'])
+            ->with(['sender:id,first_name,name,email,banned_at,is_admin', 'loop:id,name'])
             ->latest()
             ->limit(500)
             ->get()
             ->each->setAttribute('message_type', 'chatloop');
 
+        // TASK-1795 correctif 4 — l'onglet « Tous » nomme les TROIS natures.
+        //
+        // Il marquait tout message de `messages` comme « Echange ». Depuis que
+        // « Messages privés » existe, une discussion privee y portait donc une
+        // etiquette que son propre onglet contredit. La nature est lue sur la
+        // transaction DEJA chargee — `isDirectConversation()`, le meme
+        // predicat que les onglets — et non par une seconde requete.
         $exchangeMessages = $this->applyOrganizationFilter(Message::query(), $organizationId)
-            ->with(['sender:id,name,email', 'transaction.buyer:id,name', 'transaction.seller:id,name'])
+            ->with(['sender:id,first_name,name,email,banned_at,is_admin', ...$this->chargementDeLaConversation()])
             ->latest()
             ->limit(500)
             ->get()
-            ->each->setAttribute('message_type', 'exchange');
+            ->each(fn ($message) => $message->setAttribute(
+                'message_type',
+                $message->transaction?->isDirectConversation() ? 'private' : 'exchange'
+            ));
 
         $merged = $loopMessages->concat($exchangeMessages)
             ->sortByDesc('created_at')
@@ -130,7 +220,25 @@ class AdminMessageController extends Controller
             ->get(['id', 'name', 'slug', 'is_default']);
     }
 
-    private function selectedAdminOrganizationId(Request $request): string
+    /**
+     * TASK-1795 correctif 3 — le defaut est celui de l'APPELANT.
+     *
+     * Un `organization_id` explicite gouverne toujours, `all` compris : seul le
+     * cas « rien dans l'URL » consulte `$defaut`.
+     *
+     * Ce parametre existe parce que les deux appelants n'ont PAS le meme
+     * besoin, et que leur donner le meme defaut serait un defaut :
+     *
+     *  - `index()` LIT, et demande `'all'` — voir la note qui l'accompagne ;
+     *  - `bulkDestroy()` SUPPRIME, et garde l'Organization par defaut. Elargir
+     *    son defaut a `'all'` aurait transforme une suppression en masse sans
+     *    `organization_id` en suppression a travers TOUTES les Organizations.
+     *    Le formulaire poste bien ce champ (vue `admin.messages.index`), donc
+     *    le defaut n'y sert jamais en pratique — raison de plus pour ne pas
+     *    l'ouvrir : une garde qui ne sert jamais ne coute rien, et celle-la
+     *    protegerait le jour ou le champ disparaitrait.
+     */
+    private function selectedAdminOrganizationId(Request $request, ?string $defaut = null): string
     {
         if ($request->input('organization_id') === 'all') {
             return 'all';
@@ -140,7 +248,92 @@ class AdminMessageController extends Controller
             return (string) $request->input('organization_id');
         }
 
+        if ($defaut !== null) {
+            return $defaut;
+        }
+
         return (string) (DefaultOrganizationResolver::resolve()?->getKey() ?? 'all');
+    }
+
+    /**
+     * TASK-1795 correctif 4 — separer les DISCUSSIONS PRIVEES des ECHANGES.
+     *
+     * ## Pourquoi un quatrieme onglet
+     *
+     * Les deux vivent dans `messages`, adossees a une ligne `transactions` :
+     * l'ecran les melangeait sous « Echanges », ou une discussion privee
+     * n'affichait ni service, ni points, ni statut. Cyril : « on va creer une
+     * nouvelle vue "Messages privés" ».
+     *
+     * ## La condition n'est PAS reecrite ici
+     *
+     * `Transaction::scopeDirectConversation()` la dit deja, et c'est le meme
+     * predicat que `isDirectConversation()` — les deux vivent cote a cote dans
+     * le modele precisement pour ne pas diverger. L'onglet « Echanges » est son
+     * COMPLEMENT, exprime comme la NEGATION du scope et non comme une seconde
+     * ecriture de la regle : le jour ou la definition d'une discussion directe
+     * bouge, les deux onglets bougent avec elle.
+     *
+     * `whereNot()` est sur ici : `transactions.points_proposed` est NOT NULL et
+     * les deux `IS NULL` rendent toujours un booleen, donc la conjonction n'est
+     * jamais NULL et sa negation partitionne reellement les lignes en deux.
+     * `messages.transaction_id` est NOT NULL : aucun message n'echappe aux deux
+     * onglets.
+     */
+    private function natureDeConversation($query, string $nature)
+    {
+        return $query->whereHas('transaction', function ($q) use ($nature) {
+            // Le scope tenant est RETIRE de cette sous-requete, et seulement
+            // d'elle.
+            //
+            // `/admin/*` est une surface « plateforme globale »
+            // (`ResolveUrlOrganization::$platformGlobalPrefixes`) : aucune
+            // Organization courante n'y est liee. Or
+            // `BelongsToOrganizationScope` est FAIL-CLOSED — sans contexte
+            // tenant il pose `whereRaw('0 = 1')`. Mesure du 09/11/2026 sur le
+            // jumeau : `whereHas('transaction', …)` rendait **0** ligne sur 35
+            // messages reels, les deux onglets donc vides.
+            //
+            // Cela n'ouvre rien : la restriction tenant de cet ecran porte sur
+            // `messages.organization_id`, posee par `applyOrganizationFilter()`
+            // un cran plus haut et jamais retiree. Cette sous-requete ne sert
+            // qu'a CLASSER la conversation deja retenue — elle ne choisit pas
+            // quelles lignes l'administrateur peut voir.
+            $q->withoutGlobalScope(BelongsToOrganizationScope::class);
+
+            if ($nature === 'private') {
+                $q->directConversation();
+
+                return;
+            }
+
+            $q->whereNot(fn ($complement) => $complement->directConversation());
+        });
+    }
+
+    /**
+     * L'onglet qui CONTIENT reellement cette conversation.
+     *
+     * Lit la transaction hors du scope tenant : l'ecran SuperAdmin peut etre
+     * pose sur « Toutes les organisations », et c'est une lecture d'UNE ligne
+     * nommee par l'URL, pas un listing. Introuvable -> `exchanges`, le
+     * comportement d'avant : on ne change pas de reponse quand on ne sait pas.
+     */
+    private function ongletDeLaConversation(string $transactionId): string
+    {
+        if (! Str::isUuid($transactionId)) {
+            return 'exchanges';
+        }
+
+        $transaction = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->whereKey($transactionId)
+            ->first();
+
+        if ($transaction === null) {
+            return 'exchanges';
+        }
+
+        return $transaction->isDirectConversation() ? 'private' : 'exchanges';
     }
 
     private function applyOrganizationFilter($query, string $organizationId)
@@ -204,7 +397,10 @@ class AdminMessageController extends Controller
         $data = $request->validate([
             'ids' => 'required|array|min:1',
             'ids.*' => 'required|uuid',
-            'filter' => 'required|in:chatloop,exchanges',
+            // TASK-1795 correctif 4 — `private` est un onglet comme un autre,
+            // et sa barre de suppression en masse s'affiche : sans cette
+            // valeur, le formulaire aurait ete refuse par la validation.
+            'filter' => 'required|in:chatloop,exchanges,private',
         ]);
 
         $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
@@ -212,7 +408,13 @@ class AdminMessageController extends Controller
         $query = $data['filter'] === 'chatloop'
             ? $this->applyOrganizationFilter(LoopMessage::query(), $selectedOrganizationId)
             : $this->applyTransactionFilter(
-                $this->applyOrganizationFilter(Message::query(), $selectedOrganizationId),
+                // La suppression porte sur l'onglet AFFICHE : cocher « tout
+                // selectionner » sur « Messages privés » ne doit pas emporter
+                // un message d'echange reste hors de la page.
+                $this->natureDeConversation(
+                    $this->applyOrganizationFilter(Message::query(), $selectedOrganizationId),
+                    $data['filter']
+                ),
                 $request->filled('transaction_id') ? (string) $request->input('transaction_id') : null
             );
 

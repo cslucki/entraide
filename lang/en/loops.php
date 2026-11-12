@@ -863,6 +863,12 @@ return [
     'composer_more_actions' => 'More actions',
     // TASK-1772 — refus explicite, jamais une troncature.
     'mentions_too_many' => 'You can only mention :max people in a single message.',
+    // TASK-1797 — the collective mention. Mirror of lang/fr/loops.php, keep both in sync.
+    'mention_all_unauthorized' => 'Only this Loop\'s owner and facilitator can mention all members.',
+    'mention_all_option' => 'All members',
+    'mention_all_confirm_body' => 'You are about to mention every member of this Loop. Up to :count other members may be notified, depending on their preferences.',
+    'mention_all_confirm_cancel' => 'Cancel',
+    'mention_all_confirm_send' => 'Send',
     'composer_add_image' => 'Add an image',
     // TASK-1684: the file goes to the Loop Dossier, not to the message.
     'composer_add_file' => 'Add a file',
@@ -1574,4 +1580,14 @@ return [
     'member_added_mail_body' => 'You have been added to the :loop Loop on :organization. You are now a member.',
     'member_added_mail_cta' => 'Open the Loop',
     'member_added_mail_plain_link' => 'If the button does not work, copy this address into your browser:',
+
+    // TASK-1801 correctif 05 — the "Latest messages" button on the inventory.
+    'latest_messages_button' => 'Latest messages',
+    'latest_messages_title' => 'Latest messages',
+    'latest_messages_empty_before' => 'You are not a member of any Loop yet, you can join one by clicking',
+    'latest_messages_empty_link' => 'here',
+    'latest_messages_empty_after' => '.',
+    // Cyril's request: an image without a caption must not leave the row
+    // looking empty.
+    'latest_messages_image_only' => 'Shared an image',
 ];

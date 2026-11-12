@@ -37,6 +37,13 @@
     // `uploadAccept` en T1704, et c'est tout l'interet d'un composant
     // partage — on ajoute pour un appelant sans toucher les deux autres.
     'mentionables' => [],
+    // TASK-1797 — la mention collective, OPT-IN elle aussi, et DOUBLEMENT :
+    // seul le ChatLoop la passe (meme discipline que `mentionables`), et
+    // seul un proprietaire/animateur de la Boucle courante la recoit `true`
+    // (voir `LoopChat::$peutMentionnerTous`). `false` ne fait disparaitre
+    // qu'une OPTION d'affichage ; l'autorisation reelle est re-controlee au
+    // serveur, a l'envoi.
+    'canMentionAll' => false,
 ])
 
 @php
@@ -145,12 +152,35 @@
             mentionIndex: 0,
             mentionsChoisies: [],
 
+            /* TASK-1797 — la mention collective, OPT-IN cote serveur (voir
+               la liste des proprietes du composant, en haut du fichier).
+               N'autorise rien a elle seule : voir le controle serveur, et
+               le docblock PHP de LoopChat::$peutMentionnerTous. */
+            canMentionAll: @js((bool) $canMentionAll),
+            confirmTousOuvert: false,
+
             get mentionResultats() {
                 if (! this.mentionOuvert) return [];
                 const f = this.mentionFiltre.toLowerCase();
-                return this.mentionables
-                    .filter((m) => f === '' || m.nom.toLowerCase().includes(f))
-                    .slice(0, 8);
+                const resultats = this.mentionables
+                    .filter((m) => f === '' || m.nom.toLowerCase().includes(f));
+
+                /* TASK-1797 — « Tous les membres » vit DANS la meme liste,
+                   filtree par le MEME texte : pas de second menu, pas de
+                   seconde navigation clavier. `special` la distingue au
+                   rendu et dans `mentionChoisir()`, qui ne la pousse pas
+                   dans `mentionsChoisies` — ce n'est pas une mention
+                   individuelle, le plafond de dix ne doit pas la voir. */
+                if (this.canMentionAll && (f === '' || '{{ \App\Livewire\LoopChat::MENTION_ALL_TOKEN }}'.includes(f))) {
+                    resultats.unshift({
+                        id: '__mention_all__',
+                        nom: '{{ \App\Livewire\LoopChat::MENTION_ALL_TOKEN }}',
+                        libelle: @js(__('loops.mention_all_option')),
+                        special: true,
+                    });
+                }
+
+                return resultats.slice(0, 8);
             },
 
             /* Le `@` en cours de frappe, lu AVANT le curseur. On n'ouvre que
@@ -176,7 +206,11 @@
                 const curseur = remplace.length;
                 el.setSelectionRange(curseur, curseur);
 
-                if (! this.mentionsChoisies.includes(personne.id)) {
+                // TASK-1797 — `@tous` n'est PAS une mention individuelle :
+                // elle ne doit ni compter dans le plafond de dix
+                // (`MENTIONS_MAX`), ni etre cherchee parmi les membres reels
+                // par `mentionsRecadrees()`, qui ne la trouverait pas.
+                if (! personne.special && ! this.mentionsChoisies.includes(personne.id)) {
                     this.mentionsChoisies.push(personne.id);
                 }
 
@@ -208,6 +242,23 @@
                 if (e.key === 'Escape') { e.preventDefault(); this.mentionOuvert = false; return true; }
 
                 return false;
+            },
+
+            /* TASK-1797 — point d'entree UNIQUE de l'envoi, pour le bouton
+               ET la touche Entree : un geste aussi consequent qu'une mention
+               collective ne doit pas dependre de LAQUELLE des deux voies on
+               a prise pour s'en souvenir.
+               Cote CLIENT uniquement : une detection approximative n'a rien
+               d'une garde — le serveur refuse de toute facon un `@tous`
+               non autorise (voir `LoopChat::sendMessage()`), ceci n'est que
+               la confirmation d'un geste pour qui a REELLEMENT le droit. */
+            tenterEnvoi(el) {
+                if (this.canMentionAll && /@tous\b/i.test(el.value)) {
+                    this.confirmTousOuvert = true;
+                    return;
+                }
+
+                $wire.sendMessage();
             },
         }"
         x-on:livewire-upload-start="uploading = true"
@@ -330,9 +381,16 @@
                             x-on:click="mentionChoisir($el.closest('form').querySelector('textarea'), personne)"
                             x-bind:class="i === mentionIndex ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''"
                             class="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm text-gray-800 transition hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
-                        <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200"
-                              x-text="personne.nom.trim().split(/\s+/).slice(0, 2).map((m) => m[0]).join('').toUpperCase()"></span>
-                        <span class="truncate" x-text="personne.nom"></span>
+                        {{-- TASK-1797 — « Tous les membres » porte un glyphe
+                             distinct (le symbole de la mention elle-meme),
+                             jamais des initiales qui ne representeraient
+                             personne. --}}
+                        <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold"
+                              x-bind:class="personne.special
+                                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200'
+                                  : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200'"
+                              x-text="personne.special ? '@' : personne.nom.trim().split(/\s+/).slice(0, 2).map((m) => m[0]).join('').toUpperCase()"></span>
+                        <span class="truncate" x-text="personne.libelle ?? personne.nom"></span>
                     </button>
                 </template>
             </div>
@@ -392,7 +450,20 @@
                      la personne, sans laisser le temps d'ecrire. --}}
                 x-on:keydown="if (mentionClavier($event, $el)) { $event.stopImmediatePropagation() }"
                 @endif
+                {{-- TASK-1797 — la substitution par `tenterEnvoi()` est elle-meme
+                     OPT-IN, et ce n'est pas cosmetique : des suites entieres
+                     (`TASK1365ShellComposerUxTest`, `LoopChatTest`) relisent le
+                     texte LITTERAL de ce gestionnaire pour prouver que le
+                     « contrat clavier » du composeur est identique partout —
+                     Messagerie, chat agent, ET ChatLoop pour qui n'a pas le
+                     droit `@tous`. Une substitution inconditionnelle aurait
+                     change ce texte pour TOUT LE MONDE et fait rougir ces
+                     gardes sans rien changer au comportement reel. --}}
+                @if($canMentionAll)
+                @keydown.enter="if (mentionOuvert ?? false) { return } /* ceinture : la bretelle est le stopImmediatePropagation ci-dessus */ if (enterEnvoie && !$event.shiftKey) { $event.preventDefault(); if (!uploading) { tenterEnvoi($el) } }"
+                @else
                 @keydown.enter="if (mentionOuvert ?? false) { return } /* ceinture : la bretelle est le stopImmediatePropagation ci-dessus */ if (enterEnvoie && !$event.shiftKey) { $event.preventDefault(); if (!uploading) { $wire.sendMessage() } }"
+                @endif
                 {{-- TASK-1769 — deux listes ENTIERES plutot qu'une liste avec
                      des `md:` greffes : la liste de droite est celle d'avant,
                      octet pour octet, donc la Messagerie et le chat agent sont
@@ -425,6 +496,18 @@
              cliquable, le serveur valide. --}}
         <button
             type="submit"
+            @if($canMentionAll)
+            {{-- TASK-1797 — `preventDefault()` sur le CLIC d'un bouton
+                 `type="submit"` annule sa soumission par defaut, exactement
+                 comme sur l'evenement `submit` lui-meme : on n'a pas besoin
+                 de faire la course avec l'ecouteur `wire:submit` du
+                 formulaire, on empeche simplement le clic de le declencher.
+                 `tenterEnvoi()` lit le `<textarea>` du MEME formulaire —
+                 jamais `$refs`, qui ne traverse pas ce composant Alpine
+                 (piege deja ecrit plus haut dans ce fichier pour la meme
+                 raison). --}}
+            x-on:click="if (canMentionAll && /@tous\b/i.test($el.closest('form').querySelector('textarea').value)) { $event.preventDefault(); confirmTousOuvert = true }"
+            @endif
             {{-- TASK-1769 — 46 px sur telephone, a l'axe exact de la pilule
                  (46 px aussi), donc `mb-0` : `mb-1` servait a caler un bouton
                  de 36 px sur un champ de 44. Au-dessus de `md`, les cotes
@@ -474,6 +557,41 @@
                 </svg>
             @endif
         </button>
+
+        @if($canMentionAll)
+        {{-- TASK-1797 — la confirmation avant une mention collective.
+             Positionnee EN FIXED, donc indifferente a sa place dans le DOM :
+             elle reste a l'interieur du `<form>` pour partager le MEME
+             `x-data` (`confirmTousOuvert`, `mentionables`, `$wire`) plutot
+             que d'en ouvrir un second qui devrait les dupliquer. Les deux
+             boutons sont `type="button"` : aucun des deux ne doit pouvoir
+             soumettre ce formulaire. --}}
+        <div data-mention-all-confirm
+             x-show="confirmTousOuvert"
+             x-cloak
+             x-on:keydown.escape.window="confirmTousOuvert = false"
+             class="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
+            <div class="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-800">
+                <p class="text-sm leading-6 text-gray-800 dark:text-gray-100"
+                   x-text="@js(__('loops.mention_all_confirm_body', ['count' => '__COUNT__'])).replace('__COUNT__', mentionables.length)"></p>
+                <div class="mt-4 flex justify-end gap-2">
+                    <button type="button"
+                            data-mention-all-cancel
+                            x-on:click="confirmTousOuvert = false"
+                            class="rounded-full px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                        {{ __('loops.mention_all_confirm_cancel') }}
+                    </button>
+                    <button type="button"
+                            data-mention-all-send
+                            x-on:click="confirmTousOuvert = false; $wire.sendMessage()"
+                            class="rounded-full px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+                            style="background-color: var(--bp-primary)">
+                        {{ __('loops.mention_all_confirm_send') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+        @endif
     </form>
 
     @if($error)

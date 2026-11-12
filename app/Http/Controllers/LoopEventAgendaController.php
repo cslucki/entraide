@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Services\Loops\EventException;
 use App\Services\Loops\LoopEventService;
 use App\Support\Loops\LoopEventPresenter;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -61,8 +62,15 @@ class LoopEventAgendaController extends Controller
         // Le cloisonnement est fait par le service : Evenements remontes au
         // niveau Organization, plus ceux des Boucles dont cette personne est
         // membre. Rien d'autre ne remonte, meme avec un identifiant connu.
+        // TASK-1802 (suite, demande Cyril) — « cliquer sur [...] les icones
+        // des nombres de participants [...] un pop-up [...] affiche les
+        // participants ». Contrairement a la Card (qui le charge a la
+        // demande via Livewire, `toggleAttendees()`), cette page n'a pas de
+        // round-trip serveur a offrir pour un simple clic : les noms sont
+        // donc charges ici, une fois, pour tous les Evenements de la page —
+        // le meme compromis que `agendaFor()` fait deja pour le reste.
         $events = $service->agendaFor($user, $organization->id)
-            ->map(fn (LoopEvent $event) => $presenter->present($event, $user, $event->loop));
+            ->map(fn (LoopEvent $event) => $presenter->present($event, $user, $event->loop, ['with_attendees' => true]));
 
         // Les Boucles proposees au filtre sont celles reellement presentes :
         // offrir une option vide serait du bruit.
@@ -87,6 +95,34 @@ class LoopEventAgendaController extends Controller
         // Le service tranche ; cette page ne redevine rien.
         $creation = $service->creationContextFor($user, $organization->id);
 
+        // TASK-1802 (suite, demande Cyril) — « on va réutiliser cette vue
+        // "Calendrier" sur la page Agenda ». Cette page n'est PAS un
+        // composant Livewire (choix delibere, voir docblock de la classe) :
+        // la navigation (semaine/mois precedent-suivant, granularite) passe
+        // donc par la query string, exactement comme `when`/`loop`/`format`
+        // ci-dessus, et non par un etat serveur ou un `wire:click`.
+        $view = $request->query('view') === 'calendar' ? 'calendar' : 'list';
+        $calendarGranularity = $request->query('granularity') === 'month' ? 'month' : 'week';
+
+        try {
+            $calendarWeekStart = CarbonImmutable::createFromFormat('!Y-m-d', (string) $request->query('week'))
+                ->startOfWeek(CarbonImmutable::MONDAY);
+        } catch (\Throwable) {
+            $calendarWeekStart = CarbonImmutable::now()->startOfWeek(CarbonImmutable::MONDAY);
+        }
+
+        try {
+            $calendarMonth = CarbonImmutable::createFromFormat('!Y-m', (string) $request->query('month'))->startOfMonth();
+        } catch (\Throwable) {
+            $calendarMonth = CarbonImmutable::now()->startOfMonth();
+        }
+
+        // Le calendrier porte sur le MEME ensemble, deja filtre et trie, que
+        // la liste : changer de vue ne doit jamais changer ce qui est montre.
+        $calendar = $calendarGranularity === 'week'
+            ? $presenter->weekGrid($calendarWeekStart->format('Y-m-d'), $filtered->values()->all())
+            : $presenter->monthGrid($calendarMonth->format('Y-m'), $filtered->values()->all());
+
         return view('loops.agenda', [
             'organization' => $organization,
             'creationLoops' => $creation['loops'],
@@ -96,6 +132,15 @@ class LoopEventAgendaController extends Controller
             'when' => $when,
             'loopFilter' => $loopFilter,
             'formatFilter' => $formatFilter,
+            'view' => $view,
+            'calendar' => $calendar,
+            'calendarGranularity' => $calendarGranularity,
+            'calendarWeekStart' => $calendarWeekStart->format('Y-m-d'),
+            'calendarPrevWeek' => $calendarWeekStart->subWeek()->format('Y-m-d'),
+            'calendarNextWeek' => $calendarWeekStart->addWeek()->format('Y-m-d'),
+            'calendarMonth' => $calendarMonth->format('Y-m'),
+            'calendarPrevMonth' => $calendarMonth->subMonth()->format('Y-m'),
+            'calendarNextMonth' => $calendarMonth->addMonth()->format('Y-m'),
         ]);
     }
 
@@ -195,7 +240,7 @@ class LoopEventAgendaController extends Controller
      * qui peut repondre, et c'est exactement ce que la Card et cet ecran
      * partagent pour eviter.
      */
-    public function respond(Request $request): RedirectResponse
+    public function respond(Request $request): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $user = $request->user();
         $organization = $this->resolveOrganization($user);
@@ -235,7 +280,20 @@ class LoopEventAgendaController extends Controller
         try {
             app(LoopEventService::class)->respond($user, $event, $loop, $donnees['response']);
         } catch (EventException $e) {
+            // TASK-1802 (suite, demande Cyril) — « sur smartphone [...] la
+            // page se rafraichit [...] il faudrait que ca se mette a jour
+            // sans rafraichir ». La page reste un formulaire HTTP classique
+            // (degradation propre sans JS) ; `wantsJson()` distingue l'appel
+            // `fetch()` de la vue, qui envoie `Accept: application/json`.
+            if ($request->wantsJson()) {
+                return response()->json(['message' => __($e->getMessage())], 422);
+            }
+
             return back()->withErrors(['response' => __($e->getMessage())]);
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json(['status' => 'ok']);
         }
 
         return back()->with('status', __('events.response_saved'));

@@ -265,6 +265,20 @@ final class NotificationCatalogue
      */
     public const LOOP_HELP_REQUEST_CREATED = 'loop.help_request.created';
 
+    /**
+     * TASK-1802 (demande Cyril) — un Evenement vient d'etre propose dans une
+     * Boucle.
+     *
+     * Meme forme que `LOOP_HELP_REQUEST_CREATED` juste au-dessus, et pour la
+     * meme raison : un fait COLLECTIF, adresse a TOUS les membres actifs de la
+     * Boucle (sauf son auteur), pas a une personne designee. « Par defaut, les
+     * 3 options seront activees » (demande explicite) : in-app OBLIGATOIRE,
+     * email et Web Push actifs par defaut mais debrayables — memes valeurs que
+     * la demande d'aide, ajoutee ici a `loopScopeFor()` pour que la sourdine
+     * PAR BOUCLE (`LoopNotificationPreference`) s'applique aussi a ce fait.
+     */
+    public const LOOP_EVENT_CREATED = 'loop.event.created';
+
     public const BLOG_CO_AUTHOR_ADDED = 'blog.co_author.added';
 
     /**
@@ -314,6 +328,43 @@ final class NotificationCatalogue
      * l'autre.
      */
     public const ENTRAIDE_COMMENT_CREATED = 'entraide.comment.created';
+
+    /**
+     * TASK-1810 (demande Cyril, 12/11) — on a commente un item du Flux.
+     *
+     * ## Le destinataire est TOUJOURS le meme : l'« emetteur ou la personne
+     * evoquee » par l'item
+     *
+     * Demande explicite : « sur les items du flux (annonces ou evenements
+     * automatiques), on a toujours un emetteur ou quelqu'un qui est evoque,
+     * donc c'est cette personne qu'il faut notifier ». Mesure dans
+     * `FeedEventEmitter::emettre()` : `feed_posts.user_id` vaut TOUJOURS
+     * l'acteur de l'evenement pour les sept types automatiques, et l'auteur
+     * pour une annonce manuelle. Une seule regle de ciblage suffit donc :
+     * `$post->user`, jamais une relecture au cas par cas de chaque type.
+     *
+     * ## UNE cle pour les deux familles d'item (automatique et manuelle)
+     *
+     * Meme doctrine que `ENTRAIDE_COMMENT_CREATED` juste au-dessus : vu du
+     * destinataire, le fait ne change pas (on a commente mon item), seul le
+     * CONTEXTE affiche varie — et il est resolu a l'envoi, pas fige dans une
+     * seconde cle.
+     */
+    public const FEED_POST_COMMENT_CREATED = 'feed.post_comment.created';
+
+    /**
+     * TASK-1810 — on a reagi a un item du Flux.
+     *
+     * « Si la personne fait juste une reaction, dans ce cas la notification
+     * est juste dans l'application pas besoin d'envoyer un email » (demande
+     * explicite) — PREMIERE cle du catalogue dont `channels` ne declare QUE
+     * `in_app`. Aucune branche n'est donc necessaire dans
+     * `NotificationEmailDeliverer::rendreDepuisGabarit()` : le planificateur
+     * ne cree jamais de livraison EMAIL pour une cle qui ne declare pas ce
+     * canal (`NotificationDeliveryPlanner::JOB_PAR_CANAL`), donc
+     * `deliver()` n'est jamais invoque pour cette cle.
+     */
+    public const FEED_POST_REACTION_CREATED = 'feed.post_reaction.created';
 
     /**
      * Le type d'objet de cette cle, expose comme constante.
@@ -397,6 +448,25 @@ final class NotificationCatalogue
      * qui permet a UNE cle de couvrir les deux types d'annonce.
      */
     public const OBJECT_ENTRAIDE_COMMENT = 'entraide_comment';
+
+    /**
+     * TASK-1810 — le commentaire depose sous un item du Flux.
+     *
+     * L'objet designe est le COMMENTAIRE, pas l'item — meme raison que
+     * `OBJECT_BLOG_COMMENT`/`OBJECT_ENTRAIDE_COMMENT` : c'est lui qui
+     * disparait si on le retire, et le resolver doit alors rendre `null`.
+     */
+    public const OBJECT_FEED_POST_COMMENT = 'feed_post_comment';
+
+    /**
+     * TASK-1810 — l'item du Flux lui-meme, cible d'une REACTION.
+     *
+     * Distinct de `OBJECT_FEED_POST_COMMENT` : une reaction ne cree aucune
+     * ligne perenne (`toggleReaction()` supprime la ligne `Reaction` sur un
+     * second clic du meme type) — l'objet notifiable est donc l'ITEM, qui
+     * survit, jamais la reaction elle-meme.
+     */
+    public const OBJECT_FEED_POST = 'feed_post';
 
     /**
      * Le registre.
@@ -766,6 +836,27 @@ final class NotificationCatalogue
         ],
 
         /*
+         * TASK-1802 (demande Cyril) — un Evenement propose dans une Boucle.
+         *
+         * MEME forme que `LOOP_HELP_REQUEST_CREATED` ci-dessus — collectif,
+         * destine a tous les membres actifs sauf l'auteur, calme par la
+         * sourdine PAR BOUCLE plutot que par un reglage global sur l'in-app.
+         * « Par defaut, les 3 options seront activees » (demande explicite) :
+         * les trois canaux demarrent ACTIFS, email et Web Push restant
+         * debrayables individuellement.
+         */
+        self::LOOP_EVENT_CREATED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        /*
          * TASK-1751 — quelqu'un repond a votre annonce.
          *
          * Le destinataire doit DECIDER (accepter ou refuser) : c'est une
@@ -827,6 +918,47 @@ final class NotificationCatalogue
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
                 self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
                 self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1810 — on a commente un item du Flux (annonce manuelle ou
+        // evenement automatique).
+        self::FEED_POST_COMMENT_CREATED => [
+            'category' => 'feed',
+
+            // Ni « on me sollicite » (un commentaire n'appelle aucune
+            // reponse de ma part), ni une sollicitation DIRECTE : meme
+            // classement que `ENTRAIDE_COMMENT_CREATED` et
+            // `BLOG_COMMENT_CREATED` juste au-dessus, pour la meme raison.
+            'intention' => self::INTENTION_CHANGEMENTS,
+
+            'object_type' => self::OBJECT_FEED_POST_COMMENT,
+            'channels' => [
+                // Les TROIS canaux actifs par defaut et TOUS configurables —
+                // demande explicite de Cyril (« faut envoyer une
+                // notification par email + app + pwa »), et le meme
+                // raisonnement que les commentaires de blog/entraide : un
+                // commentaire ne vous est pas ADRESSE et n'appelle aucune
+                // reponse de vous, donc aucun canal n'est OBLIGATOIRE.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1810 — on a reagi a un item du Flux.
+        self::FEED_POST_REACTION_CREATED => [
+            'category' => 'feed',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_FEED_POST,
+            'channels' => [
+                // PREMIERE cle du catalogue sans aucun canal asynchrone —
+                // voir le docblock de la constante pour ce que cela entraine
+                // (aucune branche requise dans `NotificationEmailDeliverer`).
+                // « Juste une reaction » reste configurable : un membre dont
+                // les items recoivent beaucoup de reactions doit pouvoir se
+                // taire, exactement comme pour un commentaire.
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
             ],
         ],
     ];
@@ -968,7 +1100,10 @@ final class NotificationCatalogue
      */
     public static function loopScopeFor(string $notificationKey, ?string $objectId): ?string
     {
-        if ($notificationKey !== self::LOOP_HELP_REQUEST_CREATED) {
+        // TASK-1802 — LOOP_EVENT_CREATED rejoint LOOP_HELP_REQUEST_CREATED :
+        // meme fait collectif, meme `object_type` (OBJECT_LOOP), donc le meme
+        // `object_id` EST deja l'identifiant de la Boucle.
+        if (! in_array($notificationKey, [self::LOOP_HELP_REQUEST_CREATED, self::LOOP_EVENT_CREATED], true)) {
             return null;
         }
 

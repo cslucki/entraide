@@ -3,8 +3,9 @@
 namespace App\Support\Notifications;
 
 use App\Models\BlogComment;
-use App\Models\EntraideComment;
 use App\Models\EmailLog;
+use App\Models\EntraideComment;
+use App\Models\FeedPostComment;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
@@ -15,9 +16,12 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Blog\BlogCommentMailer;
 use App\Services\Entraide\EntraideCommentMailer;
+use App\Services\Feed\FeedCommentMailer;
+use App\Services\Loops\LoopEventMailer;
 use App\Services\Loops\LoopInvitationMailer;
 use App\Services\Loops\LoopMentionMailer;
 use App\Services\Transactions\TransactionProposalMailer;
+use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Mail;
@@ -306,6 +310,11 @@ final class NotificationEmailDeliverer
             return;
         }
 
+        // TASK-1809 (micro-sequence B) — AVANT tout usage de `$contenu` :
+        // `Mail::html()`, le hachage et le journal doivent tous voir le MEME
+        // corps habille. Voir `habiller()`.
+        $contenu = $this->habiller($contenu);
+
         try {
             Mail::html($contenu['body'], function ($message) use ($destinataire, $contenu) {
                 $message->to($destinataire->email)->subject($contenu['subject']);
@@ -355,6 +364,90 @@ final class NotificationEmailDeliverer
 
             $this->conclureSansEchouer($livraison, NotificationDeliveryStatus::AMBIGUOUS, self::ERROR_POST_TRANSPORT_PERSISTENCE_FAILED);
         }
+    }
+
+    /**
+     * TASK-1809 (micro-sequence B) — le corps administrable part HABILLE.
+     *
+     * Avant ce correctif, `envoyer()` remettait directement
+     * `$contenu['body']` — un fragment HTML nu, sans style ni structure en
+     * tableau — a `Mail::html()`. Mesure en base sur `bouclepro_prod_work` :
+     * c'etait le cas de TOUTES les cles passant par ce pipeline (boucles,
+     * echanges, entraide, blog), le chemin le plus emprunte au quotidien.
+     *
+     * Publier le theme `vendor/mail` (TASK-1809 micro-sequence A) NE SUFFIT
+     * PAS ici : ce theme n'habille que ce qui passe par `->markdown()`
+     * (notifications natives), jamais un `Mail::html()` direct sur du HTML
+     * brut.
+     *
+     * ## Pourquoi PAS `emails.system-email.blade.php` / `Markdown::parse()`
+     *
+     * Premier essai, abandonne sur preuve : `Illuminate\Mail\Markdown::parse()`
+     * ne traite un bloc `<div>`/`<p>`... comme du HTML brut intact que
+     * jusqu'a la premiere LIGNE VIDE ; au-dela, tout redevient du markdown
+     * ordinaire. Or les gabarits de repli Blade de ce module
+     * (`loop-invitation.blade.php` et semblables) rendent sur plusieurs
+     * lignes AVEC des lignes vides entre les balises — sortie Blade normale.
+     * Reproduit directement : le marqueur expurge `[action-link-redacted]`
+     * disparaissait du rendu, cassant `TASK1378LoopInvitationEmailCutoverTest`.
+     * TASK-1694 bug P n'avait verifie qu'un fragment SANS ligne vide — la
+     * conclusion de son docbloc ne generalise pas a tous les gabarits de ce
+     * pipeline.
+     *
+     * ## Et PAS `CssToInlineStyles` (donc pas de `DOMDocument`) non plus
+     *
+     * Deuxieme essai, abandonne sur preuve lui aussi : `CssToInlineStyles`
+     * inline bien le theme, mais passe par `DOMDocument::loadHTML()` /
+     * `saveHTML()`, qui RE-ENCODE les caracteres qu'il juge invalides dans un
+     * attribut `href` — verifie isolement : `[action-link-redacted]` en
+     * ressortait `%5Baction-link-redacted%5D`. Le lien REEL ne contient
+     * jamais ce genre de caractere et n'est pas affecte, mais le marqueur
+     * expurge en est fait, et le corps archive ne devient plus celui qu'on
+     * croit. La aussi, `TASK1378LoopInvitationEmailCutoverTest` l'a prouve,
+     * pas suppose.
+     *
+     * La solution REUTILISE `emails.notification-shell.blade.php` (meme
+     * structure en tableaux, memes classes CSS que le theme `vendor/mail`)
+     * mais incorpore `bouclepro.css` dans un `<style>` du `<head>` — le MEME
+     * choix deja accepte dans ce depot par `blog-invitation.blade.php` et
+     * `referral-invitation.blade.php` (famille B, voir l'audit T1809) —
+     * plutot que de l'inliner. Zero reanalyse du HTML administre : une pure
+     * concatenation Blade, aucune bibliotheque ne reparse `$html`.
+     *
+     * Applique aux DEUX corps (`body` et `body_for_log`) : `body_hash`
+     * doit hacher exactement ce qui est remis au transport, et le journal
+     * doit rester visuellement coherent avec ce qui est reellement parti.
+     *
+     * @param  array{subject: string, body: string, body_for_log: string}  $contenu
+     * @return array{subject: string, body: string, body_for_log: string}
+     */
+    private function habiller(array $contenu): array
+    {
+        return [
+            'subject' => $contenu['subject'],
+            'body' => $this->envelopper($contenu['body']),
+            'body_for_log' => $this->envelopper($contenu['body_for_log']),
+        ];
+    }
+
+    /**
+     * Garde anti-double-habillage : un corps qui est deja un DOCUMENT HTML
+     * complet (balise `<html`) n'est jamais ré-enveloppe. Aucun appelant
+     * actuel de `envoyer()` ne produit un tel corps — tous composent des
+     * fragments via `GabaritEmail::rendre()` — mais cette garde reste la
+     * seule chose qui empecherait un double habillage si un futur appelant
+     * en produisait un.
+     */
+    private function envelopper(string $html): string
+    {
+        if (stripos($html, '<html') !== false) {
+            return $html;
+        }
+
+        return view('emails.notification-shell', [
+            'html' => $html,
+            'themeCss' => file_get_contents(resource_path('views/vendor/mail/html/themes/bouclepro.css')) ?: '',
+        ])->render();
     }
 
     /**
@@ -484,6 +577,38 @@ final class NotificationEmailDeliverer
             ];
         }
 
+        // TASK-1802 (demande Cyril) — un Evenement propose dans une Boucle.
+        //
+        // `object_id` designe la BOUCLE (object_type = OBJECT_LOOP, meme
+        // doctrine que LOOP_HELP_REQUEST_CREATED : c'est ce qui permet a la
+        // sourdine PAR BOUCLE de s'appliquer). Le FAIT precis vit dans
+        // `event_id`, qui porte l'identifiant du MESSAGE d'annonce ChatLoop —
+        // `LoopEventMailer` y relit titre/date/description/lieu depuis son
+        // `metadata`, sans seconde lecture de l'Evenement.
+        if ($cle === NotificationCatalogue::LOOP_EVENT_CREATED) {
+            $message = LoopMessage::query()
+                ->withoutGlobalScopes()
+                ->whereKey((string) $notification->event_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($message === null) {
+                return null;
+            }
+
+            $acteur = $notification->actor_id ? User::find((string) $notification->actor_id) : null;
+
+            $eventMailer = app(LoopEventMailer::class);
+            $reel = $eventMailer->compose($message, $destinataire, $acteur, $cible, $locale);
+            $expurge = $eventMailer->compose($message, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
         // TASK-1772 — LA MENTION.
         //
         // Cette branche est la piece qu'on oublie, et le depot l'a oubliee
@@ -586,7 +711,51 @@ final class NotificationEmailDeliverer
             ];
         }
 
+        // TASK-1810 — le commentaire depose sous un item du Flux.
+        //
+        // Meme avertissement que les deux branches voisines : sans elle,
+        // `rendreDepuisGabarit()` rendrait `null` et l'email partirait quand
+        // meme par le repli de langue, sans contexte ni extrait — en silence.
+        if ($cle === NotificationCatalogue::FEED_POST_COMMENT_CREATED) {
+            // Ni `FeedPostComment` ni `Organization` ne portent de portee
+            // d'Organization (confirme par grep) : rien a retirer, la
+            // frontiere de tenant est posee a la main par le
+            // `where('organization_id', …)` ci-dessous.
+            $commentaire = FeedPostComment::query()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($commentaire === null) {
+                return null;
+            }
+
+            // L'AUTEUR DU COMMENTAIRE est l'acteur — pas le destinataire, qui
+            // est la personne evoquee par l'item du Flux.
+            $acteur = $notification->actor_id
+                ? User::find((string) $notification->actor_id)
+                : User::find((string) $commentaire->user_id);
+
+            $feedMailer = app(FeedCommentMailer::class);
+            $reel = $feedMailer->compose($commentaire, $destinataire, $acteur, $cible, $locale);
+            // Le sixieme argument expurge AUSSI l'extrait : le courriel porte
+            // la phrase ecrite par un membre, et `email_logs` n'a pas a
+            // l'archiver (cf. `FeedCommentMailer::EXTRAIT_EXPURGE`).
+            $expurge = $feedMailer->compose($commentaire, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
         if ($cle === NotificationCatalogue::LOOP_MENTION_CREATED) {
+            // TASK-1799 (B1) — le MESSAGE n'est volontairement PAS memorise
+            // ici : voir le docblock de `NotificationTargetResolver::
+            // loopMessage()` pour la raison (deux tests TASK-1772 exigent
+            // qu'une modification du message DANS LA MEME portee reste
+            // visible a la relecture suivante).
             $message = LoopMessage::query()
                 ->withoutGlobalScopes()
                 ->whereKey((string) $notification->object_id)
@@ -599,22 +768,40 @@ final class NotificationEmailDeliverer
 
             // L'AUTEUR du message est l'acteur de la notification — pas le
             // destinataire, qui est la personne mentionnee.
-            $auteur = $notification->actor_id
-                ? User::find((string) $notification->actor_id)
-                : User::find((string) $message->sender_id);
+            //
+            // TASK-1799 (C1) — `with('organization')` : `GabaritEmail::rendre()`
+            // lit `$acteur->organization` (via `EmailerService::availableVariables()`)
+            // pour composer les DEUX rendus (reel + journal). Sans
+            // precharger, cette relation se charge paresseusement — une
+            // requete de plus, par destinataire, pour la MEME Organization
+            // que `compose()` lit deja par ailleurs. Aucun controle
+            // d'autorisation ne s'appuie sur cette relation : seul l'AFFICHAGE
+            // (nom de l'Organization dans le courriel) la consomme.
+            //
+            // TASK-1799 (B1) — « Auteur, lorsque sûr » : l'auteur du MESSAGE
+            // est IDENTIQUE pour tous les destinataires d'une meme mention
+            // (@tous ou individuelle), et rien ici ne s'appuie sur cette
+            // lecture pour une decision d'autorisation — seul l'AFFICHAGE
+            // (nom, Organization) la consomme. La cle inclut le tenant de la
+            // notification : un meme `actor_id` relu sous un autre tenant,
+            // dans un autre job, repartirait d'une lecture neuve.
+            $actorId = (string) ($notification->actor_id ?? $message->sender_id);
+            $auteur = app(ScopedReadCache::class)->souviens(
+                'cible-acteur:'.$notification->organization_id.':'.$actorId,
+                fn (): ?User => User::with('organization')->find($actorId),
+            );
 
-            $mentionMailer = app(LoopMentionMailer::class);
-            $reel = $mentionMailer->compose($message, $destinataire, $auteur, $cible, $locale);
-            // Le sixieme argument expurge AUSSI l'extrait du message : le
-            // courriel porte desormais la phrase ecrite par un membre, et
-            // `email_logs` n'a pas a archiver une conversation de Boucle
-            // privee (cf. `LoopMentionMailer::EXTRAIT_EXPURGE`).
-            $expurge = $mentionMailer->compose($message, $destinataire, $auteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+            // TASK-1799 (A1) — UN SEUL appel rend les deux variantes (reel +
+            // copie expurgee pour `email_logs`) a partir d'UNE SEULE
+            // resolution du gabarit administrable : voir le docblock de
+            // `LoopMentionMailer::compose()`.
+            $paire = app(LoopMentionMailer::class)
+                ->compose($message, $destinataire, $auteur, $cible, self::LIEN_EXPURGE, $locale);
 
             return [
-                'subject' => $reel['subject'],
-                'body' => $reel['body'],
-                'body_for_log' => $expurge['body'],
+                'subject' => $paire['reel']['subject'],
+                'body' => $paire['reel']['body'],
+                'body_for_log' => $paire['journal']['body'],
             ];
         }
 

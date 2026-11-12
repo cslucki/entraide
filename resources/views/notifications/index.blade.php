@@ -81,7 +81,20 @@
             return $libelle($cle);
         }
 
-        $traduction = 'notifications.keys_named.'.str_replace('.', '_', $cle);
+        // TASK-1797 — « tous » bascule sur une cle VOISINE, pas sur un
+        // troisieme texte superpose au meme endroit : une mention collective
+        // ne nomme personne nommement, le dire ainsi serait une
+        // interpellation nominative abusive (`sujetsDesMentions()` pose ce
+        // marqueur en lisant `mention_all` sur le message lui-meme).
+        // Cas explicite plutot qu'un suffixe generique : une seule cle du
+        // catalogue a aujourd'hui une variante collective.
+        $cleTraduction = str_replace('.', '_', $cle);
+
+        if (($params['tous'] ?? false) && $cleTraduction === 'loop_mention_created') {
+            $cleTraduction = 'loop_mention_all_created';
+        }
+
+        $traduction = 'notifications.keys_named.'.$cleTraduction;
 
         return \Illuminate\Support\Facades\Lang::has($traduction, null, false)
             ? __($traduction, $params)

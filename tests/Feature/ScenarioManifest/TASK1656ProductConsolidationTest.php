@@ -863,14 +863,18 @@ class TASK1656ProductConsolidationTest extends TestCase
         // etait offert. L'agenda etait en lecture seule.
         $this->assertStringContainsString('data-agenda-rsvp="'.$evenement->id.'"', $html);
 
-        foreach ([LoopEventResponse::GOING, LoopEventResponse::MAYBE, LoopEventResponse::NOT_GOING] as $choix) {
+        // TASK-1802 (suite, demande Cyril) — « remplace le bouton "Je ne
+        // participe pas" par "Ajouter à l'agenda" » : NOT_GOING n'est plus
+        // propose sur cette page, GOING/MAYBE le restent.
+        foreach ([LoopEventResponse::GOING, LoopEventResponse::MAYBE] as $choix) {
             $this->assertStringContainsString('data-rsvp="'.$choix.'"', $html);
         }
+        $this->assertStringNotContainsString('data-rsvp="'.LoopEventResponse::NOT_GOING.'"', $html);
 
         // Les MEMES libelles que la Card de la Boucle : une meme action ne doit
         // pas porter deux noms selon l'ecran.
         $this->assertStringContainsString(e(__('events.going')), $html);
-        $this->assertStringContainsString(e(__('events.not_going')), $html);
+        $this->assertStringContainsString('data-agenda-add-to-calendar', $html);
     }
 
     public function test_un_evenement_de_Boucle_NON_remonte_reste_hors_de_portee(): void

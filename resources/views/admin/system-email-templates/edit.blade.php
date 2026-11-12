@@ -78,20 +78,35 @@
                             </p>
                         </div>
 
-                        {{-- TASK-1681 — apercu WYSIWYG en LECTURE : le HTML brut
-                             seul ne laisse pas constater la mise en forme. Iframe
-                             sandbox SANS allow-scripts (rien ne s'execute), srcdoc
-                             mis a jour en direct depuis le textarea. Les variables
-                             restent telles quelles et le layout email final n'est
-                             pas inclus — c'est un apercu indicatif, pas un bon a
-                             tirer. --}}
+                        {{-- TASK-1809 (micro-sequence C) — apercu FIDELE : rendu
+                             REEL cote serveur (meme theme, memes variables
+                             interpolees — de demonstration, jamais de donnee
+                             reelle), jamais un envoi. Bascule desktop/mobile en
+                             largeur d'iframe (aucun round-trip necessaire pour
+                             ca), bascule sujet/corps actualises par un appel au
+                             nouvel point `system-email-templates.preview`,
+                             debounce pour ne pas spammer le serveur a chaque
+                             frappe. --}}
                         <div data-html-preview>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                {{ __('admin.html_preview_title') }}
-                            </label>
+                            <div class="flex items-center justify-between">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    {{ __('admin.html_preview_title') }}
+                                </label>
+                                <div class="flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 p-0.5 text-xs">
+                                    <button type="button" id="preview_width_desktop"
+                                            class="px-2 py-1 rounded bg-indigo-600 text-white">
+                                        {{ __('admin.html_preview_desktop') }}
+                                    </button>
+                                    <button type="button" id="preview_width_mobile"
+                                            class="px-2 py-1 rounded text-gray-600 dark:text-gray-300">
+                                        {{ __('admin.html_preview_mobile') }}
+                                    </button>
+                                </div>
+                            </div>
+                            <p id="content_html_preview_subject" class="mt-1 text-sm font-medium text-gray-700 dark:text-gray-300"></p>
                             <iframe id="content_html_preview" sandbox="" title="{{ __('admin.html_preview_title') }}"
-                                    class="mt-1 block w-full rounded-md border border-gray-300 bg-white dark:border-gray-600"
-                                    style="height: 320px;"></iframe>
+                                    class="mt-1 block rounded-md border border-gray-300 bg-white dark:border-gray-600 mx-auto"
+                                    style="height: 480px; width: 100%; max-width: 640px; transition: max-width .15s ease;"></iframe>
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 {{ __('admin.html_preview_hint') }}
                             </p>
@@ -99,21 +114,57 @@
                         <script>
                             (function () {
                                 var source = document.getElementById('content_html');
+                                var subjectSource = document.getElementById('subject');
                                 var preview = document.getElementById('content_html_preview');
+                                var subjectPreview = document.getElementById('content_html_preview_subject');
+                                var btnDesktop = document.getElementById('preview_width_desktop');
+                                var btnMobile = document.getElementById('preview_width_mobile');
+                                var previewUrl = @json(route('admin.system-email-templates.preview', $systemEmailTemplate));
+                                var csrfToken = @json(csrf_token());
+                                var timer = null;
 
-                                // '\x3C' = '<' : aucune balise lisible dans ce bloc,
-                                // le parseur HTML ne peut pas couper le <script> sur
-                                // un litteral (c'est exactement ce qui cassait la page).
-                                var head = '\x3C!doctype html\x3E\x3Chtml\x3E\x3Chead\x3E\x3Cmeta charset="utf-8"\x3E\x3C/head\x3E'
-                                    + '\x3Cbody style="margin:0;padding:16px;background:#ffffff;color:#111111;'
-                                    + 'font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;"\x3E';
-                                var tail = '\x3C/body\x3E\x3C/html\x3E';
-
-                                var render = function () {
-                                    preview.srcdoc = head + source.value + tail;
+                                var setWidth = function (max, activeBtn, inactiveBtn) {
+                                    preview.style.maxWidth = max;
+                                    activeBtn.classList.add('bg-indigo-600', 'text-white');
+                                    activeBtn.classList.remove('text-gray-600', 'dark:text-gray-300');
+                                    inactiveBtn.classList.remove('bg-indigo-600', 'text-white');
+                                    inactiveBtn.classList.add('text-gray-600', 'dark:text-gray-300');
                                 };
 
-                                source.addEventListener('input', render);
+                                btnDesktop.addEventListener('click', function () { setWidth('640px', btnDesktop, btnMobile); });
+                                btnMobile.addEventListener('click', function () { setWidth('375px', btnMobile, btnDesktop); });
+
+                                var render = function () {
+                                    fetch(previewUrl, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Accept': 'application/json',
+                                            'X-CSRF-TOKEN': csrfToken,
+                                        },
+                                        body: JSON.stringify({
+                                            subject: subjectSource.value,
+                                            content_html: source.value,
+                                        }),
+                                    })
+                                        .then(function (response) { return response.ok ? response.json() : null; })
+                                        .then(function (data) {
+                                            if (!data) {
+                                                return;
+                                            }
+
+                                            subjectPreview.textContent = data.subject;
+                                            preview.srcdoc = data.html;
+                                        });
+                                };
+
+                                var debounced = function () {
+                                    clearTimeout(timer);
+                                    timer = setTimeout(render, 400);
+                                };
+
+                                source.addEventListener('input', debounced);
+                                subjectSource.addEventListener('input', debounced);
                                 render();
                             })();
                         </script>

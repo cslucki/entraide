@@ -14,6 +14,8 @@ use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Report;
 use App\Models\RequestAttachment;
+use App\Models\Review;
+use App\Models\ReviewModerationLog;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -31,6 +33,7 @@ use App\Services\Users\Exceptions\UserDeletionBlockedException;
 use App\Services\Users\UserDeletionExecutor;
 use App\Support\ScenarioManifest\ManifestAvatarBank;
 use App\Support\Devices\DeviceKind;
+use App\Support\Entraide\ReviewModeration;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use App\Support\Tenancy\UserWriteLock;
 use Illuminate\Http\JsonResponse;
@@ -169,6 +172,11 @@ class AdminController extends Controller
 
         return view('admin.users', compact('users', 'organizations', 'scopedOrganization') + [
             'stats' => $this->userListStats($scopedOrganization?->id),
+            // TASK-1795 correctif 9 — la repartition par Organization. Volontairement
+            // NON bornee par `$scopedOrganization` : filtrer sur une Organization ne
+            // doit pas faire disparaitre les autres tuiles, qui servent justement a
+            // passer de l'une a l'autre.
+            'comptesParOrganization' => $this->comptesParOrganization(),
             // TASK-1694 bug L — les gabarits de l'Emailer, pour le choix pose
             // DANS la ligne. Une seule requete, constante : le test de cout de
             // cet ecran mesure qu'il ne grandit pas avec le nombre de comptes.
@@ -217,6 +225,56 @@ class AdminController extends Controller
      *
      * @return array<string, int>
      */
+    /**
+     * TASK-1795 correctif 9 — les comptes ACTIFS, par Organization.
+     *
+     * Cyril : « on va organiser des compteurs pour le nombre d'utilisateurs
+     * actif par Org. Prévoir l'espace pour 10 organisations maximum, puisque
+     * la plateforme ne fera pas plus de 10 organisations. »
+     *
+     * ## « Actif » n'est pas redefini ici
+     *
+     * Le predicat est celui que `userListStats()` emploie deja pour
+     * « Disponibles » : `banned_at is null and is_available`. Le reecrire
+     * autrement aurait donne deux chiffres qui se contredisent sur le meme
+     * ecran — la somme des colonnes ne retomberait pas sur le compteur global.
+     *
+     * ## UNE requete, pas une par Organization
+     *
+     * `TASK1640UserDeleteFromListTest` mesure la PENTE de cet ecran : « neuf
+     * comptes de plus ne coutent pas trente requetes de plus ». Un compteur
+     * par Organization dans une boucle aurait ajoute une requete PAR
+     * Organization — meme famille de defaut, sur l'autre axe. L'agregat est
+     * donc groupe, et le cout reste constant quel que soit le nombre
+     * d'Organizations.
+     *
+     * Les deux pieges de moteur de `userListStats()` valent ici aussi :
+     * `count(*) FILTER` est du PostgreSQL pur, et `is_available = 1` echoue sur
+     * un vrai `boolean`. Le predicat NU passe des deux cotes.
+     *
+     * @return array<string, array{total: int, actifs: int}> indexe par organization_id
+     */
+    private function comptesParOrganization(): array
+    {
+        $lignes = User::query()
+            ->whereNotNull('organization_id')
+            ->toBase()
+            ->selectRaw(
+                'organization_id,'
+                .' count(*) as total,'
+                .' sum(case when banned_at is null and is_available then 1 else 0 end) as actifs'
+            )
+            ->groupBy('organization_id')
+            ->get();
+
+        return $lignes->mapWithKeys(fn ($ligne) => [
+            (string) $ligne->organization_id => [
+                'total' => (int) $ligne->total,
+                'actifs' => (int) $ligne->actifs,
+            ],
+        ])->all();
+    }
+
     private function userListStats(?string $organizationId = null): array
     {
         // Deux pieges de moteur evites ici, tous deux deja payes sur ce depot :
@@ -1500,6 +1558,123 @@ class AdminController extends Controller
         $transaction->delete();
 
         return back()->with('success', __('admin.transaction_deleted'));
+    }
+
+    // ── Evaluations (TASK-1808 §2) ──────────────────────────────────────────
+
+    /**
+     * Micro-sequence B — consultation et filtres. `withTrashed()` : un
+     * SuperAdmin doit pouvoir retrouver un avis supprime pour le restaurer,
+     * donc la liste par defaut les inclut — le filtre `visibility` les
+     * distingue plutot que de les cacher d'office.
+     */
+    public function reviews(Request $request): View
+    {
+        $query = Review::withTrashed()
+            ->with(['reviewer', 'reviewed', 'organization', 'transaction', 'moderateur']);
+
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
+
+        if ($request->filled('rating')) {
+            $query->where('rating', (int) $request->rating);
+        }
+
+        if ($request->filled('visibility')) {
+            match ($request->string('visibility')->toString()) {
+                'hidden' => $query->whereNull('deleted_at')->whereNotNull('hidden_at'),
+                'deleted' => $query->whereNotNull('deleted_at'),
+                'visible' => $query->whereNull('deleted_at')->whereNull('hidden_at'),
+                default => null,
+            };
+        }
+
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->whereHas('reviewer', fn ($u) => $u->where('name', 'like', '%'.$request->search.'%'))
+                    ->orWhereHas('reviewed', fn ($u) => $u->where('name', 'like', '%'.$request->search.'%'));
+            });
+        }
+
+        $reviews = $query->latest('created_at')->paginate(25)->withQueryString();
+
+        return view('admin.reviews', compact('organizations', 'selectedOrganizationId', 'reviews'));
+    }
+
+    /** Micro-sequence D — le journal d'audit d'un avis precis. */
+    public function reviewHistory(string $review): View
+    {
+        $avis = Review::withTrashed()->with(['reviewer', 'reviewed'])->findOrFail($review);
+        $journal = ReviewModerationLog::where('review_id', $avis->id)->with('actor')->latest('created_at')->get();
+
+        return view('admin.review-history', compact('avis', 'journal'));
+    }
+
+    /** Micro-sequence C — modifier la note et/ou le mot. */
+    public function updateReview(Request $request, string $review): RedirectResponse
+    {
+        $avis = Review::withTrashed()->findOrFail($review);
+
+        $data = $request->validate([
+            'rating' => 'nullable|integer|min:1|max:5',
+            'comment' => 'nullable|string|max:1000',
+            'reason' => 'nullable|string|max:1000',
+        ]);
+
+        ReviewModeration::modifier($avis, $request->user(), $data['rating'] ?? null, $data['comment'] ?? null, $data['reason'] ?? null);
+
+        return back()->with('success', __('admin.review_updated'));
+    }
+
+    /** Micro-sequence C — masquer (reversible, exclu de la moyenne publique). */
+    public function hideReview(Request $request, string $review): RedirectResponse
+    {
+        $avis = Review::withTrashed()->findOrFail($review);
+
+        $data = $request->validate(['reason' => 'nullable|string|max:1000']);
+
+        ReviewModeration::masquer($avis, $request->user(), $data['reason'] ?? null);
+
+        return back()->with('success', __('admin.review_hidden'));
+    }
+
+    public function unhideReview(Request $request, string $review): RedirectResponse
+    {
+        $avis = Review::withTrashed()->findOrFail($review);
+
+        $data = $request->validate(['reason' => 'nullable|string|max:1000']);
+
+        ReviewModeration::demasquer($avis, $request->user(), $data['reason'] ?? null);
+
+        return back()->with('success', __('admin.review_unhidden'));
+    }
+
+    /**
+     * Micro-sequence C — supprimer. SoftDeletes : jamais un DELETE SQL
+     * definitif depuis ce cockpit (voir le docbloc de `ReviewModeration`).
+     */
+    public function destroyReview(Request $request, string $review): RedirectResponse
+    {
+        $avis = Review::withTrashed()->findOrFail($review);
+
+        $data = $request->validate(['reason' => 'nullable|string|max:1000']);
+
+        ReviewModeration::supprimer($avis, $request->user(), $data['reason'] ?? null);
+
+        return back()->with('success', __('admin.review_deleted'));
+    }
+
+    public function restoreReview(Request $request, string $review): RedirectResponse
+    {
+        $avis = Review::withTrashed()->findOrFail($review);
+
+        $data = $request->validate(['reason' => 'nullable|string|max:1000']);
+
+        ReviewModeration::restaurer($avis, $request->user(), $data['reason'] ?? null);
+
+        return back()->with('success', __('admin.review_restored'));
     }
 
     /**

@@ -70,5 +70,12 @@
 <meta name="theme-color" content="{{ config('pwa.theme_color') }}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="BouclePro">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+{{-- TASK-1805 — le nom que iOS pose sous l'icone d'ecran d'accueil doit
+     suivre le MEME nom que le manifest (`PwaAppName::current()`, jamais
+     "BouclePro" code en dur ici une seconde fois), sinon iOS et
+     Android/desktop divergeraient selon l'environnement. --}}
+<meta name="apple-mobile-web-app-title" content="{{ \App\Support\Pwa\PwaAppName::current() }}">
+{{-- TASK-1805 correctif (demande Cyril) — meme icone MARRON que le manifest
+     en local (`public/apple-touch-icon-dev.png`), gouvernee par le MEME
+     signal (`PwaAppName::isLocal()`) que `PwaManifestController`. --}}
+<link rel="apple-touch-icon" sizes="180x180" href="{{ \App\Support\Pwa\PwaAppName::isLocal() ? '/apple-touch-icon-dev.png' : '/apple-touch-icon.png' }}">

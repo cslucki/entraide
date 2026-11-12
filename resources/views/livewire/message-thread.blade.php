@@ -116,22 +116,11 @@
                 @if($_carteActions['principale'])
                     <form method="POST" action="{{ $_carteUrl($_carteActions['principale']) }}">
                         @csrf @method('PATCH')
-                        {{-- TASK-1757 §9.5 — l'opt-in du Flux se prend ICI.
-                             Arbitrage Cyril du 05/11 : plutot qu'un reglage a OFF
-                             enterre dans une page que personne n'ouvre — donc une
-                             fonctionnalite invisible —, la question se pose au moment
-                             ou l'on decide. Decochee, aucune ligne n'est ecrite : il
-                             n'y a rien a retenir, donc AUCUNE colonne nouvelle.
-                             Seul l'aidant voit ce bouton (`CarteEntraide::actions()`),
-                             et seul l'aidant est nomme sur la carte. --}}
-                        @if($_carteActions['principale']['marqueur'] === 'confirm')
-                            <label class="mb-2 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
-                                <input type="checkbox" name="partager_dans_le_flux" value="1"
-                                       data-entraide-partager-flux
-                                       class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600">
-                                <span>{{ __('entraide.flux.partager') }}</span>
-                            </label>
-                        @endif
+                        {{-- TASK-1806 — l'opt-in du Flux a quitte cet en-tete :
+                             il suit la CONFIRMATION, et la confirmation vit
+                             desormais dans la carte de bas de fil, avec
+                             l'evaluation. Une seule case, au seul endroit ou
+                             l'on cloture. --}}
                         <button data-entraide-action="{{ $_carteActions['principale']['marqueur'] }}"
                                 class="px-4 py-1.5 text-sm font-medium text-white rounded-lg transition
                                     {{ ($_carteActions['principale']['ton'] ?? '') === 'vert' ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700' }}">
@@ -293,79 +282,261 @@
         </x-slot:messages>
 
         <x-slot:after>
-            <!-- Review form — visible after completion si pas encore noté -->
-            {{-- TASK-1754 §9.4 (maquette M4) — « Dites merci » remplace
-                 « Évaluez cet échange ».
+            {{-- ============================================================
+                 TASK-1808 — LE PARCOURS FINAL, decision produit du 11/11.
+                 ============================================================
+                 Le principe gouverne la forme : « reduire l'infobesite, une
+                 seule action principale visible a la fois ». Quatre moments
+                 desormais SEPARES, et jamais deux a l'ecran en meme temps :
 
-                 Cinq etoiles et un « Commentaire (optionnel) », c'est Uber. La
-                 hierarchie est inversee : le MOT devient le geste principal, la
-                 note passe au second plan.
+                   1. l'entraide se realise      -> on discute, un bouton compact
+                   2. la cloture                 -> un panneau, deplie au clic
+                   3. la reconnaissance          -> ce que chacun lit apres
+                   4. l'evaluation, facultative  -> micro-ecran A puis B
 
-                 ## Pourquoi la note reste OBLIGATOIRE
+                 Ce que T1806 posait ici — une grande carte portant d'un coup
+                 la note, le mot, le Flux et la confirmation — apparaissait
+                 DES l'accord, avant meme que l'aide ait ete rendue. C'est
+                 l'anomalie principale signalee par Cyril le 11/11.
 
-                 Arbitrage Q6 de Cyril, pris sur une mesure : `reviews.rating`
-                 est NOT NULL sans defaut, la moyenne du profil se calcule sur
-                 TOUTES les notes (`User::recalculateRating()`). La rendre
-                 optionnelle sans migration aurait oblige a ecrire une note que
-                 personne n'a choisie, qui aurait compte dans la moyenne
-                 affichee. Et le critere d'acceptation n°8 du CDC interdit la
-                 migration.
+                 Les trois etapes METIER ne bougent pas (Demande, Accord,
+                 Confirmation) : le depliage est un etat d'INTERFACE, et il
+                 n'ecrit rien. Seule la validation finale cloture, transfere
+                 et enregistre. --}}
 
-                 (TASK-1788 correctif 05 : `BadgeService` s'en nourrissait lui
-                 aussi ; le systeme de badges membre a ete supprime, cette
-                 seconde raison n'existe plus. La premiere suffit.)
+            {{-- ── 1 & 2. L'ENTRAIDE EN COURS, PUIS SA CLOTURE ───────────
+                 TASK-1808 (clarification MASTER, 11/11) — REGLE ABSOLUE :
+                 tant que l'aide n'a pas explicitement marque l'entraide comme
+                 terminee, il ne voit AUCUNE sollicitation a evaluer. Ni
+                 etoile, ni champ de commentaire, ni carte d'evaluation
+                 « meme repliee », ni phrase laissant croire qu'on attend une
+                 note.
 
-                 Elle est donc PRE-SELECTIONNEE et MODIFIABLE, et le libelle le
-                 dit honnetement — « Vous pouvez ajuster la note », et non
-                 « optionnelle » comme l'ecrit la maquette, ce qui serait faux. --}}
-            @if($transaction->status === 'completed' && !$transaction->hasReviewFrom(auth()->id()))
+                 Et la consigne va plus loin : un accordeon qui CACHE une
+                 evaluation deja proposee pendant l'entraide ne corrige rien.
+                 D'ou la forme retenue — un bouton, un seul, qui POSTE
+                 directement la cloture. Pas de panneau intermediaire : « un
+                 clic sur le bouton doit immediatement cloturer l'entraide ».
+
+                 Consequence assumee : la case « partager dans le Flux » ne
+                 peut plus vivre ici, puisqu'il n'y a plus d'ecran avant la
+                 cloture. Elle devient une action DISTINCTE d'apres-cloture,
+                 plus bas — ce qui la rend aussi independante de l'evaluation,
+                 comme le §7 le demandait.
+
+                 Cote AIDE uniquement : l'aidant n'a pas le pouvoir de
+                 cloturer, regle tenue aussi par `TransactionPolicy::complete()`
+                 et par la garde de statut du controleur. --}}
+            @if($transaction->confirmationEnAttente() && $transaction->estLAide(auth()->user()) && ! $transaction->isDirectConversation())
             @php
-                $_merciAutre = auth()->id() === $transaction->buyer_id ? $transaction->seller : $transaction->buyer;
-                $_merciTemps = \App\Support\Entraide\TempsPartage::duree($transaction->points_agreed ?? $transaction->points_proposed);
+                $_confAidant = $transaction->seller;
+                $_confPrenom = $_confAidant?->first_name ?: ($_confAidant?->name ?: __('profile.deactivated_user'));
             @endphp
-            <div class="border-t-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-4"
-                 x-data="{ rating: 5, hovered: 0 }"
-                 data-entraide-merci>
-                <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
-                    🙏 {{ __('messages.review_exchange', ['prenom' => $_merciAutre?->first_name ?: $_merciAutre?->name]) }}
-                </p>
-                <p class="mt-1 mb-3 text-xs text-indigo-600/80 dark:text-indigo-300/80">
-                    {{ __('messages.review_intro', ['temps' => $_merciTemps]) }}
-                </p>
-                <form method="POST" action="{{ route('reviews.store', $transaction) }}">
-                    @csrf
-
-                    {{-- Le MOT d'abord : c'est lui le geste. --}}
-                    <textarea name="comment" rows="3" maxlength="1000"
-                        placeholder="{{ __('messages.review_placeholder') }}"
-                        data-entraide-merci-mot
-                        class="w-full px-3 py-2 border border-indigo-200 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500 mb-3 resize-none"></textarea>
-
-                    {{-- La note ensuite, petite, pre-selectionnee, modifiable. --}}
-                    <div class="flex flex-wrap items-center gap-2 mb-3">
-                        <div class="flex gap-0.5" data-entraide-merci-note>
-                            @for($i = 1; $i <= 5; $i++)
-                            <button type="button"
-                                @click="rating = {{ $i }}"
-                                @mouseenter="hovered = {{ $i }}"
-                                @mouseleave="hovered = 0"
-                                aria-label="{{ $i }}/5"
-                                class="text-base transition-transform hover:scale-110 focus:outline-none">
-                                <span x-text="(hovered || rating) >= {{ $i }} ? '★' : '☆'"
-                                      :class="(hovered || rating) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
-                            </button>
-                            @endfor
-                        </div>
-                        <input type="hidden" name="rating" :value="rating">
-                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('messages.review_rating_hint') }}</span>
-                    </div>
-
+            <div class="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
+                 data-entraide-cloture-zone>
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {{ __('messages.en_cours_titre') }}
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ __('messages.en_cours_intro', ['prenom' => $_confPrenom]) }}
+                    </p>
+                </div>
+                {{-- La SEULE action visible pendant l'entraide. Le formulaire
+                     ne porte ni `rating` ni `comment` : le controleur les
+                     valide en `nullable` et ne recevra donc rien a
+                     enregistrer. Aucune note inventee, aucun renoncement
+                     trace — l'evaluation n'a simplement pas encore ete
+                     proposee. --}}
+                <form method="POST" action="{{ $_threadRoute('transactions.complete', 'organization.transactions.complete', ['transaction' => $transaction]) }}"
+                      class="flex-shrink-0">
+                    @csrf @method('PATCH')
                     <button type="submit"
-                        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg font-medium transition"
-                        data-entraide-merci-envoyer>
-                        {{ __('messages.send_review') }}
+                            class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
+                            data-entraide-action="mark_done"
+                            data-entraide-cloturer>
+                        {{ __('messages.cloturer_bouton') }}
                     </button>
                 </form>
+            </div>
+            @endif
+
+            {{-- ── 3 & 4. APRES LA CLOTURE ───────────────────────────────
+                 Le recapitulatif est COMPACT (UX-B) : une seule ligne de
+                 trois reperes, et non trois blocs empiles. Puis la phrase qui
+                 depend du role, puis UN micro-ecran au plus.
+
+                 TASK-1809 (correctifs Cyril, 12/11) — trois changements :
+                 1) la ligne de recapitulatif DUPLIQUEE (duree/points/aidant)
+                    est retiree : `cloture_aide_corps`/`cloture_aidant_corps`
+                    juste au-dessus disent deja la meme chose ;
+                 2) le partage dans le Flux devient AUTOMATIQUE a l'evaluation
+                    (`EvaluationEntraide::enregistrer()`) — plus de case, plus
+                    de lien distinct (qui rendait une erreur 500) ;
+                 3) l'aidant voit sa note ET son commentaire DANS LE FIL des
+                    qu'un avis existe, sans avoir besoin de l'email pour les
+                    decouvrir — « Jean ne doit pas avoir besoin de revenir sur
+                    BouclePro » (meme principe que l'email T1809 §4, applique
+                    ici a l'ecran). --}}
+            @if($transaction->status === 'completed' && !$transaction->isDirectConversation())
+            @php
+                $_bentoLecteur = auth()->user();
+                $_bentoAidant = $transaction->seller;
+                $_bentoAide = $transaction->buyer;
+                $_bentoPrenomAidant = $_bentoAidant?->first_name ?: ($_bentoAidant?->name ?: __('profile.deactivated_user'));
+                $_bentoPrenomAide = $_bentoAide?->first_name ?: ($_bentoAide?->name ?: __('profile.deactivated_user'));
+                $_bentoPoints = $transaction->points_agreed;
+                $_bentoOffert = \App\Support\Entraide\TempsPartage::estOffert($_bentoPoints);
+                $_bentoTemps = \App\Support\Entraide\TempsPartage::libelle($_bentoPoints);
+                $_estLAide = $transaction->estLAide($_bentoLecteur);
+                // L'avis de l'aide, lu UNE fois et partage par les deux
+                // branches ci-dessous (l'aide le relit pour savoir si sa
+                // carte doit ceder la place a la confirmation ; l'aidant le
+                // lit pour afficher la note recue).
+                $_bentoAvis = $transaction->reviews()->where('reviewer_id', $transaction->buyer_id)->first();
+                $_bentoFeedPost = $_bentoAvis
+                    ? \App\Models\FeedPost::withTrashed()
+                        ->where('organization_id', $transaction->organization_id)
+                        ->where('type', \App\Support\Feed\FeedEventCatalogue::ENTRAIDE_TERMINEE)
+                        ->where('object_type', \App\Models\Transaction::class)
+                        ->where('object_id', $transaction->id)
+                        ->first()
+                    : null;
+            @endphp
+            <div class="border-t border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/40 px-4 py-3"
+                 data-entraide-bento>
+
+                {{-- La reconnaissance, orientee role. Deux phrases distinctes,
+                     parce que les deux personnes n'ont pas vecu la meme chose :
+                     l'une a recu de l'aide, l'autre en a donne. --}}
+                @if($_estLAide)
+                    <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-200" data-entraide-cloture-aide>
+                        🎉 {{ __('messages.cloture_aide_titre') }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-indigo-600/80 dark:text-indigo-200/90">
+                        {{ $_bentoOffert
+                            ? __('messages.cloture_aide_corps_offert', ['prenom' => $_bentoPrenomAidant])
+                            : __('messages.cloture_aide_corps', ['temps' => $_bentoTemps, 'prenom' => $_bentoPrenomAidant]) }}
+                    </p>
+                @elseif($transaction->estLAidant($_bentoLecteur))
+                    @if($_bentoAvis)
+                        {{-- NOUVEAU (correctif Cyril) — l'aidant voit sa note
+                             directement, au lieu du message generique
+                             "Merci pour votre aide !" une fois qu'un avis
+                             existe. --}}
+                        <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-200" data-entraide-cloture-aidant-evalue>
+                            ⭐ {{ __('messages.cloture_aidant_evalue_titre', ['prenom' => $_bentoPrenomAide]) }}
+                        </p>
+                        <p class="mt-1 text-sm text-indigo-700 dark:text-indigo-200" data-entraide-cloture-aidant-note>
+                            <span>@for($i = 1; $i <= 5; $i++){{ $i <= $_bentoAvis->rating ? '★' : '☆' }}@endfor</span>
+                            <span class="text-xs text-indigo-600/80 dark:text-indigo-200/80">({{ $_bentoAvis->rating }}/5)</span>
+                        </p>
+                        @if(filled($_bentoAvis->comment))
+                            <p class="mt-1 text-xs italic text-indigo-600/80 dark:text-indigo-200/90" data-entraide-cloture-aidant-commentaire>
+                                « {{ $_bentoAvis->comment }} »
+                            </p>
+                        @endif
+                    @else
+                        <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-200" data-entraide-cloture-aidant>
+                            🙏 {{ __('messages.cloture_aidant_titre') }}
+                        </p>
+                        <p class="mt-0.5 text-xs text-indigo-600/80 dark:text-indigo-200/90">
+                            {{ $_bentoOffert
+                                ? __('messages.cloture_aidant_corps_offert', ['prenom' => $_bentoPrenomAide])
+                                : __('messages.cloture_aidant_corps', ['temps' => $_bentoTemps, 'prenom' => $_bentoPrenomAide]) }}
+                        </p>
+                    @endif
+                @endif
+
+                {{-- TASK-1808 §4 — LA PLUIE DE COEURS POUR L'AIDANT.
+                     Rendue uniquement si le serveur a decide qu'elle est due :
+                     `pluieDeCoeurs` est pose par `MessageThread::mount()`, qui
+                     ecrit en meme temps `seller_celebrated_at`. Elle ne peut
+                     donc pas se rejouer au rechargement ni sur un autre
+                     appareil — l'exigence « une seule fois par entraide ET par
+                     aidant » se tient en base, pas dans le navigateur.
+                     Independante de toute evaluation, et elle ne bloque rien :
+                     le calque est `pointer-events: none`. --}}
+                @if($pluieDeCoeurs)
+                    <x-coeurs marqueur="data-entraide-coeurs" cle="entraide-{{ $transaction->id }}" />
+                @endif
+
+                {{-- ── CARTE D'EVALUATION, ou confirmation — TASK-1809 §2 ──
+                     Cote AIDE uniquement. MASTER (12/11, « simplification
+                     finale ») : les deux micro-ecrans (etoiles PUIS mot), le
+                     bouton « Plus tard » et le renoncement explicite sont
+                     retires du parcours visible. UNE carte compacte, UNE
+                     soumission : `reviews.store` acceptait deja `comment` en
+                     plus de `rating` (T1806 §3.B l'avait prevu).
+
+                     Aucune penalite si l'aide quitte sans evaluer : la carte
+                     reste proposee a chaque visite tant qu'aucun avis n'est
+                     depose.
+
+                     Correctif Cyril (12/11) — une fois l'avis depose, la
+                     carte cede la place a UNE confirmation ("Evaluation
+                     effectuee") avec un lien direct vers l'item du Flux —
+                     le partage y est desormais automatique, voir
+                     `EvaluationEntraide::enregistrer()`. --}}
+                @if($_estLAide)
+                    @if($transaction->etoilesEnAttente())
+                        <div class="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-700"
+                             x-data="{ note: 0, survol: 0 }"
+                             data-entraide-evaluation>
+                            <p class="text-sm font-medium text-indigo-700 dark:text-indigo-200">
+                                {{ __('messages.etoiles_titre', ['prenom' => $_bentoPrenomAidant]) }}
+                            </p>
+
+                            <form method="POST" action="{{ $_threadRoute('reviews.store', 'organization.reviews.store', ['transaction' => $transaction]) }}"
+                                  class="mt-2">
+                                @csrf
+                                <textarea name="comment" rows="2" maxlength="1000"
+                                    placeholder="{{ __('messages.review_placeholder') }}"
+                                    data-entraide-evaluation-commentaire
+                                    class="mb-2 w-full resize-none rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 dark:border-indigo-700 dark:bg-gray-800 dark:text-gray-100"></textarea>
+
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <div class="flex gap-0.5" data-entraide-etoiles-note>
+                                        @for($i = 1; $i <= 5; $i++)
+                                        <button type="button"
+                                            @click="note = {{ $i }}"
+                                            @mouseenter="survol = {{ $i }}"
+                                            @mouseleave="survol = 0"
+                                            aria-label="{{ $i }}/5"
+                                            class="text-lg transition-transform hover:scale-110 focus:outline-none">
+                                            <span x-text="(survol || note) >= {{ $i }} ? '★' : '☆'"
+                                                  :class="(survol || note) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
+                                        </button>
+                                        @endfor
+                                    </div>
+                                    <input type="hidden" name="rating" :value="note">
+
+                                    {{-- Le bouton n'apparait qu'une fois une note
+                                         choisie : la note est obligatoire pour
+                                         soumettre, le commentaire reste facultatif. --}}
+                                    <button type="submit" x-show="note > 0" x-cloak
+                                        class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
+                                        data-entraide-etoiles-valider>
+                                        {{ __('messages.etoiles_valider') }}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    @elseif($_bentoAvis)
+                        <div class="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-700" data-entraide-evaluation-faite>
+                            <p class="text-sm font-medium text-indigo-700 dark:text-indigo-200">
+                                ✅ {{ __('messages.evaluation_effectuee_titre') }}
+                            </p>
+                            @if($_bentoFeedPost)
+                                <a href="{{ $_threadRoute('flux.show', 'organization.flux.show', ['feedPost' => $_bentoFeedPost]) }}"
+                                   class="mt-1 inline-block text-xs text-indigo-600/80 underline underline-offset-2 dark:text-indigo-200/90"
+                                   data-entraide-evaluation-faite-lien>
+                                    {{ __('messages.evaluation_effectuee_lien') }}
+                                </a>
+                            @endif
+                        </div>
+                    @endif
+                @endif
             </div>
             @endif
         </x-slot:after>
@@ -487,11 +658,27 @@
         {{ __('messages.conversation_closed') }}
     </div>
     @endif
-</div>
 
-{{-- TASK-1771 — meme barre que sur le ChatLoop : le composant de bulle est
-     partage, le geste doit l'etre aussi. --}}
-<x-conversation.selection-bar />
+    {{-- TASK-1771 — meme barre que sur le ChatLoop : le composant de bulle est
+         partage, le geste doit l'etre aussi.
+
+         TASK-1796 — elle est DANS la racine, et non plus a cote.
+
+         Elle vivait apres `</div>`, ce qui faisait DEUX elements de premier
+         niveau. Livewire n'en accepte qu'un et levait
+         `MultipleRootElementsDetectedException` : toute conversation rendait
+         500 des que `app.debug` etait vrai. Le `<script>` final n'y est pour
+         rien — `getRootElementCount()` retire `<script>` et `<style>` avant de
+         parser.
+
+         Deplacer suffit, et ne change rien a l'affichage : la barre est un
+         `<template x-teleport="body">`, et Alpine en porte le contenu vers le
+         `<body>` au montage, d'ou qu'il parte. Son emplacement dans la source
+         ne decide donc pas de sa place a l'ecran. Elle reste rendue, et un test
+         l'exige — la supprimer aurait aussi fait disparaitre le 500, en cassant
+         le mode selection de TASK-1771. --}}
+    <x-conversation.selection-bar />
+</div>
 
 <script>
     function syncUnreadBadge(count) {

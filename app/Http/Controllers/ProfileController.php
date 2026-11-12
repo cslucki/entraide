@@ -102,6 +102,10 @@ class ProfileController extends Controller
             $q->where('buyer_id', $user->id)->orWhere('seller_id', $user->id);
         })->where('status', 'completed')->count();
         $reviews = $user->reviewsReceived()
+            // TASK-1808 §2.E — un avis MASQUE par le cockpit ne doit
+            // jamais apparaitre sur le profil public. La suppression, elle,
+            // est deja exclue sans rien ecrire ici (SoftDeletes).
+            ->whereNull('hidden_at')
             ->whereHas('transaction', fn ($q) => $q->where('organization_id', $organization->id))
             ->with('reviewer')
             ->latest('created_at')

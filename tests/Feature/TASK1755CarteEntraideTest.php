@@ -100,11 +100,59 @@ class TASK1755CarteEntraideTest extends TestCase
                 'Vous aidez', CarteEntraide::sens($echange, $this->aidant)['texte'],
                 "L'aidant doit lire « Vous aidez » ({$origine}).",
             );
+            // TASK-1808 — ce test attendait « vous demande » POUR L'AIDE, et
+            // consacrait donc le defaut signale par Cyril : la vue de l'aide
+            // annoncait que l'autre lui demandait de l'aide. Apres l'accord,
+            // l'aide doit lire que l'autre L'AIDE.
             $this->assertStringContainsString(
-                'vous demande', CarteEntraide::sens($echange, $this->aide)['texte'],
-                "Celui qui recoit l'aide doit lire « vous demande » ({$origine}).",
+                'vous aide', CarteEntraide::sens($echange, $this->aide)['texte'],
+                "Celui qui recoit l'aide doit lire « vous aide » ({$origine}).",
+            );
+            $this->assertStringNotContainsString(
+                'vous demande de', CarteEntraide::sens($echange, $this->aide)['texte'],
+                "L'aide ne doit JAMAIS lire qu'on lui demande de l'aide ({$origine}).",
             );
         }
+    }
+
+    /**
+     * TASK-1808 (observation de Cyril, 11/11) — LES QUATRE CASES DU TABLEAU.
+     *
+     * Le defaut ne venait pas d'une phrase mal ecrite mais d'un branchement
+     * incomplet : `sens()` ne regardait que le ROLE. Or le sens de l'aide se
+     * dit en croisant le role ET l'etape, et deux des quatre cas n'avaient
+     * aucun libelle. Ce test les epingle tous les quatre, pour qu'aucun ne
+     * puisse reprendre la phrase d'un autre.
+     */
+    public function test_le_sens_croise_le_role_et_l_etape(): void
+    {
+        $attendus = [
+            // etape    => [phrase de l'aidant,    phrase de l'aide]
+            'pending' => ['vous demande de l’aide', 'Vous demandez de l’aide'],
+            'accepted' => ['Vous aidez', 'vous aide'],
+        ];
+
+        foreach ($attendus as $statut => [$cotéAidant, $cotéAide]) {
+            $echange = $this->echange($statut);
+
+            $this->assertStringContainsString(
+                $cotéAidant, CarteEntraide::sens($echange, $this->aidant)['texte'],
+                "Aidant en « {$statut} ».",
+            );
+            $this->assertStringContainsString(
+                $cotéAide, CarteEntraide::sens($echange, $this->aide)['texte'],
+                "Aide en « {$statut} ».",
+            );
+        }
+
+        // Les deux lectures ne doivent jamais se confondre : c'est le defaut
+        // d'origine, ou la meme phrase servait les deux roles.
+        $accepte = $this->echange('accepted');
+        $this->assertNotSame(
+            CarteEntraide::sens($accepte, $this->aidant)['texte'],
+            CarteEntraide::sens($accepte, $this->aide)['texte'],
+            'Les deux roles ne peuvent pas lire la meme phrase.',
+        );
     }
 
     /** Une discussion directe n'est pas une entraide : ni sens, ni phrase, ni action. */
@@ -124,18 +172,23 @@ class TASK1755CarteEntraideTest extends TestCase
     // ── L'etapier ────────────────────────────────────────────────────────────
 
     /**
-     * Les quatre etapes avancent, et un echange SORTI du parcours n'en allume
-     * aucune.
+     * Les trois etapes avancent, et une entraide SORTIE du parcours n'en
+     * allume aucune.
      *
      * Allumer « Proposition » sur un echange decline ferait croire qu'il attend
      * encore quelque chose.
+     *
+     * TASK-1806 (arbitrage du 11/11) — TROIS etapes visibles : demande,
+     * accord, confirmation. `completed` allume la derniere.
      */
     public function test_l_etapier_avance_et_s_eteint_quand_l_echange_sort_du_parcours(): void
     {
         $this->assertSame(1, CarteEntraide::etape($this->echange('pending')));
         $this->assertSame(2, CarteEntraide::etape($this->echange('accepted')));
-        $this->assertSame(3, CarteEntraide::etape($this->echange('buyer_done')));
-        $this->assertSame(4, CarteEntraide::etape($this->echange('completed')));
+        // `buyer_done` est un statut HERITE : les points n'y sont pas encore
+        // transferes, il reste donc a l'etape 2 comme `accepted`.
+        $this->assertSame(2, CarteEntraide::etape($this->echange('buyer_done')));
+        $this->assertSame(3, CarteEntraide::etape($this->echange('completed')));
 
         $this->assertSame(0, CarteEntraide::etape($this->echange('refused')));
         $this->assertSame(0, CarteEntraide::etape($this->echange('cancelled')));
@@ -151,20 +204,24 @@ class TASK1755CarteEntraideTest extends TestCase
      */
     public function test_une_seule_partie_porte_l_action_principale(): void
     {
-        $cas = [
-            // statut      => [qui agit,        qui n'agit pas]
-            'pending' => [$this->aidant, $this->aide],      // l'auteur de l'annonce decide
-            'accepted' => [$this->aide, $this->aidant],     // celui qui recoit declare
-            'buyer_done' => [$this->aidant, $this->aide],   // celui qui a aide confirme
-        ];
+        // Au statut `pending`, c'est le DECIDEUR qui porte l'action.
+        $echange = $this->echange('pending');
+        $this->assertNotNull(CarteEntraide::actions($echange, $this->aidant)['principale']);
+        $this->assertNull(CarteEntraide::actions($echange, $this->aide)['principale']);
 
-        foreach ($cas as $statut => [$agit, $attend]) {
+        // TASK-1806 — une fois l'accord pris, PLUS AUCUNE action principale
+        // en en-tete, pour personne : la confirmation se prend en bas du fil,
+        // avec l'evaluation. Un bouton ici serait un second chemin, qui
+        // cloturerait sans jamais proposer de dire merci.
+        foreach (['accepted', 'buyer_done'] as $statut) {
             $echange = $this->echange($statut);
 
-            $this->assertNotNull(CarteEntraide::actions($echange, $agit)['principale'],
-                "Au statut [{$statut}], une action principale est attendue.");
-            $this->assertNull(CarteEntraide::actions($echange, $attend)['principale'],
-                "Au statut [{$statut}], l'autre partie ne doit PAS porter l'action principale.");
+            foreach ([$this->aide, $this->aidant] as $lecteur) {
+                $this->assertNull(CarteEntraide::actions($echange, $lecteur)['principale'],
+                    "Au statut [{$statut}], aucune action principale n'est attendue en en-tete.");
+                $this->assertNull(CarteEntraide::actions($echange, $lecteur)['secondaire'],
+                    "Au statut [{$statut}], aucune action secondaire n'est attendue en en-tete.");
+            }
         }
     }
 
@@ -330,19 +387,23 @@ class TASK1755CarteEntraideTest extends TestCase
         $this->assertStringContainsString('data-conversation-sens', $vuAidant);
         $this->assertStringContainsString('Vous aidez', $vuAidant);
         $this->assertStringNotContainsString('Vous aidez', $vuAide);
-        $this->assertStringContainsString('vous demande', $vuAide);
+        // TASK-1808 — l'aide lit desormais qu'on L'AIDE, et surtout jamais
+        // qu'on lui demande de l'aide. C'est le defaut signale par Cyril, vu
+        // depuis la vraie page de liste et non depuis la seule classe.
+        $this->assertStringContainsString('vous aide', $vuAide);
+        $this->assertStringNotContainsString('vous demande de', $vuAide);
     }
 
     /** La phrase est TRADUITE — jamais figee en francais. */
     public function test_la_phrase_est_traduite(): void
     {
-        $echange = $this->echange('buyer_done');
+        $echange = $this->echange('accepted');
 
-        $fr = CarteEntraide::phrase($echange, $this->aidant);
+        $fr = CarteEntraide::phrase($echange, $this->aide);
         $this->app->setLocale('en');
-        $en = CarteEntraide::phrase($echange, $this->aidant);
+        $en = CarteEntraide::phrase($echange, $this->aide);
 
         $this->assertNotSame($fr, $en);
-        $this->assertStringContainsString('Confirm', $en);
+        $this->assertStringContainsString('confirm', $en);
     }
 }

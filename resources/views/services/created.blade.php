@@ -25,54 +25,13 @@
         :back-label="__('dashboard.back_to_dashboard')">
 
     {{-- TASK-1773 (demande Cyril, 06/11) — LA PLUIE DE COEURS.
-         Posee en premier et en `fixed` : elle ne participe pas au flux, donc
-         elle ne peut pas rendre la page defilante. Les regles qui la tiennent
-         (une seule lecture, aucun clic avale) vivent dans `app.css`. --}}
-    <div x-data="{
-            coeurs: [],
-            init() {
-                /* Un seul passage. `x-init` se rejoue a chaque retour sur la
-                   page par le cache du navigateur ; le drapeau evite une
-                   seconde pluie quand on revient en arriere. */
-                if (window.__bpCoeursJoues) { return; }
-                window.__bpCoeursJoues = true;
-
-                this.coeurs = Array.from({ length: 24 }, (_, i) => ({
-                    id: i,
-/* TASK-1773 (arbitrage Cyril, 06/11) — QUE DES COEURS.
-                       Le melange (pouces, applaudissements, etincelles) a ete
-                       essaye puis ecarte : un seul symbole, decline en
-                       couleurs, dit l'elan sans ressembler a une barre de
-                       reactions. La repartition suit l'ordre de la liste
-                       (`i % 5`) et non un tirage — un tirage laisse parfois
-                       six coeurs identiques d'affilee, et les couleurs
-                       cessent de se melanger. */
-                    glyphe: ['❤️', '💜', '💚', '🧡', '💛'][i % 5],
-                    gauche: Math.round(Math.random() * 92) + 2,
-                    taille: (Math.random() * 1.4 + 1).toFixed(2),
-                    retard: (Math.random() * 1.8).toFixed(2),
-                    duree: (Math.random() * 2 + 3.8).toFixed(2),
-                    derive: Math.round((Math.random() - 0.5) * 160),
-                    tour: Math.round((Math.random() - 0.5) * 90),
-                }));
-
-                /* Le calque disparait quand la derniere animation est finie :
-                   un element fixe qui reste, meme invisible, continue de
-                   couvrir la page pour les outils qui la lisent. */
-                setTimeout(() => { this.coeurs = []; }, 7000);
-            },
-         }"
-         x-show="coeurs.length > 0"
-         x-cloak
-         class="bp-coeurs"
-         aria-hidden="true"
-         data-coeurs-confirmation>
-        <template x-for="coeur in coeurs" :key="coeur.id">
-            <span class="bp-coeur"
-                  x-text="coeur.glyphe"
-                  :style="`left: ${coeur.gauche}%; font-size: ${coeur.taille}rem; --bp-coeur-retard: ${coeur.retard}s; --bp-coeur-duree: ${coeur.duree}s; --bp-coeur-derive: ${coeur.derive}px; --bp-coeur-tour: ${coeur.tour}deg;`"></span>
-        </template>
-    </div>
+         TASK-1808 §4 l'a extraite en composant (`<x-coeurs>`) pour que
+         l'aidant d'une entraide terminee recoive la MEME animation : « ne pas
+         developper un second systeme ». Tout ce qui etait ecrit ici — les
+         24 coeurs, le drapeau de lecture unique, les regles d'`app.css` et le
+         traitement de `prefers-reduced-motion` — vit desormais la-bas,
+         inchange. --}}
+    <x-coeurs marqueur="data-coeurs-confirmation" cle="service-created-{{ $service?->id }}" />
 
     <div class="mx-auto max-w-xl text-center" data-service-created>
         {{-- La pastille et le titre disent l'ETAT REEL. Une proposition mise en

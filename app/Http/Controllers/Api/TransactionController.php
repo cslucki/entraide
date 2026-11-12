@@ -3,17 +3,18 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Message;
 use App\Models\PointLedger;
 use App\Models\Service;
 use App\Models\ServiceRequest;
-use App\Services\ServiceRequestLifecycle;
 use App\Models\Transaction;
-use App\Support\Entraide\MessageSysteme;
 use App\Models\User;
+use App\Services\ServiceRequestLifecycle;
+use App\Support\Entraide\EvaluationEntraide;
+use App\Support\Entraide\MessageSysteme;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TransactionController extends Controller
 {
@@ -184,24 +185,129 @@ class TransactionController extends Controller
         return response()->json($this->freshTransactionPayload($transaction));
     }
 
+    /**
+     * TASK-1806 — MEME parcours a trois etapes que la surface web.
+     *
+     * Cette classe reimplemente la machine a etats de son cote (dette connue,
+     * relevee a l'audit T1806) : la bascule devait donc y etre refaite, sinon
+     * l'API serait restee en silence sur l'ancien parcours a deux
+     * confirmations. Coherence Web/API exigee par MASTER le 11/11.
+     *
+     * Le verrou et la garde de statut sont alignes sur
+     * `TransactionController::complete()` : la cloture et le transfert de
+     * points tiennent dans UNE transaction, un second appel ressort sans rien
+     * retransferer.
+     */
     public function complete(Request $request, Transaction $transaction): JsonResponse
     {
         $user = $request->user();
 
-        if ($user->id !== $transaction->buyer_id || $transaction->status !== 'accepted') {
+        if ($user->id !== $transaction->buyer_id || ! in_array($transaction->status, ['accepted', 'buyer_done'], true)) {
             return response()->json(['message' => 'Action non autorisée.'], 403);
         }
 
-        $transaction->update([
-            'status' => 'buyer_done',
-            'buyer_confirmed_at' => now(),
+        $donnees = $request->validate([
+            'rating' => 'nullable|integer|min:1|max:5',
+            'comment' => 'nullable|string|max:1000',
         ]);
 
-        MessageSysteme::ecrire($transaction, 'aide_recue', ['prenom' => $transaction->buyer?->first_name ?: $transaction->buyer?->name]);
+        DB::transaction(function () use ($transaction) {
+            $tx = Transaction::where('id', $transaction->id)->lockForUpdate()->first();
 
-        return response()->json($this->freshTransactionPayload($transaction));
+            if (! in_array($tx->status, ['accepted', 'buyer_done'], true)) {
+                return;
+            }
+
+            $points = (int) $tx->points_agreed;
+
+            // Comme sur le web : un coup de main offert ne touche ni le ledger
+            // ni les soldes (TASK-1754 §9.3).
+            if ($points > 0) {
+                PointLedger::create([
+                    'user_id' => $tx->buyer_id,
+                    'transaction_id' => $tx->id,
+                    'delta' => -$points,
+                    'organization_id' => $tx->organization_id,
+                    'reason' => 'exchange_spent',
+                ]);
+
+                PointLedger::create([
+                    'user_id' => $tx->seller_id,
+                    'transaction_id' => $tx->id,
+                    'delta' => $points,
+                    'organization_id' => $tx->organization_id,
+                    'reason' => 'exchange_earned',
+                ]);
+
+                $tx->buyer()->update(['points_balance' => DB::raw('points_balance - '.$points)]);
+                $tx->seller()->update(['points_balance' => DB::raw('points_balance + '.$points)]);
+            }
+
+            $tx->update([
+                'status' => 'completed',
+                'buyer_confirmed_at' => $tx->buyer_confirmed_at ?? now(),
+                'completed_at' => now(),
+            ]);
+
+            app(ServiceRequestLifecycle::class)->close($tx);
+        });
+
+        $fresh = $transaction->fresh();
+
+        if ($fresh->status !== 'completed') {
+            return response()->json(['message' => __('entraide.flash.deja_traite')], 409);
+        }
+
+        MessageSysteme::ecrire($transaction, 'echange_termine', ['points' => (int) ($transaction->points_agreed ?? $transaction->points_proposed)]);
+
+        // Meme contrat que le web (verification MASTER du 11/11) : si l'avis
+        // ne s'ecrit pas, l'appelant ne doit pas croire qu'il est parti.
+        // L'entraide reste close, les points restent transferes, et l'avis
+        // reste redeposable — `evaluationEnAttente()` est encore vrai.
+        $avisDemande = ($donnees['rating'] ?? null) !== null;
+
+        // TASK-1808 — meme regle que cote web : une cloture sans note n'ecrit
+        // ni avis ni renoncement. Voir le commentaire du controleur web.
+        $avisEnregistre = ! $avisDemande || rescue(
+            function () use ($fresh, $donnees) {
+                // Point de sauvegarde dedie — meme raison que dans le
+                // controleur web : sous PostgreSQL une requete en echec avorte
+                // la transaction englobante et la connexion refuse tout ordre
+                // suivant. Voir le commentaire detaille cote web.
+                DB::transaction(function () use ($fresh, $donnees) {
+                    EvaluationEntraide::enregistrer($fresh, $donnees['rating'] ?? null, $donnees['comment'] ?? null);
+                });
+
+                return true;
+            },
+            function (\Throwable $e) use ($fresh) {
+                Log::error('Evaluation could not be recorded after a successful closure', [
+                    'event' => 'entraide_evaluation_not_recorded',
+                    'transaction_id' => $fresh->id,
+                    'organization_id' => $fresh->organization_id,
+                    'reviewer_id' => $fresh->buyer_id,
+                    'exception_class' => $e::class,
+                ]);
+
+                return false;
+            },
+            false,
+        );
+
+        $payload = $this->freshTransactionPayload($transaction);
+
+        if ($avisDemande && ! $avisEnregistre) {
+            $payload['evaluation_error'] = __('entraide.flash.echange_termine_avis_non_enregistre');
+        }
+
+        return response()->json($payload);
     }
 
+    /**
+     * CHEMIN HERITE (TASK-1806), symetrique de
+     * `TransactionController::confirm()` : ne sert qu'a denouer une ligne
+     * restee en `buyer_done`, statut que plus aucun code ne produit.
+     */
     public function confirm(Request $request, Transaction $transaction): JsonResponse
     {
         $user = $request->user();
@@ -211,26 +317,28 @@ class TransactionController extends Controller
         }
 
         DB::transaction(function () use ($transaction) {
-            $points = $transaction->points_agreed;
+            $points = (int) $transaction->points_agreed;
 
-            PointLedger::create([
-                'user_id' => $transaction->buyer_id,
-                'transaction_id' => $transaction->id,
-                'delta' => -$points,
-                'organization_id' => $transaction->organization_id,
-                'reason' => 'exchange_spent',
-            ]);
+            if ($points > 0) {
+                PointLedger::create([
+                    'user_id' => $transaction->buyer_id,
+                    'transaction_id' => $transaction->id,
+                    'delta' => -$points,
+                    'organization_id' => $transaction->organization_id,
+                    'reason' => 'exchange_spent',
+                ]);
 
-            PointLedger::create([
-                'user_id' => $transaction->seller_id,
-                'transaction_id' => $transaction->id,
-                'delta' => $points,
-                'organization_id' => $transaction->organization_id,
-                'reason' => 'exchange_earned',
-            ]);
+                PointLedger::create([
+                    'user_id' => $transaction->seller_id,
+                    'transaction_id' => $transaction->id,
+                    'delta' => $points,
+                    'organization_id' => $transaction->organization_id,
+                    'reason' => 'exchange_earned',
+                ]);
 
-            $transaction->buyer()->update(['points_balance' => DB::raw('points_balance - '.$points)]);
-            $transaction->seller()->update(['points_balance' => DB::raw('points_balance + '.$points)]);
+                $transaction->buyer()->update(['points_balance' => DB::raw('points_balance - '.$points)]);
+                $transaction->seller()->update(['points_balance' => DB::raw('points_balance + '.$points)]);
+            }
 
             $transaction->update([
                 'status' => 'completed',
