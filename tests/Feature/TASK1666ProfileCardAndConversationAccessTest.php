@@ -301,21 +301,31 @@ class TASK1666ProfileCardAndConversationAccessTest extends TestCase
             ->assertNotFound();
     }
 
+    /**
+     * TASK-1812 correctif 08 — demande de Cyril : le lien restait invisible
+     * EN PRATIQUE, sur `/admin/users`, pour n'importe quelle ligne.
+     *
+     * La version precedente de ce test fixait `current_organization` sur la
+     * requete pour observer le cas positif — exactement la beance que ce
+     * correctif ferme : sans ce binding artificiel (ce qu'est reellement
+     * `/admin/users`, une liste croisant TOUTES les Organizations), le lien
+     * ne s'affichait JAMAIS. Ce test ne pose donc plus aucun tenant courant :
+     * le lien doit apparaitre quand meme, parce qu'il porte desormais son
+     * Organization dans l'URL (`organization.profile.show`), jamais dans un
+     * etat ambiant.
+     */
     public function test_le_lien_profil_n_est_affiche_que_la_ou_il_mene_quelque_part(): void
     {
         $horsTenant = User::factory()->create(['organization_id' => null]);
-
-        // Le tenant courant est LIE A LA REQUETE : sans ce binding, aucun compte
-        // n'appartient a `currentOrganization()` et le test vaudrait aussi avec
-        // une garde qui masque tout. On fixe donc le tenant pour que le cas
-        // POSITIF soit reellement observe.
-        $this->app->instance('current_organization', $this->organization);
 
         $reponse = $this->actingAs($this->superAdmin)
             ->get(route('admin.users'))
             ->assertOk();
 
-        $reponse->assertSee(route('profile.show', $this->buyer), false);
+        $reponse->assertSee(
+            route('organization.profile.show', ['organization' => $this->organization->slug, 'user' => $this->buyer->profileRouteKey()]),
+            false,
+        );
         $reponse->assertDontSee(route('profile.show', $horsTenant), false);
 
         // Et le compte hors tenant reste atteignable par la Fiche, qui ne

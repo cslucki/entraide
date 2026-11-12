@@ -879,6 +879,15 @@ return [
     'device_tablet' => 'Tablette',
     'device_desktop' => 'Ordinateur',
     'device_other' => 'Autre / outil',
+    // TASK-1812 correctif 10 — les compteurs par type d'appareil. Cles
+    // distinctes de `device_phone` ci-dessus : le filtre n'a jamais eu besoin
+    // de distinguer Android et iOS, les statistiques si.
+    'device_stats_title' => 'Répartition par appareil',
+    'device_stat_desktop' => 'Ordinateur',
+    'device_stat_phone_android' => 'Smartphone Android',
+    'device_stat_phone_ios' => 'Smartphone iOS',
+    'device_stat_tablet' => 'Tablette',
+    'device_stat_other' => 'Autre',
     'emailer_locale_label' => 'Langue du gabarit',
     'emailer_locale_unset' => '— Non précisée —',
     'emailer_locale_any' => 'Toutes les langues',
@@ -2015,6 +2024,8 @@ return [
     'users_profile_section_contributions' => 'Ce qu’il ou elle apporte',
     'users_profile_section_interactions' => 'Ses échanges avec les autres',
     'users_profile_section_ai' => 'Son usage de l’IA',
+    // TASK-1812 correctif 09 — les Boucles REJOINTES, par leur nom.
+    'users_profile_section_loops_joined' => 'Boucles rejointes',
     'users_profile_services' => 'Services proposés',
     'users_profile_requests' => 'Demandes publiées',
     'users_profile_articles' => 'Articles',
@@ -2041,6 +2052,8 @@ return [
     'users_profile_registered' => 'Inscrit le',
     'users_profile_points' => 'Solde de points',
     'users_profile_rating' => 'Note',
+    // TASK-1812 correctif 09 — le telephone portable.
+    'users_profile_phone' => 'Téléphone',
     'users_profile_org' => 'Organisation',
     'users_profile_org_none' => 'Globale',
     'users_profile_close' => 'Fermer',

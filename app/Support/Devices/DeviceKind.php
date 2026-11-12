@@ -176,4 +176,54 @@ enum DeviceKind: string
     {
         return 'admin.device_'.$this->value;
     }
+
+    /**
+     * TASK-1812 correctif 10 — demande de Cyril : des compteurs par type de
+     * navigateur sur `/admin/stats/login-history`, distinguant « smartphone
+     * Android » et « smartphone iOS ».
+     *
+     * Le FILTRE ci-dessus n'a jamais eu besoin de ce detail — « Smartphone »
+     * lui suffisait — donc `Phone` ne porte qu'UNE categorie. Les statistiques,
+     * elles, le demandent : cette methode affine `fromUserAgent()` pour ce
+     * seul cas, avec les MEMES jetons ('android', 'iphone', 'ipod') plutot que
+     * d'en inventer une seconde liste qui finirait par diverger.
+     *
+     * Les autres categories (Tablet, Desktop, Other) n'ont qu'un systeme
+     * possible d'apres les donnees relevees au 24/10 (docblock de la classe) :
+     * les distinguer par OS aurait ajoute des categories vides, qu'une
+     * statistique ne doit jamais presenter comme un fait.
+     *
+     * @return string Une des cinq cles : desktop, phone_android, phone_ios, tablet, other.
+     */
+    public static function statKey(?string $userAgent): string
+    {
+        $categorie = self::fromUserAgent($userAgent);
+
+        if ($categorie !== self::Phone) {
+            return $categorie->value;
+        }
+
+        $chaine = mb_strtolower(trim((string) $userAgent));
+
+        return match (true) {
+            str_contains($chaine, 'android') => 'phone_android',
+            str_contains($chaine, 'iphone'), str_contains($chaine, 'ipod') => 'phone_ios',
+            // Windows Phone, BlackBerry : ni Android ni iOS. Les y ranger de
+            // force mentirait sur le systeme ; `Other` reste honnete.
+            default => self::Other->value,
+        };
+    }
+
+    /**
+     * L'ordre d'affichage des statistiques, et les seules cles qu'elles
+     * rendent. Fige ici pour que le controleur et la vue s'accordent sur
+     * « quelles categories existent », la meme raison que `SIGNATURES` plus
+     * haut fait deja autorite sur la classification.
+     *
+     * @return list<string>
+     */
+    public static function statKeysOrdonnees(): array
+    {
+        return ['desktop', 'phone_android', 'phone_ios', 'tablet', 'other'];
+    }
 }

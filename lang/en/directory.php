@@ -33,6 +33,10 @@ return [
 
     // TASK-1762 point 11.4 — the "New arrivals" view.
     'latest_button' => 'New arrivals',
+    // TASK-1812 correctif 04 — the default grid is now sorted alphabetically
+    // by first name; this button replaces "New arrivals" once that view is
+    // active, to go back.
+    'alphabetical_button' => 'Alphabetical order',
 
     // TASK-1762 point 14 — the fold for more than three Loops.
     'loops_more' => ':count more Loop|:count more Loops',
