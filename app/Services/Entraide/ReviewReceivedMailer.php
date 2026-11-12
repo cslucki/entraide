@@ -86,7 +86,17 @@ final class ReviewReceivedMailer
                     : route('messages.show', ['transaction' => $transaction->id]))
                 : null;
 
-            $aidePrenom = $aide->isDeactivated() ? __('profile.deactivated_user') : $aide->first_name;
+            // BUG CONFIRME (recette Cyril, 12/11, screenshot a l'appui) :
+            // `$aide->first_name` seul peut etre NULL (comptes de demo, comptes
+            // crees avant la separation prenom/nom) — un `isset()` sur une
+            // variable `null` dans `EmailerService::interpolate()` echoue, et
+            // le jeton `{{ aide_first_name }}` ressort LITTERALEMENT dans
+            // l'email reel, sujet compris. Meme repli a trois etages que
+            // `$_bentoPrenomAidant` dans `message-thread.blade.php` : prenom,
+            // puis nom complet, jamais une chaine vide ou nulle.
+            $aidePrenom = $aide->isDeactivated()
+                ? __('profile.deactivated_user')
+                : ($aide->first_name ?: ($aide->name ?: __('profile.deactivated_user')));
             $note = (int) $avis->rating;
 
             // Les etoiles ET le chiffre : « Jean ne doit pas avoir besoin de
