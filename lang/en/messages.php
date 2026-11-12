@@ -111,7 +111,6 @@ return [
     'review_rating_required' => 'Choose a rating before sending.',
     'send_review' => 'Send the thank-you',
     'review_sent' => 'Thank you for your review!',
-    'review_skip' => 'Skip for now',
     // TASK-1806 — step 3: confirm, and say thank you in the same gesture.
     'confirmer_titre' => 'Did you receive :prenom’s help?',
     'confirmer_intro' => 'Confirming closes the mutual aid and transfers :temps to :prenom.',
@@ -124,7 +123,6 @@ return [
     'cloturer_intro' => 'This closes the mutual aid and transfers :temps to :prenom. The conversation will become read-only.',
     'cloturer_intro_offert' => 'This closes the mutual aid. :prenom offered their help: no points are transferred.',
     'cloturer_valider' => 'Confirm',
-    'cloturer_annuler' => 'Cancel',
     'en_cours_titre' => 'Mutual aid under way',
     'en_cours_intro' => 'Chat with :prenom. Once the help has been received, confirm it here.',
     // TASK-1808 §3 — what each side reads AFTER the closure.
@@ -134,14 +132,10 @@ return [
     'cloture_aidant_titre' => 'Thank you for your help!',
     'cloture_aidant_corps' => 'You received :temps from :prenom.',
     'cloture_aidant_corps_offert' => 'You offered your help to :prenom.',
-    // TASK-1808 §5 — the two micro-screens, never at the same time.
+    // TASK-1809 §2 — ONE compact card (rating + optional comment in a
+    // single submission), replaces the two T1808 §5 micro-screens.
     'etoiles_titre' => 'How do you rate :prenom’s help?',
-    'etoiles_valider' => 'Save my rating',
-    'etoiles_plus_tard' => 'Later',
-    'etoiles_laisser_un_avis' => 'Leave a review',
-    'mot_titre' => 'Would you like to add a few words?',
-    'mot_publier' => 'Publish my comment',
-    'mot_terminer' => 'Finish without a comment',
+    'etoiles_valider' => 'Submit my review',
     'bento_title' => 'Help completed',
     'bento_duree' => 'Duration',
     'bento_duree_absente' => 'Duration not available',

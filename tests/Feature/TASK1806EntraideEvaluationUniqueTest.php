@@ -244,14 +244,20 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
         $this->assertTrue($transaction->evaluationDeposeeOuIgnoree());
     }
 
-    /** TASK-1806 §3.A — possibilite de ne pas laisser d'avis. */
+    /**
+     * TASK-1806 §3.A — renoncement explicite, encore disponible en DOMAINE
+     * (`EvaluationEntraide::enregistrer(..., null)`). TASK-1809 §2 (MASTER,
+     * « simplification finale ») a retire la porte HTTP qui l'appelait
+     * (`reviews.skip`, route supprimee — plus aucune penalite a ne pas
+     * evaluer, la carte reste simplement proposee) ; ce test verifie donc
+     * l'invariant au niveau domaine, pas la route disparue.
+     */
     public function test_buyer_can_skip_the_review(): void
     {
         $transaction = $this->completedTransaction();
 
-        $response = $this->actingAs($this->buyer)->post(route('reviews.skip', $transaction));
+        \App\Support\Entraide\EvaluationEntraide::enregistrer($transaction, null);
 
-        $response->assertRedirect(route('messages.show', $transaction));
         $transaction->refresh();
         $this->assertNotNull($transaction->reviews_skipped_at);
         $this->assertTrue($transaction->evaluationIgnoree());
@@ -513,7 +519,7 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
         // La carte d'evaluation est bien de retour pour l'aide.
         Livewire::actingAs($this->buyer)
             ->test(MessageThread::class, ['transaction' => $transaction])
-            ->assertSeeHtml('data-entraide-merci');
+            ->assertSeeHtml('data-entraide-evaluation');
 
         $this->actingAs($this->buyer)
             ->post(route('reviews.store', $transaction), ['rating' => 5, 'comment' => 'Redepose.'])

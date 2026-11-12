@@ -452,90 +452,39 @@
                     </form>
                 @endif
 
-                {{-- ── MICRO-ECRAN A : LES ETOILES ───────────────────────
-                     Cote aide uniquement. Aucune preselection (`note: 0`), et
-                     « Valider ma note » enregistre IMMEDIATEMENT, sans
-                     attendre un commentaire.
+                {{-- ── CARTE D'EVALUATION — TASK-1809 §2 ─────────────────
+                     MASTER (12/11, « simplification finale du parcours
+                     d'evaluation ») : les deux micro-ecrans (etoiles PUIS
+                     mot), le bouton « Plus tard » et le renoncement
+                     explicite sont retires du parcours visible — principe
+                     directeur « BouclePro lutte contre l'infobesite »
+                     (voir memoire `feedback_principe_directeur_bouclepro_
+                     lutte_contre_infobesite`). UNE carte compacte, UNE
+                     soumission : `reviews.store` acceptait deja `comment` en
+                     plus de `rating` (T1806 §3.B l'avait prevu), seul le
+                     formulaire ne l'exposait pas encore.
 
-                     TASK-1808 (precision MASTER, 11/11 soir) — un premier
-                     « Plus tard » ne doit plus reproposer le formulaire a
-                     chaque visite : seulement une action secondaire discrete.
-                     `evaluation_deferred_at` (pose cote serveur par
-                     `reviews.defer`, et non par ce `x-data` qui ne survivrait
-                     pas a un rechargement) decide laquelle des deux
-                     presentations s'affiche. --}}
+                     Aucune penalite si l'aide quitte sans evaluer : la carte
+                     reste proposee a chaque visite tant qu'aucun avis n'est
+                     depose — il n'y a donc plus besoin d'un etat « differe »
+                     ni d'un renoncement trace pour l'empecher de revenir. --}}
                 @if($_estLAide && $transaction->etoilesEnAttente())
-                    @if($transaction->evaluationDifferee())
-                        {{-- Report deja fait : SEULE une action discrete,
-                             « aucune relance repetitive, aucune pression ».
-                             Le repli est purement cote client — le report est
-                             deja acquis en base, l'ouvrir a nouveau ne
-                             re-ecrit rien. --}}
-                        <div class="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-800"
-                             x-data="{ note: 0, survol: 0, ouvert: false }"
-                             data-entraide-etoiles-differe>
-                            {{-- `<template x-if>` et non `x-show` : un `x-show`
-                                 laisse le formulaire et sa question DANS LE
-                                 DOM, seulement masques par CSS — exactement ce
-                                 qu'une « relance discrete mais presente »
-                                 serait. `x-if` ne le rend pas du tout avant le
-                                 clic. Un seul element racine dans le template,
-                                 c'est la regle Alpine. --}}
-                            <button type="button" x-show="! ouvert" @click="ouvert = true"
-                                class="text-xs text-indigo-600/80 underline underline-offset-2 dark:text-indigo-300/80"
-                                data-entraide-etoiles-reprendre>
-                                {{ __('messages.etoiles_laisser_un_avis') }}
-                            </button>
+                    <div class="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-800"
+                         x-data="{ note: 0, survol: 0 }"
+                         data-entraide-evaluation>
+                        <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                            {{ __('messages.etoiles_titre', ['prenom' => $_bentoPrenomAidant]) }}
+                        </p>
 
-                            <template x-if="ouvert">
-                                <div data-entraide-etoiles>
-                                    <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">
-                                        {{ __('messages.etoiles_titre', ['prenom' => $_bentoPrenomAidant]) }}
-                                    </p>
-                                    <form method="POST" action="{{ $_threadRoute('reviews.store', 'organization.reviews.store', ['transaction' => $transaction]) }}"
-                                          class="mt-2 flex flex-wrap items-center gap-3">
-                                        @csrf
-                                        <div class="flex gap-0.5" data-entraide-etoiles-note>
-                                            @for($i = 1; $i <= 5; $i++)
-                                            <button type="button"
-                                                @click="note = {{ $i }}"
-                                                @mouseenter="survol = {{ $i }}"
-                                                @mouseleave="survol = 0"
-                                                aria-label="{{ $i }}/5"
-                                                class="text-lg transition-transform hover:scale-110 focus:outline-none">
-                                                <span x-text="(survol || note) >= {{ $i }} ? '★' : '☆'"
-                                                      :class="(survol || note) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
-                                            </button>
-                                            @endfor
-                                        </div>
-                                        <input type="hidden" name="rating" :value="note">
-                                        <button type="submit" x-show="note > 0" x-cloak
-                                            class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
-                                            data-entraide-etoiles-valider>
-                                            {{ __('messages.etoiles_valider') }}
-                                        </button>
-                                    </form>
-                                    <button type="button" @click="ouvert = false"
-                                        class="mt-2 text-xs text-gray-500 underline underline-offset-2 dark:text-gray-400"
-                                        data-entraide-etoiles-fermer>
-                                        {{ __('messages.cloturer_annuler') }}
-                                    </button>
-                                </div>
-                            </template>
-                        </div>
-                    @else
-                        {{-- Premiere presentation : la question est posee en
-                             clair, juste apres la cloture. --}}
-                        <div class="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-800"
-                             x-data="{ note: 0, survol: 0 }"
-                             data-entraide-etoiles>
-                            <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">
-                                {{ __('messages.etoiles_titre', ['prenom' => $_bentoPrenomAidant]) }}
-                            </p>
+                        <form method="POST" action="{{ $_threadRoute('reviews.store', 'organization.reviews.store', ['transaction' => $transaction]) }}"
+                              class="mt-2">
+                            @csrf
+                            <textarea name="comment" rows="2" maxlength="1000"
+                                placeholder="{{ __('messages.review_placeholder') }}"
+                                data-entraide-evaluation-commentaire
+                                class="mb-2 w-full resize-none rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 dark:border-indigo-700 dark:bg-gray-800 dark:text-gray-100"></textarea>
 
-                            <form method="POST" action="{{ $_threadRoute('reviews.store', 'organization.reviews.store', ['transaction' => $transaction]) }}"
-                                  class="mt-2 flex flex-wrap items-center gap-3">
-                                @csrf
+                            <div class="flex flex-wrap items-center gap-3">
                                 <div class="flex gap-0.5" data-entraide-etoiles-note>
                                     @for($i = 1; $i <= 5; $i++)
                                     <button type="button"
@@ -551,72 +500,15 @@
                                 </div>
                                 <input type="hidden" name="rating" :value="note">
 
-                                {{-- Le bouton n'apparait qu'une fois les
-                                     etoiles choisies. Rien a desactiver, rien
-                                     a expliquer. --}}
+                                {{-- Le bouton n'apparait qu'une fois une note
+                                     choisie : la note est obligatoire pour
+                                     soumettre, le commentaire reste facultatif. --}}
                                 <button type="submit" x-show="note > 0" x-cloak
                                     class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
                                     data-entraide-etoiles-valider>
                                     {{ __('messages.etoiles_valider') }}
                                 </button>
-                            </form>
-
-                            {{-- « Plus tard » POSTE desormais : c'est ce qui
-                                 fait qu'il ne revient plus en clair aux
-                                 visites suivantes (precision MASTER). Ce
-                                 n'est TOUJOURS PAS un refus — `reviews_skipped_at`
-                                 n'est jamais ecrit ici, et la note reste
-                                 proposable « librement ulterieurement ». --}}
-                            <form method="POST" action="{{ $_threadRoute('reviews.defer', 'organization.reviews.defer', ['transaction' => $transaction]) }}" class="mt-2">
-                                @csrf
-                                <button type="submit" class="text-xs text-indigo-600/80 underline underline-offset-2 dark:text-indigo-300/80"
-                                    data-entraide-etoiles-plus-tard>
-                                    {{ __('messages.etoiles_plus_tard') }}
-                                </button>
-                            </form>
-
-                            {{-- Le renoncement EXPLICITE, conserve (§5 :
-                                 « conserver, si elle existe, la possibilite
-                                 explicite de renoncer »). Lui, ecrit
-                                 `reviews_skipped_at`. --}}
-                            <form method="POST" action="{{ $_threadRoute('reviews.skip', 'organization.reviews.skip', ['transaction' => $transaction]) }}" class="mt-1">
-                                @csrf
-                                <button type="submit" class="text-xs text-gray-500 underline underline-offset-2 dark:text-gray-400"
-                                        data-entraide-merci-ignorer>
-                                    {{ __('messages.review_skip') }}
-                                </button>
-                            </form>
-                        </div>
-                    @endif
-
-                {{-- ── MICRO-ECRAN B : LE MOT ────────────────────────────
-                     « SEULEMENT apres enregistrement des etoiles ». Le `@elseif`
-                     est la garantie de forme : les deux ecrans ne peuvent
-                     litteralement pas coexister. --}}
-                @elseif($_estLAide && $transaction->motEnAttente())
-                    <div class="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-800" data-entraide-mot>
-                        <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">
-                            {{ __('messages.mot_titre') }}
-                        </p>
-                        <form method="POST" action="{{ $_threadRoute('reviews.comment', 'organization.reviews.comment', ['transaction' => $transaction]) }}"
-                              class="mt-2">
-                            @csrf
-                            <textarea name="comment" rows="2" maxlength="1000"
-                                placeholder="{{ __('messages.review_placeholder') }}"
-                                data-entraide-mot-champ
-                                class="mb-2 w-full resize-none rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 dark:border-indigo-700 dark:bg-gray-800 dark:text-gray-100"></textarea>
-                            <button type="submit"
-                                class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
-                                data-entraide-mot-publier>
-                                {{ __('messages.mot_publier') }}
-                            </button>
-                        </form>
-                        <form method="POST" action="{{ $_threadRoute('reviews.comment.skip', 'organization.reviews.comment.skip', ['transaction' => $transaction]) }}" class="mt-2">
-                            @csrf
-                            <button type="submit" class="text-xs text-indigo-600/80 underline underline-offset-2 dark:text-indigo-300/80"
-                                    data-entraide-mot-terminer>
-                                {{ __('messages.mot_terminer') }}
-                            </button>
+                            </div>
                         </form>
                     </div>
                 @endif

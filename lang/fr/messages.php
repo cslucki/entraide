@@ -137,7 +137,6 @@ return [
     'review_rating_required' => 'Choisissez une note avant d’envoyer.',
     'send_review' => 'Envoyer le merci',
     'review_sent' => 'Merci pour votre évaluation !',
-    'review_skip' => 'Ne pas évaluer',
     // TASK-1806 (arbitrage du 11/11) — la 3e et derniere etape : confirmer,
     // et dire merci dans le meme geste. Le mot « facultatif » est dit
     // explicitement : une personne qui ne veut pas noter doit le comprendre
@@ -153,7 +152,6 @@ return [
     'cloturer_intro' => 'Cela clôture l’entraide et transfère :temps à :prenom. La conversation passera en lecture seule.',
     'cloturer_intro_offert' => 'Cela clôture l’entraide. :prenom a offert son aide : aucun point n’est transféré.',
     'cloturer_valider' => 'Confirmer',
-    'cloturer_annuler' => 'Annuler',
     'en_cours_titre' => 'Entraide en cours',
     'en_cours_intro' => 'Discutez avec :prenom. Quand l’aide aura été reçue, confirmez-le ici.',
     // TASK-1808 §3 — ce que chacun lit APRES la cloture.
@@ -163,14 +161,10 @@ return [
     'cloture_aidant_titre' => 'Merci pour votre aide !',
     'cloture_aidant_corps' => 'Vous avez reçu :temps de la part de :prenom.',
     'cloture_aidant_corps_offert' => 'Vous avez offert votre aide à :prenom.',
-    // TASK-1808 §5 — les deux micro-ecrans, jamais ensemble.
+    // TASK-1809 §2 — UNE carte compacte (note + commentaire facultatif en
+    // une seule soumission), remplace les deux micro-ecrans de T1808 §5.
     'etoiles_titre' => 'Comment évaluez-vous l’aide de :prenom ?',
-    'etoiles_valider' => 'Valider ma note',
-    'etoiles_plus_tard' => 'Plus tard',
-    'etoiles_laisser_un_avis' => 'Laisser une évaluation',
-    'mot_titre' => 'Souhaitez-vous ajouter quelques mots ?',
-    'mot_publier' => 'Publier mon commentaire',
-    'mot_terminer' => 'Terminer sans commentaire',
+    'etoiles_valider' => 'Valider mon évaluation',
     'bento_title' => 'Entraide réalisée',
     'bento_duree' => 'Durée',
     'bento_duree_absente' => 'Durée non renseignée',

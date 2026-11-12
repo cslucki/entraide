@@ -164,50 +164,18 @@ class Transaction extends Model
     }
 
     /**
-     * TASK-1808 §5 — LES DEUX MICRO-ECRANS, dits par deux questions separees.
+     * TASK-1808 §5, puis TASK-1809 §2 — LA carte d'evaluation.
      *
-     * L'ecran A (les etoiles) et l'ecran B (le mot) ne doivent JAMAIS etre
-     * visibles en meme temps : c'est toute la decision produit. Deux methodes
-     * donc, et non un drapeau a trois valeurs — la vue pose une question a la
-     * fois et n'a aucun etat a demeler.
+     * Une seule question desormais (note + commentaire facultatif, en une
+     * seule soumission) : les deux micro-ecrans successifs de T1808 (les
+     * etoiles PUIS le mot) sont fusionnes, et `evaluation_deferred_at`
+     * (« Plus tard ») n'est plus ecrit par aucun chemin visible — la carte
+     * reste simplement proposee tant qu'aucun avis n'est depose ni
+     * explicitement ignore (`evaluationIgnoree()`).
      */
     public function etoilesEnAttente(): bool
     {
         return $this->evaluationEnAttente();
-    }
-
-    /**
-     * TASK-1808 (precision MASTER) — « Plus tard » a ete clique au moins une
-     * fois : le formulaire ne doit plus se reproposer seul a chaque visite,
-     * seulement une action secondaire discrete pour qui veut l'ouvrir.
-     *
-     * Distinct d'`evaluationIgnoree()` : un report n'est pas un renoncement,
-     * et l'un n'implique jamais l'autre.
-     */
-    public function evaluationDifferee(): bool
-    {
-        return $this->evaluation_deferred_at !== null;
-    }
-
-    /**
-     * Le mot est attendu quand la note existe, que le mot n'a pas ete ecrit,
-     * et que l'aide n'a pas repondu « Terminer sans commentaire ».
-     *
-     * Lu sur l'avis de l'AIDE, jamais sur la transaction : c'est l'avis qui
-     * porte le commentaire, et `unique(transaction_id)` garantit qu'il n'y en
-     * a qu'un.
-     */
-    public function motEnAttente(): bool
-    {
-        if ($this->status !== 'completed') {
-            return false;
-        }
-
-        $avis = $this->reviews()->where('reviewer_id', $this->buyer_id)->first();
-
-        return $avis !== null
-            && ($avis->comment === null || $avis->comment === '')
-            && $avis->comment_skipped_at === null;
     }
 
     /**
