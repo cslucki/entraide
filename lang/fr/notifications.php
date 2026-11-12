@@ -309,6 +309,15 @@ return [
         // l'administrable `entraide_comment_created` (seeder + migration) ; ceci
         // ne sert que s'il manque. Sujet GENERIQUE : un apercu de boite mail se
         // lit sans deverrouiller, meme doctrine que `push_title`.
+        // TASK-1808 §6 — REPLI. Le gabarit qui fait foi est l'administrable
+        // `entraide_evaluation_invite` (seeder + migration) ; ceci ne sert
+        // que s'il manque. `:aidant` et `:url` restent des JETONS, meme
+        // regle que les reprs ci-dessus.
+        'entraide_evaluation_invite' => [
+            'subject' => 'Un petit retour sur l’aide reçue ?',
+            'body' => '<p>Bonjour,</p><p>Votre entraide avec :aidant est terminée.</p><p>Vous pouvez lui laisser une évaluation.</p><p><a href=":url">Laisser une évaluation</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>Merci de faire vivre l’entraide sur BouclePro.</p>',
+        ],
+
         'entraide_comment_created' => [
             'subject' => 'Un membre a commenté votre entraide',
             'body' => '<p>Bonjour,</p><p>Un membre a laissé un commentaire sur votre entraide.</p><p><a href=":url">Voir le commentaire</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>Un commentaire n’engage rien : ni entraide engagée, ni acceptation d’aide, ni temps promis.</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',

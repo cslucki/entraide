@@ -266,7 +266,9 @@ class TransactionController extends Controller
         // reste redeposable — `evaluationEnAttente()` est encore vrai.
         $avisDemande = ($donnees['rating'] ?? null) !== null;
 
-        $avisEnregistre = rescue(
+        // TASK-1808 — meme regle que cote web : une cloture sans note n'ecrit
+        // ni avis ni renoncement. Voir le commentaire du controleur web.
+        $avisEnregistre = ! $avisDemande || rescue(
             function () use ($fresh, $donnees) {
                 // Point de sauvegarde dedie — meme raison que dans le
                 // controleur web : sous PostgreSQL une requete en echec avorte

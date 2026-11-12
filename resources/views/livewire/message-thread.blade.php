@@ -282,231 +282,342 @@
         </x-slot:messages>
 
         <x-slot:after>
-            {{-- TASK-1806 (arbitrage du 11/11) — LA 3e ET DERNIERE ETAPE.
+            {{-- ============================================================
+                 TASK-1808 — LE PARCOURS FINAL, decision produit du 11/11.
+                 ============================================================
+                 Le principe gouverne la forme : « reduire l'infobesite, une
+                 seule action principale visible a la fois ». Quatre moments
+                 desormais SEPARES, et jamais deux a l'ecran en meme temps :
 
-                 « Apres l'entraide et les echanges dans le chat, D1 confirme
-                 avoir bien recu l'aide. Sur ce meme ecran, D1 peut laisser
-                 une note et un mot de remerciement a D2, ou ignorer
-                 l'evaluation. »
+                   1. l'entraide se realise      -> on discute, un bouton compact
+                   2. la cloture                 -> un panneau, deplie au clic
+                   3. la reconnaissance          -> ce que chacun lit apres
+                   4. l'evaluation, facultative  -> micro-ecran A puis B
 
-                 D'ou sa place : EN BAS DU FIL, apres les messages — c'est la
-                 que le regard arrive quand la conversation est finie, et
-                 c'est le seul endroit du produit qui propose ce geste.
-                 `CarteEntraide::actions()` n'emet plus rien pour `accepted`
-                 precisement pour qu'il n'existe pas un second chemin, en
-                 haut, qui cloturerait sans jamais proposer de dire merci.
+                 Ce que T1806 posait ici — une grande carte portant d'un coup
+                 la note, le mot, le Flux et la confirmation — apparaissait
+                 DES l'accord, avant meme que l'aide ait ete rendue. C'est
+                 l'anomalie principale signalee par Cyril le 11/11.
 
-                 Un seul bouton, et il n'est JAMAIS desactive : confirmer sans
-                 laisser d'avis est un choix legitime, pas un oubli a corriger.
-                 La note vaut `0` tant qu'aucune etoile n'est choisie, et le
-                 champ cache part alors vide — `nullable` cote serveur, aucune
-                 note inventee, `reviews_skipped_at` ecrit a la place. --}}
+                 Les trois etapes METIER ne bougent pas (Demande, Accord,
+                 Confirmation) : le depliage est un etat d'INTERFACE, et il
+                 n'ecrit rien. Seule la validation finale cloture, transfere
+                 et enregistre. --}}
+
+            {{-- ── 1 & 2. L'ENTRAIDE EN COURS, PUIS SA CLOTURE ───────────
+                 TASK-1808 (clarification MASTER, 11/11) — REGLE ABSOLUE :
+                 tant que l'aide n'a pas explicitement marque l'entraide comme
+                 terminee, il ne voit AUCUNE sollicitation a evaluer. Ni
+                 etoile, ni champ de commentaire, ni carte d'evaluation
+                 « meme repliee », ni phrase laissant croire qu'on attend une
+                 note.
+
+                 Et la consigne va plus loin : un accordeon qui CACHE une
+                 evaluation deja proposee pendant l'entraide ne corrige rien.
+                 D'ou la forme retenue — un bouton, un seul, qui POSTE
+                 directement la cloture. Pas de panneau intermediaire : « un
+                 clic sur le bouton doit immediatement cloturer l'entraide ».
+
+                 Consequence assumee : la case « partager dans le Flux » ne
+                 peut plus vivre ici, puisqu'il n'y a plus d'ecran avant la
+                 cloture. Elle devient une action DISTINCTE d'apres-cloture,
+                 plus bas — ce qui la rend aussi independante de l'evaluation,
+                 comme le §7 le demandait.
+
+                 Cote AIDE uniquement : l'aidant n'a pas le pouvoir de
+                 cloturer, regle tenue aussi par `TransactionPolicy::complete()`
+                 et par la garde de statut du controleur. --}}
             @if($transaction->confirmationEnAttente() && $transaction->estLAide(auth()->user()) && ! $transaction->isDirectConversation())
             @php
                 $_confAidant = $transaction->seller;
                 $_confPrenom = $_confAidant?->first_name ?: ($_confAidant?->name ?: __('profile.deactivated_user'));
-                $_confPoints = $transaction->points_agreed ?? $transaction->points_proposed;
-                $_confOffert = \App\Support\Entraide\TempsPartage::estOffert($_confPoints);
-                $_confTemps = \App\Support\Entraide\TempsPartage::libelle($_confPoints);
             @endphp
-            <div class="border-t-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-4"
-                 x-data="{ rating: 0, hovered: 0 }"
-                 data-entraide-confirmer>
-                <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
-                    🤝 {{ __('messages.confirmer_titre', ['prenom' => $_confPrenom]) }}
-                </p>
-                <p class="mt-1 mb-3 text-xs text-indigo-600/80 dark:text-indigo-300/80">
-                    {{ $_confOffert
-                        ? __('messages.confirmer_intro_offert', ['prenom' => $_confPrenom])
-                        : __('messages.confirmer_intro', ['prenom' => $_confPrenom, 'temps' => $_confTemps]) }}
-                </p>
-
-                <form method="POST" action="{{ $_threadRoute('transactions.complete', 'organization.transactions.complete', ['transaction' => $transaction]) }}">
-                    @csrf @method('PATCH')
-
-                    <p class="mb-1 text-xs font-medium text-indigo-700/90 dark:text-indigo-300/90">
-                        {{ __('messages.confirmer_note_label') }}
+            <div class="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
+                 data-entraide-cloture-zone>
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {{ __('messages.en_cours_titre') }}
                     </p>
-
-                    <textarea name="comment" rows="3" maxlength="1000"
-                        placeholder="{{ __('messages.review_placeholder') }}"
-                        data-entraide-confirmer-mot
-                        class="w-full px-3 py-2 border border-indigo-200 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500 mb-3 resize-none"></textarea>
-
-                    <div class="flex flex-wrap items-center gap-2 mb-3">
-                        <div class="flex gap-0.5" data-entraide-confirmer-note>
-                            @for($i = 1; $i <= 5; $i++)
-                            <button type="button"
-                                @click="rating = {{ $i }}"
-                                @mouseenter="hovered = {{ $i }}"
-                                @mouseleave="hovered = 0"
-                                aria-label="{{ $i }}/5"
-                                class="text-base transition-transform hover:scale-110 focus:outline-none">
-                                <span x-text="(hovered || rating) >= {{ $i }} ? '★' : '☆'"
-                                      :class="(hovered || rating) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
-                            </button>
-                            @endfor
-                        </div>
-                        {{-- Vide tant qu'aucune etoile n'est choisie : le
-                             serveur recoit `null`, jamais un zero qui serait
-                             refuse par la validation. --}}
-                        <input type="hidden" name="rating" :value="rating === 0 ? '' : rating">
-                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('messages.confirmer_sans_note') }}</span>
-                    </div>
-
-                    {{-- TASK-1757 §9.5, arbitrage MASTER du 11/11 : la case
-                         suit la confirmation, donc elle est desormais cochee
-                         par l'AIDE. Voir le docbloc de
-                         `TransactionController::partagerDansLeFlux()`. --}}
-                    <label class="mb-3 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
-                        <input type="checkbox" name="partager_dans_le_flux" value="1"
-                               data-entraide-partager-flux
-                               class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600">
-                        <span>{{ __('entraide.flux.partager') }}</span>
-                    </label>
-
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ __('messages.en_cours_intro', ['prenom' => $_confPrenom]) }}
+                    </p>
+                </div>
+                {{-- La SEULE action visible pendant l'entraide. Le formulaire
+                     ne porte ni `rating` ni `comment` : le controleur les
+                     valide en `nullable` et ne recevra donc rien a
+                     enregistrer. Aucune note inventee, aucun renoncement
+                     trace — l'evaluation n'a simplement pas encore ete
+                     proposee. --}}
+                <form method="POST" action="{{ $_threadRoute('transactions.complete', 'organization.transactions.complete', ['transaction' => $transaction]) }}"
+                      class="flex-shrink-0">
+                    @csrf @method('PATCH')
                     <button type="submit"
-                        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg font-medium transition"
-                        data-entraide-action="mark_done"
-                        data-entraide-confirmer-envoyer>
-                        {{ __('messages.actions.mark_done') }}
+                            class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
+                            data-entraide-action="mark_done"
+                            data-entraide-cloturer>
+                        {{ __('messages.cloturer_bouton') }}
                     </button>
                 </form>
             </div>
             @endif
 
-            {{-- TASK-1806 §3.D — le Bento de fin d'entraide.
-
-                 Remplace l'ancien bloc « Dites merci » qui etait SYMETRIQUE :
-                 le formulaire d'evaluation s'affichait et pouvait etre soumis
-                 par les DEUX participants (bug TASK-1806), alors que la regle
-                 produit n'a toujours voulu qu'UN evaluateur (l'aide) et UN
-                 destinataire (l'aidant) — demande d'aide ou proposition
-                 d'aide, le sens ne s'inverse jamais (`estLAide`/`estLAidant`).
-
-                 Une seule carte recapitulative COMMUNE (duree, points,
-                 identite de l'aidant — jamais recalcules depuis des
-                 timestamps, toujours `TempsPartage` sur `points_agreed`,
-                 memes valeurs que `CarteEntraide`), puis UNE carte qui depend
-                 du role : evaluation cote aide, contribution cote aidant. Le
-                 texte ne repete plus ce que la carte recapitulative vient de
-                 dire — l'ancien `review_intro` redisait « l'entraide est
-                 terminee, :temps partagees », deja porte par cette carte. --}}
+            {{-- ── 3 & 4. APRES LA CLOTURE ───────────────────────────────
+                 Le recapitulatif est COMPACT (UX-B) : une seule ligne de
+                 trois reperes, et non trois blocs empiles. Puis la phrase qui
+                 depend du role, puis UN micro-ecran au plus. --}}
             @if($transaction->status === 'completed' && !$transaction->isDirectConversation())
             @php
                 $_bentoLecteur = auth()->user();
                 $_bentoAidant = $transaction->seller;
+                $_bentoAide = $transaction->buyer;
+                $_bentoPrenomAidant = $_bentoAidant?->first_name ?: ($_bentoAidant?->name ?: __('profile.deactivated_user'));
+                $_bentoPrenomAide = $_bentoAide?->first_name ?: ($_bentoAide?->name ?: __('profile.deactivated_user'));
                 $_bentoPoints = $transaction->points_agreed;
+                $_bentoOffert = \App\Support\Entraide\TempsPartage::estOffert($_bentoPoints);
+                $_bentoTemps = \App\Support\Entraide\TempsPartage::libelle($_bentoPoints);
                 $_bentoDuree = $_bentoPoints !== null
                     ? \App\Support\Entraide\TempsPartage::duree($_bentoPoints)
                     : __('messages.bento_duree_absente');
+                $_estLAide = $transaction->estLAide($_bentoLecteur);
             @endphp
-            <div class="border-t-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-4"
+            <div class="border-t border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-3"
                  data-entraide-bento>
-                {{-- La carte recapitulative — commune aux deux roles. Le
-                     statut « Terminé » est deja porte par le badge de
-                     `CarteEntraide` plus haut dans le fil : pas de doublon. --}}
-                <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-2" data-entraide-bento-titre>
-                    🎉 {{ __('messages.bento_title') }}
-                </p>
-                <div class="flex flex-wrap gap-3 mb-3" data-entraide-bento-recap>
-                    <div class="min-w-[7rem]">
-                        <p class="text-[10px] uppercase tracking-wide text-indigo-500 dark:text-indigo-400">{{ __('messages.bento_duree') }}</p>
-                        <p class="text-sm font-semibold text-indigo-900 dark:text-indigo-100" data-entraide-bento-duree>{{ $_bentoDuree }}</p>
-                    </div>
+
+                {{-- La reconnaissance, orientee role. Deux phrases distinctes,
+                     parce que les deux personnes n'ont pas vecu la meme chose :
+                     l'une a recu de l'aide, l'autre en a donne. --}}
+                @if($_estLAide)
+                    <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300" data-entraide-cloture-aide>
+                        🎉 {{ __('messages.cloture_aide_titre') }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-indigo-600/80 dark:text-indigo-300/80">
+                        {{ $_bentoOffert
+                            ? __('messages.cloture_aide_corps_offert', ['prenom' => $_bentoPrenomAidant])
+                            : __('messages.cloture_aide_corps', ['temps' => $_bentoTemps, 'prenom' => $_bentoPrenomAidant]) }}
+                    </p>
+                @elseif($transaction->estLAidant($_bentoLecteur))
+                    <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300" data-entraide-cloture-aidant>
+                        🙏 {{ __('messages.cloture_aidant_titre') }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-indigo-600/80 dark:text-indigo-300/80">
+                        {{ $_bentoOffert
+                            ? __('messages.cloture_aidant_corps_offert', ['prenom' => $_bentoPrenomAide])
+                            : __('messages.cloture_aidant_corps', ['temps' => $_bentoTemps, 'prenom' => $_bentoPrenomAide]) }}
+                    </p>
+                @endif
+
+                {{-- TASK-1808 §4 — LA PLUIE DE COEURS POUR L'AIDANT.
+                     Rendue uniquement si le serveur a decide qu'elle est due :
+                     `pluieDeCoeurs` est pose par `MessageThread::mount()`, qui
+                     ecrit en meme temps `seller_celebrated_at`. Elle ne peut
+                     donc pas se rejouer au rechargement ni sur un autre
+                     appareil — l'exigence « une seule fois par entraide ET par
+                     aidant » se tient en base, pas dans le navigateur.
+                     Independante de toute evaluation, et elle ne bloque rien :
+                     le calque est `pointer-events: none`. --}}
+                @if($pluieDeCoeurs)
+                    <x-coeurs marqueur="data-entraide-coeurs" cle="entraide-{{ $transaction->id }}" />
+                @endif
+
+                {{-- Recapitulatif compact — une ligne, separateurs discrets.
+                     Les valeurs ne sont JAMAIS recalculees depuis des
+                     horodatages : toujours `TempsPartage` sur `points_agreed`,
+                     les memes qu'ailleurs dans le produit. --}}
+                <p class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-indigo-700/90 dark:text-indigo-300/90"
+                   data-entraide-bento-recap>
+                    <span data-entraide-bento-duree>{{ $_bentoDuree }}</span>
                     @if($transaction->pointsAttribues())
-                        <div class="min-w-[7rem]">
-                            <p class="text-[10px] uppercase tracking-wide text-indigo-500 dark:text-indigo-400">{{ __('messages.bento_points') }}</p>
-                            <p class="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{{ trans_choice('messages.bento_points_value', $_bentoPoints, ['n' => $_bentoPoints]) }}</p>
-                        </div>
+                        <span aria-hidden="true" class="text-indigo-300 dark:text-indigo-700">·</span>
+                        <span>{{ trans_choice('messages.bento_points_value', $_bentoPoints, ['n' => $_bentoPoints]) }}</span>
                     @endif
-                    <div class="min-w-[7rem]">
-                        <p class="text-[10px] uppercase tracking-wide text-indigo-500 dark:text-indigo-400">{{ __('messages.bento_aidant') }}</p>
-                        <p class="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{{ $_bentoAidant?->first_name ?: ($_bentoAidant?->name ?: __('profile.deactivated_user')) }}</p>
-                    </div>
-                </div>
+                    <span aria-hidden="true" class="text-indigo-300 dark:text-indigo-700">·</span>
+                    <span>{{ __('messages.bento_aidant') }} : {{ $_bentoPrenomAidant }}</span>
+                </p>
 
-                {{-- Carte d'evaluation — UNIQUEMENT cote aide (TASK-1806). --}}
-                @if($transaction->estLAide($_bentoLecteur) && $transaction->evaluationEnAttente())
-                    <div class="border-t border-indigo-200 dark:border-indigo-800 pt-3"
-                         x-data="{ rating: 0, hovered: 0 }"
-                         data-entraide-merci>
-                        <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
-                            🙏 {{ __('messages.review_exchange', ['prenom' => $_bentoAidant?->first_name ?: $_bentoAidant?->name]) }}
-                        </p>
-                        <p class="mt-1 mb-3 text-xs text-indigo-600/80 dark:text-indigo-300/80">
-                            {{ __('messages.review_intro') }}
-                        </p>
-                        <form method="POST" action="{{ $_threadRoute('reviews.store', 'organization.reviews.store', ['transaction' => $transaction]) }}">
-                            @csrf
+                {{-- TASK-1808 §7 — le partage dans le Flux, devenu un geste
+                     d'apres-cloture et INDEPENDANT de l'evaluation : il n'est
+                     ni dans l'ecran des etoiles ni dans celui du mot, pour
+                     qu'on puisse partager sans noter, et noter sans partager.
+                     Un seul bouton, discret, et il disparait une fois le
+                     partage fait — `FeedEventEmitter` est idempotent, mais
+                     reproposer le geste laisserait croire qu'il n'a pas pris. --}}
+                @if($_estLAide && ! $fluxDejaPartage)
+                    <form method="POST" action="{{ $_threadRoute('transactions.share-in-feed', 'organization.transactions.share-in-feed', ['transaction' => $transaction]) }}" class="mt-2">
+                        @csrf
+                        <button type="submit"
+                                class="text-xs text-indigo-600/80 underline underline-offset-2 dark:text-indigo-300/80"
+                                data-entraide-partager-flux>
+                            {{ __('entraide.flux.partager') }}
+                        </button>
+                    </form>
+                @endif
 
-                            {{-- Le MOT d'abord : c'est lui le geste. --}}
-                            <textarea name="comment" rows="3" maxlength="1000"
-                                placeholder="{{ __('messages.review_placeholder') }}"
-                                data-entraide-merci-mot
-                                class="w-full px-3 py-2 border border-indigo-200 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500 mb-3 resize-none"></textarea>
+                {{-- ── MICRO-ECRAN A : LES ETOILES ───────────────────────
+                     Cote aide uniquement. Aucune preselection (`note: 0`), et
+                     « Valider ma note » enregistre IMMEDIATEMENT, sans
+                     attendre un commentaire.
 
-                            {{-- TASK-1806 — la note n'est plus PRE-SELECTIONNEE
-                                 (`rating: 0` ci-dessus) : la consigne demande
-                                 explicitement de ne jamais presélectionner,
-                                 ce qui annule l'arbitrage Q6 anterieur sur ce
-                                 point precis. Elle reste NOT NULL en base
-                                 (`min:1` cote serveur) : zero est refuse, le
-                                 bouton le rappelle tant qu'aucune etoile n'est
-                                 choisie. --}}
-                            <div class="flex flex-wrap items-center gap-2 mb-3">
-                                <div class="flex gap-0.5" data-entraide-merci-note>
+                     TASK-1808 (precision MASTER, 11/11 soir) — un premier
+                     « Plus tard » ne doit plus reproposer le formulaire a
+                     chaque visite : seulement une action secondaire discrete.
+                     `evaluation_deferred_at` (pose cote serveur par
+                     `reviews.defer`, et non par ce `x-data` qui ne survivrait
+                     pas a un rechargement) decide laquelle des deux
+                     presentations s'affiche. --}}
+                @if($_estLAide && $transaction->etoilesEnAttente())
+                    @if($transaction->evaluationDifferee())
+                        {{-- Report deja fait : SEULE une action discrete,
+                             « aucune relance repetitive, aucune pression ».
+                             Le repli est purement cote client — le report est
+                             deja acquis en base, l'ouvrir a nouveau ne
+                             re-ecrit rien. --}}
+                        <div class="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-800"
+                             x-data="{ note: 0, survol: 0, ouvert: false }"
+                             data-entraide-etoiles-differe>
+                            {{-- `<template x-if>` et non `x-show` : un `x-show`
+                                 laisse le formulaire et sa question DANS LE
+                                 DOM, seulement masques par CSS — exactement ce
+                                 qu'une « relance discrete mais presente »
+                                 serait. `x-if` ne le rend pas du tout avant le
+                                 clic. Un seul element racine dans le template,
+                                 c'est la regle Alpine. --}}
+                            <button type="button" x-show="! ouvert" @click="ouvert = true"
+                                class="text-xs text-indigo-600/80 underline underline-offset-2 dark:text-indigo-300/80"
+                                data-entraide-etoiles-reprendre>
+                                {{ __('messages.etoiles_laisser_un_avis') }}
+                            </button>
+
+                            <template x-if="ouvert">
+                                <div data-entraide-etoiles>
+                                    <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                                        {{ __('messages.etoiles_titre', ['prenom' => $_bentoPrenomAidant]) }}
+                                    </p>
+                                    <form method="POST" action="{{ $_threadRoute('reviews.store', 'organization.reviews.store', ['transaction' => $transaction]) }}"
+                                          class="mt-2 flex flex-wrap items-center gap-3">
+                                        @csrf
+                                        <div class="flex gap-0.5" data-entraide-etoiles-note>
+                                            @for($i = 1; $i <= 5; $i++)
+                                            <button type="button"
+                                                @click="note = {{ $i }}"
+                                                @mouseenter="survol = {{ $i }}"
+                                                @mouseleave="survol = 0"
+                                                aria-label="{{ $i }}/5"
+                                                class="text-lg transition-transform hover:scale-110 focus:outline-none">
+                                                <span x-text="(survol || note) >= {{ $i }} ? '★' : '☆'"
+                                                      :class="(survol || note) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
+                                            </button>
+                                            @endfor
+                                        </div>
+                                        <input type="hidden" name="rating" :value="note">
+                                        <button type="submit" x-show="note > 0" x-cloak
+                                            class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
+                                            data-entraide-etoiles-valider>
+                                            {{ __('messages.etoiles_valider') }}
+                                        </button>
+                                    </form>
+                                    <button type="button" @click="ouvert = false"
+                                        class="mt-2 text-xs text-gray-500 underline underline-offset-2 dark:text-gray-400"
+                                        data-entraide-etoiles-fermer>
+                                        {{ __('messages.cloturer_annuler') }}
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    @else
+                        {{-- Premiere presentation : la question est posee en
+                             clair, juste apres la cloture. --}}
+                        <div class="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-800"
+                             x-data="{ note: 0, survol: 0 }"
+                             data-entraide-etoiles>
+                            <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                                {{ __('messages.etoiles_titre', ['prenom' => $_bentoPrenomAidant]) }}
+                            </p>
+
+                            <form method="POST" action="{{ $_threadRoute('reviews.store', 'organization.reviews.store', ['transaction' => $transaction]) }}"
+                                  class="mt-2 flex flex-wrap items-center gap-3">
+                                @csrf
+                                <div class="flex gap-0.5" data-entraide-etoiles-note>
                                     @for($i = 1; $i <= 5; $i++)
                                     <button type="button"
-                                        @click="rating = {{ $i }}"
-                                        @mouseenter="hovered = {{ $i }}"
-                                        @mouseleave="hovered = 0"
+                                        @click="note = {{ $i }}"
+                                        @mouseenter="survol = {{ $i }}"
+                                        @mouseleave="survol = 0"
                                         aria-label="{{ $i }}/5"
-                                        class="text-base transition-transform hover:scale-110 focus:outline-none">
-                                        <span x-text="(hovered || rating) >= {{ $i }} ? '★' : '☆'"
-                                              :class="(hovered || rating) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
+                                        class="text-lg transition-transform hover:scale-110 focus:outline-none">
+                                        <span x-text="(survol || note) >= {{ $i }} ? '★' : '☆'"
+                                              :class="(survol || note) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
                                     </button>
                                     @endfor
                                 </div>
-                                <input type="hidden" name="rating" :value="rating">
-                                <span class="text-xs" :class="rating === 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'"
-                                      x-text="rating === 0 ? @js(__('messages.review_rating_required')) : @js(__('messages.review_rating_hint'))"></span>
-                            </div>
+                                <input type="hidden" name="rating" :value="note">
 
-                            <div class="flex flex-wrap items-center gap-2">
-                                <button type="submit"
-                                    :disabled="rating === 0"
-                                    :class="rating === 0 ? 'opacity-50 cursor-not-allowed' : ''"
-                                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg font-medium transition"
-                                    data-entraide-merci-envoyer>
-                                    {{ __('messages.send_review') }}
+                                {{-- Le bouton n'apparait qu'une fois les
+                                     etoiles choisies. Rien a desactiver, rien
+                                     a expliquer. --}}
+                                <button type="submit" x-show="note > 0" x-cloak
+                                    class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
+                                    data-entraide-etoiles-valider>
+                                    {{ __('messages.etoiles_valider') }}
                                 </button>
-                            </div>
-                        </form>
+                            </form>
 
-                        {{-- TASK-1806 §3.A — possibilite de ne pas laisser
-                             d'avis, sans note inventee : un formulaire SEPARE,
-                             qui ne pose jamais `rating`. --}}
-                        <form method="POST" action="{{ $_threadRoute('reviews.skip', 'organization.reviews.skip', ['transaction' => $transaction]) }}" class="mt-2">
+                            {{-- « Plus tard » POSTE desormais : c'est ce qui
+                                 fait qu'il ne revient plus en clair aux
+                                 visites suivantes (precision MASTER). Ce
+                                 n'est TOUJOURS PAS un refus — `reviews_skipped_at`
+                                 n'est jamais ecrit ici, et la note reste
+                                 proposable « librement ulterieurement ». --}}
+                            <form method="POST" action="{{ $_threadRoute('reviews.defer', 'organization.reviews.defer', ['transaction' => $transaction]) }}" class="mt-2">
+                                @csrf
+                                <button type="submit" class="text-xs text-indigo-600/80 underline underline-offset-2 dark:text-indigo-300/80"
+                                    data-entraide-etoiles-plus-tard>
+                                    {{ __('messages.etoiles_plus_tard') }}
+                                </button>
+                            </form>
+
+                            {{-- Le renoncement EXPLICITE, conserve (§5 :
+                                 « conserver, si elle existe, la possibilite
+                                 explicite de renoncer »). Lui, ecrit
+                                 `reviews_skipped_at`. --}}
+                            <form method="POST" action="{{ $_threadRoute('reviews.skip', 'organization.reviews.skip', ['transaction' => $transaction]) }}" class="mt-1">
+                                @csrf
+                                <button type="submit" class="text-xs text-gray-500 underline underline-offset-2 dark:text-gray-400"
+                                        data-entraide-merci-ignorer>
+                                    {{ __('messages.review_skip') }}
+                                </button>
+                            </form>
+                        </div>
+                    @endif
+
+                {{-- ── MICRO-ECRAN B : LE MOT ────────────────────────────
+                     « SEULEMENT apres enregistrement des etoiles ». Le `@elseif`
+                     est la garantie de forme : les deux ecrans ne peuvent
+                     litteralement pas coexister. --}}
+                @elseif($_estLAide && $transaction->motEnAttente())
+                    <div class="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-800" data-entraide-mot>
+                        <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                            {{ __('messages.mot_titre') }}
+                        </p>
+                        <form method="POST" action="{{ $_threadRoute('reviews.comment', 'organization.reviews.comment', ['transaction' => $transaction]) }}"
+                              class="mt-2">
                             @csrf
-                            <button type="submit" class="text-xs text-indigo-600/80 dark:text-indigo-300/80 underline underline-offset-2"
-                                    data-entraide-merci-ignorer>
-                                {{ __('messages.review_skip') }}
+                            <textarea name="comment" rows="2" maxlength="1000"
+                                placeholder="{{ __('messages.review_placeholder') }}"
+                                data-entraide-mot-champ
+                                class="mb-2 w-full resize-none rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 dark:border-indigo-700 dark:bg-gray-800 dark:text-gray-100"></textarea>
+                            <button type="submit"
+                                class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
+                                data-entraide-mot-publier>
+                                {{ __('messages.mot_publier') }}
                             </button>
                         </form>
-                    </div>
-                @elseif($transaction->estLAidant($_bentoLecteur))
-                    {{-- Carte de contribution realisee — cote aidant. Aucun
-                         formulaire d'evaluation ici : l'aidant ne note jamais
-                         l'aide, et ne recoit jamais le formulaire qui lui est
-                         destine (TASK-1806). --}}
-                    <div class="border-t border-indigo-200 dark:border-indigo-800 pt-3" data-entraide-contribution>
-                        <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
-                            🤝 {{ __('messages.bento_contribution_title', ['prenom' => $transaction->buyer?->first_name ?: $transaction->buyer?->name]) }}
-                        </p>
-                        <p class="mt-1 text-xs text-indigo-600/80 dark:text-indigo-300/80">
-                            {{ __('messages.bento_contribution_body') }}
-                        </p>
+                        <form method="POST" action="{{ $_threadRoute('reviews.comment.skip', 'organization.reviews.comment.skip', ['transaction' => $transaction]) }}" class="mt-2">
+                            @csrf
+                            <button type="submit" class="text-xs text-indigo-600/80 underline underline-offset-2 dark:text-indigo-300/80"
+                                    data-entraide-mot-terminer>
+                                {{ __('messages.mot_terminer') }}
+                            </button>
+                        </form>
                     </div>
                 @endif
             </div>

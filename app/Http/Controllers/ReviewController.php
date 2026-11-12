@@ -38,8 +38,77 @@ class ReviewController extends Controller
 
         EvaluationEntraide::enregistrer($transaction, (int) $data['rating'], $data['comment'] ?? null);
 
-        return redirect()->route('messages.show', $transaction)
+        // TASK-1808 §5 — l'ecran A enregistre la note IMMEDIATEMENT, « sans
+        // attendre un commentaire ». Il n'y a donc pas de message de
+        // felicitation ici : l'ecran B prend la suite et poserait sa question
+        // par-dessus un flash de fin. Le flash n'arrive qu'au bout du
+        // parcours, et c'est l'ecran B qui le pose.
+        return $this->retourAuFil($transaction);
+    }
+
+    /**
+     * TASK-1808 (precision MASTER, 11/11 soir) — « Plus tard », persiste.
+     *
+     * Idempotent : une fois pose, un second clic ne change rien — c'est un
+     * report, pas un compteur. Ne touche jamais `reviews_skipped_at` : ce
+     * n'est pas un renoncement, et la note reste proposable « librement
+     * ulterieurement » (consigne explicite).
+     *
+     * Meme gate que `store()` : les conditions sont identiques (l'aide,
+     * entraide close, aucun avis depose, pas de renoncement).
+     */
+    public function defer(Request $request, Transaction $transaction): RedirectResponse
+    {
+        $this->authorize('create-review', $transaction);
+
+        $transaction->update(['evaluation_deferred_at' => $transaction->evaluation_deferred_at ?? now()]);
+
+        return $this->retourAuFil($transaction);
+    }
+
+    /**
+     * TASK-1808 §5, micro-ecran B — « Publier mon commentaire ».
+     *
+     * Complete une note DEJA enregistree. Ne cree jamais d'avis : si l'ecran A
+     * n'a pas eu lieu, il n'y a rien a completer et la demande repart sans
+     * rien ecrire. Ne touche jamais aux points — le transfert a eu lieu a la
+     * cloture, bien avant, et une seule fois.
+     */
+    public function comment(Request $request, Transaction $transaction): RedirectResponse
+    {
+        $this->authorize('complete-review', $transaction);
+
+        $data = $request->validate([
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        $ecrit = EvaluationEntraide::completerLeMot($transaction, $data['comment'] ?? null);
+
+        // Publier un mot vide, c'est terminer sans commentaire : on ne laisse
+        // pas la question revenir indefiniment.
+        if (! $ecrit) {
+            EvaluationEntraide::renoncerAuMot($transaction);
+        }
+
+        // « Apres publication, afficher une confirmation DISCRETE, sans
+        // nouvelle sollicitation » (§5).
+        return $this->retourAuFil($transaction)
             ->with('success', __('messages.review_sent'));
+    }
+
+    /**
+     * TASK-1808 §5, micro-ecran B — « Terminer sans commentaire ».
+     *
+     * La note reste acquise ; seule la question du mot cesse de revenir. A ne
+     * pas confondre avec `skip()`, qui renonce a TOUTE l'evaluation.
+     */
+    public function skipComment(Request $request, Transaction $transaction): RedirectResponse
+    {
+        $this->authorize('complete-review', $transaction);
+
+        EvaluationEntraide::renoncerAuMot($transaction);
+
+        return $this->retourAuFil($transaction);
     }
 
     /**
@@ -54,6 +123,29 @@ class ReviewController extends Controller
         $this->authorize('create-review', $transaction);
 
         EvaluationEntraide::enregistrer($transaction, null);
+
+        return $this->retourAuFil($transaction);
+    }
+
+    /**
+     * TASK-1808 — le retour au fil garde le SCOPE de l'Organization.
+     *
+     * Les quatre actions existaient en double (globale et
+     * `organization.*`) mais redirigeaient toutes vers la route globale :
+     * depuis `/org/<slug>/...`, evaluer faisait donc SORTIR du scope. Meme
+     * forme que `TransactionController::redirectToMessage()`, pour qu'il n'y
+     * ait qu'une facon de revenir au fil dans tout le domaine entraide.
+     */
+    private function retourAuFil(Transaction $transaction): RedirectResponse
+    {
+        $organization = request()->route('organization');
+
+        if ($organization) {
+            return redirect()->route('organization.messages.show', [
+                'organization' => $organization,
+                'transaction' => $transaction,
+            ]);
+        }
 
         return redirect()->route('messages.show', $transaction);
     }

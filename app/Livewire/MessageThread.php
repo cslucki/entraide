@@ -2,13 +2,16 @@
 
 namespace App\Livewire;
 
+use App\Models\FeedPost;
 use App\Models\Message;
 use App\Models\Organization;
 use App\Models\Reaction;
 use App\Models\Transaction;
 use App\Notifications\NewMessageReceived;
 use App\Services\UrlPreviewService;
+use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Files\TypesDeFichiersAcceptes;
+use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -94,6 +97,22 @@ class MessageThread extends Component
 
     public $photo = null;
 
+    /**
+     * TASK-1808 §4 — la pluie de coeurs est-elle due MAINTENANT, a CE lecteur ?
+     *
+     * Decidee une seule fois, au montage, et jamais recalculee au rendu : le
+     * marqueur durable est pose dans le meme geste, donc une relecture
+     * repondrait toujours « non » et l'animation ne partirait jamais.
+     */
+    public bool $pluieDeCoeurs = false;
+
+    /**
+     * TASK-1808 §7 — l'entraide est-elle deja dans le Flux ?
+     *
+     * Reproposer le geste apres coup laisserait croire qu'il n'a pas pris.
+     */
+    public bool $fluxDejaPartage = false;
+
     public function mount(Transaction $transaction): void
     {
         $this->transactionId = $transaction->id;
@@ -101,6 +120,77 @@ class MessageThread extends Component
         $this->organizationSlug = currentOrganization()?->slug
             ?? Organization::findOrFail($transaction->organization_id)->slug;
         $this->markRead();
+        $this->celebrerSiCEstDu($transaction);
+        $this->fluxDejaPartage = $this->dejaDansLeFlux($transaction);
+    }
+
+    /**
+     * TASK-1808 §4 — « a sa PREMIERE ouverture de la conversation terminee ».
+     *
+     * Le marqueur s'ecrit ICI, cote serveur, et non dans le navigateur : le
+     * drapeau de l'animation vit en memoire de page et ne survit ni a un
+     * rechargement ni a un autre appareil. « Une seule fois par entraide ET
+     * par aidant » ne peut se tenir qu'en base.
+     *
+     * `update()` conditionne par `whereNull` : deux onglets ouverts en meme
+     * temps ne peuvent pas celebrer deux fois, c'est la base qui arbitre et
+     * non l'ordre des requetes. Le nombre de lignes touchees dit lequel des
+     * deux a gagne.
+     *
+     * TASK-1808 (recette navigateur, 11/11) — ET DEUX INSTANCES DANS LA MEME
+     * REQUETE NON PLUS. Mesure en conditions reelles : `messages/index.blade.php`
+     * monte CE MEME composant DEUX FOIS sur une seule vue — une copie
+     * `md:hidden` pour mobile, une copie `hidden md:flex` pour desktop — et
+     * chacune appelle `mount()`, donc `celebrerSiCEstDu()`, independamment.
+     * Sans garde, le `whereNull` ci-dessous ne laisse gagner QU'UNE des deux,
+     * au hasard de l'ordre d'execution — et c'etait systematiquement la copie
+     * mobile, TOUJOURS la premiere dans le Blade, meme a un viewport desktop :
+     * la pluie etait donc pose a chaque fois dans la copie INVISIBLE, et
+     * jamais vue. `ScopedReadCache` (T1778) memorise ici la decision pour la
+     * duree de LA REQUETE : la deuxieme instance lit le verdict de la
+     * premiere au lieu de retenter sa propre ecriture, et les deux copies
+     * s'accordent — celle que la CSS montre a l'ecran comme celle qu'elle
+     * cache recoivent la MEME reponse.
+     *
+     * Aucune evaluation n'intervient dans cette decision (§4 : « aucune
+     * dependance a une future evaluation »), et l'aide n'est jamais celebre —
+     * la pluie remercie celui qui a AIDE.
+     */
+    private function celebrerSiCEstDu(Transaction $transaction): void
+    {
+        if (! $transaction->celebrationDueALAidant()) {
+            return;
+        }
+
+        if (! $transaction->estLAidant(auth()->user())) {
+            return;
+        }
+
+        $this->pluieDeCoeurs = app(ScopedReadCache::class)->souviens(
+            "entraide_celebration:{$transaction->id}",
+            function () use ($transaction) {
+                $pose = Transaction::whereKey($transaction->id)
+                    ->whereNull('seller_celebrated_at')
+                    ->update(['seller_celebrated_at' => now()]);
+
+                return $pose === 1;
+            },
+        );
+    }
+
+    /** Une ligne de Flux existe-t-elle deja pour cette entraide terminee ? */
+    private function dejaDansLeFlux(Transaction $transaction): bool
+    {
+        if ($transaction->status !== 'completed' || $transaction->isDirectConversation()) {
+            return false;
+        }
+
+        return FeedPost::withTrashed()
+            ->where('organization_id', $transaction->organization_id)
+            ->where('type', FeedEventCatalogue::ENTRAIDE_TERMINEE)
+            ->where('object_type', Transaction::class)
+            ->where('object_id', $transaction->id)
+            ->exists();
     }
 
     public function replyTo(string $messageId): void

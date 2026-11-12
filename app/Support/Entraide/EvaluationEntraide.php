@@ -47,7 +47,10 @@ final class EvaluationEntraide
      */
     public static function enregistrer(Transaction $entraide, ?int $note, ?string $mot = null): void
     {
-        if ($entraide->reviews()->exists()) {
+        // TASK-1808 §2 (cockpit) — `withTrashed()` : un avis supprime par
+        // moderation garde son emplacement UNIQUE (`unique(transaction_id)`),
+        // voir le docbloc de `Transaction::hasReviewFrom()`.
+        if ($entraide->reviews()->withTrashed()->exists()) {
             return;
         }
 
@@ -69,5 +72,56 @@ final class EvaluationEntraide
         ]);
 
         $entraide->seller?->recalculateRating();
+    }
+
+    /**
+     * TASK-1808 §5, micro-ecran B — attacher le MOT a une note deja posee.
+     *
+     * Jamais une creation : `unique(transaction_id)` interdit une seconde
+     * ligne, et surtout le mot n'est pas une evaluation de plus — c'est la
+     * meme, completee. D'ou une mise a jour, et d'ou le fait que cette
+     * methode ne touche NI les points NI la moyenne du profil : seule la note
+     * nourrit la moyenne, et elle n'a pas change.
+     *
+     * Ne fait rien si aucune note n'existe : l'ecran B ne s'affiche qu'apres
+     * l'ecran A, mais une requete forgee ne doit pas creer d'avis par cette
+     * porte.
+     */
+    public static function completerLeMot(Transaction $entraide, ?string $mot): bool
+    {
+        $avis = $entraide->reviews()->where('reviewer_id', $entraide->buyer_id)->first();
+
+        if ($avis === null) {
+            return false;
+        }
+
+        $propre = trim((string) $mot);
+
+        // Un mot vide n'est pas un mot : c'est « Terminer sans commentaire »,
+        // et c'est `renoncerAuMot()` qui le dit. Ecrire une chaine vide dans
+        // `comment` confondrait les deux etats.
+        if ($propre === '') {
+            return false;
+        }
+
+        $avis->update(['comment' => $propre]);
+
+        return true;
+    }
+
+    /**
+     * « Terminer sans commentaire » — la note reste, le micro-ecran B ne
+     * revient plus.
+     *
+     * A ne pas confondre avec `reviews_skipped_at`, qui est le renoncement a
+     * TOUTE l'evaluation (§5 : « Plus tard » ne l'ecrit jamais, et celui-ci
+     * non plus — une note a bien ete donnee).
+     */
+    public static function renoncerAuMot(Transaction $entraide): void
+    {
+        $entraide->reviews()
+            ->where('reviewer_id', $entraide->buyer_id)
+            ->whereNull('comment_skipped_at')
+            ->update(['comment_skipped_at' => now()]);
     }
 }

@@ -190,9 +190,33 @@ final class CarteEntraide
 
         // `estLAidant` et non `decisionMakerId` : on dit le SENS DE L'AIDE,
         // pas qui doit cliquer.
-        return $echange->estLAidant($lecteur)
-            ? ['emoji' => '👀', 'texte' => __('messages.sens.vous_aidez', ['prenom' => $autre, 'temps' => $temps]), 'classe' => 'text-green-600 dark:text-green-400']
-            : ['emoji' => '🤝', 'texte' => __('messages.sens.on_vous_demande', ['prenom' => $autre, 'temps' => $temps]), 'classe' => 'text-amber-600 dark:text-amber-400'];
+        //
+        // TASK-1808 (observation de Cyril, 11/11) — le ROLE ne suffisait pas,
+        // et la vue de l'aide disait l'INVERSE de la verite : « :prenom vous
+        // demande de l'aide » s'affichait a celui qui, justement, recevait
+        // l'aide. La phrase n'etait pas fausse en soi — elle est juste pour
+        // l'AIDANT AVANT l'accord. Les deux libelles couvraient donc quatre
+        // cas, et deux manquaient. Il faut croiser le role ET l'etape :
+        //
+        //   aidant + pending          -> « :prenom vous demande de l'aide »
+        //   aidant + accord et apres  -> « Vous aidez :prenom »
+        //   aide   + pending          -> « Vous demandez de l'aide a :prenom »
+        //   aide   + accord et apres  -> « :prenom vous aide »
+        //
+        // `completed` est deja sorti plus haut ; `refused` et `cancelled`
+        // tombent ici et restent au temps de la DEMANDE, qui est ce qu'ils
+        // decrivent : une demande qui n'a pas abouti.
+        $avantLAccord = $echange->status === 'pending';
+
+        if ($echange->estLAidant($lecteur)) {
+            return $avantLAccord
+                ? ['emoji' => '🤝', 'texte' => __('messages.sens.on_vous_demande', ['prenom' => $autre, 'temps' => $temps]), 'classe' => 'text-amber-600 dark:text-amber-400']
+                : ['emoji' => '👀', 'texte' => __('messages.sens.vous_aidez', ['prenom' => $autre, 'temps' => $temps]), 'classe' => 'text-green-600 dark:text-green-400'];
+        }
+
+        return $avantLAccord
+            ? ['emoji' => '🙋', 'texte' => __('messages.sens.vous_demandez', ['prenom' => $autre, 'temps' => $temps]), 'classe' => 'text-amber-600 dark:text-amber-400']
+            : ['emoji' => '🤲', 'texte' => __('messages.sens.on_vous_aide', ['prenom' => $autre, 'temps' => $temps]), 'classe' => 'text-indigo-600 dark:text-indigo-400'];
     }
 
     /**

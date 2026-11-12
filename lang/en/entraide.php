@@ -35,7 +35,10 @@ return [
         'pas_encore_termine' => 'Noted: the mutual aid is active again.',
     ],
     'flux' => [
-        'partager' => 'Share this help in the Feed (your first name and the time given; the name of the person you helped is not shown)',
+        // TASK-1808 — see the French file: this label spoke for the HELPER,
+        // but the person ticking the box is now the HELPED one.
+        'partagee' => 'Mutual aid shared in the Feed.',
+        'partager' => 'Share this mutual aid in the Feed (the first name of the person who helped you and the time shared; your name is not shown)',
     ],
 
     'atelier' => [

@@ -329,6 +329,12 @@ return [
 
     'transaction_deleted' => 'Transaction supprimée.',
     'transaction_delete_confirm' => 'Supprimer cette transaction et ses messages associés ? Cette action est irréversible.',
+
+    'review_updated' => 'Évaluation modifiée.',
+    'review_hidden' => 'Évaluation masquée.',
+    'review_unhidden' => 'Évaluation de nouveau visible.',
+    'review_deleted' => 'Évaluation supprimée (réversible).',
+    'review_restored' => 'Évaluation restaurée.',
     'request_deleted' => 'Demande et transactions associées supprimées.',
     'request_delete_confirm' => 'Supprimer cette demande et ses transactions associées ? Cette action est irréversible.',
     'message_deleted' => 'Message supprimé.',

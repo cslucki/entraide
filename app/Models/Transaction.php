@@ -32,6 +32,12 @@ class Transaction extends Model
         'seller_confirmed_at',
         'completed_at',
         'reviews_skipped_at',
+        // TASK-1808 — les marqueurs du parcours final : la pluie de coeurs
+        // montree une seule fois a l'aidant, et l'invitation a evaluer envoyee
+        // une seule fois a l'aide.
+        'seller_celebrated_at',
+        'evaluation_invited_at',
+        'evaluation_deferred_at',
     ];
 
     protected function casts(): array
@@ -41,6 +47,9 @@ class Transaction extends Model
             'seller_confirmed_at' => 'datetime',
             'completed_at' => 'datetime',
             'reviews_skipped_at' => 'datetime',
+            'seller_celebrated_at' => 'datetime',
+            'evaluation_invited_at' => 'datetime',
+            'evaluation_deferred_at' => 'datetime',
             'points_proposed' => 'integer',
             'points_agreed' => 'integer',
         ];
@@ -88,7 +97,13 @@ class Transaction extends Model
 
     public function hasReviewFrom(string $userId): bool
     {
-        return $this->reviews()->where('reviewer_id', $userId)->exists();
+        // TASK-1808 §2 (cockpit) — `withTrashed()` est deliberement : un avis
+        // SUPPRIME par moderation occupe toujours son unique emplacement
+        // (`unique(transaction_id)`) et ne doit jamais laisser croire que
+        // « personne n'a encore evalue ». Sans ce rappel, un second depot
+        // serait tente et heurterait la contrainte en base au lieu d'etre
+        // refuse proprement en amont.
+        return $this->reviews()->withTrashed()->where('reviewer_id', $userId)->exists();
     }
 
     /**
@@ -146,6 +161,64 @@ class Transaction extends Model
     {
         return $this->status === 'completed'
             && ($this->evaluationIgnoree() || $this->hasReviewFrom($this->buyer_id));
+    }
+
+    /**
+     * TASK-1808 §5 — LES DEUX MICRO-ECRANS, dits par deux questions separees.
+     *
+     * L'ecran A (les etoiles) et l'ecran B (le mot) ne doivent JAMAIS etre
+     * visibles en meme temps : c'est toute la decision produit. Deux methodes
+     * donc, et non un drapeau a trois valeurs — la vue pose une question a la
+     * fois et n'a aucun etat a demeler.
+     */
+    public function etoilesEnAttente(): bool
+    {
+        return $this->evaluationEnAttente();
+    }
+
+    /**
+     * TASK-1808 (precision MASTER) — « Plus tard » a ete clique au moins une
+     * fois : le formulaire ne doit plus se reproposer seul a chaque visite,
+     * seulement une action secondaire discrete pour qui veut l'ouvrir.
+     *
+     * Distinct d'`evaluationIgnoree()` : un report n'est pas un renoncement,
+     * et l'un n'implique jamais l'autre.
+     */
+    public function evaluationDifferee(): bool
+    {
+        return $this->evaluation_deferred_at !== null;
+    }
+
+    /**
+     * Le mot est attendu quand la note existe, que le mot n'a pas ete ecrit,
+     * et que l'aide n'a pas repondu « Terminer sans commentaire ».
+     *
+     * Lu sur l'avis de l'AIDE, jamais sur la transaction : c'est l'avis qui
+     * porte le commentaire, et `unique(transaction_id)` garantit qu'il n'y en
+     * a qu'un.
+     */
+    public function motEnAttente(): bool
+    {
+        if ($this->status !== 'completed') {
+            return false;
+        }
+
+        $avis = $this->reviews()->where('reviewer_id', $this->buyer_id)->first();
+
+        return $avis !== null
+            && ($avis->comment === null || $avis->comment === '')
+            && $avis->comment_skipped_at === null;
+    }
+
+    /**
+     * La pluie de coeurs est due a l'aidant : entraide close, et il ne l'a
+     * jamais vue. Une discussion directe n'a rien a celebrer.
+     */
+    public function celebrationDueALAidant(): bool
+    {
+        return $this->status === 'completed'
+            && ! $this->isDirectConversation()
+            && $this->seller_celebrated_at === null;
     }
 
     public function getOtherParticipant(User $user): User

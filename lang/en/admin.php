@@ -328,6 +328,12 @@ return [
 
     'transaction_deleted' => 'Transaction deleted.',
     'transaction_delete_confirm' => 'Delete this transaction and its messages? This action is irreversible.',
+
+    'review_updated' => 'Review updated.',
+    'review_hidden' => 'Review hidden.',
+    'review_unhidden' => 'Review visible again.',
+    'review_deleted' => 'Review deleted (reversible).',
+    'review_restored' => 'Review restored.',
     'request_deleted' => 'Request and associated transactions deleted.',
     'request_delete_confirm' => 'Delete this request and its transactions? This action is irreversible.',
     'message_deleted' => 'Message deleted.',

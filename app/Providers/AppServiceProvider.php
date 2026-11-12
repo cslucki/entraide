@@ -62,6 +62,7 @@ use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\LoopTypeSettingsService;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
+use App\Services\Users\SiblingAccountsPanel;
 use App\Services\UserSlugService;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiFabContext;
@@ -70,6 +71,7 @@ use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Ops\ArtisanDatabaseGuard;
 use App\Support\Ops\DestructiveDatabaseGuard;
 use App\Support\Ops\ExternalEgressGuard;
+use App\Support\ScopedReadCache;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\Events\NotificationSent;
@@ -124,7 +126,7 @@ class AppServiceProvider extends ServiceProvider
         // TASK-1734 : panneau « Mes organisations » — memo par requete (le
         // menu avatar vit sur plusieurs surfaces rendues dans la meme
         // requete), jamais partage entre requetes ni entre utilisateurs.
-        $this->app->scoped(\App\Services\Users\SiblingAccountsPanel::class);
+        $this->app->scoped(SiblingAccountsPanel::class);
         // TASK-1778 : memoire de lecture du fan-out de notifications — la
         // Boucle, l'Organization et sa langue sont les MEMES pour les 100
         // destinataires d'une demande d'aide, et etaient relues pour chacun
@@ -138,7 +140,7 @@ class AppServiceProvider extends ServiceProvider
         // Le gabarit d'email, lui, n'y entre PAS : c'est du contenu
         // administrable, et la raison du renoncement est ecrite dans
         // `SystemEmailTemplateResolver::resolve()`.
-        $this->app->scoped(\App\Support\ScopedReadCache::class);
+        $this->app->scoped(ScopedReadCache::class);
         $this->app->bind(AiProvider::class, function ($app) {
             return new ClarifyUserHelpRequestService(
                 $app->make(FakeAIProvider::class),
@@ -424,6 +426,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('view-transaction', [MessagePolicy::class, 'view']);
         Gate::define('store-message', [MessagePolicy::class, 'store']);
         Gate::define('create-review', [ReviewPolicy::class, 'create']);
+        // TASK-1808 §5 — le micro-ecran B complete une note deja posee, ce que
+        // `create-review` refuse par construction. Voir le docbloc de
+        // `ReviewPolicy::complete()`.
+        Gate::define('complete-review', [ReviewPolicy::class, 'complete']);
 
         View::composer('layouts.admin', function ($view) {
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());

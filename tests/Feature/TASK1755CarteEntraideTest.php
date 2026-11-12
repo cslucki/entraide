@@ -100,11 +100,59 @@ class TASK1755CarteEntraideTest extends TestCase
                 'Vous aidez', CarteEntraide::sens($echange, $this->aidant)['texte'],
                 "L'aidant doit lire « Vous aidez » ({$origine}).",
             );
+            // TASK-1808 — ce test attendait « vous demande » POUR L'AIDE, et
+            // consacrait donc le defaut signale par Cyril : la vue de l'aide
+            // annoncait que l'autre lui demandait de l'aide. Apres l'accord,
+            // l'aide doit lire que l'autre L'AIDE.
             $this->assertStringContainsString(
-                'vous demande', CarteEntraide::sens($echange, $this->aide)['texte'],
-                "Celui qui recoit l'aide doit lire « vous demande » ({$origine}).",
+                'vous aide', CarteEntraide::sens($echange, $this->aide)['texte'],
+                "Celui qui recoit l'aide doit lire « vous aide » ({$origine}).",
+            );
+            $this->assertStringNotContainsString(
+                'vous demande de', CarteEntraide::sens($echange, $this->aide)['texte'],
+                "L'aide ne doit JAMAIS lire qu'on lui demande de l'aide ({$origine}).",
             );
         }
+    }
+
+    /**
+     * TASK-1808 (observation de Cyril, 11/11) — LES QUATRE CASES DU TABLEAU.
+     *
+     * Le defaut ne venait pas d'une phrase mal ecrite mais d'un branchement
+     * incomplet : `sens()` ne regardait que le ROLE. Or le sens de l'aide se
+     * dit en croisant le role ET l'etape, et deux des quatre cas n'avaient
+     * aucun libelle. Ce test les epingle tous les quatre, pour qu'aucun ne
+     * puisse reprendre la phrase d'un autre.
+     */
+    public function test_le_sens_croise_le_role_et_l_etape(): void
+    {
+        $attendus = [
+            // etape    => [phrase de l'aidant,    phrase de l'aide]
+            'pending' => ['vous demande de l’aide', 'Vous demandez de l’aide'],
+            'accepted' => ['Vous aidez', 'vous aide'],
+        ];
+
+        foreach ($attendus as $statut => [$cotéAidant, $cotéAide]) {
+            $echange = $this->echange($statut);
+
+            $this->assertStringContainsString(
+                $cotéAidant, CarteEntraide::sens($echange, $this->aidant)['texte'],
+                "Aidant en « {$statut} ».",
+            );
+            $this->assertStringContainsString(
+                $cotéAide, CarteEntraide::sens($echange, $this->aide)['texte'],
+                "Aide en « {$statut} ».",
+            );
+        }
+
+        // Les deux lectures ne doivent jamais se confondre : c'est le defaut
+        // d'origine, ou la meme phrase servait les deux roles.
+        $accepte = $this->echange('accepted');
+        $this->assertNotSame(
+            CarteEntraide::sens($accepte, $this->aidant)['texte'],
+            CarteEntraide::sens($accepte, $this->aide)['texte'],
+            'Les deux roles ne peuvent pas lire la meme phrase.',
+        );
     }
 
     /** Une discussion directe n'est pas une entraide : ni sens, ni phrase, ni action. */
@@ -339,7 +387,11 @@ class TASK1755CarteEntraideTest extends TestCase
         $this->assertStringContainsString('data-conversation-sens', $vuAidant);
         $this->assertStringContainsString('Vous aidez', $vuAidant);
         $this->assertStringNotContainsString('Vous aidez', $vuAide);
-        $this->assertStringContainsString('vous demande', $vuAide);
+        // TASK-1808 — l'aide lit desormais qu'on L'AIDE, et surtout jamais
+        // qu'on lui demande de l'aide. C'est le defaut signale par Cyril, vu
+        // depuis la vraie page de liste et non depuis la seule classe.
+        $this->assertStringContainsString('vous aide', $vuAide);
+        $this->assertStringNotContainsString('vous demande de', $vuAide);
     }
 
     /** La phrase est TRADUITE — jamais figee en francais. */
