@@ -60,9 +60,12 @@
             <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">{{ __('directory.search_submit') }}</button>
 
             {{-- TASK-1762 point 11.4 — « Nouveaux arrivés », une BASCULE de
-                 presentation et non un tri : l'annuaire est deja ordonne du
-                 plus recent au plus ancien, un bouton de tri n'aurait rien
-                 change a l'ecran.
+                 presentation. Depuis TASK-1812 correctif 04, c'est aussi une
+                 bascule de TRI : la grille par defaut est alphabetique (par
+                 prenom), et « Nouveaux arrivés » bascule sur le plus recent
+                 d'abord — le libelle du bouton suit donc l'etat, et devient
+                 « Ordre alphabetique » pour permettre d'y revenir, plutot que
+                 de garder un texte fixe a cote d'un simple style « actif ».
 
                  Le lien conserve `q` et `city` : changer de vue ne doit pas
                  jeter les filtres. Et il retire `page`, car la page 3 de la
@@ -74,7 +77,7 @@
                     ? 'bg-[var(--bp-accent)] text-white shadow-sm hover:brightness-110'
                     : 'border border-[var(--bp-accent)]/40 text-[var(--bp-accent)] hover:bg-[var(--bp-accent)]/10' }}">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
-                {{ __('directory.latest_button') }}
+                {{ $vueNouveaux ? __('directory.alphabetical_button') : __('directory.latest_button') }}
             </a>
             {{-- « Effacer » doit aussi apparaitre quand SEUL le filtre de ville
                  est pose : sinon on ne sait plus comment revenir a la liste

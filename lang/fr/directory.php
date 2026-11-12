@@ -33,6 +33,10 @@ return [
 
     // TASK-1762 point 11.4 — la vue « Nouveaux arrivés ».
     'latest_button' => 'Nouveaux arrivés',
+    // TASK-1812 correctif 04 — la grille par defaut est passee a l'ordre
+    // alphabetique de prenom ; ce bouton remplace « Nouveaux arrivés » une
+    // fois cette vue active, pour y revenir.
+    'alphabetical_button' => 'Ordre alphabétique',
 
     // TASK-1762 point 14 — le pli des Boucles au-dela de trois.
     'loops_more' => ':count autre Boucle|:count autres Boucles',
