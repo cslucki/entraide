@@ -55,6 +55,10 @@ class TASK1737PwaInstallationTest extends TestCase
         // rel="manifest">` dans un email est au mieux ignore, au pire suspect.
         'emails/blog-invitation.blade.php' => 'gabarit d\'email',
         'emails/referral-invitation.blade.php' => 'gabarit d\'email',
+        // TASK-1809 — meme raison : aucun client de messagerie n'a rien a
+        // installer. Ce fichier habille le HTML administre que
+        // `NotificationEmailDeliverer` livre (voir son docbloc).
+        'emails/notification-shell.blade.php' => 'gabarit d\'email',
 
         // Gabarit par defaut de Laravel, qu'AUCUNE route ne rend : verifie le
         // 31/10/2026, aucun `view('welcome')` dans `routes/` ni dans les
