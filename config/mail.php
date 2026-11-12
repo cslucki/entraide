@@ -115,4 +115,26 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Markdown Mail Settings
+    |--------------------------------------------------------------------------
+    |
+    | TASK-1809 (micro-sequence A) — theme premium BouclePro pour tout email
+    | rendu via `->markdown()` (notifications natives) ou via
+    | `emails.system-email` (gabarits administrables). `paths` enregistre
+    | `resources/views/vendor/mail` AVANT le dossier interne du framework :
+    | seul `html/themes/bouclepro.css` y est pose, la structure en tableaux
+    | (layout/header/footer/button...) reste celle, deja robuste, livree par
+    | Laravel. Voir `resources/views/vendor/mail/html/themes/bouclepro.css`.
+    |
+    */
+
+    'markdown' => [
+        'theme' => 'bouclepro',
+        'paths' => [
+            resource_path('views/vendor/mail'),
+        ],
+    ],
+
 ];
