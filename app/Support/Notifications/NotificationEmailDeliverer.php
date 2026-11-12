@@ -3,8 +3,8 @@
 namespace App\Support\Notifications;
 
 use App\Models\BlogComment;
-use App\Models\EntraideComment;
 use App\Models\EmailLog;
+use App\Models\EntraideComment;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
@@ -308,6 +308,11 @@ final class NotificationEmailDeliverer
             return;
         }
 
+        // TASK-1809 (micro-sequence B) — AVANT tout usage de `$contenu` :
+        // `Mail::html()`, le hachage et le journal doivent tous voir le MEME
+        // corps habille. Voir `habiller()`.
+        $contenu = $this->habiller($contenu);
+
         try {
             Mail::html($contenu['body'], function ($message) use ($destinataire, $contenu) {
                 $message->to($destinataire->email)->subject($contenu['subject']);
@@ -357,6 +362,90 @@ final class NotificationEmailDeliverer
 
             $this->conclureSansEchouer($livraison, NotificationDeliveryStatus::AMBIGUOUS, self::ERROR_POST_TRANSPORT_PERSISTENCE_FAILED);
         }
+    }
+
+    /**
+     * TASK-1809 (micro-sequence B) — le corps administrable part HABILLE.
+     *
+     * Avant ce correctif, `envoyer()` remettait directement
+     * `$contenu['body']` — un fragment HTML nu, sans style ni structure en
+     * tableau — a `Mail::html()`. Mesure en base sur `bouclepro_prod_work` :
+     * c'etait le cas de TOUTES les cles passant par ce pipeline (boucles,
+     * echanges, entraide, blog), le chemin le plus emprunte au quotidien.
+     *
+     * Publier le theme `vendor/mail` (TASK-1809 micro-sequence A) NE SUFFIT
+     * PAS ici : ce theme n'habille que ce qui passe par `->markdown()`
+     * (notifications natives), jamais un `Mail::html()` direct sur du HTML
+     * brut.
+     *
+     * ## Pourquoi PAS `emails.system-email.blade.php` / `Markdown::parse()`
+     *
+     * Premier essai, abandonne sur preuve : `Illuminate\Mail\Markdown::parse()`
+     * ne traite un bloc `<div>`/`<p>`... comme du HTML brut intact que
+     * jusqu'a la premiere LIGNE VIDE ; au-dela, tout redevient du markdown
+     * ordinaire. Or les gabarits de repli Blade de ce module
+     * (`loop-invitation.blade.php` et semblables) rendent sur plusieurs
+     * lignes AVEC des lignes vides entre les balises — sortie Blade normale.
+     * Reproduit directement : le marqueur expurge `[action-link-redacted]`
+     * disparaissait du rendu, cassant `TASK1378LoopInvitationEmailCutoverTest`.
+     * TASK-1694 bug P n'avait verifie qu'un fragment SANS ligne vide — la
+     * conclusion de son docbloc ne generalise pas a tous les gabarits de ce
+     * pipeline.
+     *
+     * ## Et PAS `CssToInlineStyles` (donc pas de `DOMDocument`) non plus
+     *
+     * Deuxieme essai, abandonne sur preuve lui aussi : `CssToInlineStyles`
+     * inline bien le theme, mais passe par `DOMDocument::loadHTML()` /
+     * `saveHTML()`, qui RE-ENCODE les caracteres qu'il juge invalides dans un
+     * attribut `href` — verifie isolement : `[action-link-redacted]` en
+     * ressortait `%5Baction-link-redacted%5D`. Le lien REEL ne contient
+     * jamais ce genre de caractere et n'est pas affecte, mais le marqueur
+     * expurge en est fait, et le corps archive ne devient plus celui qu'on
+     * croit. La aussi, `TASK1378LoopInvitationEmailCutoverTest` l'a prouve,
+     * pas suppose.
+     *
+     * La solution REUTILISE `emails.notification-shell.blade.php` (meme
+     * structure en tableaux, memes classes CSS que le theme `vendor/mail`)
+     * mais incorpore `bouclepro.css` dans un `<style>` du `<head>` — le MEME
+     * choix deja accepte dans ce depot par `blog-invitation.blade.php` et
+     * `referral-invitation.blade.php` (famille B, voir l'audit T1809) —
+     * plutot que de l'inliner. Zero reanalyse du HTML administre : une pure
+     * concatenation Blade, aucune bibliotheque ne reparse `$html`.
+     *
+     * Applique aux DEUX corps (`body` et `body_for_log`) : `body_hash`
+     * doit hacher exactement ce qui est remis au transport, et le journal
+     * doit rester visuellement coherent avec ce qui est reellement parti.
+     *
+     * @param  array{subject: string, body: string, body_for_log: string}  $contenu
+     * @return array{subject: string, body: string, body_for_log: string}
+     */
+    private function habiller(array $contenu): array
+    {
+        return [
+            'subject' => $contenu['subject'],
+            'body' => $this->envelopper($contenu['body']),
+            'body_for_log' => $this->envelopper($contenu['body_for_log']),
+        ];
+    }
+
+    /**
+     * Garde anti-double-habillage : un corps qui est deja un DOCUMENT HTML
+     * complet (balise `<html`) n'est jamais ré-enveloppe. Aucun appelant
+     * actuel de `envoyer()` ne produit un tel corps — tous composent des
+     * fragments via `GabaritEmail::rendre()` — mais cette garde reste la
+     * seule chose qui empecherait un double habillage si un futur appelant
+     * en produisait un.
+     */
+    private function envelopper(string $html): string
+    {
+        if (stripos($html, '<html') !== false) {
+            return $html;
+        }
+
+        return view('emails.notification-shell', [
+            'html' => $html,
+            'themeCss' => file_get_contents(resource_path('views/vendor/mail/html/themes/bouclepro.css')) ?: '',
+        ])->render();
     }
 
     /**
