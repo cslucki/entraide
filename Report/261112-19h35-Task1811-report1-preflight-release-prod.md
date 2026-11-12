@@ -5,10 +5,19 @@
 **Niveau de validation** : SENSITIVE
 **Objet** : Phase B — audit opérationnel de préproduction, version cible **1.811**
 
-> **Verdict : GO conditionnel.** Aucun risque bloquant mesuré. **Une** condition à
-> lever avant publication (§9), une vérification impossible côté PROD (§8),
-> deux réserves de recette (§7).
+> **Verdict : GO TECHNIQUE.** La condition bloquante R1 est **levée** — contrôle
+> exécuté en PROD par Cyril, résultat **0** (§8.2). Les réserves documentées
+> restent entières : recette authentifiée (§7-B), appareil mobile réel (§7-C),
+> domaine pgvector/RAG non vérifié et configurations Cloud masquées non
+> vérifiées (§0). **Aucune autorisation de publication vers `main`.**
 
+> **Révision 3 — 2026-11-12, après contrôle PROD de Cyril.**
+> La condition bloquante R1 est **levée** : `transactions_avec_doublons = 0`,
+> mesuré par Cyril via `cloud tinker` sur l'environnement `main` (§8.2). Le
+> verdict passe à **GO technique**, réserves maintenues. Le contrôle devra être
+> **renouvelé juste avant la fusion finale de la release** vers `main` : de
+> nouveaux avis peuvent naître d'ici là (§9.1).
+>
 > **Révision 2 — 2026-11-12, après arbitrage MASTER.**
 > 1. Le terme « échange » du gabarit `entraide_evaluation_invite` FR **est le
 >    texte exact demandé par Cyril** : ce n'est pas une anomalie, aucun
@@ -351,7 +360,7 @@ d'interface, pour ne pas mesurer un bundle périmé.
 
 | # | Risque | Gravité | État |
 |---|---|---|---|
-| R1 | `unique('transaction_id')` échoue si une `transaction` porte ≥ 2 `reviews` au moment du déploiement | **bloquant si réalisé** | 0 ligne / 0 doublon au 09/11 ; **fenêtre 09/11→déploiement non vérifiée** (§8). Contrôle obligatoire au déploiement (§9) |
+| R1 | `unique('transaction_id')` échoue si une `transaction` porte ≥ 2 `reviews` au moment du déploiement | **LEVÉ au 12/11** | Contrôle exécuté **en PROD par Cyril** (`cloud tinker`, env `main`) : **`transactions_avec_doublons = 0`** (§8.2). **À renouveler juste avant la fusion vers `main`** — de nouveaux avis peuvent apparaître d'ici là |
 | R2 | `down()` destructeur après mise en service | élevé à terme | Ne jamais annuler par migration passé la fenêtre initiale ; rollback = PR de revert, base conservée (§10) |
 | R3 | `events.create` quitte le socle du membre simple | moyen, **fonctionnel voulu** | Décision Cyril du 10/11. Les membres qui proposaient des rencontres ne pourront plus ; `locked => false` permet de rouvrir par Organization |
 | R4 | `WEB_PUSH_ENABLED` et `VAPID_*` **désormais présentes** en PROD (absentes au 05/11) | moyen | La release ajoute des chemins de notification qui emprunteront le Web Push. Valeurs masquées, **activation réelle non vérifiable** en lecture seule. Atténuation : le livreur a été durci par T1779 (try/catch) |
@@ -493,7 +502,27 @@ HAVING count(*) > 1;
 fusionner, et **aucune correction automatique des avis** — décider quel avis
 conserver est une décision humaine, prise avec Cyril.
 
-### 8.1 Procédure exacte pour que Cyril exécute le contrôle lui-même
+### 8.2 RÉSULTAT — contrôle exécuté par Cyril, condition levée
+
+| | |
+|---|---|
+| **Résultat** | **`transactions_avec_doublons = 0`** |
+| Qui | **Cyril**, directement depuis WSL — pas une mesure de ma part |
+| Moyen | **`cloud tinker`**, CLI officielle Laravel Cloud, requête SQL en lecture seule sur `reviews` |
+| Environnement | `main` — **`env-a1b31444-4208-4d13-b958-289fa7fba353`** |
+| Date | **2026-11-12**, Europe/Paris |
+| Transmis par | MASTER, après exécution par Cyril |
+
+**La condition R1 est levée au moment de ce contrôle.** Elle n'est pas levée
+définitivement : `reviews` est une table vivante, et le code 1.794 en PROD
+autorise toujours l'aidé **et** l'aidant à évaluer la même entraide. **Le
+contrôle doit être renouvelé juste avant la fusion de la release vers `main`**
+(précondition §9.1).
+
+Les trois autres points du §8 (valeurs Cloud masquées, état courant des
+gabarits) **restent non vérifiés**.
+
+### 8.1 Procédure exacte du contrôle — à rejouer avant la fusion finale
 
 Trois routes officielles, par ordre de simplicité. **Aucune n'écrit.**
 
@@ -548,8 +577,9 @@ route utilisée (A, B ou C) et l'identification ci-dessus.
 2. T1811 fusionnée dans `develop` par `merge-task.sh --yes` — **prouver
    `pr.state == MERGED`**, le script sort en code 0 **sans** fusionner si
    `--yes` manque.
-3. **Contrôle R1 du §8 exécuté sur la PROD du jour : 0 ligne. Bloquant.** Le
-   résultat doit provenir d'un moyen autorisé et être transmis par Cyril.
+3. **Contrôle R1 RENOUVELÉ le jour de la fusion vers `main` : 0 ligne.
+   Bloquant.** Le résultat du 12/11 (§8.2) ne vaut **que** pour le 12/11 : de
+   nouveaux avis peuvent naître entre-temps. Rejouer la route A du §8.1.
    **Si doublons : NO-GO**, et **aucune correction automatique des avis** — quel
    avis conserver est une décision humaine.
 4. Aucun déploiement Cloud en cours (`cloud deployment:list` → le dernier est
@@ -685,17 +715,18 @@ est une intervention à part entière, à faire avec Cyril.
 - Cockpit de modération correctement gardé (`is_admin`, plateforme).
 - La release **réduit** la dépendance à l'ordonnanceur éteint de la PROD.
 
-**L'unique condition à lever**
+### Les deux conditions sont levées
 
-**R1 — bloquant.** Exécuter le `SELECT` du §8 sur la **PROD du jour** : il doit
-rendre **0 ligne**. C'est la seule vérification qui m'a été refusée et la seule
-qui puisse faire échouer la migration. Le résultat doit venir d'un moyen
-autorisé, transmis par Cyril. **Si doublons : NO-GO**, sans correction
-automatique des avis.
+- **R1 — levé le 12/11.** Contrôle exécuté **en PROD par Cyril** via
+  `cloud tinker` sur l'environnement `main` : **`transactions_avec_doublons = 0`**
+  (§8.2). La bascule `unique('transaction_id')` ne peut donc pas échouer sur
+  l'état contrôlé. **À renouveler le jour de la fusion vers `main`.**
+- **Gabarit `entraide_evaluation_invite` fr — levé par arbitrage MASTER** : le
+  texte est celui demandé par Cyril, aucun correctif (§7-A).
 
-*(La seconde condition du rapport 1 — le gabarit `entraide_evaluation_invite` fr
-— a été **levée par arbitrage MASTER** : le texte est celui demandé par Cyril,
-aucun correctif.)*
+**Ce que le GO technique ne couvre pas.** Il porte sur la **solidité technique
+de la release**, pas sur sa recette fonctionnelle. Les réserves du §0 et du §7
+restent entières et doivent être acceptées explicitement avant publication.
 
 **Ce que je n'ai pas vérifié, et qui ne doit pas être lu comme acquis**
 
