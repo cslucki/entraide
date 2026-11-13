@@ -41,10 +41,13 @@ use Tests\TestCase;
  *
  * ## Pourquoi `scoped` et pas `singleton`
  *
- * Le conteneur vide les instances `scoped` entre deux requetes HTTP ET entre
- * deux jobs de file. Un commit Livewire EST une requete HTTP : aucun verdict
- * ne lui survit. Un `singleton` aurait garde un verdict perime pendant toute
- * la vie d'un `queue:work`.
+ * Un `singleton` garderait un verdict perime pendant toute la vie d'un
+ * `queue:work`. Mais `scoped` ne suffit pas non plus a le faire mourir avec la
+ * requete : dans cette version du framework, `forgetScopedInstances()` n'est
+ * appele que par `QueueServiceProvider`, et le noyau HTTP ne l'appelle jamais
+ * (correctif 05, mesure a l'appui). La liaison `scoped` sert a PARTAGER
+ * l'instance entre les surfaces d'une meme requete ; c'est `AiSurfaceGate` qui
+ * oublie son memo quand la requete change.
  */
 class TASK1813SocleRequetesCommunesTest extends TestCase
 {
@@ -90,19 +93,40 @@ class TASK1813SocleRequetesCommunesTest extends TestCase
     }
 
     /**
-     * `scoped` et pas `singleton` : le verdict ne doit pas traverser deux
-     * requetes. On simule la frontiere comme le conteneur la pose.
+     * Le verdict ne traverse pas DEUX REQUETES HTTP REELLES.
+     *
+     * Premiere version de cette garde : elle appelait
+     * `app()->forgetScopedInstances()` a la main, puis constatait que
+     * l'instance avait change. Elle ne prouvait RIEN — elle verifiait que le
+     * conteneur fait ce qu'on venait de lui demander de faire, pas ce qui se
+     * passe entre deux requetes.
+     *
+     * Mesure faite a la place : deux requetes HTTP successives dans un meme
+     * conteneur rendent la MEME instance de porte, et le verdict y restait
+     * `true` apres extinction de l'IA de l'Organization. C'est le defaut que
+     * le correctif 05 ferme, et c'est CELA que ce test tient.
      */
-    public function test_le_verdict_ne_survit_pas_a_la_frontiere_d_une_requete(): void
+    public function test_le_verdict_ne_traverse_pas_deux_requetes_http(): void
     {
-        $premiere = app(AiSurfaceGate::class);
+        $organization = $this->organizationWithAi('t1813-peremption', enabled: true);
+        $user = User::factory()->create(['organization_id' => $organization->id]);
 
-        app()->forgetScopedInstances();
+        $this->actingAs($user)->get('/boucles')->assertOk();
+        $this->assertTrue(
+            app(AiSurfaceGate::class)->availableFor((string) $organization->id),
+            'Precondition : l IA doit etre utilisable avant extinction.'
+        );
 
-        $this->assertNotSame(
-            $premiere,
-            app(AiSurfaceGate::class),
-            'Un verdict qui survit a la frontiere d une requete est un verdict perime en puissance.'
+        // L'IA est ETEINTE entre les deux requetes.
+        OrganizationAiSetting::query()
+            ->where('organization_id', $organization->id)
+            ->update(['is_enabled' => false]);
+
+        $this->actingAs($user)->get('/boucles')->assertOk();
+
+        $this->assertFalse(
+            app(AiSurfaceGate::class)->availableFor((string) $organization->id),
+            'VERDICT PERIME : la porte a servi, a la requete suivante, un verdict calcule avant extinction.'
         );
     }
 

@@ -39,6 +39,9 @@ class AiSurfaceGate
     /** @var array<string, bool> */
     private array $memo = [];
 
+    /** Identite de la requete a laquelle `$memo` appartient. */
+    private ?int $requeteMemo = null;
+
     public function __construct(private readonly ProviderResolver $resolver) {}
 
     /** L'IA est-elle utilisable pour cette Organization ? */
@@ -48,7 +51,35 @@ class AiSurfaceGate
             return false;
         }
 
+        $this->oublierSiNouvelleRequete();
+
         return $this->memo[$organizationId] ??= $this->resolver->isAvailableFor($organizationId);
+    }
+
+    /**
+     * TASK-1813 correctif 05 — le memo meurt avec la requete, pour de vrai.
+     *
+     * `scoped()` ne suffit PAS a le garantir : dans cette version du
+     * framework, `forgetScopedInstances()` n'est appele que par
+     * `QueueServiceProvider`. Le noyau HTTP ne l'appelle jamais. En PROD la
+     * mort du processus PHP-FPM masque l'ecart (`usesOctane: false`), mais le
+     * contrat n'etait tenu que par cet accident d'hebergement.
+     *
+     * Mesure qui a motive cette garde : deux requetes HTTP successives dans un
+     * meme conteneur de test rendaient la MEME instance, et le verdict restait
+     * `true` apres extinction de l'IA de l'Organization entre les deux.
+     *
+     * Le prix est nul : a l'interieur d'une requete, l'identite de l'objet
+     * `Request` ne change pas, donc le memo sert exactement comme avant.
+     */
+    private function oublierSiNouvelleRequete(): void
+    {
+        $requete = app()->bound('request') ? spl_object_id(app('request')) : null;
+
+        if ($requete !== $this->requeteMemo) {
+            $this->memo = [];
+            $this->requeteMemo = $requete;
+        }
     }
 
     /** La meme question, pour l'Organization de la requete courante. */

@@ -143,10 +143,23 @@ class AppServiceProvider extends ServiceProvider
         // `organization_ai_settings` lu 3 fois par page — 9 fois sur
         // l'espace de travail d'une Boucle.
         //
-        // `scoped` et surtout PAS `singleton`, meme raison qu'en dessous : le
-        // conteneur vide les instances `scoped` entre deux requetes HTTP ET
-        // entre deux jobs de file. Un commit Livewire EST une requete HTTP,
-        // donc aucun verdict ne survit a un commit.
+        // `scoped` et surtout PAS `singleton` : un `singleton` garderait un
+        // verdict perime pendant toute la vie d'un `queue:work`.
+        //
+        // ATTENTION — correctif 05, mesure a l'appui : `scoped` ne garantit
+        // PAS a lui seul qu'un verdict meurt avec la requete. Dans cette
+        // version du framework, `forgetScopedInstances()` n'est appele que par
+        // `QueueServiceProvider` ; le noyau HTTP ne l'appelle JAMAIS. Deux
+        // requetes HTTP successives dans un meme conteneur de test rendent la
+        // meme instance, et le verdict y restait perime apres extinction de
+        // l'IA d'une Organization.
+        //
+        // En PROD l'ecart est masque par la mort du processus PHP-FPM
+        // (`usesOctane: false`) — un accident d'hebergement, pas un contrat.
+        // C'est donc `AiSurfaceGate` lui-meme qui oublie son memo quand la
+        // requete change (`oublierSiNouvelleRequete()`). La liaison `scoped`
+        // reste utile : elle partage l'instance entre toutes les surfaces
+        // d'une MEME requete, ce qui est tout l'objet du correctif 01.
         //
         // Ce qui est memoise ici est une porte d'AFFICHAGE, jamais une
         // autorite : `ProviderResolver` n'est ni lie, ni memoise, et
@@ -162,9 +175,16 @@ class AppServiceProvider extends ServiceProvider
         // (600 requetes mesurees pour trois lignes).
         //
         // `scoped` et surtout PAS `singleton` : le conteneur vide les
-        // instances `scoped` entre deux requetes HTTP ET entre deux jobs de
-        // file d'attente. Un `singleton` aurait garde une ligne perimee
-        // pendant toute la vie d'un `queue:work`.
+        // instances `scoped` entre deux jobs de file d'attente. Un `singleton`
+        // aurait garde une ligne perimee pendant toute la vie d'un
+        // `queue:work`.
+        //
+        // TASK-1813 correctif 05 — cette ligne disait AUSSI « entre deux
+        // requetes HTTP ». C'est inexact : seul `QueueServiceProvider` appelle
+        // `forgetScopedInstances()`. L'usage de T1778 reste SUR, parce qu'il
+        // vit dans des jobs, et que le worker, lui, vide bien. Le docblock de
+        // `ScopedReadCache` porte la meme inexactitude ; la corriger sort du
+        // perimetre de T1813 et releve d'une TASK dediee.
         //
         // Le gabarit d'email, lui, n'y entre PAS : c'est du contenu
         // administrable, et la raison du renoncement est ecrite dans
