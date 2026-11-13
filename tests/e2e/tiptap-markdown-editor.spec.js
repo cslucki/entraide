@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsMember } from '../../ai/playwright/helpers/auth.js';
+import { loginAsMember, login } from '../../ai/playwright/helpers/auth.js';
 import {
     setupConsoleLogging, getConsoleErrors, getPageErrors,
     assertNoConsoleErrors, assertNoPageErrors, clearErrors,
@@ -857,35 +857,39 @@ test.describe('TASK-1818 — suggestion IA appliquee dans Tiptap', () => {
         category_id: null,
     };
 
-    /** Le bloc IA n'est rendu que si l'IA est reellement utilisable ici. */
-    let etatInitialIa = null;
+    /**
+     * Le bloc IA n'est rendu que si l'IA est reellement utilisable ici.
+     *
+     * La fixture monte sa PROPRE boucle, son propre compte et sa propre
+     * configuration IA, avec une cle SYNTHETIQUE. Aucune configuration
+     * existante n'est lue, affichee, modifiee ni restauree — il n'y a donc
+     * rien a remettre en etat, seulement a supprimer.
+     */
+    const BANC = {
+        boucle: 'e2e-1818',
+        email: 'e2e1818@bouclepro.test',
+        motDePasse: 'banc-e2e-1818',
+    };
 
-    test.beforeAll(async () => {
+    async function jouerFixture(nom, sentinelle) {
         const { execFileSync } = await import('node:child_process');
-        const lire = execFileSync('php', ['artisan', 'tinker', '--execute',
-            `$s = App\\Models\\OrganizationAiSetting::whereHas('organization', fn($q) => $q->where('slug', 'main'))->first();
-             echo $s ? json_encode(['id' => $s->id, 'is_enabled' => $s->is_enabled, 'api_key' => $s->api_key]) : 'null';`
-        ], { encoding: 'utf8' }).trim();
+        const { readFileSync } = await import('node:fs');
+        const source = readFileSync(`tests/e2e/fixtures/task-1818-${nom}.php`, 'utf8').replace(/^<\?php/, '');
 
-        etatInitialIa = lire.includes('{') ? JSON.parse(lire.slice(lire.indexOf('{'))) : null;
+        const sortie = execFileSync('php', ['artisan', 'tinker', '--execute', source], { encoding: 'utf8' });
 
-        if (etatInitialIa) {
-            execFileSync('php', ['artisan', 'tinker', '--execute',
-                `$s = App\\Models\\OrganizationAiSetting::find('${etatInitialIa.id}');
-                 $s->is_enabled = true; $s->api_key = 'sk-banc-e2e-1818'; $s->save();`
-            ], { encoding: 'utf8' });
+        if (!sortie.includes(sentinelle)) {
+            throw new Error(`Fixture 1818 « ${nom} » : sentinelle ${sentinelle} absente. Sortie : ${sortie.trim()}`);
         }
-    });
+    }
 
-    test.afterAll(async () => {
-        if (!etatInitialIa) return;
-        const { execFileSync } = await import('node:child_process');
-        const cle = etatInitialIa.api_key === null ? 'null' : `'${etatInitialIa.api_key}'`;
-        execFileSync('php', ['artisan', 'tinker', '--execute',
-            `$s = App\\Models\\OrganizationAiSetting::find('${etatInitialIa.id}');
-             $s->is_enabled = ${etatInitialIa.is_enabled ? 'true' : 'false'}; $s->api_key = ${cle}; $s->save();`
-        ], { encoding: 'utf8' });
-    });
+    test.beforeAll(() => jouerFixture('monter', 'FIXTURE_1818_MONTEE'));
+    test.afterAll(() => jouerFixture('demonter', 'FIXTURE_1818_DEMONTEE'));
+
+    /** Connexion au banc isole, jamais a un compte de la base de dev. */
+    async function connecterBanc(page) {
+        await login(page, BANC.email, BANC.motDePasse, BANC.boucle);
+    }
 
     test.beforeEach(async ({ page }) => {
         setupConsoleLogging(page);
@@ -910,10 +914,20 @@ test.describe('TASK-1818 — suggestion IA appliquee dans Tiptap', () => {
         return envois;
     }
 
+    /**
+     * Route SCOPEE, et c'est delibere : la route non scopee `/requests/create`
+     * est liee a la boucle PAR DEFAUT du site. Le compte du banc, qui vit dans
+     * sa propre boucle, y recoit un 404 — mesure du 13/11. L'y amener
+     * exigerait d'utiliser un compte et une boucle REELS de la base de dev,
+     * c'est-a-dire exactement l'isolation que cette fixture apporte.
+     *
+     * Que les DEUX routes servent le meme bloc corrige est prouve cote PHP
+     * (`TASK1818SuggestionIaDansTiptapTest`), une garde par route.
+     */
     async function allerSurDemande(page, { mobile = false } = {}) {
         if (mobile) await page.setViewportSize({ width: 390, height: 844 });
 
-        await page.goto('/requests/create');
+        await page.goto(`/org/${BANC.boucle}/requests/create`);
         await page.waitForTimeout(500);
 
         if (page.url().includes('/profile/edit')) {
@@ -959,7 +973,7 @@ test.describe('TASK-1818 — suggestion IA appliquee dans Tiptap', () => {
         { nom: 'mobile', mobile: true },
     ]) {
         test(`la suggestion appliquee apparait dans Tiptap et les trois contenus coincident (${appareil.nom})`, async ({ page }) => {
-            await loginAsMember(page);
+            await connecterBanc(page);
             await doublerFormulation(page);
             const publications = surveillerPublication(page);
             await allerSurDemande(page, appareil);
@@ -988,7 +1002,7 @@ test.describe('TASK-1818 — suggestion IA appliquee dans Tiptap', () => {
     // ═══ 3 — une saisie manuelle posterieure reste synchronisee ═══════════
 
     test('une modification manuelle apres application reste synchronisee', async ({ page }) => {
-        await loginAsMember(page);
+        await connecterBanc(page);
         await doublerFormulation(page);
         await allerSurDemande(page);
 
@@ -1011,7 +1025,7 @@ test.describe('TASK-1818 — suggestion IA appliquee dans Tiptap', () => {
     // ═══ 4 — ignorer ne touche a rien ════════════════════════════════════
 
     test('ignorer la suggestion ne modifie aucun champ', async ({ page }) => {
-        await loginAsMember(page);
+        await connecterBanc(page);
         await doublerFormulation(page);
         const publications = surveillerPublication(page);
         await allerSurDemande(page);
@@ -1042,11 +1056,13 @@ test.describe('TASK-1818 — suggestion IA appliquee dans Tiptap', () => {
     // ═══ 6 — le formulaire d'offre d'aide n'a pas bouge ══════════════════
 
     test('le formulaire d offre d aide reste fonctionnel', async ({ page }) => {
-        await loginAsMember(page);
+        await connecterBanc(page);
         await page.route('**/services/ai-formulate', (route) =>
             route.fulfill({ json: { suggestion: { title: 'Je propose un coup de main', description_markdown: 'Je peux **aider** a porter des cartons.' } } })
         );
-        await gotoCreate(page);
+        await page.goto(`/org/${BANC.boucle}/services/create`);
+        await waitForTiptapInit(page);
+        clearErrors();
 
         await page.fill('input[name="title"]', 'Un coup de main');
         await page.waitForTimeout(200);
