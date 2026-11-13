@@ -37,6 +37,16 @@ class TASK1820MyPushDevicesTest extends TestCase
     {
         parent::setUp();
 
+        // Clef VAPID DETERMINISTE, posee explicitement : aucun CI (SQLite ni
+        // PostgreSQL) ne configure `VAPID_PUBLIC_KEY`. Sans cette ligne,
+        // `PushSubscription::empreinteCleVapid()` rend `null` partout en CI, et
+        // `etatCleVapid()` ne peut alors JAMAIS rendre autre chose que
+        // VAPID_INCONNUE — meme pour un abonnement cree avec une clef
+        // explicitement DIVERGENTE. Trouve a l'echec CI (SQLite ET
+        // PostgreSQL), pas en local : mon `.env` local porte une vraie clef,
+        // qui masquait ce defaut de fixture.
+        config(['webpush.vapid.public_key' => 'clef-vapid-de-test-task-1820']);
+
         $this->organization = Organization::factory()->create(['is_active' => true]);
     }
 
