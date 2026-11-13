@@ -34,6 +34,17 @@ class AiRefusedException extends RuntimeException
 
     public const CODE_AUTHENTICATION_REQUIRED = 'authentication_required';
 
+    /**
+     * TASK-1819 — trop d'appels cette minute. Seul refus TEMPORAIRE du lot :
+     * porte un delai de reessai. Chaine DELIBEREMENT differente de
+     * `AiEconomicGuard::REASON_RATE_LIMITED` ('rate_limited') : meme doctrine
+     * que `budget_reached`/`credit_exhausted` deja dans ce fichier — le GARDE
+     * nomme ce qu'il a mesure, l'EXCEPTION ce qu'elle remonte a l'appelant.
+     * Collision exacte evitee plutot que documentee : rien n'imposait ici de
+     * reprendre un vocabulaire herite.
+     */
+    public const CODE_RATE_LIMITED = 'ai_rate_limited';
+
     public function __construct(
         public readonly string $refusalCode,
         string $message,
@@ -44,6 +55,13 @@ class AiRefusedException extends RuntimeException
          * abonnement », lu sur la politique du verdict, jamais suppose.
          */
         public readonly bool $offerSubscription = false,
+        /**
+         * TASK-1819 : secondes avant la prochaine tentative. NULL pour tout
+         * refus autre que `CODE_RATE_LIMITED` — un budget epuise ou un credit
+         * a bout n'ont pas de delai court a proposer, ils se renouvellent au
+         * mois prochain.
+         */
+        public readonly ?int $retryAfterSeconds = null,
     ) {
         parent::__construct($message, 0, $previous);
     }
@@ -75,6 +93,17 @@ class AiRefusedException extends RuntimeException
             AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED => new self(
                 self::CODE_ORGANIZATION_BUDGET_REACHED,
                 __('loops.ai_summary_monthly_budget_reached'),
+            ),
+            // TASK-1819 : seul refus TEMPORAIRE du lot — le seul a porter un
+            // delai de reessai (forme deja employee par GuestShellGate).
+            AiEconomicGuard::REASON_RATE_LIMITED => new self(
+                self::CODE_RATE_LIMITED,
+                trans_choice('ai.refusal_rate_limited', max(0, $verdict->retryAfterSeconds ?? 0), [
+                    'seconds' => $verdict->retryAfterSeconds ?? 0,
+                ]),
+                null,
+                false,
+                $verdict->retryAfterSeconds,
             ),
             default => new self(self::CODE_UNAVAILABLE, __($unavailableKey)),
         };

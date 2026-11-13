@@ -11,6 +11,7 @@ use App\Services\Ai\OrganizationAiEconomicUsage;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\RateLimiter;
 
 final class AiEconomicGuard
 {
@@ -172,6 +173,14 @@ final class AiEconomicGuard
     public const REASON_USER_CREDIT_EXHAUSTED = 'user_monthly_credit_exhausted';
 
     /**
+     * TASK-1819 : trop d'APPELS cette minute — une notion de DEBIT, orthogonale
+     * aux quatre verdicts ci-dessus qui bornent un CUMUL mensuel. Sous tous les
+     * plafonds mensuels, rien n'empechait une rafale a la seconde ; c'est
+     * l'unique objet de ce code.
+     */
+    public const REASON_RATE_LIMITED = 'rate_limited';
+
+    /**
      * Dependances resolues paresseusement : la garde reste constructible sans
      * argument (`new AiEconomicGuard`), comme avant TASK-1229.
      */
@@ -179,6 +188,59 @@ final class AiEconomicGuard
         private ?AiUserCreditSettings $creditSettings = null,
         private ?OrganizationAiEconomicUsage $usage = null,
     ) {}
+
+    /**
+     * TASK-1819 : verrou de DEBIT, verifie AVANT tout verrou mensuel (rejet le
+     * moins cher — aucune requete SQL) et CONSOMME seulement si le verdict
+     * final est un `allow()`.
+     *
+     * Le `hit()` est repousse a la toute fin de `authorize()`/
+     * `authorizeEmbeddings()` — PAS empile ici via deux `RateLimiter::attempt()`
+     * successifs. Deux compteurs distincts (utilisateur, Organization) rendent
+     * cet empilement dangereux : si le premier `attempt()` consomme puis que le
+     * second refuse, l'appelant a brule un cran de SON quota pour un appel qui
+     * n'a jamais eu lieu — une consommation injustifiee, exactement ce qu'un
+     * refus economique interdit deja ailleurs (`:253-255`). `tooManyAttempts()`
+     * est une LECTURE PURE (verifie sur l'implementation Laravel : seul
+     * `hit()`/`increment()` ecrit) ; verifier TOUS les compteurs concernes
+     * avant d'en toucher un seul garantit qu'un refus, par n'importe quelle
+     * garde plus loin dans `authorize()`, laisse les deux compteurs intacts.
+     *
+     * Residu assume : entre ce controle et le `hit()` final, deux requetes
+     * VRAIMENT simultanees peuvent toutes deux lire "sous la limite" puis
+     * toutes deux l'incrementer (le `hit()` lui-meme reste atomique au niveau
+     * SQL, `lockForUpdate()` sur le store `database` — aucune perte d'increment,
+     * juste un leger depassement possible de quelques appels sur la fenetre).
+     * Sans Redis ni verrou applicatif dedie, c'est le compromis du mecanisme 3
+     * du dossier Fable : "sur" (aucune corruption, aucune double facturation),
+     * pas "exact a l'appel pres".
+     *
+     * @return array{0: ?string, 1: ?int} [cle qui bloque, secondes avant reessai] ou [null, null]
+     */
+    private function rateLimitedKey(?string $userKey, ?string $orgKey): array
+    {
+        if ($userKey !== null && RateLimiter::tooManyAttempts($userKey, (int) config('ai.rate_limits.per_user_per_minute', 10))) {
+            return [$userKey, RateLimiter::availableIn($userKey)];
+        }
+
+        if ($orgKey !== null && RateLimiter::tooManyAttempts($orgKey, (int) config('ai.rate_limits.per_org_per_minute', 60))) {
+            return [$orgKey, RateLimiter::availableIn($orgKey)];
+        }
+
+        return [null, null];
+    }
+
+    /** TASK-1819 : clef de debit PAR UTILISATEUR, dans l'Organization — un meme cookie sur deux Organizations ne melange rien. */
+    private function userRateLimitKey(Organization $organization, User $user): string
+    {
+        return 'ai-debit:user:'.$organization->id.':'.$user->id;
+    }
+
+    /** TASK-1819 : clef de debit PAR ORGANIZATION — le plafond partage de tous ses membres actifs. */
+    private function organizationRateLimitKey(Organization $organization): string
+    {
+        return 'ai-debit:org:'.$organization->id;
+    }
 
     /**
      * @param  User|null  $user  TASK-1229 : l'utilisateur dont le CREDIT est
@@ -196,6 +258,29 @@ final class AiEconomicGuard
         int $monthlyUnknownLimit,
         ?User $user = null,
     ): AiEconomicVerdict {
+        // TASK-1819 : le DEBIT, verifie EN PREMIER — rejet le moins cher (zero
+        // requete SQL) et le refus le plus actionnable (temporaire, avec
+        // delai). N'engage AUCUN $user : GuestShellGate et le bac a sable de
+        // doctrine (OrganizationDoctrineSandbox) appellent authorize() SANS
+        // utilisateur par construction — ils gardent uniquement leurs
+        // protections existantes (quota visiteur + 30/min, 6/min sandbox),
+        // jamais une seconde limite qui rendrait leurs refus illisibles.
+        $userRateKey = $user !== null ? $this->userRateLimitKey($organization, $user) : null;
+        $organizationRateKey = $user !== null ? $this->organizationRateLimitKey($organization) : null;
+
+        [$blockedBy, $retryAfterSeconds] = $this->rateLimitedKey($userRateKey, $organizationRateKey);
+
+        if ($blockedBy !== null) {
+            return AiEconomicVerdict::refuse(
+                self::REASON_RATE_LIMITED,
+                0.0,
+                0,
+                AiPricingCatalog::hasRate($provider, $model),
+                null,
+                $retryAfterSeconds,
+            );
+        }
+
         $monthStart = now()->startOfMonth();
         $nextMonthStart = $monthStart->copy()->addMonth();
 
@@ -263,6 +348,16 @@ final class AiEconomicGuard
             );
         }
 
+        // TASK-1819 : le verdict final est `allow` — CE tour compte dans le
+        // debit. Hit APRES toutes les gardes, jamais empile avec le controle
+        // ci-dessus : voir le docblock de `rateLimitedKey()`.
+        if ($userRateKey !== null) {
+            RateLimiter::hit($userRateKey, 60);
+        }
+        if ($organizationRateKey !== null) {
+            RateLimiter::hit($organizationRateKey, 60);
+        }
+
         return AiEconomicVerdict::allow($knownMonthlyCost, $successfulUnknownCount, $pricingKnown, $credit);
     }
 
@@ -279,9 +374,49 @@ final class AiEconomicGuard
      * n'est pas parti n'est pas une consommation. Et un refus budgetaire ne
      * detruit pas l'index existant : l'appelant conserve les chunks en place
      * (contrainte temporaire de budget != credential disparu).
+     *
+     * TASK-1819 : troisieme verrou, le DEBIT — PAR ORGANIZATION SEULE (jamais
+     * par utilisateur : l'ingestion de fichiers/articles tourne sans
+     * utilisateur par construction, et la recherche documentaire qui embedde
+     * la question d'un membre partage le MEME compteur que l'ingestion de
+     * cette Organization, puisque c'est le meme risque — une rafale
+     * d'appels embeddings factures).
+     *
+     * @param  bool  $countRateLimit  TASK-1819 : `false` pour les DEUX lecteurs
+     *                                diagnostiques (`OrganizationRagOverview::
+     *                                indexingAvailability()`, `LabPreconditions`)
+     *                                — une page d'etat ou une precondition de
+     *                                test n'est pas une tentative d'ingestion ;
+     *                                leur lecture doit rester PURE, exactement
+     *                                comme avant T1819. Les 4 appelants reels
+     *                                (indexers, recherche semantique) gardent
+     *                                le defaut `true`.
      */
-    public function authorizeEmbeddings(Organization $organization, ?User $user = null): AiEconomicVerdict
+    public function authorizeEmbeddings(Organization $organization, ?User $user = null, bool $countRateLimit = true): AiEconomicVerdict
     {
+        // Verite du diagnostic : le tarif de la famille d'embedding configuree
+        // est-il reellement au catalogue ? (Jamais un `true` de complaisance.)
+        // Calcule EN PREMIER : sert au refus de debit comme au reste.
+        $family = trim((string) config('ai.default_for_embeddings', 'openai'));
+        $model = trim((string) config("ai.providers.{$family}.models.embeddings.default", ''));
+        $pricingKnown = AiPricingCatalog::hasRate($family, $model);
+
+        if ($countRateLimit) {
+            $organizationRateKey = $this->organizationEmbeddingsRateLimitKey($organization);
+            $embeddingsLimit = (int) config('ai.rate_limits.embeddings_per_org_per_minute', 30);
+
+            if (RateLimiter::tooManyAttempts($organizationRateKey, $embeddingsLimit)) {
+                return AiEconomicVerdict::refuse(
+                    self::REASON_RATE_LIMITED,
+                    0.0,
+                    0,
+                    $pricingKnown,
+                    null,
+                    RateLimiter::availableIn($organizationRateKey),
+                );
+            }
+        }
+
         $monthStart = now()->startOfMonth();
         $nextMonthStart = $monthStart->copy()->addMonth();
 
@@ -305,12 +440,6 @@ final class AiEconomicGuard
             ->where('created_at', '>=', $monthStart)
             ->where('created_at', '<', $nextMonthStart)
             ->count();
-
-        // Verite du diagnostic : le tarif de la famille d'embedding configuree
-        // est-il reellement au catalogue ? (Jamais un `true` de complaisance.)
-        $family = trim((string) config('ai.default_for_embeddings', 'openai'));
-        $model = trim((string) config("ai.providers.{$family}.models.embeddings.default", ''));
-        $pricingKnown = AiPricingCatalog::hasRate($family, $model);
 
         $organizationBudget = $organization->aiSetting?->monthly_budget_usd;
 
@@ -352,7 +481,20 @@ final class AiEconomicGuard
             );
         }
 
+        // TASK-1819 : allow final — ce lot d'embeddings compte dans le debit de
+        // l'Organization. Jamais pour un lecteur diagnostique (`$countRateLimit`
+        // false) : il n'a rien tente, il n'y a rien a compter.
+        if ($countRateLimit) {
+            RateLimiter::hit($this->organizationEmbeddingsRateLimitKey($organization), 60);
+        }
+
         return AiEconomicVerdict::allow($knownCost, $unknownCount, $pricingKnown, $credit);
+    }
+
+    /** TASK-1819 : clef de debit embeddings PAR ORGANIZATION — ingestion et recherche documentaire partagent le meme compteur. */
+    private function organizationEmbeddingsRateLimitKey(Organization $organization): string
+    {
+        return 'ai-debit:embeddings:org:'.$organization->id;
     }
 
     /**
