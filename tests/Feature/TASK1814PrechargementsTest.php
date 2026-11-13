@@ -160,4 +160,126 @@ class TASK1814PrechargementsTest extends TestCase
             ->assertSeeText($voisin->name)
             ->assertDontSeeText($etranger->name);
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Correctif 02 — l'agenda
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * @return array{0: Organization, 1: User}
+     */
+    private function agendaDe(int $evenements, string $suffixe): array
+    {
+        $organization = Organization::factory()->create([
+            'slug' => 't1814-'.$suffixe,
+            'is_public' => true,
+            'loops_enabled' => true,
+        ]);
+
+        $membre = User::factory()->create(['organization_id' => $organization->id]);
+
+        for ($i = 0; $i < $evenements; $i++) {
+            $boucle = Loop::factory()->create([
+                'organization_id' => $organization->id,
+                'name' => 'Boucle '.$suffixe.' '.$i,
+            ]);
+            LoopMember::factory()->create([
+                'loop_id' => $boucle->id,
+                'user_id' => $membre->id,
+                'status' => 'active',
+            ]);
+            LoopCard::factory()->create([
+                'loop_id' => $boucle->id,
+                'card_key' => 'core.events',
+                'enabled' => true,
+            ]);
+            // `LoopEvent` n'a pas de factory dans ce depot : on cree la ligne
+            // comme le font les suites existantes (cf. TASK1802EventRowBentoTest).
+            LoopEvent::create([
+                'organization_id' => $organization->id,
+                'loop_id' => $boucle->id,
+                'created_by' => $membre->id,
+                'status' => LoopEvent::STATUS_SCHEDULED,
+                'title' => 'Rencontre '.$suffixe.' '.$i,
+                'description' => null,
+                'format' => LoopEvent::FORMAT_IN_PERSON,
+                'starts_at' => now()->addDays($i + 1),
+                'ends_at' => null,
+                'timezone' => 'Europe/Paris',
+                'location' => '',
+                'meeting_url' => '',
+                'visibility' => LoopEvent::VISIBILITY_LOOP,
+            ]);
+        }
+
+        return [$organization, $membre];
+    }
+
+    /**
+     * Le coût en `loop_cards` ne suit PAS le nombre de Boucles de l'agenda.
+     *
+     * `LoopTypeRegistry::activeCardsFor()` préfère déjà la relation `cards`
+     * quand elle est chargée (`LoopTypeRegistry:548`) et ne retombe sur une
+     * requête que sinon. Elle ne l'était jamais sur ce chemin : 24 lectures
+     * mesurées sur une seule page.
+     */
+    public function test_le_cout_en_loop_cards_ne_suit_pas_le_nombre_de_boucles(): void
+    {
+        [$orgPetit, $membrePetit] = $this->agendaDe(1, 'agenda-petit');
+        $petit = count($this->requetesSur('loop_cards', function () use ($orgPetit, $membrePetit): void {
+            $this->actingAs($membrePetit)->get('/org/'.$orgPetit->slug.'/agenda')->assertOk();
+        }));
+
+        [$orgGrand, $membreGrand] = $this->agendaDe(6, 'agenda-grand');
+        $grand = count($this->requetesSur('loop_cards', function () use ($orgGrand, $membreGrand): void {
+            $this->actingAs($membreGrand)->get('/org/'.$orgGrand->slug.'/agenda')->assertOk();
+        }));
+
+        $this->assertSame(
+            $petit,
+            $grand,
+            "L agenda lit `loop_cards` par Boucle : {$petit} lectures pour 1 Boucle, {$grand} pour 6. "
+            .'Le chemin rapide de `activeCardsFor()` n est pas alimente.'
+        );
+    }
+
+    /**
+     * CONTRAINTE « aucune modification des permissions ».
+     *
+     * Le préchargement ne doit rien changer au verdict : `activeCardsFor()`
+     * rend la même liste, qu'elle vienne de la relation chargée ou d'une
+     * requête. On compare les DEUX chemins sur la même Boucle.
+     */
+    public function test_le_verdict_est_le_meme_relation_chargee_ou_non(): void
+    {
+        [$organization, $membre] = $this->agendaDe(1, 'agenda-verdict');
+        $boucle = Loop::where('organization_id', $organization->id)->firstOrFail();
+
+        $registre = app(\App\Support\Loops\LoopTypeRegistry::class);
+
+        $sansRelation = $registre->activeCardsFor(Loop::findOrFail($boucle->id));
+        $avecRelation = $registre->activeCardsFor(Loop::with('cards')->findOrFail($boucle->id));
+
+        $this->assertSame(
+            $sansRelation,
+            $avecRelation,
+            'Le prechargement change le verdict de `activeCardsFor()` : ce serait une modification '
+            .'de permission deguisee en optimisation.'
+        );
+    }
+
+    /**
+     * SABOTAGE — l'agenda d'un tenant ne laisse pas entrer celui d'un autre.
+     */
+    public function test_l_agenda_reste_borne_a_son_organization(): void
+    {
+        [$ici, $membre] = $this->agendaDe(1, 'agenda-ici');
+        [$ailleurs, $etranger] = $this->agendaDe(1, 'agenda-ailleurs');
+
+        $evenementEtranger = LoopEvent::where('organization_id', $ailleurs->id)->firstOrFail();
+
+        $this->actingAs($membre)->get('/org/'.$ici->slug.'/agenda')
+            ->assertOk()
+            ->assertDontSeeText((string) $evenementEtranger->title);
+    }
 }
