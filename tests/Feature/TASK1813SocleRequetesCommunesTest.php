@@ -408,4 +408,35 @@ class TASK1813SocleRequetesCommunesTest extends TestCase
             ->assertOk()
             ->assertSeeText($membreB->name);
     }
+
+    /**
+     * La porte ne RETIENT pas la requete precedente en memoire.
+     *
+     * `spl_object_id()` a ete retire au profit d'une comparaison d'identite
+     * (demande MASTER : PHP reattribue l'identifiant d'un objet detruit). Mais
+     * garder une reference FORTE vers la requete precedente dans un service
+     * `scoped` la maintiendrait en vie jusqu'au remplacement de l'instance —
+     * une fuite dans tout conteneur de longue duree (tests, Octane).
+     *
+     * D'ou `WeakReference`. Ce test tient ce choix : la reference detenue par
+     * la porte doit etre faible, et ne doit rien empecher d'etre collecte.
+     */
+    public function test_la_porte_ne_retient_pas_la_requete_precedente(): void
+    {
+        $organization = $this->organizationWithAi('t1813-pas-de-fuite');
+        $user = User::factory()->create(['organization_id' => $organization->id]);
+
+        $this->actingAs($user)->get('/boucles')->assertOk();
+
+        $porte = app(AiSurfaceGate::class);
+        $propriete = new \ReflectionProperty($porte, 'requeteMemo');
+        $detenue = $propriete->getValue($porte);
+
+        $this->assertInstanceOf(
+            \WeakReference::class,
+            $detenue,
+            'La porte doit detenir la requete par reference FAIBLE : une reference forte '
+            .'maintiendrait la requete precedente en vie dans un conteneur de longue duree.'
+        );
+    }
 }

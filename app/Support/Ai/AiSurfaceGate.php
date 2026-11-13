@@ -39,8 +39,20 @@ class AiSurfaceGate
     /** @var array<string, bool> */
     private array $memo = [];
 
-    /** Identite de la requete a laquelle `$memo` appartient. */
-    private ?int $requeteMemo = null;
+    /**
+     * La requete a laquelle `$memo` appartient — par REFERENCE, pas par identifiant.
+     *
+     * `spl_object_id()` a ete essaye, puis retire : PHP reattribue l'identifiant
+     * d'un objet detruit. Deux requetes successives pouvaient donc porter le
+     * MEME identifiant, et le memo de la premiere aurait ete servi a la
+     * seconde — exactement la peremption que cette garde existe pour fermer.
+     *
+     * `WeakReference` et non une reference forte : le portier ne doit pas
+     * maintenir en vie la requete precedente. Quand elle est collectee,
+     * `get()` rend `null`, ce qui differe de toute requete courante et
+     * declenche l'oubli — le sens sur.
+     */
+    private ?\WeakReference $requeteMemo = null;
 
     public function __construct(private readonly ProviderResolver $resolver) {}
 
@@ -69,16 +81,17 @@ class AiSurfaceGate
      * meme conteneur de test rendaient la MEME instance, et le verdict restait
      * `true` apres extinction de l'IA de l'Organization entre les deux.
      *
-     * Le prix est nul : a l'interieur d'une requete, l'identite de l'objet
-     * `Request` ne change pas, donc le memo sert exactement comme avant.
+     * Le prix est nul : a l'interieur d'une requete, l'objet `Request` reste
+     * le meme, donc le memo sert exactement comme avant.
      */
     private function oublierSiNouvelleRequete(): void
     {
-        $requete = app()->bound('request') ? spl_object_id(app('request')) : null;
+        $requete = app()->bound('request') ? app('request') : null;
 
-        if ($requete !== $this->requeteMemo) {
+        // Comparaison d'IDENTITE (`!==` sur des objets), et non d'identifiant.
+        if ($this->requeteMemo?->get() !== $requete) {
             $this->memo = [];
-            $this->requeteMemo = $requete;
+            $this->requeteMemo = $requete !== null ? \WeakReference::create($requete) : null;
         }
     }
 
