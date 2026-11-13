@@ -245,18 +245,24 @@ return [
     | Valeurs de depart (precedents du depot, PAS mesurees sur un usage reel —
     | aucune telemetrie de debit n'existe, le ledger local n'a que 38 lignes
     | sur 24 jours, pic observe 2/min) :
-    |  - 10/min/utilisateur : le double du `throttle:5,1` de loops.ai et des
-    |    5/60 s de LoopAiSummaryCard, confortable pour le pour/contre (2 appels
-    |    par question) et l'agent documentaire (2 par message) ;
-    |  - 60/min/Organization : 6x la limite utilisateur, deux membres actifs ne
-    |    se bloquent jamais mutuellement ;
+    |  - 20/min/utilisateur. Le dossier proposait 10 ; releve apres un SIGNAL
+    |    REEL trouve en CI (TASK-1819) : `TASK1568ExecutionPathTest::
+    |    test_c5_le_contrat_des_deux_etapes_est_mesure_sur_treize_chemins`
+    |    enchaine 13 chemins IA REELS distincts pour le MEME utilisateur —
+    |    exactement l'usage multi-IA legitime que la mission interdit de
+    |    bloquer. 10 l'aurait refuse au 11e. 20 couvre ce cas avec marge sans
+    |    perdre la fonction du verrou (toujours une vraie borne de debit, pas
+    |    un plafond mensuel deguise) ;
+    |  - 120/min/Organization : meme ratio 6x que la proposition initiale,
+    |    recalcule sur la nouvelle limite utilisateur — plusieurs membres
+    |    actifs ne se bloquent jamais mutuellement ;
     |  - 30/min/Organization pour les embeddings : un lot de 20 fichiers passe,
     |    une boucle de reindexation est coupee. A CONFRONTER a un usage reel
     |    avant d'etre considere comme definitif (reglable par env, sans deploi).
     */
     'rate_limits' => [
-        'per_user_per_minute' => (int) env('AI_RATE_LIMIT_PER_USER_PER_MINUTE', 10),
-        'per_org_per_minute' => (int) env('AI_RATE_LIMIT_PER_ORG_PER_MINUTE', 60),
+        'per_user_per_minute' => (int) env('AI_RATE_LIMIT_PER_USER_PER_MINUTE', 20),
+        'per_org_per_minute' => (int) env('AI_RATE_LIMIT_PER_ORG_PER_MINUTE', 120),
         'embeddings_per_org_per_minute' => (int) env('AI_RATE_LIMIT_EMBEDDINGS_PER_ORG_PER_MINUTE', 30),
     ],
 

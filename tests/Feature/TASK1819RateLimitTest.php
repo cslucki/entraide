@@ -377,7 +377,9 @@ class TASK1819RateLimitTest extends TestCase
         config()->set('ai.providers.openai.driver', 'openai');
         config()->set('ai.providers.openai.key', 'platform-should-not-be-used');
         config()->set('ai.providers.openai.models.embeddings.default', 'text-embedding-3-small');
-        config()->set('ai.providers.openai.models.embeddings.dimensions', 8);
+        // PostgreSQL/pgvector impose la dimension REELLE de la colonne (1536) ;
+        // SQLite ne l'impose pas. Meme patron que TASK1222/TASK1216.
+        config()->set('ai.providers.openai.models.embeddings.dimensions', $this->embeddingDimensions());
 
         $organization = Organization::factory()->create();
         config()->set(
@@ -442,10 +444,15 @@ class TASK1819RateLimitTest extends TestCase
         return [$organization, $dossier, $file, $path];
     }
 
+    private function embeddingDimensions(): int
+    {
+        return config('database.default') === 'pgsql' ? 1536 : 8;
+    }
+
     private function fakeEmbeddings(): void
     {
         Embeddings::fake(function (EmbeddingsPrompt $prompt): EmbeddingsResponse {
-            $vectors = array_map(fn (): array => array_fill(0, 8, 0.1), $prompt->inputs);
+            $vectors = array_map(fn (): array => array_fill(0, $this->embeddingDimensions(), 0.1), $prompt->inputs);
 
             return new EmbeddingsResponse($vectors, count($prompt->inputs) * 3, new Meta($prompt->provider->name(), $prompt->model));
         })->preventStrayEmbeddings();
