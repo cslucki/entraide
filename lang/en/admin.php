@@ -2186,6 +2186,36 @@ return [
     'push_test_forget_confirm' => "Remove this device from the server? It will re-register on its own next time the settings screen is shown, unless the browser was unsubscribed from the device.",
     'push_test_forget_help' => "“Forget” removes the server row, not the browser subscription. To start over: “Turn off on this device” from the phone first, then “Forget” here if a row remains.",
 
+    // TASK-1820 — "My Push devices". Restricted to the CONNECTED account:
+    // never a general device management tool, never a user search. Neither
+    // the full endpoint nor any key ever appears.
+    'push_devices_nav_label' => 'My Push devices',
+    'push_devices_title_page' => 'My Push devices',
+    'push_devices_intro' => "The Push subscriptions registered for YOUR account only — never anyone else's. The same phone can appear more than once: each new activation attempt can create a different endpoint, and the previous one stays in the database until it is removed here.",
+    'push_devices_total' => ':count subscription registered in total.|:count subscriptions registered in total.',
+    'push_devices_empty' => 'No Push subscription registered for your account.',
+    'push_devices_column_device' => 'Device',
+    'push_devices_column_provider' => 'Provider',
+    'push_devices_column_fingerprint' => 'Fingerprint',
+    'push_devices_column_created' => 'Created on',
+    'push_devices_column_last_seen' => 'Last activity',
+    'push_devices_column_env' => 'Environment',
+    'push_devices_column_vapid' => 'VAPID key',
+    'push_devices_device_unknown' => 'Device',
+    'push_devices_never_seen' => 'never reconfirmed',
+    'push_devices_vapid_concordant' => 'Matches the current key (stored — not proof of delivery)',
+    'push_devices_vapid_divergent' => 'DIVERGENT: created with a different key than the one in force. The provider may accept the send without the browser ever receiving it.',
+    'push_devices_vapid_unknown' => 'Unknown origin (subscription created before this check existed)',
+    'push_devices_this_device' => 'This device',
+    'push_devices_checking' => 'Identifying this device…',
+    'push_devices_not_identified' => 'Current device not identified: no active subscription on this browser, or no match found.',
+    'push_devices_unsupported' => 'This browser cannot identify the current device (Web Push unavailable).',
+    'push_devices_remove' => 'Remove this subscription',
+    'push_devices_remove_confirm' => 'Remove this subscription from the server? The browser may automatically recreate it next time it launches, unless its own subscription was turned off from the device.',
+    'push_devices_remove_this_device_warning' => "This is the device you are currently using to open this page. Removing it will not turn off notifications on this phone: the browser will recreate this subscription next time it launches, with a new endpoint.",
+    'push_devices_removed' => 'Subscription removed from the server. The browser may automatically recreate it next time the app launches: to truly stop it, turn off notifications from this device.',
+    'push_devices_already_removed' => 'This subscription had already been removed.',
+
     // TASK-1744 — the notification inspector. Distinct from the T1380
     // cockpit, which COUNTS without naming anyone.
     'notif_inspector_title' => 'Notifications sent',

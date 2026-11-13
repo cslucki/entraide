@@ -158,6 +158,37 @@ class PushSubscriptionStore
     }
 
     /**
+     * TASK-1820 — retirer un abonnement par IDENTIFIANT DE LIGNE, pour CETTE
+     * personne.
+     *
+     * Meme doctrine que `renoncer()`, pour une situation differente : celui-ci
+     * vise par `endpoint`, le seul identifiant que le NAVIGATEUR connaisse —
+     * c'est le bon choix quand c'est le navigateur qui parle. Un ECRAN
+     * D'ADMINISTRATION ne doit en revanche jamais recevoir ni reafficher un
+     * endpoint complet ; il ne peut donc viser que par l'identifiant DE LIGNE
+     * (`PushSubscription::id`), que l'ecran a deja affiche sans rien exposer.
+     *
+     * Le filtre sur `user_id` reste la garde reelle, EXACTEMENT comme dans
+     * `renoncer()` : sans lui, un identifiant de ligne connu (jamais secret,
+     * un UUID visite dans l'URL) permettrait de retirer l'appareil de
+     * n'importe qui. La requete part TOUJOURS de `$proprietaire`, jamais d'un
+     * identifiant seul.
+     *
+     * Rend `true` si une ligne a ete retiree. `false` n'est PAS une erreur :
+     * la ligne pouvait deja avoir disparu (double clic, onglet concurrent),
+     * ou appartenir a un autre compte — l'appelant ne doit pas pouvoir
+     * distinguer les deux cas, pour ne rien reveler sur l'existence d'une
+     * ligne appartenant a quelqu'un d'autre.
+     */
+    public function renoncerParId(User $proprietaire, string $id): bool
+    {
+        return PushSubscription::query()
+            ->where('id', $id)
+            ->where('user_id', $proprietaire->getKey())
+            ->delete() > 0;
+    }
+
+    /**
      * Les appareils de cette personne, le plus recemment vu en tete.
      *
      * @return \Illuminate\Support\Collection<int, PushSubscription>
