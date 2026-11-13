@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Organization;
+use App\Support\ScopedReadCache;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -347,8 +348,21 @@ class ResolveUrlOrganization
         // Meme correction que `DefaultOrganizationResolver` (TASK-1121) et que
         // le departage des proprietaires (TASK-1117) : l'horodatage d'abord,
         // puis `id` pour trancher, `created_at` etant stocke a la seconde.
-        $org = Organization::where('is_default', true)->orderBy('created_at')->orderBy('id')->first()
-            ?? Organization::where('is_active', true)->orderBy('created_at')->orderBy('id')->first();
+        // TASK-1813 correctif 02 — cette methode est appelee DEUX fois dans la
+        // meme passe de middleware (depuis `:219` et depuis `:274`), et rendait
+        // deux fois la meme ligne. `ScopedReadCache` (T1778) la retient le
+        // temps de la requete : c'est l'usage que son docblock autorise
+        // nommement — « une Organization » est une lecture de REFERENCE.
+        //
+        // La clef ne porte rien d'autre : l'Organization par defaut de la
+        // PLATEFORME ne depend ni de l'URL, ni de la personne connectee. Le
+        // depart egalite (`created_at` puis `id`) reste dans la lecture, donc
+        // le verdict memoise est exactement celui que TASK-1121 a fige.
+        $org = app(ScopedReadCache::class)->souviens(
+            'organization:default',
+            fn () => Organization::where('is_default', true)->orderBy('created_at')->orderBy('id')->first()
+                ?? Organization::where('is_active', true)->orderBy('created_at')->orderBy('id')->first()
+        );
 
         if (! $org) {
             Log::warning('Default Organization resolution failed: no active organization with is_default = true in DB.');
@@ -367,7 +381,32 @@ class ResolveUrlOrganization
 
         $orgId = $user->organization_id;
         if ($orgId) {
-            return Organization::find($orgId);
+            // TASK-1813 correctif 02 — appelee jusqu'a TROIS fois par passe
+            // (`:201`, `:223`, `:268`), pour la meme ligne.
+            //
+            // La clef porte l'identifiant de l'Organization, et non celui de
+            // la personne : c'est `organization_id` qui fait varier la
+            // reponse. Deux membres de la meme Organization doivent obtenir la
+            // meme ligne ; deux Organizations ne partagent jamais la leur.
+            $organization = app(ScopedReadCache::class)->souviens(
+                'organization:id:'.$orgId,
+                fn () => Organization::find($orgId)
+            );
+
+            // Et on AMORCE la relation de la personne connectee avec cette
+            // meme ligne. Les vues du layout lisent `auth()->user()->organization`
+            // — un acces paresseux qui repartait en base pour la ligne qu'on
+            // vient de lire.
+            //
+            // Ce n'est pas un raccourci : `Organization::find($orgId)` avec
+            // `$orgId = $user->organization_id` EST, par definition, la relation
+            // `organization` de cette personne. Les deux ne peuvent pas diverger,
+            // et amorcer une relation n'empeche aucun rechargement explicite.
+            if ($organization !== null && ! $user->relationLoaded('organization')) {
+                $user->setRelation('organization', $organization);
+            }
+
+            return $organization;
         }
 
         return null;

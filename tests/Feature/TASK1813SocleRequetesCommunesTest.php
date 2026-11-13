@@ -237,4 +237,115 @@ class TASK1813SocleRequetesCommunesTest extends TestCase
             'Une seule Organization est consultee sur cette page : la porte ne doit la lire qu une fois.'
         );
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Correctif 02 — les deux lectures d'Organization du resolveur d'URL
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Le RESOLVEUR D'URL ne relit plus deux fois la meme Organization.
+     *
+     * `resolveDefaultOrganization()` est appelee deux fois par passe de
+     * middleware (`:219` et `:274`), `resolveFromAuthenticatedUser()` jusqu'a
+     * trois (`:201`, `:223`, `:268`).
+     *
+     * L'assertion est bornee aux lectures qui viennent du resolveur. Elle
+     * n'est pas posee sur toute la table : `AiShell` relit l'Organization de
+     * son cote (mesure : trois fois, depuis `AiShell::1021`), et ce N+1 la
+     * n'appartient pas au perimetre de cette TASK. Une assertion globale
+     * aurait rougi pour un defaut que ce commit ne traite pas.
+     */
+    public function test_le_resolveur_d_url_ne_relit_aucune_organization(): void
+    {
+        $organization = $this->organizationWithAi('t1813-org-unique');
+        $user = User::factory()->create(['organization_id' => $organization->id]);
+
+        $parLeResolveur = [];
+        DB::listen(function ($requete) use (&$parLeResolveur): void {
+            $sql = preg_replace('/\s+/', ' ', $requete->sql);
+            if (! str_contains($sql, '"organizations"') && ! str_contains($sql, '`organizations`')) {
+                return;
+            }
+
+            // La frame EMETTRICE, et non « le resolveur est quelque part sur
+            // la pile » : le `handle()` d'un middleware reste sur la pile
+            // pendant toute la suite de la requete, et ce critere-la aurait
+            // attribue au resolveur presque chaque requete de la page.
+            foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 70) as $cadre) {
+                $fichier = $cadre['file'] ?? '';
+                if ($fichier === '' || str_contains($fichier, '/vendor/') || str_contains($fichier, 'ScopedReadCache.php')) {
+                    continue;
+                }
+
+                if (str_ends_with($fichier, 'ResolveUrlOrganization.php')) {
+                    $parLeResolveur[] = $sql.'|'.json_encode($requete->bindings);
+                }
+
+                return;
+            }
+        });
+
+        $this->actingAs($user)->get('/boucles')->assertOk();
+
+        $this->assertSame(
+            count(array_unique($parLeResolveur)),
+            count($parLeResolveur),
+            'Le resolveur d URL a rejoue la MEME requete avec les MEMES liaisons : '
+            .'sa memoire de lecture ne sert pas. Lectures = '.count($parLeResolveur).'.'
+        );
+    }
+
+    /**
+     * SABOTAGE — la clef de `ScopedReadCache` doit porter l'Organization.
+     *
+     * Deux membres d'Organizations DIFFERENTES, dans deux requetes, ne doivent
+     * jamais recevoir la ligne de l'autre. `scoped` vide entre deux requetes :
+     * la garde verifie que le contrat tient bout a bout, pas seulement en
+     * theorie.
+     */
+    public function test_deux_organizations_ne_partagent_jamais_leur_ligne(): void
+    {
+        $premiere = $this->organizationWithAi('t1813-ruo-a');
+        $seconde = $this->organizationWithAi('t1813-ruo-b');
+
+        $membreA = User::factory()->create(['organization_id' => $premiere->id]);
+        $membreB = User::factory()->create(['organization_id' => $seconde->id]);
+
+        $this->actingAs($membreA)->get('/boucles')->assertOk();
+        $this->assertSame(
+            (string) $premiere->id,
+            (string) $membreA->fresh()->organization->id,
+            'Le membre A doit rester dans son Organization.'
+        );
+
+        $this->actingAs($membreB)->get('/boucles')->assertOk();
+        $this->assertSame(
+            (string) $seconde->id,
+            (string) $membreB->fresh()->organization->id,
+            'FUITE INTER-TENANT : le membre B a recu la ligne de l Organization A.'
+        );
+    }
+
+    /**
+     * La relation amorcee est bien CELLE de la personne, pas une autre.
+     *
+     * Amorcer une relation est un geste qui peut mentir : on verifie que la
+     * ligne posee porte bien `organization_id` de la personne connectee.
+     */
+    public function test_la_relation_amorcee_est_celle_de_la_personne(): void
+    {
+        $organization = $this->organizationWithAi('t1813-amorce');
+        $user = User::factory()->create(['organization_id' => $organization->id]);
+
+        $this->actingAs($user)->get('/boucles')->assertOk();
+
+        $connecte = auth()->user();
+
+        $this->assertTrue($connecte->relationLoaded('organization'), 'La relation devait etre amorcee par le middleware.');
+        $this->assertSame(
+            (string) $connecte->organization_id,
+            (string) $connecte->organization->id,
+            'La relation amorcee ne correspond pas a `organization_id` de la personne.'
+        );
+    }
 }
