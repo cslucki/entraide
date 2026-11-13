@@ -34,13 +34,31 @@ function requis(nom) {
 }
 
 /**
+ * TASK-1818 — la boucle deduite de l'adresse (`<boucle>.<role>@...`), avec
+ * `main` pour les comptes sans prefixe comme l'administrateur.
+ */
+function deduireOrganisation(email) {
+    const local = String(email).split('@')[0];
+    return local.includes('.') ? local.split('.')[0] : 'main';
+}
+
+/**
  * Connexion par identifiants EXPLICITES.
  *
  * On verifie l'arrivee plutot que de supposer : un mot de passe faux rend la
  * page de connexion avec un 200, et sans cette garde le spec continuerait
  * jusqu'a un `toBeVisible()` qui echouerait en accusant la mauvaise chose.
+ *
+ * TASK-1818 — le formulaire porte aussi un `select[name="organization"]`
+ * REQUIS, que ce helper ne remplissait pas. Mesure du 13/11 : TOUT spec passant
+ * par lui restait sur /login, credentials pourtant valides. Le champ vient de
+ * T1749/T1774 ; le helper ne l'a jamais suivi. Sans ce correctif, aucune
+ * recette navigateur ne peut tourner.
+ *
+ * Une boucle absente du menu leve ICI, plutot que de laisser le spec echouer
+ * trois assertions plus loin en accusant la mauvaise cause.
  */
-export async function login(page, email, password) {
+export async function login(page, email, password, organization = null) {
     await page.goto('/login');
     await page.waitForLoadState('domcontentloaded');
 
@@ -53,6 +71,23 @@ export async function login(page, email, password) {
 
     await formulaire.locator('input[name="email"]').fill(email);
     await formulaire.locator('input[name="password"]').fill(password);
+
+    const choixBoucle = formulaire.locator('select[name="organization"]');
+    if (await choixBoucle.count() > 0) {
+        const voulue = organization ?? deduireOrganisation(email);
+        const offertes = await choixBoucle
+            .locator('option')
+            .evaluateAll((options) => options.map((o) => o.value).filter(Boolean));
+
+        if (!offertes.includes(voulue)) {
+            throw new Error(
+                `La boucle « ${voulue} » n'est pas proposee a la connexion pour ${email}. `
+                + `Menu reellement offert : ${offertes.join(', ') || '(vide)'}.`
+            );
+        }
+
+        await choixBoucle.selectOption(voulue);
+    }
     await Promise.all([
         page.waitForLoadState('networkidle'),
         formulaire.locator('button[type="submit"]:visible').last().click(),

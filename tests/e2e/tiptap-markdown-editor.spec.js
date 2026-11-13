@@ -828,3 +828,237 @@ test.describe('Tiptap Fallback (no JavaScript)', () => {
         await noJsContext.close();
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────
+// TASK-1818 — la suggestion IA doit atterrir DANS TipTap
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Le defaut : `applySuggestion()` ecrivait dans le `<textarea>` que le
+ * composant d'edition CACHE depuis T1773. La suggestion partait au serveur
+ * sans jamais s'afficher — l'auteur voyait son texte et postait autre chose.
+ *
+ * Ces tests mesurent les trois contenus SEPAREMENT : ce qui est a l'ecran
+ * (ProseMirror), ce que porte le champ soumis (textarea), et ce que le
+ * navigateur enverrait reellement (FormData construit depuis le formulaire).
+ * Comparer seulement les deux premiers laisserait passer une divergence a
+ * l'envoi.
+ *
+ * AUCUNE DEPENSE FOURNISSEUR : la route de formulation est doublee, et le vrai
+ * Service Worker est bloque — sans quoi il intercepterait le `fetch` et le POST
+ * partirait au serveur reel (piege mesure le 03/11, cf. task-1745-first-run).
+ */
+test.describe('TASK-1818 — suggestion IA appliquee dans Tiptap', () => {
+    test.use({ serviceWorkers: 'block' });
+
+    const SUGGESTION = {
+        title: 'Besoin d un coup de main pour un demenagement',
+        description: 'Je cherche **deux personnes** pour m aider a porter des cartons samedi matin.\n\nLe logement est au 3e sans ascenseur, et j ai prevu de quoi dejeuner.',
+        category_id: null,
+    };
+
+    /** Le bloc IA n'est rendu que si l'IA est reellement utilisable ici. */
+    let etatInitialIa = null;
+
+    test.beforeAll(async () => {
+        const { execFileSync } = await import('node:child_process');
+        const lire = execFileSync('php', ['artisan', 'tinker', '--execute',
+            `$s = App\\Models\\OrganizationAiSetting::whereHas('organization', fn($q) => $q->where('slug', 'main'))->first();
+             echo $s ? json_encode(['id' => $s->id, 'is_enabled' => $s->is_enabled, 'api_key' => $s->api_key]) : 'null';`
+        ], { encoding: 'utf8' }).trim();
+
+        etatInitialIa = lire.includes('{') ? JSON.parse(lire.slice(lire.indexOf('{'))) : null;
+
+        if (etatInitialIa) {
+            execFileSync('php', ['artisan', 'tinker', '--execute',
+                `$s = App\\Models\\OrganizationAiSetting::find('${etatInitialIa.id}');
+                 $s->is_enabled = true; $s->api_key = 'sk-banc-e2e-1818'; $s->save();`
+            ], { encoding: 'utf8' });
+        }
+    });
+
+    test.afterAll(async () => {
+        if (!etatInitialIa) return;
+        const { execFileSync } = await import('node:child_process');
+        const cle = etatInitialIa.api_key === null ? 'null' : `'${etatInitialIa.api_key}'`;
+        execFileSync('php', ['artisan', 'tinker', '--execute',
+            `$s = App\\Models\\OrganizationAiSetting::find('${etatInitialIa.id}');
+             $s->is_enabled = ${etatInitialIa.is_enabled ? 'true' : 'false'}; $s->api_key = ${cle}; $s->save();`
+        ], { encoding: 'utf8' });
+    });
+
+    test.beforeEach(async ({ page }) => {
+        setupConsoleLogging(page);
+        clearErrors();
+    });
+
+    /** Double la formulation IA. Aucun appel ne sort. */
+    async function doublerFormulation(page, suggestion = SUGGESTION) {
+        await page.route('**/requests/ai-formulate', (route) =>
+            route.fulfill({ json: { suggestion } })
+        );
+    }
+
+    /** Compte les POST vers la creation d'une demande — doit rester a zero. */
+    function surveillerPublication(page) {
+        const envois = [];
+        page.on('request', (requete) => {
+            if (requete.method() === 'POST' && /\/requests(\?|$)/.test(new URL(requete.url()).pathname + '')) {
+                envois.push(requete.url());
+            }
+        });
+        return envois;
+    }
+
+    async function allerSurDemande(page, { mobile = false } = {}) {
+        if (mobile) await page.setViewportSize({ width: 390, height: 844 });
+
+        await page.goto('/requests/create');
+        await page.waitForTimeout(500);
+
+        if (page.url().includes('/profile/edit')) {
+            await ensureProfileComplete(page);
+            await page.goto('/requests/create');
+        }
+
+        await waitForTiptapInit(page);
+        clearErrors();
+    }
+
+    /** Les TROIS contenus, lus separement sur le DOM reel. */
+    async function lireLesTroisContenus(page) {
+        return await page.evaluate(() => {
+            const form = document.querySelector('form[data-marketplace-validation]');
+            const textarea = form.querySelector('textarea[name="description"]');
+            const visible = document.querySelector('.ProseMirror');
+            return {
+                ecran: visible ? visible.innerText.trim() : null,
+                champ: textarea ? textarea.value.trim() : null,
+                // Ce que le navigateur enverrait reellement, construit depuis le
+                // formulaire lui-meme — pas une valeur que le test re-derive.
+                envoi: (new FormData(form).get('description') || '').toString().trim(),
+            };
+        });
+    }
+
+    async function declencherEtAppliquer(page) {
+        await page.fill('input[name="title"]', 'Un coup de main');
+        await page.waitForTimeout(200);
+
+        await page.click(`button:has-text("M'aider à formuler")`);
+        await expect(page.locator(`button:has-text("Appliquer la suggestion")`)).toBeVisible();
+
+        await page.click(`button:has-text("Appliquer la suggestion")`);
+        await page.waitForTimeout(400);
+    }
+
+    // ═══ 1 + 2 — la description s'affiche, et les trois contenus coincident ══
+
+    for (const appareil of [
+        { nom: 'desktop', mobile: false },
+        { nom: 'mobile', mobile: true },
+    ]) {
+        test(`la suggestion appliquee apparait dans Tiptap et les trois contenus coincident (${appareil.nom})`, async ({ page }) => {
+            await loginAsMember(page);
+            await doublerFormulation(page);
+            const publications = surveillerPublication(page);
+            await allerSurDemande(page, appareil);
+
+            await declencherEtAppliquer(page);
+
+            const { ecran, champ, envoi } = await lireLesTroisContenus(page);
+
+            // 1 — visible a l'ecran, immediatement.
+            expect(ecran).toContain('deux personnes');
+            expect(ecran).toContain('3e sans ascenseur');
+
+            // 2 — l'ecran, le champ soumis et l'envoi portent le MEME texte.
+            expect(champ).toContain('deux personnes');
+            expect(envoi).toBe(champ);
+            expect(envoi).toContain('3e sans ascenseur');
+
+            // Le Markdown atteint bien le champ soumis, pas seulement le rendu.
+            expect(champ).toContain('**deux personnes**');
+
+            // 5 — rien n'a ete publie.
+            expect(publications).toHaveLength(0);
+        });
+    }
+
+    // ═══ 3 — une saisie manuelle posterieure reste synchronisee ═══════════
+
+    test('une modification manuelle apres application reste synchronisee', async ({ page }) => {
+        await loginAsMember(page);
+        await doublerFormulation(page);
+        await allerSurDemande(page);
+
+        await declencherEtAppliquer(page);
+
+        await page.click('.ProseMirror');
+        await page.keyboard.press('End');
+        await page.keyboard.type(' Merci d avance.');
+        await page.waitForTimeout(400);
+
+        const { ecran, champ, envoi } = await lireLesTroisContenus(page);
+
+        expect(ecran).toContain('Merci d avance.');
+        expect(champ).toContain('Merci d avance.');
+        expect(envoi).toBe(champ);
+        // Le texte d'origine n'a pas ete perdu en route.
+        expect(champ).toContain('deux personnes');
+    });
+
+    // ═══ 4 — ignorer ne touche a rien ════════════════════════════════════
+
+    test('ignorer la suggestion ne modifie aucun champ', async ({ page }) => {
+        await loginAsMember(page);
+        await doublerFormulation(page);
+        const publications = surveillerPublication(page);
+        await allerSurDemande(page);
+
+        await page.fill('input[name="title"]', 'Mon titre a moi');
+        await page.click('.ProseMirror');
+        await page.keyboard.type('Ma description a moi.');
+        await page.waitForTimeout(300);
+
+        const avant = await lireLesTroisContenus(page);
+        const titreAvant = await page.inputValue('input[name="title"]');
+
+        await page.click(`button:has-text("M'aider à formuler")`);
+        await expect(page.locator(`button:has-text("Annuler")`)).toBeVisible();
+        await page.click(`button:has-text("Annuler")`);
+        await page.waitForTimeout(300);
+
+        const apres = await lireLesTroisContenus(page);
+
+        expect(apres.ecran).toBe(avant.ecran);
+        expect(apres.champ).toBe(avant.champ);
+        expect(apres.envoi).toBe(avant.envoi);
+        expect(await page.inputValue('input[name="title"]')).toBe(titreAvant);
+        expect(apres.champ).not.toContain('deux personnes');
+        expect(publications).toHaveLength(0);
+    });
+
+    // ═══ 6 — le formulaire d'offre d'aide n'a pas bouge ══════════════════
+
+    test('le formulaire d offre d aide reste fonctionnel', async ({ page }) => {
+        await loginAsMember(page);
+        await page.route('**/services/ai-formulate', (route) =>
+            route.fulfill({ json: { suggestion: { title: 'Je propose un coup de main', description_markdown: 'Je peux **aider** a porter des cartons.' } } })
+        );
+        await gotoCreate(page);
+
+        await page.fill('input[name="title"]', 'Un coup de main');
+        await page.waitForTimeout(200);
+        await page.click(`button:has-text("M'aider à formuler")`);
+        await expect(page.locator(`button:has-text("Appliquer la suggestion")`)).toBeVisible();
+        await page.click(`button:has-text("Appliquer la suggestion")`);
+        await page.waitForTimeout(400);
+
+        const { ecran, champ, envoi } = await lireLesTroisContenus(page);
+
+        expect(ecran).toContain('porter des cartons');
+        expect(champ).toContain('**aider**');
+        expect(envoi).toBe(champ);
+    });
+});
