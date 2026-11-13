@@ -207,9 +207,18 @@
                /dashboard, /membres  Alpine 3.15.11, Livewire charge, stores poses
 
              La panne etait SILENCIEUSE — zero erreur console, puisque Alpine ne
-             tournait pas et ne pouvait donc pas echouer. Le symptome visible :
-             le panneau du menu mobile porte `x-cloak`, restait `display:none`
-             A JAMAIS, et cliquer le bouton ne faisait rien.
+             tournait pas et ne pouvait donc pas echouer.
+
+             Les deux interactions Alpine reellement offertes a un VISITEUR, et
+             les deux seules, etaient donc mortes :
+               - la bascule de theme clair/sombre, qui ne repondait pas ;
+               - l'indice de defilement de la barre basse (`x-show="indice"`,
+                 porteur du `x-cloak`), fige en `display:none` A JAMAIS.
+
+             Il n'y a pas de menu burger en jeu ici : la navigation interne de
+             `x-mobile-topbar` est gardee par `auth()->check()`, donc jamais
+             rendue sur ces pages. Seule subsiste la portee `menuOuvert` du
+             `<header>`, qui ne pilote qu'une classe de `z-index`.
 
              La directive de scripts Livewire plutot qu'un demarrage autonome
              d'Alpine :

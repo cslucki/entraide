@@ -21,9 +21,11 @@ use Tests\TestCase;
  * | `/dashboard`, `/membres` | 3.15.11 | chargé | true | — |
  *
  * La panne était **silencieuse** : zéro erreur console, puisque Alpine ne
- * tournait pas et ne pouvait donc pas échouer. Symptôme visible : le panneau
- * `x-cloak` restait `display:none` **à jamais**, et la bascule clair/sombre —
- * seule interaction offerte à un visiteur — ne répondait pas.
+ * tournait pas et ne pouvait donc pas échouer. Les deux interactions Alpine
+ * réellement offertes à un visiteur étaient mortes : la bascule de thème
+ * clair/sombre, et l'indice de défilement de la barre basse (`x-show="indice"`,
+ * porteur du `x-cloak`), figé en `display:none` **à jamais**. Pas de menu
+ * burger en jeu : la navigation interne est gardée par `auth()->check()`.
  *
  * ## Pourquoi les scripts Livewire plutôt qu'un Alpine autonome
  *
