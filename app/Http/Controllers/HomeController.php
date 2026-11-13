@@ -231,6 +231,21 @@ class HomeController extends Controller
                 'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->open()->where('organization_id', $organizationId),
             ])
             ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->active()->where('organization_id', $organizationId)->with('skills', 'category')])
+            // TASK-1814 correctif 01 — l'accesseur `public_location`
+            // (`User::getPublicLocationAttribute()`) lit `organization` ET
+            // `country` pour CHAQUE membre affiche. Sans ces deux
+            // prechargements, la grille payait deux requetes par carte :
+            // mesure du 13/11 sur le jumeau, 13 membres = 26 requetes.
+            //
+            // La page pagine a 36 : une page pleine en aurait paye 72.
+            //
+            // Pas de restriction de colonnes (`organization:id,show_country`)
+            // volontairement : la liste des colonnes utiles appartient a
+            // l'accesseur, pas a cette requete, et elle derivera le jour ou il
+            // lira un champ de plus — en silence, puisqu'une colonne absente
+            // rend `null` sans rien dire. Deux lignes completes, lues une
+            // fois, coutent moins que ce piege.
+            ->with(['organization', 'country'])
             // TASK-1812 correctif 04 — demande de Cyril : la grille par defaut
             // se lit desormais par PRENOM, et non plus par date d'inscription.
             // Le point 11.4 l'avait anticipe : le tri de « Nouveaux arrivés »
