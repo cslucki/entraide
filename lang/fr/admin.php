@@ -2214,6 +2214,43 @@ return [
     'push_test_forget_confirm' => "Retirer cet appareil du serveur ? Il se réenregistrera tout seul au prochain affichage des réglages si le navigateur n’a pas été désabonné depuis l’appareil.",
     'push_test_forget_help' => "« Oublier » retire la ligne serveur, pas l’abonnement du navigateur. Pour repartir de zéro : « Désactiver sur cet appareil » depuis le téléphone d’abord, puis « Oublier » ici si une ligne subsiste.",
 
+    // TASK-1820 — « Mes appareils Push ». Reserve au compte CONNECTE :
+    // jamais une gestion generale des appareils, jamais une recherche
+    // d'utilisateur. Ni l'endpoint complet ni aucune clef n'y figurent.
+    'push_devices_nav_label' => 'Mes appareils Push',
+    'push_devices_title_page' => 'Mes appareils Push',
+    'push_devices_intro' => "Les abonnements Push enregistrés pour VOTRE compte — jamais ceux d’un autre. Un même téléphone peut apparaître plusieurs fois : chaque nouvel essai d’activation peut créer un endpoint différent, et l’ancien reste en base jusqu’à ce qu’il soit retiré ici.",
+    'push_devices_total' => ':count abonnement enregistré au total.|:count abonnements enregistrés au total.',
+    'push_devices_empty' => 'Aucun abonnement Push enregistré pour votre compte.',
+    'push_devices_column_device' => 'Appareil',
+    'push_devices_column_provider' => 'Fournisseur',
+    'push_devices_column_fingerprint' => 'Empreinte',
+    'push_devices_column_created' => 'Créé le',
+    'push_devices_column_last_seen' => 'Dernière activité',
+    'push_devices_column_env' => 'Environnement',
+    'push_devices_column_vapid' => 'Clé VAPID',
+    'push_devices_device_unknown' => 'Appareil',
+    'push_devices_never_seen' => 'jamais reconfirmé',
+    // Les TROIS états distincts : une concordance stockée n'est JAMAIS une
+    // preuve de réception (MASTER, T1820) — l'audit Sonnet a identifié le
+    // risque inverse (clé divergente, fournisseur qui répond quand même 2xx,
+    // silence côté Android) comme un défaut connu, hors périmètre ici.
+    'push_devices_vapid_concordant' => 'Concorde avec la clé actuelle (enregistrée — pas une preuve de réception)',
+    'push_devices_vapid_divergent' => 'DIVERGENTE : créé avec une autre clé que celle en vigueur. Le fournisseur peut accepter l’envoi sans que le navigateur le reçoive.',
+    'push_devices_vapid_unknown' => 'Origine inconnue (abonnement créé avant que cette vérification existe)',
+    // Identification de l'appareil courant — JAMAIS déduite de la dernière
+    // activité ni du simple libellé : seule une empreinte SHA-256 calculée
+    // localement, comparée aux lignes affichées, vaut une identification.
+    'push_devices_this_device' => 'Cet appareil',
+    'push_devices_checking' => 'Identification de cet appareil en cours…',
+    'push_devices_not_identified' => 'Appareil actuel non identifié : aucun abonnement actif sur ce navigateur, ou aucune correspondance trouvée.',
+    'push_devices_unsupported' => 'Ce navigateur ne permet pas d’identifier l’appareil courant (Web Push non disponible).',
+    'push_devices_remove' => 'Retirer cet abonnement',
+    'push_devices_remove_confirm' => 'Retirer cet abonnement du serveur ? Le navigateur peut le recréer automatiquement au prochain lancement si son propre abonnement n’a pas été désactivé depuis l’appareil.',
+    'push_devices_remove_this_device_warning' => 'C’est l’appareil que vous utilisez actuellement pour ouvrir cette page. Le retirer ne désactivera pas les notifications sur ce téléphone : le navigateur recréera cet abonnement au prochain lancement, avec un nouvel endpoint.',
+    'push_devices_removed' => 'Abonnement retiré du serveur. Le navigateur peut le recréer automatiquement au prochain lancement de l’application : pour l’arrêter réellement, désactivez les notifications depuis cet appareil.',
+    'push_devices_already_removed' => 'Cet abonnement avait déjà été retiré.',
+
     /*
      * TASK-1744 (demande Cyril, 02/11) — l'inspecteur des notifications.
      *
