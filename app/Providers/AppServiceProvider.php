@@ -66,6 +66,7 @@ use App\Services\Users\SiblingAccountsPanel;
 use App\Services\UserSlugService;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiFabContext;
+use App\Support\Ai\AiSurfaceGate;
 use App\Support\Ai\Pricing\DynamicPricingSource;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Ops\ArtisanDatabaseGuard;
@@ -123,6 +124,34 @@ class AppServiceProvider extends ServiceProvider
         // TASK-1231 : contexte du FAB « BouclePro IA » — memo par requete HTTP
         // (une lecture du credit par requete), jamais partage entre requetes.
         $this->app->scoped(AiFabContext::class);
+        // TASK-1813 correctif 01 — `AiSurfaceGate` portait DEJA le bon memo,
+        // clef par `organizationId` (`AiSurfaceGate::availableFor()`), mais
+        // n'etait lie a RIEN : chaque `app()` et chaque `@inject` de Blade
+        // fabriquait une instance NEUVE, au memo vide. La porte est injectee
+        // par `@inject` dans plusieurs vues rendues au cours de la MEME
+        // requete (barres de navigation, topbar mobile, rail lateral,
+        // editeur de blog, creation de demande), plus `DashboardController`,
+        // `LoopCardRegistry` et `MemberOnboardingSteps`.
+        //
+        // Aucun chemin de gabarit n'est cite litteralement ici : la suite
+        // TASK1698NavigationFurnitureTenantTest verifie qu'un gabarit mort
+        // n'est reference nulle part, et comptait ce commentaire comme une
+        // reference. Un nom de fichier dans un commentaire est une reference
+        // comme une autre pour qui lit le depot avec grep.
+        //
+        // Mesure avant : 2 instances sur `/boucles`, 4 sur `/dashboard`, et
+        // `organization_ai_settings` lu 3 fois par page — 9 fois sur
+        // l'espace de travail d'une Boucle.
+        //
+        // `scoped` et surtout PAS `singleton`, meme raison qu'en dessous : le
+        // conteneur vide les instances `scoped` entre deux requetes HTTP ET
+        // entre deux jobs de file. Un commit Livewire EST une requete HTTP,
+        // donc aucun verdict ne survit a un commit.
+        //
+        // Ce qui est memoise ici est une porte d'AFFICHAGE, jamais une
+        // autorite : `ProviderResolver` n'est ni lie, ni memoise, et
+        // `resolve()` — qui depense — relit a chaque appel.
+        $this->app->scoped(AiSurfaceGate::class);
         // TASK-1734 : panneau « Mes organisations » — memo par requete (le
         // menu avatar vit sur plusieurs surfaces rendues dans la meme
         // requete), jamais partage entre requetes ni entre utilisateurs.
