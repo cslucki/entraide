@@ -370,7 +370,31 @@ class AppServiceProvider extends ServiceProvider
                 // TASK-1251 : aucune garde economique ICI, volontairement — le
                 // dispatch peut etre retarde et le budget changer entre-temps.
                 // La garde s'applique DANS le job, juste avant l'appel provider.
-                dispatch(new GenerateAiAgentResponse($loop, $message));
+                //
+                // TASK-1815 — `afterCommit()`, et ce n'est PAS decoratif sous `sync`.
+                //
+                // `LoopMessageService::sendUserMessage()` emet `LoopMessageCreated`
+                // DEPUIS l'interieur de son `DB::transaction()`. Sans cette
+                // bride, `dispatch()` executait le job SEANCE TENANTE, dans la
+                // transaction encore ouverte : mesure du 13/11,
+                // `transactionLevel = 2` au demarrage du job. L'appel au
+                // fournisseur d'IA ET l'insertion de la reponse de l'agent se
+                // faisaient donc transaction ouverte — et cette insertion
+                // reemettait l'evenement, d'ou un SECOND job, lui aussi dans la
+                // transaction.
+                //
+                // Contre-intuitif mais verifie dans le framework : le pilote
+                // `sync` HONORE `afterCommit`. `SyncQueue::push()` teste
+                // `shouldDispatchAfterCommit()` et, s'il y a une transaction
+                // vivante, enregistre l'execution comme callback de commit au
+                // lieu de la lancer. Le comportement hors transaction est
+                // inchange : le job part immediatement, comme avant.
+                //
+                // Rien d'autre ne bouge : ni la file, ni le pilote, ni les
+                // autres notifications. La garde economique reste DANS le job,
+                // donc evaluee au moment de l'execution — apres le commit, ce
+                // qui la rend plus juste, pas moins.
+                dispatch(new GenerateAiAgentResponse($loop, $message))->afterCommit();
             },
         );
 
