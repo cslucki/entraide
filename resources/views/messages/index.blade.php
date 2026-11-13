@@ -191,77 +191,19 @@
             </div>
 
             {{-- Mobile: thread view --}}
-            @isset($transaction)
-            @php
-                $other = auth()->id() === $transaction->buyer_id ? $transaction->seller : $transaction->buyer;
-                $otherDisplayable = $other?->isDisplayableIn(currentOrganization()) ?? false;
-            @endphp
-            <div class="md:hidden flex-1 flex flex-col min-h-0">
-                <div class="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
-                    {{-- TASK-1693 bug AQ — la seconde fleche de retour est
-                         RETIREE.
+                {{-- TASK-1816 — le panneau de conversation MOBILE a ete RETIRE.
+                     Il dupliquait, a quelques classes pres, celui des lignes
+                     suivantes : meme en-tete, meme lien de profil, meme badge,
+                     et surtout le MEME composant Livewire de fil.
 
-                         Elle existait parce que celle de la barre du haut
-                         sautait un cran : elle menait au tableau de bord et non
-                         a la liste des conversations. Maintenant que la barre
-                         du haut remonte d'UN niveau, deux fleches « < »
-                         cohabitaient a trois centimetres l'une de l'autre, avec
-                         deux destinations differentes.
+                     Les deux etaient rendus par le serveur — le CSS n'en cachait
+                     qu'un. Mesure du 13/11 : 2 composants montes, 2 directives
+                     `wire:poll.3000ms`, donc 40 requetes HTTP et ~560 requetes
+                     SQL par minute pour UNE conversation ouverte.
 
-                         L'avatar reprend donc la premiere place de la ligne. --}}
-                    {{-- TASK-1693 bug AE — l'avatar et le nom menent au profil.
-
-                         Le lien n'est pose que si la personne est AFFICHABLE :
-                         `isDisplayableIn()` verifie exactement les deux gardes
-                         de `ProfileController::show()` — ni desactivee, ni
-                         d'une autre Organization. Le poser sans cela
-                         fabriquerait un 404, le defaut du bug K.
-
-                         Deux liens distincts (l'avatar, le nom) plutot qu'un
-                         seul englobant : la ligne du dessous porte deja un lien
-                         vers le service ou la demande, et un lien dans un lien
-                         est invalide en HTML — lecon du bug AA. --}}
-                    @php
-                        $_profilUrl = $otherDisplayable
-                            ? $_messagesRoute('profile.show', 'organization.profile.show', ['user' => $other->profileRouteKey()])
-                            : null;
-                    @endphp
-                    @if($otherDisplayable)
-                        <a href="{{ $_profilUrl }}" data-thread-profile-avatar="{{ $other->id }}" class="flex-shrink-0 hover:opacity-80 transition">
-                            <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
-                        </a>
-                    @endif
-                    <div class="min-w-0 flex-1">
-                        @if($otherDisplayable)
-                        <a href="{{ $_profilUrl }}" data-thread-profile-link="{{ $other->id }}"
-                           class="block font-medium text-sm text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $other->publicDisplayName() }}</a>
-                        @else
-                        <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ __('profile.deactivated_user') }}</p>
-                        @endif
-                        <p class="text-xs text-gray-500 truncate">
-                            @if($transaction->service)
-                            <a href="{{ $_messagesRoute('services.show', 'organization.services.show', ['service' => $transaction->service]) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
-                            @elseif($transaction->serviceRequest)
-                            <a href="{{ $_messagesRoute('requests.show', 'organization.requests.show', ['request' => $transaction->serviceRequest]) }}" class="hover:underline text-indigo-500">{{ $transaction->serviceRequest->title }}</a>
-                            @endif
-                        </p>
-                    </div>
-                        {{-- TASK-1693 bug AC — le badge rejoint la ligne du
-                             pseudo, a droite. Isole sur sa propre ligne il
-                             coutait une bande entiere d'un ecran de
-                             telephone, pour un mot. --}}
-                        @if($transaction->isDirectConversation())
-                        <span data-conversation-badge
-                              class="ml-auto flex-shrink-0 inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
-                            {{ __('messages.direct_conversation') }}
-                        </span>
-                        @endif
-                </div>
-                    <div class="flex-1 min-h-0 flex flex-col">
-                        @livewire('message-thread', ['transaction' => $transaction])
-                    </div>
-                </div>
-                @endisset
+                     Le panneau qui reste porte desormais les deux presentations,
+                     par classes responsives. Aucun deplacement JavaScript, aucune
+                     duplication masquee. --}}
 
             <x-conversation.image-lightbox key="messages" />
 
@@ -290,13 +232,18 @@
             </div>
 
             {{-- Desktop: message thread panel --}}
-            <div class="hidden md:flex flex-1 flex-col min-h-0">
+            {{-- TASK-1816 — le panneau UNIQUE, pour les deux presentations.
+                 Sur telephone il ne parait que si une conversation est ouverte :
+                 sinon c'est la LISTE qui occupe l'ecran (meme bascule qu'avant,
+                 portee par `@isset` des deux cotes). A partir de `md` il est
+                 toujours la, aux cotes de la barre laterale. --}}
+            <div class="@isset($transaction) flex @else hidden @endisset md:flex flex-1 flex-col min-h-0">
                 @isset($transaction)
                     @php
                         $other = auth()->id() === $transaction->buyer_id ? $transaction->seller : $transaction->buyer;
                         $otherDisplayable = $other?->isDisplayableIn(currentOrganization()) ?? false;
                     @endphp
-                    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                    <div class="px-3 py-2.5 md:px-4 md:py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
                         @php
                             $_profilUrl = $otherDisplayable
                                 ? $_messagesRoute('profile.show', 'organization.profile.show', ['user' => $other->profileRouteKey()])
@@ -307,14 +254,23 @@
                                 <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
                             </a>
                         @endif
-                        <div>
+                        {{-- TASK-1816 — `min-w-0 flex-1` + `truncate` viennent de
+                             l'ancien panneau mobile, ou un nom long devait se
+                             couper. Sur grand ecran ils ne se voient pas : la
+                             troncature ne s'arme qu'au debordement, et le badge
+                             `ml-auto flex-shrink-0` garde sa place. C'est meme
+                             plus sur qu'avant, ou un nom tres long poussait le
+                             badge hors de la ligne.
+                             `text-sm md:text-base` rend a chaque presentation la
+                             taille qu'elle avait. --}}
+                        <div class="min-w-0 flex-1">
                             @if($otherDisplayable)
                             <a href="{{ $_profilUrl }}" data-thread-profile-link="{{ $other->id }}"
-                               class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $other->publicDisplayName() }}</a>
+                               class="block font-medium text-sm md:text-base text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $other->publicDisplayName() }}</a>
                             @else
-                            <p class="font-medium text-gray-900 dark:text-gray-100">{{ __('profile.deactivated_user') }}</p>
+                            <p class="font-medium text-sm md:text-base text-gray-900 dark:text-gray-100 truncate">{{ __('profile.deactivated_user') }}</p>
                             @endif
-                            <p class="text-xs text-gray-500">
+                            <p class="text-xs text-gray-500 truncate">
                                 @if($transaction->service)
                                 <a href="{{ $_messagesRoute('services.show', 'organization.services.show', ['service' => $transaction->service]) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
                                 @elseif($transaction->serviceRequest)
