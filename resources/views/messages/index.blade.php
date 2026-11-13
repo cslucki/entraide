@@ -197,9 +197,16 @@
                      et surtout le MEME composant Livewire de fil.
 
                      Les deux etaient rendus par le serveur — le CSS n'en cachait
-                     qu'un. Mesure du 13/11 : 2 composants montes, 2 directives
-                     `wire:poll.3000ms`, donc 40 requetes HTTP et ~560 requetes
-                     SQL par minute pour UNE conversation ouverte.
+                     qu'un. Mesure du 13/11, pour UNE conversation ouverte :
+
+                     Avant T1816 : 20 requêtes HTTP/minute regroupant deux
+                     composants, environ 560 requêtes SQL/minute. Après T1816 :
+                     20 requêtes HTTP/minute avec un seul composant, environ 280
+                     requêtes SQL/minute estimées.
+
+                     Le nombre d'appels ne change donc PAS : Livewire groupe les
+                     composants d'un meme cycle dans une seule requete. Ce qui
+                     est divise par deux, c'est la CHARGE de chaque appel.
 
                      Le panneau qui reste porte desormais les deux presentations,
                      par classes responsives. Aucun deplacement JavaScript, aucune
