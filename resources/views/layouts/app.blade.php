@@ -3,6 +3,26 @@
     // directement `layouts::app` ne passent pas par le composant PHP.
     // `??` preserve explicitement false sur la homepage publique.
     $showInternalNavigation = (bool) ($showInternalNavigation ?? true);
+
+    // TASK-1813 correctif 03 — le badge « notifications non lues » etait
+    // calcule DEUX fois par page : une fois par le rail (`app-side-nav`), une
+    // fois par la barre mobile (`mobile-topbar`), pour le meme compte.
+    //
+    // Ce n'est PAS un cache : c'est une valeur calculee une fois et passee
+    // aux deux surfaces. Rien n'est retenu, rien ne peut perimer. Un compteur
+    // de non-lus est un STATUT, et la doctrine de `ScopedReadCache` interdit
+    // nommement d'y memoriser un statut — la bonne reponse etait donc de ne
+    // pas memoriser du tout, mais de ne calculer qu'une fois.
+    //
+    // L'expression est celle des deux composants, mot pour mot, et chacun la
+    // garde en repli : aucune surface ne peut diverger, et chacun reste
+    // rendable seul (le layout invite ne passe rien).
+    $layoutNotificationsOrganization = auth()->check()
+        ? (auth()->user()->organization ?? currentOrganization())
+        : null;
+    $layoutUnreadNotifications = $layoutNotificationsOrganization
+        ? auth()->user()->unreadNotificationsCount((string) $layoutNotificationsOrganization->id)
+        : 0;
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}"
@@ -255,7 +275,7 @@
         @endif
 
         {{-- Mobile shell (hidden md:block) --}}
-        <x-mobile-topbar title="{{ isset($title) && filled($title) ? $title : config('app.name') }}" :brand-name="$brandOrganizationName ?? null" :show-internal-navigation="$showInternalNavigation" />
+        <x-mobile-topbar title="{{ isset($title) && filled($title) ? $title : config('app.name') }}" :brand-name="$brandOrganizationName ?? null" :show-internal-navigation="$showInternalNavigation" :unread-notifications="$layoutUnreadNotifications" />
         @if($showInternalNavigation && ! $_conversationOuverte)
         <x-mobile-bottom-nav />
         <x-mobile-fab />
@@ -294,7 +314,7 @@
 
              Le rail revient donc a sa condition d'origine : `$showInternalNavigation`. --}}
         @if($showInternalNavigation)
-        <x-app-side-nav />
+        <x-app-side-nav :unread-notifications="$layoutUnreadNotifications" />
         @endif
 
         {{-- TASK-1693 bug AC — `data-bp-shell-bottom-nav` dit si la marge

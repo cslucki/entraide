@@ -2,7 +2,6 @@
 
 namespace App\Support\Ai;
 
-use App\Ai\ProviderResolver;
 use App\Models\AiConfig;
 use App\Models\Dossier;
 use App\Models\Loop;
@@ -123,7 +122,7 @@ final class AiFabContext
         private readonly DossierSemanticSearchGate $dossierSearchGate,
         private readonly LoopLifecycleService $lifecycle,
         private readonly AiShellPageContext $pageContext,
-        private readonly ProviderResolver $providers,
+        private readonly AiSurfaceGate $aiGate,
     ) {}
 
     /**
@@ -279,7 +278,14 @@ final class AiFabContext
         // non-IA : les Dossiers, le depot de fichiers et la navigation vivent
         // hors de ce contexte et restent INCHANGES. Et elle ne lit pas le credit
         // utilisateur, qui a son autorite propre et refuse en se nommant.
-        if (! $this->providers->isAvailableFor((string) $organization->id)) {
+        // TASK-1813 correctif 01 — la MEME question, posee a la porte plutot
+        // qu'a l'autorite. `AiSurfaceGate::availableFor()` ne fait que
+        // deleguer a `ProviderResolver::isAvailableFor()` en memoisant par
+        // `organizationId` : le predicat est inchange, mot pour mot. Passer
+        // par la porte fait tomber cette lecture dans le memo partage par
+        // toutes les surfaces de la requete, au lieu d'ouvrir un second
+        // chemin qui le contournait.
+        if (! $this->aiGate->availableFor((string) $organization->id)) {
             return null;
         }
 
