@@ -348,4 +348,40 @@ class TASK1813SocleRequetesCommunesTest extends TestCase
             'La relation amorcee ne correspond pas a `organization_id` de la personne.'
         );
     }
+
+    /**
+     * LA LECON DE LA CI — la memoire ne franchit pas la frontiere d'une requete.
+     *
+     * Premiere version de ce correctif : `ScopedReadCache`. Son docblock
+     * affirme que Laravel vide les instances `scoped` « entre deux requetes
+     * HTTP ». C'est FAUX dans cette version du framework : seul
+     * `QueueServiceProvider` appelle `forgetScopedInstances()`. En PROD la mort
+     * du processus PHP-FPM masque l'ecart ; en test le conteneur survit, et
+     * `T0752DefaultOrganizationResolutionTest` a rougi en CI — une Organization
+     * par defaut rebindee entre deux requetes restait perimee.
+     *
+     * L'Organization par defaut GOUVERNE la resolution de tenant. Ce test
+     * garde la correction : la memoire vit sur l'instance de middleware, donc
+     * elle meurt avec la requete, sans dependre d'un vidage que personne ne
+     * fait.
+     */
+    public function test_l_organization_par_defaut_rebindee_est_relue_a_la_requete_suivante(): void
+    {
+        $premiere = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
+        $seconde = Organization::factory()->create(['is_active' => true, 'is_default' => false]);
+
+        $membreA = User::factory()->create(['organization_id' => $premiere->id]);
+        $membreB = User::factory()->create(['organization_id' => $seconde->id]);
+
+        $this->actingAs($membreA)->get('/membres')->assertOk();
+
+        // Le defaut bascule ENTRE deux requetes.
+        $premiere->update(['is_default' => false]);
+        $seconde->update(['is_default' => true]);
+        app()->forgetInstance('current_organization');
+
+        $this->actingAs($membreB)->get('/membres')
+            ->assertOk()
+            ->assertSeeText($membreB->name);
+    }
 }

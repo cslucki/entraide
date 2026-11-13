@@ -3,7 +3,6 @@
 namespace App\Http\Middleware;
 
 use App\Models\Organization;
-use App\Support\ScopedReadCache;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -337,6 +336,23 @@ class ResolveUrlOrganization
         return in_array($first, static::$passthroughNoOrgRoutes);
     }
 
+    /**
+     * Memoires de la requete COURANTE, et d'elle seule.
+     *
+     * Le pipeline resout ce middleware a chaque requete : ces deux tableaux
+     * naissent et meurent avec elle. Aucune liaison de conteneur, donc aucune
+     * dependance a un vidage que le noyau HTTP ne fait pas.
+     *
+     * `false` et non `null` comme etat « pas encore lu » : `null` est une
+     * reponse LEGITIME (aucune Organization par defaut), et la confondre avec
+     * l'absence de lecture ferait repartir la requete a chaque appel — le cas
+     * absent deviendrait le plus couteux.
+     */
+    private Organization|null|false $defautMemo = false;
+
+    /** @var array<string, Organization|null> */
+    private array $parIdMemo = [];
+
     protected function resolveDefaultOrganization(): ?Organization
     {
         // `first()` sans `orderBy` laisse le moteur choisir. Sur SQLite le
@@ -348,27 +364,35 @@ class ResolveUrlOrganization
         // Meme correction que `DefaultOrganizationResolver` (TASK-1121) et que
         // le departage des proprietaires (TASK-1117) : l'horodatage d'abord,
         // puis `id` pour trancher, `created_at` etant stocke a la seconde.
-        // TASK-1813 correctif 02 — cette methode est appelee DEUX fois dans la
-        // meme passe de middleware (depuis `:219` et depuis `:274`), et rendait
-        // deux fois la meme ligne. `ScopedReadCache` (T1778) la retient le
-        // temps de la requete : c'est l'usage que son docblock autorise
-        // nommement — « une Organization » est une lecture de REFERENCE.
+        // TASK-1813 correctif 02 — appelee DEUX fois dans la meme passe de
+        // middleware (`:219` et `:274`), pour la meme ligne.
         //
-        // La clef ne porte rien d'autre : l'Organization par defaut de la
-        // PLATEFORME ne depend ni de l'URL, ni de la personne connectee. Le
-        // depart egalite (`created_at` puis `id`) reste dans la lecture, donc
-        // le verdict memoise est exactement celui que TASK-1121 a fige.
-        $org = app(ScopedReadCache::class)->souviens(
-            'organization:default',
-            fn () => Organization::where('is_default', true)->orderBy('created_at')->orderBy('id')->first()
-                ?? Organization::where('is_active', true)->orderBy('created_at')->orderBy('id')->first()
-        );
+        // La memoire vit sur CETTE INSTANCE de middleware, et nulle part
+        // ailleurs. Le pipeline resout le middleware a chaque requete (aucune
+        // liaison singleton), donc la memoire nait et meurt avec la requete,
+        // sans dependre d'aucun vidage du conteneur.
+        //
+        // `ScopedReadCache` a ete essaye ici, puis RETIRE : son docblock
+        // affirme que Laravel vide les instances `scoped` « entre deux
+        // requetes HTTP », ce qui est FAUX dans cette version — seul
+        // `QueueServiceProvider` appelle `forgetScopedInstances()`. En PROD la
+        // mort du processus PHP-FPM masque l'ecart ; en test le conteneur
+        // survit, et `T0752DefaultOrganizationResolutionTest` l'a prouve : une
+        // Organization par defaut rebindee entre deux requetes restait
+        // perimee. L'Organization par defaut GOUVERNE la resolution de
+        // tenant : elle ne doit jamais etre servie perimee.
+        if ($this->defautMemo !== false) {
+            return $this->defautMemo;
+        }
+
+        $org = Organization::where('is_default', true)->orderBy('created_at')->orderBy('id')->first()
+            ?? Organization::where('is_active', true)->orderBy('created_at')->orderBy('id')->first();
 
         if (! $org) {
             Log::warning('Default Organization resolution failed: no active organization with is_default = true in DB.');
         }
 
-        return $org;
+        return $this->defautMemo = $org;
     }
 
     protected function resolveFromAuthenticatedUser(): ?Organization
@@ -388,10 +412,9 @@ class ResolveUrlOrganization
             // la personne : c'est `organization_id` qui fait varier la
             // reponse. Deux membres de la meme Organization doivent obtenir la
             // meme ligne ; deux Organizations ne partagent jamais la leur.
-            $organization = app(ScopedReadCache::class)->souviens(
-                'organization:id:'.$orgId,
-                fn () => Organization::find($orgId)
-            );
+            $organization = array_key_exists($orgId, $this->parIdMemo)
+                ? $this->parIdMemo[$orgId]
+                : ($this->parIdMemo[$orgId] = Organization::find($orgId));
 
             // Et on AMORCE la relation de la personne connectee avec cette
             // meme ligne. Les vues du layout lisent `auth()->user()->organization`
