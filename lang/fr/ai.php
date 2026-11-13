@@ -681,6 +681,9 @@ return [
     'offers_no_payment' => 'Page d\'information — aucun paiement, aucune saisie de carte.',
     'refusal_temporarily_unavailable' => 'L\'IA est temporairement indisponible pour cette Organization.',
 
+    // TASK-1819 — refus de DEBIT, le seul temporaire du lot (:seconds).
+    'refusal_rate_limited' => '{0} Trop de demandes IA à la suite : réessayez dans un instant.|{1} Trop de demandes IA à la suite : réessayez dans :seconds seconde.|[2,*] Trop de demandes IA à la suite : réessayez dans :seconds secondes.',
+
     // TASK-1231 — FAB « BouclePro IA » (point d'entree unique, contextuel)
     'fab_label' => 'BouclePro IA',
     'fab_open' => 'Ouvrir BouclePro IA',

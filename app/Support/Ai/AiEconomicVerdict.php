@@ -18,6 +18,13 @@ final class AiEconomicVerdict
          * ex. ingestion, bac a sable).
          */
         public readonly ?AiUserCreditStatus $userCredit = null,
+        /**
+         * TASK-1819 : secondes avant la prochaine tentative, pour un refus de
+         * DEBIT uniquement (`AiEconomicGuard::REASON_RATE_LIMITED`). NULL pour
+         * tout autre verdict — un refus mensuel n'a pas de delai court a
+         * proposer, un `allow()` n'a pas de refus a expliquer.
+         */
+        public readonly ?int $retryAfterSeconds = null,
     ) {}
 
     public static function allow(
@@ -35,7 +42,8 @@ final class AiEconomicVerdict
         int $successfulUnknownCount,
         bool $pricingKnown,
         ?AiUserCreditStatus $userCredit = null,
+        ?int $retryAfterSeconds = null,
     ): self {
-        return new self(false, $reason, $knownMonthlyCostUsd, $successfulUnknownCount, $pricingKnown, $userCredit);
+        return new self(false, $reason, $knownMonthlyCostUsd, $successfulUnknownCount, $pricingKnown, $userCredit, $retryAfterSeconds);
     }
 }
