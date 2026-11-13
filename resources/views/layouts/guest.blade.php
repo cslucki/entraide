@@ -191,5 +191,38 @@
 
             @include('partials.footer')
         </div>
+
+        {{-- TASK-1817 — Alpine manquait ICI, et nulle part ailleurs.
+             =====================================================================
+             Ce layout charge `app.js`, qui UTILISE `window.Alpine` (ses stores,
+             `registerAlpineStores()`) mais ne l'IMPORTE jamais. Alpine arrive en
+             realite par `livewire.min.js`, que Livewire auto-injecte sur toute
+             page portant un de ses composants.
+
+             Les pages invitees n'en portent aucun. Mesure du 13/11 en navigateur :
+
+               /login, /register   window.Alpine = undefined, window.Livewire =
+                                   undefined, mais 2 [x-data] et 1 [x-cloak] dans
+                                   le DOM
+               /dashboard, /membres  Alpine 3.15.11, Livewire charge, stores poses
+
+             La panne etait SILENCIEUSE — zero erreur console, puisque Alpine ne
+             tournait pas et ne pouvait donc pas echouer. Le symptome visible :
+             le panneau du menu mobile porte `x-cloak`, restait `display:none`
+             A JAMAIS, et cliquer le bouton ne faisait rien.
+
+             La directive de scripts Livewire plutot qu'un demarrage autonome
+             d'Alpine :
+             - c'est deja le precedent du depot (`admin.blade.php`,
+               `org-admin.blade.php` le posent au meme endroit) ;
+             - aucun paquet supplementaire : Alpine est DANS le bundle Livewire,
+               c'est exactement l'instance que les autres layouts utilisent ;
+             - une seule instance, donc aucun double demarrage a craindre ;
+             - `app.js` enregistre ses stores sur `alpine:init`, avec sa propre
+               garde (`__boucleProAlpineStoresRegistered`) : ils se posent sans
+               rien changer.
+
+             Les autres layouts ne sont pas touches. --}}
+        @livewireScripts
     </body>
 </html>
