@@ -679,6 +679,9 @@ return [
     'offers_no_payment' => 'Information page — no payment, no card entry.',
     'refusal_temporarily_unavailable' => 'AI is temporarily unavailable for this Organization.',
 
+    // TASK-1819 — rate-limit refusal, the only temporary one of the set (:seconds).
+    'refusal_rate_limited' => '{0} Too many AI requests in a row: please try again in a moment.|{1} Too many AI requests in a row: please try again in :seconds second.|[2,*] Too many AI requests in a row: please try again in :seconds seconds.',
+
     // TASK-1231 — "BouclePro AI" FAB (single, contextual entry point)
     'fab_label' => 'BouclePro AI',
     'fab_open' => 'Open BouclePro AI',

@@ -32,6 +32,22 @@
             'visible' => true,
         ],
         [
+            // TASK-1812 correctif 03 — demande de Cyril. Reutilise la cle
+            // `loops.my_loops`, laissee en place par TASK-1788 correctif 06
+            // bien qu'inutilisee depuis (le TITRE de la page est devenu
+            // « Boucles », la page montrant aussi celles a decouvrir) : ce
+            // raccourci-ci reste bien personnel, « Mes boucles » lui convient.
+            'key' => 'loops',
+            'label' => __('loops.my_loops'),
+            'url' => $routeUrl('loops.index', 'organization.loops.index'),
+            'active' => request()->routeIs('loops.*', 'organization.loops.*'),
+            'icon' => config('navigation_icons.loops'),
+            // Meme garde que le rail principal (`app-side-nav`) et la barre
+            // mobile : sans Boucles actives pour l'Organization, la route
+            // `loops.enabled` rend 404, ce raccourci ne doit donc pas y mener.
+            'visible' => (bool) $currentOrganization?->loops_enabled,
+        ],
+        [
             'key' => 'ai-agent',
             'label' => __('dashboard.ai_agent'),
             'url' => $routeUrl('agent-ia.wizard', 'organization.agent-ia.wizard'),

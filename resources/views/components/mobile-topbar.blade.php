@@ -1,4 +1,4 @@
-@props(['showInternalNavigation' => true])
+@props(['showInternalNavigation' => true, 'unreadNotifications' => null])
 @inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 
 @php
@@ -38,9 +38,12 @@
     $notificationsOrganization = auth()->check()
         ? (auth()->user()->organization ?? currentOrganization())
         : null;
-    $mobileUnreadNotifications = $notificationsOrganization
+    // TASK-1813 correctif 03 — voir `app-side-nav` : le layout calcule, les
+    // surfaces recoivent. Repli d'origine intact, pour le layout invite qui
+    // ne passe rien.
+    $mobileUnreadNotifications = $unreadNotifications ?? ($notificationsOrganization
         ? auth()->user()->unreadNotificationsCount((string) $notificationsOrganization->id)
-        : 0;
+        : 0);
     $canSeeFlux = auth()->check() && auth()->user()->can('create', \App\Models\FeedPost::class);
 
     // TASK-1725 (demande Cyril, 29/10) — l'Organization qui decide si l'entree

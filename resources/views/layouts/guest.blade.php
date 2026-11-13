@@ -191,5 +191,47 @@
 
             @include('partials.footer')
         </div>
+
+        {{-- TASK-1817 — Alpine manquait ICI, et nulle part ailleurs.
+             =====================================================================
+             Ce layout charge `app.js`, qui UTILISE `window.Alpine` (ses stores,
+             `registerAlpineStores()`) mais ne l'IMPORTE jamais. Alpine arrive en
+             realite par `livewire.min.js`, que Livewire auto-injecte sur toute
+             page portant un de ses composants.
+
+             Les pages invitees n'en portent aucun. Mesure du 13/11 en navigateur :
+
+               /login, /register   window.Alpine = undefined, window.Livewire =
+                                   undefined, mais 2 [x-data] et 1 [x-cloak] dans
+                                   le DOM
+               /dashboard, /membres  Alpine 3.15.11, Livewire charge, stores poses
+
+             La panne etait SILENCIEUSE — zero erreur console, puisque Alpine ne
+             tournait pas et ne pouvait donc pas echouer.
+
+             Les deux interactions Alpine reellement offertes a un VISITEUR, et
+             les deux seules, etaient donc mortes :
+               - la bascule de theme clair/sombre, qui ne repondait pas ;
+               - l'indice de defilement de la barre basse (`x-show="indice"`,
+                 porteur du `x-cloak`), fige en `display:none` A JAMAIS.
+
+             Il n'y a pas de menu burger en jeu ici : la navigation interne de
+             `x-mobile-topbar` est gardee par `auth()->check()`, donc jamais
+             rendue sur ces pages. Seule subsiste la portee `menuOuvert` du
+             `<header>`, qui ne pilote qu'une classe de `z-index`.
+
+             La directive de scripts Livewire plutot qu'un demarrage autonome
+             d'Alpine :
+             - c'est deja le precedent du depot (`admin.blade.php`,
+               `org-admin.blade.php` le posent au meme endroit) ;
+             - aucun paquet supplementaire : Alpine est DANS le bundle Livewire,
+               c'est exactement l'instance que les autres layouts utilisent ;
+             - une seule instance, donc aucun double demarrage a craindre ;
+             - `app.js` enregistre ses stores sur `alpine:init`, avec sa propre
+               garde (`__boucleProAlpineStoresRegistered`) : ils se posent sans
+               rien changer.
+
+             Les autres layouts ne sont pas touches. --}}
+        @livewireScripts
     </body>
 </html>

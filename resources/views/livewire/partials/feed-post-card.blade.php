@@ -15,9 +15,40 @@
     // TASK-1752 (design A, choix Cyril) — un evenement n'est pas une annonce :
     // il n'a ni titre, ni image, ni paragraphe. Sa carte est une LIGNE.
     $estEvenement = \App\Support\Feed\FeedEventCatalogue::connait($post->type);
+
+    // TASK-1812 correctif 07 (demande Cyril) — l'avatar de l'auteur sort de la
+    // carte et prend sa gouttiere a gauche, « comme les avatars dans le chat » :
+    // meme principe que la gouttiere detachee du ChatLoop (TASK-1772,
+    // `detachedAvatar` de `x-conversation.message-bubble`). Calcule ICI, une
+    // fois, pour servir aux DEUX presentations (evenement et annonce) — avant,
+    // seule la ligne d'evenement le savait.
+    //
+    // `null` pour un compte desactive ou hors Organization : meme discipline
+    // que le reste du Flux, un avatar qui ne mene nulle part reste une image,
+    // jamais un lien mort.
+    $_slugOrganization = currentOrganization()?->slug;
+    $_lienProfil = \App\Support\Feed\FeedEventRenderer::lienProfil($post->user, $_slugOrganization);
 @endphp
 
-<article id="feed-post-{{ $post->id }}" class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900" x-data="{ showComments: false, showReactions: false }">
+<div class="flex items-start gap-3">
+    {{-- TASK-1812 correctif 07 — LA GOUTTIERE D'AVATAR, detachee de la carte.
+         `size="md" variant="solid"` : la MEME mise en forme que les avatars
+         des commentaires du Flux juste plus bas dans cette carte (TASK-1788
+         correctif 09, pastille pleine façon ChatLoop) — demande de Cyril en
+         recette, la pastille par defaut (`sm`, translucide) se voyait a peine
+         a cote de la carte. --}}
+    @if($_lienProfil)
+        <a href="{{ $_lienProfil }}"
+           data-feed-post-avatar="{{ $post->id }}"
+           aria-label="{{ $authorName }}"
+           class="mt-0.5 shrink-0 rounded-full transition hover:ring-2 hover:ring-indigo-300 dark:hover:ring-indigo-600">
+            <x-user-avatar :user="$post->user" size="md" variant="solid" />
+        </a>
+    @else
+        <x-user-avatar :user="$post->user" size="md" variant="solid" class="mt-0.5 shrink-0" />
+    @endif
+
+    <article id="feed-post-{{ $post->id }}" class="min-w-0 flex-1 overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900" x-data="{ showComments: false, showReactions: false }">
     @if($post->image_path)
         <img src="{{ $post->imageUrl() }}" alt="" class="h-56 w-full object-cover sm:h-72">
     @endif
@@ -57,24 +88,16 @@
             Le libelle est CALCULE : la langue et le nom sont resolus
             maintenant, pas au moment ou la ligne a ete ecrite. --}}
         @if($estEvenement)
-            {{-- La ligne : avatar cliquable, phrase ou le NOM et l'OBJET sont
-                des liens, date courte a droite.
+            {{-- La ligne : phrase ou le NOM et l'OBJET sont des liens, date
+                courte a droite. L'avatar n'y est plus : TASK-1812 correctif 07
+                l'a detache dans la gouttiere de gauche, calcule en tete de ce
+                fichier et commun aux deux presentations.
 
                 `ligneHtml()` rend du HTML dont TOUTES les parties dynamiques
                 sont echappees par `e()` — c'est son contrat, ecrit dans son
                 docblock. Jamais `markdown()` ici : la syntaxe resterait
                 active et un nom contenant `[texte](url)` produirait un lien. --}}
-            @php($_slugOrganization = currentOrganization()?->slug)
-            @php($_lienProfil = \App\Support\Feed\FeedEventRenderer::lienProfil($post->user, $_slugOrganization))
             <div class="flex items-center gap-3" data-feed-event="{{ $post->type }}">
-                @if($_lienProfil)
-                    <a href="{{ $_lienProfil }}" class="shrink-0 rounded-full transition hover:ring-2 hover:ring-indigo-300 dark:hover:ring-indigo-600" aria-label="{{ $authorName }}">
-                        <x-user-avatar :user="$post->user" size="sm" />
-                    </a>
-                @else
-                    <x-user-avatar :user="$post->user" size="sm" class="shrink-0" />
-                @endif
-
                 <p class="min-w-0 flex-1 text-sm leading-snug text-gray-700 dark:text-gray-200">
                     {!! \App\Support\Feed\FeedEventRenderer::ligneHtml($post, $_slugOrganization) !!}
                 </p>
@@ -88,13 +111,14 @@
                 presentation + photo pour une personne, couverture pour une
                 Boucle, extrait du texte pour une demande ou une proposition.
                 Resolue a l'affichage comme le libelle — jamais gelee.
-                `ms-10` = la largeur de l'avatar sm + l'ecart, pour que la
-                boite s'aligne sous la phrase. --}}
+                Plus d'indentation `ms-10` : elle compensait la largeur de
+                l'avatar qui vivait ICI, dans la carte — il est maintenant hors
+                d'elle, dans sa propre gouttiere (TASK-1812 correctif 07). --}}
             @php($_apercu = \App\Support\Feed\FeedEventRenderer::apercu($post, $_slugOrganization))
             @if($_apercu !== null)
                 @php($_balise = $_apercu['url'] ? 'a' : 'div')
                 <{{ $_balise }} @if($_apercu['url']) href="{{ $_apercu['url'] }}" @endif
-                    class="ms-10 flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 transition dark:border-gray-800 dark:bg-gray-800/50 {{ $_apercu['url'] ? 'hover:bg-gray-100 dark:hover:bg-gray-800' : '' }}"
+                    class="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 transition dark:border-gray-800 dark:bg-gray-800/50 {{ $_apercu['url'] ? 'hover:bg-gray-100 dark:hover:bg-gray-800' : '' }}"
                     data-feed-event-apercu>
                     @if($_apercu['image'])
                         <img src="{{ $_apercu['image'] }}" alt=""
@@ -309,3 +333,4 @@
 
     </div>
 </article>
+</div>

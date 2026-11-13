@@ -1,3 +1,4 @@
+@props(['unreadNotifications' => null])
 @inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
 @php
     $currentRoute = request()->route()?->getName() ?? '';
@@ -21,9 +22,12 @@
     $notificationsOrganization = auth()->check()
         ? (auth()->user()->organization ?? $currentOrganization)
         : null;
-    $unreadNotificationsCount = $notificationsOrganization
+    // TASK-1813 correctif 03 — le layout a deja calcule ce compte pour la
+    // page entiere. Le repli ci-dessous est l'expression d'origine, intacte :
+    // ce composant reste rendable seul.
+    $unreadNotificationsCount = $unreadNotifications ?? ($notificationsOrganization
         ? auth()->user()->unreadNotificationsCount((string) $notificationsOrganization->id)
-        : 0;
+        : 0);
     $canSeeFlux = auth()->check() && auth()->user()->can('create', \App\Models\FeedPost::class);
     $loopsEnabled = $currentOrganization?->loops_enabled ?? $menuOrganization?->loops_enabled ?? true;
 

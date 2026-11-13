@@ -37,6 +37,7 @@ use App\Http\Controllers\Admin\AdminLoopPluginController;
 use App\Http\Controllers\Admin\AdminLoopTypeController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
+use App\Http\Controllers\Admin\AdminMyPushDevicesController;
 use App\Http\Controllers\Admin\AdminNotificationCockpitController;
 use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\AdminNotificationInspectorController;
@@ -1348,6 +1349,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/outils/notifications/{notification}/rejouer', [AdminNotificationInspectorController::class, 'replay'])
         ->middleware('throttle:10,1')
         ->name('outils.notifications.replay');
+
+    // TASK-1820 — « Mes appareils Push ». Reserve au compte CONNECTE :
+    // chaque methode part de `$request->user()`, jamais d'un identifiant de
+    // compte recu. Pas de recherche d'utilisateur, aucune gestion generale
+    // des appareils — meme garde `['auth','admin']` que tout le reste de ce
+    // groupe, aucune route equivalente pour OrgAdmin ou membre.
+    Route::get('/outils/mes-appareils-push', [AdminMyPushDevicesController::class, 'index'])->name('outils.my-push-devices');
+    Route::delete('/outils/mes-appareils-push/{subscription}', [AdminMyPushDevicesController::class, 'destroy'])
+        ->middleware('throttle:10,1')
+        ->name('outils.my-push-devices.destroy');
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
 

@@ -231,10 +231,45 @@ class HomeController extends Controller
                 'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->open()->where('organization_id', $organizationId),
             ])
             ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->active()->where('organization_id', $organizationId)->with('skills', 'category')])
-            // Du plus recent au plus ancien — et depuis le point 11.4, ce tri
-            // est aussi le CONTRAT de la vue « Nouveaux arrivés » : si l'ordre
-            // de la grille change un jour, celui de la vue ne doit pas suivre.
-            ->orderByDesc('created_at')
+            // TASK-1814 correctif 01 — l'accesseur `public_location`
+            // (`User::getPublicLocationAttribute()`) lit `organization` ET
+            // `country` pour CHAQUE membre affiche. Sans ces deux
+            // prechargements, la grille payait deux requetes par carte :
+            // mesure du 13/11 sur le jumeau, 13 membres = 26 requetes.
+            //
+            // La page pagine a 36 : une page pleine en aurait paye 72.
+            //
+            // Pas de restriction de colonnes (`organization:id,show_country`)
+            // volontairement : la liste des colonnes utiles appartient a
+            // l'accesseur, pas a cette requete, et elle derivera le jour ou il
+            // lira un champ de plus — en silence, puisqu'une colonne absente
+            // rend `null` sans rien dire. Deux lignes completes, lues une
+            // fois, coutent moins que ce piege.
+            ->with(['organization', 'country'])
+            // TASK-1812 correctif 04 — demande de Cyril : la grille par defaut
+            // se lit desormais par PRENOM, et non plus par date d'inscription.
+            // Le point 11.4 l'avait anticipe : le tri de « Nouveaux arrivés »
+            // est son propre CONTRAT, independant de celui de la grille — il
+            // reste donc au plus recent d'abord, inchange.
+            //
+            // `COALESCE(first_name, name)` et non `LOWER(first_name)` :
+            // `first_name` est NULLABLE (voir plus haut), et `LOWER()` ne
+            // replie pas les caracteres accentues de la meme facon en SQLite
+            // (ASCII seul, sans extension ICU) qu'en PostgreSQL — le meme
+            // piege de collation que celui deja documente pour les villes,
+            // quelques lignes plus haut. Majuscule/minuscule n'a pas besoin
+            // d'un repli : les deux bases les comparent deja de la meme facon
+            // par defaut, et les prenoms sont toujours saisis avec une
+            // majuscule initiale.
+            ->when(
+                $vueNouveaux,
+                fn ($q) => $q->orderByDesc('created_at'),
+                fn ($q) => $q->orderByRaw('COALESCE(first_name, name) asc')
+            )
+            // Tiebreak deterministe : deux membres au meme prenom, ou crees
+            // au meme instant (import, seed), ne doivent pas changer d'ordre
+            // d'une page a l'autre au fil de la pagination.
+            ->orderBy('id')
             // TASK-1762 point 11.2 — 36 et non 16.
             //
             // Mesure du 05/11 : les Organizations du parc comptent 6, 9 et 35

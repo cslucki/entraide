@@ -16,8 +16,7 @@
                     {!! __('legal.editor_text') !!}
                     <address class="not-italic mt-2 space-y-1">
                         <p class="font-medium text-[var(--bp-heading)]">
-                            ASSOCIATION EUROPÉENNE DU TÉLÉTRAVAIL
-                            <span class="font-normal text-[var(--bp-muted)]">(Sigle : AMT)</span>
+                            Association AMT
                         </p>
                         <p>31b rue Espérandieu<br>13001 Marseille FRANCE</p>
                         <p>RNA : W133002043</p>

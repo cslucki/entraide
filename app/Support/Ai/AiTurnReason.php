@@ -145,6 +145,9 @@ final class AiTurnReason
 
     public const ECONOMIC_USER_CREDIT_EXHAUSTED = AiEconomicGuard::REASON_USER_CREDIT_EXHAUSTED;
 
+    /** TASK-1819 : trop d'appels cette minute — une notion de DEBIT, pas de cumul mensuel. */
+    public const ECONOMIC_RATE_LIMITED = AiEconomicGuard::REASON_RATE_LIMITED;
+
     // -----------------------------------------------------------------
     // Famille 2 — ce que le REFUS a remonte a l'appelant (AiRefusedException)
     // -----------------------------------------------------------------
@@ -158,6 +161,9 @@ final class AiTurnReason
     public const REFUSED_UNAVAILABLE = AiRefusedException::CODE_UNAVAILABLE;
 
     public const REFUSED_AUTHENTICATION_REQUIRED = AiRefusedException::CODE_AUTHENTICATION_REQUIRED;
+
+    /** TASK-1819 — ce que le REFUS remonte a l'appelant pour un debit depasse. */
+    public const REFUSED_RATE_LIMITED = AiRefusedException::CODE_RATE_LIMITED;
 
     // -----------------------------------------------------------------
     // Famille 3 — pourquoi une SOURCE a ete refusee (SourceDenied)
@@ -360,6 +366,7 @@ final class AiTurnReason
                 self::ECONOMIC_ORGANIZATION_BUDGET_REACHED,
                 self::ECONOMIC_EMBEDDING_UNKNOWN_QUOTA_REACHED,
                 self::ECONOMIC_USER_CREDIT_EXHAUSTED,
+                self::ECONOMIC_RATE_LIMITED,
             ],
             'refused' => [
                 self::REFUSED_USER_CREDIT_EXHAUSTED,
@@ -367,6 +374,7 @@ final class AiTurnReason
                 self::REFUSED_NOT_CONFIGURED,
                 self::REFUSED_UNAVAILABLE,
                 self::REFUSED_AUTHENTICATION_REQUIRED,
+                self::REFUSED_RATE_LIMITED,
             ],
             'source' => [
                 self::SOURCE_NO_LOOP_IN_CONTEXT,

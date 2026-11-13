@@ -236,7 +236,9 @@ class OrganizationRagOverview
             $credential = false;
         }
 
-        $verdict = $this->economicGuard->authorizeEmbeddings($organization);
+        // TASK-1819 : lecture diagnostique — pas une tentative d'ingestion.
+        // Ne doit jamais consommer le debit embeddings de l'Organization.
+        $verdict = $this->economicGuard->authorizeEmbeddings($organization, countRateLimit: false);
 
         return [
             'semantic_search_enabled' => $enabled,

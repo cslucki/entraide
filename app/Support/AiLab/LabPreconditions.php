@@ -110,7 +110,9 @@ final class LabPreconditions
                 if (! $configured) {
                     $checks['quota'] = ['expected' => 'YES', 'actual' => 'UNKNOWN', 'status' => self::UNAVAILABLE, 'detail' => 'aucune instance d\'embedding TENANT resolvable (cle vide, reglage inutilisable ou famille ≠ index ; T1214/T1225, pas de repli plateforme) — l\'operateur du Lab pose la cle'];
                 } else {
-                    $verdict = $this->guard->authorizeEmbeddings($organization, $user instanceof User && (string) $user->organization_id === (string) $organization->id ? $user : null);
+                    // TASK-1819 : precondition de test — pas une tentative
+                    // d'ingestion. Ne doit jamais consommer le debit embeddings.
+                    $verdict = $this->guard->authorizeEmbeddings($organization, $user instanceof User && (string) $user->organization_id === (string) $organization->id ? $user : null, countRateLimit: false);
                     $checks['quota'] = ['expected' => 'YES', 'actual' => $verdict->allowed ? 'YES' : 'NO', 'status' => $verdict->allowed ? self::YES : self::NO, 'detail' => $verdict->reason ?? 'ok'];
                 }
             } catch (\Throwable $e) {

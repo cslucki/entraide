@@ -5,7 +5,11 @@ return [
     'title' => 'Mentions légales',
     'intro' => 'Informations relatives à l’édition et à l’hébergement de la plateforme BouclePro.',
     'editor_title' => 'Éditeur du site',
-    'editor_text' => 'Le site <strong>amteletravail.fr</strong> est édité par :',
+    // TASK-1812 correctif 06 — demande de Cyril : cette page est UNIQUE mais
+    // scopee a toutes les Organizations, dont les domaines ne sont pas
+    // amteletravail.fr. Le nom de domaine fixe ne disait vrai que pour une
+    // seule d'entre elles.
+    'editor_text' => 'Ce site est édité par :',
     'director_title' => 'Directeur de la publication',
     'host_title' => 'Hébergeur',
     'opensource_title' => 'Projet open source',

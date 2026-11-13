@@ -88,9 +88,39 @@
                     title.value = this.suggestion.title;
                     title.dispatchEvent(new Event('input', { bubbles: true }));
                 }
-                if (description && this.suggestion.description) {
-                    description.value = this.suggestion.description;
-                    description.dispatchEvent(new Event('input', { bubbles: true }));
+                /* TASK-1818 — la description doit passer par TipTap, pas par le textarea
+                   cache. Depuis T1773 le composant d'edition Markdown rend un editeur
+                   TipTap et relegue le champ soumis a un textarea cache : ecrire
+                   directement dans ce dernier remplissait l'envoi sans rien changer a
+                   l'ecran. L'auteur voyait son texte d'origine et postait la
+                   suggestion — les deux divergeaient en silence.
+
+                   On reprend le contrat deja utilise par le formulaire d'offre d'aide :
+                   l'evenement set-content ecrit DANS l'editeur, dont le onUpdate
+                   reecrit le textarea. emitUpdate vaut true par defaut en TipTap 3, la
+                   synchronisation est donc acquise, et une saisie manuelle posterieure
+                   la maintient.
+
+                   Le repli direct reste indispensable : TipTap peut ne pas s'etre
+                   initialise (echec du module, page encore en cours de montage).
+                   L'attribut temoin est pose a la toute fin de l'initialisation, il
+                   atteste donc un editeur reellement pret, pas seulement present.
+
+                   ATTENTION — ce bloc vit DANS un attribut HTML entre guillemets
+                   doubles : aucun guillemet double ici, il refermerait l'attribut et
+                   casserait toute la page.
+
+                   Le contrat JSON ne bouge pas : toujours suggestion.description. */
+                if (this.suggestion.description) {
+                    const editeur = document.querySelector('textarea[name=\'description\'][data-tiptap-target]');
+                    if (editeur && editeur.hasAttribute('data-tiptap-initialized')) {
+                        document.dispatchEvent(new CustomEvent('bp:markdown-editor:set-content', {
+                            detail: { name: 'description', markdown: this.suggestion.description }
+                        }));
+                    } else if (description) {
+                        description.value = this.suggestion.description;
+                        description.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
                 }
                 if (category && this.suggestion.category_id && Array.from(category.options).some((option) => option.value === this.suggestion.category_id)) {
                     category.value = this.suggestion.category_id;

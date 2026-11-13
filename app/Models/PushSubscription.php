@@ -104,6 +104,45 @@ class PushSubscription extends Model
             && $this->vapid_key_hash !== $enVigueur;
     }
 
+    /** TASK-1820 — « empreinte stockee concordante » et « reception reellement demontree » sont DEUX choses distinctes. Celui-ci ne dit QUE la premiere. */
+    public const VAPID_CONCORDANTE = 'concordante';
+
+    public const VAPID_DIVERGENTE = 'divergente';
+
+    public const VAPID_INCONNUE = 'inconnue';
+
+    /**
+     * Les TROIS etats de la clef VAPID de cet abonnement, pour un ecran qui
+     * doit les distinguer plutot que resumer en « OK »/« KO ».
+     *
+     * `cleVapidDiverge()` ne renseigne qu'un `bool` : vrai seulement quand une
+     * divergence est MESUREE. Cette methode nomme aussi les deux etats
+     * complementaires — concordance mesuree, et absence de mesure — qu'un
+     * simple `bool` confondrait dans un unique `false`. Elle ne mesure rien de
+     * nouveau : elle NOMME un etat deja entierement determine par
+     * `vapid_key_hash` et `empreinteCleVapid()`.
+     *
+     * Aucun des trois etats ne constitue une preuve de reception : une
+     * concordance stockee dit seulement que le fournisseur ACCEPTERAIT
+     * d'envoyer avec cette clef — jamais que l'appareil a reellement recu
+     * quoi que ce soit (MASTER, T1820 — un `2xx` fournisseur n'est jamais une
+     * preuve Android).
+     */
+    public function etatCleVapid(): string
+    {
+        if ($this->cleVapidDiverge()) {
+            return self::VAPID_DIVERGENTE;
+        }
+
+        $enVigueur = self::empreinteCleVapid();
+
+        if ($this->vapid_key_hash === null || $enVigueur === null) {
+            return self::VAPID_INCONNUE;
+        }
+
+        return self::VAPID_CONCORDANTE;
+    }
+
     public static function empreinteDe(string $endpoint): string
     {
         return hash('sha256', trim($endpoint));

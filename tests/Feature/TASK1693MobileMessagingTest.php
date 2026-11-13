@@ -353,17 +353,30 @@ class TASK1693MobileMessagingTest extends TestCase
     }
 
     /**
-     * Les deux en-tetes l'ont : celui du telephone et celui de l'ordinateur.
+     * L'en-tete porte le lien — et il n'y en a plus qu'UN.
      *
-     * Ils vivent dans deux blocs SEPARES de la meme vue — n'en corriger qu'un
-     * laisserait l'autre muet, et le test resterait vert.
+     * TASK-1693 attendait ici **deux** occurrences : la vue montait alors deux
+     * en-tetes, celui du telephone et celui de l'ordinateur, dans deux blocs
+     * separes. Le test gardait un vrai risque : n'en corriger qu'un aurait
+     * laisse l'autre muet.
+     *
+     * TASK-1816 a supprime cette duplication. Les deux blocs n'en font plus
+     * qu'un, responsive, et c'est tout l'objet de cette TASK : le serveur
+     * rendait DEUX composants Livewire complets — deux snapshots, deux rendus
+     * par cycle de sondage — dont le CSS n'en montrait qu'un.
+     *
+     * Le risque d'origine disparait avec la duplication : il n'y a plus de
+     * second en-tete a oublier. Ce qui reste a garder, c'est que l'unique
+     * en-tete porte bien le lien, et une seule fois — deux occurrences
+     * signaleraient le retour du double montage.
      */
-    public function test_both_headers_carry_the_link(): void
+    public function test_the_single_header_carries_the_link_once(): void
     {
         $html = $this->conversation($this->discussion());
 
-        $this->assertSame(2, substr_count($html, 'data-thread-profile-link="'.$this->bob->id.'"'),
-            'le lien doit figurer dans l\'en-tete mobile ET dans celui de l\'ordinateur');
+        $this->assertSame(1, substr_count($html, 'data-thread-profile-link="'.$this->bob->id.'"'),
+            'l\'en-tete unique doit porter le lien exactement une fois : zero le rendrait muet, '
+            .'deux signalerait le retour du double montage supprime par TASK-1816');
     }
 
     /**

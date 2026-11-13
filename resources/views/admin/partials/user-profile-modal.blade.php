@@ -35,7 +35,12 @@
                 <div class="min-w-0">
                     <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 truncate"
                         x-text="'{{ __('admin.users_profile_title') }}'.replace(':name', profileName)"></h3>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate" x-text="profile?.identite?.email ?? ''"></p>
+                    {{-- TASK-1812 correctif 09 (demande Cyril) — l'email se lisait deja
+                         ici, mais en texte simple : un lien `mailto:` l'ouvre d'un clic
+                         dans le client de messagerie de l'admin. --}}
+                    <a :href="profile?.identite?.email ? ('mailto:' + profile.identite.email) : null"
+                       class="text-xs text-gray-500 dark:text-gray-400 truncate hover:underline hover:text-indigo-600 dark:hover:text-indigo-400"
+                       x-text="profile?.identite?.email ?? ''"></a>
                 </div>
                 <button type="button" @click="profileOpen = false"
                     class="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-sm">
@@ -84,6 +89,21 @@
                                     <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('admin.users_profile_rating') }}</p>
                                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="profile.identite.note ?? '—'"></p>
                                 </div>
+                                {{-- TASK-1812 correctif 09 (demande Cyril) — le telephone
+                                     portable, en lien `tel:`. `replace` retire les espaces :
+                                     un numero saisi « 06 12 34 56 78 » compose mal tel quel sur
+                                     certains telephones. --}}
+                                <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
+                                    <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('admin.users_profile_phone') }}</p>
+                                    <template x-if="profile.identite.telephone">
+                                        <a :href="'tel:' + profile.identite.telephone.replace(/\s+/g, '')"
+                                           class="text-sm font-medium text-gray-900 dark:text-gray-100 hover:underline hover:text-indigo-600 dark:hover:text-indigo-400"
+                                           x-text="profile.identite.telephone"></a>
+                                    </template>
+                                    <template x-if="! profile.identite.telephone">
+                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100">—</p>
+                                    </template>
+                                </div>
                             </div>
                         </div>
 
@@ -102,6 +122,26 @@
                                                   :class="valeur > 0 ? 'text-gray-900 dark:text-gray-100' : 'text-gray-300 dark:text-gray-600'"
                                                   x-text="valeur"></span>
                                         </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
+                        {{-- TASK-1812 correctif 09 (demande Cyril) — les Boucles
+                             REJOINTES, PAR LEUR NOM : « Boucles créées » et « Boucles
+                             rejointes » (interactions) n'etaient que des COMPTAGES,
+                             silencieux sur lesquelles. Meme traitement visuel que les
+                             badges de l'annuaire (TASK-1812 correctif 05) : coherence
+                             entre les deux ecrans ou cette notion apparait.
+
+                             Absente du DOM quand la liste est vide : une section vide
+                             n'apprend rien et prend de la place pour rien. --}}
+                        <template x-if="profile.boucles_rejointes && profile.boucles_rejointes.length > 0">
+                            <div>
+                                <h4 class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">{{ __('admin.users_profile_section_loops_joined') }}</h4>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <template x-for="nom in profile.boucles_rejointes" :key="nom">
+                                        <span class="px-2 py-0.5 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded text-xs font-medium" x-text="nom"></span>
                                     </template>
                                 </div>
                             </div>

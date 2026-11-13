@@ -1,5 +1,15 @@
 <x-app-layout>
-    @php $_favoritesOrgSlug = request()->route('organization'); @endphp
+    {{-- TASK-1812 correctif 02 — cette page n'affiche QUE des favoris de
+         services : les deux liens « explorer » ci-dessous doivent donc
+         toujours ouvrir l'onglet Propositions, jamais le defaut Demandes
+         (TASK-1788). Sans `tab=services`, ils renvoyaient sur les demandes
+         d'aide — un favori n'en est jamais une. --}}
+    @php
+        $_favoritesOrgSlug = request()->route('organization');
+        $_servicesExploreHref = $_favoritesOrgSlug
+            ? route('organization.explorer', ['organization' => $_favoritesOrgSlug, 'tab' => 'services'])
+            : route('explorer', ['tab' => 'services']);
+    @endphp
     <x-slot name="title">{{ __('favorites.title') }}</x-slot>
 
     {{-- TASK-1749 — la barre du haut standard (`x-page-topbar`).
@@ -25,7 +35,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
             </svg>
             <p>{{ __('favorites.empty') }}</p>
-            <a href="{{ route('explorer') }}" class="mt-3 inline-block text-indigo-600 hover:underline text-sm">{{ __('favorites.explore', ['services' => $T['services']]) }}</a>
+            <a href="{{ $_servicesExploreHref }}" class="mt-3 inline-block text-indigo-600 hover:underline text-sm">{{ __('favorites.explore', ['services' => $T['services']]) }}</a>
         </div>
         @else
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -68,7 +78,7 @@
             @endforeach
         </div>
         <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <a href="{{ $_favoritesOrgSlug ? route('organization.explorer', ['organization' => $_favoritesOrgSlug]) : route('explorer') }}"
+            <a href="{{ $_servicesExploreHref }}"
                class="inline-flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                 {{ __('favorites.browse_services') }}

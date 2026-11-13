@@ -161,6 +161,10 @@ class LoopEventService
             ->whereIn('id', LoopMember::where('user_id', $user->id)
                 ->where('status', 'active')
                 ->pluck('loop_id'))
+            // TASK-1814 correctif 02 — meme raison qu'au-dessus : `canCreate()`
+            // et `canPublishToOrganization()` sont appeles Boucle par Boucle sur
+            // cette collection, et chacun passe par `activeCardsFor()`.
+            ->with('cards')
             ->orderBy('name')
             ->get();
     }
@@ -438,7 +442,20 @@ class LoopEventService
                         ->orWhereIn('loop_id', $memberLoopIds);
                 });
             })
-            ->with(['loop', 'creator'])
+            // TASK-1814 correctif 02 — `loop.cards`, et pas seulement `loop`.
+            //
+            // Le presenteur interroge les permissions pour chaque Evenement, et
+            // `LoopPermissionResolver` passe par
+            // `LoopTypeRegistry::activeCardsFor()`. Celle-ci PREFERE DEJA la
+            // relation `cards` quand elle est chargee (`LoopTypeRegistry:548`)
+            // et ne retombe sur une requete que si elle ne l'est pas. Elle ne
+            // l'etait jamais ici : mesure du 13/11, **24 lectures de
+            // `loop_cards` sur une seule page d'agenda**.
+            //
+            // Rien d'autre ne change : le registre n'est pas touche, le verdict
+            // de permission est le MEME — c'est le meme code qui le rend, avec
+            // la meme liste de cards, lue une fois au lieu de vingt-quatre.
+            ->with(['loop.cards', 'creator'])
             ->withCount(['responses as going_count' => fn ($q) => $q->where('response', LoopEventResponse::GOING)])
             ->orderBy('starts_at')
             ->get();

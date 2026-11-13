@@ -39,6 +39,21 @@ class AiSurfaceGate
     /** @var array<string, bool> */
     private array $memo = [];
 
+    /**
+     * La requete a laquelle `$memo` appartient — par REFERENCE, pas par identifiant.
+     *
+     * `spl_object_id()` a ete essaye, puis retire : PHP reattribue l'identifiant
+     * d'un objet detruit. Deux requetes successives pouvaient donc porter le
+     * MEME identifiant, et le memo de la premiere aurait ete servi a la
+     * seconde — exactement la peremption que cette garde existe pour fermer.
+     *
+     * `WeakReference` et non une reference forte : le portier ne doit pas
+     * maintenir en vie la requete precedente. Quand elle est collectee,
+     * `get()` rend `null`, ce qui differe de toute requete courante et
+     * declenche l'oubli — le sens sur.
+     */
+    private ?\WeakReference $requeteMemo = null;
+
     public function __construct(private readonly ProviderResolver $resolver) {}
 
     /** L'IA est-elle utilisable pour cette Organization ? */
@@ -48,7 +63,36 @@ class AiSurfaceGate
             return false;
         }
 
+        $this->oublierSiNouvelleRequete();
+
         return $this->memo[$organizationId] ??= $this->resolver->isAvailableFor($organizationId);
+    }
+
+    /**
+     * TASK-1813 correctif 05 — le memo meurt avec la requete, pour de vrai.
+     *
+     * `scoped()` ne suffit PAS a le garantir : dans cette version du
+     * framework, `forgetScopedInstances()` n'est appele que par
+     * `QueueServiceProvider`. Le noyau HTTP ne l'appelle jamais. En PROD la
+     * mort du processus PHP-FPM masque l'ecart (`usesOctane: false`), mais le
+     * contrat n'etait tenu que par cet accident d'hebergement.
+     *
+     * Mesure qui a motive cette garde : deux requetes HTTP successives dans un
+     * meme conteneur de test rendaient la MEME instance, et le verdict restait
+     * `true` apres extinction de l'IA de l'Organization entre les deux.
+     *
+     * Le prix est nul : a l'interieur d'une requete, l'objet `Request` reste
+     * le meme, donc le memo sert exactement comme avant.
+     */
+    private function oublierSiNouvelleRequete(): void
+    {
+        $requete = app()->bound('request') ? app('request') : null;
+
+        // Comparaison d'IDENTITE (`!==` sur des objets), et non d'identifiant.
+        if ($this->requeteMemo?->get() !== $requete) {
+            $this->memo = [];
+            $this->requeteMemo = $requete !== null ? \WeakReference::create($requete) : null;
+        }
     }
 
     /** La meme question, pour l'Organization de la requete courante. */

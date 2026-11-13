@@ -336,6 +336,23 @@ class ResolveUrlOrganization
         return in_array($first, static::$passthroughNoOrgRoutes);
     }
 
+    /**
+     * Memoires de la requete COURANTE, et d'elle seule.
+     *
+     * Le pipeline resout ce middleware a chaque requete : ces deux tableaux
+     * naissent et meurent avec elle. Aucune liaison de conteneur, donc aucune
+     * dependance a un vidage que le noyau HTTP ne fait pas.
+     *
+     * `false` et non `null` comme etat « pas encore lu » : `null` est une
+     * reponse LEGITIME (aucune Organization par defaut), et la confondre avec
+     * l'absence de lecture ferait repartir la requete a chaque appel — le cas
+     * absent deviendrait le plus couteux.
+     */
+    private Organization|null|false $defautMemo = false;
+
+    /** @var array<string, Organization|null> */
+    private array $parIdMemo = [];
+
     protected function resolveDefaultOrganization(): ?Organization
     {
         // `first()` sans `orderBy` laisse le moteur choisir. Sur SQLite le
@@ -347,6 +364,27 @@ class ResolveUrlOrganization
         // Meme correction que `DefaultOrganizationResolver` (TASK-1121) et que
         // le departage des proprietaires (TASK-1117) : l'horodatage d'abord,
         // puis `id` pour trancher, `created_at` etant stocke a la seconde.
+        // TASK-1813 correctif 02 — appelee DEUX fois dans la meme passe de
+        // middleware (`:219` et `:274`), pour la meme ligne.
+        //
+        // La memoire vit sur CETTE INSTANCE de middleware, et nulle part
+        // ailleurs. Le pipeline resout le middleware a chaque requete (aucune
+        // liaison singleton), donc la memoire nait et meurt avec la requete,
+        // sans dependre d'aucun vidage du conteneur.
+        //
+        // `ScopedReadCache` a ete essaye ici, puis RETIRE : son docblock
+        // affirme que Laravel vide les instances `scoped` « entre deux
+        // requetes HTTP », ce qui est FAUX dans cette version — seul
+        // `QueueServiceProvider` appelle `forgetScopedInstances()`. En PROD la
+        // mort du processus PHP-FPM masque l'ecart ; en test le conteneur
+        // survit, et `T0752DefaultOrganizationResolutionTest` l'a prouve : une
+        // Organization par defaut rebindee entre deux requetes restait
+        // perimee. L'Organization par defaut GOUVERNE la resolution de
+        // tenant : elle ne doit jamais etre servie perimee.
+        if ($this->defautMemo !== false) {
+            return $this->defautMemo;
+        }
+
         $org = Organization::where('is_default', true)->orderBy('created_at')->orderBy('id')->first()
             ?? Organization::where('is_active', true)->orderBy('created_at')->orderBy('id')->first();
 
@@ -354,7 +392,7 @@ class ResolveUrlOrganization
             Log::warning('Default Organization resolution failed: no active organization with is_default = true in DB.');
         }
 
-        return $org;
+        return $this->defautMemo = $org;
     }
 
     protected function resolveFromAuthenticatedUser(): ?Organization
@@ -367,7 +405,31 @@ class ResolveUrlOrganization
 
         $orgId = $user->organization_id;
         if ($orgId) {
-            return Organization::find($orgId);
+            // TASK-1813 correctif 02 — appelee jusqu'a TROIS fois par passe
+            // (`:201`, `:223`, `:268`), pour la meme ligne.
+            //
+            // La clef porte l'identifiant de l'Organization, et non celui de
+            // la personne : c'est `organization_id` qui fait varier la
+            // reponse. Deux membres de la meme Organization doivent obtenir la
+            // meme ligne ; deux Organizations ne partagent jamais la leur.
+            $organization = array_key_exists($orgId, $this->parIdMemo)
+                ? $this->parIdMemo[$orgId]
+                : ($this->parIdMemo[$orgId] = Organization::find($orgId));
+
+            // Et on AMORCE la relation de la personne connectee avec cette
+            // meme ligne. Les vues du layout lisent `auth()->user()->organization`
+            // — un acces paresseux qui repartait en base pour la ligne qu'on
+            // vient de lire.
+            //
+            // Ce n'est pas un raccourci : `Organization::find($orgId)` avec
+            // `$orgId = $user->organization_id` EST, par definition, la relation
+            // `organization` de cette personne. Les deux ne peuvent pas diverger,
+            // et amorcer une relation n'empeche aucun rechargement explicite.
+            if ($organization !== null && ! $user->relationLoaded('organization')) {
+                $user->setRelation('organization', $organization);
+            }
+
+            return $organization;
         }
 
         return null;

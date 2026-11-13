@@ -575,15 +575,26 @@
                                 </label>
                             </form>
                             {{-- TASK-1666 — `profile.show` est une route FRONT, bornee au tenant
-                                 courant : elle fait `abort(404)` des que `organization_id`
-                                 differe, et aussi sur un compte banni. Un SuperAdmin n'y
-                                 echappe pas, et c'est VOULU — la garde de tenant n'est pas a
-                                 percer. On n'affiche donc le lien que la ou il MENE quelque
-                                 part ; ailleurs la Fiche, elle, marche toujours. --}}
-                            @if($u->organization_id !== null
-                                && optional(currentOrganization())->id === $u->organization_id
-                                && $u->banned_at === null)
-                            <a href="{{ route('profile.show', $u->profileRouteKey()) }}" class="text-xs text-gray-500 hover:underline">Profil</a>
+                                 COURANT (`currentOrganization()`, resolue depuis l'URL) : elle
+                                 fait `abort(404)` des que `organization_id` differe, et aussi sur
+                                 un compte banni. La garde de tenant n'est pas a percer.
+
+                                 TASK-1812 correctif 08 (demande Cyril) — sur `/admin/users`, qui
+                                 liste TOUTES les Organizations, `currentOrganization()` ne
+                                 coincidait quasiment jamais avec celle de la ligne : le lien
+                                 restait invisible en pratique, pour toutes les lignes. La route
+                                 `organization.profile.show` porte son Organization DANS L'URL —
+                                 `currentOrganization()` se resout alors pour CETTE requete
+                                 depuis l'URL elle-meme, jamais depuis un etat ambiant. Le lien
+                                 fonctionne donc pour n'importe quelle ligne, sans plus dependre
+                                 d'ou le SuperAdmin « se trouve ».
+
+                                 Toujours aucun lien pour un compte banni ou sans Organization :
+                                 la garde de tenant y repondrait 404 de toute facon, et un lien
+                                 qui ne mene nulle part est pire qu'une absence de lien ; ailleurs
+                                 la Fiche, elle, marche toujours. --}}
+                            @if($u->organization?->slug !== null && $u->banned_at === null)
+                            <a href="{{ route('organization.profile.show', ['organization' => $u->organization->slug, 'user' => $u->profileRouteKey()]) }}" class="text-xs text-gray-500 hover:underline">Profil</a>
                             @endif
 
                             {{-- TASK-1640 — la fiche complete, en pop-up. Aucun precheck ni
