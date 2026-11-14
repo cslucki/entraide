@@ -412,4 +412,164 @@ class TASK1823PushDiagnosticTest extends TestCase
         $this->assertContains((string) $avec->id, $ids);
         $this->assertNotContains((string) $sans->id, $ids);
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 4. L'ÉCRAN — ce que le Superadmin lit réellement
+    // ═══════════════════════════════════════════════════════════════════
+
+    public function test_le_bento_affiche_les_cinq_compteurs(): void
+    {
+        $this->abonnement($this->membre(), PushSubscriptionStore::SITUATION_ELIGIBLE);
+        $this->abonnement($this->membre(), PushSubscriptionStore::SITUATION_CLE_INCOMPATIBLE);
+
+        $html = $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices'))
+            ->assertOk()
+            ->getContent();
+
+        foreach (['total', PushSubscriptionStore::SITUATION_ELIGIBLE, PushSubscriptionStore::SITUATION_CLE_INCOMPATIBLE, PushSubscriptionStore::SITUATION_A_VERIFIER, PushSubscriptionStore::SITUATION_INCIDENT_COMPTE] as $tuile) {
+            $this->assertStringContainsString('data-push-diag-tuile="'.$tuile.'"', $html);
+        }
+    }
+
+    public function test_chaque_ligne_porte_sa_pastille_de_situation(): void
+    {
+        $this->abonnement($this->membre(), PushSubscriptionStore::SITUATION_CLE_INCOMPATIBLE);
+
+        $html = $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices'))
+            ->getContent();
+
+        $this->assertStringContainsString('data-push-diag-situation="'.PushSubscriptionStore::SITUATION_CLE_INCOMPATIBLE.'"', $html);
+        $this->assertStringContainsString(e(__('admin.push_diag_badge_incompatible')), $html);
+    }
+
+    public function test_l_incident_de_compte_marque_TOUTES_les_lignes_du_compte(): void
+    {
+        $proprietaire = $this->membre();
+        $this->abonnement($proprietaire, PushSubscriptionStore::SITUATION_ELIGIBLE);
+        $this->abonnement($proprietaire, PushSubscriptionStore::SITUATION_ELIGIBLE);
+        $this->livraison($proprietaire, 'failed', 3);
+
+        $html = $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices'))
+            ->getContent();
+
+        $this->assertSame(
+            2,
+            substr_count($html, 'data-push-diag-incident-compte'),
+            "L'incident appartient au COMPTE : ses DEUX lignes le portent, aucune n'est designee coupable.",
+        );
+    }
+
+    public function test_un_compte_sain_ne_porte_aucune_pastille_d_incident(): void
+    {
+        $this->abonnement($this->membre(), PushSubscriptionStore::SITUATION_ELIGIBLE);
+
+        $html = $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices'))
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-push-diag-incident-compte', $html);
+    }
+
+    public function test_un_incident_HORS_fenetre_ne_marque_aucune_ligne(): void
+    {
+        $proprietaire = $this->membre();
+        $this->abonnement($proprietaire, PushSubscriptionStore::SITUATION_ELIGIBLE);
+        $this->livraison($proprietaire, 'failed', 45);
+
+        $html = $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices'))
+            ->getContent();
+
+        $this->assertStringNotContainsString(
+            'data-push-diag-incident-compte',
+            $html,
+            'La meme fenetre de 30 jours doit gouverner la pastille comme le compteur.',
+        );
+    }
+
+    public function test_le_filtre_de_l_ecran_restreint_vraiment_la_liste(): void
+    {
+        $incompatible = $this->abonnement($this->membre(), PushSubscriptionStore::SITUATION_CLE_INCOMPATIBLE);
+        $eligible = $this->abonnement($this->membre(), PushSubscriptionStore::SITUATION_ELIGIBLE);
+
+        $html = $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices', ['etat' => PushSubscriptionStore::SITUATION_CLE_INCOMPATIBLE]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(mb_substr($incompatible->endpoint_hash, 0, 8), $html);
+        $this->assertStringNotContainsString(mb_substr($eligible->endpoint_hash, 0, 8), $html);
+    }
+
+    public function test_un_etat_inconnu_dans_l_URL_est_ignore_et_la_liste_reste_entiere(): void
+    {
+        $this->abonnement($this->membre(), PushSubscriptionStore::SITUATION_ELIGIBLE);
+
+        $html = $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices', ['etat' => 'situation-inventee']))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(
+            'data-push-device-row',
+            $html,
+            "Un `etat` non reconnu est ECARTE par le controleur : l'ecran n'affiche pas un filtre actif qui ne filtrerait rien.",
+        );
+    }
+
+    public function test_le_lien_vers_l_inspecteur_porte_le_canal_web_push(): void
+    {
+        $proprietaire = $this->membre();
+        $this->abonnement($proprietaire, PushSubscriptionStore::SITUATION_ELIGIBLE);
+
+        $html = $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices'))
+            ->getContent();
+
+        $this->assertStringContainsString('data-push-diag-lien-historique', $html);
+        $this->assertStringContainsString(
+            e(route('admin.outils.notifications', ['q' => $proprietaire->email, 'canal' => NotificationCatalogue::CHANNEL_WEB_PUSH])),
+            $html,
+        );
+    }
+
+    public function test_le_pluriel_des_tentatives_n_est_plus_rendu_brut(): void
+    {
+        $proprietaire = $this->membre();
+        $this->abonnement($proprietaire, PushSubscriptionStore::SITUATION_ELIGIBLE);
+        $this->livraison($proprietaire, 'failed', 1);
+
+        $html = $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices'))
+            ->getContent();
+
+        $this->assertStringNotContainsString(
+            '1 tentative|1 tentatives',
+            $html,
+            'Defaut cosmetique vu en PROD sur 1.822 : `__()` rendait la chaine de pluriel BRUTE.',
+        );
+        // Comparé au CATALOGUE courant, jamais à un texte français codé en
+        // dur : le banc tourne en `en`, et une chaîne recopiée mesurerait la
+        // locale au lieu du pluriel.
+        $this->assertStringContainsString(
+            e(trans_choice('admin.all_push_devices_diagnostic_attempts', 1, ['count' => 1])),
+            $html,
+        );
+    }
+
+    public function test_la_console_reste_refusee_a_un_compte_de_demonstration(): void
+    {
+        $demo = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'is_admin' => true,
+            'email' => 'demo-t1823-'.bin2hex(random_bytes(4)).'@bouclepro.test',
+        ]);
+
+        $this->actingAs($demo)
+            ->get(route('admin.outils.my-push-devices', ['etat' => PushSubscriptionStore::SITUATION_INCIDENT_COMPTE]))
+            ->assertForbidden();
+    }
 }

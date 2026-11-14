@@ -2298,6 +2298,41 @@ return [
     'all_push_devices_diagnostic_attempts' => ':count tentative|:count tentatives',
     'all_push_devices_diagnostic_empty' => 'Aucune livraison Web Push enregistrée pour ce compte.',
 
+    // TASK-1823 — le bento de synthese et les pastilles de situation.
+    'push_diag_summary_total' => 'Abonnements',
+    'push_diag_summary_eligible' => 'Éligibles',
+    'push_diag_summary_incompatible' => 'Clés incompatibles',
+    'push_diag_summary_to_check' => 'À vérifier',
+    'push_diag_summary_incident_accounts' => 'Comptes en incident (:days j)',
+
+    // Les pastilles de l'ABONNEMENT. Trois situations exhaustives et
+    // disjointes, derivees du meme etat que le libelle VAPID de la ligne.
+    'push_diag_badge_eligible' => 'Éligible',
+    'push_diag_badge_eligible_help' => 'Compatible avec la clé VAPID servie par cet environnement. Cela ne dit rien d’une réception : seul l’appareil peut l’attester.',
+    'push_diag_badge_incompatible' => 'Clé incompatible',
+    'push_diag_badge_incompatible_help' => 'Créé avec une autre clé que celle en vigueur ici. Le fournisseur acceptera l’envoi et le navigateur jettera le message en silence.',
+    'push_diag_badge_to_check' => 'À vérifier',
+    'push_diag_badge_to_check_help' => 'L’empreinte ne permet pas de conclure : abonnement enregistré sur un autre environnement, ou antérieur à cette vérification. L’envoi reste tenté.',
+
+    // La pastille du COMPTE. Le libelle doit dire COMPTE, jamais appareil :
+    // aucune donnee ne permet de designer la ligne en cause.
+    'push_diag_badge_account_incident' => 'Incident sur le compte',
+    'push_diag_badge_account_incident_help' => 'Ce COMPTE a connu au moins un échec d’envoi Web Push sur les :days derniers jours. Rien ne permet de dire quel appareil était en cause — l’indicateur porte donc sur toutes ses lignes.',
+
+    // Filtres.
+    'push_diag_filter_situation' => 'Situation',
+    'push_diag_filter_all_situations' => 'Toutes les situations',
+    'push_diag_filter_organization' => 'Organization',
+    'push_diag_filter_all_organizations' => 'Toutes les Organizations',
+    'push_diag_filter_apply' => 'Filtrer',
+    'push_diag_filter_reset' => 'Tout afficher',
+    'push_diag_env_details' => 'Détail par environnement',
+
+    // Lien croise vers l'inspecteur. « Rechercher » et non « ouvrir » : `q`
+    // est une recherche PARTIELLE sur l'email, pas une selection exacte.
+    'push_diag_link_history' => 'Rechercher l’historique de ce compte dans l’inspecteur',
+    'push_diag_link_devices' => 'Rechercher les appareils de ce compte',
+
     /*
      * TASK-1744 (demande Cyril, 02/11) — l'inspecteur des notifications.
      *
