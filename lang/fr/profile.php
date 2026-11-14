@@ -160,6 +160,10 @@ return [
     'new_password' => 'Nouveau mot de passe',
     'confirm_password' => 'Confirmer le mot de passe',
 
+    // TASK-1825 — confirmation premium apres un changement de mot de passe reussi.
+    'password_updated_success' => 'Votre mot de passe a été modifié avec succès.',
+    'password_updated_success_detail' => 'Votre nouveau mot de passe est désormais actif pour ce compte.',
+
     // TASK-1716 — « supprimer » devient « fermer », parce que c'est ce qui se
     // passe reellement : le compte est desactive, pas efface. Les anciennes
     // clefs `delete_account_*` sont SUPPRIMEES plutot que laissees en place —

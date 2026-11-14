@@ -164,6 +164,10 @@ return [
     'new_password' => 'New password',
     'confirm_password' => 'Confirm password',
 
+    // TASK-1825 — premium confirmation after a successful password change.
+    'password_updated_success' => 'Your password has been changed successfully.',
+    'password_updated_success_detail' => 'Your new password is now active for this account.',
+
     // TASK-1716 — see the French file: the wording moves from "delete" to
     // "close" because that is what actually happens.
     'close_account' => 'Close my account',
