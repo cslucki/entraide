@@ -36,17 +36,19 @@ use Tests\TestCase;
  * (`TASK1821...::test_DEFAUT_CONNU_...`). Ce fichier le REMPLACE par des
  * tests qui imposent le comportement corrigé.
  *
- * ## Ce que ce fichier NE peut PAS tester, et pourquoi
+ * ## Où vit l'autre moitié
  *
  * La garde côté NAVIGATEUR — comparer `options.applicationServerKey` avant
  * de conclure « déjà abonné » et avant toute reconfirmation silencieuse —
- * vit dans `push-abonnement.js` / `push-first-run.js`. Le dépôt n'a aucun
- * banc de test JavaScript unitaire (ni vitest ni jest) : aucun test PHP ne
- * peut l'exercer. Elle est vérifiée en recette navigateur réelle, et c'est
- * dit plutôt que masqué par un test qui ne prouverait rien.
+ * est mesurée par `tests/e2e/task-1822-garde-vapid.spec.js` (Playwright,
+ * harnais de T1745 : Service Worker, permission et réseau Push doublés).
  *
- * Ce fichier couvre donc les deux moitiés TESTABLES : l'intégrité serveur
- * des métadonnées de création, et la lecture des réponses fournisseur.
+ * J'avais d'abord écrit ici que le dépôt n'avait aucun banc JavaScript :
+ * c'était FAUX — `tests/e2e/` en contient un, et ma recherche initiale
+ * l'avait manqué. La correction vient de MASTER.
+ *
+ * Ce fichier couvre la moitié SERVEUR : l'intégrité des métadonnées de
+ * création, et la lecture des réponses fournisseur.
  */
 class TASK1822VapidReconciliationTest extends TestCase
 {

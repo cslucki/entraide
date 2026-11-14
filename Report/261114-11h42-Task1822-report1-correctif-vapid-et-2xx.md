@@ -87,8 +87,8 @@ $colonnesAMettreAJour = ['user_id','endpoint','p256dh','auth','last_seen_at','up
 |---|---|
 | clé valide | `test_un_endpoint_renouvele_cree_une_nouvelle_ligne_stampee_avec_la_clef_courante` |
 | clé périmée | `test_la_reconciliation_preserve_l_environnement_et_l_empreinte_de_creation` |
-| clé non observable | *(côté JS — voir §6)* |
-| réconciliation depuis la PWA | *(côté JS — voir §6)* |
+| clé non observable | `task-1822-garde-vapid.spec.js` — « clé non observable… » |
+| réconciliation depuis la PWA | `task-1822-garde-vapid.spec.js` — les 9 scénarios tournent en mode installé |
 | abonnements antérieurs au correctif | `test_un_abonnement_sans_empreinte_n_en_recoit_aucune_a_la_reconciliation` |
 | changement de compte | `test_la_bascule_entre_comptes_freres_fonctionne_toujours_et_preserve_la_creation` |
 | préservation des métadonnées | les deux ci-dessus + `..._les_clefs_de_chiffrement_restent_mises_a_jour` |
@@ -102,9 +102,41 @@ $colonnesAMettreAJour = ['user_id','endpoint','p256dh','auth','last_seen_at','up
 
 ---
 
+## 5 bis. Recette JavaScript — 9 tests Playwright, tous verts
+
+Révision après revue MASTER. **J'avais affirmé à tort que le dépôt n'avait aucun banc JavaScript** : `tests/e2e/` en contient un, et `task-1745-first-run.spec.js` double déjà Service Worker, permission, abonnement et réseau Push. Ma recherche initiale l'avait manqué, et j'en ai tiré une conclusion forte sans la vérifier.
+
+`tests/e2e/task-1822-garde-vapid.spec.js` reprend ce harnais, en ajoutant `options.applicationServerKey` à l'abonnement doublé — puisque c'est elle que la garde lit.
+
+| Scénario | Attendu | Résultat |
+|---|---|---|
+| clé concordante, serveur connaît | `deja-abonne`, aucun retrait | ✅ |
+| clé concordante, serveur ignore | `resynchronise`, 1 POST | ✅ |
+| **clé divergente** | `cle-perimee`, **0 POST**, bouton « Réactiver » | ✅ |
+| clé inobservable | `resynchronise`, 0 retrait | ✅ |
+| **réactivation volontaire** | DELETE → `unsubscribe` → `subscribe` → POST sur le NOUVEL endpoint | ✅ |
+| DELETE 403 / 419 / 500 | **aucun désabonnement**, aucun nouvel abonnement, 0 POST | ✅ ×3 |
+| panne réseau sur DELETE | idem | ✅ |
+
+**Un piège évité de justesse** : mon premier jet codait la « clé divergente » en dur — en recopiant la clé du `.env` local. Elle *concordait*, et les quatre tests de divergence mesuraient le contraire de ce qu'ils annonçaient (3 verts, 6 rouges l'ont révélé). La clé divergente est désormais **dérivée** de celle que le serveur sert, lue dans le DOM : la divergence est vraie dans n'importe quel environnement.
+
+Aucun abonnement fictif écrit en base : POST et DELETE interceptés.
+
+---
+
+## 5 ter. Correctif ajouté après revue — `retirerEtDesabonner()`
+
+`fetch` ne lève que sur panne réseau. Un **403**, un **419** (jeton CSRF périmé — le cas le plus probable sur une PWA restée ouverte des jours) ou un **500** reviennent avec `ok === false`, et le code enchaînait quand même sur `unsubscribe()`. Le navigateur oubliait alors un abonnement que le serveur conserve : **une ligne vivante en base pour un endpoint que plus personne ne détient** — exactement l'état que l'ordre « serveur d'abord » existe pour empêcher, atteint par l'autre bout.
+
+`retirerEtDesabonner()` lève désormais si `!response.ok`. L'appelant montre son message d'échec, et l'abonnement reste cohérent des deux côtés. Les deux chemins — code HTTP et panne réseau — sont couverts par 4 tests.
+
+Défaut **préexistant** (il datait de T1739, j'en ai hérité en centralisant), relevé par MASTER.
+
+---
+
 ## 6. Risques résiduels
 
-1. **La garde navigateur n'est pas couverte par la CI.** Le dépôt n'a aucun banc de test JS unitaire (ni vitest ni jest). `push-first-run.js` et `push-abonnement.js` ne sont prouvés que par recette navigateur réelle. Vérifié en local : build Vite OK, **aucune erreur console** sur `/org/main/notifications/preferences` après rechargement. **La recette Android via tunnel reste à faire.**
+1. **La recette Android réelle reste à faire.** Les 9 tests Playwright mesurent la logique dans un navigateur réel avec des doublures ; ils ne remplacent pas un vrai téléphone, un vrai FCM et un vrai Service Worker. Vérifié aussi en local : build Vite OK, aucune erreur console sur `/org/main/notifications/preferences`.
 
 2. **Les abonnements déjà re-stampés ne sont pas récupérables.** Ceux dont le hash a été réécrit avant ce correctif portent la clé du dernier contact. On ne leur invente rien. S'ils sont réellement divergents, c'est désormais la garde CLIENT qui les rattrapera au premier lancement — en proposant une réactivation.
 

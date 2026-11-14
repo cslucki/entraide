@@ -153,11 +153,29 @@ export const comparerCleVapid = (abonnement, vapid) => {
  * jamais concernés (le serveur filtre par `endpoint_hash` ET `user_id`).
  */
 export const retirerEtDesabonner = async (url, abonnement) => {
-    await fetch(url, {
+    const reponse = await fetch(url, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': jeton(), Accept: 'application/json' },
         body: JSON.stringify({ endpoint: abonnement.endpoint }),
     });
+
+    // TASK-1822 — l'ORDRE ne suffit pas, il faut encore que le premier temps
+    // ait REUSSI.
+    //
+    // `fetch` ne lève que sur panne réseau : un 403, un 419 (jeton CSRF
+    // périmé — le cas le plus probable sur une PWA restée ouverte des jours)
+    // ou un 500 reviennent avec `ok === false`, et le code enchaînait quand
+    // même sur `unsubscribe()`. Le navigateur oubliait alors un abonnement
+    // que le serveur conserve : une ligne vivante en base pour un endpoint
+    // que plus personne ne détient — exactement l'état que l'ordre
+    // « serveur d'abord » existe pour empêcher, atteint par l'autre bout.
+    //
+    // On lève plutôt que de se désabonner : l'appelant montre son message
+    // d'échec, et l'abonnement reste cohérent des deux côtés. Un geste de
+    // plus vaut mieux qu'un appareil injoignable qu'on croit abonné.
+    if (!reponse.ok) {
+        throw new Error(`push delete ${reponse.status}`);
+    }
 
     await abonnement.unsubscribe();
 };
