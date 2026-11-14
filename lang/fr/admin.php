@@ -2243,6 +2243,10 @@ return [
     'push_devices_vapid_concordant' => 'Concorde avec la clé actuelle (enregistrée — pas une preuve de réception)',
     'push_devices_vapid_divergent' => 'DIVERGENTE : créé avec une autre clé que celle en vigueur. Le fournisseur peut accepter l’envoi sans que le navigateur le reçoive.',
     'push_devices_vapid_unknown' => 'Origine inconnue (abonnement créé avant que cette vérification existe)',
+    // TASK-1821 — le quatrième état. Comparer l'empreinte d'un abonnement
+    // stampé ailleurs à la clé de CE serveur ne mesure rien : chaque
+    // environnement a sa propre paire VAPID.
+    'push_devices_vapid_non_comparable' => 'Non comparable depuis cet environnement : enregistré sous « :env », avec la clé VAPID de cet environnement-là. Ni concordance ni divergence ne peuvent être conclues ici.',
     // Identification de l'appareil courant — JAMAIS déduite de la dernière
     // activité ni du simple libellé : seule une empreinte SHA-256 calculée
     // localement, comparée aux lignes affichées, vaut une identification.
@@ -2269,6 +2273,30 @@ return [
     'all_push_devices_empty' => 'Aucun abonnement Push enregistré sur la plateforme.',
     'all_push_devices_empty_search' => 'Aucun abonnement Push ne correspond à cette recherche.',
     'all_push_devices_remove_confirm' => 'Retirer cet abonnement du serveur, pour SON propriétaire ? Le navigateur de cette personne peut le recréer automatiquement au prochain lancement si son propre abonnement n’a pas été désactivé depuis son appareil.',
+    'all_push_devices_no_organization' => 'sans Organization',
+
+    // TASK-1821 — résumé PAR ENVIRONNEMENT. Chaque environnement a sa propre
+    // paire VAPID : agréger les comptes rendrait le chiffre faux.
+    'all_push_devices_summary_total' => 'Total',
+    'all_push_devices_summary_eligible' => 'Éligibles',
+    'all_push_devices_summary_matching' => 'Concordants',
+    'all_push_devices_summary_diverging' => 'Divergents',
+    'all_push_devices_summary_unknown' => 'Sans empreinte',
+    'all_push_devices_summary_current_env' => 'ici',
+    'all_push_devices_summary_not_comparable' => 'Non comparable depuis cet environnement : ces abonnements ont été enregistrés ailleurs, avec la clé VAPID de cet autre environnement. Ce serveur ne la possède pas et ne peut donc rien conclure sur leur validité.',
+
+    // TASK-1821 — les quatre niveaux, nommés pour ne plus les confondre.
+    'all_push_devices_levels_title' => 'Ce que cet écran prouve, et ce qu’il ne prouve pas',
+    'all_push_devices_level_registered' => 'Abonnement enregistré : une ligne existe en base pour cet appareil. Cela ne dit rien d’un envoi.',
+    'all_push_devices_level_attempt' => 'Tentative d’envoi : le serveur a bien déposé une requête chez le fournisseur Push. Visible dans le panneau Diagnostic, au niveau du COMPTE.',
+    'all_push_devices_level_accepted' => 'Acceptation fournisseur : le fournisseur a répondu 2xx. Il a pris le message en file — il ne l’a pas délivré. L’endpoint FCM historique signale d’ailleurs certains échecs DANS le corps d’une réponse 2xx.',
+    'all_push_devices_level_received' => 'Réception effective : AUCUNE trace ne l’atteste aujourd’hui. Rien dans cet écran ne prouve qu’un téléphone ait affiché quoi que ce soit.',
+
+    // TASK-1821 — panneau Diagnostic, au niveau du COMPTE.
+    'all_push_devices_diagnostic_title' => 'Diagnostic — dernières livraisons Web Push',
+    'all_push_devices_diagnostic_user_level_warning' => 'Ces livraisons sont celles du COMPTE, pas de cet appareil : la table des livraisons ne porte aucun identifiant d’abonnement. Le décompte « devices:N » est un agrégat, il ne désigne pas une ligne en particulier.',
+    'all_push_devices_diagnostic_attempts' => ':count tentative|:count tentatives',
+    'all_push_devices_diagnostic_empty' => 'Aucune livraison Web Push enregistrée pour ce compte.',
 
     /*
      * TASK-1744 (demande Cyril, 02/11) — l'inspecteur des notifications.

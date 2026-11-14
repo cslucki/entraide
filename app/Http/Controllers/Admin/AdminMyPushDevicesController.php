@@ -64,6 +64,15 @@ class AdminMyPushDevicesController extends Controller
 
         $page = $this->magasin->tous($recherche === '' ? null : $recherche);
 
+        // TASK-1821 — les traces de livraison du PROPRIETAIRE, chargees en UNE
+        // requete pour toute la page. Elles sont attachees a la personne,
+        // jamais a l'appareil : `member_notification_deliveries` ne porte
+        // aucun identifiant d'abonnement (voir le docblock de
+        // `dernieresLivraisonsWebPush()`), et la vue le dit explicitement.
+        $livraisonsParPersonne = $this->magasin->dernieresLivraisonsWebPush(
+            $page->getCollection()->pluck('user_id')->filter()->unique()->values()->all(),
+        );
+
         $appareils = $page->getCollection()
             ->map(fn (PushSubscription $abonnement) => (object) [
                 'id' => $abonnement->id,
@@ -73,6 +82,12 @@ class AdminMyPushDevicesController extends Controller
                 // serait illisible, et surtout indécidable avant suppression.
                 'proprietaireNom' => $abonnement->user?->full_name ?? $abonnement->user?->name,
                 'proprietaireEmail' => $abonnement->user?->email,
+                // TASK-1821 — l'Organization, demandee par MASTER : deux
+                // comptes homonymes se distinguent par elle, et un abonnement
+                // orphelin d'Organization est une anomalie qu'on doit voir.
+                'proprietaireOrganization' => $abonnement->user?->organization?->name,
+                // Les livraisons de la PERSONNE, jamais de l'appareil.
+                'livraisonsDuProprietaire' => $livraisonsParPersonne[(string) $abonnement->user_id] ?? [],
                 'fournisseur' => (string) parse_url($abonnement->endpoint, PHP_URL_HOST),
                 // Les 8 premiers caracteres : meme convention que T1740
                 // (`PushTestPolicy::reperageDe()`), suffisants pour distinguer
@@ -86,13 +101,23 @@ class AdminMyPushDevicesController extends Controller
                 'creeLe' => $abonnement->created_at,
                 'vuLe' => $abonnement->last_seen_at,
                 'environnement' => $abonnement->created_env,
-                'etatVapid' => $abonnement->etatCleVapid(),
+                // TASK-1821 — l'etat CONTEXTUALISE, et lui seul a l'ecran.
+                //
+                // `etatCleVapid()` compare a la clef du serveur courant : lu
+                // depuis un autre environnement, il affichait « DIVERGENTE »
+                // pour cinq abonnements de production parfaitement sains. Le
+                // 14/11 cela s'est lu comme une panne. La comparaison n'a de
+                // sens qu'a l'interieur de l'environnement qui a stampe la
+                // ligne — ailleurs, le seul mot honnete est « non
+                // comparable ».
+                'etatVapid' => $abonnement->etatCleVapidContextualise(),
                 // La cle de traduction DIRECTEMENT, pour ne pas faire porter
                 // au gabarit une correspondance etat -> libelle qui lui
                 // appartient autant qu'au controleur.
-                'vapidLangKey' => 'admin.push_devices_vapid_'.match ($abonnement->etatCleVapid()) {
+                'vapidLangKey' => 'admin.push_devices_vapid_'.match ($abonnement->etatCleVapidContextualise()) {
                     PushSubscription::VAPID_CONCORDANTE => 'concordant',
                     PushSubscription::VAPID_DIVERGENTE => 'divergent',
+                    PushSubscription::VAPID_NON_COMPARABLE => 'non_comparable',
                     default => 'unknown',
                 },
             ]);
@@ -102,6 +127,11 @@ class AdminMyPushDevicesController extends Controller
             'pagination' => $page,
             'recherche' => $recherche,
             'total' => $page->total(),
+            // TASK-1821 — le resume PAR ENVIRONNEMENT. Un total unique
+            // melangerait des mesures incomparables : chaque environnement a
+            // sa propre paire VAPID.
+            'resume' => $this->magasin->resumeParEnvironnement(),
+            'environnementCourant' => (string) config('app.env'),
             // TASK-1821 — en LOCAL uniquement : l'identité du compte qui
             // REGARDE. L'écran montrant désormais tout le monde, savoir sous
             // quel compte on le consulte reste utile en recette — c'est ce

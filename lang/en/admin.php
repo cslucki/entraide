@@ -2211,6 +2211,10 @@ return [
     'push_devices_vapid_concordant' => 'Matches the current key (stored — not proof of delivery)',
     'push_devices_vapid_divergent' => 'DIVERGENT: created with a different key than the one in force. The provider may accept the send without the browser ever receiving it.',
     'push_devices_vapid_unknown' => 'Unknown origin (subscription created before this check existed)',
+    // TASK-1821 — the fourth state. Comparing a subscription stamped
+    // elsewhere against THIS server's key measures nothing: each environment
+    // has its own VAPID pair.
+    'push_devices_vapid_non_comparable' => 'Not comparable from this environment: registered under “:env”, with that environment\'s VAPID key. Neither a match nor a divergence can be concluded here.',
     'push_devices_this_device' => 'This device',
     'push_devices_checking' => 'Identifying this device…',
     'push_devices_not_identified' => 'Current device not identified: no active subscription on this browser, or no match found.',
@@ -2233,6 +2237,30 @@ return [
     'all_push_devices_empty' => 'No Push subscription registered on the platform.',
     'all_push_devices_empty_search' => 'No Push subscription matches this search.',
     'all_push_devices_remove_confirm' => 'Remove this subscription from the server, for its OWNER? That person\'s browser may automatically recreate it next time it launches, unless their own subscription was turned off from their device.',
+    'all_push_devices_no_organization' => 'no Organization',
+
+    // TASK-1821 — summary PER ENVIRONMENT. Each environment has its own VAPID
+    // pair: aggregating the counts would make the figure wrong.
+    'all_push_devices_summary_total' => 'Total',
+    'all_push_devices_summary_eligible' => 'Eligible',
+    'all_push_devices_summary_matching' => 'Matching',
+    'all_push_devices_summary_diverging' => 'Diverging',
+    'all_push_devices_summary_unknown' => 'No fingerprint',
+    'all_push_devices_summary_current_env' => 'here',
+    'all_push_devices_summary_not_comparable' => 'Not comparable from this environment: these subscriptions were registered elsewhere, with that environment\'s VAPID key. This server does not hold it and therefore cannot conclude anything about their validity.',
+
+    // TASK-1821 — the four levels, named so they stop being confused.
+    'all_push_devices_levels_title' => 'What this screen proves, and what it does not',
+    'all_push_devices_level_registered' => 'Subscription registered: a row exists for this device. It says nothing about any send.',
+    'all_push_devices_level_attempt' => 'Send attempt: the server did post a request to the Push provider. Visible in the Diagnostic panel, at ACCOUNT level.',
+    'all_push_devices_level_accepted' => 'Provider acceptance: the provider answered 2xx. It queued the message — it did not deliver it. The legacy FCM endpoint even reports some failures INSIDE a 2xx body.',
+    'all_push_devices_level_received' => 'Actual reception: NO trace attests to it today. Nothing on this screen proves a phone displayed anything.',
+
+    // TASK-1821 — Diagnostic panel, at ACCOUNT level.
+    'all_push_devices_diagnostic_title' => 'Diagnostic — latest Web Push deliveries',
+    'all_push_devices_diagnostic_user_level_warning' => 'These deliveries belong to the ACCOUNT, not to this device: the deliveries table carries no subscription identifier. The “devices:N” count is an aggregate, it does not point at any particular row.',
+    'all_push_devices_diagnostic_attempts' => ':count attempt|:count attempts',
+    'all_push_devices_diagnostic_empty' => 'No Web Push delivery recorded for this account.',
 
     // TASK-1744 — the notification inspector. Distinct from the T1380
     // cockpit, which COUNTS without naming anyone.
