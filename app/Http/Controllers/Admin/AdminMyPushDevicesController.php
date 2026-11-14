@@ -11,43 +11,48 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 /**
- * TASK-1820 — « Mes appareils Push » : inspecter et retirer INDIVIDUELLEMENT
- * les abonnements du SuperAdmin connecte, et lui seul.
+ * TASK-1820 puis TASK-1821 — « Appareils Push » : inspecter et retirer
+ * INDIVIDUELLEMENT les abonnements Push de la plateforme.
  *
- * ## Le probleme que cet outil resout, et celui qu'il ne resout PAS
+ * ## Ce que T1821 a changé, et pourquoi
  *
- * Cyril a deux abonnements Android enregistres pour un seul telephone
- * principalement utilise — consequence attendue des essais PWA repetes
- * (T1739/T1740/T1745) : l'unicite par `endpoint_hash` fonctionne, mais un
- * meme appareil peut produire plusieurs endpoints SUCCESSIFS (le navigateur
- * en cree un nouveau quand il juge le precedent perime), et chacun reste en
- * base jusqu'a ce qu'on le retire. Supprimer une ligne ne desabonne PAS le
- * navigateur, qui peut la recreer — cet outil ne pretend donc jamais
- * « reinitialiser » un appareil, seulement nettoyer la LISTE serveur, avec
- * l'avertissement explicite a chaque suppression.
+ * T1820 bornait cet écran au compte CONNECTÉ (`$request->user()` partout,
+ * aucune recherche d'utilisateur). La recette l'a invalidé : un abonnement
+ * créé depuis un téléphone via un tunnel Cloudflare appartenait au compte de
+ * démonstration authentifié sur CE navigateur-là, pas au compte ouvert sur
+ * l'écran d'administration — donc invisible, sans que rien ne soit en panne.
+ * La liste vide était exacte et inutile.
  *
- * Hors perimetre, assume et documente plutot que corrige ici : le defaut
- * potentiel de reconciliation VAPID et le fait qu'un `2xx` fournisseur ne
- * prouve jamais une reception Android (tous deux releves par l'audit
- * Sonnet qui a precede cette TASK).
+ * Arbitrage MASTER (14/11) : cet écran montre désormais TOUS les abonnements,
+ * tous comptes confondus, et peut en retirer n'importe lequel. L'URL et le
+ * nom de route ne changent pas — décision produit : un seul écran, pas deux.
  *
- * ## Pourquoi ce n'est PAS une gestion generale des appareils
+ * ## La contrepartie : une garde plus stricte
  *
- * Reserve au compte CONNECTE : chaque methode part de `$request->user()`,
- * jamais d'un identifiant de compte recu. Pas de recherche d'utilisateur,
- * pas d'acces aux appareils d'un autre SuperAdmin, aucune surface pour
- * OrgAdmin ou membre (porte par le groupe de routes `['auth','admin']`,
- * meme garde que tout le reste de `/admin`).
+ * Parce que cet écran lit — et peut détruire — les données d'autrui,
+ * `['auth','admin']` ne suffit plus : `is_admin` ouvre déjà tout `/admin`, y
+ * compris (mesuré le 14/11) à des comptes de DÉMONSTRATION. Les deux routes
+ * portent donc `can:superadmin-push-all-devices`
+ * (`SuperAdminPushAccessPolicy`), qui exclut HORS LOCAL tout compte `.test`.
+ * La garde est déclarée sur la route, pas ici : elle doit être lisible à
+ * l'endroit où l'URL est définie, et s'appliquer avant le contrôleur.
  *
- * ## Ce que cet ecran ne montre jamais
+ * ## Ce que cet écran ne montre jamais
  *
- * Ni l'endpoint complet, ni aucune clef. `PushTestPolicy::reperageDe()`
- * (T1740) fournit deja ce reperage sans rien exposer — reutilise ici tel
- * quel. La seule donnee supplementaire envoyee a la page est l'EMPREINTE
- * COMPLETE (`endpoint_hash`, 64 caracteres) : un hachage a sens unique, pas
- * l'endpoint, necessaire pour que le NAVIGATEUR puisse reconnaitre localement
- * sa propre ligne (il recalcule le SHA-256 de SON endpoint et compare) sans
- * que le serveur ait besoin de recevoir quoi que ce soit de plus.
+ * Ni l'endpoint complet, ni aucune clef. La seule donnée sensible en
+ * apparence est l'EMPREINTE COMPLÈTE (`endpoint_hash`, SHA-256, 64
+ * caractères) : un hachage à sens unique, porté en attribut `data-*` pour que
+ * le NAVIGATEUR reconnaisse localement sa propre ligne — il recalcule le
+ * SHA-256 de SON endpoint et compare, sans que le serveur reçoive rien de
+ * plus. C'est aussi pourquoi « Cet appareil » reste un calcul CLIENT, lié au
+ * navigateur et à l'origine courants, et jamais une déduction serveur.
+ *
+ * ## Ce que retirer une ligne ne fait PAS
+ *
+ * Supprimer ne désabonne PAS le navigateur de la personne, qui peut recréer
+ * l'abonnement au prochain lancement. Cet outil nettoie la LISTE serveur,
+ * avec l'avertissement explicite à chaque suppression — il ne « réinitialise »
+ * aucun appareil.
  */
 class AdminMyPushDevicesController extends Controller
 {
@@ -55,20 +60,27 @@ class AdminMyPushDevicesController extends Controller
 
     public function index(Request $request): View
     {
-        $utilisateur = $request->user();
+        $recherche = trim((string) $request->query('q', ''));
 
-        $appareils = $this->magasin->appareilsDe($utilisateur)
+        $page = $this->magasin->tous($recherche === '' ? null : $recherche);
+
+        $appareils = $page->getCollection()
             ->map(fn (PushSubscription $abonnement) => (object) [
                 'id' => $abonnement->id,
                 'libelle' => $abonnement->device_label,
+                // TASK-1821 — le PROPRIÉTAIRE, puisque l'écran n'est plus
+                // borné au compte connecté : une ligne sans son propriétaire
+                // serait illisible, et surtout indécidable avant suppression.
+                'proprietaireNom' => $abonnement->user?->full_name ?? $abonnement->user?->name,
+                'proprietaireEmail' => $abonnement->user?->email,
                 'fournisseur' => (string) parse_url($abonnement->endpoint, PHP_URL_HOST),
                 // Les 8 premiers caracteres : meme convention que T1740
                 // (`PushTestPolicy::reperageDe()`), suffisants pour distinguer
                 // deux appareils a l'oeil sans rien reveler de reversible.
                 'empreinte' => mb_substr($abonnement->endpoint_hash, 0, 8),
-                // L'empreinte COMPLETE : jamais affichee comme texte, portee
-                // uniquement en attribut `data-*` pour la comparaison cote
-                // navigateur. Ce n'est pas l'endpoint — un hachage a sens
+                // L'empreinte COMPLETE : jamais affichée comme texte, portée
+                // uniquement en attribut `data-*` pour la comparaison côté
+                // navigateur. Ce n'est pas l'endpoint — un hachage à sens
                 // unique ne permet de retrouver ni l'endpoint ni les clefs.
                 'empreinteComplete' => $abonnement->endpoint_hash,
                 'creeLe' => $abonnement->created_at,
@@ -87,25 +99,30 @@ class AdminMyPushDevicesController extends Controller
 
         return view('admin.outils.my-push-devices', [
             'appareils' => $appareils,
-            'total' => $appareils->count(),
+            'pagination' => $page,
+            'recherche' => $recherche,
+            'total' => $page->total(),
+            // TASK-1821 — en LOCAL uniquement : l'identité du compte qui
+            // REGARDE. L'écran montrant désormais tout le monde, savoir sous
+            // quel compte on le consulte reste utile en recette — c'est ce
+            // qui a manqué le 14/11, quand une liste vide s'expliquait
+            // simplement par le compte connecté.
+            'identiteLocale' => app()->environment('local') ? $request->user()->email : null,
         ]);
     }
 
     /**
-     * Retirer UN abonnement — exclusivement celui du compte connecte.
+     * Retirer UN abonnement — celui de n'importe quel compte.
      *
-     * Le controleur ne lit JAMAIS `user_id` depuis la requete : la requete
-     * part de `$request->user()` et de lui seul. `renoncerParId()` REVERIFIE
-     * cette appartenance cote serveur par un `WHERE user_id = …` — un
-     * identifiant de ligne connu (jamais secret, visite dans l'URL) ne suffit
-     * donc pas a retirer l'appareil de quelqu'un d'autre, meme en le
-     * devinant.
+     * TASK-1821 : la garde n'est plus « c'est le mien », elle est
+     * « j'ai le droit de gérer ceux de tout le monde »
+     * (`can:superadmin-push-all-devices`, portée par la route). Le chemin de
+     * suppression est donc DISTINCT de celui du propriétaire :
+     * `PushSubscriptionStore::renoncerParId()` — qui filtre sur `user_id` —
+     * reste intact pour le self-service, et n'est pas appelé ici.
      *
-     * `false` (rien retire) n'est pas une erreur, c'est un cas ordinaire : la
-     * ligne pouvait avoir deja ete retiree (double clic, onglet concurrent),
-     * ou — si l'identifiant visait un autre compte — `renoncerParId()` rend
-     * exactement la MEME reponse que pour une ligne deja absente, afin de ne
-     * jamais reveler l'existence d'une ligne appartenant a quelqu'un d'autre.
+     * `false` (rien retiré) n'est pas une erreur, c'est un cas ordinaire : la
+     * ligne pouvait avoir déjà été retirée (double clic, onglet concurrent).
      */
     public function destroy(Request $request, string $subscription): RedirectResponse
     {
@@ -113,15 +130,20 @@ class AdminMyPushDevicesController extends Controller
             'subscription' => ['required', 'string', 'uuid'],
         ])->validate();
 
-        $utilisateur = $request->user();
-        $retire = $this->magasin->renoncerParId($utilisateur, $subscription);
+        // Lu AVANT suppression, uniquement pour journaliser QUI possédait la
+        // ligne retirée : la trace doit dire sur qui l'action a porté, et
+        // l'identifiant de ligne seul ne le dit plus une fois la ligne partie.
+        $proprietaireId = PushSubscription::query()->where('id', $subscription)->value('user_id');
+
+        $retire = $this->magasin->retirerParIdPourSuperadmin($subscription);
 
         // Trace de l'action — SANS endpoint ni clef, uniquement des
         // identifiants techniques. MASTER : « journaliser sans stocker
         // endpoint ou clefs ».
-        Log::info('TASK-1820 abonnement Push retire depuis « Mes appareils Push ».', [
-            'par' => (string) $utilisateur->id,
+        Log::info('TASK-1821 abonnement Push retire depuis « Appareils Push ».', [
+            'par' => (string) $request->user()->id,
             'abonnement' => $subscription,
+            'proprietaire' => $proprietaireId,
             'retire' => $retire,
         ]);
 

@@ -117,30 +117,71 @@ class TASK1820MyPushDevicesTest extends TestCase
     // 2. Un utilisateur ne peut JAMAIS supprimer l'abonnement d'un autre
     // ═══════════════════════════════════════════════════════════════════
 
-    public function test_un_administrateur_ne_peut_jamais_supprimer_l_abonnement_d_un_autre(): void
+    /**
+     * TASK-1821 REMPLACE cette regle, deliberement.
+     *
+     * T1820 interdisait a un administrateur de retirer la ligne d'un autre
+     * compte : l'ecran etait borne au compte connecte. L'arbitrage T1821 en
+     * fait une console GLOBALE — retirer la ligne d'autrui est desormais la
+     * fonction, plus l'attaque. La garde a change de nature : elle ne
+     * demande plus « est-ce la mienne ? » mais « ai-je le droit de gerer
+     * celles de tout le monde ? » (`can:superadmin-push-all-devices`).
+     *
+     * Ce que ce test atteste donc maintenant : la primitive BORNEE au
+     * proprietaire, `PushSubscriptionStore::renoncerParId()`, est restee
+     * intacte et refuse toujours la ligne d'un autre. C'est elle que le
+     * self-service emploie ; l'ecran d'administration passe par un chemin
+     * DISTINCT (`retirerParIdPourSuperadmin()`).
+     */
+    public function test_la_primitive_bornee_au_proprietaire_refuse_toujours_la_ligne_d_un_autre(): void
     {
         $victime = $this->superadmin();
         $attaquant = $this->superadmin();
         $appareilVictime = $this->appareil($victime);
 
-        $reponse = $this->actingAs($attaquant)
-            ->delete(route('admin.outils.my-push-devices.destroy', ['subscription' => $appareilVictime->id]));
+        $retire = app(PushSubscriptionStore::class)->renoncerParId($attaquant, $appareilVictime->id);
 
-        $reponse->assertRedirect();
+        $this->assertFalse($retire);
         $this->assertNotNull(
             PushSubscription::query()->find($appareilVictime->id),
-            "L'abonnement d'un autre compte ne doit JAMAIS etre supprime, meme en connaissant son identifiant exact."
+            "`renoncerParId()` ne doit JAMAIS retirer la ligne d'un autre compte, meme en connaissant son identifiant exact."
         );
+    }
+
+    /**
+     * TASK-1821 — et l'ECRAN, lui, le peut : c'est le sens de l'arbitrage.
+     * Le test vit ici pour que la bascule soit lisible a cote de la regle
+     * qu'elle remplace ; la couverture complete est dans
+     * `TASK1821AllPushDevicesConsoleTest`.
+     */
+    public function test_l_ecran_retire_desormais_la_ligne_d_un_autre_compte(): void
+    {
+        $superadmin = $this->superadmin();
+        $appareilDUnAutre = $this->appareil($this->membre());
+
+        $this->actingAs($superadmin)
+            ->delete(route('admin.outils.my-push-devices.destroy', ['subscription' => $appareilDUnAutre->id]))
+            ->assertRedirect();
+
+        $this->assertNull(PushSubscription::query()->find($appareilDUnAutre->id));
     }
 
     // ═══════════════════════════════════════════════════════════════════
     // 3. Les appareils affiches appartiennent UNIQUEMENT au compte connecte
     // ═══════════════════════════════════════════════════════════════════
 
-    public function test_la_page_ne_liste_que_les_appareils_du_compte_connecte(): void
+    /**
+     * TASK-1821 REMPLACE cette regle, deliberement.
+     *
+     * T1820 n'affichait que les appareils du compte connecte. C'est
+     * precisement ce qui a invalide la recette : un abonnement cree depuis
+     * un telephone, sous un AUTRE compte, restait invisible — exact, et
+     * inutile. L'ecran montre desormais TOUT, avec son proprietaire.
+     */
+    public function test_la_page_liste_desormais_les_appareils_de_tous_les_comptes(): void
     {
         $moi = $this->superadmin();
-        $unAutre = $this->superadmin();
+        $unAutre = $this->membre();
 
         $monAppareil = $this->appareil($moi, 'Mon telephone');
         $sonAppareil = $this->appareil($unAutre, 'Son telephone');
@@ -151,14 +192,17 @@ class TASK1820MyPushDevicesTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString($monAppareil->endpoint_hash, $html);
-        $this->assertStringNotContainsString($sonAppareil->endpoint_hash, $html, "L'empreinte de l'appareil d'un AUTRE compte ne doit jamais apparaitre.");
-        $this->assertStringNotContainsString('Son telephone', $html);
+        $this->assertStringContainsString($sonAppareil->endpoint_hash, $html);
+        $this->assertStringContainsString('Son telephone', $html);
+        // Et le proprietaire est NOMME : retirer une ligne sans savoir a qui
+        // elle est serait une action a l'aveugle.
+        $this->assertStringContainsString($unAutre->email, $html);
     }
 
-    public function test_le_total_affiche_est_celui_du_compte_connecte_seul(): void
+    public function test_le_total_affiche_couvre_tous_les_comptes(): void
     {
         $moi = $this->superadmin();
-        $unAutre = $this->superadmin();
+        $unAutre = $this->membre();
 
         $this->appareil($moi);
         $this->appareil($moi);
@@ -168,7 +212,10 @@ class TASK1820MyPushDevicesTest extends TestCase
 
         $html = $this->actingAs($moi)->get(route('admin.outils.my-push-devices'))->getContent();
 
-        $this->assertStringContainsString('2', $html);
+        $this->assertStringContainsString(
+            trans_choice('admin.push_devices_total', 5, ['count' => 5]),
+            $html,
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════

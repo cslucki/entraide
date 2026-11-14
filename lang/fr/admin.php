@@ -2221,6 +2221,11 @@ return [
     'push_devices_title_page' => 'Mes appareils Push',
     'push_devices_intro' => "Les abonnements Push enregistrés pour VOTRE compte — jamais ceux d’un autre. Un même téléphone peut apparaître plusieurs fois : chaque nouvel essai d’activation peut créer un endpoint différent, et l’ancien reste en base jusqu’à ce qu’il soit retiré ici.",
     'push_devices_total' => ':count abonnement enregistré au total.|:count abonnements enregistrés au total.',
+    // TASK-1821 — recette LOCALE uniquement : rendre explicite QUEL compte
+    // cette page décrit. Une liste vide a été prise pour un bug (recette
+    // T1820) alors qu'un abonnement venait d'être créé sous un AUTRE
+    // compte, depuis une autre origine (tunnel Cloudflare).
+    'push_devices_connected_as' => 'Connecté en tant que : :email',
     'push_devices_empty' => 'Aucun abonnement Push enregistré pour votre compte.',
     'push_devices_column_device' => 'Appareil',
     'push_devices_column_provider' => 'Fournisseur',
@@ -2250,6 +2255,20 @@ return [
     'push_devices_remove_this_device_warning' => 'C’est l’appareil que vous utilisez actuellement pour ouvrir cette page. Le retirer ne désactivera pas les notifications sur ce téléphone : le navigateur recréera cet abonnement au prochain lancement, avec un nouvel endpoint.',
     'push_devices_removed' => 'Abonnement retiré du serveur. Le navigateur peut le recréer automatiquement au prochain lancement de l’application : pour l’arrêter réellement, désactivez les notifications depuis cet appareil.',
     'push_devices_already_removed' => 'Cet abonnement avait déjà été retiré.',
+
+    // TASK-1821 — l'écran « Mes appareils Push » (T1820) devient la console
+    // GLOBALE « Appareils Push » : tous comptes confondus, garde durcie
+    // (SuperAdminPushAccessPolicy). Les clefs `push_devices_*` ci-dessus
+    // restent employées pour tout ce qui n'a pas changé (colonnes, VAPID,
+    // messages de suppression).
+    'all_push_devices_nav_label' => 'Appareils Push',
+    'all_push_devices_title_page' => 'Appareils Push — tous les comptes',
+    'all_push_devices_intro' => 'Tous les abonnements Push enregistrés sur la plateforme, quel que soit leur propriétaire. Un même téléphone peut apparaître plusieurs fois : chaque nouvel essai d’activation peut créer un endpoint différent, et l’ancien reste en base jusqu’à ce qu’il soit retiré ici.',
+    'all_push_devices_search_placeholder' => 'Rechercher un nom ou un email…',
+    'all_push_devices_search_submit' => 'Rechercher',
+    'all_push_devices_empty' => 'Aucun abonnement Push enregistré sur la plateforme.',
+    'all_push_devices_empty_search' => 'Aucun abonnement Push ne correspond à cette recherche.',
+    'all_push_devices_remove_confirm' => 'Retirer cet abonnement du serveur, pour SON propriétaire ? Le navigateur de cette personne peut le recréer automatiquement au prochain lancement si son propre abonnement n’a pas été désactivé depuis son appareil.',
 
     /*
      * TASK-1744 (demande Cyril, 02/11) — l'inspecteur des notifications.

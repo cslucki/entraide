@@ -2193,6 +2193,11 @@ return [
     'push_devices_title_page' => 'My Push devices',
     'push_devices_intro' => "The Push subscriptions registered for YOUR account only — never anyone else's. The same phone can appear more than once: each new activation attempt can create a different endpoint, and the previous one stays in the database until it is removed here.",
     'push_devices_total' => ':count subscription registered in total.|:count subscriptions registered in total.',
+    // TASK-1821 — LOCAL recipe only: which account this page describes. An
+    // empty list was mistaken for a bug (T1820 recipe) when a subscription
+    // had just been created under a DIFFERENT account, from a different
+    // origin (Cloudflare tunnel).
+    'push_devices_connected_as' => 'Connected as: :email',
     'push_devices_empty' => 'No Push subscription registered for your account.',
     'push_devices_column_device' => 'Device',
     'push_devices_column_provider' => 'Provider',
@@ -2215,6 +2220,19 @@ return [
     'push_devices_remove_this_device_warning' => "This is the device you are currently using to open this page. Removing it will not turn off notifications on this phone: the browser will recreate this subscription next time it launches, with a new endpoint.",
     'push_devices_removed' => 'Subscription removed from the server. The browser may automatically recreate it next time the app launches: to truly stop it, turn off notifications from this device.',
     'push_devices_already_removed' => 'This subscription had already been removed.',
+
+    // TASK-1821 — the « My push devices » screen (T1820) becomes the GLOBAL
+    // « Push devices » console: every account, with a stricter guard
+    // (SuperAdminPushAccessPolicy). The `push_devices_*` keys above are still
+    // used for everything unchanged (columns, VAPID, removal messages).
+    'all_push_devices_nav_label' => 'Push devices',
+    'all_push_devices_title_page' => 'Push devices — all accounts',
+    'all_push_devices_intro' => 'Every Push subscription registered on the platform, regardless of its owner. The same phone can appear more than once: each new activation attempt can create a different endpoint, and the previous one stays in the database until it is removed here.',
+    'all_push_devices_search_placeholder' => 'Search a name or email…',
+    'all_push_devices_search_submit' => 'Search',
+    'all_push_devices_empty' => 'No Push subscription registered on the platform.',
+    'all_push_devices_empty_search' => 'No Push subscription matches this search.',
+    'all_push_devices_remove_confirm' => 'Remove this subscription from the server, for its OWNER? That person\'s browser may automatically recreate it next time it launches, unless their own subscription was turned off from their device.',
 
     // TASK-1744 — the notification inspector. Distinct from the T1380
     // cockpit, which COUNTS without naming anyone.

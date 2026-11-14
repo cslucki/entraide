@@ -202,6 +202,54 @@ class PushSubscriptionStore
     }
 
     /**
+     * TASK-1821 — TOUS les abonnements de la plateforme, propriétaire
+     * chargé, pour la console GLOBALE réservée au Superadmin réel
+     * (`SuperAdminPushAccessPolicy` — vérifiée par l'APPELANT, jamais ici :
+     * ce service ne connaît pas la requête courante).
+     *
+     * `$recherche` filtre sur le nom OU l'email du PROPRIÉTAIRE, jamais sur
+     * l'endpoint ni sur une clef — ce service ne les rend d'ailleurs jamais.
+     *
+     * @return \Illuminate\Pagination\LengthAwarePaginator<int, PushSubscription>
+     */
+    public function tous(?string $recherche, int $parPage = 25)
+    {
+        $recherche = trim((string) $recherche);
+
+        return PushSubscription::query()
+            ->with('user')
+            ->when($recherche !== '', function ($requete) use ($recherche): void {
+                $requete->whereHas('user', function ($sousRequete) use ($recherche): void {
+                    $sousRequete->where('name', 'like', "%{$recherche}%")
+                        ->orWhere('email', 'like', "%{$recherche}%");
+                });
+            })
+            ->orderByDesc('last_seen_at')
+            ->paginate($parPage)
+            ->withQueryString();
+    }
+
+    /**
+     * TASK-1821 — retirer N'IMPORTE QUEL abonnement par identifiant de
+     * ligne, SANS filtre sur le propriétaire.
+     *
+     * Distinct de `renoncerParId()` à dessein : celui-ci ne protège PAS un
+     * compte contre un autre — c'est précisément pourquoi l'appelant DOIT
+     * avoir déjà vérifié `Gate::allows('superadmin-push-all-devices')`
+     * AVANT de l'invoquer. Ce service ne peut pas le revérifier lui-même :
+     * il ne connaît pas la requête courante, et dupliquer la garde ici
+     * créerait une seconde vérité sur une décision de sécurité.
+     *
+     * Rend `true` si une ligne a été retirée. L'appelant est responsable de
+     * journaliser l'identifiant du compte AGISSANT et celui du compte
+     * PROPRIÉTAIRE de la ligne retirée — ni l'un ni l'autre n'est connu ici.
+     */
+    public function retirerParIdPourSuperadmin(string $id): bool
+    {
+        return PushSubscription::query()->where('id', $id)->delete() > 0;
+    }
+
+    /**
      * Ce navigateur est-il DEJA abonne pour cette personne ?
      *
      * Interroge par endpoint, et verifie le proprietaire : l'appareil peut
@@ -215,5 +263,22 @@ class PushSubscriptionStore
             ->where('endpoint_hash', PushSubscription::empreinteDe(trim($endpoint)))
             ->where('user_id', $proprietaire->getKey())
             ->exists();
+    }
+
+    /**
+     * TASK-1821 — la ligne de CET appareil, pour CETTE personne, ou `null`.
+     *
+     * Meme filtre que `estAbonne()` et `renoncer()` (endpoint + proprietaire) :
+     * ce n'est pas une nouvelle regle, seulement la version qui rend la LIGNE
+     * plutot qu'un booleen, pour les appelants qui ont besoin de relire
+     * `device_label` ou `endpoint_hash` — jamais l'endpoint ni les clefs,
+     * qui restent hors de ce que ce service accepte de rendre ailleurs.
+     */
+    public function trouverParEndpoint(User $proprietaire, string $endpoint): ?PushSubscription
+    {
+        return PushSubscription::query()
+            ->where('endpoint_hash', PushSubscription::empreinteDe(trim($endpoint)))
+            ->where('user_id', $proprietaire->getKey())
+            ->first();
     }
 }

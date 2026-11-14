@@ -1350,15 +1350,24 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         ->middleware('throttle:10,1')
         ->name('outils.notifications.replay');
 
-    // TASK-1820 — « Mes appareils Push ». Reserve au compte CONNECTE :
-    // chaque methode part de `$request->user()`, jamais d'un identifiant de
-    // compte recu. Pas de recherche d'utilisateur, aucune gestion generale
-    // des appareils — meme garde `['auth','admin']` que tout le reste de ce
-    // groupe, aucune route equivalente pour OrgAdmin ou membre.
-    Route::get('/outils/mes-appareils-push', [AdminMyPushDevicesController::class, 'index'])->name('outils.my-push-devices');
-    Route::delete('/outils/mes-appareils-push/{subscription}', [AdminMyPushDevicesController::class, 'destroy'])
-        ->middleware('throttle:10,1')
-        ->name('outils.my-push-devices.destroy');
+    // TASK-1820 puis TASK-1821 — « Appareils Push ».
+    //
+    // T1820 bornait cet ecran au compte CONNECTE. L'arbitrage T1821 l'ouvre a
+    // TOUS les abonnements, tous comptes confondus : c'etait le besoin reel
+    // (un abonnement cree sous un autre compte, via tunnel, restait invisible
+    // sans que ce soit un defaut).
+    //
+    // L'URL ne change pas — decision produit : un seul ecran, pas deux. En
+    // revanche la garde se DURCIT, parce que l'ecran lit et peut retirer les
+    // donnees d'autrui : `can:superadmin-push-all-devices` s'ajoute a
+    // `['auth','admin']` et exclut, HORS local, tout compte de demonstration
+    // (`.test`) meme porteur de `is_admin=true`.
+    Route::middleware('can:superadmin-push-all-devices')->group(function () {
+        Route::get('/outils/mes-appareils-push', [AdminMyPushDevicesController::class, 'index'])->name('outils.my-push-devices');
+        Route::delete('/outils/mes-appareils-push/{subscription}', [AdminMyPushDevicesController::class, 'destroy'])
+            ->middleware('throttle:10,1')
+            ->name('outils.my-push-devices.destroy');
+    });
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
 

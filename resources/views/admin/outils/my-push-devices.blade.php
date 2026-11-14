@@ -1,6 +1,14 @@
 {{--
-    TASK-1820 — « Mes appareils Push » : inspecter et retirer individuellement
-    les abonnements du compte SuperAdmin CONNECTE, et lui seul.
+    TASK-1820 puis TASK-1821 — « Appareils Push » : inspecter et retirer
+    individuellement les abonnements Push, de TOUS les comptes.
+
+    T1820 bornait cet écran au compte connecté ; l'arbitrage T1821 l'ouvre à
+    la plateforme entière (voir le docblock du contrôleur). La garde se durcit
+    en conséquence, côté ROUTE : `can:superadmin-push-all-devices`.
+
+    « Cet appareil » reste un calcul CLIENT, lié au navigateur et à l'origine
+    courants : il ne peut correspondre qu'à l'abonnement que CE navigateur
+    détient réellement — jamais à une ligne choisie par le serveur.
 
     Ce que cette page ne montre JAMAIS : l'endpoint complet, ni aucune clef.
     L'empreinte complete (`data-fingerprint-full`) est un hachage SHA-256 a
@@ -14,7 +22,7 @@
     navigateur. Sans correspondance, la page le dit explicitement plutot que
     de deviner.
 --}}
-<x-admin-layout :title="__('admin.push_devices_title_page')">
+<x-admin-layout :title="__('admin.all_push_devices_title_page')">
     <div
         x-data="{
             appareilCourantId: null,
@@ -58,11 +66,33 @@
         x-init="identifierAppareilCourant()"
     >
         <div class="mb-6">
-            <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('admin.push_devices_intro') }}</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('admin.all_push_devices_intro') }}</p>
             <p class="mt-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
                 {{ trans_choice('admin.push_devices_total', $total, ['count' => $total]) }}
             </p>
+
+            {{-- TASK-1821 — en LOCAL uniquement : sous quel compte cet écran
+                 est CONSULTÉ. C'est ce qui a manqué le 14/11, quand une liste
+                 vide s'expliquait simplement par le compte connecté. --}}
+            @if($identiteLocale)
+                <p data-push-devices-connected-as class="mt-1 text-xs font-mono text-gray-500 dark:text-gray-400">
+                    {{ __('admin.push_devices_connected_as', ['email' => $identiteLocale]) }}
+                </p>
+            @endif
         </div>
+
+        {{-- TASK-1821 — recherche par PROPRIÉTAIRE (nom ou email), jamais par
+             endpoint ni par clef : ce ne sont pas des donnees que cet écran
+             accepte de recevoir, pas davantage que d'afficher. --}}
+        <form method="GET" action="{{ route('admin.outils.my-push-devices') }}" class="mb-6 flex max-w-md gap-2">
+            <input type="search" name="q" value="{{ $recherche }}"
+                   placeholder="{{ __('admin.all_push_devices_search_placeholder') }}"
+                   class="min-h-11 w-full rounded-lg border border-gray-300 px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+            <button type="submit"
+                    class="inline-flex min-h-11 items-center rounded-lg border border-gray-300 px-4 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200">
+                {{ __('admin.all_push_devices_search_submit') }}
+            </button>
+        </form>
 
         {{-- L'etat d'identification de l'appareil courant — jamais une devinette. --}}
         <div class="mb-6 rounded-lg border p-3 text-sm"
@@ -86,7 +116,7 @@
 
         @if($appareils->isEmpty())
             <p data-push-devices-empty class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                {{ __('admin.push_devices_empty') }}
+                {{ $recherche === '' ? __('admin.all_push_devices_empty') : __('admin.all_push_devices_empty_search') }}
             </p>
         @else
             <div class="space-y-3">
@@ -112,6 +142,16 @@
                                         {{ __('admin.push_devices_this_device') }}
                                     </span>
                                 </div>
+
+                                {{-- TASK-1821 — le PROPRIÉTAIRE de la ligne.
+                                     L'écran n'étant plus borné au compte
+                                     connecté, retirer une ligne sans savoir
+                                     à qui elle est serait une action à
+                                     l'aveugle. --}}
+                                <p data-push-devices-owner class="mt-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+                                    {{ $appareil->proprietaireNom ?? __('admin.push_devices_device_unknown') }}
+                                    <span class="font-mono text-gray-500 dark:text-gray-400">· {{ $appareil->proprietaireEmail ?? '—' }}</span>
+                                </p>
 
                                 <dl class="mt-2 grid gap-x-4 gap-y-1 text-xs text-gray-600 sm:grid-cols-2 dark:text-gray-400">
                                     <div>
@@ -150,7 +190,7 @@
                                     {{ __('admin.push_devices_remove') }}
                                 </summary>
                                 <div class="mt-2 max-w-xs text-left text-[11px] leading-snug text-gray-600 dark:text-gray-400">
-                                    <p>{{ __('admin.push_devices_remove_confirm') }}</p>
+                                    <p>{{ __('admin.all_push_devices_remove_confirm') }}</p>
 
                                     {{-- Protection UX contre la suppression accidentelle de « Cet appareil ». --}}
                                     <p x-show="appareilCourantId === '{{ $appareil->id }}'" x-cloak
@@ -178,6 +218,10 @@
                     @method('DELETE')
                 </form>
             @endforeach
+
+            <div class="mt-6">
+                {{ $pagination->links() }}
+            </div>
         @endif
     </div>
 </x-admin-layout>
