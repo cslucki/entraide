@@ -54,6 +54,14 @@ return [
     'report_send' => 'Send',
     'report_cancel' => 'Cancel',
     'edit_title' => 'Edit my profile',
+
+    // TASK-1824 — the "Account security" page.
+    'security_title' => 'Account security',
+    'security_intro' => 'Your password, your access, and closing your account.',
+    'security_cta' => 'Account security',
+    'security_back_to_profile' => 'Back to profile',
+    'current_organization' => 'Active organization: :name',
+
     'info_title' => 'Profile information',
     'info_description' => 'Update your account information and email address.',
     'presentation_section' => 'Introduction',

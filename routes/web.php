@@ -573,6 +573,10 @@ Route::middleware('auth')->group(function () {
 
     // Profile
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+    // TASK-1824 — « Securite du compte » : mot de passe, acces/comptes lies,
+    // fermeture. Jumelle de `profile.edit`, meme forme nue + prefixee par
+    // l'Organization (voir plus bas), pour les memes raisons.
+    Route::get('/profile/secu', [ProfileController::class, 'security'])->name('profile.security');
     // TASK-1223 : « Mes usages IA » — transparence du ledger canonique,
     // scope strict user courant + Organization courante.
     Route::get('/profile/ai-usage', [UserAiUsageController::class, 'index'])->name('profile.ai-usage');
@@ -1821,6 +1825,9 @@ Route::prefix('/org/{organization}')
             Route::post('/bugs', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
 
             Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+            // TASK-1824 — jumelle prefixee de `profile.security`. Voir la
+            // note sur la forme nue.
+            Route::get('/profile/secu', [ProfileController::class, 'security'])->name('profile.security');
             // TASK-1223 : « Mes usages IA » — transparence du ledger canonique,
             // scope strict user courant + Organization courante.
             Route::get('/profile/ai-usage', [UserAiUsageController::class, 'index'])->name('profile.ai-usage');

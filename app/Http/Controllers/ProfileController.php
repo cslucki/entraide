@@ -279,6 +279,23 @@ class ProfileController extends Controller
         ]);
     }
 
+    /**
+     * TASK-1824 — « Securite du compte » : mot de passe, acces/comptes lies,
+     * fermeture. Memes deux formes que `edit()` (nue et prefixee par
+     * l'Organization, voir `profileOrganization()`), et aucune donnee
+     * supplementaire : les trois partials qu'elle rend lisent deja `$user`
+     * via les routes globales (`password.update`, `account.links`,
+     * `account.close`) qu'elles soumettent — rien ici n'est scope par cette
+     * Organization.
+     */
+    public function security(Request $request): View
+    {
+        return view('profile.security', [
+            'user' => $request->user(),
+            'organization' => $this->profileOrganization($request),
+        ]);
+    }
+
     public function update(Request $request): RedirectResponse
     {
         $organization = $this->profileOrganization($request);
