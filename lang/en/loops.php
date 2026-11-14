@@ -1600,4 +1600,15 @@ return [
     // Cyril's request: an image without a caption must not leave the row
     // looking empty.
     'latest_messages_image_only' => 'Shared an image',
+
+    // TASK-1827 — premium catalog of articles linked to a Loop.
+    'articles_nav_link' => 'Loop articles',
+    'articles_title' => 'Loop articles',
+    'articles_subtitle' => 'Blog articles shared in a Loop of your organization.',
+    'articles_count' => '{0} No accessible article|{1} :count accessible article|[2,*] :count accessible articles',
+    'articles_filter_all' => 'All loops',
+    'articles_filter_label' => 'Filter by loop',
+    'articles_badge' => 'Loop article',
+    'articles_empty' => 'No loop article yet.',
+    'articles_empty_filtered' => 'No article for this loop.',
 ];

@@ -60,7 +60,12 @@ class TASK1824ProfileSecurityPageTest extends TestCase
         $this->assertStringContainsString('data-nav-account-links', $html);
         $this->assertStringContainsString('data-nav-account-switch', $html);
         $this->assertStringContainsString('data-marqueur="organisation-active"', $html);
-        $this->assertStringContainsString($organisation->name, $html);
+        // Comparaison a la valeur ECHAPPEE : `fake()->company()` genere a
+        // l'occasion un nom avec apostrophe ou esperluette (ex. « O'Keefe,
+        // Schmidt and Stroman »), que Blade echappe dans le HTML rendu. Comparer
+        // au nom BRUT est l'instabilite documentee — un nom genere sans
+        // caractere HTML-sensible passait par hasard jusqu'ici.
+        $this->assertStringContainsString(e($organisation->name), $html);
 
         // C. Fermeture du compte.
         $this->assertStringContainsString('data-marqueur="ouvrir-fermeture-compte"', $html);
@@ -118,7 +123,8 @@ class TASK1824ProfileSecurityPageTest extends TestCase
         $reponse = $this->actingAs($membreA)->get("/org/{$orgA->slug}/profile/secu");
 
         $reponse->assertOk();
-        $this->assertStringContainsString($orgA->name, $reponse->getContent());
+        // Meme instabilite que plus haut : comparer a la valeur ECHAPPEE.
+        $this->assertStringContainsString(e($orgA->name), $reponse->getContent());
     }
 
     /** 6. `profile.edit` ne porte plus les trois sections, mais un acces vers Securite. */

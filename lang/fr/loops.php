@@ -1650,4 +1650,15 @@ return [
     // Demande de Cyril : une image sans commentaire ne doit pas rendre la
     // ligne vide.
     'latest_messages_image_only' => 'A partagé une image',
+
+    // TASK-1827 — catalogue premium des Articles lies a une Boucle.
+    'articles_nav_link' => 'Articles de boucle',
+    'articles_title' => 'Articles de boucle',
+    'articles_subtitle' => 'Les articles du Blog partagés dans une Boucle de votre organisation.',
+    'articles_count' => '{0} Aucun article accessible|{1} :count article accessible|[2,*] :count articles accessibles',
+    'articles_filter_all' => 'Toutes les boucles',
+    'articles_filter_label' => 'Filtrer par boucle',
+    'articles_badge' => 'Article de boucle',
+    'articles_empty' => 'Aucun article de boucle pour le moment.',
+    'articles_empty_filtered' => 'Aucun article pour cette boucle.',
 ];

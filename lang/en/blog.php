@@ -371,6 +371,14 @@ return [
     'loop_message_readonly' => 'You must be a member of this loop to send messages.',
     'loop_message_sent' => 'Message sent.',
 
+    // TASK-1827 — reciprocal sharing banner on the public article page
+    // (show.blade.php), distinct from the block above which lives in the
+    // editor sidebar.
+    'shared_in_loop_intro' => 'This article is shared in :loop.',
+    'shared_in_loop_intro_multiple' => 'This article is shared in several loops:',
+    'shared_in_loop_open' => 'Open the loop',
+    'shared_in_loop_select' => 'Choose a loop…',
+
     'sidebar_todo' => 'Todo list',
     'todo_title' => 'Todo list',
     'todo_empty' => 'No tasks yet.',
