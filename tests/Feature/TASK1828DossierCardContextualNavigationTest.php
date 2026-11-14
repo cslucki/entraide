@@ -97,7 +97,7 @@ class TASK1828DossierCardContextualNavigationTest extends TestCase
             ->assertSet('detailArticleId', $post->id)
             ->assertSee($post->title, false)
             ->assertSee('Contenu complet de l\'article de test', false)
-            ->assertSee($this->owner->publicDisplayName(), false);
+            ->assertSee($this->owner->publicDisplayName());
     }
 
     public function test_un_article_lie_par_dossier_racine_s_ouvre_depuis_le_chat(): void
