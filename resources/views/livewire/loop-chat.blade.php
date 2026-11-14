@@ -305,19 +305,24 @@
 
                              TASK-1826 — enrichie quand `file_ids` est present
                              (messages posterieurs a cette TASK) : les fichiers
-                             sont relus EN DIRECT (type, taille, Dossier), et un
-                             DEPOT UNIQUE encore accessible ouvre le fichier
-                             REEL par sa route autorisee, au lieu du seul
-                             panneau. Un message ANTERIEUR (sans `file_ids`), ou
-                             dont le fichier a disparu depuis, degrade
-                             silencieusement vers l'ancien rendu — jamais de
-                             lien mort. --}}
+                             sont relus EN DIRECT (type, taille, Dossier). Un
+                             message ANTERIEUR (sans `file_ids`), ou dont le
+                             fichier a disparu depuis, degrade silencieusement
+                             vers l'ancien rendu — jamais de lien mort.
+
+                             TASK-1828 — le bouton n'ouvre plus un telechargement
+                             direct (`$dfSingleUrl` pointait vers la route de
+                             TELECHARGEMENT, jamais d'apercu) : il ouvre la Card
+                             ET y pose l'identifiant cible, meme idiome que
+                             Roadmap (`open-roadmap-detail`). Un depot de
+                             PLUSIEURS fichiers pose la liste entiere : la Card
+                             affiche une selection bornee a CE depot, jamais un
+                             telechargement choisi pour la personne. --}}
                         @php
                             $dfMeta = $msg->metadata ?? [];
                             $dfIds = $dfMeta['file_ids'] ?? [];
                             $dfResolved = collect($dfIds)->map(fn ($id) => $projectedDossierFiles->get($id))->filter()->values();
                             $dfSingle = $dfResolved->count() === 1 ? $dfResolved->first() : null;
-                            $dfSingleUrl = $dfSingle ? ($projectedDossierFileUrls[$dfSingle->id] ?? null) : null;
                         @endphp
                         <div data-dossier-file-event class="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 dark:border-emerald-800/50 dark:bg-emerald-900/20">
                             <svg class="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
@@ -327,11 +332,12 @@
                                     <span class="block text-[11px] text-emerald-700/80 dark:text-emerald-300/80">{{ $dfSingle->typeLisible() }} · {{ $dfSingle->tailleLisible() }}@if($dfSingle->dossier) · {{ $dfSingle->dossier->name }}@endif</span>
                                 @endif
                             </span>
-                            @if($dfSingleUrl)
-                                <a href="{{ $dfSingleUrl }}"
-                                   class="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-700">
-                                    {{ __('loops.chat_dossier_file_open') }}
-                                </a>
+                            @if($dfResolved->isNotEmpty())
+                                <button type="button"
+                                        x-on:click="$dispatch('bp-open-loop-card', { card: 'core.dossiers' }); Livewire.dispatch('open-dossier-file-detail', { ids: @js($dfResolved->pluck('id')->values()) })"
+                                        class="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-700">
+                                    {{ $dfResolved->count() === 1 ? __('loops.chat_dossier_file_open') : __('loops.chat_dossier_file_open_many') }}
+                                </button>
                             @else
                                 <button type="button"
                                         x-on:click="$dispatch('bp-open-loop-card', { card: 'core.dossiers' })"
@@ -409,7 +415,16 @@
                              EN DIRECT ($projectedArticles) : depublie,
                              supprime ou hors tenant depuis l'annonce, il
                              degrade sans jamais fuiter son titre ou son
-                             resume. --}}
+                             resume.
+
+                             TASK-1828 — le clic n'ouvre plus directement
+                             `organization.blog.show` (sortie immediate de la
+                             Boucle) : il ouvre la Card Dossiers ET y pose
+                             l'identifiant cible, meme idiome que Roadmap et
+                             Fichier ci-dessus. « Lire l'article complet »
+                             reste a un clic, a l'INTERIEUR du panneau ouvert
+                             (voir `loop-dossiers-card.blade.php`), jamais
+                             perdu. --}}
                         @php
                             $bpMeta = $msg->metadata ?? [];
                             $bpPost = $projectedArticles->get($bpMeta['blog_post_id'] ?? null);
@@ -421,7 +436,9 @@
                                 {{ __('loops.chat_article_badge') }}
                             </div>
                             @if($bpPost && $bpUrl)
-                                <a href="{{ $bpUrl }}" class="group flex gap-3">
+                                <button type="button"
+                                        x-on:click="$dispatch('bp-open-loop-card', { card: 'core.dossiers' }); Livewire.dispatch('open-dossier-article-detail', { id: '{{ $bpPost->id }}' })"
+                                        class="group flex w-full gap-3 text-left">
                                     <span class="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-rose-100 dark:bg-rose-900/40">
                                         @if($bpPost->image_url)
                                             <img src="{{ $bpPost->image_url }}" alt="" class="h-full w-full object-cover">
@@ -440,7 +457,7 @@
                                             {{ $bpPost->user?->publicDisplayName() ?? __('messages.member') }} · {{ $bpPost->published_at?->diffForHumans() }}
                                         </span>
                                     </span>
-                                </a>
+                                </button>
                             @else
                                 <p class="text-sm font-medium text-gray-600 dark:text-gray-300">{{ __('loops.chat_article_unavailable') }}</p>
                             @endif
