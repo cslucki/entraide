@@ -68,8 +68,16 @@ class SendNotificationWebPush implements ShouldQueue
         // et `QUEUE_CONNECTION` continue seul de gouverner. Ne bascule que
         // si l'etape 3 (creation reelle de la file, hors de cette TASK) a
         // explicitement pose `NOTIFICATIONS_MANAGED_QUEUE_CONNECTION`.
+        //
+        // TASK-1830 — la bascule change AUSSI le nom de file : voir le
+        // docblock equivalent dans {@see SendNotificationEmail}. Le plan
+        // Starter n'offre qu'UNE Managed Queue par environnement ; les deux
+        // jobs doivent donc converger sur la MEME file des que ce drapeau
+        // est pose, et SEULEMENT alors — la file dediee `notifications-web-push`
+        // reste intacte sous `database`/`sync`.
         if ($connexion = config('queue.notifications_managed_queue_connection')) {
             $this->onConnection($connexion);
+            $this->onQueue(config('queue.notifications_managed_queue_name', NotificationWebPushDeliverer::QUEUE));
         }
     }
 
