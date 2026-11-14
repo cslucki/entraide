@@ -95,6 +95,45 @@
                     </div>
                 </div>
 
+                {{-- TASK-1827 — navigation reciproque vers la/les Boucle(s) ou
+                     cet article est partage. `$linkedLoops` est deja filtree
+                     (meme Organization, Boucle active, lecteur autorise) par
+                     `BlogController::show()` — vide pour tout le monde
+                     d'autre, donc rien a verifier ici. --}}
+                @if($linkedLoops->isNotEmpty())
+                @php
+                    $_loopShowHref = function ($loop) {
+                        $orgSlug = request()->route('organization');
+                        if ($orgSlug && request()->routeIs('organization.*')) {
+                            return route('organization.loops.show', ['organization' => $orgSlug, 'loop' => $loop->slug ?: $loop->getKey()]);
+                        }
+                        return route('loops.show', $loop);
+                    };
+                @endphp
+                <div data-marqueur="partage-boucle" class="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-teal-200 dark:border-teal-800/50 bg-teal-50/70 dark:bg-teal-900/20 px-4 py-3">
+                    <svg class="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    @if($linkedLoops->count() === 1)
+                        <span class="text-sm text-teal-900 dark:text-teal-100">
+                            {{ __('blog.shared_in_loop_intro', ['loop' => $linkedLoops->first()->name]) }}
+                        </span>
+                        <a href="{{ $_loopShowHref($linkedLoops->first()) }}"
+                           class="ml-auto shrink-0 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-teal-700">
+                            {{ __('blog.shared_in_loop_open') }}
+                        </a>
+                    @else
+                        <span class="text-sm text-teal-900 dark:text-teal-100 w-full sm:w-auto">
+                            {{ __('blog.shared_in_loop_intro_multiple') }}
+                        </span>
+                        @foreach($linkedLoops as $sharedLoop)
+                        <a href="{{ $_loopShowHref($sharedLoop) }}"
+                           class="shrink-0 rounded-full bg-teal-600 px-3 py-1 text-xs font-semibold text-white transition hover:bg-teal-700">
+                            {{ $sharedLoop->name }}
+                        </a>
+                        @endforeach
+                    @endif
+                </div>
+                @endif
+
                 {{-- TASK-1310 : provenance d'un Article ne d'une reponse IA.
                      L'auteur reste l'humain qui a valide — c'est lui qui signe
                      plus haut. Cette ligne dit d'ou vient le TEXTE, sans jamais

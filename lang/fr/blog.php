@@ -371,6 +371,14 @@ return [
     'loop_message_readonly' => 'Vous devez être membre de cette boucle pour écrire.',
     'loop_message_sent' => 'Message envoyé.',
 
+    // TASK-1827 — bannière de partage reciproque sur la page publique de
+    // l'article (show.blade.php), distincte du bloc ci-dessus qui vit dans
+    // la sidebar de l'editeur.
+    'shared_in_loop_intro' => 'Cet article est partagé dans :loop.',
+    'shared_in_loop_intro_multiple' => 'Cet article est partagé dans plusieurs boucles :',
+    'shared_in_loop_open' => 'Ouvrir la boucle',
+    'shared_in_loop_select' => 'Choisir une boucle…',
+
     'sidebar_todo' => 'Liste de tâches',
     'todo_title' => 'Liste de tâches',
     'todo_empty' => 'Aucune tâche pour le moment.',

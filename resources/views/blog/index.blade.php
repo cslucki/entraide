@@ -15,6 +15,13 @@
             return route('profile.show', $user->profileRouteKey());
         };
         $_authorDisplayable = fn ($user) => $user?->isDisplayableIn(currentOrganization());
+        $_articlesRoute = function () {
+            $orgSlug = request()->route('organization');
+            if ($orgSlug && Route::has('organization.loops.articles')) {
+                return route('organization.loops.articles', ['organization' => $orgSlug]);
+            }
+            return route('loops.articles');
+        };
     @endphp
     <x-slot name="title">{{ __('blog.title') }} — {{ $brandOrganizationName ?? 'BouclePro' }}</x-slot>
 
@@ -33,7 +40,16 @@
                 <h1 class="hidden md:block text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">{{ __('blog.title') }}</h1>
             </div>
             @auth
-            <div class="flex items-center gap-2 w-full sm:w-auto">
+            <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                {{-- TASK-1827 — l'acces au catalogue est deja garde par la
+                     route (`auth` + `organization.member` + `loops.enabled`) :
+                     ce lien n'est donc propose qu'a qui peut deja l'ouvrir. --}}
+                @if(optional(currentOrganization())->loops_enabled)
+                <a href="{{ $_articlesRoute() }}" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-semibold rounded-lg transition">
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    {{ __('loops.articles_nav_link') }}
+                </a>
+                @endif
                 <a href="{{ $_blogRoute('my-posts') }}" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-semibold rounded-lg transition">
                     <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
                     {{ __('blog.my_posts') }}
@@ -67,15 +83,30 @@
                         </a>
                         @endif
                         <div class="p-5">
-                            <!-- Catégories -->
-                            @if($post->category)
+                            {{-- TASK-1827 — badge « Article de boucle », aux cotes
+                                 des categories editoriales, jamais a leur place.
+                                 `$linkedLoopsByPost` est deja resolue GROUPEE
+                                 (anti N+1) et deja vide pour tout visiteur sans
+                                 chemin existant vers le catalogue des Boucles. --}}
+                            @php $postLoops = ($linkedLoopsByPost ?? collect())->get($post->id); @endphp
                             <div class="flex flex-wrap gap-1 mb-2">
+                                @if($post->category)
                                 <a href="{{ $_blogRoute('category', ['slug' => $post->category->slug]) }}"
                                    class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition">
                                     {{ $post->category->displayName('blog') }}
                                 </a>
+                                @endif
+                                @if($postLoops && $postLoops->isNotEmpty())
+                                <span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
+                                      title="{{ $postLoops->pluck('name')->join(', ') }}">
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    {{ __('loops.articles_badge') }}
+                                    @if($postLoops->count() === 1)
+                                        · {{ $postLoops->first()->name }}
+                                    @endif
+                                </span>
+                                @endif
                             </div>
-                            @endif
 
                             <h2 class="font-semibold text-gray-900 dark:text-gray-100 mb-2 leading-snug">
                                 <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
