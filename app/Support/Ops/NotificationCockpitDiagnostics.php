@@ -161,7 +161,56 @@ final class NotificationCockpitDiagnostics
         $etats['_ignorees'] = $etats[NotificationDeliveryStatus::SKIPPED_PREFERENCE] + $etats[NotificationDeliveryStatus::SKIPPED_UNREACHABLE];
         $etats['_incidents'] = $etats[NotificationDeliveryStatus::FAILED] + $etats[NotificationDeliveryStatus::AMBIGUOUS];
 
+        // TASK-1823 — la VENTILATION par canal, AJOUTEE a cote des totaux.
+        //
+        // Le docblock de cette classe promettait « canal par canal » depuis
+        // T1380, mais le groupement portait sur `status` SEUL : `_incidents`
+        // additionnait email et Web Push sans permettre de les distinguer.
+        // Quand les notifications Push se sont mises a echouer, le cockpit
+        // affichait un nombre qui ne disait pas OU chercher.
+        //
+        // Les cles existantes ne bougent PAS — MASTER : « sans modifier les
+        // totaux historiques ni leur contrat consomme par les vues et tests
+        // existants ». Tout ce qui suit vit sous `_par_canal`, que personne
+        // ne lisait hier.
+        $etats['_par_canal'] = $this->incidentsParCanal();
+
         return $etats;
+    }
+
+    /**
+     * TASK-1823 — les incidents, canal par canal.
+     *
+     * Une seule requete groupee de plus, qui frappe le meme index
+     * `(channel, status)` que `livraisonsParEtat()`. Aucune donnee
+     * personnelle n'en sort : ce cockpit COMPTE, et cette methode ne rend
+     * que des entiers (doctrine T1380, inchangee).
+     *
+     * @return array<string, array{incidents: int, total: int}>
+     */
+    private function incidentsParCanal(): array
+    {
+        $lignes = DB::table('member_notification_deliveries')
+            ->selectRaw('channel, status, count(*) as total')
+            ->groupBy('channel', 'status')
+            ->get();
+
+        $parCanal = [];
+
+        foreach ($lignes as $ligne) {
+            $canal = (string) $ligne->channel;
+
+            $parCanal[$canal] ??= ['incidents' => 0, 'total' => 0];
+            $parCanal[$canal]['total'] += (int) $ligne->total;
+
+            if (in_array($ligne->status, [NotificationDeliveryStatus::FAILED, NotificationDeliveryStatus::AMBIGUOUS], true)) {
+                $parCanal[$canal]['incidents'] += (int) $ligne->total;
+            }
+        }
+
+        ksort($parCanal);
+
+        return $parCanal;
     }
 
     /**

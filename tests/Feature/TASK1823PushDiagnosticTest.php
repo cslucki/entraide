@@ -572,4 +572,54 @@ class TASK1823PushDiagnosticTest extends TestCase
             ->get(route('admin.outils.my-push-devices', ['etat' => PushSubscriptionStore::SITUATION_INCIDENT_COMPTE]))
             ->assertForbidden();
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 5. COCKPIT — ventiler sans toucher au contrat existant
+    // ═══════════════════════════════════════════════════════════════════
+
+    public function test_le_cockpit_ventile_les_incidents_par_canal(): void
+    {
+        $membre = $this->membre();
+        $this->livraison($membre, 'failed', 1);
+        $this->livraison($membre, 'ambiguous', 2);
+        $this->livraison($membre, 'sent', 3);
+
+        $mesures = app(\App\Support\Ops\NotificationCockpitDiagnostics::class)->overview();
+        $parCanal = $mesures['livraisons']['_par_canal'];
+
+        $this->assertArrayHasKey(NotificationCatalogue::CHANNEL_WEB_PUSH, $parCanal);
+        $this->assertSame(2, $parCanal[NotificationCatalogue::CHANNEL_WEB_PUSH]['incidents'], 'failed + ambiguous.');
+        $this->assertSame(3, $parCanal[NotificationCatalogue::CHANNEL_WEB_PUSH]['total']);
+    }
+
+    public function test_le_cockpit_conserve_ses_totaux_historiques(): void
+    {
+        $membre = $this->membre();
+        $this->livraison($membre, 'failed', 1);
+        $this->livraison($membre, 'ambiguous', 1);
+
+        $mesures = app(\App\Support\Ops\NotificationCockpitDiagnostics::class)->overview();
+
+        // Le contrat consomme par la vue et les tests existants ne bouge pas :
+        // MASTER a exige la ventilation « sans modifier les totaux
+        // historiques ni leur contrat ».
+        $this->assertSame(2, $mesures['livraisons']['_incidents']);
+        $this->assertSame(1, $mesures['livraisons']['failed']);
+        $this->assertSame(1, $mesures['livraisons']['ambiguous']);
+        $this->assertArrayHasKey('_en_cours', $mesures['livraisons']);
+        $this->assertArrayHasKey('_ignorees', $mesures['livraisons']);
+    }
+
+    public function test_la_ventilation_du_cockpit_ne_rend_que_des_entiers(): void
+    {
+        $this->livraison($this->membre(), 'failed', 1);
+
+        $parCanal = app(\App\Support\Ops\NotificationCockpitDiagnostics::class)->overview()['livraisons']['_par_canal'];
+
+        foreach ($parCanal as $canal => $mesures) {
+            $this->assertIsString($canal);
+            $this->assertIsInt($mesures['incidents'], 'Ce cockpit COMPTE : aucune donnee personnelle ne doit en sortir.');
+            $this->assertIsInt($mesures['total']);
+        }
+    }
 }
