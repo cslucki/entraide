@@ -199,15 +199,18 @@ class TASK1826LoopContentPreviewsTest extends TestCase
         ]);
         app(\App\Services\LoopMessageService::class)->sendArticlePublishedMessage($this->loop, $this->owner, $post);
 
-        $url = route('organization.blog.show', ['organization' => $this->organization->slug, 'post' => $post]);
-
+        // TASK-1828 — le clic n'ouvre plus directement `organization.blog.show`
+        // (sortie immediate de la Boucle) : il ouvre la Card Dossiers et y
+        // pose l'identifiant REEL, meme idiome que Roadmap
+        // (`open-roadmap-detail`). Le lien direct reste a un clic, DANS le
+        // panneau ouvert (teste par TASK1828DossierCardContextualNavigationTest).
         $this->actingAs($this->owner)
             ->get(route('organization.loops.show', [$this->organization->slug, $this->loop]))
             ->assertOk()
             ->assertSee('Comment organiser un covoiturage')
             ->assertSee('Un petit guide pratique')
             ->assertSee($this->owner->publicDisplayName())
-            ->assertSee($url, false);
+            ->assertSee("Livewire.dispatch('open-dossier-article-detail', { id: '{$post->id}' })", false);
     }
 
     /** Un Article supprime depuis l'annonce degrade sans fuiter son titre. */

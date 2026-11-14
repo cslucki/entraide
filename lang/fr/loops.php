@@ -45,6 +45,10 @@ return [
     'chat_dossier_open_card' => 'Voir',
     // TASK-1826 — carte premium Fichier Dossier (depot unique, lien direct).
     'chat_dossier_file_open' => 'Ouvrir le fichier',
+    // TASK-1828 — depot de plusieurs fichiers : ouvre la Card avec une
+    // selection bornee a CE depot, jamais un telechargement choisi pour la
+    // personne.
+    'chat_dossier_file_open_many' => 'Voir les fichiers',
     // TASK-1826 — carte premium Article.
     'chat_article_published' => ':name a publié l\'article « :title » dans la Boucle.',
     'chat_article_badge' => 'Article',
@@ -659,6 +663,15 @@ return [
             'item_count' => '{0}Aucun élément|{1}:count élément|[2,*]:count éléments',
             'draft' => 'Brouillon',
             'archived_read_only' => 'Boucle archivée : le Dossier reste consultable, mais rien ne peut y être ajouté.',
+
+            // TASK-1828 — navigation contextuelle depuis ChatLoop : panneau de
+            // détail (Article ou Fichier) ouvert à l'intérieur de la Card.
+            'detail_back' => 'Retour',
+            'detail_read_full_article' => 'Lire l\'article complet',
+            'detail_select_file' => 'Plusieurs fichiers ont été déposés, choisissez-en un :',
+            'detail_back_to_selection' => 'Revenir à la sélection',
+            'detail_download' => 'Télécharger',
+            'detail_preview_unavailable' => 'Aucun aperçu disponible pour ce type de fichier.',
         ],
         'polls' => [
             'label' => 'Sondages',

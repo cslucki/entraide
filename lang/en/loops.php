@@ -42,6 +42,9 @@ return [
     'chat_dossier_open_card' => 'Open',
     // TASK-1826 — premium Dossier File card (single upload, direct link).
     'chat_dossier_file_open' => 'Open file',
+    // TASK-1828 — multi-file deposit: opens the Card with a selection
+    // bounded to THIS deposit, never a download chosen for the person.
+    'chat_dossier_file_open_many' => 'View files',
     // TASK-1826 — premium Article card.
     'chat_article_published' => ':name published the article « :title » in the Loop.',
     'chat_article_badge' => 'Article',
@@ -656,6 +659,15 @@ return [
             'item_count' => '{0}No item|{1}:count item|[2,*]:count items',
             'draft' => 'Draft',
             'archived_read_only' => 'Archived Loop: the folder stays readable, but nothing can be added.',
+
+            // TASK-1828 — contextual navigation from ChatLoop: detail panel
+            // (Article or File) opened inside the Card.
+            'detail_back' => 'Back',
+            'detail_read_full_article' => 'Read the full article',
+            'detail_select_file' => 'Several files were uploaded, pick one:',
+            'detail_back_to_selection' => 'Back to selection',
+            'detail_download' => 'Download',
+            'detail_preview_unavailable' => 'No preview available for this file type.',
         ],
         'polls' => [
             'label' => 'Polls',
