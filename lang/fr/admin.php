@@ -2299,6 +2299,7 @@ return [
     'all_push_devices_diagnostic_empty' => 'Aucune livraison Web Push enregistrée pour ce compte.',
 
     // TASK-1823 — le bento de synthese et les pastilles de situation.
+    'push_diag_summary_scope' => 'Totaux plateforme — chaque tuile ouvre sa situation seule',
     'push_diag_summary_total' => 'Abonnements',
     'push_diag_summary_eligible' => 'Éligibles',
     'push_diag_summary_incompatible' => 'Clés incompatibles',

@@ -92,6 +92,14 @@
              Chaque tuile est un LIEN vers son propre filtre — le chiffre et
              la liste qu'il ouvre viennent du même calcul, ils ne peuvent
              donc pas se contredire.
+
+             TASK-1823, correctif de revue : les compteurs sont des TOTAUX
+             PLATEFORME, et les tuiles ouvrent donc leur situation SEULE,
+             sans reconduire `org` ni `q`. Mon premier jet les conservait :
+             avec une Organization sélectionnée, « Éligibles : 12 » ouvrait
+             une liste de trois lignes. Un chiffre qui ne décrit pas le
+             périmètre qu'il ouvre est pire qu'absent — il se lit comme une
+             perte de données.
              ═══════════════════════════════════════════════════════════════ --}}
         @php
             $tuiles = [
@@ -103,9 +111,14 @@
             ];
         @endphp
 
+        <p data-push-diag-bento-portee class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            {{ __('admin.push_diag_summary_scope') }}
+        </p>
+
         <div data-push-diag-bento class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             @foreach($tuiles as $tuile)
-                <a href="{{ route('admin.outils.my-push-devices', array_filter(['etat' => $tuile['cle'], 'org' => $filtres['org'], 'q' => $filtres['q']])) }}"
+                {{-- `etat` SEUL : jamais `org` ni `q`. Voir le bloc ci-dessus. --}}
+                <a href="{{ route('admin.outils.my-push-devices', array_filter(['etat' => $tuile['cle']])) }}"
                    data-push-diag-tuile="{{ $tuile['cle'] ?: 'total' }}"
                    class="rounded-xl border p-3 transition hover:border-indigo-400 {{ $filtres['etat'] === $tuile['cle'] ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200 dark:border-gray-700' }}">
                     <div class="text-2xl font-semibold {{ $tuile['ton'] }}">{{ $tuile['valeur'] }}</div>
@@ -132,7 +145,12 @@
             <summary class="cursor-pointer px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
                 {{ __('admin.push_diag_env_details') }}
             </summary>
-        <div
+
+            {{-- TASK-1823 — le `<div>` intermédiaire a disparu : il ne portait
+                 plus rien depuis que `<details>` a repris ses classes, et ma
+                 conversion en avait laissé la balise ORPHELINE (`<div` sans
+                 `>`), que le navigateur avalait en silence. Le défilement
+                 horizontal est porté par `<details>` lui-même. --}}
             <table class="min-w-full text-left text-xs">
                 <thead class="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                     <tr>
@@ -174,7 +192,6 @@
                     @endforeach
                 </tbody>
             </table>
-        </div>
         </details>
 
         {{-- TASK-1821 — LES QUATRE NIVEAUX, nommés une fois, parce que les

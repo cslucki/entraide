@@ -2263,6 +2263,7 @@ return [
     'all_push_devices_diagnostic_empty' => 'No Web Push delivery recorded for this account.',
 
     // TASK-1823 — summary bento and situation badges.
+    'push_diag_summary_scope' => 'Platform totals — each tile opens its situation alone',
     'push_diag_summary_total' => 'Subscriptions',
     'push_diag_summary_eligible' => 'Eligible',
     'push_diag_summary_incompatible' => 'Incompatible keys',

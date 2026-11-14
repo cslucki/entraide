@@ -622,4 +622,185 @@ class TASK1823PushDiagnosticTest extends TestCase
             $this->assertIsInt($mesures['total']);
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 6. REVUE MASTER — cohérence tuile/liste, et HTML du repliable
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * LE test de la revue : chaque chiffre doit décrire EXACTEMENT la liste
+     * que sa tuile ouvre.
+     *
+     * Mon premier jet reconduisait `org` et `q` dans le lien : avec une
+     * Organization sélectionnée, le compteur global ouvrait une liste plus
+     * courte que lui. Les tuiles n'emportent plus que leur situation.
+     */
+    public function test_chaque_tuile_ouvre_EXACTEMENT_le_nombre_qu_elle_annonce(): void
+    {
+        $autreOrg = Organization::factory()->create(['is_active' => true]);
+
+        $this->abonnement($this->membre(), PushSubscriptionStore::SITUATION_ELIGIBLE);
+        $this->abonnement($this->membre($autreOrg), PushSubscriptionStore::SITUATION_ELIGIBLE);
+        $this->abonnement($this->membre(), PushSubscriptionStore::SITUATION_CLE_INCOMPATIBLE);
+        $this->abonnement($this->membre($autreOrg), 'a_verifier_autre_env');
+
+        $enIncident = $this->membre();
+        $this->abonnement($enIncident, PushSubscriptionStore::SITUATION_ELIGIBLE);
+        $this->livraison($enIncident, 'failed', 3);
+
+        $magasin = app(PushSubscriptionStore::class);
+        $compteurs = $magasin->compteursDeSituation();
+
+        $correspondances = [
+            PushSubscriptionStore::SITUATION_ELIGIBLE => 'eligibles',
+            PushSubscriptionStore::SITUATION_CLE_INCOMPATIBLE => 'cles_incompatibles',
+            PushSubscriptionStore::SITUATION_A_VERIFIER => 'a_verifier',
+        ];
+
+        foreach ($correspondances as $situation => $cleCompteur) {
+            $this->assertSame(
+                $compteurs[$cleCompteur],
+                $magasin->tous(null, 25, $situation)->total(),
+                "La tuile [{$situation}] doit ouvrir exactement le nombre de lignes qu'elle affiche.",
+            );
+        }
+
+        // Le total aussi : la tuile « Abonnements » ouvre la liste entiere.
+        $this->assertSame($compteurs['total'], $magasin->tous(null, 25)->total());
+    }
+
+    public function test_les_liens_des_tuiles_ne_reconduisent_ni_org_ni_q(): void
+    {
+        $this->abonnement($this->membre(), PushSubscriptionStore::SITUATION_ELIGIBLE);
+
+        $html = $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices', ['org' => (string) $this->org->id, 'q' => 'Alpha']))
+            ->assertOk()
+            ->getContent();
+
+        // La tuile porte sa situation SEULE, meme quand des filtres sont actifs.
+        $this->assertStringContainsString(
+            e(route('admin.outils.my-push-devices', ['etat' => PushSubscriptionStore::SITUATION_ELIGIBLE])),
+            $html,
+        );
+        $this->assertStringNotContainsString('etat=eligible&amp;org=', $html);
+        $this->assertStringNotContainsString('etat=eligible&amp;q=', $html);
+    }
+
+    /**
+     * Un compte qui a échoué PUIS perdu son dernier appareil ne doit pas
+     * gonfler un compteur qui mène à une liste d'appareils.
+     */
+    public function test_un_compte_en_incident_SANS_abonnement_ne_compte_pas(): void
+    {
+        $sansAppareil = $this->membre();
+        $this->livraison($sansAppareil, 'failed', 3);
+
+        $magasin = app(PushSubscriptionStore::class);
+
+        $this->assertSame(0, $magasin->compteursDeSituation()['comptes_en_incident']);
+        $this->assertSame(
+            0,
+            $magasin->tous(null, 25, PushSubscriptionStore::SITUATION_INCIDENT_COMPTE)->total(),
+            'Le compteur et la liste doivent etre vides ENSEMBLE.',
+        );
+    }
+
+    public function test_un_compte_en_incident_avec_PLUSIEURS_abonnements_compte_une_fois_et_ouvre_toutes_ses_lignes(): void
+    {
+        $enIncident = $this->membre();
+        $this->abonnement($enIncident, PushSubscriptionStore::SITUATION_ELIGIBLE);
+        $this->abonnement($enIncident, PushSubscriptionStore::SITUATION_CLE_INCOMPATIBLE);
+        $this->abonnement($enIncident, 'a_verifier_autre_env');
+        $this->livraison($enIncident, 'ambiguous', 10);
+
+        $magasin = app(PushSubscriptionStore::class);
+
+        $this->assertSame(
+            1,
+            $magasin->compteursDeSituation()['comptes_en_incident'],
+            'UN compte, quel que soit son nombre d\'appareils.',
+        );
+        $this->assertSame(
+            3,
+            $magasin->tous(null, 25, PushSubscriptionStore::SITUATION_INCIDENT_COMPTE)->total(),
+            'La liste montre ses TROIS appareils : aucun n\'est designe coupable.',
+        );
+    }
+
+    public function test_le_resume_repliable_est_un_HTML_valide(): void
+    {
+        $this->abonnement($this->membre(), PushSubscriptionStore::SITUATION_ELIGIBLE);
+
+        $html = $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices'))
+            ->assertOk()
+            ->getContent();
+
+        // La balise ORPHELINE `<div` (sans `>`) que le navigateur avalait en
+        // silence : elle ne doit plus jamais reapparaitre.
+        $this->assertDoesNotMatchRegularExpression(
+            '/<div\s*\n\s*<table/',
+            $html,
+            'Balise `<div` non fermee avant le tableau du resume (defaut de revue MASTER).',
+        );
+
+        // Et le repliable est bien forme : <details> -> <summary> -> <table> -> </details>
+        $this->assertMatchesRegularExpression(
+            '/<details[^>]*data-push-devices-resume.*?<summary.*?<\/summary>.*?<table.*?<\/table>\s*<\/details>/s',
+            $html,
+        );
+    }
+
+    public function test_les_filtres_prealables_restent_fonctionnels_apres_le_correctif(): void
+    {
+        $autreOrg = Organization::factory()->create(['is_active' => true]);
+        $cible = User::factory()->create(['organization_id' => $this->org->id, 'name' => 'Alpha Zebra']);
+
+        $attendu = $this->abonnement($cible, PushSubscriptionStore::SITUATION_ELIGIBLE);
+        $this->abonnement($this->membre($autreOrg), PushSubscriptionStore::SITUATION_ELIGIBLE);
+
+        $html = $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices', ['q' => 'Alpha Zebra', 'org' => (string) $this->org->id]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(mb_substr($attendu->endpoint_hash, 0, 8), $html);
+        $this->assertSame(
+            1,
+            substr_count($html, 'data-push-device-row'),
+            'q + org doivent continuer de se composer sur la LISTE, independamment des tuiles.',
+        );
+    }
+
+    public function test_les_droits_superadmin_sont_inchanges(): void
+    {
+        $this->abonnement($this->membre(), PushSubscriptionStore::SITUATION_ELIGIBLE);
+
+        // LE VISITEUR D'ABORD, et ce n'est pas un detail d'ordre :
+        // `actingAs()` ne se defait pas. Pose apres une authentification, un
+        // `$this->get()` « anonyme » ne l'est plus — il rendrait 403 au lieu
+        // de la redirection, et le test accuserait le mauvais coupable.
+        $this->get(route('admin.outils.my-push-devices'))->assertRedirect();
+
+        // Membre ordinaire : refuse.
+        $this->actingAs($this->membre())
+            ->get(route('admin.outils.my-push-devices'))
+            ->assertForbidden();
+
+        // Compte de demonstration admin : refuse, y compris sur un filtre.
+        $demo = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'is_admin' => true,
+            'email' => 'demo-revue-'.bin2hex(random_bytes(4)).'@bouclepro.test',
+        ]);
+        $this->actingAs($demo)
+            ->get(route('admin.outils.my-push-devices', ['etat' => PushSubscriptionStore::SITUATION_ELIGIBLE]))
+            ->assertForbidden();
+
+        // Superadmin reel : passe.
+        $this->actingAs($this->superadmin())
+            ->get(route('admin.outils.my-push-devices'))
+            ->assertOk();
+    }
 }

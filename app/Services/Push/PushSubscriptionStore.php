@@ -435,6 +435,35 @@ class PushSubscriptionStore
     }
 
     /**
+     * TASK-1823 — les comptes qui ont À LA FOIS un incident récent ET au
+     * moins un abonnement encore présent.
+     *
+     * ## Pourquoi la seconde condition n'est pas un détail
+     *
+     * La tuile du bento ouvre une liste d'APPAREILS. Un compte qui a échoué
+     * puis dont le dernier abonnement a été révoqué n'a plus aucune ligne à
+     * montrer : le compter gonflerait un chiffre menant à une liste plus
+     * courte que lui. Le compteur et le filtre doivent décrire le MÊME
+     * périmètre, sans quoi l'écran ment à qui le lit.
+     *
+     * Le comptage porte sur des COMPTES distincts, jamais sur des appareils
+     * ni sur des livraisons : trois échecs d'une même personne restent une
+     * personne.
+     */
+    public function nombreDeComptesAvecIncidentEtAbonnement(): int
+    {
+        return (int) DB::table('member_notification_deliveries as d')
+            ->join('member_notifications as n', 'n.id', '=', 'd.notification_id')
+            ->where('d.channel', NotificationCatalogue::CHANNEL_WEB_PUSH)
+            ->whereIn('d.status', [NotificationDeliveryStatus::FAILED, NotificationDeliveryStatus::AMBIGUOUS])
+            ->where('d.updated_at', '>=', now()->subDays(self::FENETRE_INCIDENTS_JOURS))
+            // La condition qui aligne le compteur sur la liste qu'il ouvre.
+            ->whereIn('n.recipient_id', PushSubscription::query()->select('user_id'))
+            ->distinct()
+            ->count('n.recipient_id');
+    }
+
+    /**
      * TASK-1823 — les compteurs du bento, en une lecture.
      *
      * Les trois premiers comptent des ABONNEMENTS, le dernier des COMPTES :
@@ -459,7 +488,7 @@ class PushSubscriptionStore
                 'eligibles' => 0,
                 'cles_incompatibles' => 0,
                 'a_verifier' => $total,
-                'comptes_en_incident' => count($this->idsDesComptesAvecIncidentRecent()),
+                'comptes_en_incident' => $this->nombreDeComptesAvecIncidentEtAbonnement(),
             ];
         }
 
@@ -486,7 +515,9 @@ class PushSubscriptionStore
             // exhaustives et disjointes par construction, donc « à vérifier »
             // ne peut pas diverger de son propre filtre.
             'a_verifier' => $total - $eligibles - $incompatibles,
-            'comptes_en_incident' => count($this->idsDesComptesAvecIncidentRecent()),
+            // Borne aux comptes qui ont ENCORE un appareil : la tuile ouvre
+            // une liste d'appareils, le chiffre doit en decrire le perimetre.
+            'comptes_en_incident' => $this->nombreDeComptesAvecIncidentEtAbonnement(),
         ];
     }
 
