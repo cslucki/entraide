@@ -108,6 +108,7 @@ use App\Http\Controllers\InvitationPasswordController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\LoopCatchUpController;
+use App\Http\Controllers\LoopArticlesController;
 use App\Http\Controllers\LoopController;
 use App\Http\Controllers\LoopDossierArticleController;
 use App\Http\Controllers\LoopEventAgendaController;
@@ -629,6 +630,9 @@ Route::middleware('auth')->group(function () {
         // ne doit jamais tomber derriere la capture d'un identifiant de Boucle.
         Route::get('/loops/derniers-messages', [LoopController::class, 'latestMessages'])->name('loops.latest-messages');
         Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
+        // TASK-1827 — meme garde-fou qu'au-dessus : un segment litteral avant
+        // le wildcard `{loop}`.
+        Route::get('/loops/articles', [LoopArticlesController::class, 'index'])->name('loops.articles');
         Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
         Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
         // L'agenda de l'Organization : il agrege ce qui a ete organise dans les
@@ -1860,6 +1864,9 @@ Route::prefix('/org/{organization}')
                 // identifiant de Boucle.
                 Route::get('/loops/derniers-messages', [LoopController::class, 'latestMessages'])->name('loops.latest-messages');
                 Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
+                // TASK-1827 — meme garde-fou : un segment litteral avant le
+                // wildcard `{loop}`. Nom final : `organization.loops.articles`.
+                Route::get('/loops/articles', [LoopArticlesController::class, 'index'])->name('loops.articles');
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
                 // L'agenda de l'Organization. Voir la note sur la route courte :
