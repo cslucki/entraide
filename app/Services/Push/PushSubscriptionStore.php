@@ -4,7 +4,9 @@ namespace App\Services\Push;
 
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Support\Notifications\NotificationCatalogue;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 
 /**
  * TASK-1739 — la REVENDICATION d'un appareil par un compte.
@@ -202,6 +204,153 @@ class PushSubscriptionStore
     }
 
     /**
+     * TASK-1821 — TOUS les abonnements de la plateforme, propriétaire
+     * chargé, pour la console GLOBALE réservée au Superadmin réel
+     * (`SuperAdminPushAccessPolicy` — vérifiée par l'APPELANT, jamais ici :
+     * ce service ne connaît pas la requête courante).
+     *
+     * `$recherche` filtre sur le nom OU l'email du PROPRIÉTAIRE, jamais sur
+     * l'endpoint ni sur une clef — ce service ne les rend d'ailleurs jamais.
+     *
+     * @return \Illuminate\Pagination\LengthAwarePaginator<int, PushSubscription>
+     */
+    public function tous(?string $recherche, int $parPage = 25)
+    {
+        $recherche = trim((string) $recherche);
+
+        return PushSubscription::query()
+            // TASK-1821 — l'Organization du proprietaire est demandee par la
+            // console. `Organization` porte SoftDeletes : on ne restreint
+            // JAMAIS ce `with()` sans penser a `deleted_at` (T1814) — ici on
+            // ne restreint rien, la relation rend ce qu'elle trouve et la vue
+            // traite l'absence.
+            ->with(['user', 'user.organization'])
+            ->when($recherche !== '', function ($requete) use ($recherche): void {
+                $requete->whereHas('user', function ($sousRequete) use ($recherche): void {
+                    $sousRequete->where('name', 'like', "%{$recherche}%")
+                        ->orWhere('email', 'like', "%{$recherche}%");
+                });
+            })
+            ->orderByDesc('last_seen_at')
+            ->paginate($parPage)
+            ->withQueryString();
+    }
+
+    /**
+     * TASK-1821 — retirer N'IMPORTE QUEL abonnement par identifiant de
+     * ligne, SANS filtre sur le propriétaire.
+     *
+     * Distinct de `renoncerParId()` à dessein : celui-ci ne protège PAS un
+     * compte contre un autre — c'est précisément pourquoi l'appelant DOIT
+     * avoir déjà vérifié `Gate::allows('superadmin-push-all-devices')`
+     * AVANT de l'invoquer. Ce service ne peut pas le revérifier lui-même :
+     * il ne connaît pas la requête courante, et dupliquer la garde ici
+     * créerait une seconde vérité sur une décision de sécurité.
+     *
+     * Rend `true` si une ligne a été retirée. L'appelant est responsable de
+     * journaliser l'identifiant du compte AGISSANT et celui du compte
+     * PROPRIÉTAIRE de la ligne retirée — ni l'un ni l'autre n'est connu ici.
+     */
+    public function retirerParIdPourSuperadmin(string $id): bool
+    {
+        return PushSubscription::query()->where('id', $id)->delete() > 0;
+    }
+
+    /**
+     * TASK-1821 — le decompte des abonnements PAR ENVIRONNEMENT d'origine.
+     *
+     * Pourquoi par environnement, et pas un total unique : chaque
+     * environnement a sa propre paire VAPID, donc l'etat « concordant /
+     * divergent » n'a de sens qu'a l'interieur de celui qui a stampe la
+     * ligne. Un total agrege melangerait des mesures incomparables — c'est
+     * ce melange qui a fait lire « cinq abonnements defectueux » la ou il n'y
+     * avait que cinq abonnements d'un AUTRE environnement.
+     *
+     * `eligibles` n'est renseigne que pour l'environnement COURANT : ailleurs,
+     * l'eligibilite depend d'une clef que ce serveur n'a pas, et un chiffre
+     * invente vaudrait moins que son absence. La regle employee est celle du
+     * livreur lui-meme (`scopeCleVapidUtilisable`), jamais une copie.
+     *
+     * @return list<array{environnement: string, total: int, eligibles: ?int, concordants: int, divergents: int, inconnus: int, comparable: bool}>
+     */
+    public function resumeParEnvironnement(): array
+    {
+        $environnementCourant = (string) config('app.env');
+        $empreinteCourante = PushSubscription::empreinteCleVapid();
+
+        $lignes = PushSubscription::query()
+            ->selectRaw('COALESCE(created_env, ?) AS env', ['(inconnu)'])
+            ->selectRaw('COUNT(*) AS total')
+            ->selectRaw('SUM(CASE WHEN vapid_key_hash IS NULL THEN 1 ELSE 0 END) AS sans_empreinte')
+            ->selectRaw('SUM(CASE WHEN vapid_key_hash = ? THEN 1 ELSE 0 END) AS concordants', [$empreinteCourante])
+            ->groupBy('env')
+            ->orderBy('env')
+            ->get();
+
+        return $lignes->map(function ($ligne) use ($environnementCourant, $empreinteCourante): array {
+            $total = (int) $ligne->total;
+            $sansEmpreinte = (int) $ligne->sans_empreinte;
+            $concordants = $empreinteCourante === null ? 0 : (int) $ligne->concordants;
+            $comparable = $ligne->env === $environnementCourant && $empreinteCourante !== null;
+
+            return [
+                'environnement' => (string) $ligne->env,
+                'total' => $total,
+                // Meme regle que le livreur : empreinte absente OU identique.
+                'eligibles' => $comparable ? $sansEmpreinte + $concordants : null,
+                'concordants' => $comparable ? $concordants : 0,
+                'divergents' => $comparable ? $total - $sansEmpreinte - $concordants : 0,
+                'inconnus' => $comparable ? $sansEmpreinte : 0,
+                'comparable' => $comparable,
+            ];
+        })->all();
+    }
+
+    /**
+     * TASK-1821 — les dernieres livraisons Web Push de ces personnes.
+     *
+     * ## Ce que cette lecture ne peut PAS dire, et le dit
+     *
+     * `member_notification_deliveries` ne porte AUCUN identifiant
+     * d'abonnement : sa cle est `(notification_id, channel)`, et son
+     * `diagnostic` ne contient qu'un AGREGAT (`devices:2 revoked:1`). Une
+     * livraison ne peut donc jamais etre attribuee a un appareil — seulement
+     * a une PERSONNE. L'appelant doit l'afficher comme tel ; presenter une de
+     * ces lignes en face d'un appareil serait inventer une tracabilite qui
+     * n'existe pas (champs manquants documentes dans la fiche T1821).
+     *
+     * UNE requete pour toute la page, jamais une par ligne.
+     *
+     * @param  list<string>  $idsUtilisateurs
+     * @return array<string, list<object>> id du compte => dernieres livraisons
+     */
+    public function dernieresLivraisonsWebPush(array $idsUtilisateurs, int $parPersonne = 5): array
+    {
+        if ($idsUtilisateurs === []) {
+            return [];
+        }
+
+        return DB::table('member_notification_deliveries as d')
+            ->join('member_notifications as n', 'n.id', '=', 'd.notification_id')
+            ->whereIn('n.recipient_id', $idsUtilisateurs)
+            ->where('d.channel', NotificationCatalogue::CHANNEL_WEB_PUSH)
+            ->orderByDesc('d.updated_at')
+            ->limit(count($idsUtilisateurs) * $parPersonne * 4)
+            ->get([
+                'n.recipient_id',
+                'n.notification_key',
+                'd.status',
+                'd.diagnostic',
+                'd.attempts',
+                'd.sent_at',
+                'd.updated_at',
+            ])
+            ->groupBy('recipient_id')
+            ->map(fn ($livraisons) => $livraisons->take($parPersonne)->values()->all())
+            ->all();
+    }
+
+    /**
      * Ce navigateur est-il DEJA abonne pour cette personne ?
      *
      * Interroge par endpoint, et verifie le proprietaire : l'appareil peut
@@ -215,5 +364,22 @@ class PushSubscriptionStore
             ->where('endpoint_hash', PushSubscription::empreinteDe(trim($endpoint)))
             ->where('user_id', $proprietaire->getKey())
             ->exists();
+    }
+
+    /**
+     * TASK-1821 — la ligne de CET appareil, pour CETTE personne, ou `null`.
+     *
+     * Meme filtre que `estAbonne()` et `renoncer()` (endpoint + proprietaire) :
+     * ce n'est pas une nouvelle regle, seulement la version qui rend la LIGNE
+     * plutot qu'un booleen, pour les appelants qui ont besoin de relire
+     * `device_label` ou `endpoint_hash` — jamais l'endpoint ni les clefs,
+     * qui restent hors de ce que ce service accepte de rendre ailleurs.
+     */
+    public function trouverParEndpoint(User $proprietaire, string $endpoint): ?PushSubscription
+    {
+        return PushSubscription::query()
+            ->where('endpoint_hash', PushSubscription::empreinteDe(trim($endpoint)))
+            ->where('user_id', $proprietaire->getKey())
+            ->first();
     }
 }

@@ -143,6 +143,62 @@ class PushSubscription extends Model
         return self::VAPID_CONCORDANTE;
     }
 
+    /**
+     * TASK-1821 — un quatrieme etat : NON COMPARABLE.
+     *
+     * `etatCleVapid()` compare `vapid_key_hash` a la clef du serveur COURANT.
+     * Cette comparaison n'a de sens que si les deux viennent du MEME
+     * environnement : chaque environnement a sa propre paire VAPID (regle
+     * posee dans `config/webpush.php`). Un abonnement stampe en `production`,
+     * relu depuis une base locale, sera donc TOUJOURS « divergent » — ce qui
+     * ne dit rien de son etat reel en production.
+     *
+     * C'est exactement le faux signal lu sur la console le 14/11 : cinq
+     * lignes `production` affichees DIVERGENTE dans un environnement local.
+     * Elles ne sont pas defectueuses ; elles sont INCOMPARABLES d'ici.
+     */
+    public const VAPID_NON_COMPARABLE = 'non_comparable';
+
+    /**
+     * L'etat de la clef VAPID, replace dans son ENVIRONNEMENT d'origine.
+     *
+     * Rend `VAPID_NON_COMPARABLE` des que la ligne a ete stampee ailleurs
+     * qu'ici — y compris quand `created_env` est `null` (origine inconnue :
+     * on ne sait pas contre quelle clef comparer, donc on ne conclut pas).
+     * Sinon, delegue a `etatCleVapid()`, qui reste la seule autorite sur la
+     * comparaison elle-meme.
+     */
+    public function etatCleVapidContextualise(): string
+    {
+        if ((string) $this->created_env !== (string) config('app.env')) {
+            return self::VAPID_NON_COMPARABLE;
+        }
+
+        return $this->etatCleVapid();
+    }
+
+    /**
+     * TASK-1821 — la condition d'ELIGIBILITE VAPID, en UN SEUL exemplaire.
+     *
+     * Extraite telle quelle de `NotificationWebPushDeliverer::livrer()`, qui
+     * l'employait en ligne. Elle est desormais appelee par le livreur ET par
+     * la console d'administration : un ecran qui annoncerait « eligible » ce
+     * que l'envoi ecarterait serait precisement le genre de mensonge que
+     * cette TASK existe pour supprimer. Une regle, un endroit.
+     *
+     * Un `vapid_key_hash` a `null` reste ELIGIBLE : il signifie « cree avant
+     * que cette colonne existe », pas « suspect » (T1740).
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<PushSubscription>  $requete
+     */
+    public function scopeCleVapidUtilisable($requete): void
+    {
+        $requete->where(function ($q): void {
+            $q->whereNull('vapid_key_hash')
+                ->orWhere('vapid_key_hash', self::empreinteCleVapid());
+        });
+    }
+
     public static function empreinteDe(string $endpoint): string
     {
         return hash('sha256', trim($endpoint));

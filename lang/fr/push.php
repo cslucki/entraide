@@ -46,4 +46,11 @@ return [
     'disable_failed' => 'La désactivation n’a pas abouti. Réessayez dans un instant.',
     'disabled' => 'Les notifications Push ne sont pas disponibles pour le moment.',
     'key_stale' => 'Cet appareil a été abonné avec une clé de sécurité qui n’a plus cours : il ne peut plus recevoir de notification. Cliquez sur « Activer » pour le réabonner.',
+
+    // TASK-1821 — recette LOCALE uniquement : identifier l'abonnement de CE
+    // navigateur sans deviner — libellé et empreinte déjà en base, jamais
+    // de nouvelle collecte. `%label%` et `%fingerprint%` sont remplacés en
+    // JavaScript, jamais par le serveur (voir push-device.js).
+    'device_registered' => 'Appareil enregistré : %label% · #%fingerprint%',
+    'device_registered_unlabeled' => 'Appareil enregistré : #%fingerprint%',
 ];

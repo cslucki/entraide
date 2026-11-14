@@ -37,4 +37,11 @@ return [
     'disable_failed' => 'Disabling did not go through. Try again in a moment.',
     'disabled' => 'Push notifications are not available at the moment.',
     'key_stale' => 'This device was subscribed with a security key that is no longer in use: it can no longer receive notifications. Click “Enable” to subscribe it again.',
+
+    // TASK-1821 — LOCAL recipe only: identify this browser's own
+    // subscription without guessing — label and fingerprint already in
+    // the database, no new collection. `%label%` and `%fingerprint%` are
+    // substituted in JavaScript, never by the server (see push-device.js).
+    'device_registered' => 'Registered device: %label% · #%fingerprint%',
+    'device_registered_unlabeled' => 'Registered device: #%fingerprint%',
 ];

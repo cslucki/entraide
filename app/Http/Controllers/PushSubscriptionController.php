@@ -75,11 +75,24 @@ class PushSubscriptionController extends Controller
             $valide['device_label'] ?? null,
         );
 
-        return response()->json([
+        $reponse = [
             'subscribed' => true,
             'device_count' => $this->magasin->appareilsDe($request->user())->count(),
             'last_seen_at' => $abonnement->last_seen_at?->toIso8601String(),
-        ]);
+        ];
+
+        // TASK-1821 — en LOCAL uniquement : le libelle et l'empreinte de
+        // CET abonnement (celui qu'on vient de revendiquer, jamais une
+        // ligne choisie arbitrairement), pour que la personne en recette
+        // puisse verifier qu'elle regarde bien SON appareil. On reutilise
+        // des colonnes deja ecrites par `revendiquer()`, sans requete ni
+        // collecte supplementaire.
+        if (app()->environment('local')) {
+            $reponse['device_label'] = $abonnement->device_label;
+            $reponse['fingerprint'] = mb_substr($abonnement->endpoint_hash, 0, 8);
+        }
+
+        return response()->json($reponse);
     }
 
     /**
@@ -118,11 +131,26 @@ class PushSubscriptionController extends Controller
     public function show(Request $request): JsonResponse
     {
         $endpoint = (string) $request->query('endpoint', '');
+        $abonne = $endpoint !== '' && $this->magasin->estAbonne($request->user(), $endpoint);
 
-        return response()->json([
+        $reponse = [
             'enabled' => (bool) config('webpush.enabled'),
-            'subscribed' => $endpoint !== '' && $this->magasin->estAbonne($request->user(), $endpoint),
+            'subscribed' => $abonne,
             'device_count' => $this->magasin->appareilsDe($request->user())->count(),
-        ]);
+        ];
+
+        // TASK-1821 — meme regle qu'en `store()` : LOCAL uniquement, et
+        // seulement pour l'abonnement qui correspond a CET endpoint, jamais
+        // une ligne choisie au hasard parmi les appareils du compte.
+        if ($abonne && app()->environment('local')) {
+            $ligne = $this->magasin->trouverParEndpoint($request->user(), $endpoint);
+
+            if ($ligne !== null) {
+                $reponse['device_label'] = $ligne->device_label;
+                $reponse['fingerprint'] = mb_substr($ligne->endpoint_hash, 0, 8);
+            }
+        }
+
+        return response()->json($reponse);
     }
 }

@@ -225,10 +225,13 @@ class NotificationWebPushDeliverer
             // avant que cette colonne existe », pas « suspect ». La
             // reconciliation, qui tourne a chaque affichage de l'ecran des
             // reglages, le stampera d'elle-meme.
-            ->where(function ($q): void {
-                $q->whereNull('vapid_key_hash')
-                    ->orWhere('vapid_key_hash', PushSubscription::empreinteCleVapid());
-            })
+            //
+            // TASK-1821 — la condition vit desormais dans le MODELE
+            // (`scopeCleVapidUtilisable`), inchangee, pour que la console
+            // d'administration l'applique sans la recopier : un ecran qui
+            // annoncerait « eligible » ce que cet envoi ecarte serait un
+            // mensonge par divergence.
+            ->cleVapidUtilisable()
             ->orderByDesc('last_seen_at')
             ->limit(self::MAX_APPAREILS + 1)
             ->get();

@@ -54,6 +54,16 @@
 
     <p data-push-count class="mt-1 text-xs text-[var(--bp-muted)]"></p>
 
+    {{-- TASK-1821 — en LOCAL uniquement : quel abonnement EXACT le serveur
+         vient de reconnaitre pour CE navigateur. Jamais affiche hors local
+         (le JSON qui l'alimente ne porte ces champs qu'en local, voir
+         `PushSubscriptionController`), et jamais une ligne choisie au
+         hasard parmi les appareils du compte — uniquement celle qui
+         correspond a l'endpoint de CE navigateur. --}}
+    @if(app()->environment('local'))
+        <p data-push-device-info hidden style="display: none" class="mt-1 text-xs font-mono text-[var(--bp-muted)]"></p>
+    @endif
+
     {{-- Les deux boutons sont rendus masqués et c'est le script qui révèle
          celui qui correspond à l'état réel. Un bouton « Activer » visible
          alors que le navigateur a refusé serait un bouton factice.
@@ -236,6 +246,8 @@
           data-text-enable-failed="{{ __('push.enable_failed') }}"
           data-text-disable-failed="{{ __('push.disable_failed') }}"
           data-text-key-stale="{{ __('push.key_stale') }}"
+          data-text-device-registered="{{ __('push.device_registered') }}"
+          data-text-device-registered-unlabeled="{{ __('push.device_registered_unlabeled') }}"
           data-count-zero="{{ trans_choice('push.devices_count', 0) }}"
           data-count-one="{{ trans_choice('push.devices_count', 1) }}"
           data-count-many="{{ trans_choice('push.devices_count', 2, ['count' => '%d']) }}"></span>

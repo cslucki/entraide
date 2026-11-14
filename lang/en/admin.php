@@ -2193,6 +2193,11 @@ return [
     'push_devices_title_page' => 'My Push devices',
     'push_devices_intro' => "The Push subscriptions registered for YOUR account only — never anyone else's. The same phone can appear more than once: each new activation attempt can create a different endpoint, and the previous one stays in the database until it is removed here.",
     'push_devices_total' => ':count subscription registered in total.|:count subscriptions registered in total.',
+    // TASK-1821 — LOCAL recipe only: which account this page describes. An
+    // empty list was mistaken for a bug (T1820 recipe) when a subscription
+    // had just been created under a DIFFERENT account, from a different
+    // origin (Cloudflare tunnel).
+    'push_devices_connected_as' => 'Connected as: :email',
     'push_devices_empty' => 'No Push subscription registered for your account.',
     'push_devices_column_device' => 'Device',
     'push_devices_column_provider' => 'Provider',
@@ -2206,6 +2211,10 @@ return [
     'push_devices_vapid_concordant' => 'Matches the current key (stored — not proof of delivery)',
     'push_devices_vapid_divergent' => 'DIVERGENT: created with a different key than the one in force. The provider may accept the send without the browser ever receiving it.',
     'push_devices_vapid_unknown' => 'Unknown origin (subscription created before this check existed)',
+    // TASK-1821 — the fourth state. Comparing a subscription stamped
+    // elsewhere against THIS server's key measures nothing: each environment
+    // has its own VAPID pair.
+    'push_devices_vapid_non_comparable' => 'Not comparable from this environment: registered under “:env”, with that environment\'s VAPID key. Neither a match nor a divergence can be concluded here.',
     'push_devices_this_device' => 'This device',
     'push_devices_checking' => 'Identifying this device…',
     'push_devices_not_identified' => 'Current device not identified: no active subscription on this browser, or no match found.',
@@ -2215,6 +2224,43 @@ return [
     'push_devices_remove_this_device_warning' => "This is the device you are currently using to open this page. Removing it will not turn off notifications on this phone: the browser will recreate this subscription next time it launches, with a new endpoint.",
     'push_devices_removed' => 'Subscription removed from the server. The browser may automatically recreate it next time the app launches: to truly stop it, turn off notifications from this device.',
     'push_devices_already_removed' => 'This subscription had already been removed.',
+
+    // TASK-1821 — the « My push devices » screen (T1820) becomes the GLOBAL
+    // « Push devices » console: every account, with a stricter guard
+    // (SuperAdminPushAccessPolicy). The `push_devices_*` keys above are still
+    // used for everything unchanged (columns, VAPID, removal messages).
+    'all_push_devices_nav_label' => 'Push devices',
+    'all_push_devices_title_page' => 'Push devices — all accounts',
+    'all_push_devices_intro' => 'Every Push subscription registered on the platform, regardless of its owner. The same phone can appear more than once: each new activation attempt can create a different endpoint, and the previous one stays in the database until it is removed here.',
+    'all_push_devices_search_placeholder' => 'Search a name or email…',
+    'all_push_devices_search_submit' => 'Search',
+    'all_push_devices_empty' => 'No Push subscription registered on the platform.',
+    'all_push_devices_empty_search' => 'No Push subscription matches this search.',
+    'all_push_devices_remove_confirm' => 'Remove this subscription from the server, for its OWNER? That person\'s browser may automatically recreate it next time it launches, unless their own subscription was turned off from their device.',
+    'all_push_devices_no_organization' => 'no Organization',
+
+    // TASK-1821 — summary PER ENVIRONMENT. Each environment has its own VAPID
+    // pair: aggregating the counts would make the figure wrong.
+    'all_push_devices_summary_total' => 'Total',
+    'all_push_devices_summary_eligible' => 'Eligible',
+    'all_push_devices_summary_matching' => 'Matching',
+    'all_push_devices_summary_diverging' => 'Diverging',
+    'all_push_devices_summary_unknown' => 'No fingerprint',
+    'all_push_devices_summary_current_env' => 'here',
+    'all_push_devices_summary_not_comparable' => 'Not comparable from this environment: these subscriptions were registered elsewhere, with that environment\'s VAPID key. This server does not hold it and therefore cannot conclude anything about their validity.',
+
+    // TASK-1821 — the four levels, named so they stop being confused.
+    'all_push_devices_levels_title' => 'What this screen proves, and what it does not',
+    'all_push_devices_level_registered' => 'Subscription registered: a row exists for this device. It says nothing about any send.',
+    'all_push_devices_level_attempt' => 'Send attempt: the server did post a request to the Push provider. Visible in the Diagnostic panel, at ACCOUNT level.',
+    'all_push_devices_level_accepted' => 'Provider acceptance: the provider answered 2xx. It queued the message — it did not deliver it. The legacy FCM endpoint even reports some failures INSIDE a 2xx body.',
+    'all_push_devices_level_received' => 'Actual reception: NO trace attests to it today. Nothing on this screen proves a phone displayed anything.',
+
+    // TASK-1821 — Diagnostic panel, at ACCOUNT level.
+    'all_push_devices_diagnostic_title' => 'Diagnostic — latest Web Push deliveries',
+    'all_push_devices_diagnostic_user_level_warning' => 'These deliveries belong to the ACCOUNT, not to this device: the deliveries table carries no subscription identifier. The “devices:N” count is an aggregate, it does not point at any particular row.',
+    'all_push_devices_diagnostic_attempts' => ':count attempt|:count attempts',
+    'all_push_devices_diagnostic_empty' => 'No Web Push delivery recorded for this account.',
 
     // TASK-1744 — the notification inspector. Distinct from the T1380
     // cockpit, which COUNTS without naming anyone.

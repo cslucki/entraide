@@ -72,6 +72,7 @@ use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Ops\ArtisanDatabaseGuard;
 use App\Support\Ops\DestructiveDatabaseGuard;
 use App\Support\Ops\ExternalEgressGuard;
+use App\Support\Push\SuperAdminPushAccessPolicy;
 use App\Support\ScopedReadCache;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -499,6 +500,12 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('view-transaction', [MessagePolicy::class, 'view']);
         Gate::define('store-message', [MessagePolicy::class, 'store']);
         Gate::define('create-review', [ReviewPolicy::class, 'create']);
+
+        // TASK-1821 — la console GLOBALE « Appareils Push » lit et peut
+        // retirer les abonnements de N'IMPORTE QUEL compte : `is_admin`
+        // seul (qui ouvre deja tout /admin, y compris a des comptes de
+        // demonstration) n'est plus suffisant pour celle-ci.
+        Gate::define('superadmin-push-all-devices', [SuperAdminPushAccessPolicy::class, 'estAutorise']);
 
         View::composer('layouts.admin', function ($view) {
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());

@@ -47,6 +47,7 @@ if (bloc) {
     const elEtat = bloc.querySelector('[data-push-state]');
     const elPoint = bloc.querySelector('[data-push-dot]');
     const elNombre = bloc.querySelector('[data-push-count]');
+    const elInfoAppareil = bloc.querySelector('[data-push-device-info]');
     const elAide = bloc.querySelector('[data-push-help-box]');
     const btnActiver = bloc.querySelector('[data-push-enable]');
     const btnDesactiver = bloc.querySelector('[data-push-disable]');
@@ -90,7 +91,7 @@ if (bloc) {
         el.style.display = visible ? '' : 'none';
     };
 
-    const peindre = (etat, nombre, aide) => {
+    const peindre = (etat, nombre, aide, appareil) => {
         const libelles = {
             on: textes.textOn,
             off: textes.textOff,
@@ -121,6 +122,21 @@ if (bloc) {
         if (typeof nombre === 'number') {
             elNombre.textContent =
                 nombre === 0 ? textes.countZero : nombre === 1 ? textes.countOne : textes.countMany.replace('%d', nombre);
+        }
+
+        // TASK-1821 — l'info d'appareil n'arrive du serveur qu'en local, et
+        // seulement pour l'endpoint de CE navigateur (jamais une ligne
+        // choisie au hasard). Absente ailleurs : l'élément reste masqué.
+        if (elInfoAppareil) {
+            if (appareil?.fingerprint) {
+                const gabarit = appareil.label ? textes.textDeviceRegistered : textes.textDeviceRegisteredUnlabeled;
+                elInfoAppareil.textContent = gabarit
+                    .replace('%label%', appareil.label ?? '')
+                    .replace('%fingerprint%', appareil.fingerprint);
+                montrer(elInfoAppareil, true);
+            } else {
+                montrer(elInfoAppareil, false);
+            }
         }
 
         // Un message d'aide n'apparaît que s'il y a quelque chose à faire.
@@ -259,10 +275,13 @@ if (bloc) {
         // répond du même coup à « est-il à MOI ? ».
         try {
             const etat = await confirmer(abonnement);
-            peindre('on', etat.device_count, textes.textReady);
+            peindre('on', etat.device_count, textes.textReady, { label: etat.device_label, fingerprint: etat.fingerprint });
         } catch {
             const etat = await etatServeur(abonnement.endpoint);
-            peindre(etat?.subscribed ? 'on' : 'off', etat?.device_count);
+            peindre(etat?.subscribed ? 'on' : 'off', etat?.device_count, undefined, {
+                label: etat?.device_label,
+                fingerprint: etat?.fingerprint,
+            });
         }
     };
 
