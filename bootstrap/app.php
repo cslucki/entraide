@@ -10,6 +10,7 @@ use App\Http\Middleware\RequireVerifiedEmail;
 use App\Http\Middleware\EnsureProfileComplete;
 use App\Http\Middleware\EnsureScenarioPersonaContextIsValid;
 use App\Http\Middleware\EnsureOrganizationMember;
+use App\Http\Middleware\EnsureOrganizationMemberExplained;
 use App\Http\Middleware\EnsureUserIsNotBanned;
 use App\Http\Middleware\ResolveApiOrganization;
 use App\Http\Middleware\OrganizationMaintenance;
@@ -135,6 +136,10 @@ return Application::configure(basePath: dirname(__DIR__))
             // d'Organization. A poser APRES `auth` — elle verifie l'appartenance,
             // pas l'authentification.
             'organization.member' => EnsureOrganizationMember::class,
+            // TASK-1829 — le mode `explain`, en classe INDEPENDANTE : voir le
+            // docblock d'EnsureOrganizationMemberExplained. Ne jamais revenir
+            // a `organization.member:explain` sur la MEME classe.
+            'organization.member.explain' => EnsureOrganizationMemberExplained::class,
         ]);
 
         // TASK-1692 — l'ordre est une frontiere de securite, pas une

@@ -80,3 +80,10 @@ Schedule::command('knowledge:derive-due')->everyTenMinutes()->withoutOverlapping
 
 // TASK-1433 — SW-3 : la retention des visiteurs du Shell Welcome est une promesse.
 Schedule::command('guest:purge-expired')->daily();
+
+// TASK-1829 — filet de securite independant de la file : une livraison
+// bloquee en `sending` (worker tue, memoire epuisee) n'est jamais reprise par
+// aucun rejeu (`prendre()` n'accepte que `pending`). Toutes les 5 minutes,
+// largement au-dessus du plus long `$timeout` de job (90 s), pour qu'une
+// livraison legitimement en cours ne soit jamais touchee.
+Schedule::command('notifications:recover-stale-deliveries')->everyFiveMinutes()->withoutOverlapping(5);

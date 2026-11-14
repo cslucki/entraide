@@ -64,6 +64,32 @@ return [
             'after_commit' => false,
         ],
 
+        /*
+        | TASK-1829 — la connexion Laravel Cloud Managed Queue (Starter), SQS
+        | sous le capot. Elle n'est JAMAIS la connexion par defaut : seuls
+        | `SendNotificationEmail` et `SendNotificationWebPush` y basculent,
+        | et seulement si `NOTIFICATIONS_MANAGED_QUEUE_CONNECTION` est posee
+        | (voir leurs docblocks). Sans identifiants AWS, ce bloc reste
+        | parfaitement inoffensif : rien ne le resout tant que rien ne
+        | dispatche explicitement vers `cloud`.
+        |
+        | Les cles reelles (prefixe, nom de file, region) seront celles que
+        | Laravel Cloud injecte a la creation de la file managee — etape
+        | volontairement HORS de cette TASK, a faire avec Cyril au tableau
+        | de bord. Ce bloc ne cree et n'active rien : il ne fait que donner
+        | un NOM a la connexion que l'etape suivante remplira.
+        */
+        'cloud' => [
+            'driver' => 'sqs',
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'prefix' => env('CLOUD_QUEUE_PREFIX', env('SQS_PREFIX', 'https://sqs.us-east-1.amazonaws.com/your-account-id')),
+            'queue' => env('CLOUD_QUEUE_NAME', 'notifications'),
+            'suffix' => env('CLOUD_QUEUE_SUFFIX'),
+            'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+            'after_commit' => false,
+        ],
+
         'redis' => [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
@@ -125,5 +151,20 @@ return [
         'database' => env('DB_CONNECTION', 'sqlite'),
         'table' => 'failed_jobs',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Managed Queue — routage conditionnel des notifications (TASK-1829)
+    |--------------------------------------------------------------------------
+    |
+    | Vide par defaut : `SendNotificationEmail` et `SendNotificationWebPush`
+    | n'appellent alors AUCUN `onConnection()`, et `QUEUE_CONNECTION` continue
+    | seul de gouverner — comportement actuel INCHANGE, en local comme en
+    | PROD aujourd'hui. Ne poser `cloud` ici qu'APRES la creation reelle de la
+    | file managee (etape hors de cette TASK, avec Cyril au tableau de bord).
+    |
+    */
+
+    'notifications_managed_queue_connection' => env('NOTIFICATIONS_MANAGED_QUEUE_CONNECTION'),
 
 ];

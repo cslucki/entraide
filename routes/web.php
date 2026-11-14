@@ -1739,7 +1739,10 @@ Route::prefix('/org/{organization}')
             // `explain` plutot que le 404 par defaut : la personne est
             // connectee et a tape ce slug elle-meme. Voir
             // `EnsureOrganizationMember`.
-            Route::middleware('organization.member:explain')
+            // TASK-1829 — `organization.member.explain` (classe INDEPENDANTE),
+            // plus `organization.member:explain` (meme classe, parametree) :
+            // voir le docblock d'EnsureOrganizationMemberExplained.
+            Route::middleware('organization.member.explain')
                 ->withoutMiddleware(['organization.member'])
                 ->group(function () {
                     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');

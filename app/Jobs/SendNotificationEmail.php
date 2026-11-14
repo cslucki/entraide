@@ -66,6 +66,15 @@ class SendNotificationEmail implements ShouldQueue
         // typé rend la composition du trait invalide (erreur FATALE a la
         // construction, pas une deprecation silencieuse).
         $this->afterCommit();
+
+        // TASK-1829 — routage conditionnel vers la Managed Queue Laravel
+        // Cloud. Vide par defaut (voir config/queue.php) : aucun appel ici,
+        // et `QUEUE_CONNECTION` continue seul de gouverner. Ne bascule que
+        // si l'etape 3 (creation reelle de la file, hors de cette TASK) a
+        // explicitement pose `NOTIFICATIONS_MANAGED_QUEUE_CONNECTION`.
+        if ($connexion = config('queue.notifications_managed_queue_connection')) {
+            $this->onConnection($connexion);
+        }
     }
 
     public function handle(NotificationEmailDeliverer $deliverer): void
