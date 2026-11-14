@@ -457,59 +457,25 @@ class TASK1821AllPushDevicesConsoleTest extends TestCase
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // 5 quater. LE DÉFAUT DÉCOUVERT — mesuré ici, CORRIGÉ EN T1822
+    // 5 quater. LE DÉFAUT ÉPINGLÉ ICI EN T1821 — CORRIGÉ PAR T1822
     // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * `revendiquer()` REECRIT `created_env` et `vapid_key_hash`.
+     * `test_DEFAUT_CONNU_la_reconciliation_reecrit_l_environnement_et_l_empreinte_vapid`
+     * vivait ici. Il ne protégeait pas un comportement souhaitable : il
+     * ÉPINGLAIT un défaut, pour que T1822 parte d'un rouge franc. T1822 l'a
+     * corrigé, le test est donc devenu rouge — comme prévu — et il est
+     * REMPLACÉ par les tests qui imposent le comportement corrigé :
      *
-     * Ce test ne protege pas un comportement souhaitable : il EPINGLE un
-     * defaut, pour qu'il soit mesure plutot que raconte, et pour que T1822
-     * parte d'un rouge franc quand elle le corrigera.
+     *   `TASK1822VapidReconciliationTest::test_la_reconciliation_preserve_l_environnement_et_l_empreinte_de_creation`
+     *   et les cinq autres tests d'intégrité serveur du même fichier.
      *
-     * Consequence en production : un abonnement cree avec une clef qui n'a
-     * plus cours voit son empreinte re-stampee avec la clef COURANTE des
-     * qu'une reconciliation passe. Le livreur le considere alors eligible,
-     * le fournisseur repond 2xx, et le navigateur jette le message en
-     * silence — la divergence est devenue invisible.
+     * Ce commentaire reste : sans lui, la disparition d'un test nommé
+     * « DEFAUT_CONNU » se lirait comme un escamotage.
      *
-     * `push-device.js` s'en protege (il s'abstient de reconfirmer quand il
-     * detecte la divergence), mais `push-first-run.js` appelle `confirmer()`
-     * sans cette garde : c'est le chemin du premier lancement de la PWA
-     * installee. Perimetre de T1822, hors perimetre ici.
+     * La console, elle, est inchangée par T1822 : ce qu'elle affiche d'un
+     * abonnement divergent est couvert par les tests ci-dessus.
      */
-    public function test_DEFAUT_CONNU_la_reconciliation_reecrit_l_environnement_et_l_empreinte_vapid(): void
-    {
-        $proprietaire = $this->membre();
-        $endpoint = 'https://fcm.googleapis.com/fcm/send/t1821-restamp-'.bin2hex(random_bytes(8));
-
-        $magasin = app(PushSubscriptionStore::class);
-        $abonnement = $magasin->revendiquer($proprietaire, $endpoint, str_repeat('A', 87), str_repeat('B', 22), 'Android');
-
-        // La ligne telle qu'elle arrive d'un dump de production, creee sous
-        // une clef qui n'a plus cours ici.
-        $abonnement->forceFill([
-            'created_env' => 'production',
-            'vapid_key_hash' => hash('sha256', 'ancienne-clef-de-production'),
-        ])->save();
-
-        // Une simple reconciliation — le geste que le navigateur rejoue a
-        // chaque ouverture de l'ecran des reglages.
-        $magasin->revendiquer($proprietaire, $endpoint, str_repeat('A', 87), str_repeat('B', 22), null);
-
-        $apres = $abonnement->fresh();
-
-        $this->assertSame(
-            (string) config('app.env'),
-            $apres->created_env,
-            'DEFAUT T1821 (corrige en T1822) : `created_env` n\'est pas une origine, il est reecrit a chaque reconciliation.',
-        );
-        $this->assertSame(
-            PushSubscription::empreinteCleVapid(),
-            $apres->vapid_key_hash,
-            'DEFAUT T1821 (corrige en T1822) : `vapid_key_hash` enregistre la clef du DERNIER contact, pas celle de la creation — ce qui peut masquer une divergence reelle.',
-        );
-    }
 
     // ═══════════════════════════════════════════════════════════════════
     // 6. Le lien de navigation n'apparaît que pour qui est réellement autorisé

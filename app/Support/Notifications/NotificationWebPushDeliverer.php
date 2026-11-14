@@ -253,6 +253,9 @@ class NotificationWebPushDeliverer
         $charge = $this->chargeUtile($notification, $cible);
         $reussites = 0;
         $revoques = 0;
+        // TASK-1822 — remise a zero A CHAQUE livraison, jamais lue d'un
+        // appel sur l'autre : meme discipline que `$transportSollicite`.
+        $this->erreursFournisseurExplicites = 0;
 
         // TASK-1779 — FRANCHISSEMENT DE LA FRONTIERE. Tout ce qui echoue a
         // partir d'ici doit conclure `ambiguous`, jamais `failed` : le premier
@@ -290,10 +293,23 @@ class NotificationWebPushDeliverer
 
         // Aucun appareil n'a recu. Si tous etaient revoques, ce n'est pas un
         // echec de notre cote : la personne n'a simplement plus d'appareil.
+        //
+        // TASK-1822 — troisieme motif. `push_service_unreachable` disait
+        // « le fournisseur n'a pas repondu » ; il couvrait donc a tort le
+        // cas ou le fournisseur A repondu, sous 2xx, pour dire non. Les
+        // deux appellent des gestes differents — attendre, ou regarder ce
+        // que le fournisseur reproche — et un diagnostic qui les confond
+        // envoie chercher au mauvais endroit.
+        $motif = match (true) {
+            $revoques > 0 => 'all_devices_revoked',
+            $this->erreursFournisseurExplicites > 0 => 'push_provider_error',
+            default => 'push_service_unreachable',
+        };
+
         $this->abandonner(
             $livraison,
             $revoques > 0 ? NotificationDeliveryStatus::SKIPPED_UNREACHABLE : NotificationDeliveryStatus::FAILED,
-            $revoques > 0 ? 'all_devices_revoked' : 'push_service_unreachable',
+            $motif,
         );
     }
 
@@ -349,6 +365,17 @@ class NotificationWebPushDeliverer
 
     /** Le code HTTP rendu par le fournisseur au dernier depot, ou `null`. */
     private ?int $dernierCodeHttp = null;
+
+    /**
+     * TASK-1822 — combien de depots ont lu une erreur EXPLICITE du
+     * fournisseur dans un corps 2xx, pour cette livraison.
+     *
+     * Elle existe pour que le diagnostic final distingue deux echecs que
+     * `push_service_unreachable` confondait : « le fournisseur n'a pas
+     * repondu » et « le fournisseur a repondu, et il a dit non ». Remise a
+     * zero a chaque entree dans `livrer()`, comme `$transportSollicite`.
+     */
+    private int $erreursFournisseurExplicites = 0;
 
     /**
      * Base64URL vers binaire brut.
@@ -482,13 +509,19 @@ class NotificationWebPushDeliverer
                 // laissait donc passer un echec en le nommant « reussite » —
                 // c'est precisement la confusion que MASTER a demande de ne
                 // pas commettre, et elle a coute plusieurs essais a l'aveugle.
+                //
+                // TASK-1822 — ce docblock decrivait le defaut depuis T1740,
+                // mais le code rendait `ok` quoi qu'il arrive : le corps
+                // n'etait range que dans `$dernierMotif`. Mesure en T1821 :
+                // 4 abonnements sur 6 emploient cet endpoint historique,
+                // dont 3 en production. Le corps est desormais LU.
                 $corpsReponse = trim($reponse->body());
 
                 $this->dernierMotif = $corpsReponse === ''
                     ? ''
                     : 'le fournisseur a repondu : '.mb_substr($corpsReponse, 0, 300);
 
-                return 'ok';
+                return $this->verdictSurCorps2xx($corpsReponse);
             }
 
             $this->dernierMotif = 'refus du fournisseur (HTTP '.$reponse->status().')';
@@ -508,6 +541,92 @@ class NotificationWebPushDeliverer
 
             return 'echec';
         }
+    }
+
+    /**
+     * TASK-1822 — lire un corps de reponse 2xx, et n'en conclure que ce
+     * qu'il dit vraiment.
+     *
+     * ## Le cas reel que cette methode traite
+     *
+     * L'endpoint FCM historique `/fcm/send/` repond `200` et place l'echec
+     * dans le corps, sous une forme documentee par Google :
+     *
+     *     {"multicast_id":…,"success":0,"failure":1,"canonical_ids":0,
+     *      "results":[{"error":"NotRegistered"}]}
+     *
+     * Les autres fournisseurs — Apple (`web.push.apple.com`), FCM moderne
+     * (`/wp/`), Mozilla — rendent un corps VIDE sur succes. Pour eux, rien
+     * ne change : un corps vide reste `ok`.
+     *
+     * ## Les trois verdicts, et pourquoi la suppression est la plus prudente
+     *
+     * `revoque` DETRUIT la ligne cote serveur. On ne le rend donc que sur
+     * les deux erreurs qui etablissent qu'un enregistrement n'existe plus —
+     * `NotRegistered` et `InvalidRegistration` — exactement les memes que
+     * les statuts HTTP 404/410 traites plus haut.
+     *
+     * `MismatchSenderId` n'en fait PAS partie, et c'est delibere : il dit
+     * que l'envoi vient d'une autre identite VAPID, pas que l'appareil a
+     * disparu. Supprimer la ligne sur ce motif detruirait un abonnement
+     * parfaitement vivant a cause d'un probleme de CLEF — c'est-a-dire le
+     * defaut meme que cette TASK corrige, retourne en perte de donnees.
+     * Idem pour `Unavailable` ou `InternalServerError`, qui sont
+     * temporaires : `echec`, et la ligne reste.
+     *
+     * ## Un corps illisible ne vaut pas un echec
+     *
+     * Si le corps n'est pas du JSON, ou ne porte ni `failure` ni `results`,
+     * on ne conclut RIEN et on garde `ok` : inventer un echec sur une forme
+     * inattendue casserait des fournisseurs qui fonctionnent. On ne traite
+     * comme echec que ce qu'on a LU comme tel.
+     *
+     * @return 'ok'|'revoque'|'echec'
+     */
+    private function verdictSurCorps2xx(string $corps): string
+    {
+        if ($corps === '') {
+            return 'ok';
+        }
+
+        $decode = json_decode($corps, true);
+
+        if (! is_array($decode)) {
+            return 'ok';
+        }
+
+        $resultats = is_array($decode['results'] ?? null) ? $decode['results'] : [];
+        $echecs = (int) ($decode['failure'] ?? 0);
+
+        $erreurs = [];
+
+        foreach ($resultats as $resultat) {
+            if (is_array($resultat) && isset($resultat['error']) && is_string($resultat['error'])) {
+                $erreurs[] = $resultat['error'];
+            }
+        }
+
+        if ($echecs < 1 && $erreurs === []) {
+            return 'ok';
+        }
+
+        // Une erreur EXPLICITE a ete lue : la livraison ne peut plus etre
+        // comptee comme acceptee, quel que soit le statut HTTP.
+        $this->erreursFournisseurExplicites++;
+        $this->dernierMotif = 'erreur fournisseur sous HTTP 2xx : '
+            .($erreurs === [] ? 'failure='.$echecs : implode(', ', $erreurs));
+
+        // Les deux seules erreurs qui etablissent qu'un enregistrement
+        // n'existe plus. Memes consequences que 404/410.
+        $revocations = ['NotRegistered', 'InvalidRegistration'];
+
+        foreach ($erreurs as $erreur) {
+            if (in_array($erreur, $revocations, true)) {
+                return 'revoque';
+            }
+        }
+
+        return 'echec';
     }
 
     /**

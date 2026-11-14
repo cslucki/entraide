@@ -154,6 +154,14 @@ return [
     'first_run_denied_body' => "Les notifications sont bloquées pour {$appName} dans votre navigateur. Pour les rouvrir : réglages du site (icône à côté de l’adresse, ou Paramètres › Notifications), autorisez les notifications, puis revenez ici.",
     'first_run_understood' => "Compris",
 
+    // TASK-1822 — l'abonnement existe, la permission est peut-être accordée,
+    // mais il a été créé avec une clé de sécurité qui n'a plus cours : le
+    // navigateur jette les messages sans rien afficher. Ne JAMAIS présenter
+    // cela comme « activez les notifications » — la personne les croyait
+    // actives, et elles l'étaient.
+    'first_run_stale_key_body' => "Cet appareil était abonné avec une clé de sécurité qui n’a plus cours : les notifications ne lui parviennent plus, même si elles semblent activées. Une réactivation suffit à rétablir la réception.",
+    'first_run_stale_key_action' => "Réactiver les notifications",
+
     /*
      * TASK-1745, recette du 03/11 — les gestes NUMEROTES de la carte de
      * confirmation. Une liste se parcourt du coin de l'oeil ; une phrase
