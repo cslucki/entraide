@@ -2,9 +2,11 @@
 
 namespace App\Services\Push;
 
+use App\Models\Organization;
 use App\Models\PushSubscription;
 use App\Models\User;
 use App\Support\Notifications\NotificationCatalogue;
+use App\Support\Notifications\NotificationDeliveryStatus;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
@@ -267,7 +269,7 @@ class PushSubscriptionStore
      *
      * @return \Illuminate\Pagination\LengthAwarePaginator<int, PushSubscription>
      */
-    public function tous(?string $recherche, int $parPage = 25)
+    public function tous(?string $recherche, int $parPage = 25, ?string $etat = null, ?string $organizationId = null)
     {
         $recherche = trim((string) $recherche);
 
@@ -284,9 +286,233 @@ class PushSubscriptionStore
                         ->orWhere('email', 'like', "%{$recherche}%");
                 });
             })
+            // TASK-1823 — filtre par Organization du PROPRIETAIRE. Il porte
+            // sur `users.organization_id` et non sur l'abonnement, qui n'a
+            // pas de tenant : un appareil appartient a une personne, et c'est
+            // la personne qui appartient a une Organization.
+            ->when((string) $organizationId !== '', function ($requete) use ($organizationId): void {
+                $requete->whereHas('user', function ($sousRequete) use ($organizationId): void {
+                    $sousRequete->where('organization_id', $organizationId);
+                });
+            })
+            ->when((string) $etat !== '', fn ($requete) => $this->filtrerParSituation($requete, (string) $etat))
             ->orderByDesc('last_seen_at')
             ->paginate($parPage)
             ->withQueryString();
+    }
+
+    /**
+     * TASK-1823 — la fenêtre d'observation des incidents, en UN endroit.
+     *
+     * MASTER : « veiller à utiliser la même fenêtre de 30 jours pour les
+     * compteurs, les filtres et les indicateurs ». Une constante partagée est
+     * la seule façon de le garantir — trois `subDays(30)` recopiés finiraient
+     * par diverger, et le compteur annoncerait alors autre chose que ce que
+     * le filtre sélectionne.
+     */
+    public const FENETRE_INCIDENTS_JOURS = 30;
+
+    /** Les quatre situations exposées par la console (axes abonnement + compte). */
+    public const SITUATION_ELIGIBLE = 'eligible';
+
+    public const SITUATION_CLE_INCOMPATIBLE = 'cle_incompatible';
+
+    public const SITUATION_A_VERIFIER = 'a_verifier';
+
+    public const SITUATION_INCIDENT_COMPTE = 'incident_compte';
+
+    /** @return list<string> */
+    public static function situations(): array
+    {
+        return [
+            self::SITUATION_ELIGIBLE,
+            self::SITUATION_CLE_INCOMPATIBLE,
+            self::SITUATION_A_VERIFIER,
+            self::SITUATION_INCIDENT_COMPTE,
+        ];
+    }
+
+    /**
+     * Restreindre une requête d'abonnements à UNE situation.
+     *
+     * Les trois premières portent sur l'ABONNEMENT et se lisent dans ses
+     * seules colonnes ; la quatrième porte sur le COMPTE et passe par les
+     * livraisons. C'est exactement la frontière que l'écran doit tenir, et
+     * l'avoir ici garantit que le filtre sélectionne ce que les pastilles
+     * annoncent.
+     *
+     * `empreinteCleVapid()` à `null` (aucune clef servie) rend toute
+     * comparaison impossible : TOUT devient « à vérifier », et rien n'est
+     * déclaré éligible ou incompatible. On ne conclut pas sans mesure.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<PushSubscription>  $requete
+     */
+    private function filtrerParSituation($requete, string $situation): void
+    {
+        $environnement = (string) config('app.env');
+        $empreinte = PushSubscription::empreinteCleVapid();
+
+        if ($situation === self::SITUATION_INCIDENT_COMPTE) {
+            $requete->whereIn('user_id', $this->idsDesComptesAvecIncidentRecent());
+
+            return;
+        }
+
+        if ($empreinte === null) {
+            // Sans clef servie, « éligible » et « incompatible » ne sont pas
+            // mesurables : seule « à vérifier » peut rendre des lignes.
+            $requete->whereRaw($situation === self::SITUATION_A_VERIFIER ? '1 = 1' : '1 = 0');
+
+            return;
+        }
+
+        match ($situation) {
+            self::SITUATION_ELIGIBLE => $requete
+                ->where('created_env', $environnement)
+                ->where('vapid_key_hash', $empreinte),
+
+            self::SITUATION_CLE_INCOMPATIBLE => $requete
+                ->where('created_env', $environnement)
+                ->whereNotNull('vapid_key_hash')
+                ->where('vapid_key_hash', '!=', $empreinte),
+
+            // « À vérifier » = on ne peut pas conclure : stampé ailleurs
+            // (clef inconnue d'ici) ou sans empreinte (antérieur à la
+            // colonne). `created_env` à `null` entre aussi ici.
+            //
+            // `IS DISTINCT FROM` n'existe pas sous SQLite : la condition est
+            // écrite en trois morceaux portables, et la suite de tests
+            // tourne sur les DEUX moteurs.
+            self::SITUATION_A_VERIFIER => $requete->where(function ($q) use ($environnement): void {
+                $q->whereNull('created_env')
+                    ->orWhere('created_env', '!=', $environnement)
+                    ->orWhereNull('vapid_key_hash');
+            }),
+
+            default => $requete->whereRaw('1 = 0'),
+        };
+    }
+
+    /**
+     * TASK-1823 — les comptes ayant connu AU MOINS UN incident Web Push
+     * dans la fenêtre, quel que soit leur nombre d'appareils.
+     *
+     * ## Pourquoi cette requête existe à part
+     *
+     * MASTER : « les cinq dernières livraisons affichées ne doivent pas
+     * déterminer seules le diagnostic ». Celles-là servent à LIRE ; celle-ci
+     * sert à QUALIFIER, et elle balaie toute la fenêtre de 30 jours.
+     *
+     * ## Ce qu'elle ne dit pas
+     *
+     * Elle ne désigne aucun appareil. `member_notification_deliveries` ne
+     * porte pas d'identifiant d'abonnement : un incident appartient au
+     * COMPTE, et l'écran doit le présenter ainsi — c'est pourquoi cette
+     * méthode rend des `user_id`, jamais des identifiants de ligne.
+     *
+     * `failed` et `ambiguous` seulement : un `skipped_*` est une DÉCISION
+     * (préférence coupée, destinataire injoignable), pas un incident.
+     *
+     * @param  list<string>|null  $idsUtilisateurs  restreint la mesure, ou `null` pour toute la plateforme
+     * @return list<string>
+     */
+    public function idsDesComptesAvecIncidentRecent(?array $idsUtilisateurs = null): array
+    {
+        if ($idsUtilisateurs === []) {
+            return [];
+        }
+
+        return DB::table('member_notification_deliveries as d')
+            ->join('member_notifications as n', 'n.id', '=', 'd.notification_id')
+            ->where('d.channel', NotificationCatalogue::CHANNEL_WEB_PUSH)
+            ->whereIn('d.status', [NotificationDeliveryStatus::FAILED, NotificationDeliveryStatus::AMBIGUOUS])
+            ->where('d.updated_at', '>=', now()->subDays(self::FENETRE_INCIDENTS_JOURS))
+            ->when($idsUtilisateurs !== null, fn ($q) => $q->whereIn('n.recipient_id', $idsUtilisateurs))
+            ->distinct()
+            ->pluck('n.recipient_id')
+            ->map(fn ($id): string => (string) $id)
+            ->all();
+    }
+
+    /**
+     * TASK-1823 — les compteurs du bento, en une lecture.
+     *
+     * Les trois premiers comptent des ABONNEMENTS, le dernier des COMPTES :
+     * MASTER a tranché qu'un compte à plusieurs appareils ne se compte
+     * qu'UNE fois. Mélanger les deux unités dans une même rangée serait
+     * exactement le genre de chiffre qu'on finit par mal lire.
+     *
+     * @return array{total: int, eligibles: int, cles_incompatibles: int, a_verifier: int, comptes_en_incident: int}
+     */
+    public function compteursDeSituation(): array
+    {
+        $environnement = (string) config('app.env');
+        $empreinte = PushSubscription::empreinteCleVapid();
+
+        $total = (int) PushSubscription::query()->count();
+
+        if ($empreinte === null) {
+            // Rien n'est jugeable : tout bascule en « à vérifier » plutôt
+            // que d'inventer une éligibilité.
+            return [
+                'total' => $total,
+                'eligibles' => 0,
+                'cles_incompatibles' => 0,
+                'a_verifier' => $total,
+                'comptes_en_incident' => count($this->idsDesComptesAvecIncidentRecent()),
+            ];
+        }
+
+        $ligne = PushSubscription::query()
+            ->selectRaw('COUNT(*) AS total')
+            ->selectRaw(
+                'SUM(CASE WHEN created_env = ? AND vapid_key_hash = ? THEN 1 ELSE 0 END) AS eligibles',
+                [$environnement, $empreinte],
+            )
+            ->selectRaw(
+                'SUM(CASE WHEN created_env = ? AND vapid_key_hash IS NOT NULL AND vapid_key_hash <> ? THEN 1 ELSE 0 END) AS incompatibles',
+                [$environnement, $empreinte],
+            )
+            ->first();
+
+        $eligibles = (int) ($ligne->eligibles ?? 0);
+        $incompatibles = (int) ($ligne->incompatibles ?? 0);
+
+        return [
+            'total' => $total,
+            'eligibles' => $eligibles,
+            'cles_incompatibles' => $incompatibles,
+            // Le reste par SOUSTRACTION : les trois situations sont
+            // exhaustives et disjointes par construction, donc « à vérifier »
+            // ne peut pas diverger de son propre filtre.
+            'a_verifier' => $total - $eligibles - $incompatibles,
+            'comptes_en_incident' => count($this->idsDesComptesAvecIncidentRecent()),
+        ];
+    }
+
+    /**
+     * TASK-1823 — les Organizations qui possèdent au moins un abonnement,
+     * pour alimenter le filtre.
+     *
+     * `Organization` porte SoftDeletes : une Organization supprimée n'entre
+     * pas dans cette liste, alors que les abonnements de ses membres restent
+     * visibles. C'est assumé — le filtre propose ce qui est choisissable, la
+     * liste montre ce qui existe.
+     *
+     * @return \Illuminate\Support\Collection<int, Organization>
+     */
+    public function organizationsAvecAbonnements()
+    {
+        return Organization::query()
+            ->whereIn(
+                'id',
+                User::query()
+                    ->whereIn('id', PushSubscription::query()->select('user_id'))
+                    ->whereNotNull('organization_id')
+                    ->select('organization_id'),
+            )
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     /**
