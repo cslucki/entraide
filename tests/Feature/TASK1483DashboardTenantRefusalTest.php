@@ -389,8 +389,12 @@ class TASK1483DashboardTenantRefusalTest extends TestCase
     // =====================================================================
 
     /**
-     * Si quelqu'un retire `organization.member:explain` des routes, ce test
+     * Si quelqu'un retire `organization.member.explain` des routes, ce test
      * rougit en nommant la cause, avant meme que les statuts ne changent.
+     *
+     * TASK-1829 — l'alias a change de nom (`organization.member.explain`,
+     * plus `organization.member:explain`) : la garde explain est devenue
+     * une classe INDEPENDANTE, voir `EnsureOrganizationMemberExplained`.
      */
     public function test_every_dashboard_route_declares_the_membership_guard(): void
     {
@@ -401,7 +405,7 @@ class TASK1483DashboardTenantRefusalTest extends TestCase
 
             $middleware = $route->gatherMiddleware();
             $this->assertContains('auth', $middleware, "[{$name}] doit exiger une session");
-            $this->assertContains('organization.member:explain', $middleware, "[{$name}] doit exiger l'appartenance");
+            $this->assertContains('organization.member.explain', $middleware, "[{$name}] doit exiger l'appartenance");
         }
     }
 
