@@ -15,6 +15,17 @@
         <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
             {{ __('profile.account_access_intro') }}
         </p>
+
+        {{-- TASK-1824 — quel compte Organization est actif ICI, sur CETTE
+             page. `$organization` est celle du compte authentifie
+             (`ProfileController::profileOrganization()`), jamais celle de
+             l'URL : un membre sans Organization (nullable) ne doit rien
+             afficher plutot qu'une Organization qu'il n'a pas. --}}
+        @if ($organization ?? null)
+            <p class="mt-3 inline-flex items-center gap-2 rounded-lg bg-gray-100 dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200" data-marqueur="organisation-active">
+                {{ __('profile.current_organization', ['name' => $organization->name]) }}
+            </p>
+        @endif
     </header>
 
     <div class="mt-4 flex flex-wrap gap-3">

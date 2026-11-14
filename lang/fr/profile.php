@@ -54,6 +54,14 @@ return [
     'report_send' => 'Envoyer',
     'report_cancel' => 'Annuler',
     'edit_title' => 'Modifier mon profil',
+
+    // TASK-1824 — la page « Sécurité du compte ».
+    'security_title' => 'Sécurité du compte',
+    'security_intro' => 'Votre mot de passe, vos accès et la fermeture de votre compte.',
+    'security_cta' => 'Sécurité du compte',
+    'security_back_to_profile' => 'Retour au profil',
+    'current_organization' => 'Organisation active : :name',
+
     'info_title' => 'Informations du profil',
     'info_description' => 'Mettez à jour les informations de votre compte et votre adresse e-mail.',
     'presentation_section' => 'Présentation',
