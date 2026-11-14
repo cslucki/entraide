@@ -27,13 +27,17 @@
 
 import {
     abonnementCourant,
+    CLE_DIVERGE,
     clePublique,
+    clePubliqueDe,
+    comparerCleVapid,
     confirmer as confirmerAuServeur,
     etatServeur as interrogerServeur,
     jeton,
     libelleAppareil,
     supporte as pushSupporte,
     supporteNavigateur,
+    retirerEtDesabonner,
 } from './push-abonnement.js';
 
 const bloc = document.querySelector('[data-push-device]');
@@ -47,6 +51,7 @@ if (bloc) {
     const elEtat = bloc.querySelector('[data-push-state]');
     const elPoint = bloc.querySelector('[data-push-dot]');
     const elNombre = bloc.querySelector('[data-push-count]');
+    const elInfoAppareil = bloc.querySelector('[data-push-device-info]');
     const elAide = bloc.querySelector('[data-push-help-box]');
     const btnActiver = bloc.querySelector('[data-push-enable]');
     const btnDesactiver = bloc.querySelector('[data-push-disable]');
@@ -90,7 +95,7 @@ if (bloc) {
         el.style.display = visible ? '' : 'none';
     };
 
-    const peindre = (etat, nombre, aide) => {
+    const peindre = (etat, nombre, aide, appareil) => {
         const libelles = {
             on: textes.textOn,
             off: textes.textOff,
@@ -123,6 +128,21 @@ if (bloc) {
                 nombre === 0 ? textes.countZero : nombre === 1 ? textes.countOne : textes.countMany.replace('%d', nombre);
         }
 
+        // TASK-1821 — l'info d'appareil n'arrive du serveur qu'en local, et
+        // seulement pour l'endpoint de CE navigateur (jamais une ligne
+        // choisie au hasard). Absente ailleurs : l'élément reste masqué.
+        if (elInfoAppareil) {
+            if (appareil?.fingerprint) {
+                const gabarit = appareil.label ? textes.textDeviceRegistered : textes.textDeviceRegisteredUnlabeled;
+                elInfoAppareil.textContent = gabarit
+                    .replace('%label%', appareil.label ?? '')
+                    .replace('%fingerprint%', appareil.fingerprint);
+                montrer(elInfoAppareil, true);
+            } else {
+                montrer(elInfoAppareil, false);
+            }
+        }
+
         // Un message d'aide n'apparaît que s'il y a quelque chose à faire.
         const texteAide =
             aide ??
@@ -137,13 +157,6 @@ if (bloc) {
         if (texteAide !== null) elAide.querySelector('[data-push-help]').textContent = texteAide;
     };
 
-    /** Un `ArrayBuffer` rendu dans la forme base64url des clefs VAPID. */
-    const enBase64Url = (tampon) =>
-        btoa(String.fromCharCode(...new Uint8Array(tampon)))
-            .replace(/\+/g, '-')
-            .replace(/\//g, '_')
-            .replace(/=+$/, '');
-
     /**
      * Cet abonnement a-t-il été créé avec une AUTRE clé que celle du serveur ?
      *
@@ -157,15 +170,14 @@ if (bloc) {
      * C'est la forme exacte de la panne qui a coûté la recette du 01/11, sous
      * une autre cause. Elle ne doit pas pouvoir se reproduire sans être vue.
      *
-     * Un navigateur qui n'expose pas `options.applicationServerKey` ne permet
-     * pas de conclure : on rend alors `false`, parce qu'on ne traite comme
-     * divergent que ce qu'on a MESURÉ divergent.
+     * TASK-1822 — la comparaison elle-même vit désormais dans
+     * `push-abonnement.js`, en un seul exemplaire, parce que
+     * `push-first-run.js` en avait besoin AUSSI et ne l'avait pas. Cette
+     * fonction n'est plus qu'un nom local sur la règle partagée : elle rend
+     * `true` UNIQUEMENT sur une divergence mesurée — `inobservable` n'est
+     * pas une divergence, on ne traite comme tel que ce qu'on a mesuré.
      */
-    const cleDiverge = (abonnement) => {
-        const cle = abonnement?.options?.applicationServerKey;
-
-        return !!cle && vapid !== '' && enBase64Url(cle) !== vapid;
-    };
+    const cleDiverge = (abonnement) => comparerCleVapid(abonnement, vapid) === CLE_DIVERGE;
 
     /**
      * Interroger l'exemplaire du Service Worker RÉELLEMENT actif.
@@ -259,10 +271,13 @@ if (bloc) {
         // répond du même coup à « est-il à MOI ? ».
         try {
             const etat = await confirmer(abonnement);
-            peindre('on', etat.device_count, textes.textReady);
+            peindre('on', etat.device_count, textes.textReady, { label: etat.device_label, fingerprint: etat.fingerprint });
         } catch {
             const etat = await etatServeur(abonnement.endpoint);
-            peindre(etat?.subscribed ? 'on' : 'off', etat?.device_count);
+            peindre(etat?.subscribed ? 'on' : 'off', etat?.device_count, undefined, {
+                label: etat?.device_label,
+                fingerprint: etat?.fingerprint,
+            });
         }
     };
 
@@ -285,18 +300,15 @@ if (bloc) {
 
             // Renouvellement sur GESTE EXPLICITE, jamais en arrière-plan.
             //
-            // L'ordre compte, et c'est le même qu'à la désactivation : on
-            // retire d'abord côté SERVEUR. Si l'on commençait par
-            // `unsubscribe()`, un échec réseau laisserait une ligne en base
-            // pour un endpoint que le navigateur a déjà oublié — donc un
-            // appareil injoignable qu'on croirait abonné.
+            // TASK-1822 — la séquence « retirer côté serveur PUIS se
+            // désabonner » vit dans `push-abonnement.js` : `abonner()` en a
+            // besoin exactement de la même, et deux copies d'une règle
+            // d'ordre finissent par diverger sur celle qu'on regarde le
+            // moins. L'ordre reste celui de T1739, pour la même raison :
+            // commencer par `unsubscribe()` laisserait une ligne en base
+            // pour un endpoint que le navigateur a déjà oublié.
             if (existant !== null && cleDiverge(existant)) {
-                await fetch(url, {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': jeton(), Accept: 'application/json' },
-                    body: JSON.stringify({ endpoint: existant.endpoint }),
-                });
-                await existant.unsubscribe();
+                await retirerEtDesabonner(url, existant);
                 existant = null;
             }
 
@@ -324,16 +336,9 @@ if (bloc) {
             const abonnement = await abonnementCourant();
 
             if (abonnement !== null) {
-                // L'ordre compte : on retire d'abord côté SERVEUR. Si l'on
-                // commençait par `unsubscribe()`, un échec réseau laisserait
-                // une ligne en base pour un endpoint que le navigateur a déjà
-                // oublié — donc un appareil injoignable qu'on croirait abonné.
-                await fetch(url, {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': jeton(), Accept: 'application/json' },
-                    body: JSON.stringify({ endpoint: abonnement.endpoint }),
-                });
-                await abonnement.unsubscribe();
+                // L'ordre compte : on retire d'abord côté SERVEUR (T1739).
+                // TASK-1822 — même séquence partagée qu'au renouvellement.
+                await retirerEtDesabonner(url, abonnement);
             }
 
             const etat = await etatServeur(null);
@@ -435,21 +440,21 @@ if (bloc) {
              * signature : il répond 201 et met en file. C'est Chrome, sur
              * l'appareil, qui jette alors le message EN SILENCE. D'où le
              * symptôme exact qu'on observe — accepté, jamais affiché. */
-            const cleAbonnement = abonnement.options?.applicationServerKey;
+            // TASK-1822 — la lecture de la clé réelle passe par la fonction
+            // partagée : ce panneau en tenait une TROISIÈME copie, et un
+            // diagnostic qui calculerait autrement que la garde qu'il est
+            // censé expliquer ne vaudrait rien.
+            const cleAbonnement = clePubliqueDe(abonnement);
 
-            if (!cleAbonnement) {
+            if (cleAbonnement === null) {
                 cases.cle.textContent = '(non exposée par ce navigateur)';
+
                 return;
             }
 
-            const enBase64Url = btoa(String.fromCharCode(...new Uint8Array(cleAbonnement)))
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=+$/, '');
-
-            cases.cle.textContent = enBase64Url === vapid
-                ? `concorde (${enBase64Url.slice(0, 8)}…)`
-                : `DIVERGE — abonnement ${enBase64Url.slice(0, 8)}… ≠ serveur ${vapid.slice(0, 8)}…`;
+            cases.cle.textContent = cleAbonnement === vapid
+                ? `concorde (${cleAbonnement.slice(0, 8)}…)`
+                : `DIVERGE — abonnement ${cleAbonnement.slice(0, 8)}… ≠ serveur ${vapid.slice(0, 8)}…`;
         };
 
         /**

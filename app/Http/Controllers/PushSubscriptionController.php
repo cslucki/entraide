@@ -31,6 +31,31 @@ use Illuminate\Http\Request;
  *   personne, pas une signature d'appareil (CDC 5.4 — ni IP, ni UA complet,
  *   ni localisation).
  *
+ * ## TASK-1822 — ce que le serveur PEUT verifier sur la clef VAPID, et ce
+ * qu'il ne peut pas
+ *
+ * Examine, et conclu sans rien ajouter ici. Le serveur ne recoit jamais la
+ * clef reelle de l'abonnement : `options.applicationServerKey` ne vit que
+ * dans le navigateur. Trois pistes ont ete pesees :
+ *
+ * 1. FAIRE DECLARER la clef par le client. Rejete : une declaration n'est
+ *    pas une preuve, et la traiter comme telle rouvrirait exactement le
+ *    defaut qu'on ferme — un client (ou un client fautif) pourrait affirmer
+ *    une concordance qui n'existe pas.
+ * 2. La declarer pour ECARTER seulement (jamais pour valider) : defendable,
+ *    puisqu'un client ne peut alors que s'exclure lui-meme. Mais cela exige
+ *    une colonne de plus, donc une migration — hors mandat sans arbitrage
+ *    MASTER.
+ * 3. Rendre les metadonnees de creation IMMUABLES, pour que la detection
+ *    existante cesse d'etre effacee. C'est ce qui est fait, dans
+ *    `PushSubscriptionStore::revendiquer()`, et c'est la vraie protection
+ *    serveur : le controle cryptographique reste cote client (seul endroit
+ *    ou il est possible), mais sa TRACE ne peut plus etre ecrasee par une
+ *    reconciliation.
+ *
+ * Ce controleur n'accepte donc toujours aucune donnee de clef VAPID, et
+ * c'est volontaire.
+ *
  * ## Et ce qu'il ne promet pas
  *
  * S'abonner ne fait RIEN arriver : le canal `web_push` n'existe pas encore au
@@ -75,11 +100,24 @@ class PushSubscriptionController extends Controller
             $valide['device_label'] ?? null,
         );
 
-        return response()->json([
+        $reponse = [
             'subscribed' => true,
             'device_count' => $this->magasin->appareilsDe($request->user())->count(),
             'last_seen_at' => $abonnement->last_seen_at?->toIso8601String(),
-        ]);
+        ];
+
+        // TASK-1821 — en LOCAL uniquement : le libelle et l'empreinte de
+        // CET abonnement (celui qu'on vient de revendiquer, jamais une
+        // ligne choisie arbitrairement), pour que la personne en recette
+        // puisse verifier qu'elle regarde bien SON appareil. On reutilise
+        // des colonnes deja ecrites par `revendiquer()`, sans requete ni
+        // collecte supplementaire.
+        if (app()->environment('local')) {
+            $reponse['device_label'] = $abonnement->device_label;
+            $reponse['fingerprint'] = mb_substr($abonnement->endpoint_hash, 0, 8);
+        }
+
+        return response()->json($reponse);
     }
 
     /**
@@ -118,11 +156,26 @@ class PushSubscriptionController extends Controller
     public function show(Request $request): JsonResponse
     {
         $endpoint = (string) $request->query('endpoint', '');
+        $abonne = $endpoint !== '' && $this->magasin->estAbonne($request->user(), $endpoint);
 
-        return response()->json([
+        $reponse = [
             'enabled' => (bool) config('webpush.enabled'),
-            'subscribed' => $endpoint !== '' && $this->magasin->estAbonne($request->user(), $endpoint),
+            'subscribed' => $abonne,
             'device_count' => $this->magasin->appareilsDe($request->user())->count(),
-        ]);
+        ];
+
+        // TASK-1821 — meme regle qu'en `store()` : LOCAL uniquement, et
+        // seulement pour l'abonnement qui correspond a CET endpoint, jamais
+        // une ligne choisie au hasard parmi les appareils du compte.
+        if ($abonne && app()->environment('local')) {
+            $ligne = $this->magasin->trouverParEndpoint($request->user(), $endpoint);
+
+            if ($ligne !== null) {
+                $reponse['device_label'] = $ligne->device_label;
+                $reponse['fingerprint'] = mb_substr($ligne->endpoint_hash, 0, 8);
+            }
+        }
+
+        return response()->json($reponse);
     }
 }

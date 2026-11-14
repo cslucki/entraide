@@ -107,6 +107,14 @@ return [
     'first_run_denied_body' => "Notifications are blocked for {$appName} in your browser. To re-enable them: open the site settings (icon next to the address, or Settings › Notifications), allow notifications, then come back here.",
     'first_run_understood' => "Got it",
 
+    // TASK-1822 — the subscription exists, permission may well be granted,
+    // but it was created with a security key that is no longer in use: the
+    // browser drops the messages without showing anything. NEVER word this
+    // as “enable notifications” — the person believed they were on, and
+    // they were.
+    'first_run_stale_key_body' => "This device was subscribed with a security key that is no longer in use: notifications no longer reach it, even though they look enabled. Reactivating is enough to restore delivery.",
+    'first_run_stale_key_action' => "Reactivate notifications",
+
     /*
      * TASK-1745, recette du 03/11 — les gestes NUMEROTES de la carte de
      * confirmation. Une liste se parcourt du coin de l'oeil ; une phrase

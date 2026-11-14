@@ -36,7 +36,16 @@
  * voir `push-abonnement.js`.
  */
 
-import { abonnementCourant, abonner, confirmer, etatServeur, libelleAppareil, supporte } from './push-abonnement.js';
+import {
+    abonnementCourant,
+    abonner,
+    CLE_DIVERGE,
+    comparerCleVapid,
+    confirmer,
+    etatServeur,
+    libelleAppareil,
+    supporte,
+} from './push-abonnement.js';
 
 const bloc = document.querySelector('[data-push-first-run]');
 
@@ -125,14 +134,32 @@ if (bloc) {
     // permission peut changer sous nos pieds (règle 6).
     const corpsParDefaut = corps ? corps.textContent : '';
     const plusTardParDefaut = plusTardBtn ? plusTardBtn.textContent : '';
+    const accepterParDefaut = accepterBtn ? accepterBtn.textContent : '';
 
-    /** Habille le bloc pour UN état de permission, puis le montre. */
+    /**
+     * Habille le bloc pour UN état, puis le montre.
+     *
+     * TASK-1822 — `cle-perimee` s'ajoute aux états de permission. Ce n'en
+     * est pas un : la permission peut être parfaitement accordée, c'est
+     * l'ABONNEMENT qui est devenu inopérant. Il a donc son propre texte,
+     * et son propre libellé de bouton (« réactiver », pas « activer ») :
+     * dire « activez les notifications » à quelqu'un qui les croyait
+     * actives depuis des semaines ne lui apprendrait rien.
+     */
     const proposer = (etatPermission) => {
         if (corps) {
             corps.textContent =
-                etatPermission === 'granted' ? (bloc.dataset.pushTextGrantedBody || corpsParDefaut)
+                etatPermission === 'cle-perimee' ? (bloc.dataset.pushTextStaleKeyBody || corpsParDefaut)
+                : etatPermission === 'granted' ? (bloc.dataset.pushTextGrantedBody || corpsParDefaut)
                 : etatPermission === 'denied' ? (bloc.dataset.pushTextDeniedBody || corpsParDefaut)
                 : corpsParDefaut;
+        }
+
+        if (accepterBtn) {
+            accepterBtn.textContent =
+                etatPermission === 'cle-perimee'
+                    ? (bloc.dataset.pushTextStaleKeyAction || accepterParDefaut)
+                    : accepterParDefaut;
         }
 
         // `denied` : aucun bouton d'activation — il ne pourrait qu'échouer.
@@ -170,6 +197,39 @@ if (bloc) {
         }
 
         if (abonnement !== null) {
+            /* TASK-1822 — LA CLÉ D'ABORD, avant toute conclusion.
+             *
+             * Ce bloc concluait « déjà abonné » sur la seule foi du serveur,
+             * puis reconfirmait en silence. Or un abonnement créé avec une
+             * clé VAPID qui n'a plus cours survit intact : le navigateur le
+             * rend toujours, et c'est lui qui jettera les messages EN
+             * SILENCE. Les deux issues étaient donc fausses :
+             *
+             *  - « déjà abonné » déclarait opérationnel un appareil qui ne
+             *    recevra jamais rien ;
+             *  - la reconfirmation faisait RÉÉCRIRE `vapid_key_hash` côté
+             *    serveur avec la clé courante (défaut mesuré en T1821), ce
+             *    qui effaçait la seule trace de la divergence et faisait
+             *    passer l'abonnement pour éligible auprès du livreur.
+             *
+             * On ne conclut donc rien, et on ne reconfirme rien, tant que la
+             * clé réelle du navigateur n'a pas été comparée. `inobservable`
+             * n'est PAS une divergence : un navigateur qui n'expose pas sa
+             * clé garde le comportement d'avant, on ne casse pas un
+             * abonnement qui fonctionne peut-être très bien. */
+            if (comparerCleVapid(abonnement, vapid) === CLE_DIVERGE) {
+                // Aucune reconfirmation, aucune déclaration « déjà abonné » :
+                // la seule sortie honnête est un geste VOLONTAIRE. La
+                // proposition revient, avec son propre texte — « réactiver »
+                // plutôt que « activer », parce que la personne croyait de
+                // bonne foi être abonnée. `abonner()` renouvellera
+                // proprement l'abonnement au clic, sans toucher aux autres
+                // appareils de la personne.
+                proposer('cle-perimee');
+
+                return dire('cle-perimee');
+            }
+
             let etat = null;
 
             try {
@@ -185,6 +245,9 @@ if (bloc) {
             // réconciliation T1739 (idempotente côté magasin). C'est le cas
             // « appareil oublié dans le SuperAdmin » de la recette du 03/11 :
             // les notifications repartent sans un seul geste.
+            //
+            // TASK-1822 — ce chemin n'est désormais atteint que si la clé
+            // concorde, ou n'est pas observable.
             if (Notification.permission === 'granted') {
                 try {
                     await confirmer(url, abonnement, libelleAppareil());
