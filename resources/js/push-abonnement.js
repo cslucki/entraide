@@ -74,6 +74,94 @@ export const abonnementCourant = async () => {
     return inscription.pushManager.getSubscription();
 };
 
+/* =====================================================================
+ * TASK-1822 — LA COMPARAISON DE CLÉ VAPID, EN UN SEUL EXEMPLAIRE.
+ *
+ * Elle vivait dans `push-device.js` seulement. `push-first-run.js` — le
+ * chemin du premier lancement de la PWA INSTALLÉE, donc celui des
+ * téléphones réels — reconfirmait sans jamais la poser.
+ *
+ * Conséquence mesurée en T1821 : la reconfirmation silencieuse fait
+ * RÉÉCRIRE `vapid_key_hash` côté serveur avec la clé courante. Un
+ * abonnement créé sous une clé périmée redevenait donc « concordant » aux
+ * yeux du serveur, le livreur le servait, le fournisseur répondait 2xx, et
+ * le navigateur jetait le message EN SILENCE. La garde de T1740 s'effaçait
+ * elle-même.
+ *
+ * Trois réponses, jamais deux : on ne confond pas « je sais qu'elle
+ * diverge » avec « je ne peux pas savoir ».
+ * ===================================================================== */
+
+/** Un `ArrayBuffer` rendu dans la forme base64url des clefs VAPID. */
+const enBase64Url = (tampon) =>
+    btoa(String.fromCharCode(...new Uint8Array(tampon)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+/**
+ * La clé publique RÉELLE de cet abonnement, en base64url — ou `null` quand
+ * le navigateur ne l'expose pas.
+ *
+ * `options.applicationServerKey` est la seule source cryptographique : elle
+ * est figée à la création de l'abonnement et ne change jamais. Le serveur,
+ * lui, ne peut que déclarer la clé qu'il SERT aujourd'hui.
+ */
+export const clePubliqueDe = (abonnement) => {
+    const cle = abonnement?.options?.applicationServerKey;
+
+    return cle ? enBase64Url(cle) : null;
+};
+
+export const CLE_CONCORDE = 'concorde';
+export const CLE_DIVERGE = 'diverge';
+export const CLE_INOBSERVABLE = 'inobservable';
+
+/**
+ * Cet abonnement a-t-il été créé avec la clé que le serveur sert aujourd'hui ?
+ *
+ * `CLE_INOBSERVABLE` quand le navigateur n'expose pas sa clé, ou quand le
+ * serveur n'en annonce aucune. C'est un état À PART ENTIÈRE, pas un repli
+ * sur « concorde » : affirmer une concordance qu'on n'a pas mesurée est
+ * exactement ce qui a permis au défaut de T1821 de passer inaperçu.
+ *
+ * Ce que l'appelant en fait diffère selon le geste :
+ *  - une RECONFIRMATION silencieuse ne doit jamais partir sur `diverge` ;
+ *  - un geste EXPLICITE peut renouveler l'abonnement ;
+ *  - `inobservable` ne justifie ni l'un ni l'autre — on ne casse pas un
+ *    abonnement qui fonctionne peut-être très bien.
+ */
+export const comparerCleVapid = (abonnement, vapid) => {
+    const cleAbonnement = clePubliqueDe(abonnement);
+
+    if (cleAbonnement === null || !vapid) {
+        return CLE_INOBSERVABLE;
+    }
+
+    return cleAbonnement === vapid ? CLE_CONCORDE : CLE_DIVERGE;
+};
+
+/**
+ * Retirer cet abonnement, côté SERVEUR d'abord, puis côté navigateur.
+ *
+ * L'ordre n'est pas indifférent, et c'est la doctrine posée en T1739 : si
+ * l'on commençait par `unsubscribe()`, un échec réseau laisserait une ligne
+ * en base pour un endpoint que le navigateur a déjà oublié — donc un
+ * appareil injoignable qu'on croirait abonné.
+ *
+ * Ne touche QUE cet endpoint : les autres appareils de la personne ne sont
+ * jamais concernés (le serveur filtre par `endpoint_hash` ET `user_id`).
+ */
+export const retirerEtDesabonner = async (url, abonnement) => {
+    await fetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': jeton(), Accept: 'application/json' },
+        body: JSON.stringify({ endpoint: abonnement.endpoint }),
+    });
+
+    await abonnement.unsubscribe();
+};
+
 /**
  * Confirmer au serveur que cet appareil est bien à cette personne.
  *
@@ -118,8 +206,25 @@ export const abonner = async (url, vapid) => {
     }
 
     const inscription = await navigator.serviceWorker.ready;
+    let existant = await inscription.pushManager.getSubscription();
+
+    // TASK-1822 — RENOUVELLEMENT sur geste explicite.
+    //
+    // `abonner()` réutilisait l'abonnement existant tel quel, puis le
+    // confirmait. Sur un abonnement dont la clé a cessé d'avoir cours,
+    // cela ne réparait rien : le navigateur continuait de jeter les
+    // messages, et la confirmation re-stampait le serveur comme si tout
+    // allait bien.
+    //
+    // On ne renouvelle QUE sur divergence MESURÉE. `inobservable` ne
+    // justifie pas de détruire un abonnement qui fonctionne peut-être.
+    if (existant !== null && comparerCleVapid(existant, vapid) === CLE_DIVERGE) {
+        await retirerEtDesabonner(url, existant);
+        existant = null;
+    }
+
     const abonnement =
-        (await inscription.pushManager.getSubscription()) ??
+        existant ??
         (await inscription.pushManager.subscribe({
             // Obligatoire sur Chrome : un push doit toujours produire une
             // notification visible, jamais un traitement muet.

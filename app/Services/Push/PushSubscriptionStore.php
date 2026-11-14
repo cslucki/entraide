@@ -76,11 +76,29 @@ class PushSubscriptionStore
             // jamais recue du client. Elle voyage avec la ligne : un
             // abonnement importe d'un dump de production portera
             // `production`, et le filtre de recette l'ecartera.
+            //
+            // TASK-1822 — ces deux colonnes decrivent la CREATION. Elles ne
+            // figurent donc plus dans les colonnes mises a jour (voir
+            // `$colonnesAMettreAJour` ci-dessous) : elles ne sont ecrites
+            // qu'a l'INSERT. Elles restent ici parce que l'upsert en a
+            // besoin pour la ligne qu'il cree.
             'created_env' => (string) config('app.env'),
             // TASK-1740 — la clef VAPID en vigueur au moment de la
             // revendication. Posee par le serveur, jamais recue du client.
             // C'est elle qui permettra de reconnaitre, plus tard, un
             // abonnement cree avec une clef qui n'a plus cours.
+            //
+            // TASK-1822 — ce que cette empreinte dit EXACTEMENT, et ce
+            // qu'elle ne dit pas : « la clef que le serveur SERVAIT quand
+            // cette ligne a ete creee ». Ce n'est pas une preuve
+            // cryptographique de la clef que le navigateur detient — seul
+            // `options.applicationServerKey`, cote navigateur, l'est, et le
+            // serveur ne le recoit jamais (il ne doit pas : une declaration
+            // du client n'est pas une preuve). C'est une PRESOMPTION forte,
+            // puisque c'est cette clef-la que la page a servie au
+            // navigateur, et elle suffit a reperer un changement de clef
+            // serveur. Le controle cryptographique reel reste cote client
+            // (`comparerCleVapid()`).
             'vapid_key_hash' => PushSubscription::empreinteCleVapid(),
         ];
 
@@ -97,7 +115,38 @@ class PushSubscriptionStore
         // Un `null` entrant veut dire « je n'en sais rien », pas « efface ».
         // On ne confond pas l'absence d'information avec une information
         // d'absence.
-        $colonnesAMettreAJour = ['user_id', 'endpoint', 'p256dh', 'auth', 'last_seen_at', 'updated_at', 'created_env', 'vapid_key_hash'];
+        // TASK-1822 — `created_env` et `vapid_key_hash` SORTENT de cette
+        // liste, et c'est le coeur du correctif.
+        //
+        // Elles y figuraient depuis T1740, ce qui les faisait reecrire a
+        // CHAQUE reconciliation — or la reconciliation tourne a chaque
+        // affichage de l'ecran des reglages et a chaque retour sur
+        // l'application. Deux consequences, mesurees en T1821 :
+        //
+        //  - `created_env` n'etait pas une origine : un abonnement de
+        //    production relu depuis un autre environnement s'y reetiquetait
+        //    seul, et le filtre de recette de T1740 cessait de l'ecarter ;
+        //  - `vapid_key_hash` enregistrait la clef du DERNIER contact. Un
+        //    abonnement cree sous une clef perimee redevenait donc
+        //    « concordant » aux yeux du serveur : le livreur le servait, le
+        //    fournisseur repondait 2xx, et le navigateur jetait le message
+        //    EN SILENCE. La garde de T1740 s'effacait elle-meme.
+        //
+        // Elles decrivent la CREATION : elles ne doivent etre ecrites qu'une
+        // fois, a l'INSERT. Un endpoint qui change produit une NOUVELLE
+        // ligne (l'empreinte porte l'unicite), donc un renouvellement propre
+        // est stampe correctement sans qu'aucune mise a jour soit necessaire.
+        //
+        // Ce qui reste mis a jour l'est pour une raison precise :
+        // `user_id` porte la bascule entre comptes freres (CDC 5.2),
+        // `p256dh`/`auth` peuvent etre renegociees pour un meme endpoint, et
+        // `last_seen_at` est justement ce que la reconciliation vient dire.
+        //
+        // Lignes HISTORIQUES : celles dont le hash a deja ete reecrit avant
+        // ce correctif gardent la valeur qu'elles portent. On ne leur invente
+        // AUCUNE clef d'origine — une valeur reconstituee serait une
+        // affirmation sans mesure, exactement ce que ce correctif combat.
+        $colonnesAMettreAJour = ['user_id', 'endpoint', 'p256dh', 'auth', 'last_seen_at', 'updated_at'];
 
         if ($libelleAppareil !== null) {
             $colonnesAMettreAJour[] = 'device_label';
@@ -126,14 +175,18 @@ class PushSubscriptionStore
         } catch (UniqueConstraintViolationException) {
             // Ceinture : si un moteur rendait l'upsert indisponible, on
             // retombe sur une mise a jour ciblee, qui vise la MEME ligne.
-            // Meme regle sur le libelle que ci-dessus.
+            //
+            // TASK-1822 — cette ceinture est une MISE A JOUR : elle ne doit
+            // donc ecrire que les colonnes que l'upsert met a jour, et pas
+            // une de plus. Elle poussait jusqu'ici tout `$valeurs`,
+            // `created_env` et `vapid_key_hash` compris — une ceinture qui
+            // defait la regle que la bretelle vient de poser n'en est pas
+            // une. Les deux chemins partagent desormais la MEME liste.
+            $misesAJour = array_intersect_key($valeurs, array_flip($colonnesAMettreAJour));
+
             PushSubscription::query()
                 ->where('endpoint_hash', $empreinte)
-                ->update(array_filter(
-                    $valeurs,
-                    static fn (string $colonne): bool => $colonne !== 'device_label' || $libelleAppareil !== null,
-                    ARRAY_FILTER_USE_KEY,
-                ));
+                ->update($misesAJour);
         }
 
         return PushSubscription::query()->where('endpoint_hash', $empreinte)->sole();

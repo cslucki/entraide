@@ -81,6 +81,13 @@
              data-push-text-granted-body="{{ __('pwa.first_run_granted_body') }}"
              data-push-text-denied-body="{{ __('pwa.first_run_denied_body') }}"
              data-push-text-understood="{{ __('pwa.first_run_understood') }}"
+             {{-- TASK-1822 — l'abonnement existe mais sa clé VAPID n'a plus
+                  cours : la permission n'est pas en cause, l'appareil ne
+                  recevra simplement plus rien. On le dit, et on propose un
+                  geste de RÉACTIVATION plutôt qu'une « activation » qui
+                  laisserait croire que rien n'était fait. --}}
+             data-push-text-stale-key-body="{{ __('pwa.first_run_stale_key_body') }}"
+             data-push-text-stale-key-action="{{ __('pwa.first_run_stale_key_action') }}"
              hidden style="display: none"
              class="fixed inset-x-0 bottom-0 z-[60] mx-auto w-full max-w-xl p-3">
             <div class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] p-4 shadow-lg">
