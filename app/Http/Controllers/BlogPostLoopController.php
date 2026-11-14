@@ -8,6 +8,7 @@ use App\Models\LoopMember;
 use App\Services\LoopMessageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class BlogPostLoopController extends Controller
 {
@@ -42,6 +43,25 @@ class BlogPostLoopController extends Controller
         }
 
         $post->loops()->attach($loop->id);
+
+        // TASK-1826 — partager un Article DEJA publie est le second des deux
+        // chemins qui doivent annoncer une carte dans ChatLoop (le premier
+        // est la transition brouillon -> publie, constatee par
+        // `BlogPostObserver`). Aucun statut ne change ici : sans cet appel,
+        // partager un Article publie resterait muet. La methode est
+        // idempotente — aucun risque de double annonce si l'Observer a deja
+        // ecrit la sienne par un autre chemin pour cette meme paire.
+        if ($post->statusIsPublished()) {
+            try {
+                app(LoopMessageService::class)->sendArticlePublishedMessage($loop, $request->user(), $post);
+            } catch (\Throwable $e) {
+                Log::warning('TASK-1826 : annonce de partage impossible dans la Boucle', [
+                    'blog_post_id' => $post->id,
+                    'loop_id' => $loop->id,
+                    'erreur' => $e->getMessage(),
+                ]);
+            }
+        }
 
         $orgSlug = request()->route('organization');
         $loopUrl = $orgSlug

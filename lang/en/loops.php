@@ -40,6 +40,16 @@ return [
     'chat_dossier_file_deposited' => ':name has just added the file « :file » to the Loop.',
     'chat_dossier_files_deposited' => ':name has just added :count files to the Loop.',
     'chat_dossier_open_card' => 'Open',
+    // TASK-1826 — premium Dossier File card (single upload, direct link).
+    'chat_dossier_file_open' => 'Open file',
+    // TASK-1826 — premium Article card.
+    'chat_article_published' => ':name published the article « :title » in the Loop.',
+    'chat_article_badge' => 'Article',
+    'chat_article_unavailable' => 'This article is no longer available.',
+    // TASK-1826 — premium Roadmap Action card.
+    'chat_roadmap_action_created' => ':name created an action: « :title »',
+    'chat_roadmap_open' => 'View action',
+    'chat_roadmap_unavailable' => 'This action is no longer available.',
     // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.
     'composer_file_uploading_many' => 'Uploading :count files…',
     // TASK-1772 — la seconde phase : les octets sont partis, le serveur valide,

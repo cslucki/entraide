@@ -301,15 +301,44 @@
                              Sondage : un reperage dans la conversation, pas une
                              prise de parole. Le bouton ouvre la Card, la ou le
                              fichier se trouve vraiment — le message ne le porte
-                             pas, il l'annonce. --}}
+                             pas, il l'annonce.
+
+                             TASK-1826 — enrichie quand `file_ids` est present
+                             (messages posterieurs a cette TASK) : les fichiers
+                             sont relus EN DIRECT (type, taille, Dossier), et un
+                             DEPOT UNIQUE encore accessible ouvre le fichier
+                             REEL par sa route autorisee, au lieu du seul
+                             panneau. Un message ANTERIEUR (sans `file_ids`), ou
+                             dont le fichier a disparu depuis, degrade
+                             silencieusement vers l'ancien rendu — jamais de
+                             lien mort. --}}
+                        @php
+                            $dfMeta = $msg->metadata ?? [];
+                            $dfIds = $dfMeta['file_ids'] ?? [];
+                            $dfResolved = collect($dfIds)->map(fn ($id) => $projectedDossierFiles->get($id))->filter()->values();
+                            $dfSingle = $dfResolved->count() === 1 ? $dfResolved->first() : null;
+                            $dfSingleUrl = $dfSingle ? ($projectedDossierFileUrls[$dfSingle->id] ?? null) : null;
+                        @endphp
                         <div data-dossier-file-event class="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 dark:border-emerald-800/50 dark:bg-emerald-900/20">
                             <svg class="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
-                            <span class="min-w-0 flex-1 text-xs leading-5 text-emerald-900 dark:text-emerald-100">{{ $msg->body }}</span>
-                            <button type="button"
-                                    x-on:click="$dispatch('bp-open-loop-card', { card: 'core.dossiers' })"
-                                    class="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-700">
-                                {{ __('loops.chat_dossier_open_card') }}
-                            </button>
+                            <span class="min-w-0 flex-1 text-xs leading-5 text-emerald-900 dark:text-emerald-100">
+                                {{ $msg->body }}
+                                @if($dfSingle)
+                                    <span class="block text-[11px] text-emerald-700/80 dark:text-emerald-300/80">{{ $dfSingle->typeLisible() }} · {{ $dfSingle->tailleLisible() }}@if($dfSingle->dossier) · {{ $dfSingle->dossier->name }}@endif</span>
+                                @endif
+                            </span>
+                            @if($dfSingleUrl)
+                                <a href="{{ $dfSingleUrl }}"
+                                   class="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-700">
+                                    {{ __('loops.chat_dossier_file_open') }}
+                                </a>
+                            @else
+                                <button type="button"
+                                        x-on:click="$dispatch('bp-open-loop-card', { card: 'core.dossiers' })"
+                                        class="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-700">
+                                    {{ __('loops.chat_dossier_open_card') }}
+                                </button>
+                            @endif
                             <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
                         </div>
                     @elseif($msg->type === 'poll_event')
@@ -326,6 +355,96 @@
                                 {{ __('polls.chat_open_card') }}
                             </button>
                             <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                        </div>
+                    @elseif($msg->type === 'roadmap_action')
+                        {{-- TASK-1826 — une action de Roadmap creee. Meme
+                             forme discrete que l'Evenement et le Sondage : un
+                             reperage, pas une prise de parole. Le statut, le
+                             responsable et l'echeance sont relus EN DIRECT
+                             ($projectedRoadmapItems) — jamais figes au moment
+                             de la creation. Le bouton ouvre la fiche detail
+                             precise dans la Card Roadmap, pas seulement la
+                             Card elle-meme. --}}
+                        @php
+                            $rmMeta = $msg->metadata ?? [];
+                            $rmItem = $projectedRoadmapItems->get($rmMeta['roadmap_item_id'] ?? null);
+                        @endphp
+                        <div class="flex flex-wrap items-center gap-2 rounded-xl border border-teal-200 bg-teal-50/70 px-3 py-2 dark:border-teal-800/50 dark:bg-teal-900/20">
+                            <svg class="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            @if($rmItem)
+                                <span class="min-w-0 flex-1 text-xs leading-5 text-teal-900 dark:text-teal-100">
+                                    {{ $msg->body }}
+                                    <span class="block text-[11px] text-teal-700/80 dark:text-teal-300/80">
+                                        <span class="font-semibold">{{ __('loops.roadmap_status_'.$rmItem->status) }}</span>
+                                        @if($rmItem->assignees->isNotEmpty())
+                                            · {{ $rmItem->assignees->pluck('name')->join(', ') }}
+                                        @endif
+                                        @if($rmItem->due_at)
+                                            · {{ $rmItem->due_at->isoFormat('D MMM') }}
+                                        @endif
+                                    </span>
+                                </span>
+                                <button type="button"
+                                        x-on:click="$dispatch('bp-open-loop-card', { card: 'core.roadmap' }); Livewire.dispatch('open-roadmap-detail', { id: '{{ $rmItem->id }}' })"
+                                        class="shrink-0 rounded-lg bg-teal-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-teal-700">
+                                    {{ __('loops.chat_roadmap_open') }}
+                                </button>
+                            @else
+                                <span class="min-w-0 flex-1 text-xs leading-5 text-teal-900/60 dark:text-teal-100/60">{{ __('loops.chat_roadmap_unavailable') }}</span>
+                                <button type="button"
+                                        x-on:click="$dispatch('bp-open-loop-card', { card: 'core.roadmap' })"
+                                        class="shrink-0 rounded-lg bg-teal-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-teal-700">
+                                    {{ __('loops.chat_roadmap_open') }}
+                                </button>
+                            @endif
+                            <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                        </div>
+                    @elseif($msg->type === 'blog_post')
+                        {{-- TASK-1826 — un Article publie ou partage dans la
+                             Boucle. Carte PREMIUM (meme famille que la
+                             demande d'aide ci-dessous : bloc, pas simple
+                             ligne), parce que le mandat demande titre, resume,
+                             couverture, auteur et date — une ligne discrete ne
+                             les porterait pas lisiblement. L'Article est relu
+                             EN DIRECT ($projectedArticles) : depublie,
+                             supprime ou hors tenant depuis l'annonce, il
+                             degrade sans jamais fuiter son titre ou son
+                             resume. --}}
+                        @php
+                            $bpMeta = $msg->metadata ?? [];
+                            $bpPost = $projectedArticles->get($bpMeta['blog_post_id'] ?? null);
+                            $bpUrl = $bpPost ? ($projectedArticleUrls[$bpPost->id] ?? null) : null;
+                        @endphp
+                        <div class="rounded-xl border border-rose-200 bg-rose-50/70 p-3 dark:border-rose-800/50 dark:bg-rose-900/20">
+                            <div class="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-rose-700 dark:text-rose-300">
+                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z"/></svg>
+                                {{ __('loops.chat_article_badge') }}
+                            </div>
+                            @if($bpPost && $bpUrl)
+                                <a href="{{ $bpUrl }}" class="group flex gap-3">
+                                    <span class="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-rose-100 dark:bg-rose-900/40">
+                                        @if($bpPost->image_url)
+                                            <img src="{{ $bpPost->image_url }}" alt="" class="h-full w-full object-cover">
+                                        @else
+                                            <span class="flex h-full w-full items-center justify-center text-rose-400 dark:text-rose-600">
+                                                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z"/></svg>
+                                            </span>
+                                        @endif
+                                    </span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block truncate text-sm font-bold text-gray-900 group-hover:underline dark:text-gray-100">{{ $bpPost->title }}</span>
+                                        @if($bpPost->summary)
+                                            <span class="mt-0.5 line-clamp-2 block text-xs leading-5 text-gray-600 dark:text-gray-300">{{ Str::limit(strip_tags($bpPost->summary), 140) }}</span>
+                                        @endif
+                                        <span class="mt-1 block text-[11px] text-gray-400 dark:text-gray-500">
+                                            {{ $bpPost->user?->publicDisplayName() ?? __('messages.member') }} · {{ $bpPost->published_at?->diffForHumans() }}
+                                        </span>
+                                    </span>
+                                </a>
+                            @else
+                                <p class="text-sm font-medium text-gray-600 dark:text-gray-300">{{ __('loops.chat_article_unavailable') }}</p>
+                            @endif
+                            <span class="mt-1.5 block text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
                         </div>
                     @elseif($msg->type === 'help_request')
                         @php

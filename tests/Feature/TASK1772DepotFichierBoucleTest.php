@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
@@ -71,13 +72,24 @@ class TASK1772DepotFichierBoucleTest extends TestCase
         ]);
     }
 
+    private function fichier(array $surcharges = []): DossierFile
+    {
+        return DossierFile::factory()->create(array_merge([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $this->dossier->id,
+            'uploaded_by' => $this->membre->id,
+        ], $surcharges));
+    }
+
     /** Un fichier depose : une ligne dans le fil, qui NOMME le deposant et le fichier. */
     public function test_un_depot_laisse_un_message_nomme_dans_la_boucle(): void
     {
+        $fichier = $this->fichier(['original_name' => 'devis.pdf', 'display_name' => 'devis.pdf']);
+
         $message = app(LoopMessageService::class)->sendDossierFileMessage(
             $this->loop,
             $this->membre,
-            ['devis.pdf'],
+            collect([$fichier]),
         );
 
         $this->assertNotNull($message);
@@ -85,27 +97,31 @@ class TASK1772DepotFichierBoucleTest extends TestCase
         $this->assertStringContainsString($this->membre->publicDisplayName(), $message->body);
         $this->assertStringContainsString('devis.pdf', $message->body);
         $this->assertSame(['devis.pdf'], $message->metadata['files']);
+        $this->assertSame([$fichier->id], $message->metadata['file_ids']);
         $this->assertSame(1, $message->metadata['count']);
     }
 
     /** Dix pieces d'un coup : UNE ligne, pas dix. */
     public function test_un_depot_multiple_ne_produit_qu_une_ligne(): void
     {
-        $noms = array_map(fn ($i) => "piece-{$i}.pdf", range(1, 12));
+        $fichiers = collect(range(1, 12))->map(
+            fn ($i) => $this->fichier(['original_name' => "piece-{$i}.pdf", 'display_name' => "piece-{$i}.pdf"])
+        );
 
-        $message = app(LoopMessageService::class)->sendDossierFileMessage($this->loop, $this->membre, $noms);
+        $message = app(LoopMessageService::class)->sendDossierFileMessage($this->loop, $this->membre, $fichiers);
 
         $this->assertSame(1, LoopMessage::where('loop_id', $this->loop->id)->where('type', 'dossier_file')->count());
         $this->assertStringContainsString('12', $message->body);
-        // `metadata` n'est pas un journal : les noms sont bornes.
+        // `metadata` n'est pas un journal : les noms ET les identifiants sont bornes.
         $this->assertCount(10, $message->metadata['files']);
+        $this->assertCount(10, $message->metadata['file_ids']);
         $this->assertSame(12, $message->metadata['count']);
     }
 
     /** Rien a annoncer : aucun message. */
     public function test_un_depot_sans_nom_n_annonce_rien(): void
     {
-        $this->assertNull(app(LoopMessageService::class)->sendDossierFileMessage($this->loop, $this->membre, ['', '  ']));
+        $this->assertNull(app(LoopMessageService::class)->sendDossierFileMessage($this->loop, $this->membre, collect()));
         $this->assertSame(0, LoopMessage::where('loop_id', $this->loop->id)->count());
     }
 

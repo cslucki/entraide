@@ -8,11 +8,14 @@ use App\Models\LoopRoadmapItem;
 use App\Models\LoopRoadmapItemMessage;
 use App\Models\LoopRoadmapLabel;
 use App\Models\User;
+use App\Services\LoopMessageService;
 use App\Services\LoopService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class LoopRoadmapCard extends Component
@@ -115,10 +118,34 @@ class LoopRoadmapCard extends Component
             $item->assignees()->sync($assignees);
         }
 
+        // TASK-1826 — UNE SEULE annonce, a la creation : jamais a l'edition
+        // ni au changement de statut, qui ne rappellent jamais cette methode.
+        // Un echec d'annonce ne doit pas faire perdre l'action creee.
+        try {
+            app(LoopMessageService::class)->sendRoadmapActionMessage($this->loop, auth()->user(), $item);
+        } catch (\Throwable $e) {
+            Log::warning('TASK-1826 : annonce de creation d\'action impossible dans la Boucle', [
+                'roadmap_item_id' => $item->id,
+                'loop_id' => $this->loop->id,
+                'erreur' => $e->getMessage(),
+            ]);
+        }
+
         $this->reset(['newTitle', 'newAssignees', 'newDueAt']);
         $this->newStatus = LoopRoadmapItem::STATUS_TODO;
 
         $this->dispatch('roadmap-action-created');
+    }
+
+    /**
+     * TASK-1826 — ouvrir la fiche detail DEPUIS la carte premium de ChatLoop.
+     * Simple relais vers `openDetail()`, qui gere deja l'absence/l'inaccessibilite
+     * de l'action (no-op silencieux) : aucune garde nouvelle n'est necessaire ici.
+     */
+    #[On('open-roadmap-detail')]
+    public function openDetailFromChat(string $id): void
+    {
+        $this->openDetail($id);
     }
 
     /**
