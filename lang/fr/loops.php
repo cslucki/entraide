@@ -43,6 +43,16 @@ return [
     'chat_dossier_file_deposited' => ':name vient de déposer le fichier « :file » dans la Boucle.',
     'chat_dossier_files_deposited' => ':name vient de déposer :count fichiers dans la Boucle.',
     'chat_dossier_open_card' => 'Voir',
+    // TASK-1826 — carte premium Fichier Dossier (depot unique, lien direct).
+    'chat_dossier_file_open' => 'Ouvrir le fichier',
+    // TASK-1826 — carte premium Article.
+    'chat_article_published' => ':name a publié l\'article « :title » dans la Boucle.',
+    'chat_article_badge' => 'Article',
+    'chat_article_unavailable' => 'Cet article n\'est plus disponible.',
+    // TASK-1826 — carte premium Action Roadmap.
+    'chat_roadmap_action_created' => ':name a créé une action : « :title »',
+    'chat_roadmap_open' => 'Voir l\'action',
+    'chat_roadmap_unavailable' => 'Cette action n\'est plus disponible.',
     // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.
     'composer_file_uploading_many' => ':count fichiers en cours d\'envoi…',
     // TASK-1772 — la seconde phase : les octets sont partis, le serveur valide,

@@ -3,16 +3,20 @@
 namespace App\Services;
 
 use App\Events\LoopMessageCreated;
+use App\Models\BlogPost;
+use App\Models\DossierFile;
 use App\Models\Loop;
 use App\Models\LoopEvent;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\LoopPoll;
+use App\Models\LoopRoadmapItem;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmitter;
 use App\Support\Notifications\NotificationPreferenceResolver;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Ramsey\Uuid\Uuid;
 
@@ -648,21 +652,32 @@ class LoopMessageService
      * sache d'ou il vient. Ce n'est pas une prise de parole : le message est
      * de type `dossier_file`, rendu comme un reperage, pas comme une bulle.
      *
-     * @param  list<string>  $noms  les noms des fichiers deposes, dans l'ordre
+     * TASK-1826 — etendue pour porter les IDENTIFIANTS des fichiers, pas
+     * seulement leurs noms : la carte premium resout desormais les fichiers
+     * EN DIRECT (type, taille, Dossier, lien d'ouverture reel), au lieu de
+     * rendre un snapshot de noms fige. Les messages ANTERIEURS a cette TASK
+     * n'ont que `files` (noms) dans leur metadata — `file_ids` y est absent,
+     * et la vue degrade vers l'ancien rendu (voir `loop-chat.blade.php`).
+     * Aucune migration necessaire : `metadata` est un JSON libre, y ajouter
+     * une cle ne casse aucune ligne existante.
+     *
+     * @param  Collection<int, DossierFile>  $files  les fichiers deposes, dans l'ordre
      */
-    public function sendDossierFileMessage(Loop $loop, User $sender, array $noms): ?LoopMessage
+    public function sendDossierFileMessage(Loop $loop, User $sender, Collection $files): ?LoopMessage
     {
-        $noms = array_values(array_filter(array_map('trim', $noms), fn ($n) => $n !== ''));
+        $files = $files->values();
 
-        if ($noms === []) {
+        if ($files->isEmpty()) {
             return null;
         }
+
+        $noms = $files->map(fn (DossierFile $f) => $f->nomLisible())->all();
 
         $body = count($noms) === 1
             ? __('loops.chat_dossier_file_deposited', ['name' => $sender->publicDisplayName(), 'file' => $noms[0]])
             : __('loops.chat_dossier_files_deposited', ['name' => $sender->publicDisplayName(), 'count' => count($noms)]);
 
-        return DB::transaction(function () use ($loop, $sender, $noms, $body) {
+        return DB::transaction(function () use ($loop, $sender, $files, $noms, $body) {
             $message = LoopMessage::create([
                 'loop_id' => $loop->id,
                 'sender_id' => $sender->id,
@@ -673,7 +688,114 @@ class LoopMessageService
                     // Les noms sont bornes : une Card peut recevoir cinquante
                     // pieces d'un coup, et `metadata` n'est pas un journal.
                     'files' => array_slice($noms, 0, 10),
-                    'count' => count($noms),
+                    'file_ids' => $files->take(10)->pluck('id')->all(),
+                    'count' => $files->count(),
+                ],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+
+            return $message;
+        });
+    }
+
+    /**
+     * TASK-1826 — Annoncer dans ChatLoop qu'un Article a ete publie ou
+     * partage dans cette Boucle.
+     *
+     * Meme motif que les projections precedentes (sendPollEventMessage,
+     * sendEventMessage, sendDossierFileMessage) : un `type` propre, un
+     * `metadata` MINIMAL (seul l'identifiant canonique), et c'est la VUE qui
+     * relit l'Article EN DIRECT — jamais un snapshot fige, pour ne jamais
+     * afficher un titre ou un resume perime ou devenu inaccessible.
+     *
+     * IDEMPOTENT, et c'est l'essentiel de cette methode : un Article peut
+     * etre publie puis partage dans une Boucle, ou partage (en brouillon)
+     * puis publie ensuite — deux chemins d'appel distincts
+     * (`BlogPostObserver`, `BlogPostLoopController`, `DossierArticleController`)
+     * peuvent chacun y mener. Un seul message doit en sortir : on verifie
+     * qu'aucun message de ce type ne porte deja cet `blog_post_id` pour CETTE
+     * Boucle avant d'en creer un second.
+     *
+     * Pas de `assertCanSend()` : le droit en jeu est celui de PUBLIER ou de
+     * PARTAGER l'Article, deja tranche par `BlogPostPolicy`/`DossierPolicy`
+     * avant d'arriver ici — meme raisonnement que `sendDossierFileMessage()`.
+     */
+    public function sendArticlePublishedMessage(Loop $loop, User $sender, BlogPost $post): ?LoopMessage
+    {
+        $dejaAnnonce = LoopMessage::where('loop_id', $loop->id)
+            ->where('type', 'blog_post')
+            ->where('metadata->blog_post_id', $post->id)
+            ->exists();
+
+        if ($dejaAnnonce) {
+            return null;
+        }
+
+        $body = __('loops.chat_article_published', ['name' => $sender->publicDisplayName(), 'title' => $post->title]);
+
+        return DB::transaction(function () use ($loop, $sender, $post, $body) {
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => $sender->id,
+                'body' => $body,
+                'type' => 'blog_post',
+                'metadata' => [
+                    'event' => 'published',
+                    'blog_post_id' => $post->id,
+                ],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+
+            return $message;
+        });
+    }
+
+    /**
+     * TASK-1826 — Annoncer dans ChatLoop qu'une action de Roadmap a ete
+     * creee. UNE SEULE fois, a la creation : jamais a l'edition, jamais a un
+     * changement de statut — meme doctrine que `sendPollEventMessage()`
+     * (« deux evenements seulement, jamais un par vote »).
+     *
+     * `metadata` ne porte QUE l'identifiant : le statut affiche dans la carte
+     * doit toujours etre celui, ACTUEL, de l'action — jamais celui fige au
+     * moment de la creation. C'est la vue (`LoopChat::projectedRoadmapItems()`)
+     * qui relit l'action en direct a chaque rendu.
+     *
+     * IDEMPOTENT comme les deux methodes precedentes. Pas de `assertCanSend()` :
+     * `LoopRoadmapCard::createAction()` a deja verifie `canWrite()`, qui
+     * autorise aussi un administrateur non membre actif — meme raisonnement
+     * que `sendDossierFileMessage()`.
+     */
+    public function sendRoadmapActionMessage(Loop $loop, User $sender, LoopRoadmapItem $item): ?LoopMessage
+    {
+        $dejaAnnonce = LoopMessage::where('loop_id', $loop->id)
+            ->where('type', 'roadmap_action')
+            ->where('metadata->roadmap_item_id', $item->id)
+            ->exists();
+
+        if ($dejaAnnonce) {
+            return null;
+        }
+
+        $body = __('loops.chat_roadmap_action_created', ['name' => $sender->publicDisplayName(), 'title' => $item->title]);
+
+        return DB::transaction(function () use ($loop, $sender, $item, $body) {
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => $sender->id,
+                'body' => $body,
+                'type' => 'roadmap_action',
+                'metadata' => [
+                    'event' => 'created',
+                    'roadmap_item_id' => $item->id,
                 ],
                 'organization_id' => $loop->organization_id,
             ]);

@@ -4,10 +4,13 @@ namespace App\Livewire;
 
 use App\Ai\MultiAssistant\AssistantOutcome;
 use App\Ai\ProviderResolver;
+use App\Models\BlogPost;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
+use App\Models\LoopRoadmapItem;
 use App\Models\Reaction;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\ServiceRequest;
@@ -3234,6 +3237,18 @@ class LoopChat extends Component
         $pendingAiTurns = $this->pendingAiTurns($messages);
         $projectedRequests = $this->projectedRequests($messages);
         $projectedRequestUrls = $this->projectedRequestUrls($projectedRequests);
+        // TASK-1826 — memes idiome et raison que $projectedRequests juste
+        // au-dessus : les trois nouvelles cartes (Article, Fichier(s)
+        // Dossier, Action Roadmap) relisent leur objet metier EN DIRECT a
+        // CHAQUE rendu, jamais un snapshot fige dans `metadata`. Un objet
+        // supprime, retire ou devenu inaccessible depuis l'annonce ne doit
+        // JAMAIS laisser fuiter son titre, son resume ou son nom — la meme
+        // garantie que `projection_unavailable` pour les demandes d'aide.
+        $projectedArticles = $this->projectedArticles($messages);
+        $projectedArticleUrls = $this->projectedArticleUrls($projectedArticles);
+        $projectedDossierFiles = $this->projectedDossierFiles($messages);
+        $projectedDossierFileUrls = $this->projectedDossierFileUrls($projectedDossierFiles);
+        $projectedRoadmapItems = $this->projectedRoadmapItems($messages);
         $aiRoute = $this->aiRoute();
         $canDeleteMessages = $this->canDeleteDisplayedMessages();
         // La vue retire le compositeur plutot que d'accepter un message que
@@ -3290,6 +3305,11 @@ class LoopChat extends Component
             'pendingAiTurns',
             'projectedRequests',
             'projectedRequestUrls',
+            'projectedArticles',
+            'projectedArticleUrls',
+            'projectedDossierFiles',
+            'projectedDossierFileUrls',
+            'projectedRoadmapItems',
             'aiRoute',
             'canDeleteMessages',
             'canCapitalize',
@@ -3339,6 +3359,137 @@ class LoopChat extends Component
 
             return [$request->id => $url];
         })->all();
+    }
+
+    /**
+     * TASK-1826 — les Articles annonces (`type='blog_post'`), relus EN
+     * DIRECT. Meme discipline que `projectedRequests()` : une requete, dans
+     * le tenant de la Boucle, et `scopePublished()` — l'autorite UNIQUE deja
+     * posee par `BlogPost` — rejette silencieusement tout Article depublie,
+     * supprime ou devenu hors tenant depuis l'annonce.
+     *
+     * @return Collection<string, BlogPost>
+     */
+    private function projectedArticles(Collection $messages): Collection
+    {
+        $ids = $messages
+            ->filter(fn (LoopMessage $message) => $message->type === 'blog_post')
+            ->map(fn (LoopMessage $message) => $message->metadata['blog_post_id'] ?? null)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return BlogPost::published()
+            ->where('organization_id', $this->loop->organization_id)
+            ->whereIn('id', $ids)
+            ->with('user')
+            ->get()
+            ->keyBy('id');
+    }
+
+    /** @param  Collection<string, BlogPost>  $articles */
+    private function projectedArticleUrls(Collection $articles): array
+    {
+        $slug = $this->loop->organization?->slug;
+
+        return $articles->mapWithKeys(function (BlogPost $post) use ($slug): array {
+            $url = $slug && Route::has('organization.blog.show')
+                ? route('organization.blog.show', ['organization' => $slug, 'post' => $post])
+                : route('blog.show', $post);
+
+            return [$post->id => $url];
+        })->all();
+    }
+
+    /**
+     * TASK-1826 — les fichiers Dossiers annonces (`type='dossier_file'`), s'ils
+     * portent `file_ids` (messages posterieurs a cette TASK — voir
+     * `LoopMessageService::sendDossierFileMessage()`). Un message ANTERIEUR,
+     * qui n'a que des noms, ne resout jamais rien ici : la vue degrade vers
+     * son ancien rendu, par simple absence de cle.
+     *
+     * La policy est revalidee ICI, par personne CONNECTEE, a CHAQUE rendu :
+     * un fichier supprime ou dont l'acces a ete retire depuis l'annonce ne
+     * doit fuiter ni son nom, ni son type, ni sa taille.
+     *
+     * @return Collection<string, DossierFile>
+     */
+    private function projectedDossierFiles(Collection $messages): Collection
+    {
+        $ids = $messages
+            ->filter(fn (LoopMessage $message) => $message->type === 'dossier_file')
+            ->flatMap(fn (LoopMessage $message) => $message->metadata['file_ids'] ?? [])
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        $user = auth()->user();
+
+        return DossierFile::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->whereIn('id', $ids)
+            ->with('dossier')
+            ->get()
+            ->filter(fn (DossierFile $file) => $user && $user->can('viewFiles', $file))
+            ->keyBy('id');
+    }
+
+    /** @param  Collection<string, DossierFile>  $files */
+    private function projectedDossierFileUrls(Collection $files): array
+    {
+        $slug = $this->loop->organization?->slug;
+
+        return $files->mapWithKeys(function (DossierFile $file) use ($slug): array {
+            if (! $file->dossier_id) {
+                return [$file->id => null];
+            }
+
+            $url = $slug && Route::has('organization.dossiers.files.show')
+                ? route('organization.dossiers.files.show', ['organization' => $slug, 'dossier' => $file->dossier_id, 'file' => $file->id])
+                : null;
+
+            return [$file->id => $url];
+        })->filter()->all();
+    }
+
+    /**
+     * TASK-1826 — les actions de Roadmap annoncees (`type='roadmap_action'`),
+     * relues EN DIRECT : le statut rendu doit TOUJOURS etre celui, ACTUEL, de
+     * l'action — jamais celui fige au moment de l'annonce. Bornee au Dossier
+     * ET a la Boucle courante, et seules les actions NON archivees (soft
+     * delete) resolvent — une action archivee degrade silencieusement, comme
+     * une demande projetee disparue.
+     *
+     * @return Collection<string, LoopRoadmapItem>
+     */
+    private function projectedRoadmapItems(Collection $messages): Collection
+    {
+        $ids = $messages
+            ->filter(fn (LoopMessage $message) => $message->type === 'roadmap_action')
+            ->map(fn (LoopMessage $message) => $message->metadata['roadmap_item_id'] ?? null)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return LoopRoadmapItem::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('loop_id', $this->loop->id)
+            ->whereIn('id', $ids)
+            ->with('assignees')
+            ->get()
+            ->keyBy('id');
     }
 
     private function loadInitialMessages(): void
