@@ -41,8 +41,14 @@ class SendNotificationWebPush implements ShouldQueue
      * Plus genereux que l'email : un envoi Push s'adresse a N appareils, et
      * chacun est un aller-retour vers le fournisseur. Le quota reel est borne
      * par le livreur, pas par ce delai.
+     *
+     * TASK-1829 — plafonne a 90 s, jamais au-dela : la Managed Queue Laravel
+     * Cloud (plan Starter) n'offre QUE du calcul Flex, dont la duree MAXIMALE
+     * d'un job est 90 s (Pro, seul a lever cette borne, est indisponible sur
+     * Starter). `MAX_APPAREILS * TIMEOUT` (10 x 8 s = 80 s dans le livreur)
+     * reste sous ce plafond ; 120 s le depassait deja.
      */
-    public int $timeout = 120;
+    public int $timeout = 90;
 
     public function __construct(public readonly string $notificationId)
     {
@@ -56,6 +62,15 @@ class SendNotificationWebPush implements ShouldQueue
         // la difference. Pose par la methode du trait et non par une propriete
         // redeclaree — `Queueable` definit deja `$afterCommit` sans type.
         $this->afterCommit();
+
+        // TASK-1829 — routage conditionnel vers la Managed Queue Laravel
+        // Cloud. Vide par defaut (voir config/queue.php) : aucun appel ici,
+        // et `QUEUE_CONNECTION` continue seul de gouverner. Ne bascule que
+        // si l'etape 3 (creation reelle de la file, hors de cette TASK) a
+        // explicitement pose `NOTIFICATIONS_MANAGED_QUEUE_CONNECTION`.
+        if ($connexion = config('queue.notifications_managed_queue_connection')) {
+            $this->onConnection($connexion);
+        }
     }
 
     public function handle(NotificationWebPushDeliverer $deliverer): void
