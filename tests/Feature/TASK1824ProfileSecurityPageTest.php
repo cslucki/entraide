@@ -165,7 +165,11 @@ class TASK1824ProfileSecurityPageTest extends TestCase
 
         $suite = $this->actingAs($membre)->get("/org/{$organisation->slug}/profile/secu");
         $suite->assertOk();
-        $suite->assertSee(__('profile.saved'));
+        // TASK-1825 — l'ancien feedback `profile.saved` (texte gris, minuteur JS)
+        // a ete remplace par la confirmation premium de cette TASK. Le marqueur
+        // change, le fait verifie reste le meme : le succes est visible sur
+        // CETTE page apres redirection.
+        $suite->assertSee('data-marqueur="mot-de-passe-modifie"', false);
     }
 
     /**
