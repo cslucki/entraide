@@ -65,27 +65,37 @@ return [
         ],
 
         /*
-        | TASK-1829 — la connexion Laravel Cloud Managed Queue (Starter), SQS
-        | sous le capot. Elle n'est JAMAIS la connexion par defaut : seuls
-        | `SendNotificationEmail` et `SendNotificationWebPush` y basculent,
-        | et seulement si `NOTIFICATIONS_MANAGED_QUEUE_CONNECTION` est posee
-        | (voir leurs docblocks). Sans identifiants AWS, ce bloc reste
-        | parfaitement inoffensif : rien ne le resout tant que rien ne
-        | dispatche explicitement vers `cloud`.
+        | TASK-1829/1830 — la connexion Laravel Cloud Managed Queue
+        | (Starter), SQS sous le capot. Elle n'est JAMAIS la connexion par
+        | defaut : seuls `SendNotificationEmail` et `SendNotificationWebPush`
+        | y basculent, et seulement si `NOTIFICATIONS_MANAGED_QUEUE_CONNECTION`
+        | est posee (voir leurs docblocks).
         |
-        | Les cles reelles (prefixe, nom de file, region) seront celles que
-        | Laravel Cloud injecte a la creation de la file managee — etape
-        | volontairement HORS de cette TASK, a faire avec Cyril au tableau
-        | de bord. Ce bloc ne cree et n'active rien : il ne fait que donner
-        | un NOM a la connexion que l'etape suivante remplira.
+        | TASK-1830 — PLACEHOLDER, verifie contre la doc officielle
+        | (laravel.com/cloud/docs/queues) : elle ne documente AUCUN nom de
+        | variable d'environnement pour les identifiants de cette connexion.
+        | « Laravel Cloud automatically sets queue credentials and
+        | connection » — l'injection est entierement geree par la
+        | plateforme, HORS de ce fichier. Les cles `key`/`secret`/`prefix`
+        | ci-dessous ne sont donc PAS celles que Cloud remplira : elles
+        | existent uniquement pour que le NOM de connexion `cloud` resolve
+        | sans erreur en local (ou rien ne le sollicite jamais, le drapeau
+        | etant vide par defaut). Ne JAMAIS supposer que Cloud lit
+        | `CLOUD_QUEUE_PREFIX`/`CLOUD_QUEUE_NAME`/`CLOUD_QUEUE_SUFFIX` — ces
+        | trois noms n'existent dans AUCUNE doc Laravel Cloud.
+        |
+        | `queue`, lui, est REEL de notre cote : c'est le nom de file que
+        | NOUS choisissons pour les deux jobs de notification (voir
+        | `notifications_managed_queue_name` plus bas) — Cyril devra creer
+        | la Managed Queue sous ce MEME nom au tableau de bord (etape
+        | volontairement HORS de cette TASK).
         */
         'cloud' => [
             'driver' => 'sqs',
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
-            'prefix' => env('CLOUD_QUEUE_PREFIX', env('SQS_PREFIX', 'https://sqs.us-east-1.amazonaws.com/your-account-id')),
-            'queue' => env('CLOUD_QUEUE_NAME', 'notifications'),
-            'suffix' => env('CLOUD_QUEUE_SUFFIX'),
+            'prefix' => env('SQS_PREFIX', 'https://sqs.us-east-1.amazonaws.com/your-account-id'),
+            'queue' => env('NOTIFICATIONS_MANAGED_QUEUE_NAME', 'notifications'),
             'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
             'after_commit' => false,
         ],
@@ -154,17 +164,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Managed Queue — routage conditionnel des notifications (TASK-1829)
+    | Managed Queue — routage conditionnel des notifications (TASK-1829/1830)
     |--------------------------------------------------------------------------
     |
-    | Vide par defaut : `SendNotificationEmail` et `SendNotificationWebPush`
-    | n'appellent alors AUCUN `onConnection()`, et `QUEUE_CONNECTION` continue
-    | seul de gouverner — comportement actuel INCHANGE, en local comme en
-    | PROD aujourd'hui. Ne poser `cloud` ici qu'APRES la creation reelle de la
-    | file managee (etape hors de cette TASK, avec Cyril au tableau de bord).
+    | `notifications_managed_queue_connection` vide par defaut :
+    | `SendNotificationEmail` et `SendNotificationWebPush` n'appellent alors
+    | AUCUN `onConnection()`/`onQueue()` different de leur file DEDIEE
+    | actuelle, et `QUEUE_CONNECTION` continue seul de gouverner —
+    | comportement INCHANGE, en local comme en PROD aujourd'hui. Ne poser
+    | `cloud` ici qu'APRES la creation reelle de la file managee (etape
+    | hors de cette TASK, avec Cyril au tableau de bord).
+    |
+    | `notifications_managed_queue_name` — TASK-1830 : le plan Starter de
+    | la Managed Queue n'offre qu'UNE SEULE file par environnement ("Each
+    | managed queue handles one queue name", doc officielle Laravel
+    | Cloud). Les deux jobs, qui portent chacun leur propre nom de file
+    | DEDIE sous `database`/`sync`, doivent donc converger sur ce nom
+    | PARTAGE des que la connexion bascule sur `cloud` — jamais avant. La
+    | Managed Queue devra etre creee sous ce MEME nom au tableau de bord.
     |
     */
 
     'notifications_managed_queue_connection' => env('NOTIFICATIONS_MANAGED_QUEUE_CONNECTION'),
+
+    'notifications_managed_queue_name' => env('NOTIFICATIONS_MANAGED_QUEUE_NAME', 'notifications'),
 
 ];

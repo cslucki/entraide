@@ -86,4 +86,14 @@ Schedule::command('guest:purge-expired')->daily();
 // aucun rejeu (`prendre()` n'accepte que `pending`). Toutes les 5 minutes,
 // largement au-dessus du plus long `$timeout` de job (90 s), pour qu'une
 // livraison legitimement en cours ne soit jamais touchee.
-Schedule::command('notifications:recover-stale-deliveries')->everyFiveMinutes()->withoutOverlapping(5);
+//
+// TASK-1830 — `onOneServer()` : doc Laravel Cloud, verifiee, « make sure
+// you are using Laravel's onOneServer method when scheduling your tasks.
+// Otherwise, your tasks will run on every replica ». Sans effet aujourd'hui
+// (1 seule instance, PROD mesuree T1778) mais sans lui, le jour ou l'App
+// cluster passe a plusieurs replicas, CHAQUE replica relancerait la
+// recuperation en parallele — inoffensif pour la donnee (chaque ligne est
+// reverifiee sous verrou dans sa propre transaction) mais redondant.
+// `withoutOverlapping` seul ne couvre que les executions successives sur
+// LA MEME instance, pas les executions simultanees entre instances.
+Schedule::command('notifications:recover-stale-deliveries')->everyFiveMinutes()->withoutOverlapping(5)->onOneServer();
