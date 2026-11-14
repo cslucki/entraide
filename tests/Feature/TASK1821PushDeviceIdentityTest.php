@@ -52,6 +52,16 @@ class TASK1821PushDeviceIdentityTest extends TestCase
         // différer de VAPID_INCONNUE.
         config(['webpush.vapid.public_key' => 'clef-vapid-de-test-task-1821']);
 
+        // L'INTERRUPTEUR, et pas seulement la clef. Mesuré à l'échec CI, pas
+        // en local : `webpush.enabled` vaut `false` par défaut
+        // (`env('WEB_PUSH_ENABLED', false)`), et `PushSubscriptionController`
+        // rend alors 404 sur les trois routes. Mon `.env` local porte
+        // `WEB_PUSH_ENABLED=true`, qui masquait l'absence de fixture — la
+        // MÊME erreur que T1820 avait faite avec la clef VAPID, répétée sur
+        // le drapeau voisin. `TASK1739PushRoutesTest` le pose explicitement
+        // depuis toujours : c'était le modèle à suivre.
+        config()->set('webpush.enabled', true);
+
         $this->organization = Organization::factory()->create(['is_active' => true]);
     }
 
