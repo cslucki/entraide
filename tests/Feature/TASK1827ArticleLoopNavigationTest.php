@@ -123,7 +123,8 @@ class TASK1827ArticleLoopNavigationTest extends TestCase
         $this->actingAs($viewer)
             ->get(route('organization.blog.index', ['organization' => $this->organization->slug]))
             ->assertOk()
-            ->assertSee(__('loops.articles_badge'), false);
+            ->assertSee('data-marqueur="badge-boucle"', false)
+            ->assertSee($loop->name, false);
     }
 
     // -----------------------------------------------------------------

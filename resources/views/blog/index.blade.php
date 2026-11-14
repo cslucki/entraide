@@ -83,30 +83,21 @@
                         </a>
                         @endif
                         <div class="p-5">
-                            {{-- TASK-1827 — badge « Article de boucle », aux cotes
-                                 des categories editoriales, jamais a leur place.
+                            {{-- TASK-1827 — categories editoriales seules ici : le
+                                 badge Boucle a demenage sur la ligne de l'auteur
+                                 (retour Cyril du 14/11), voir plus bas.
                                  `$linkedLoopsByPost` est deja resolue GROUPEE
                                  (anti N+1) et deja vide pour tout visiteur sans
                                  chemin existant vers le catalogue des Boucles. --}}
                             @php $postLoops = ($linkedLoopsByPost ?? collect())->get($post->id); @endphp
+                            @if($post->category)
                             <div class="flex flex-wrap gap-1 mb-2">
-                                @if($post->category)
                                 <a href="{{ $_blogRoute('category', ['slug' => $post->category->slug]) }}"
                                    class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition">
                                     {{ $post->category->displayName('blog') }}
                                 </a>
-                                @endif
-                                @if($postLoops && $postLoops->isNotEmpty())
-                                <span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
-                                      title="{{ $postLoops->pluck('name')->join(', ') }}">
-                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                    {{ __('loops.articles_badge') }}
-                                    @if($postLoops->count() === 1)
-                                        · {{ $postLoops->first()->name }}
-                                    @endif
-                                </span>
-                                @endif
                             </div>
+                            @endif
 
                             <h2 class="font-semibold text-gray-900 dark:text-gray-100 mb-2 leading-snug">
                                 <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400 transition">
@@ -129,6 +120,13 @@
                                     @else
                                         <span class="truncate text-gray-400 dark:text-gray-500">{{ $post->user?->publicDisplayName() ?? __('profile.deactivated_user') }}</span>
                                     @endif
+                                    @if($postLoops && $postLoops->isNotEmpty())
+                                    <span data-marqueur="badge-boucle" class="inline-flex items-center gap-1 min-w-0 shrink-0 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300"
+                                          title="{{ $postLoops->pluck('name')->join(', ') }}">
+                                        <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="{{ config('navigation_icons.loops') }}"/></svg>
+                                        <span class="truncate">{{ $postLoops->pluck('name')->join(', ') }}</span>
+                                    </span>
+                                    @endif
                                 </div>
                                 <div class="flex items-center gap-3 flex-shrink-0">
                                         @auth
@@ -136,17 +134,11 @@
                                         <a href="{{ $_blogRoute('edit', ['post' => $post]) }}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{{ __('blog.edit_post') }}</a>
                                         @endif
                                         @endauth
-                                        @if($post->read_time)
-                                        <span class="hidden sm:inline">{{ __('blog.read_time', ['count' => $post->read_time]) }}</span>
-                                        @endif
                                     </div>
                                 </div>
-                                @php $showStats = $post->read_time || $post->likes_count > 0 || $post->comments_count > 0; @endphp
+                                @php $showStats = $post->likes_count > 0 || $post->comments_count > 0; @endphp
                                 @if($showStats)
                                 <div class="flex items-center gap-3">
-                                    @if($post->read_time)
-                                    <span class="sm:hidden">{{ __('blog.read_time', ['count' => $post->read_time]) }}</span>
-                                    @endif
                                     @if($post->likes_count > 0)
                                     <span class="flex items-center gap-1">
                                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
