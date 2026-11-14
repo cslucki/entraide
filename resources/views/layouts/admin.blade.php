@@ -170,9 +170,23 @@
                         // notifications elles-memes (voir/basculer leur lecture/
                         // supprimer). Les trois vivaient chacun dans une section qui
                         // ne parlait pas d'eux en premier.
+                        //
+                        // TASK-1823 (demande Cyril) — ils sont CINQ. L'inspecteur
+                        // des notifications emises et la console « Appareils Push »
+                        // etaient restes dans « Outils », alors qu'ils ne parlent
+                        // que de notifications — et que T1823 vient precisement de
+                        // les relier l'un a l'autre par deux liens croises. Un
+                        // rail qui separe deux ecrans qu'on parcourt ensemble fait
+                        // perdre le fil a chaque aller-retour.
+                        //
+                        // L'ordre suit le CHEMIN du diagnostic : envoyer un essai,
+                        // compter les livraisons, lire une ligne precise, inspecter
+                        // les appareils, puis gerer les notifications elles-memes.
                         $notifsItems = [
                             ['route' => 'admin.outils.test-notification', 'label' => __('admin.push_test_title_page'), 'icon' => 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z'],
                             ['route' => 'admin.notifications-cockpit', 'label' => __('admin.notifications_cockpit'), 'icon' => 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'],
+                            ['route' => 'admin.outils.notifications', 'label' => __('admin.notif_inspector_title'), 'icon' => 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
+                            ['route' => 'admin.outils.my-push-devices', 'label' => __('admin.all_push_devices_nav_label'), 'icon' => 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z'],
                             ['route' => 'admin.notifications', 'label' => __('admin.notifications_admin_nav'), 'icon' => 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'],
                         ];
 
@@ -227,17 +241,13 @@
                             //
                             // TASK-1788 correctif 11 (demande Cyril) — l'outil de
                             // TEST Web Push (qui vivait ici, voisin de celui-ci) a
-                            // rejoint la section « Notifications » avec le cockpit :
-                            // les trois ecrans qui parlent de notifications au
-                            // SuperAdmin tiennent desormais ensemble.
-                            ['route' => 'admin.outils.notifications', 'label' => __('admin.notif_inspector_title'), 'icon' => 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
-                            // TASK-1820 puis TASK-1821 — inspecter et retirer
-                            // individuellement les abonnements Push. T1820 le
-                            // bornait au compte connecte ; T1821 l'ouvre a TOUS
-                            // les comptes, avec une garde durcie (voir le filtre
-                            // plus bas). Distinct de l'outil de test ci-dessus,
-                            // qui cible un compte de recette pour un ENVOI.
-                            ['route' => 'admin.outils.my-push-devices', 'label' => __('admin.all_push_devices_nav_label'), 'icon' => 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z'],
+                            // rejoint la section « Notifications » avec le cockpit.
+                            //
+                            // TASK-1823 (demande Cyril) — l'INSPECTEUR et la
+                            // console « Appareils Push » l'y rejoignent a leur
+                            // tour. Ils ne sont plus ici : le regroupement amorce
+                            // par T1788 est acheve, et les cinq ecrans qui parlent
+                            // de notifications tiennent enfin ensemble.
                             // TASK-1646 — Scenario Manager. Entree canonique du produit
                             // (CDC 5.1 : « Outils -> Scenarios », et non « IA »).
                             ['route' => 'admin.outils.scenarios', 'label' => __('admin.scenario_manager.nav_label'), 'icon' => 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'],
@@ -256,8 +266,13 @@
                         // que la garde serveur (`superadmin-push-all-devices`)
                         // refuserait, plutot que de mener a un 403.
                         if (! \Illuminate\Support\Facades\Gate::allows('superadmin-push-all-devices')) {
-                            $outilsItems = array_values(array_filter(
-                                $outilsItems,
+                            // TASK-1823 — l'entree a migre vers `$notifsItems` :
+                            // le filtre la suit. Laisse sur `$outilsItems`, il
+                            // serait devenu un no-op SILENCIEUX, et le lien
+                            // serait reapparu pour des comptes que la garde
+                            // refuse.
+                            $notifsItems = array_values(array_filter(
+                                $notifsItems,
                                 static fn (array $item): bool => $item['route'] !== 'admin.outils.my-push-devices',
                             ));
                         }

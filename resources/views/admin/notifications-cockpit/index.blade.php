@@ -118,6 +118,30 @@
                 « Issue inconnue » n'est pas un échec : le transport a levé après avoir reçu le message,
                 et personne ne sait s'il est parti. Le rejouer risquerait un double envoi.
             </p>
+
+            {{-- ── TASK-1823 — les incidents, CANAL PAR CANAL ──────────────
+                 Le compteur ci-dessus additionne tous les canaux. Quand les
+                 notifications Push se sont mises à échouer, il affichait donc
+                 un nombre qui ne disait pas OÙ chercher.
+
+                 Toujours des ENTIERS, jamais un destinataire : ce cockpit
+                 compte, il ne lit pas (doctrine T1380, intacte). --}}
+            @if(!empty($livraisons['_par_canal']))
+                <dl data-cockpit-incidents-par-canal class="mt-4 grid grid-cols-1 gap-x-6 gap-y-1 border-t border-gray-200 pt-3 text-sm sm:grid-cols-2 dark:border-gray-700">
+                    @foreach($livraisons['_par_canal'] as $canal => $mesures)
+                        <div class="flex justify-between gap-3">
+                            <dt class="font-mono text-xs text-gray-500 dark:text-gray-400">{{ $canal }}</dt>
+                            <dd data-canal-incidents="{{ $canal }}"
+                                class="font-semibold {{ $mesures['incidents'] > 0 ? 'text-red-700 dark:text-red-300' : 'text-gray-900 dark:text-gray-100' }}">
+                                {{ $mesures['incidents'] }} / {{ $mesures['total'] }}
+                            </dd>
+                        </div>
+                    @endforeach
+                </dl>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    Incidents (échec ou issue inconnue) rapportés au total des livraisons de ce canal.
+                </p>
+            @endif
         </div>
 
         {{-- ── Les diagnostics ──────────────────────────────────────────── --}}
