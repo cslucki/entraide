@@ -67,6 +67,15 @@ class RecoverStaleNotificationDeliveries extends Command
         if ($this->option('dry-run')) {
             $this->info("{$candidats->count()} livraison(s) orpheline(s) (dry-run, rien ecrit).");
 
+            // TASK-1834 — le Scheduler Laravel Cloud n'ecrit AUCUNE trace
+            // quand cette commande ne trouve rien a faire (cas courant) :
+            // sans cette ligne, impossible de distinguer « le cron ne
+            // tourne pas » de « rien a recuperer ». Compteurs seuls, aucun
+            // identifiant de livraison ni de destinataire.
+            Log::info('TASK-1834 notifications:recover-stale-deliveries execute (dry-run).', [
+                'candidats' => $candidats->count(),
+            ]);
+
             return self::SUCCESS;
         }
 
@@ -105,6 +114,14 @@ class RecoverStaleNotificationDeliveries extends Command
         }
 
         $this->info("{$recuperees}/{$candidats->count()} livraison(s) orpheline(s) recuperee(s) en ambiguous.");
+
+        // TASK-1834 — meme motif que ci-dessus : une preuve d'execution,
+        // meme a zero, pour un passage planifie qui ne laisse sinon aucune
+        // trace. Compteurs seuls.
+        Log::info('TASK-1834 notifications:recover-stale-deliveries execute.', [
+            'candidats' => $candidats->count(),
+            'recuperees' => $recuperees,
+        ]);
 
         return self::SUCCESS;
     }
