@@ -1,4 +1,4 @@
-<div class="flex flex-col h-full" wire:poll.3000ms x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)">
+<div class="flex flex-col h-full" wire:poll.3000ms="pollThread" x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)">
     <!-- Status banner -->
     @php
         $isDirectConversation = $transaction->isDirectConversation();
