@@ -120,10 +120,43 @@ class SearchControllerTest extends TestCase
             ->assertViewHas('requests', fn ($v) => $v->count() === 2);
     }
 
+    /**
+     * TASK-1838 — `organization_id`, `bio` et `city` sont desormais EXPLICITES
+     * sur les deux comptes, et c'est un correctif de flake, pas un style.
+     *
+     * ## Ce qui rougissait, et pourquoi c'etait invisible en isolation
+     *
+     * `fake()->city()` (locale `fr_FR`, voir `.env` / `APP_FAKER_LOCALE`) compose
+     * ses noms de ville a partir de la liste `lastName()` du provider —
+     * laquelle contient litteralement `Jean` ET `Petitjean`. Un tirage
+     * malchanceux pour « Marie Curie » pouvait donc lui donner une ville
+     * matchant `city LIKE '%Jean%'` au meme titre que « Jean Dupont », portant
+     * le compte a 2 et faisant echouer `count() === 1` — sans aucun rapport
+     * avec le code teste. Reproduit de façon deterministe sur 3 runs CI
+     * consecutifs (TASK-1837 a decale ce fichier du shard 1 au shard 2 en
+     * ajoutant un fichier de test, exposant ce tirage), jamais en isolation
+     * locale ou le tirage differait.
+     *
+     * `organization_id` est aussi explicite : la valeur par defaut de
+     * `UserFactory` (`DefaultOrganizationResolver::resolve()`) fait reposer ces
+     * deux comptes sur une resolution d'environnement, quand ce test a deja
+     * une Organization nommee (`$this->testOrganization`, posee par
+     * `WithTestOrganization`) a laquelle les rattacher sans ambiguite.
+     */
     public function test_search_finds_users_by_name(): void
     {
-        User::factory()->create(['name' => 'Jean Dupont']);
-        User::factory()->create(['name' => 'Marie Curie']);
+        User::factory()->create([
+            'name' => 'Jean Dupont',
+            'organization_id' => $this->testOrganization->id,
+            'bio' => 'Bio neutre pour ce test.',
+            'city' => 'Villeneutre',
+        ]);
+        User::factory()->create([
+            'name' => 'Marie Curie',
+            'organization_id' => $this->testOrganization->id,
+            'bio' => 'Bio neutre pour ce test.',
+            'city' => 'Villeneutre',
+        ]);
 
         $response = $this->get(route('search', ['q' => 'Jean']));
 
