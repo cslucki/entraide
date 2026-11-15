@@ -12,6 +12,7 @@ use App\Services\UrlPreviewService;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Files\TypesDeFichiersAcceptes;
 use App\Support\ScopedReadCache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -113,6 +114,30 @@ class MessageThread extends Component
      */
     public bool $fluxDejaPartage = false;
 
+    /**
+     * TASK-1836 — meme principe que `LoopChat::$pollFingerprint`/
+     * `$lastFullRenderAt` (TASK-1835) : deux scalaires, jamais une collection
+     * de messages. `#[Locked]` : aucune des deux n'est liee a un `wire:model`
+     * ni censee etre modifiable depuis le JS de la page.
+     */
+    #[Locked]
+    public ?string $pollFingerprint = null;
+
+    #[Locked]
+    public int $lastFullRenderAt = 0;
+
+    /**
+     * TASK-1836 — filet de securite generique pour les conversations
+     * DIRECTES uniquement (voir {@see pollThread()}) : un echange d'entraide
+     * avec elements metier externes (evaluation, Flux, progression) n'entre
+     * jamais dans cette soupape, il rend integralement a CHAQUE cycle.
+     *
+     * 15s (mandat MASTER du 15/11) : role unique, maintenir le badge global
+     * (`unreadCount`, qui reflete TOUTES les conversations de l'utilisateur,
+     * pas seulement celle-ci) a jour meme si rien ne change ICI.
+     */
+    private const INTERVALLE_SOUPAPE_SECONDES = 15;
+
     public function mount(Transaction $transaction): void
     {
         $this->transactionId = $transaction->id;
@@ -122,6 +147,13 @@ class MessageThread extends Component
         $this->markRead();
         $this->celebrerSiCEstDu($transaction);
         $this->fluxDejaPartage = $this->dejaDansLeFlux($transaction);
+
+        // TASK-1836 — amorce l'empreinte au rendu initial (deja complet),
+        // seulement pour les conversations DIRECTES (voir `pollThread()`).
+        if ($transaction->isDirectConversation()) {
+            $this->pollFingerprint = $this->computePollFingerprint($transaction);
+            $this->lastFullRenderAt = now()->getTimestamp();
+        }
     }
 
     /**
@@ -735,6 +767,120 @@ class MessageThread extends Component
             ->where(fn ($q) => $q->whereNull('sender_id')->orWhere('sender_id', '!=', $userId))
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
+    }
+
+    /**
+     * TASK-1836 — action appelee par `wire:poll.3000ms`, a la place du
+     * defaut implicite qui rendait integralement a CHAQUE cycle (mesure :
+     * 8 requetes dont UNE ecriture `UPDATE messages SET read_at = ...`
+     * systematique, meme a 0 ligne affectee — conversation deja lue).
+     *
+     * `transaction(fresh: true)` est appelee ICI, INCONDITIONNELLEMENT, EN
+     * PREMIER — avant toute decision de court-circuit. C'est la MEME
+     * instruction qui s'execute deja a chaque `render()` aujourd'hui :
+     * revalide l'appartenance (`buyer_id`/`seller_id`) et le tenant
+     * (`ensureOrganizationContext()`), et leve un 404 si l'un des deux a
+     * change. Une revocation d'acces n'est donc JAMAIS masquee par
+     * `skipRender()` — le meme principe que `LoopChat::pollChat()` /
+     * `booted()` (TASK-1835/T1772), applique ici a l'identique.
+     *
+     * Les echanges d'entraide avec elements metier externes (evaluation,
+     * Flux, progression — tout ce qui n'est PAS `isDirectConversation()`)
+     * restent VOLONTAIREMENT hors de l'optimisation : rendu complet a chaque
+     * cycle, comme avant cette TASK. Perimetre du mandat MASTER du 15/11.
+     */
+    public function pollThread(): void
+    {
+        $transaction = $this->transaction(fresh: true);
+
+        if (! $transaction->isDirectConversation()) {
+            return;
+        }
+
+        $empreinte = $this->computePollFingerprint($transaction);
+        $soupapeEcoulee = (now()->getTimestamp() - $this->lastFullRenderAt) >= self::INTERVALLE_SOUPAPE_SECONDES;
+
+        if ($empreinte === $this->pollFingerprint && ! $soupapeEcoulee) {
+            $this->skipRender();
+
+            return;
+        }
+
+        $this->pollFingerprint = $empreinte;
+        $this->lastFullRenderAt = now()->getTimestamp();
+    }
+
+    /**
+     * TASK-1836 — une empreinte bon marche, pour les conversations DIRECTES
+     * uniquement (voir {@see pollThread()}) :
+     *
+     * - messages : un hachage du contenu REEL (`body`/`pinned_at`/
+     *   `edited_at`) de TOUS les messages de la transaction — PAS seulement
+     *   `COUNT`/`MAX(updated_at)` : `Message` n'a pas d'`updated_at`
+     *   (`$timestamps = false`), et un comptage de transition seul ne
+     *   distingue pas une DEUXIEME edition d'un message de la premiere dans
+     *   la meme seconde (meme piege que T1835, verifie identique ici : le
+     *   format de date par defaut d'Eloquent tronque les microsecondes avant
+     *   l'ecriture). `pinned_at` dans le hachage couvre aussi l'epinglage, le
+     *   depinglage ET le changement de message epingle en un seul signal.
+     *
+     *   Mesure AVANT implementation (demandee par le mandat) : ce hachage
+     *   charge l'historique ENTIER de la conversation (pas de fenetre, cette
+     *   surface n'en a pas) — 0.5-0.8 ms a 15 messages, ~2-3 ms a 100,
+     *   ~18-23 ms a 1000 (SQLite et PostgreSQL reels). A comparer au cout
+     *   d'un rendu COMPLET a cette meme echelle, mesure dans la meme
+     *   campagne : ~250 ms a 100 messages, **~2,7 a 3,4 SECONDES** a 1000 —
+     *   le hachage reste donc de 100x a 150x moins cher que le rendu qu'il
+     *   evite, a toutes les echelles mesurees. Pas de fenetre bornee
+     *   introduite : la mesure ne le justifie pas, et en ajouter une
+     *   complexifierait sans necessite demontree.
+     * - reactions : un hachage de (id:reaction_type) de toutes les reactions
+     *   portees par les messages de cette transaction — PAS `COUNT` +
+     *   `MAX(id)` seuls (technique T1835) : ceux-ci ne distinguent pas un
+     *   CHANGEMENT DE TYPE sur une reaction existante (meme ligne, meme id,
+     *   `reaction_type` modifie par `toggleReaction()`), explicitement
+     *   demande par le mandat. Le couple (id, type) couvre ajout, suppression
+     *   (DELETE dur, aucune colonne de suppression douce) ET changement de
+     *   type, sans dependre d'un horodatage.
+     * - statut de la transaction : deja charge par `transaction(fresh: true)`
+     *   ci-dessus, cout marginal NUL — couvre les etats reellement affiches
+     *   qui changent la vue (ex. composeur masque si l'echange est clos).
+     */
+    private function computePollFingerprint(Transaction $transaction): string
+    {
+        // Revue MASTER du 15/11 (durcissement avant fusion) — `transaction_id`
+        // ET `organization_id` filtres EXPLICITEMENT, jamais l'un sans
+        // l'autre : meme doctrine que T1835 (`LoopChat::loadedWindowMessages()`),
+        // ici en defense en profondeur plutot qu'en correctif d'une faille
+        // reelle — `transactionId`/`organizationId` sont deja `#[Locked]`
+        // dans ce composant, donc deja non falsifiables depuis le JS de la
+        // page.
+        $empreinteMessages = md5(
+            Message::query()
+                ->where('transaction_id', $transaction->id)
+                ->where('organization_id', $transaction->organization_id)
+                ->orderBy('id')
+                ->get(['id', 'body', 'pinned_at', 'edited_at'])
+                ->map(fn (Message $m) => "{$m->id}:{$m->body}:{$m->pinned_at}:{$m->edited_at}")
+                ->implode('|')
+        );
+
+        $empreinteReactions = md5(
+            DB::table('reactions')
+                ->join('messages', function ($jointure) {
+                    $jointure->on('messages.id', '=', 'reactions.reactionable_id')
+                        ->where('reactions.reactionable_type', Message::class);
+                })
+                ->where('messages.transaction_id', $transaction->id)
+                ->where('messages.organization_id', $transaction->organization_id)
+                ->where('reactions.organization_id', $transaction->organization_id)
+                ->orderBy('reactions.id')
+                ->get(['reactions.id', 'reactions.reaction_type'])
+                ->map(fn ($r) => "{$r->id}:{$r->reaction_type}")
+                ->implode('|')
+        );
+
+        return implode('|', [$empreinteMessages, $empreinteReactions, $transaction->status]);
     }
 
     public function render()
