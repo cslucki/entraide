@@ -434,6 +434,12 @@
                     <input type="hidden" name="_remember_pose" value="1">
                 </div>
 
+                {{-- TASK-1837 — captcha du LOGIN, drapeau SEPARE de celui de
+                     l'inscription : `:actif` passe explicitement
+                     `loginEnabled()`, le composant ne retombe PAS sur
+                     `enabled()` (celui de `/register`). --}}
+                <x-turnstile :actif="app(\App\Services\Security\TurnstileVerifier::class)->loginEnabled()" />
+
                 <!-- Bouton connexion -->
                 {{-- Verrouille lui aussi : un bouton actif au-dessus de champs
                      grises promettrait une action impossible. --}}
