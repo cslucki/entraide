@@ -163,15 +163,36 @@ class TASK1802AgendaCalendarViewTest extends TestCase
         $this->assertStringNotContainsString('space-y-3 md:hidden', $html);
     }
 
+    /**
+     * TASK-1831 — `event()` nait a `now()->addDay()`, et la grille semaine
+     * demarre le LUNDI (`startOfWeek(MONDAY)`). Un « aujourd'hui » REEL qui
+     * tombe un samedi ou un dimanche pousse ce lendemain dans la semaine
+     * SUIVANTE, hors de la grille rendue par defaut : `selectedEventId`
+     * n'est alors jamais injecte, et l'assertion echoue sans aucun rapport
+     * avec le code teste. Flake constate le 15/11/2026 (dimanche),
+     * reproduit a l'identique sur `main` (1.822) — aucune regression de
+     * code, seulement l'absence d'une date de reference figee ICI. Mercredi
+     * choisi pour que `+1 jour` (jeudi) reste TOUJOURS dans la semaine
+     * affichee, quel que soit le jour reel de l'execution.
+     */
     public function test_clicking_a_calendar_event_opens_its_detail_popup(): void
     {
-        $event = $this->event(['title' => 'Atelier pop-up calendrier']);
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-01-14 10:00:00'));
 
-        $html = $this->agenda(['view' => 'calendar']);
+        try {
+            $event = $this->event(['title' => 'Atelier pop-up calendrier']);
 
-        $this->assertStringContainsString("selectedEventId = '{$event->id}'", $html);
-        $this->assertStringContainsString("selectedEventId === '{$event->id}'", $html);
-        $this->assertStringContainsString('x-teleport="body"', $html);
+            $html = $this->agenda(['view' => 'calendar']);
+
+            $this->assertStringContainsString("selectedEventId = '{$event->id}'", $html);
+            $this->assertStringContainsString("selectedEventId === '{$event->id}'", $html);
+            $this->assertStringContainsString('x-teleport="body"', $html);
+        } finally {
+            // Reinitialisation de l'horloge : les AUTRES tests de ce fichier
+            // reposent sur `now()` REEL (voir docblock de classe) et ne
+            // doivent jamais heriter de cette date figee.
+            CarbonImmutable::setTestNow();
+        }
     }
 
     public function test_calendar_navigation_preserves_the_active_filters(): void
