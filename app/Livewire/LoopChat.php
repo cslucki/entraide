@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Ai\MultiAssistant\AssistantOutcome;
 use App\Ai\ProviderResolver;
 use App\Models\BlogPost;
+use App\Models\DerivedKnowledgeNote;
 use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\Loop;
@@ -39,6 +40,7 @@ use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -227,6 +229,27 @@ class LoopChat extends Component
     public array $loadedMessageIds = [];
 
     public bool $hasOlderMessages = false;
+
+    /**
+     * TASK-1835 — derniere empreinte connue (voir {@see computePollFingerprint()})
+     * et horodatage Unix du dernier rendu COMPLET. Deux scalaires, pas une
+     * collection : le meme principe que `$loadedMessageIds` ci-dessus, qui
+     * voyage deja dans le snapshot Livewire sans jamais y stocker de messages.
+     */
+    public ?string $pollFingerprint = null;
+
+    public int $lastFullRenderAt = 0;
+
+    /**
+     * TASK-1835 — les cartes projetees (ServiceRequest/Article/Dossier/
+     * Feuille de route, T1826) sont volontairement HORS de l'empreinte : elles
+     * referencent des objets EXTERNES a la Boucle, et une empreinte qui les
+     * couvrirait couterait presque autant qu'un rendu complet (il faudrait
+     * d'abord re-deriver, a chaque cycle, quels identifiants externes sont
+     * references par la fenetre chargee). Cette soupape borne plutot leur
+     * obsolescence a cette duree au lieu de la laisser illimitee.
+     */
+    private const INTERVALLE_SOUPAPE_SECONDES = 30;
 
     /**
      * TASK-1310 : etat du formulaire « Ajouter au Dossier ». `null` = ferme.
@@ -461,6 +484,14 @@ class LoopChat extends Component
         $this->refreshMembership();
         $this->loadInitialMessages();
 
+        // TASK-1835 — amorce l'empreinte au rendu initial (deja complet) :
+        // le premier `pollChat()` compare contre un etat connu plutot que
+        // contre `null`, qui aurait force un rendu complet supplementaire.
+        if ($this->isMember) {
+            $this->pollFingerprint = $this->computePollFingerprint();
+            $this->lastFullRenderAt = now()->getTimestamp();
+        }
+
         // TASK-1772 — calculee ICI, et pas dans `render()` : `wire:poll.3s`
         // la recalculerait toutes les trois secondes, par spectateur, pour
         // une liste qui ne change presque jamais.
@@ -511,6 +542,112 @@ class LoopChat extends Component
                 ->where('user_id', $user->id)
                 ->where('status', 'active')
                 ->exists();
+    }
+
+    /**
+     * TASK-1835 — action appelee par `wire:poll.3s`, a la place du defaut
+     * implicite qui rendait integralement a CHAQUE cycle (mesure : 17
+     * requetes SQL, 75-97 ms, ~570 Ko de HTML, pour une conversation qui n'a
+     * le plus souvent RIEN change entre deux cycles de trois secondes).
+     *
+     * Compare une empreinte bon marche (voir {@see computePollFingerprint()})
+     * a celle du dernier rendu complet. Inchangee, et la soupape periodique
+     * pas encore ecoulee : `skipRender()` — Livewire renvoie alors le meme
+     * HTML sans jamais appeler `render()` (verifie dans
+     * `HandleComponents::render()`), donc aucune des requetes de `render()`
+     * ne s'execute. Changee (ou soupape ecoulee) : on laisse tomber dans un
+     * rendu normal, en memorisant la nouvelle empreinte et l'horodatage.
+     */
+    public function pollChat(): void
+    {
+        if (! $this->isMember) {
+            return;
+        }
+
+        $empreinte = $this->computePollFingerprint();
+        $soupapeEcoulee = (now()->getTimestamp() - $this->lastFullRenderAt) >= self::INTERVALLE_SOUPAPE_SECONDES;
+
+        if ($empreinte === $this->pollFingerprint && ! $soupapeEcoulee) {
+            $this->skipRender();
+
+            return;
+        }
+
+        $this->pollFingerprint = $empreinte;
+        $this->lastFullRenderAt = now()->getTimestamp();
+    }
+
+    /**
+     * TASK-1835 — une empreinte bon marche de tout ce qui, dans le perimetre
+     * de CETTE Boucle, justifierait un rendu complet :
+     *
+     * - messages : `COUNT`, `MAX(updated_at)`, et un comptage PAR TRANSITION
+     *   (epingle/edite/supprime). Creation, edition, epinglage ET
+     *   suppression passent tous par `->save()`/`->update()`
+     *   ({@see LoopMessage::pin()}, {@see LoopMessageService}) — y compris la
+     *   suppression, qui ne retire jamais la ligne (pas de `SoftDeletes`,
+     *   seulement un `deleted_at` pose) — mais `updated_at` seul suffit mal :
+     *   une base au grain de la seconde rend une edition indiscernable d'une
+     *   creation tombee dans la MEME seconde. Les comptages par transition
+     *   (`total_epingles`, etc.) restent sensibles quelle que soit cette
+     *   precision, dans les deux sens (epingler ET depingler).
+     * - reactions : `COUNT` + `MAX(id)`. La table n'a AUCUNE colonne de
+     *   suppression douce (verifie dans sa migration) : un retrait est un
+     *   DELETE dur, que `MAX` seul raterait sans le `COUNT` qui l'accompagne.
+     * - adhesion : statut/role/`updated_at` de L'UTILISATEUR COURANT
+     *   uniquement (retrait, depart, promotion) — jamais toute la liste des
+     *   membres, que `render()` n'utilise pas pour decider QUOI afficher ici.
+     * - memoire : `MAX(updated_at)` sur les notes derivees de cette Boucle
+     *   (`source_loop_id`), qui couvre le panneau de digest.
+     *
+     * Ne couvre PAS les cartes projetees externes : voir la soupape
+     * periodique sur `self::INTERVALLE_SOUPAPE_SECONDES`.
+     */
+    private function computePollFingerprint(): string
+    {
+        // Des comptages de TRANSITION (epingle/edite/supprime), pas seulement
+        // `MAX(updated_at)` : une base au grain de la seconde (SQLite comme
+        // PostgreSQL par defaut ici) peut rendre une edition et la creation
+        // du message indiscernables si les deux tombent dans la meme
+        // seconde — mesure directement par ce test. Un comptage qui bascule
+        // (0 edite -> 1 edite, 1 epingle -> 0 epingle) le reste quelle que
+        // soit la precision de l'horodatage.
+        $messages = LoopMessage::query()
+            ->where('loop_id', $this->loop->id)
+            ->selectRaw(
+                'COUNT(*) as total, '
+                .'MAX(updated_at) as dernier, '
+                .'COUNT(CASE WHEN pinned_at IS NOT NULL THEN 1 END) as total_epingles, '
+                .'COUNT(CASE WHEN deleted_at IS NOT NULL THEN 1 END) as total_supprimes, '
+                .'COUNT(CASE WHEN edited_at IS NOT NULL THEN 1 END) as total_edites'
+            )
+            ->first();
+
+        $reactions = DB::table('reactions')
+            ->join('loop_messages', function ($jointure) {
+                $jointure->on('loop_messages.id', '=', 'reactions.reactionable_id')
+                    ->where('reactions.reactionable_type', LoopMessage::class);
+            })
+            ->where('loop_messages.loop_id', $this->loop->id)
+            ->selectRaw('COUNT(*) as total, MAX(reactions.id) as dernier')
+            ->first();
+
+        $membre = LoopMember::query()
+            ->where('loop_id', $this->loop->id)
+            ->where('user_id', auth()->id())
+            ->select('status', 'role', 'updated_at')
+            ->first();
+
+        $memoire = DerivedKnowledgeNote::query()
+            ->where('source_loop_id', $this->loop->id)
+            ->max('updated_at');
+
+        return implode('|', [
+            $messages->total.':'.$messages->dernier.':'.$messages->total_epingles.':'.$messages->total_supprimes.':'.$messages->total_edites,
+            $reactions->total.':'.$reactions->dernier,
+            ($membre?->status).':'.($membre?->role).':'.($membre?->updated_at),
+            (string) $memoire,
+        ]);
     }
 
     public function aiRoute(): string
