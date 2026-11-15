@@ -848,9 +848,17 @@ class MessageThread extends Component
      */
     private function computePollFingerprint(Transaction $transaction): string
     {
+        // Revue MASTER du 15/11 (durcissement avant fusion) — `transaction_id`
+        // ET `organization_id` filtres EXPLICITEMENT, jamais l'un sans
+        // l'autre : meme doctrine que T1835 (`LoopChat::loadedWindowMessages()`),
+        // ici en defense en profondeur plutot qu'en correctif d'une faille
+        // reelle — `transactionId`/`organizationId` sont deja `#[Locked]`
+        // dans ce composant, donc deja non falsifiables depuis le JS de la
+        // page.
         $empreinteMessages = md5(
             Message::query()
                 ->where('transaction_id', $transaction->id)
+                ->where('organization_id', $transaction->organization_id)
                 ->orderBy('id')
                 ->get(['id', 'body', 'pinned_at', 'edited_at'])
                 ->map(fn (Message $m) => "{$m->id}:{$m->body}:{$m->pinned_at}:{$m->edited_at}")
@@ -864,6 +872,8 @@ class MessageThread extends Component
                         ->where('reactions.reactionable_type', Message::class);
                 })
                 ->where('messages.transaction_id', $transaction->id)
+                ->where('messages.organization_id', $transaction->organization_id)
+                ->where('reactions.organization_id', $transaction->organization_id)
                 ->orderBy('reactions.id')
                 ->get(['reactions.id', 'reactions.reaction_type'])
                 ->map(fn ($r) => "{$r->id}:{$r->reaction_type}")

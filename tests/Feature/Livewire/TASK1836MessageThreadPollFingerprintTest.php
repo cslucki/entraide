@@ -470,4 +470,76 @@ class TASK1836MessageThreadPollFingerprintTest extends TestCase
         $this->expectException(CannotUpdateLockedPropertyException::class);
         $composant->set('lastFullRenderAt', 999999999);
     }
+
+    /**
+     * Revue MASTER du 15/11 (durcissement avant fusion) —
+     * `computePollFingerprint()` doit filtrer EXPLICITEMENT par
+     * `organization_id`, jamais seulement par `transaction_id`. Simule une
+     * ligne `messages` corrompue/mal attribuee : MEME `transaction_id`, mais
+     * un `organization_id` ETRANGER — scenario d'un bug de donnees ou d'une
+     * fuite inter-tenant ailleurs dans le code, pas une action legitime de
+     * `sendMessage()` (qui pose toujours le bon `organization_id`).
+     */
+    public function test_un_message_hors_organization_ne_contribue_pas_a_l_empreinte(): void
+    {
+        Message::create([
+            'transaction_id' => $this->transaction->id,
+            'organization_id' => $this->organization->id,
+            'sender_id' => $this->buyer->id,
+            'body' => 'Message local ordinaire.',
+            'type' => 'user',
+            'read_at' => now(),
+        ]);
+
+        $composant = Livewire::actingAs($this->buyer)->test(MessageThread::class, ['transaction' => $this->transaction]);
+        $empreinteInitiale = $composant->get('pollFingerprint');
+
+        $autreOrganisation = Organization::factory()->create();
+
+        // MEME transaction_id, organization_id ETRANGER.
+        Message::create([
+            'transaction_id' => $this->transaction->id,
+            'organization_id' => $autreOrganisation->id,
+            'sender_id' => $this->buyer->id,
+            'body' => 'CONTENU-HORS-ORGANIZATION',
+            'type' => 'user',
+        ]);
+
+        $composant->call('pollThread');
+
+        // L'empreinte ne bouge pas : la ligne hors Organization est exclue de
+        // son calcul, donc le cycle reste un court-circuit — pas un rendu
+        // complet qui l'aurait affichee.
+        $this->assertSame($empreinteInitiale, $composant->get('pollFingerprint'));
+    }
+
+    public function test_une_reaction_hors_organization_ne_contribue_pas_a_l_empreinte(): void
+    {
+        $message = Message::create([
+            'transaction_id' => $this->transaction->id,
+            'organization_id' => $this->organization->id,
+            'sender_id' => $this->buyer->id,
+            'body' => 'Message reagi.',
+            'type' => 'user',
+            'read_at' => now(),
+        ]);
+
+        $composant = Livewire::actingAs($this->buyer)->test(MessageThread::class, ['transaction' => $this->transaction]);
+        $empreinteInitiale = $composant->get('pollFingerprint');
+
+        $autreOrganisation = Organization::factory()->create();
+
+        // MEME message cible, organization_id ETRANGER sur la reaction.
+        Reaction::create([
+            'organization_id' => $autreOrganisation->id,
+            'user_id' => $this->seller->id,
+            'reactionable_id' => $message->id,
+            'reactionable_type' => Message::class,
+            'reaction_type' => 'thumbs_up',
+        ]);
+
+        $composant->call('pollThread');
+
+        $this->assertSame($empreinteInitiale, $composant->get('pollFingerprint'));
+    }
 }
