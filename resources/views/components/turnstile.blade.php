@@ -31,13 +31,22 @@
     `data-marqueur` n'est pas une option Cloudflare — c'est une ancre de test.
     Les gardes mesurent CE conteneur, jamais la page : une page de 9 Ko contient
     assez de texte pour rendre vraie n'importe quelle assertion (lecon T1697).
+
+    TASK-1837 — `:actif` est FACULTATIF et NULL par defaut : sans lui, ce
+    composant se comporte exactement comme avant (`enabled()` seul decide),
+    ce qui est ce que `/register` attend. Le login passe un booleen EXPLICITE
+    (`TurnstileVerifier::loginEnabled()`) pour afficher ce MEME widget sous
+    son PROPRE drapeau, sans dupliquer ce fichier.
 --}}
+@props(['actif' => null])
+
 @php
     $turnstileActif = app(\App\Services\Security\TurnstileVerifier::class);
     $turnstileCle = $turnstileActif->siteKey();
+    $estActif = $actif ?? $turnstileActif->enabled();
 @endphp
 
-@if ($turnstileActif->enabled() && $turnstileCle !== null)
+@if ($estActif && $turnstileCle !== null)
     @push('head')
         <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     @endpush

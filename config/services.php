@@ -85,6 +85,13 @@ return [
     */
     'turnstile' => [
         'enabled' => (bool) env('TURNSTILE_ENABLED', false),
+
+        // TASK-1837 — drapeau SEPARE pour le login (/login, /org/{slug}/login).
+        // Meme site_key/secret_key que l'inscription (meme site Cloudflare),
+        // mais une activation INDEPENDANTE : un incident sur le login ne doit
+        // pas forcer a couper le captcha de l'inscription, et inversement.
+        'login_enabled' => (bool) env('TURNSTILE_LOGIN_ENABLED', false),
+
         'site_key' => env('TURNSTILE_SITE_KEY'),
         'secret_key' => env('TURNSTILE_SECRET_KEY'),
 

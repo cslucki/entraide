@@ -45,13 +45,27 @@ class TurnstileValide implements ValidationRule
         'internal-error',
     ];
 
-    public function __construct(private ?TurnstileVerifier $verificateur = null) {}
+    /**
+     * `$actif` — TASK-1837 : quelle porte decide, quand ce n'est PAS celle de
+     * l'inscription.
+     *
+     * `null` (par defaut) garde le comportement HISTORIQUE a l'identique :
+     * `$verificateur->enabled()` seul decide, exactement ce que l'inscription
+     * attend et ce que ses tests mesurent. Passer un booleen EXPLICITE permet
+     * au login de brancher cette meme regle — meme appel a Cloudflare, memes
+     * deux messages — sur `TurnstileVerifier::loginEnabled()` plutot que sur
+     * `enabled()`, sans dupliquer la classe.
+     */
+    public function __construct(
+        private ?TurnstileVerifier $verificateur = null,
+        private ?bool $actif = null,
+    ) {}
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         $verificateur = $this->verificateur ?? app(TurnstileVerifier::class);
 
-        if (! $verificateur->enabled()) {
+        if (! ($this->actif ?? $verificateur->enabled())) {
             return;
         }
 

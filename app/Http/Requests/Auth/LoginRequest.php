@@ -3,6 +3,8 @@
 namespace App\Http\Requests\Auth;
 
 use App\Models\Organization;
+use App\Rules\TurnstileValide;
+use App\Services\Security\TurnstileVerifier;
 use App\Services\Users\LoginAccountResolver;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -28,13 +30,36 @@ class LoginRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
+     * TASK-1837 — `TurnstileVerifier` est injecte ICI, pas dans le
+     * controleur : `FormRequest::rules()` est appele par
+     * `$this->container->call([$this, 'rules'])` (meme mecanisme que
+     * `authorize()`), donc un parametre type-hinte se resout normalement.
+     * La regle tourne AVANT `authenticate()` — donc avant `Auth::attempt()` —
+     * puisque Laravel valide un `FormRequest` resolu avant d'entrer dans la
+     * methode du controleur.
+     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
-    public function rules(): array
+    public function rules(TurnstileVerifier $turnstile): array
     {
         return [
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
+            // TASK-1837 — captcha a l'entree du LOGIN, drapeau SEPARE de celui
+            // de l'inscription (`TurnstileVerifier::loginEnabled()`).
+            //
+            // Meme branchement conditionnel que TASK-1713 sur `/register`, et
+            // pour la meme raison : captcha eteint, aucune regle, le
+            // formulaire se comporte exactement comme avant — ce qui est ce
+            // qui permet aux tests de login existants (sans jeton) de rester
+            // verts, et a la PROD de recevoir ce code sans que la connexion
+            // change tant que `TURNSTILE_LOGIN_ENABLED` n'est pas pose.
+            //
+            // `required` est implicite : un jeton absent est refuse SANS
+            // appel reseau.
+            'cf-turnstile-response' => $turnstile->loginEnabled()
+                ? ['required', 'string', 'max:2048', new TurnstileValide($turnstile, actif: $turnstile->loginEnabled())]
+                : [],
             // TASK-1728 (A3), rendue OBLIGATOIRE par TASK-1749 (decision Cyril,
             // 04/11).
             //
