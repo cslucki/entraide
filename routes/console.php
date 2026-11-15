@@ -68,7 +68,17 @@ Schedule::command('queue:work', [
 //
 // Le balayeur ne compile rien : il met en file. Le cout reel se decide en aval,
 // ou le deriver compare l'empreinte de la source avant toute depense.
-Schedule::command('knowledge:derive-due')->everyTenMinutes()->withoutOverlapping(10);
+//
+// TASK-1832 — derriere `knowledge.derive_due_scheduled_enabled` (FAUX par
+// defaut, voir config/knowledge.php) : sous QUEUE_CONNECTION=sync, ce
+// balayage dispatche des jobs qui s'executent EN LIGNE dans le Scheduler,
+// sans la strategie asynchrone que T1829/T1830 ont validee pour les
+// notifications. L'executable manuel (`php artisan knowledge:derive-due`)
+// reste disponible quelle que soit cette valeur — seule la ligne PLANIFIEE
+// en depend.
+if (config('knowledge.derive_due_scheduled_enabled')) {
+    Schedule::command('knowledge:derive-due')->everyTenMinutes()->withoutOverlapping(10);
+}
 
 // TASK-1808 §6 — l'invitation a evaluer l'aidant tournait ici, planifiee a
 // dix minutes apres la cloture (`EntraideInviteToEvaluate`, commande
