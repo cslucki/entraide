@@ -253,29 +253,28 @@ class LoopChat extends Component
     public int $lastFullRenderAt = 0;
 
     /**
-     * TASK-1835 — les cartes projetees (ServiceRequest/Article/Dossier/
-     * Feuille de route, T1826) restent HORS de l'empreinte : elles
-     * referencent des objets EXTERNES a la Boucle (visibilite evaluee a la
-     * lecture, ex. `DossierPolicy::view`), et une empreinte qui les
-     * couvrirait couterait presque autant qu'un rendu complet (il faudrait
-     * d'abord re-deriver, a chaque cycle, quels identifiants externes sont
-     * references par la fenetre chargee).
-     *
-     * Revue MASTER du 15/11 — reduite de 30s a 9s (trois cycles de poll) :
-     * un acces REVOQUE (retrait/depart d'un membre, desactivation du compte)
-     * n'est JAMAIS masque par cette soupape — {@see pollChat()} re-derive
-     * `isMember` a CHAQUE requete (T1772, dans `booted()`, avant meme que
-     * cette methode ne s'execute) et ne court-circuite jamais le rendu quand
-     * il est faux. Le risque residuel borne ici est plus etroit : la
-     * visibilite d'un objet EXTERNE REFERENCE (ex. un Dossier dont la
-     * permission change independamment de l'appartenance a la Boucle)
-     * pourrait rester affichee jusqu'a 9s au lieu des 3s d'avant cette TASK
-     * (ou chaque cycle rendait integralement). Multiplier par trois ce delai
-     * plutot que par dix (30s) est le compromis assume : il conserve une
-     * bonne part du gain mesure (~67% de reduction sur un palier inactif au
-     * lieu de ~91%) tout en bornant plus etroitement cette exposition.
+     * TASK-1835 — purement generique depuis le dernier arbitrage MASTER du
+     * 15/11 : un filet de securite contre un angle mort qu'on n'aurait pas
+     * encore identifie dans {@see computePollFingerprint()}, PAS une
+     * protection pour les cartes projetees externes (ServiceRequest/Article/
+     * Dossier/Feuille de route, T1826). Ces dernieres sont desormais gerees
+     * EN AMONT, structurellement : {@see pollChat()} renonce entierement au
+     * court-circuit — jamais de soupape, rendu complet a CHAQUE cycle de 3s,
+     * comme avant cette TASK — des que {@see fenetreReferenceUnContenuProjete()}
+     * detecte l'une d'elles dans la fenetre chargee, car leur visibilite peut
+     * changer INDEPENDAMMENT de la Boucle (permission externe revoquee) et
+     * les reverifier a chaque cycle couterait presque aussi cher qu'un rendu
+     * complet. Un acces REVOQUE a la Boucle elle-meme (retrait, depart,
+     * desactivation) n'est jamais non plus masque par cette soupape :
+     * `pollChat()` re-derive `isMember` a CHAQUE requete (T1772, dans
+     * `booted()`) et ne court-circuite jamais quand il est faux. Reportee a
+     * 30s (valeur d'origine) : son UNIQUE role restant est de borner un
+     * oubli non identifie, pas un risque connu et disclosee — les
+     * conversations ordinaires, qui ne portent aucune carte projetee,
+     * profitent donc pleinement du gain mesure (~91% de reduction sur un
+     * palier inactif), conformement a l'objectif.
      */
-    private const INTERVALLE_SOUPAPE_SECONDES = 9;
+    private const INTERVALLE_SOUPAPE_SECONDES = 30;
 
     /**
      * TASK-1310 : etat du formulaire « Ajouter au Dossier ». `null` = ferme.
@@ -513,8 +512,10 @@ class LoopChat extends Component
         // TASK-1835 — amorce l'empreinte au rendu initial (deja complet) :
         // le premier `pollChat()` compare contre un etat connu plutot que
         // contre `null`, qui aurait force un rendu complet supplementaire.
+        // Sans effet si la fenetre reference deja un contenu projete : ce cas
+        // ne consulte jamais `pollFingerprint` (voir `pollChat()`).
         if ($this->isMember) {
-            $this->pollFingerprint = $this->computePollFingerprint();
+            $this->pollFingerprint = $this->computePollFingerprint($this->loadedWindowMessages());
             $this->lastFullRenderAt = now()->getTimestamp();
         }
 
@@ -572,17 +573,27 @@ class LoopChat extends Component
 
     /**
      * TASK-1835 — action appelee par `wire:poll.3s`, a la place du defaut
-     * implicite qui rendait integralement a CHAQUE cycle (mesure : 17
-     * requetes SQL, 75-97 ms, ~570 Ko de HTML, pour une conversation qui n'a
-     * le plus souvent RIEN change entre deux cycles de trois secondes).
+     * implicite qui rendait integralement a CHAQUE cycle (mesure : 17-37
+     * requetes SQL, 70-97 ms, jusqu'a ~627 Ko de HTML selon la fixture, pour
+     * une conversation qui n'a le plus souvent RIEN change entre deux cycles
+     * de trois secondes).
      *
-     * Compare une empreinte bon marche (voir {@see computePollFingerprint()})
-     * a celle du dernier rendu complet. Inchangee, et la soupape periodique
-     * pas encore ecoulee : `skipRender()` — Livewire renvoie alors le meme
-     * HTML sans jamais appeler `render()` (verifie dans
-     * `HandleComponents::render()`), donc aucune des requetes de `render()`
-     * ne s'execute. Changee (ou soupape ecoulee) : on laisse tomber dans un
-     * rendu normal, en memorisant la nouvelle empreinte et l'horodatage.
+     * Deux regimes, tranches par {@see fenetreReferenceUnContenuProjete()} :
+     * - la fenetre chargee porte une carte projetee externe (T1826) :
+     *   AUCUN court-circuit, jamais — rendu complet a chaque cycle, comme
+     *   avant cette TASK. Leur visibilite depend d'une permission EXTERNE a
+     *   la Boucle (ex. `DossierPolicy::view`) qu'il faudrait re-verifier a
+     *   chaque cycle pour la fingerprinter — un cout proche de celui d'un
+     *   rendu complet, qui annulerait le gain recherche pour SEULEMENT ce
+     *   cas.
+     * - sinon (conversation ordinaire) : compare une empreinte bon marche
+     *   (voir {@see computePollFingerprint()}) a celle du dernier rendu
+     *   complet. Inchangee, et la soupape periodique pas encore ecoulee :
+     *   `skipRender()` — Livewire renvoie alors le meme HTML sans jamais
+     *   appeler `render()` (verifie dans `HandleComponents::render()`), donc
+     *   aucune des requetes de `render()` ne s'execute. Changee (ou soupape
+     *   ecoulee) : on laisse tomber dans un rendu normal, en memorisant la
+     *   nouvelle empreinte et l'horodatage.
      */
     public function pollChat(): void
     {
@@ -590,7 +601,28 @@ class LoopChat extends Component
             return;
         }
 
-        $empreinte = $this->computePollFingerprint();
+        $fenetre = $this->loadedWindowMessages();
+
+        // Arbitrage MASTER du 15/11 (dernier arbitrage) — tant qu'une carte
+        // projetee externe (ServiceRequest/Article/Dossier/Feuille de route,
+        // T1826) est visible dans la fenetre chargee, on RENONCE purement et
+        // simplement au court-circuit : sa visibilite peut changer
+        // INDEPENDAMMENT de la Boucle (permission externe revoquee), et la
+        // reverifier a chaque cycle couterait presque aussi cher qu'un rendu
+        // complet (T1826 le relit deja EN DIRECT a chaque rendu precisement
+        // pour cette raison). Remplace la soupape uniforme de 9s : les
+        // conversations ORDINAIRES (aucune de ces cartes) ne paient plus
+        // JAMAIS ce cout, les conversations sensibles gardent le
+        // comportement d'avant cette TASK (rendu complet a chaque cycle de
+        // 3s). `$fenetre` ne grandit jamais que par ajout (voir
+        // `loadOlderMessages()`/`syncNewerMessages()`) : une fois une carte
+        // projetee chargee dans cette fenetre, ce composant reste en mode
+        // « complet » pour le reste de la session d'affichage.
+        if ($this->fenetreReferenceUnContenuProjete($fenetre)) {
+            return;
+        }
+
+        $empreinte = $this->computePollFingerprint($fenetre);
         $soupapeEcoulee = (now()->getTimestamp() - $this->lastFullRenderAt) >= self::INTERVALLE_SOUPAPE_SECONDES;
 
         if ($empreinte === $this->pollFingerprint && ! $soupapeEcoulee) {
@@ -601,6 +633,45 @@ class LoopChat extends Component
 
         $this->pollFingerprint = $empreinte;
         $this->lastFullRenderAt = now()->getTimestamp();
+    }
+
+    /**
+     * TASK-1835 — les messages de la fenetre CHARGEE (`loadedMessageIds`),
+     * avec les SEULES colonnes necessaires a {@see computePollFingerprint()}
+     * et {@see fenetreReferenceUnContenuProjete()}. Une SEULE requete,
+     * REUTILISEE par les deux (arbitrage MASTER du 15/11 : « reutiliser les
+     * informations deja chargees pour eviter une requete couteuse
+     * supplementaire ») — jamais une deuxieme pour la meme fenetre dans un
+     * seul cycle de poll.
+     */
+    private function loadedWindowMessages(): Collection
+    {
+        if ($this->loadedMessageIds === []) {
+            return collect();
+        }
+
+        return LoopMessage::query()
+            ->whereIn('id', $this->loadedMessageIds)
+            ->orderBy('id')
+            ->get(['id', 'body', 'pinned_at', 'deleted_at', 'edited_at', 'type', 'metadata']);
+    }
+
+    /**
+     * TASK-1835 — exactement les memes criteres que {@see
+     * LoopMessage::isServiceRequestProjection()} et les filtres `type`
+     * utilises par `projectedArticles()`/`projectedDossierFiles()`/
+     * `projectedRoadmapItems()` plus bas dans ce fichier : si l'un d'eux
+     * matche un message de la fenetre, `render()` affichera une carte dont
+     * la visibilite depend d'une permission EXTERNE a la Boucle.
+     *
+     * @param  Collection<int, LoopMessage>  $fenetre
+     */
+    private function fenetreReferenceUnContenuProjete(Collection $fenetre): bool
+    {
+        return $fenetre->contains(
+            fn (LoopMessage $message) => $message->isServiceRequestProjection()
+                || in_array($message->type, ['blog_post', 'dossier_file', 'roadmap_action'], true)
+        );
     }
 
     /**
@@ -641,7 +712,11 @@ class LoopChat extends Component
      * cette constante pour ce qu'elle borne reellement (jamais une
      * revocation d'acces a la Boucle elle-meme, voir {@see pollChat()}).
      */
-    private function computePollFingerprint(): string
+    /**
+     * @param  Collection<int, LoopMessage>  $fenetre  deja chargee par
+     *                                                  {@see loadedWindowMessages()} — jamais requetee une deuxieme fois ici.
+     */
+    private function computePollFingerprint(Collection $fenetre): string
     {
         // Des comptages de TRANSITION (epingle/edite/supprime), pas seulement
         // `MAX(updated_at)` : une base au grain de la seconde (SQLite comme
@@ -686,14 +761,12 @@ class LoopChat extends Component
         // `edited_at`/`updated_at` sont stockes identiques a la seconde pres,
         // le format de date par defaut d'Eloquent tronque les microsecondes
         // AVANT l'ecriture). Le contenu reel est la seule signature fiable —
-        // et il reste bon marche : borne a `loadedMessageIds` (quelques
-        // dizaines), jamais a l'historique entier de la Boucle, donc son cout
-        // ne depend PAS du nombre total de messages (point 3).
-        $empreinteFenetre = $this->loadedMessageIds === [] ? '' : md5(
-            LoopMessage::query()
-                ->whereIn('id', $this->loadedMessageIds)
-                ->orderBy('id')
-                ->get(['id', 'body', 'pinned_at', 'deleted_at', 'edited_at'])
+        // et il reste bon marche : `$fenetre` est deja chargee par l'appelant
+        // ({@see loadedWindowMessages()}), bornee a `loadedMessageIds`
+        // (quelques dizaines), jamais a l'historique entier de la Boucle, et
+        // AUCUNE requete supplementaire n'est faite ici pour l'obtenir.
+        $empreinteFenetre = $fenetre->isEmpty() ? '' : md5(
+            $fenetre
                 ->map(fn (LoopMessage $m) => "{$m->id}:{$m->body}:{$m->pinned_at}:{$m->deleted_at}:{$m->edited_at}")
                 ->implode('|')
         );

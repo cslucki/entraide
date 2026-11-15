@@ -16,6 +16,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -142,29 +143,40 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
 
         $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
 
-        // Premiere edition : le prochain poll doit deja la refleter.
-        $message->update(['body' => 'Version 2.', 'edited_at' => now(), 'edited_by' => $this->autre->id]);
-        $composant->call('pollChat');
-        $empreinteApresV2 = $composant->get('pollFingerprint');
-        $composant->assertSee('Version 2.');
-        $edited_at_apres_v2 = DB::table('loop_messages')->where('id', $message->id)->value('edited_at');
+        // Horloge figee : sans ca, deux `now()` reels peuvent tomber de part
+        // et d'autre d'une frontiere de seconde selon la vitesse du test
+        // (observe en CI sur PostgreSQL) — ce qui prouverait le contraire de
+        // ce que ce test demontre. Figer l'horloge rend le scenario
+        // deterministe plutot que de simplement esperer une execution assez
+        // rapide.
+        Carbon::setTestNow(now());
 
-        // Deuxieme edition. Le reste du test ne prouve le point souleve par
-        // MASTER que si les deux editions tombent dans la MEME seconde
-        // stockee — verifie explicitement plutot que suppose.
-        $message->update(['body' => 'Version 3.', 'edited_at' => now(), 'edited_by' => $this->membre->id]);
-        $edited_at_apres_v3 = DB::table('loop_messages')->where('id', $message->id)->value('edited_at');
-        $this->assertSame(
-            $edited_at_apres_v2,
-            $edited_at_apres_v3,
-            'ce test suppose que les deux editions tombent dans la meme seconde stockee — sinon il ne demontre rien.'
-        );
+        try {
+            // Premiere edition : le prochain poll doit deja la refleter.
+            $message->update(['body' => 'Version 2.', 'edited_at' => now(), 'edited_by' => $this->autre->id]);
+            $composant->call('pollChat');
+            $empreinteApresV2 = $composant->get('pollFingerprint');
+            $composant->assertSee('Version 2.');
+            $edited_at_apres_v2 = DB::table('loop_messages')->where('id', $message->id)->value('edited_at');
 
-        $composant->call('pollChat');
+            // Deuxieme edition, horloge toujours figee sur la MEME seconde.
+            // Verifie explicitement plutot que suppose.
+            $message->update(['body' => 'Version 3.', 'edited_at' => now(), 'edited_by' => $this->membre->id]);
+            $edited_at_apres_v3 = DB::table('loop_messages')->where('id', $message->id)->value('edited_at');
+            $this->assertSame(
+                $edited_at_apres_v2,
+                $edited_at_apres_v3,
+                'ce test suppose que les deux editions tombent dans la meme seconde stockee — sinon il ne demontre rien.'
+            );
 
-        $this->assertNotSame($empreinteApresV2, $composant->get('pollFingerprint'));
-        $composant->assertSee('Version 3.');
-        $composant->assertDontSee('Version 2.');
+            $composant->call('pollChat');
+
+            $this->assertNotSame($empreinteApresV2, $composant->get('pollFingerprint'));
+            $composant->assertSee('Version 3.');
+            $composant->assertDontSee('Version 2.');
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_un_epinglage_relance_le_rendu_complet(): void
@@ -352,8 +364,11 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
         $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
         $horodatageInitial = $composant->get('lastFullRenderAt');
 
-        // Soupape reduite a 9s (revue MASTER du 15/11, trois cycles de poll).
-        Carbon::setTestNow(now()->addSeconds(10));
+        // Soupape reportee a 30s (dernier arbitrage MASTER du 15/11) : son
+        // seul role restant est un filet de securite generique, la
+        // protection specifique aux cartes projetees etant geree en amont
+        // par `fenetreReferenceUnContenuProjete()`.
+        Carbon::setTestNow(now()->addSeconds(31));
 
         try {
             $composant->call('pollChat');
@@ -398,5 +413,113 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
         $composant->call('pollChat');
 
         $this->assertFalse($composant->get('isMember'));
+    }
+
+    /**
+     * Dernier arbitrage MASTER du 15/11 — optimisation CONDITIONNELLE plutot
+     * qu'une soupape uniforme : tant que la fenetre chargee porte une carte
+     * projetee externe (T1826), `pollChat()` ne doit JAMAIS court-circuiter,
+     * meme quand rien d'autre n'a change — sa visibilite peut changer
+     * independamment de la Boucle (permission externe revoquee).
+     *
+     * @return array<string, array{0: string, 1: array<string, mixed>}>
+     */
+    public static function provideContenuProjete(): array
+    {
+        return [
+            'service_request' => ['help_request', [
+                'projection_type' => 'service_request',
+                'service_request_id' => '11111111-1111-1111-1111-111111111111',
+            ]],
+            'article' => ['blog_post', ['blog_post_id' => '22222222-2222-2222-2222-222222222222']],
+            'fichier_dossier' => ['dossier_file', ['file_ids' => ['33333333-3333-3333-3333-333333333333']]],
+            'feuille_de_route' => ['roadmap_action', ['roadmap_item_id' => '44444444-4444-4444-4444-444444444444']],
+        ];
+    }
+
+    #[DataProvider('provideContenuProjete')]
+    public function test_une_fenetre_avec_contenu_projete_ne_court_circuite_jamais(string $type, array $metadata): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->membre->id,
+            'body' => 'Message porteur d une carte projetee.',
+            'type' => $type,
+            'metadata' => $metadata,
+        ]);
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
+
+        // Rien ne change entre le montage et ce poll : une conversation
+        // ORDINAIRE court-circuiterait ici (voir les tests precedents).
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $composant->call('pollChat');
+        $requetes = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        // Preuve qu'AUCUN court-circuit n'a eu lieu : le volume de requetes
+        // reste celui d'un rendu complet (bien au-dessus du seuil mesure
+        // pour un cycle inchange sur une conversation ordinaire), jamais
+        // celui, minuscule, d'un simple calcul d'empreinte.
+        $this->assertGreaterThan(10, count($requetes));
+    }
+
+    public function test_une_fenetre_sans_contenu_projete_continue_de_court_circuiter(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->membre->id,
+            'body' => 'Message ordinaire, sans aucune carte projetee.',
+            'type' => 'user',
+        ]);
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $composant->call('pollChat');
+        $requetes = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $this->assertLessThanOrEqual(10, count($requetes));
+    }
+
+    /**
+     * Dernier arbitrage MASTER du 15/11 — « reutiliser les informations deja
+     * chargees pour eviter une requete couteuse supplementaire » : sur un
+     * cycle INCHANGE (aucun rendu complet, donc la seule source possible de
+     * ce motif de requete est {@see LoopChat::loadedWindowMessages()}), la
+     * fenetre chargee ne doit etre requetee qu'UNE SEULE fois, partagee entre
+     * la detection de contenu projete et le calcul de l'empreinte.
+     */
+    public function test_la_fenetre_chargee_n_est_requetee_qu_une_seule_fois_par_cycle_inchange(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->membre->id,
+            'body' => 'Message ordinaire, rien ne change ensuite.',
+            'type' => 'user',
+        ]);
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $composant->call('pollChat');
+        $requetes = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $requetesFenetre = array_filter(
+            $requetes,
+            fn (array $r) => str_contains($r['query'], 'loop_messages')
+                && str_contains($r['query'], 'where "id" in')
+        );
+
+        $this->assertCount(
+            1,
+            $requetesFenetre,
+            'la fenetre chargee doit etre requetee une seule fois, partagee entre la detection de contenu projete et l\'empreinte.'
+        );
     }
 }
