@@ -1,7 +1,7 @@
 {{-- TASK-1772 (recette Cyril, 06/11) — `apercu-membre` est emis par la
      gouttiere d'avatar de chaque bulle. L'ecoute est posee ICI, une fois, et
      non sur chaque bulle : trente ecouteurs pour un seul panneau. --}}
-<div wire:poll.3s class="flex-1 flex flex-col min-h-0"
+<div wire:poll.3s="pollChat" class="flex-1 flex flex-col min-h-0"
      x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)"
      x-on:apercu-membre.window="$wire.ouvrirApercuMembre($event.detail.userId)">
     <x-conversation.pinned-message-banner
