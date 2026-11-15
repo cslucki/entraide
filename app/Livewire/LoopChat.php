@@ -5,11 +5,13 @@ namespace App\Livewire;
 use App\Ai\MultiAssistant\AssistantOutcome;
 use App\Ai\ProviderResolver;
 use App\Models\BlogPost;
+use App\Models\DerivedKnowledgeNote;
 use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
+use App\Models\LoopPermissionSetting;
 use App\Models\LoopRoadmapItem;
 use App\Models\Reaction;
 use App\Models\Scopes\BelongsToOrganizationScope;
@@ -39,6 +41,7 @@ use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -227,6 +230,51 @@ class LoopChat extends Component
     public array $loadedMessageIds = [];
 
     public bool $hasOlderMessages = false;
+
+    /**
+     * TASK-1835 — derniere empreinte connue (voir {@see computePollFingerprint()})
+     * et horodatage Unix du dernier rendu COMPLET. Deux scalaires, pas une
+     * collection : le meme principe que `$loadedMessageIds` ci-dessus, qui
+     * voyage deja dans le snapshot Livewire sans jamais y stocker de messages.
+     *
+     * `#[Locked]` (revue MASTER du 15/11) : aucune des deux ne voyage jamais
+     * vers un `wire:model` ni n'est censee etre modifiable depuis le JS de la
+     * page — un `$wire.set()` client (console, XSS) sur l'une d'elles pourrait
+     * sinon forcer un `skipRender()` perpetuel ou neutraliser la soupape. Le
+     * checksum de snapshot de Livewire empeche deja la FALSIFICATION d'un
+     * snapshot complet ; `#[Locked]` ferme en plus la voie, plus etroite mais
+     * reelle, d'un appel client legitime-en-apparence sur CES proprietes
+     * precises.
+     */
+    #[Locked]
+    public ?string $pollFingerprint = null;
+
+    #[Locked]
+    public int $lastFullRenderAt = 0;
+
+    /**
+     * TASK-1835 — purement generique depuis le dernier arbitrage MASTER du
+     * 15/11 : un filet de securite contre un angle mort qu'on n'aurait pas
+     * encore identifie dans {@see computePollFingerprint()}, PAS une
+     * protection pour les cartes projetees externes (ServiceRequest/Article/
+     * Dossier/Feuille de route, T1826). Ces dernieres sont desormais gerees
+     * EN AMONT, structurellement : {@see pollChat()} renonce entierement au
+     * court-circuit — jamais de soupape, rendu complet a CHAQUE cycle de 3s,
+     * comme avant cette TASK — des que {@see fenetreReferenceUnContenuProjete()}
+     * detecte l'une d'elles dans la fenetre chargee, car leur visibilite peut
+     * changer INDEPENDAMMENT de la Boucle (permission externe revoquee) et
+     * les reverifier a chaque cycle couterait presque aussi cher qu'un rendu
+     * complet. Un acces REVOQUE a la Boucle elle-meme (retrait, depart,
+     * desactivation) n'est jamais non plus masque par cette soupape :
+     * `pollChat()` re-derive `isMember` a CHAQUE requete (T1772, dans
+     * `booted()`) et ne court-circuite jamais quand il est faux. Reportee a
+     * 30s (valeur d'origine) : son UNIQUE role restant est de borner un
+     * oubli non identifie, pas un risque connu et disclosee — les
+     * conversations ordinaires, qui ne portent aucune carte projetee,
+     * profitent donc pleinement du gain mesure (~91% de reduction sur un
+     * palier inactif), conformement a l'objectif.
+     */
+    private const INTERVALLE_SOUPAPE_SECONDES = 30;
 
     /**
      * TASK-1310 : etat du formulaire « Ajouter au Dossier ». `null` = ferme.
@@ -461,6 +509,16 @@ class LoopChat extends Component
         $this->refreshMembership();
         $this->loadInitialMessages();
 
+        // TASK-1835 — amorce l'empreinte au rendu initial (deja complet) :
+        // le premier `pollChat()` compare contre un etat connu plutot que
+        // contre `null`, qui aurait force un rendu complet supplementaire.
+        // Sans effet si la fenetre reference deja un contenu projete : ce cas
+        // ne consulte jamais `pollFingerprint` (voir `pollChat()`).
+        if ($this->isMember) {
+            $this->pollFingerprint = $this->computePollFingerprint($this->loadedWindowMessages());
+            $this->lastFullRenderAt = now()->getTimestamp();
+        }
+
         // TASK-1772 — calculee ICI, et pas dans `render()` : `wire:poll.3s`
         // la recalculerait toutes les trois secondes, par spectateur, pour
         // une liste qui ne change presque jamais.
@@ -511,6 +569,238 @@ class LoopChat extends Component
                 ->where('user_id', $user->id)
                 ->where('status', 'active')
                 ->exists();
+    }
+
+    /**
+     * TASK-1835 — action appelee par `wire:poll.3s`, a la place du defaut
+     * implicite qui rendait integralement a CHAQUE cycle (mesure : 17-37
+     * requetes SQL, 70-97 ms, jusqu'a ~627 Ko de HTML selon la fixture, pour
+     * une conversation qui n'a le plus souvent RIEN change entre deux cycles
+     * de trois secondes).
+     *
+     * Deux regimes, tranches par {@see fenetreReferenceUnContenuProjete()} :
+     * - la fenetre chargee porte une carte projetee externe (T1826) :
+     *   AUCUN court-circuit, jamais — rendu complet a chaque cycle, comme
+     *   avant cette TASK. Leur visibilite depend d'une permission EXTERNE a
+     *   la Boucle (ex. `DossierPolicy::view`) qu'il faudrait re-verifier a
+     *   chaque cycle pour la fingerprinter — un cout proche de celui d'un
+     *   rendu complet, qui annulerait le gain recherche pour SEULEMENT ce
+     *   cas.
+     * - sinon (conversation ordinaire) : compare une empreinte bon marche
+     *   (voir {@see computePollFingerprint()}) a celle du dernier rendu
+     *   complet. Inchangee, et la soupape periodique pas encore ecoulee :
+     *   `skipRender()` — Livewire renvoie alors le meme HTML sans jamais
+     *   appeler `render()` (verifie dans `HandleComponents::render()`), donc
+     *   aucune des requetes de `render()` ne s'execute. Changee (ou soupape
+     *   ecoulee) : on laisse tomber dans un rendu normal, en memorisant la
+     *   nouvelle empreinte et l'horodatage.
+     */
+    public function pollChat(): void
+    {
+        if (! $this->isMember) {
+            return;
+        }
+
+        $fenetre = $this->loadedWindowMessages();
+
+        // Arbitrage MASTER du 15/11 (dernier arbitrage) — tant qu'une carte
+        // projetee externe (ServiceRequest/Article/Dossier/Feuille de route,
+        // T1826) est visible dans la fenetre chargee, on RENONCE purement et
+        // simplement au court-circuit : sa visibilite peut changer
+        // INDEPENDAMMENT de la Boucle (permission externe revoquee), et la
+        // reverifier a chaque cycle couterait presque aussi cher qu'un rendu
+        // complet (T1826 le relit deja EN DIRECT a chaque rendu precisement
+        // pour cette raison). Remplace la soupape uniforme de 9s : les
+        // conversations ORDINAIRES (aucune de ces cartes) ne paient plus
+        // JAMAIS ce cout, les conversations sensibles gardent le
+        // comportement d'avant cette TASK (rendu complet a chaque cycle de
+        // 3s). `$fenetre` ne grandit jamais que par ajout (voir
+        // `loadOlderMessages()`/`syncNewerMessages()`) : une fois une carte
+        // projetee chargee dans cette fenetre, ce composant reste en mode
+        // « complet » pour le reste de la session d'affichage.
+        if ($this->fenetreReferenceUnContenuProjete($fenetre)) {
+            return;
+        }
+
+        $empreinte = $this->computePollFingerprint($fenetre);
+        $soupapeEcoulee = (now()->getTimestamp() - $this->lastFullRenderAt) >= self::INTERVALLE_SOUPAPE_SECONDES;
+
+        if ($empreinte === $this->pollFingerprint && ! $soupapeEcoulee) {
+            $this->skipRender();
+
+            return;
+        }
+
+        $this->pollFingerprint = $empreinte;
+        $this->lastFullRenderAt = now()->getTimestamp();
+    }
+
+    /**
+     * TASK-1835 — les messages de la fenetre CHARGEE (`loadedMessageIds`),
+     * avec les SEULES colonnes necessaires a {@see computePollFingerprint()}
+     * et {@see fenetreReferenceUnContenuProjete()}. Une SEULE requete,
+     * REUTILISEE par les deux (arbitrage MASTER du 15/11 : « reutiliser les
+     * informations deja chargees pour eviter une requete couteuse
+     * supplementaire ») — jamais une deuxieme pour la meme fenetre dans un
+     * seul cycle de poll.
+     *
+     * Revue MASTER du 15/11 (correctif securite) — `loop_id` ET
+     * `organization_id` filtres EXPLICITEMENT, jamais supposes depuis
+     * `loadedMessageIds` seul : cette propriete publique n'est PAS
+     * `#[Locked]` (elle doit rester modifiable par les actions legitimes du
+     * composant — chargement de messages plus anciens, nouveaux messages),
+     * donc un identifiant d'une AUTRE Boucle ou d'une AUTRE Organization
+     * injecte dedans (snapshot falsifie, ou bug futur) ne doit JAMAIS pouvoir
+     * faire contribuer du contenu hors perimetre a l'empreinte ou a la
+     * detection de contenu projete. Meme doctrine que {@see loadedCursorMessage()}
+     * juste plus bas dans ce fichier, qui scope deja ses deux lectures de la
+     * meme maniere.
+     */
+    private function loadedWindowMessages(): Collection
+    {
+        if ($this->loadedMessageIds === []) {
+            return collect();
+        }
+
+        return LoopMessage::query()
+            ->where('loop_id', $this->loop->id)
+            ->where('organization_id', $this->loop->organization_id)
+            ->whereIn('id', $this->loadedMessageIds)
+            ->orderBy('id')
+            ->get(['id', 'body', 'pinned_at', 'deleted_at', 'edited_at', 'type', 'metadata']);
+    }
+
+    /**
+     * TASK-1835 — exactement les memes criteres que {@see
+     * LoopMessage::isServiceRequestProjection()} et les filtres `type`
+     * utilises par `projectedArticles()`/`projectedDossierFiles()`/
+     * `projectedRoadmapItems()` plus bas dans ce fichier : si l'un d'eux
+     * matche un message de la fenetre, `render()` affichera une carte dont
+     * la visibilite depend d'une permission EXTERNE a la Boucle.
+     *
+     * @param  Collection<int, LoopMessage>  $fenetre
+     */
+    private function fenetreReferenceUnContenuProjete(Collection $fenetre): bool
+    {
+        return $fenetre->contains(
+            fn (LoopMessage $message) => $message->isServiceRequestProjection()
+                || in_array($message->type, ['blog_post', 'dossier_file', 'roadmap_action'], true)
+        );
+    }
+
+    /**
+     * TASK-1835 — une empreinte bon marche de tout ce qui, dans le perimetre
+     * de CETTE Boucle, justifierait un rendu complet :
+     *
+     * - messages : `COUNT`, `MAX(updated_at)`, et un comptage PAR TRANSITION
+     *   (epingle/edite/supprime). Creation, edition, epinglage ET
+     *   suppression passent tous par `->save()`/`->update()`
+     *   ({@see LoopMessage::pin()}, {@see LoopMessageService}) — y compris la
+     *   suppression, qui ne retire jamais la ligne (pas de `SoftDeletes`,
+     *   seulement un `deleted_at` pose) — mais `updated_at` seul suffit mal :
+     *   une base au grain de la seconde rend une edition indiscernable d'une
+     *   creation tombee dans la MEME seconde. Les comptages par transition
+     *   (`total_epingles`, etc.) restent sensibles quelle que soit cette
+     *   precision, dans les deux sens (epingler ET depingler).
+     * - reactions : `COUNT` + `MAX(id)`. La table n'a AUCUNE colonne de
+     *   suppression douce (verifie dans sa migration) : un retrait est un
+     *   DELETE dur, que `MAX` seul raterait sans le `COUNT` qui l'accompagne.
+     * - adhesion : statut/role/`updated_at` de L'UTILISATEUR COURANT
+     *   uniquement (retrait, depart, promotion) — jamais toute la liste des
+     *   membres, que `render()` n'utilise pas pour decider QUOI afficher ici.
+     * - memoire : `MAX(updated_at)` sur les notes derivees de cette Boucle
+     *   (`source_loop_id`), qui couvre le panneau de digest.
+     * - fenetre chargee (ajoute en revue, 15/11) : un hachage du contenu reel
+     *   (`body`/`pinned_at`/`deleted_at`/`edited_at`) des seuls messages de
+     *   `loadedMessageIds` — AUCUN comptage ni horodatage ne distingue une
+     *   deuxieme edition d'un message dans la MEME seconde que la premiere.
+     *   Borne a la fenetre chargee : son cout ne depend jamais du nombre
+     *   total de messages de la Boucle.
+     * - permissions (ajoute en revue, 15/11) : `MAX(updated_at)` sur
+     *   `loop_permission_settings`, un reglage GLOBAL (super-admin, sans
+     *   `loop_id`) donc une table minuscule, bon marche a verifier a chaque
+     *   cycle.
+     *
+     * Ne couvre PAS les cartes projetees externes : voir la soupape
+     * periodique sur `self::INTERVALLE_SOUPAPE_SECONDES`, et la note sur
+     * cette constante pour ce qu'elle borne reellement (jamais une
+     * revocation d'acces a la Boucle elle-meme, voir {@see pollChat()}).
+     */
+    /**
+     * @param  Collection<int, LoopMessage>  $fenetre  deja chargee par
+     *                                                  {@see loadedWindowMessages()} — jamais requetee une deuxieme fois ici.
+     */
+    private function computePollFingerprint(Collection $fenetre): string
+    {
+        // Des comptages de TRANSITION (epingle/edite/supprime), pas seulement
+        // `MAX(updated_at)` : une base au grain de la seconde (SQLite comme
+        // PostgreSQL par defaut ici) peut rendre une edition et la creation
+        // du message indiscernables si les deux tombent dans la meme
+        // seconde — mesure directement par ce test. Un comptage qui bascule
+        // (0 edite -> 1 edite, 1 epingle -> 0 epingle) le reste quelle que
+        // soit la precision de l'horodatage.
+        $messages = LoopMessage::query()
+            ->where('loop_id', $this->loop->id)
+            ->selectRaw(
+                'COUNT(*) as total, '
+                .'MAX(updated_at) as dernier, '
+                .'COUNT(CASE WHEN pinned_at IS NOT NULL THEN 1 END) as total_epingles, '
+                .'COUNT(CASE WHEN deleted_at IS NOT NULL THEN 1 END) as total_supprimes, '
+                .'COUNT(CASE WHEN edited_at IS NOT NULL THEN 1 END) as total_edites'
+            )
+            ->first();
+
+        $reactions = DB::table('reactions')
+            ->join('loop_messages', function ($jointure) {
+                $jointure->on('loop_messages.id', '=', 'reactions.reactionable_id')
+                    ->where('reactions.reactionable_type', LoopMessage::class);
+            })
+            ->where('loop_messages.loop_id', $this->loop->id)
+            ->selectRaw('COUNT(*) as total, MAX(reactions.id) as dernier')
+            ->first();
+
+        $membre = LoopMember::query()
+            ->where('loop_id', $this->loop->id)
+            ->where('user_id', auth()->id())
+            ->select('status', 'role', 'updated_at')
+            ->first();
+
+        $memoire = DerivedKnowledgeNote::query()
+            ->where('source_loop_id', $this->loop->id)
+            ->max('updated_at');
+
+        // Revue MASTER du 15/11 (point 1) — AUCUN comptage ni horodatage
+        // n'aurait distingue une DEUXIEME edition d'un message dans la MEME
+        // seconde que la premiere (meme sur PostgreSQL : verifie en direct,
+        // `edited_at`/`updated_at` sont stockes identiques a la seconde pres,
+        // le format de date par defaut d'Eloquent tronque les microsecondes
+        // AVANT l'ecriture). Le contenu reel est la seule signature fiable —
+        // et il reste bon marche : `$fenetre` est deja chargee par l'appelant
+        // ({@see loadedWindowMessages()}), bornee a `loadedMessageIds`
+        // (quelques dizaines), jamais a l'historique entier de la Boucle, et
+        // AUCUNE requete supplementaire n'est faite ici pour l'obtenir.
+        $empreinteFenetre = $fenetre->isEmpty() ? '' : md5(
+            $fenetre
+                ->map(fn (LoopMessage $m) => "{$m->id}:{$m->body}:{$m->pinned_at}:{$m->deleted_at}:{$m->edited_at}")
+                ->implode('|')
+        );
+
+        // Revue MASTER du 15/11 (point 2) — reglage GLOBAL (super-admin, sans
+        // `loop_id` : voir la migration), donc rarement modifie et bon marche
+        // a verifier (table minuscule). Une revocation de permission a
+        // l'echelle de la plateforme (ex. « les moderateurs ne peuvent plus
+        // supprimer ») doit elle aussi relancer un rendu complet, pas
+        // attendre la soupape.
+        $permissions = LoopPermissionSetting::query()->max('updated_at');
+
+        return implode('|', [
+            $messages->total.':'.$messages->dernier.':'.$messages->total_epingles.':'.$messages->total_supprimes.':'.$messages->total_edites,
+            $empreinteFenetre,
+            $reactions->total.':'.$reactions->dernier,
+            ($membre?->status).':'.($membre?->role).':'.($membre?->updated_at),
+            (string) $memoire,
+            (string) $permissions,
+        ]);
     }
 
     public function aiRoute(): string
