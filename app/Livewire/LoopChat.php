@@ -11,6 +11,7 @@ use App\Models\DossierFile;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
+use App\Models\LoopPermissionSetting;
 use App\Models\LoopRoadmapItem;
 use App\Models\Reaction;
 use App\Models\Scopes\BelongsToOrganizationScope;
@@ -235,21 +236,46 @@ class LoopChat extends Component
      * et horodatage Unix du dernier rendu COMPLET. Deux scalaires, pas une
      * collection : le meme principe que `$loadedMessageIds` ci-dessus, qui
      * voyage deja dans le snapshot Livewire sans jamais y stocker de messages.
+     *
+     * `#[Locked]` (revue MASTER du 15/11) : aucune des deux ne voyage jamais
+     * vers un `wire:model` ni n'est censee etre modifiable depuis le JS de la
+     * page — un `$wire.set()` client (console, XSS) sur l'une d'elles pourrait
+     * sinon forcer un `skipRender()` perpetuel ou neutraliser la soupape. Le
+     * checksum de snapshot de Livewire empeche deja la FALSIFICATION d'un
+     * snapshot complet ; `#[Locked]` ferme en plus la voie, plus etroite mais
+     * reelle, d'un appel client legitime-en-apparence sur CES proprietes
+     * precises.
      */
+    #[Locked]
     public ?string $pollFingerprint = null;
 
+    #[Locked]
     public int $lastFullRenderAt = 0;
 
     /**
      * TASK-1835 — les cartes projetees (ServiceRequest/Article/Dossier/
-     * Feuille de route, T1826) sont volontairement HORS de l'empreinte : elles
-     * referencent des objets EXTERNES a la Boucle, et une empreinte qui les
+     * Feuille de route, T1826) restent HORS de l'empreinte : elles
+     * referencent des objets EXTERNES a la Boucle (visibilite evaluee a la
+     * lecture, ex. `DossierPolicy::view`), et une empreinte qui les
      * couvrirait couterait presque autant qu'un rendu complet (il faudrait
      * d'abord re-deriver, a chaque cycle, quels identifiants externes sont
-     * references par la fenetre chargee). Cette soupape borne plutot leur
-     * obsolescence a cette duree au lieu de la laisser illimitee.
+     * references par la fenetre chargee).
+     *
+     * Revue MASTER du 15/11 — reduite de 30s a 9s (trois cycles de poll) :
+     * un acces REVOQUE (retrait/depart d'un membre, desactivation du compte)
+     * n'est JAMAIS masque par cette soupape — {@see pollChat()} re-derive
+     * `isMember` a CHAQUE requete (T1772, dans `booted()`, avant meme que
+     * cette methode ne s'execute) et ne court-circuite jamais le rendu quand
+     * il est faux. Le risque residuel borne ici est plus etroit : la
+     * visibilite d'un objet EXTERNE REFERENCE (ex. un Dossier dont la
+     * permission change independamment de l'appartenance a la Boucle)
+     * pourrait rester affichee jusqu'a 9s au lieu des 3s d'avant cette TASK
+     * (ou chaque cycle rendait integralement). Multiplier par trois ce delai
+     * plutot que par dix (30s) est le compromis assume : il conserve une
+     * bonne part du gain mesure (~67% de reduction sur un palier inactif au
+     * lieu de ~91%) tout en bornant plus etroitement cette exposition.
      */
-    private const INTERVALLE_SOUPAPE_SECONDES = 30;
+    private const INTERVALLE_SOUPAPE_SECONDES = 9;
 
     /**
      * TASK-1310 : etat du formulaire « Ajouter au Dossier ». `null` = ferme.
@@ -599,9 +625,21 @@ class LoopChat extends Component
      *   membres, que `render()` n'utilise pas pour decider QUOI afficher ici.
      * - memoire : `MAX(updated_at)` sur les notes derivees de cette Boucle
      *   (`source_loop_id`), qui couvre le panneau de digest.
+     * - fenetre chargee (ajoute en revue, 15/11) : un hachage du contenu reel
+     *   (`body`/`pinned_at`/`deleted_at`/`edited_at`) des seuls messages de
+     *   `loadedMessageIds` — AUCUN comptage ni horodatage ne distingue une
+     *   deuxieme edition d'un message dans la MEME seconde que la premiere.
+     *   Borne a la fenetre chargee : son cout ne depend jamais du nombre
+     *   total de messages de la Boucle.
+     * - permissions (ajoute en revue, 15/11) : `MAX(updated_at)` sur
+     *   `loop_permission_settings`, un reglage GLOBAL (super-admin, sans
+     *   `loop_id`) donc une table minuscule, bon marche a verifier a chaque
+     *   cycle.
      *
      * Ne couvre PAS les cartes projetees externes : voir la soupape
-     * periodique sur `self::INTERVALLE_SOUPAPE_SECONDES`.
+     * periodique sur `self::INTERVALLE_SOUPAPE_SECONDES`, et la note sur
+     * cette constante pour ce qu'elle borne reellement (jamais une
+     * revocation d'acces a la Boucle elle-meme, voir {@see pollChat()}).
      */
     private function computePollFingerprint(): string
     {
@@ -642,11 +680,39 @@ class LoopChat extends Component
             ->where('source_loop_id', $this->loop->id)
             ->max('updated_at');
 
+        // Revue MASTER du 15/11 (point 1) — AUCUN comptage ni horodatage
+        // n'aurait distingue une DEUXIEME edition d'un message dans la MEME
+        // seconde que la premiere (meme sur PostgreSQL : verifie en direct,
+        // `edited_at`/`updated_at` sont stockes identiques a la seconde pres,
+        // le format de date par defaut d'Eloquent tronque les microsecondes
+        // AVANT l'ecriture). Le contenu reel est la seule signature fiable —
+        // et il reste bon marche : borne a `loadedMessageIds` (quelques
+        // dizaines), jamais a l'historique entier de la Boucle, donc son cout
+        // ne depend PAS du nombre total de messages (point 3).
+        $empreinteFenetre = $this->loadedMessageIds === [] ? '' : md5(
+            LoopMessage::query()
+                ->whereIn('id', $this->loadedMessageIds)
+                ->orderBy('id')
+                ->get(['id', 'body', 'pinned_at', 'deleted_at', 'edited_at'])
+                ->map(fn (LoopMessage $m) => "{$m->id}:{$m->body}:{$m->pinned_at}:{$m->deleted_at}:{$m->edited_at}")
+                ->implode('|')
+        );
+
+        // Revue MASTER du 15/11 (point 2) — reglage GLOBAL (super-admin, sans
+        // `loop_id` : voir la migration), donc rarement modifie et bon marche
+        // a verifier (table minuscule). Une revocation de permission a
+        // l'echelle de la plateforme (ex. « les moderateurs ne peuvent plus
+        // supprimer ») doit elle aussi relancer un rendu complet, pas
+        // attendre la soupape.
+        $permissions = LoopPermissionSetting::query()->max('updated_at');
+
         return implode('|', [
             $messages->total.':'.$messages->dernier.':'.$messages->total_epingles.':'.$messages->total_supprimes.':'.$messages->total_edites,
+            $empreinteFenetre,
             $reactions->total.':'.$reactions->dernier,
             ($membre?->status).':'.($membre?->role).':'.($membre?->updated_at),
             (string) $memoire,
+            (string) $permissions,
         ]);
     }
 

@@ -75,10 +75,12 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
         $requetes = DB::getQueryLog();
         DB::disableQueryLog();
 
-        // Mesure de reference (audit du 15/11) : un rendu complet coute 17
-        // requetes SQL. L'empreinte seule (messages, reactions, adhesion,
-        // memoire) n'en coute que 4 : largement sous le seuil de 50% vise.
-        $this->assertLessThanOrEqual(6, count($requetes));
+        // Mesure de reference (audit du 15/11) : un rendu complet coute entre
+        // 17 et 37 requetes SQL selon la fixture. L'empreinte seule (messages,
+        // fenetre chargee, reactions, adhesion, memoire, permissions
+        // globales) en coute une poignee : largement sous le seuil de 50%
+        // vise.
+        $this->assertLessThanOrEqual(10, count($requetes));
         $this->assertSame($empreinteInitiale, $composant->get('pollFingerprint'));
     }
 
@@ -118,6 +120,51 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
 
         $this->assertNotSame($empreinteInitiale, $composant->get('pollFingerprint'));
         $composant->assertSee('Texte corrige.');
+    }
+
+    /**
+     * Revue MASTER du 15/11, point 1 — verifie directement sur PostgreSQL
+     * (et SQLite) que `edited_at`/`updated_at` sont stockes IDENTIQUES a la
+     * seconde pres pour deux ecritures successives (le format de date par
+     * defaut d'Eloquent tronque les microsecondes AVANT l'ecriture, quel que
+     * soit le moteur) : une empreinte qui ne s'appuierait que sur ces
+     * horodatages ne verrait JAMAIS la deuxieme edition. Le hachage du
+     * contenu reel de la fenetre chargee doit la detecter quand meme.
+     */
+    public function test_une_deuxieme_edition_dans_la_meme_seconde_relance_le_rendu_complet(): void
+    {
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->membre->id,
+            'body' => 'Version 1.',
+            'type' => 'user',
+        ]);
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
+
+        // Premiere edition : le prochain poll doit deja la refleter.
+        $message->update(['body' => 'Version 2.', 'edited_at' => now(), 'edited_by' => $this->autre->id]);
+        $composant->call('pollChat');
+        $empreinteApresV2 = $composant->get('pollFingerprint');
+        $composant->assertSee('Version 2.');
+        $edited_at_apres_v2 = DB::table('loop_messages')->where('id', $message->id)->value('edited_at');
+
+        // Deuxieme edition. Le reste du test ne prouve le point souleve par
+        // MASTER que si les deux editions tombent dans la MEME seconde
+        // stockee — verifie explicitement plutot que suppose.
+        $message->update(['body' => 'Version 3.', 'edited_at' => now(), 'edited_by' => $this->membre->id]);
+        $edited_at_apres_v3 = DB::table('loop_messages')->where('id', $message->id)->value('edited_at');
+        $this->assertSame(
+            $edited_at_apres_v2,
+            $edited_at_apres_v3,
+            'ce test suppose que les deux editions tombent dans la meme seconde stockee — sinon il ne demontre rien.'
+        );
+
+        $composant->call('pollChat');
+
+        $this->assertNotSame($empreinteApresV2, $composant->get('pollFingerprint'));
+        $composant->assertSee('Version 3.');
+        $composant->assertDontSee('Version 2.');
     }
 
     public function test_un_epinglage_relance_le_rendu_complet(): void
@@ -271,6 +318,28 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
         $this->assertNotSame($empreinteInitiale, $composant->get('pollFingerprint'));
     }
 
+    /**
+     * Revue MASTER du 15/11, point 2 — un reglage de permission GLOBAL
+     * (super-admin, sans `loop_id` : voir la migration) ne doit pas attendre
+     * la soupape de 9s pour se repercuter.
+     */
+    public function test_un_changement_de_reglage_de_permission_global_relance_le_rendu_complet(): void
+    {
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
+        $empreinteInitiale = $composant->get('pollFingerprint');
+
+        \App\Models\LoopPermissionSetting::create([
+            'loop_type' => 'project',
+            'loop_role' => 'moderator',
+            'permission' => 'delete_message',
+            'allowed' => false,
+        ]);
+
+        $composant->call('pollChat');
+
+        $this->assertNotSame($empreinteInitiale, $composant->get('pollFingerprint'));
+    }
+
     public function test_la_soupape_periodique_force_un_rendu_complet_meme_sans_rien_de_change(): void
     {
         LoopMessage::create([
@@ -283,7 +352,8 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
         $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
         $horodatageInitial = $composant->get('lastFullRenderAt');
 
-        Carbon::setTestNow(now()->addSeconds(31));
+        // Soupape reduite a 9s (revue MASTER du 15/11, trois cycles de poll).
+        Carbon::setTestNow(now()->addSeconds(10));
 
         try {
             $composant->call('pollChat');
@@ -306,7 +376,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
         $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
         $horodatageInitial = $composant->get('lastFullRenderAt');
 
-        Carbon::setTestNow(now()->addSeconds(10));
+        Carbon::setTestNow(now()->addSeconds(5));
 
         try {
             $composant->call('pollChat');
