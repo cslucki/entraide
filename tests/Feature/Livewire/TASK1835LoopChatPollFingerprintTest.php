@@ -59,6 +59,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
     {
         LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->membre->id,
             'body' => 'Un message avant la mesure.',
             'type' => 'user',
@@ -92,6 +93,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
 
         LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->autre->id,
             'body' => 'Message arrive pendant le cycle de poll.',
             'type' => 'user',
@@ -107,6 +109,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
     {
         $message = LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->membre->id,
             'body' => 'Texte original.',
             'type' => 'user',
@@ -136,6 +139,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
     {
         $message = LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->membre->id,
             'body' => 'Version 1.',
             'type' => 'user',
@@ -183,6 +187,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
     {
         $message = LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->membre->id,
             'body' => 'Message a epingler.',
             'type' => 'user',
@@ -202,6 +207,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
     {
         $message = LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->membre->id,
             'body' => 'Message a supprimer.',
             'type' => 'user',
@@ -221,6 +227,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
     {
         $message = LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->membre->id,
             'body' => 'Message reagi.',
             'type' => 'user',
@@ -246,6 +253,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
     {
         $message = LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->membre->id,
             'body' => 'Message avec reaction a retirer.',
             'type' => 'user',
@@ -356,6 +364,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
     {
         LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->membre->id,
             'body' => 'Message stable.',
             'type' => 'user',
@@ -383,6 +392,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
     {
         LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->membre->id,
             'body' => 'Message stable.',
             'type' => 'user',
@@ -442,6 +452,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
     {
         LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->membre->id,
             'body' => 'Message porteur d une carte projetee.',
             'type' => $type,
@@ -469,6 +480,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
     {
         LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->membre->id,
             'body' => 'Message ordinaire, sans aucune carte projetee.',
             'type' => 'user',
@@ -497,6 +509,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
     {
         LoopMessage::create([
             'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
             'sender_id' => $this->membre->id,
             'body' => 'Message ordinaire, rien ne change ensuite.',
             'type' => 'user',
@@ -513,7 +526,7 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
         $requetesFenetre = array_filter(
             $requetes,
             fn (array $r) => str_contains($r['query'], 'loop_messages')
-                && str_contains($r['query'], 'where "id" in')
+                && str_contains($r['query'], '"id" in (')
         );
 
         $this->assertCount(
@@ -521,5 +534,67 @@ class TASK1835LoopChatPollFingerprintTest extends TestCase
             $requetesFenetre,
             'la fenetre chargee doit etre requetee une seule fois, partagee entre la detection de contenu projete et l\'empreinte.'
         );
+    }
+
+    /**
+     * Revue MASTER du 15/11 (correctif securite) — `loadedWindowMessages()`
+     * doit filtrer EXPLICITEMENT par `loop_id` ET `organization_id`, jamais
+     * se fier au seul contenu de `loadedMessageIds`. Ce test injecte
+     * directement un identifiant HORS PERIMETRE (autre Boucle, autre
+     * Organization) dans cette propriete publique — non verrouillee car elle
+     * doit rester modifiable par les actions legitimes du composant — pour
+     * simuler un snapshot falsifie ou un bug futur ailleurs dans le code, et
+     * verifie qu'aucun contenu ni aucune detection de carte projetee n'en
+     * resulte.
+     */
+    public function test_un_identifiant_hors_perimetre_injecte_dans_loaded_message_ids_ne_contribue_a_rien(): void
+    {
+        $autreOrganisation = Organization::factory()->create();
+        $autreUtilisateur = User::factory()->create(['organization_id' => $autreOrganisation->id]);
+        $autreBoucle = (new LoopService)->createLoop($autreUtilisateur, 'Boucle etrangere', type: 'project');
+
+        // `type: 'blog_post'` deliberement : si la scope manquait, ce message
+        // ferait a la fois fuiter son contenu dans l'empreinte ET declencher
+        // a tort le mode « contenu projete » (rendu complet permanent) pour
+        // la Boucle LEGITIME ci-dessous.
+        $messageEtranger = LoopMessage::create([
+            'loop_id' => $autreBoucle->id,
+            'organization_id' => $autreOrganisation->id,
+            'sender_id' => $autreUtilisateur->id,
+            'body' => 'CONTENU-SECRET-HORS-PERIMETRE',
+            'type' => 'blog_post',
+            'metadata' => ['blog_post_id' => (string) \Illuminate\Support\Str::uuid()],
+        ]);
+
+        $messageLocal = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
+            'sender_id' => $this->membre->id,
+            'body' => 'Message local ordinaire.',
+            'type' => 'user',
+        ]);
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
+
+        // Injection adversariale, PAS une action legitime du composant.
+        $composant->set('loadedMessageIds', [$messageLocal->id, $messageEtranger->id]);
+        $composant->assertDontSee('CONTENU-SECRET-HORS-PERIMETRE');
+
+        $composant->call('pollChat');
+        $composant->assertDontSee('CONTENU-SECRET-HORS-PERIMETRE');
+
+        // Rien ne change ensuite : si le message etranger (`type: 'blog_post'`)
+        // avait ete pris en compte par la scope manquante, AUCUN poll ne
+        // pourrait plus jamais court-circuiter pour ce composant (mode
+        // « contenu projete » permanent, par construction). Prouve que la
+        // scope exclut bien ce message de la detection.
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $composant->call('pollChat');
+        $requetes = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $this->assertLessThanOrEqual(10, count($requetes));
+        $composant->assertDontSee('CONTENU-SECRET-HORS-PERIMETRE');
     }
 }

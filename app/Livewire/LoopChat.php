@@ -643,6 +643,18 @@ class LoopChat extends Component
      * informations deja chargees pour eviter une requete couteuse
      * supplementaire ») — jamais une deuxieme pour la meme fenetre dans un
      * seul cycle de poll.
+     *
+     * Revue MASTER du 15/11 (correctif securite) — `loop_id` ET
+     * `organization_id` filtres EXPLICITEMENT, jamais supposes depuis
+     * `loadedMessageIds` seul : cette propriete publique n'est PAS
+     * `#[Locked]` (elle doit rester modifiable par les actions legitimes du
+     * composant — chargement de messages plus anciens, nouveaux messages),
+     * donc un identifiant d'une AUTRE Boucle ou d'une AUTRE Organization
+     * injecte dedans (snapshot falsifie, ou bug futur) ne doit JAMAIS pouvoir
+     * faire contribuer du contenu hors perimetre a l'empreinte ou a la
+     * detection de contenu projete. Meme doctrine que {@see loadedCursorMessage()}
+     * juste plus bas dans ce fichier, qui scope deja ses deux lectures de la
+     * meme maniere.
      */
     private function loadedWindowMessages(): Collection
     {
@@ -651,6 +663,8 @@ class LoopChat extends Component
         }
 
         return LoopMessage::query()
+            ->where('loop_id', $this->loop->id)
+            ->where('organization_id', $this->loop->organization_id)
             ->whereIn('id', $this->loadedMessageIds)
             ->orderBy('id')
             ->get(['id', 'body', 'pinned_at', 'deleted_at', 'edited_at', 'type', 'metadata']);
