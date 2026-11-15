@@ -80,3 +80,20 @@ Schedule::command('knowledge:derive-due')->everyTenMinutes()->withoutOverlapping
 
 // TASK-1433 — SW-3 : la retention des visiteurs du Shell Welcome est une promesse.
 Schedule::command('guest:purge-expired')->daily();
+
+// TASK-1829 — filet de securite independant de la file : une livraison
+// bloquee en `sending` (worker tue, memoire epuisee) n'est jamais reprise par
+// aucun rejeu (`prendre()` n'accepte que `pending`). Toutes les 5 minutes,
+// largement au-dessus du plus long `$timeout` de job (90 s), pour qu'une
+// livraison legitimement en cours ne soit jamais touchee.
+//
+// TASK-1830 — `onOneServer()` : doc Laravel Cloud, verifiee, « make sure
+// you are using Laravel's onOneServer method when scheduling your tasks.
+// Otherwise, your tasks will run on every replica ». Sans effet aujourd'hui
+// (1 seule instance, PROD mesuree T1778) mais sans lui, le jour ou l'App
+// cluster passe a plusieurs replicas, CHAQUE replica relancerait la
+// recuperation en parallele — inoffensif pour la donnee (chaque ligne est
+// reverifiee sous verrou dans sa propre transaction) mais redondant.
+// `withoutOverlapping` seul ne couvre que les executions successives sur
+// LA MEME instance, pas les executions simultanees entre instances.
+Schedule::command('notifications:recover-stale-deliveries')->everyFiveMinutes()->withoutOverlapping(5)->onOneServer();

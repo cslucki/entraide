@@ -267,17 +267,25 @@ class TASK1479OrganizationDirectoryAccessTest extends TestCase
         // chaine : le jour ou la methode bouge, on lit toujours la bonne.
         $decision = $this->sourceOfDecisionPath();
 
-        $this->assertStringContainsString('$user->is_admin', $decision, 'premisse : `handle()` est bien le chemin de decision');
+        $this->assertStringContainsString('$user->is_admin', $decision, 'premisse : `enforce()` est bien le chemin de decision');
 
         foreach (['is_public', 'admin_id', 'Gate::', 'config('] as $forbidden) {
             $this->assertStringNotContainsString($forbidden, $decision, $forbidden.' : aucun critere de plus');
         }
     }
 
-    /** Le corps de `EnsureOrganizationMember::handle()`, tel qu'il est ecrit. */
+    /**
+     * Le corps de `EnsureOrganizationMember::enforce()`, tel qu'il est ecrit.
+     *
+     * TASK-1829 — `handle()` n'est plus que `return static::enforce(...)` :
+     * la logique de decision a du sortir en methode STATIQUE pour etre
+     * appelee depuis deux classes de middleware independantes (voir
+     * {@see \App\Http\Middleware\EnsureOrganizationMemberExplained}). Elle
+     * reste l'UNIQUE chemin de decision, seul son nom a change.
+     */
     private function sourceOfDecisionPath(): string
     {
-        $method = new \ReflectionMethod(EnsureOrganizationMember::class, 'handle');
+        $method = new \ReflectionMethod(EnsureOrganizationMember::class, 'enforce');
         $lines = file($method->getFileName());
 
         return implode('', array_slice(
@@ -434,8 +442,14 @@ class TASK1479OrganizationDirectoryAccessTest extends TestCase
     {
         $dashboard = $this->effectiveMiddleware('organization.dashboard');
 
-        // Le tableau de bord : le mode qui EXPLIQUE (TASK-1483), et LUI SEUL.
-        $this->assertContains(EnsureOrganizationMember::class.':'.EnsureOrganizationMember::MODE_EXPLAIN, $dashboard);
+        // TASK-1829 — le mode EXPLIQUE n'est plus un parametre de la MEME
+        // classe (`organization.member:explain`) : c'est desormais une
+        // classe INDEPENDANTE, `EnsureOrganizationMemberExplained`. Voir son
+        // docblock — Laravel 13.42 exclut un middleware parametre des que
+        // sa classe sous-jacente figure dans `withoutMiddleware()`, ce qui
+        // faisait disparaitre la garde entiere sous l'ancienne forme.
+        $this->assertContains(\App\Http\Middleware\EnsureOrganizationMemberExplained::class, $dashboard,
+            'le tableau de bord : le mode qui EXPLIQUE (TASK-1483/TASK-1829), et LUI SEUL');
         $this->assertNotContains(EnsureOrganizationMember::class, $dashboard,
             'le tableau de bord ne doit pas retomber sur le 404 muet');
 

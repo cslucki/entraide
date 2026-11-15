@@ -71,6 +71,29 @@ final class EnsureOrganizationMember
 
     public function handle(Request $request, Closure $next, ?string $mode = null): Response
     {
+        return static::enforce($request, $next, $mode);
+    }
+
+    /**
+     * TASK-1829 — extrait en methode STATIQUE pour etre appelee depuis DEUX
+     * classes de middleware INDEPENDANTES (aucun lien d'heritage), jamais
+     * depuis une seule classe parametree.
+     *
+     * Laravel 13.42 a change la maniere dont `Route::withoutMiddleware()`
+     * exclut un middleware PARAMETRE : `Router::resolveMiddleware()` exclut
+     * desormais par la CLASSE sous-jacente seule (`explode(':', $name)[0]`),
+     * et aussi par heritage (`isSubclassOf`) — pas seulement par la chaine
+     * exacte (`'EnsureOrganizationMember:explain'` vs `'EnsureOrganizationMember'`)
+     * comme avant. Exclure `organization.member` (cette classe, sans
+     * parametre) excluait donc AUSSI `organization.member:explain`, faisant
+     * disparaitre toute garde sur `/org/{organization}/dashboard` — mesure
+     * en CI, TASK1732SiblingAccountByInvitationTest. Une classe
+     * INDEPENDANTE (voir {@see \App\Http\Middleware\EnsureOrganizationMemberExplained})
+     * echappe aux deux formes d'exclusion, puisqu'elle n'est ni la classe
+     * exclue ni l'une de ses sous-classes.
+     */
+    public static function enforce(Request $request, Closure $next, ?string $mode): Response
+    {
         $user = $request->user();
 
         // Ceinture. `auth` doit avoir agi avant — mais cette garde ne repose
@@ -97,7 +120,7 @@ final class EnsureOrganizationMember
         }
 
         if ($mode === self::MODE_EXPLAIN) {
-            return $this->explain($organization);
+            return static::explain($organization);
         }
 
         abort(404);
@@ -116,7 +139,7 @@ final class EnsureOrganizationMember
      * organisation » n'est propose que si cet accueil existe reellement.
      * Mesure faite : `/org/artscilab-en` (privee) rend 302, pas une landing.
      */
-    private function explain(Organization $organization): Response
+    private static function explain(Organization $organization): Response
     {
         // TASK-1692 — une Organization PRIVEE ne confirme pas son existence.
         //
@@ -140,7 +163,7 @@ final class EnsureOrganizationMember
             'publicHomeUrl' => Route::has('organization.home')
                 ? route('organization.home', ['organization' => $organization->slug])
                 : null,
-            'ownSpaceUrl' => $this->ownSpaceUrl(),
+            'ownSpaceUrl' => static::ownSpaceUrl(),
         ], 403);
     }
 
@@ -149,7 +172,7 @@ final class EnsureOrganizationMember
      * une destination inventee. Si elle n'est pas resoluble, on retombe sur la
      * racine plutot que de fabriquer une URL.
      */
-    private function ownSpaceUrl(): string
+    private static function ownSpaceUrl(): string
     {
         $own = auth()->user()?->organization;
 

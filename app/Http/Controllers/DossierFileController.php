@@ -168,6 +168,11 @@ class DossierFileController extends Controller
         $uploadedFiles = $request->file('files');
         $disk = 'dossier_files';
         $createdFiles = [];
+        // TASK-1826 — les MODELES crees, a cote du tableau `$createdFiles`
+        // (qui reste la reponse JSON telle quelle). L'annonce ChatLoop a
+        // besoin des identifiants reels pour resoudre les fichiers en direct,
+        // pas seulement de leurs noms.
+        $createdFileModels = [];
         $storedPaths = [];
 
         DB::beginTransaction();
@@ -266,6 +271,8 @@ class DossierFileController extends Controller
                     'source' => 'upload',
                 ]);
 
+                $createdFileModels[] = $dossierFile;
+
                 $dossierFile->load('uploader:id,organization_id,first_name,avatar,name,email,banned_at');
                 $createdFiles[] = array_merge(
                     $dossierFile->toArray(),
@@ -307,7 +314,7 @@ class DossierFileController extends Controller
                 app(LoopMessageService::class)->sendDossierFileMessage(
                     $dossier->loop,
                     $request->user(),
-                    array_map(fn ($f) => (string) ($f['original_name'] ?? ''), $createdFiles),
+                    collect($createdFileModels),
                 );
             } catch (\Throwable $e) {
                 Log::warning('TASK-1772 : depot annonce impossible dans la Boucle', [

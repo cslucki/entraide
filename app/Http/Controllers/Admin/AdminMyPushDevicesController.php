@@ -62,15 +62,38 @@ class AdminMyPushDevicesController extends Controller
     {
         $recherche = trim((string) $request->query('q', ''));
 
-        $page = $this->magasin->tous($recherche === '' ? null : $recherche);
+        // TASK-1823 — les deux filtres. `etat` est valide contre la liste
+        // du magasin : une valeur inconnue est ECARTEE ici plutot que
+        // transmise, pour que l'ecran n'affiche jamais un filtre actif qui
+        // ne filtrerait rien.
+        $etat = (string) $request->query('etat', '');
+        $etat = in_array($etat, PushSubscriptionStore::situations(), true) ? $etat : '';
+
+        $organizationId = (string) $request->query('org', '');
+
+        $page = $this->magasin->tous(
+            $recherche === '' ? null : $recherche,
+            etat: $etat === '' ? null : $etat,
+            organizationId: $organizationId === '' ? null : $organizationId,
+        );
 
         // TASK-1821 — les traces de livraison du PROPRIETAIRE, chargees en UNE
         // requete pour toute la page. Elles sont attachees a la personne,
         // jamais a l'appareil : `member_notification_deliveries` ne porte
         // aucun identifiant d'abonnement (voir le docblock de
         // `dernieresLivraisonsWebPush()`), et la vue le dit explicitement.
-        $livraisonsParPersonne = $this->magasin->dernieresLivraisonsWebPush(
-            $page->getCollection()->pluck('user_id')->filter()->unique()->values()->all(),
+        $idsProprietaires = $page->getCollection()->pluck('user_id')->filter()->unique()->values()->all();
+
+        $livraisonsParPersonne = $this->magasin->dernieresLivraisonsWebPush($idsProprietaires);
+
+        // TASK-1823 — l'indicateur d'incident, mesure sur la fenetre ENTIERE
+        // de 30 jours et non sur les cinq livraisons ci-dessus. MASTER :
+        // « les cinq dernieres livraisons affichees ne doivent pas
+        // determiner seules le diagnostic ». Une ligne pourrait n'afficher
+        // que des succes recents tout en appartenant a un compte qui a
+        // echoue trois semaines plus tot.
+        $comptesEnIncident = array_flip(
+            $this->magasin->idsDesComptesAvecIncidentRecent($idsProprietaires),
         );
 
         $appareils = $page->getCollection()
@@ -88,6 +111,10 @@ class AdminMyPushDevicesController extends Controller
                 'proprietaireOrganization' => $abonnement->user?->organization?->name,
                 // Les livraisons de la PERSONNE, jamais de l'appareil.
                 'livraisonsDuProprietaire' => $livraisonsParPersonne[(string) $abonnement->user_id] ?? [],
+                // TASK-1823 — porte par TOUTES les lignes du compte, parce
+                // qu'aucune donnee ne permet de designer l'appareil en
+                // cause. La vue doit le formuler comme un fait de COMPTE.
+                'compteEnIncident' => isset($comptesEnIncident[(string) $abonnement->user_id]),
                 'fournisseur' => (string) parse_url($abonnement->endpoint, PHP_URL_HOST),
                 // Les 8 premiers caracteres : meme convention que T1740
                 // (`PushTestPolicy::reperageDe()`), suffisants pour distinguer
@@ -114,6 +141,15 @@ class AdminMyPushDevicesController extends Controller
                 // La cle de traduction DIRECTEMENT, pour ne pas faire porter
                 // au gabarit une correspondance etat -> libelle qui lui
                 // appartient autant qu'au controleur.
+                // TASK-1823 — la SITUATION de l'abonnement, derivee du meme
+                // etat contextualise que le libelle VAPID : une pastille et
+                // une phrase qui divergeraient seraient pires que pas de
+                // pastille du tout.
+                'situation' => match ($abonnement->etatCleVapidContextualise()) {
+                    PushSubscription::VAPID_CONCORDANTE => PushSubscriptionStore::SITUATION_ELIGIBLE,
+                    PushSubscription::VAPID_DIVERGENTE => PushSubscriptionStore::SITUATION_CLE_INCOMPATIBLE,
+                    default => PushSubscriptionStore::SITUATION_A_VERIFIER,
+                },
                 'vapidLangKey' => 'admin.push_devices_vapid_'.match ($abonnement->etatCleVapidContextualise()) {
                     PushSubscription::VAPID_CONCORDANTE => 'concordant',
                     PushSubscription::VAPID_DIVERGENTE => 'divergent',
@@ -132,6 +168,11 @@ class AdminMyPushDevicesController extends Controller
             // sa propre paire VAPID.
             'resume' => $this->magasin->resumeParEnvironnement(),
             'environnementCourant' => (string) config('app.env'),
+            // TASK-1823 — le bento, les filtres et leur etat courant.
+            'compteurs' => $this->magasin->compteursDeSituation(),
+            'organizations' => $this->magasin->organizationsAvecAbonnements(),
+            'filtres' => ['q' => $recherche, 'etat' => $etat, 'org' => $organizationId],
+            'fenetreIncidents' => PushSubscriptionStore::FENETRE_INCIDENTS_JOURS,
             // TASK-1821 — en LOCAL uniquement : l'identité du compte qui
             // REGARDE. L'écran montrant désormais tout le monde, savoir sous
             // quel compte on le consulte reste utile en recette — c'est ce

@@ -13,6 +13,7 @@ use App\Models\Organization;
 use App\Models\Tag;
 use App\Services\BlogAiService;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Blog\LoopArticleLinks;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Http\JsonResponse;
@@ -94,7 +95,14 @@ class BlogController extends Controller implements HasMiddleware
             ->filter(fn ($t) => $t->blog_posts_count > 0)
             ->take(20);
 
-        return view('blog.index', compact('recentPosts', 'popularPosts', 'categories', 'popularTags'));
+        // TASK-1827 — carte par carte serait N+1 sur une page paginee.
+        // Vide pour un visiteur sans chemin existant vers le catalogue des
+        // Boucles (voir le docblock de `LoopArticleLinks`).
+        $linkedLoopsByPost = $this->viewerMaySeeLoopLinks($organization)
+            ? app(LoopArticleLinks::class)->forPosts($recentPosts->getCollection(), $organization)
+            : collect();
+
+        return view('blog.index', compact('recentPosts', 'popularPosts', 'categories', 'popularTags', 'linkedLoopsByPost'));
     }
 
     public function byCategory(string $slug): View
@@ -181,7 +189,31 @@ class BlogController extends Controller implements HasMiddleware
 
         [$headers, $postContent] = $this->extractPublishedToc($post);
 
-        return view('blog.show', compact('post', 'relatedPosts', 'isLiked', 'headers', 'postContent'));
+        // TASK-1827 — n'existe que pour un lecteur qui a deja un chemin vers
+        // le catalogue des Boucles (voir le docblock de `LoopArticleLinks`).
+        $linkedLoops = $this->viewerMaySeeLoopLinks($organization)
+            ? app(LoopArticleLinks::class)->forPost($post, $organization)
+            : collect();
+
+        return view('blog.show', compact('post', 'relatedPosts', 'isLiked', 'headers', 'postContent', 'linkedLoops'));
+    }
+
+    /**
+     * TASK-1827 — un nom de Boucle n'est montre qu'a quelqu'un qui a DEJA un
+     * chemin existant vers le catalogue des Boucles (`loops.index`) : un
+     * membre actif de CETTE Organization. Un visiteur public ou d'une autre
+     * Organization n'y a jamais acces aujourd'hui — le leur montrer ici
+     * serait une fuite neuve, pas la reprise d'un contrat existant.
+     */
+    private function viewerMaySeeLoopLinks(Organization $organization): bool
+    {
+        if (! $organization->loops_enabled) {
+            return false;
+        }
+
+        $user = auth()->user();
+
+        return $user !== null && $user->organization_id === $organization->id;
     }
 
     /**

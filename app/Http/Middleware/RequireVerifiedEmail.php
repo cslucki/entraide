@@ -75,6 +75,17 @@ class RequireVerifiedEmail
         // Le fond n'a pas change : on ne retient pas quelqu'un sur une
         // adresse qu'il n'a pas confirmee.
         'account.close',
+        // TASK-1824 — MEME defaut que `account.close`, mesure separement.
+        //
+        // `password.update` est elle aussi une route GLOBALE, hors du
+        // prefixe `profile.`/`organization.profile.` : la page du formulaire
+        // (`profile.edit`/`organization.profile.edit`) reste ouverte, mais sa
+        // soumission (`PUT /password`) etait renvoyee vers `/verify-email`
+        // SANS rien changer — ni erreur affichee, ni mot de passe modifie.
+        // Un compte non verifie doit pouvoir changer son mot de passe comme
+        // il peut deja corriger son profil : ce n'est pas un geste qui exige
+        // une adresse confirmee.
+        'password.update',
     ];
 
     /**

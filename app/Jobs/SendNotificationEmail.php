@@ -66,6 +66,25 @@ class SendNotificationEmail implements ShouldQueue
         // typé rend la composition du trait invalide (erreur FATALE a la
         // construction, pas une deprecation silencieuse).
         $this->afterCommit();
+
+        // TASK-1829 — routage conditionnel vers la Managed Queue Laravel
+        // Cloud. Vide par defaut (voir config/queue.php) : aucun appel ici,
+        // et `QUEUE_CONNECTION` continue seul de gouverner. Ne bascule que
+        // si l'etape 3 (creation reelle de la file, hors de cette TASK) a
+        // explicitement pose `NOTIFICATIONS_MANAGED_QUEUE_CONNECTION`.
+        //
+        // TASK-1830 — la bascule change AUSSI le nom de file, pas seulement
+        // la connexion. Le plan Starter de la Managed Queue n'offre qu'UNE
+        // file par environnement (doc officielle Laravel Cloud, verifiee :
+        // « Each managed queue handles one queue name »). Les deux noms
+        // DEDIES (`notifications-email`/`notifications-web-push`) n'ont de
+        // sens que sous `database`/`sync` ; sur `cloud`, ils ne
+        // correspondraient a AUCUNE file reelle. Les deux jobs doivent donc
+        // partager la MEME file configuree des que ce drapeau est pose.
+        if ($connexion = config('queue.notifications_managed_queue_connection')) {
+            $this->onConnection($connexion);
+            $this->onQueue(config('queue.notifications_managed_queue_name', NotificationEmailDeliverer::QUEUE));
+        }
     }
 
     public function handle(NotificationEmailDeliverer $deliverer): void

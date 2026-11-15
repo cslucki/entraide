@@ -40,6 +40,19 @@ return [
     'chat_dossier_file_deposited' => ':name has just added the file « :file » to the Loop.',
     'chat_dossier_files_deposited' => ':name has just added :count files to the Loop.',
     'chat_dossier_open_card' => 'Open',
+    // TASK-1826 — premium Dossier File card (single upload, direct link).
+    'chat_dossier_file_open' => 'Open file',
+    // TASK-1828 — multi-file deposit: opens the Card with a selection
+    // bounded to THIS deposit, never a download chosen for the person.
+    'chat_dossier_file_open_many' => 'View files',
+    // TASK-1826 — premium Article card.
+    'chat_article_published' => ':name published the article « :title » in the Loop.',
+    'chat_article_badge' => 'Article',
+    'chat_article_unavailable' => 'This article is no longer available.',
+    // TASK-1826 — premium Roadmap Action card.
+    'chat_roadmap_action_created' => ':name created an action: « :title »',
+    'chat_roadmap_open' => 'View action',
+    'chat_roadmap_unavailable' => 'This action is no longer available.',
     // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.
     'composer_file_uploading_many' => 'Uploading :count files…',
     // TASK-1772 — la seconde phase : les octets sont partis, le serveur valide,
@@ -646,6 +659,15 @@ return [
             'item_count' => '{0}No item|{1}:count item|[2,*]:count items',
             'draft' => 'Draft',
             'archived_read_only' => 'Archived Loop: the folder stays readable, but nothing can be added.',
+
+            // TASK-1828 — contextual navigation from ChatLoop: detail panel
+            // (Article or File) opened inside the Card.
+            'detail_back' => 'Back',
+            'detail_read_full_article' => 'Read the full article',
+            'detail_select_file' => 'Several files were uploaded, pick one:',
+            'detail_back_to_selection' => 'Back to selection',
+            'detail_download' => 'Download',
+            'detail_preview_unavailable' => 'No preview available for this file type.',
         ],
         'polls' => [
             'label' => 'Polls',
@@ -1590,4 +1612,15 @@ return [
     // Cyril's request: an image without a caption must not leave the row
     // looking empty.
     'latest_messages_image_only' => 'Shared an image',
+
+    // TASK-1827 — premium catalog of articles linked to a Loop.
+    'articles_nav_link' => 'Loop articles',
+    'articles_title' => 'Loop articles',
+    'articles_subtitle' => 'Blog articles shared in a Loop of your organization.',
+    'articles_count' => '{0} No accessible article|{1} :count accessible article|[2,*] :count accessible articles',
+    'articles_filter_all' => 'All loops',
+    'articles_filter_label' => 'Filter by loop',
+    'articles_badge' => 'Loop article',
+    'articles_empty' => 'No loop article yet.',
+    'articles_empty_filtered' => 'No article for this loop.',
 ];

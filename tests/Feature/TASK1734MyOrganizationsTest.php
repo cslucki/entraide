@@ -712,8 +712,11 @@ class TASK1734MyOrganizationsTest extends TestCase
     {
         $moi = $this->compte($this->orgA, 'marie@exemple.test');
 
+        // TASK-1824 — `account-access-form` a demenage de `profile.edit` vers
+        // `profile.security` (« Securite du compte ») : ces deux marqueurs y
+        // vivent desormais, pas sur le formulaire de presentation.
         $this->actingAs($moi)
-            ->get(route('profile.edit'))
+            ->get(route('profile.security'))
             ->assertOk()
             ->assertSee('data-nav-account-links', false)
             ->assertSee('data-nav-account-switch', false);

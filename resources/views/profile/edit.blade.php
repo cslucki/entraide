@@ -59,23 +59,22 @@
                  acces au compte, fermeture — gardent la leur. --}}
             @include('profile.partials.update-profile-information-form')
 
-            <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.update-password-form')
-                </div>
-            </div>
-
-            <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.account-access-form')
-                </div>
-            </div>
-
-            <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.close-account-form')
-                </div>
-            </div>
+            {{-- TASK-1824 — mot de passe, acces/comptes lies et fermeture ont
+                 demenage sur leur propre page : un geste de securite ne doit
+                 pas se perdre au milieu d'un formulaire de presentation.
+                 L'acces reste a UN clic, bien visible. --}}
+            <a href="{{ organizationScopedUrl('profile.security', 'organization.profile.security') }}"
+               data-nav-profile-security
+               class="flex items-center justify-between gap-3 p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg transition hover:bg-gray-50 dark:hover:bg-gray-700/60">
+                <span class="flex items-center gap-3">
+                    <svg class="h-6 w-6 flex-shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                    <span>
+                        <span class="block text-sm font-medium text-gray-900 dark:text-gray-100">{{ __('profile.security_cta') }}</span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400">{{ __('profile.security_intro') }}</span>
+                    </span>
+                </span>
+                <svg class="h-5 w-5 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </a>
         </div>
     </x-page-container>
 </x-app-layout>

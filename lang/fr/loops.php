@@ -43,6 +43,20 @@ return [
     'chat_dossier_file_deposited' => ':name vient de déposer le fichier « :file » dans la Boucle.',
     'chat_dossier_files_deposited' => ':name vient de déposer :count fichiers dans la Boucle.',
     'chat_dossier_open_card' => 'Voir',
+    // TASK-1826 — carte premium Fichier Dossier (depot unique, lien direct).
+    'chat_dossier_file_open' => 'Ouvrir le fichier',
+    // TASK-1828 — depot de plusieurs fichiers : ouvre la Card avec une
+    // selection bornee a CE depot, jamais un telechargement choisi pour la
+    // personne.
+    'chat_dossier_file_open_many' => 'Voir les fichiers',
+    // TASK-1826 — carte premium Article.
+    'chat_article_published' => ':name a publié l\'article « :title » dans la Boucle.',
+    'chat_article_badge' => 'Article',
+    'chat_article_unavailable' => 'Cet article n\'est plus disponible.',
+    // TASK-1826 — carte premium Action Roadmap.
+    'chat_roadmap_action_created' => ':name a créé une action : « :title »',
+    'chat_roadmap_open' => 'Voir l\'action',
+    'chat_roadmap_unavailable' => 'Cette action n\'est plus disponible.',
     // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.
     'composer_file_uploading_many' => ':count fichiers en cours d\'envoi…',
     // TASK-1772 — la seconde phase : les octets sont partis, le serveur valide,
@@ -649,6 +663,15 @@ return [
             'item_count' => '{0}Aucun élément|{1}:count élément|[2,*]:count éléments',
             'draft' => 'Brouillon',
             'archived_read_only' => 'Boucle archivée : le Dossier reste consultable, mais rien ne peut y être ajouté.',
+
+            // TASK-1828 — navigation contextuelle depuis ChatLoop : panneau de
+            // détail (Article ou Fichier) ouvert à l'intérieur de la Card.
+            'detail_back' => 'Retour',
+            'detail_read_full_article' => 'Lire l\'article complet',
+            'detail_select_file' => 'Plusieurs fichiers ont été déposés, choisissez-en un :',
+            'detail_back_to_selection' => 'Revenir à la sélection',
+            'detail_download' => 'Télécharger',
+            'detail_preview_unavailable' => 'Aucun aperçu disponible pour ce type de fichier.',
         ],
         'polls' => [
             'label' => 'Sondages',
@@ -1640,4 +1663,15 @@ return [
     // Demande de Cyril : une image sans commentaire ne doit pas rendre la
     // ligne vide.
     'latest_messages_image_only' => 'A partagé une image',
+
+    // TASK-1827 — catalogue premium des Articles lies a une Boucle.
+    'articles_nav_link' => 'Articles de boucle',
+    'articles_title' => 'Articles de boucle',
+    'articles_subtitle' => 'Les articles du Blog partagés dans une Boucle de votre organisation.',
+    'articles_count' => '{0} Aucun article accessible|{1} :count article accessible|[2,*] :count articles accessibles',
+    'articles_filter_all' => 'Toutes les boucles',
+    'articles_filter_label' => 'Filtrer par boucle',
+    'articles_badge' => 'Article de boucle',
+    'articles_empty' => 'Aucun article de boucle pour le moment.',
+    'articles_empty_filtered' => 'Aucun article pour cette boucle.',
 ];

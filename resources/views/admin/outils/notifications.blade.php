@@ -120,6 +120,26 @@
                                   class="mt-1 block font-mono text-[11px] {{ $nbAppareils > 0 ? 'text-gray-500' : 'text-amber-700 dark:text-amber-300' }}">
                                 {{ trans_choice('admin.notif_inspector_devices', $nbAppareils, ['count' => $nbAppareils]) }}
                             </span>
+
+                            {{-- TASK-1823 — le pont vers « Appareils Push ».
+                                 Ce compteur dit COMBIEN d'appareils sont
+                                 envoyables ; l'autre écran dit LESQUELS et
+                                 dans quel état. Le lien n'apparaît que pour
+                                 qui peut ouvrir cette console — la garde
+                                 `superadmin-push-all-devices` refuserait
+                                 sinon un lien proposé.
+
+                                 « Rechercher » et non « ouvrir » : `q` est une
+                                 recherche partielle sur l'email. --}}
+                            @can('superadmin-push-all-devices')
+                                @if($destinataire?->email)
+                                    <a href="{{ route('admin.outils.my-push-devices', ['q' => $destinataire->email]) }}"
+                                       data-lien-appareils-push
+                                       class="mt-1 inline-flex items-center text-[11px] font-semibold text-indigo-700 underline dark:text-indigo-300">
+                                        {{ __('admin.push_diag_link_devices') }}
+                                    </a>
+                                @endif
+                            @endcan
                         </td>
 
                         <td class="px-3 py-2">

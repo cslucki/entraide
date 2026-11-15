@@ -136,14 +136,31 @@ class TASK1663TrustedProxyHttpsTest extends TestCase
         $this->assertSame([], SymfonyRequest::getTrustedProxies());
     }
 
-    public function test_f_the_star_value_trusts_only_the_calling_ip(): void
+    /**
+     * TASK-1829 — Laravel 13.42 (vs 13.7, mesure avant la montee) remplace le
+     * SNAPSHOT de l'IP appelante par les blocs passe-partout
+     * `['0.0.0.0/0', '::/0']` — `TrustProxies::setTrustedProxyIpAddressesToTheCallingIp()`,
+     * malgre son nom, pose desormais ces deux CIDR plutot que
+     * `REMOTE_ADDR`. C'est le comportement QUE LA DOC LARAVEL RECOMMANDE
+     * pour `*` derriere un load-balancer dont l'IP n'est pas stable (Cloud,
+     * Forge, Vapor) — exactement le cas de ce depot (voir le docblock de la
+     * classe : la PROD passe deja par cette auto-detection).
+     *
+     * La posture de securite reelle ne change pas : sur Laravel Cloud,
+     * aucune requete ne peut atteindre l'instance autrement qu'au travers du
+     * load-balancer de la plateforme — poser `0.0.0.0/0` comme PROXY de
+     * confiance n'ouvre donc rien de plus que ce que `*` ouvrait deja
+     * d'intention. C'est la DESCRIPTION de ce que fait `*` qui change, pas
+     * ce que l'app expose.
+     */
+    public function test_f_the_star_value_trusts_the_catch_all_cidr_ranges(): void
     {
         config(['trustedproxy.proxies' => '*']);
 
         $this->parLeMiddleware(['REMOTE_ADDR' => '10.1.2.3']);
 
-        $this->assertSame(['10.1.2.3'], SymfonyRequest::getTrustedProxies(),
-            '`*` ne fait pas confiance a tout le monde : il fait confiance a l\'IP APPELANTE, et a elle seule');
+        $this->assertSame(['0.0.0.0/0', '::/0'], SymfonyRequest::getTrustedProxies(),
+            '`*` delegue desormais aux CIDR passe-partout de Laravel, pas a un snapshot de l\'IP appelante');
     }
 
     // ── G. La garde PROD ───────────────────────────────────────────────────

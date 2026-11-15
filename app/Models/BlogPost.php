@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -167,6 +168,40 @@ class BlogPost extends Model
             ->withTimestamps();
     }
 
+    /**
+     * TASK-1826 — TOUTES les Boucles ou cet Article doit etre annonce.
+     *
+     * Deux sources, parce qu'un Article peut se lier a une Boucle de deux
+     * facons distinctes, qui ne posent PAS toutes les deux `blog_post_loop` :
+     *
+     *  - le pivot `loops()` lui-meme — partage explicite
+     *    (`BlogPostLoopController::store()`) ou creation depuis la Card
+     *    Dossiers d'une Boucle (`LoopDossierArticleController::store()`, qui
+     *    pose les deux liens d'un coup) ;
+     *  - le Dossier RACINE d'une Boucle (`dossiers.loop_id`) : un Article
+     *    attache a ce Dossier via le module Dossiers general
+     *    (`DossierArticleController::store()`/`createAndAttach()`) n'ecrit
+     *    QUE `dossier_blog_posts` — jamais le pivot — et apparait pourtant
+     *    dans `LoopArticleCard` via `LoopWritingService`.
+     *
+     * Oublier la seconde source laisserait un Article publie depuis l'ecran
+     * Dossier general, sur le Dossier racine d'une Boucle, sans aucune trace
+     * dans ChatLoop — exactement le trou que cette methode comble.
+     *
+     * @return Collection<int, Loop>
+     */
+    public function linkedLoops(): Collection
+    {
+        $viaPivot = $this->loops()->get();
+
+        $dossierId = $this->dossierEntry?->dossier_id;
+        $viaRootDossier = $dossierId
+            ? Loop::whereIn('id', Dossier::where('id', $dossierId)->whereNotNull('loop_id')->pluck('loop_id'))->get()
+            : collect();
+
+        return $viaPivot->merge($viaRootDossier)->unique('id')->values();
+    }
+
     public function todos(): HasMany
     {
         return $this->hasMany(BlogTodo::class);
@@ -224,6 +259,22 @@ class BlogPost extends Model
             ->whereNotNull('published_at')
             ->where('published_at', '<=', now())
             ->where('listed_in_blog', true);
+    }
+
+    /**
+     * TASK-1826 — la MEME condition que `scopePublished()`, mais sur une
+     * instance deja chargee : `BlogPostObserver` constate une transition sur
+     * un modele qu'il tient deja en main, et re-interroger la base pour poser
+     * la question autrement serait une seconde verite. `listed_in_blog` exclu
+     * le document racine d'une Boucle (Manifeste) pour la meme raison que
+     * dans `LoopWritingService::published()` : ce n'est pas un Article.
+     */
+    public function statusIsPublished(): bool
+    {
+        return $this->status === 'published'
+            && $this->published_at !== null
+            && $this->published_at->lessThanOrEqualTo(now())
+            && $this->listed_in_blog === true;
     }
 
     /** Every published article, listed or not — for direct access paths. */

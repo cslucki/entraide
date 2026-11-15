@@ -216,7 +216,48 @@ class TASK1802EventRowBentoTest extends TestCase
         $html = $this->renderCard();
 
         $this->assertStringContainsString('Cafe du mardi', $html);
-        $this->assertStringContainsString(__('events.by', ['name' => $this->owner->publicDisplayName()]), $html);
+        // TASK-1823 (correctif de revue, hors perimetre T1823 mais autorise
+        // par MASTER) — `publicDisplayName()` vient d'une factory ALEATOIRE,
+        // et Blade echappe l'apostrophe (`{{ }}` -> `&#039;`). Compare a la
+        // chaine BRUTE, ce test echouait des que le hasard tirait un nom
+        // comme "Deven O'Connell" : `Par Deven O'Connell` n'est jamais un
+        // sous-chaine de `Par Deven O&#039;Connell`. Memes lignes 418 et 443
+        // de ce fichier : elles enveloppent deja dans `e()`, seule
+        // celle-ci ne le faisait pas.
+        $this->assertStringContainsString(e(__('events.by', ['name' => $this->owner->publicDisplayName()])), $html);
+    }
+
+    /**
+     * TASK-1823 (correctif de revue) — le MEME test que ci-dessus, mais avec
+     * un nom à apostrophe FORCÉ plutôt que livré au hasard de la factory.
+     *
+     * Sans ce test, la correction de la ligne 227 resterait invisible tant
+     * que Faker ne retire pas, par chance, un nom comme « O'Connell » — ce
+     * qui est précisément ce qui a fait rougir la CI une seule fois sur
+     * plusieurs exécutions. Ce test échoue à CHAQUE exécution tant que
+     * l'assertion n'est pas correctement échappée, peu importe le hasard.
+     */
+    public function test_the_author_name_with_an_apostrophe_is_matched_against_the_escaped_html(): void
+    {
+        $this->owner->forceFill(['first_name' => 'Jean-Baptiste', 'name' => "O'Connell"])->save();
+
+        $this->event(['title' => 'Cafe du mardi']);
+
+        $html = $this->renderCard();
+
+        $brut = __('events.by', ['name' => $this->owner->publicDisplayName()]);
+        $echappe = e($brut);
+
+        // Garde-fou du test lui-même : si les deux chaînes étaient
+        // identiques, ce test ne prouverait rien — l'apostrophe doit
+        // réellement avoir été transformée.
+        $this->assertNotSame($brut, $echappe, "L'apostrophe doit produire une difference entre brut et echappe, sinon ce test ne verifie rien.");
+
+        // La forme RÉELLEMENT échappée est bien dans le rendu…
+        $this->assertStringContainsString($echappe, $html);
+        // …et la forme brute n'y est JAMAIS : c'est elle que l'ancienne
+        // assertion (ligne 219 avant correctif) cherchait en vain.
+        $this->assertStringNotContainsString($brut, $html, 'La chaine BRUTE (apostrophe non echappee) ne doit jamais apparaitre dans du HTML rendu par Blade.');
     }
 
     public function test_the_agenda_page_renders_the_same_bento_row(): void

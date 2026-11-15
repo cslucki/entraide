@@ -39,9 +39,74 @@ class LoopDossiersCard extends Component
 
     public Loop $loop;
 
+    /**
+     * TASK-1828 — navigation contextuelle depuis ChatLoop.
+     *
+     * Meme idiome que `LoopRoadmapCard::$detailId`/`openDetailFromChat()`
+     * (TASK-1826) : un clic sur l'apercu Article/Fichier dans le chat ouvre
+     * cette Card ET y pose l'identifiant cible, via un SECOND evenement
+     * Livewire en parallele du `bp-open-loop-card` Alpine (qui ne transporte
+     * que le nom de la Card). Ces trois proprietes ne sont JAMAIS une
+     * permission : `render()` les REVALIDE a chaque passage (voir
+     * `resolveDetailFile()`/`resolveDetailArticle()`).
+     */
+    public array $highlightedFileIds = [];
+
+    public ?string $detailFileId = null;
+
+    public ?string $detailArticleId = null;
+
     public function mount(Loop $loop): void
     {
         $this->loop = $loop;
+    }
+
+    /**
+     * TASK-1828 — un depot depuis ChatLoop annonce 1+ fichiers du MEME
+     * geste (`metadata.file_ids`). Un seul : ouverture directe de son
+     * apercu. Plusieurs : la Card montre une selection bornee a CES
+     * fichiers-la (pas la liste entiere), pour que la personne choisisse.
+     */
+    #[On('open-dossier-file-detail')]
+    public function openFileDetailFromChat(array $ids): void
+    {
+        $this->detailArticleId = null;
+        $this->highlightedFileIds = array_values(array_unique(array_filter($ids)));
+        $this->detailFileId = count($this->highlightedFileIds) === 1 ? $this->highlightedFileIds[0] : null;
+    }
+
+    #[On('open-dossier-article-detail')]
+    public function openArticleDetailFromChat(string $id): void
+    {
+        $this->highlightedFileIds = [];
+        $this->detailFileId = null;
+        $this->detailArticleId = $id;
+    }
+
+    /** Choisir UN fichier parmi la selection bornee d'un depot multiple. */
+    public function selectHighlightedFile(string $id): void
+    {
+        if (in_array($id, $this->highlightedFileIds, true)) {
+            $this->detailFileId = $id;
+        }
+    }
+
+    /** Quitter l'apercu d'UN fichier pour revenir a la selection du depot. */
+    public function backToSelection(): void
+    {
+        $this->detailFileId = null;
+    }
+
+    /**
+     * Retour a la liste normale de la Card — PAS la fermeture de la Card
+     * elle-meme (`closeCard()` Alpine, dans `loops/show.blade.php`, reste
+     * inchangee). Deux fermetures distinctes, meme principe que Roadmap.
+     */
+    public function closeDetail(): void
+    {
+        $this->detailFileId = null;
+        $this->detailArticleId = null;
+        $this->highlightedFileIds = [];
     }
 
     /**
@@ -148,6 +213,16 @@ class LoopDossiersCard extends Component
             && $resolver->can($user, $this->loop, 'dossiers.view')
             && $user->can('view', $dossier);
 
+        // TASK-1828 — revalidee ICI, a CHAQUE rendu, que la Card soit
+        // autorisee ou non : un id pose par un clic ChatLoop sur une
+        // Boucle devenue inaccessible ne doit jamais resoudre quoi que ce
+        // soit (meme sans Dossier/droit de le voir).
+        $detailFile = $canView ? $this->resolveDetailFile($this->detailFileId) : null;
+        $highlightedFiles = $canView ? $this->resolveHighlightedFiles($this->highlightedFileIds) : collect();
+        $detailArticle = $canView ? $this->resolveDetailArticle($this->detailArticleId) : null;
+        $detailFileUrls = $detailFile ? $this->fileDetailUrls($detailFile, $dossier) : null;
+        $detailArticleUrl = $detailArticle ? ($this->articleUrls(collect([$detailArticle]))[$detailArticle->id] ?? null) : null;
+
         if (! $canView) {
             return view('livewire.loop-dossiers-card', [
                 'dossier' => null,
@@ -162,6 +237,11 @@ class LoopDossiersCard extends Component
                 'canCreateArticle' => false,
                 'canUploadFile' => false,
                 'readOnly' => true,
+                'detailFile' => null,
+                'detailFileUrls' => null,
+                'highlightedFiles' => collect(),
+                'detailArticle' => $detailArticle,
+                'detailArticleUrl' => $detailArticleUrl,
             ]);
         }
 
@@ -199,7 +279,132 @@ class LoopDossiersCard extends Component
             'canCreateArticle' => $canCreateArticle,
             'canUploadFile' => $canUploadFile,
             'readOnly' => $readOnly,
+            'detailFile' => $detailFile,
+            'detailFileUrls' => $detailFileUrls,
+            'highlightedFiles' => $highlightedFiles,
+            'detailArticle' => $detailArticle,
+            'detailArticleUrl' => $detailArticleUrl,
         ]);
+    }
+
+    /**
+     * TASK-1828 — le fichier ouvert depuis ChatLoop, REVALIDE a chaque
+     * rendu. Passer un id a la Card n'accorde JAMAIS une permission : seule
+     * `viewFiles`, relue ici sur le fichier reel, decide (meme ability que
+     * `LoopChat::projectedDossierFiles()`, T1826 — `DossierFilePolicy`,
+     * qui gere deja partage nominatif, partage Boucle et suppression
+     * douce).
+     */
+    private function resolveDetailFile(?string $id): ?DossierFile
+    {
+        if (! $id) {
+            return null;
+        }
+
+        $user = auth()->user();
+
+        $file = DossierFile::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->with('dossier')
+            ->find($id);
+
+        if (! $file || ! $user || ! $user->can('viewFiles', $file)) {
+            return null;
+        }
+
+        return $file;
+    }
+
+    /**
+     * Meme revalidation que `resolveDetailFile()`, pour l'ensemble borne
+     * d'un depot multiple. Un id invalide/inaccessible est silencieusement
+     * absent du resultat — jamais une erreur, jamais une fuite.
+     *
+     * @param  array<int, string>  $ids
+     * @return Collection<int, DossierFile>
+     */
+    private function resolveHighlightedFiles(array $ids): Collection
+    {
+        if (empty($ids)) {
+            return collect();
+        }
+
+        $user = auth()->user();
+
+        if (! $user) {
+            return collect();
+        }
+
+        return DossierFile::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->whereIn('id', $ids)
+            ->with('dossier')
+            ->get()
+            ->filter(fn (DossierFile $file) => $user->can('viewFiles', $file))
+            ->values();
+    }
+
+    /**
+     * TASK-1828 — l'Article ouvert depuis ChatLoop, REVALIDE a chaque
+     * rendu. Meme perimetre que `LoopChat::projectedArticles()` (T1826) :
+     * publie, liste dans le Blog, meme Organization que la Boucle. Le
+     * Manifeste d'une Boucle est structurellement hors de ce perimetre
+     * (`listed_in_blog = false`, exclu par `scopePublished()`) — aucune
+     * garde supplementaire n'est necessaire ici.
+     */
+    private function resolveDetailArticle(?string $id): ?BlogPost
+    {
+        if (! $id) {
+            return null;
+        }
+
+        return BlogPost::published()
+            ->where('organization_id', $this->loop->organization_id)
+            ->with('user')
+            ->find($id);
+    }
+
+    /**
+     * Les URL d'apercu et de telechargement d'UN fichier precis, ouvert
+     * depuis ChatLoop — meme distinction « depose vs partage » que
+     * `fileUrls()` juste au-dessus, generalisee a un fichier hors de la
+     * liste des fichiers recents.
+     *
+     * @return array{preview: ?string, download: ?string}
+     */
+    private function fileDetailUrls(DossierFile $file, ?Dossier $dossier): array
+    {
+        $organization = $this->loop->organization?->slug;
+
+        if (! $organization) {
+            return ['preview' => null, 'download' => null];
+        }
+
+        $partage = ! $dossier || $file->dossier_id !== $dossier->id;
+
+        if ($partage) {
+            return [
+                'preview' => Route::has('organization.dossiers.shared.preview')
+                    ? route('organization.dossiers.shared.preview', ['organization' => $organization, 'file' => $file->id])
+                    : null,
+                'download' => Route::has('organization.dossiers.shared.show')
+                    ? route('organization.dossiers.shared.show', ['organization' => $organization, 'file' => $file->id])
+                    : null,
+            ];
+        }
+
+        return [
+            'preview' => route('organization.dossiers.files.preview', [
+                'organization' => $organization,
+                'dossier' => $file->dossier_id,
+                'file' => $file->id,
+            ]),
+            'download' => route('organization.dossiers.files.show', [
+                'organization' => $organization,
+                'dossier' => $file->dossier_id,
+                'file' => $file->id,
+            ]),
+        ];
     }
 
     /**

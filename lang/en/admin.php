@@ -2262,6 +2262,35 @@ return [
     'all_push_devices_diagnostic_attempts' => ':count attempt|:count attempts',
     'all_push_devices_diagnostic_empty' => 'No Web Push delivery recorded for this account.',
 
+    // TASK-1823 — summary bento and situation badges.
+    'push_diag_summary_scope' => 'Platform totals — each tile opens its situation alone',
+    'push_diag_summary_total' => 'Subscriptions',
+    'push_diag_summary_eligible' => 'Eligible',
+    'push_diag_summary_incompatible' => 'Incompatible keys',
+    'push_diag_summary_to_check' => 'To check',
+    'push_diag_summary_incident_accounts' => 'Accounts with incidents (:days d)',
+
+    'push_diag_badge_eligible' => 'Eligible',
+    'push_diag_badge_eligible_help' => 'Compatible with the VAPID key this environment serves. It says nothing about reception: only the device can attest to that.',
+    'push_diag_badge_incompatible' => 'Incompatible key',
+    'push_diag_badge_incompatible_help' => 'Created with a different key than the one in force here. The provider will accept the send and the browser will drop the message silently.',
+    'push_diag_badge_to_check' => 'To check',
+    'push_diag_badge_to_check_help' => 'The fingerprint does not allow a conclusion: subscription registered on another environment, or predating this check. Sending is still attempted.',
+
+    'push_diag_badge_account_incident' => 'Incident on the account',
+    'push_diag_badge_account_incident_help' => 'This ACCOUNT had at least one Web Push send failure in the last :days days. Nothing says which device was at fault — the indicator therefore covers all of its rows.',
+
+    'push_diag_filter_situation' => 'Situation',
+    'push_diag_filter_all_situations' => 'All situations',
+    'push_diag_filter_organization' => 'Organization',
+    'push_diag_filter_all_organizations' => 'All Organizations',
+    'push_diag_filter_apply' => 'Filter',
+    'push_diag_filter_reset' => 'Show all',
+    'push_diag_env_details' => 'Breakdown by environment',
+
+    'push_diag_link_history' => 'Search this account’s history in the inspector',
+    'push_diag_link_devices' => 'Search this account’s devices',
+
     // TASK-1744 — the notification inspector. Distinct from the T1380
     // cockpit, which COUNTS without naming anyone.
     'notif_inspector_title' => 'Notifications sent',

@@ -9,10 +9,12 @@ use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\Loop;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
+use App\Services\LoopMessageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -50,6 +52,24 @@ class DossierArticleController extends Controller
         ]);
 
         $indexing->dispatch($organization->id, $dossier->id, $post->id);
+
+        // TASK-1826 — attacher un Article DEJA publie au Dossier RACINE d'une
+        // Boucle (ce module general ne pose jamais le pivot `blog_post_loop`,
+        // voir `BlogPost::linkedLoops()`) doit annoncer une carte dans
+        // ChatLoop, au meme titre qu'un partage explicite depuis le Blog.
+        // Idempotent : aucun risque de doublon si une autre voie a deja
+        // annonce cette meme paire (Boucle, Article).
+        if ($dossier->loop_id && $dossier->loop && $post->statusIsPublished()) {
+            try {
+                app(LoopMessageService::class)->sendArticlePublishedMessage($dossier->loop, $request->user(), $post);
+            } catch (\Throwable $e) {
+                Log::warning('TASK-1826 : annonce de rattachement impossible dans la Boucle', [
+                    'blog_post_id' => $post->id,
+                    'loop_id' => $dossier->loop_id,
+                    'erreur' => $e->getMessage(),
+                ]);
+            }
+        }
 
         if ($request->expectsJson()) {
             $entry->load('blogPost:id,organization_id,user_id,title,slug,status,updated_at');
