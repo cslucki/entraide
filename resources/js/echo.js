@@ -48,4 +48,10 @@ export function shouldEnableRealtime(env) {
         forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
         enabledTransports: ['ws', 'wss'],
     });
+
+    // TASK-1841 — `window.Echo` nait APRES cet import dynamique, de maniere
+    // asynchrone : un script qui teste `window.Echo` au chargement de la page
+    // (ex. `chatloop-adaptive-polling.js`) le trouverait encore absent.
+    // Cet evenement est le signal de rattrapage, pose une seule fois ici.
+    window.dispatchEvent(new CustomEvent('bouclepro:echo-ready'));
 })();
