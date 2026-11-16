@@ -572,6 +572,32 @@ class LoopChat extends Component
     }
 
     /**
+     * TASK-1839 — pilote Reverb : le canal prive de la Boucle (deja
+     * autorise par `routes/channels.php`, aucun changement ici) notifie ce
+     * composant AUSSITOT qu'un `LoopMessageCreated` est diffuse, au lieu
+     * d'attendre jusqu'a 3s le prochain `wire:poll.3s`. Reutilise
+     * `pollChat()` TEL QUEL comme cible : meme fenetre, meme empreinte,
+     * meme soupape (T1835/T1836) — aucune logique dupliquee, et le court-
+     * circuit habituel s'applique normalement si rien de pertinent n'a
+     * change pour CE composant.
+     *
+     * `wire:poll.3s` reste actif en repli : connexion WebSocket perdue,
+     * cluster Reverb indisponible, ou `window.Echo` absent cote navigateur
+     * (garde plus haut dans le bundle Livewire) — le prochain cycle de
+     * polling rattrape tout message manque sans aucune dependance a Echo.
+     */
+    protected function getListeners(): array
+    {
+        if (! config('loop_chat.realtime_enabled')) {
+            return [];
+        }
+
+        return [
+            "echo-private:loop.{$this->loop->id},.loop.message.created" => 'pollChat',
+        ];
+    }
+
+    /**
      * TASK-1835 — action appelee par `wire:poll.3s`, a la place du defaut
      * implicite qui rendait integralement a CHAQUE cycle (mesure : 17-37
      * requetes SQL, 70-97 ms, jusqu'a ~627 Ko de HTML selon la fixture, pour

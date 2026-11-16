@@ -5,12 +5,24 @@ namespace App\Events;
 use App\Models\LoopMessage;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 
-class LoopMessageCreated implements ShouldBroadcastNow
+class LoopMessageCreated implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets;
+
+    /**
+     * TASK-1839 — `sendUserMessage()` emet cet event DEPUIS l'interieur de
+     * son `DB::transaction()` (meme configuration que la leçon T1815). Avec
+     * `ShouldBroadcastNow`, la diffusion partait AVANT le commit : un client
+     * connecte pouvait recevoir un message qui finissait par ne jamais
+     * exister si la transaction echouait plus loin. `ShouldBroadcast` met
+     * la diffusion en file (`BroadcastEvent`), et cette propriete publique
+     * est lue par `BroadcastEvent::__construct()` pour la reporter apres le
+     * commit — sous le pilote `sync` local, honore comme pour T1815.
+     */
+    public bool $afterCommit = true;
 
     public string $id;
 
