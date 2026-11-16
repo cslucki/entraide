@@ -585,6 +585,20 @@ class LoopChat extends Component
      * cluster Reverb indisponible, ou `window.Echo` absent cote navigateur
      * (garde plus haut dans le bundle Livewire) — le prochain cycle de
      * polling rattrape tout message manque sans aucune dependance a Echo.
+     *
+     * TASK-1841 (diagnostic NO-GO MASTER) — cette cle reste declarative
+     * cote PHP, MAIS la liaison JS native de Livewire (`effect` hook,
+     * `vendor/livewire/livewire/dist/livewire.js`) s'est averee PEU FIABLE
+     * en recette reelle : elle ne tente de se poser qu'une fois, abandonne
+     * silencieusement si `window.Echo` n'existe pas encore a cet instant
+     * (import dynamique de `echo.js`, course quasi garantie au chargement),
+     * et ne se rattache jamais si Echo recree ensuite l'objet canal.
+     * `resources/js/chatloop-adaptive-polling.js` ne depend donc plus de
+     * cette cle pour declencher `pollChat()` en temps reel — il ecoute
+     * lui-meme `.loop.message.created` sur le canal, revalide a chaque
+     * cycle. Cette cle est conservee ici sans risque (doublon inoffensif,
+     * `pollChat()` etant idempotent) au cas ou la liaison Livewire native
+     * finit par se poser correctement dans un environnement donne.
      */
     protected function getListeners(): array
     {

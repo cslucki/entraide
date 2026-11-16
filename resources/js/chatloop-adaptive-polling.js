@@ -14,9 +14,52 @@
  * `echo.js`) : ce module reste a 3s pour toujours — comportement inchange
  * pour tout environnement sans Reverb configure (PROD aujourd'hui, et tout
  * poste hors de ce pilote local).
+ *
+ * CORRECTIF MASTER (NO-GO benchmark initial, p95 19,5s au lieu d'un
+ * declenchement quasi instantane) — diagnostic mesure en recette :
+ * `getListeners()` de `LoopChat.php` (`"echo-private:loop.{id},.loop.
+ * message.created" => 'pollChat'`) delegue a Livewire sa PROPRE liaison
+ * d'ecoute cote JS (`vendor/livewire/livewire/dist/livewire.js`, hook
+ * `effect`). Deux failles constatees EN DIRECT (console + introspection du
+ * canal pusher-js) :
+ *  1. cette liaison ne se pose qu'une fois, a l'arrivee de l'effet
+ *     `listeners` ; si `window.Echo` n'existe pas encore a cet instant-la
+ *     (import dynamique de `echo.js`, course quasi garantie au chargement),
+ *     Livewire abandonne silencieusement (`console.warn`, jamais retente) ;
+ *  2. meme quand la liaison initiale reussit, l'objet canal retourne par
+ *     `Echo.connector.channels['private-loop.{id}']` a ete observe
+ *     DIFFERENT de celui capture a l'ouverture, peu apres le premier
+ *     abonnement (`sameChannelRef: false`, `_callbacks: []` sur
+ *     l'instance REELLEMENT active) — un abonnement/reconnexion precoce
+ *     a pu faire remplacer l'objet canal, orphelinant tout ecouteur deja
+ *     pose dessus, Livewire comme ce module.
+ *
+ * Correctif, DEUXIEME PASSE (la premiere, insuffisante, pensait re-attacher
+ * a chaque cycle — voir historique Git) : la cause reelle n'etait PAS un
+ * canal remplace en cours de session, mais Alpine lui-meme. Le canal, le
+ * handler et le minuteur etaient geres comme des PROPRIETES de l'objet
+ * retourne par `Alpine.data(...)` — donc rendues REACTIVES (proxy Alpine,
+ * meme mecanique que Vue). Lire `this._channel` depuis l'interieur du
+ * composant renvoie alors le PROXY, jamais l'instance brute : comparer ce
+ * proxy a une instance fraiche (`window.Echo.private(...)`) avec `===`
+ * echoue TOUJOURS, meme quand c'est litteralement le meme canal (`.name`,
+ * `.constructor` identiques, confirme en recette). Chaque cycle de minuteur
+ * croyait donc devoir re-attacher — detachant/reattachant `.listen()` en
+ * boucle, 3s ou 20s durant, jamais stable.
+ *
+ * Correctif : le canal, le handler de message, le minuteur et l'etat ne
+ * sont PLUS des proprietes de l'objet Alpine — ce sont des variables de la
+ * FERMETURE de `chatLoopAdaptivePolling(loopId)`, jamais exposees a la
+ * reactivite. Rien dans le gabarit Blade ne lit ces champs (aucun `x-text`/
+ * `x-show` dessus) : ils n'avaient de toute facon aucune raison d'etre
+ * reactifs. Le canal est resolu UNE SEULE FOIS a l'abonnement reussi, et
+ * n'est plus jamais re-resolu a chaque cycle — `getListeners()` cote PHP
+ * reste dans `LoopChat.php` par prudence (inoffensif meme s'il finit par se
+ * poser) mais n'est plus le chemin emprunte par ce module.
  */
 export const POLL_INTERVAL_DEFAULT_MS = 3000;
 export const POLL_INTERVAL_SAFETY_MS = 20000;
+export const MESSAGE_CREATED_EVENT = '.loop.message.created';
 
 export const STATE_CONNECTING = 'connecting';
 export const STATE_SUBSCRIBED = 'subscribed';
@@ -52,14 +95,27 @@ export function reduceAdaptivePollingState(currentState, event) {
 }
 
 export function chatLoopAdaptivePolling(loopId) {
-    return {
-        _timer: null,
-        _currentIntervalMs: null,
-        _state: STATE_CONNECTING,
-        _unbindConnection: null,
-        _channel: null,
-        _visibilityHandler: null,
+    // Variables de FERMETURE, jamais proprietes de l'objet Alpine retourne
+    // plus bas — voir le docblock en tete de fichier (correctif, 2e passe).
+    // Alpine rend reactive TOUTE propriete d'un `Alpine.data(...)`, y
+    // compris un objet SDK externe comme un canal Echo ; comparer une telle
+    // propriete (`this._channel === x`) a une instance brute echoue
+    // toujours, car la lecture traverse un proxy. Rien ici n'a besoin
+    // d'etre reactif : aucun `x-text`/`x-show` du gabarit ne lit ces champs.
+    let timer = null;
+    let currentIntervalMs = null;
+    let state = STATE_CONNECTING;
+    let unbindConnection = null;
+    let channel = null;
+    let messageHandler = null;
+    let visibilityHandler = null;
 
+    function stop() {
+        clearInterval(timer);
+        timer = null;
+    }
+
+    return {
         init() {
             // Meme principe que les minuteurs deja existants de ce bundle
             // (cartes Boucle/Todo de la barre laterale) : onglet en
@@ -69,15 +125,84 @@ export function chatLoopAdaptivePolling(loopId) {
             // `wire-poll.js`) par ce motif deja etabli ICI, plus simple a
             // tester et strictement moins couteux (zero cycle gaspille,
             // plutot que ~5% laisses passer au hasard).
-            this._visibilityHandler = () => {
+            const $wire = this.$wire;
+
+            const schedule = (ms) => {
+                currentIntervalMs = ms;
+                stop();
+
                 if (document.hidden) {
-                    this._stop();
                     return;
                 }
-                this.$wire.pollChat();
-                this._schedule(this._currentIntervalMs ?? intervalForState(this._state));
+
+                timer = setInterval(() => $wire.pollChat(), ms);
             };
-            document.addEventListener('visibilitychange', this._visibilityHandler);
+
+            const onEvent = (event) => {
+                const result = reduceAdaptivePollingState(state, event);
+                state = result.state;
+                schedule(intervalForState(state));
+
+                if (result.syncNow) {
+                    $wire.pollChat();
+                }
+            };
+
+            // Attache les ecouteurs UNE SEULE FOIS, au canal REELLEMENT
+            // courant au moment de l'appel — plus de re-resolution a
+            // chaque cycle (c'etait la source du bug : voir docblock).
+            const attachChannel = () => {
+                channel = window.Echo.private(`loop.${loopId}`);
+
+                // Ecoute DIRECTE du message, portee par ce module —
+                // plus par le binding `getListeners()` de `LoopChat.php`,
+                // dont le diagnostic MASTER a montre qu'il peut rater sa
+                // liaison (course au chargement de `window.Echo`) sans
+                // jamais se rattraper.
+                messageHandler = () => $wire.pollChat();
+                channel.listen(MESSAGE_CREATED_EVENT, messageHandler);
+
+                channel.subscribed(() => onEvent('channel-subscribed'));
+                channel.error(() => onEvent('channel-error'));
+
+                // Course possible : le canal a pu reussir son abonnement
+                // AVANT que les deux lignes ci-dessus ne s'executent.
+                // `.subscribed()` ne rejoue pas un evenement deja passe —
+                // `subscription.subscribed` (pusher-js, booleen public,
+                // `node_modules/pusher-js/dist/web/pusher.js`) dit lui
+                // l'etat PRESENT, sans dependre de l'ordre d'attachement.
+                if (channel.subscription?.subscribed) {
+                    onEvent('channel-subscribed');
+                }
+            };
+
+            const attachEcho = () => {
+                attachChannel();
+
+                // Niveau TRANSPORT (pas seulement ce canal) : une perte de
+                // connexion Reverb doit ramener a 3s immediatement, quelle
+                // que soit la raison. `onConnectionChange()` est l'API
+                // publique de `PusherConnector` (meme classe pour 'reverb'
+                // et 'pusher'), deja normalisee a 'connected' | 'connecting'
+                // | 'failed' | 'disconnected'.
+                unbindConnection = window.Echo.connector.onConnectionChange((status) => {
+                    if (status !== 'connected') {
+                        onEvent('connection-lost');
+                    }
+                });
+
+                schedule(intervalForState(state));
+            };
+
+            visibilityHandler = () => {
+                if (document.hidden) {
+                    stop();
+                    return;
+                }
+                $wire.pollChat();
+                schedule(currentIntervalMs ?? intervalForState(state));
+            };
+            document.addEventListener('visibilitychange', visibilityHandler);
 
             if (!window.Echo) {
                 // Pilote desactive, ou import dynamique de `echo.js` pas
@@ -85,83 +210,21 @@ export function chatLoopAdaptivePolling(loopId) {
                 // cas. Si le pilote est desactive, cet ecouteur ne se
                 // declenchera jamais : ce module reste alors a 3s pour
                 // toujours, sans aucun autre effet.
-                this._schedule(POLL_INTERVAL_DEFAULT_MS);
-                window.addEventListener('bouclepro:echo-ready', () => this._attachEcho(), { once: true });
+                schedule(POLL_INTERVAL_DEFAULT_MS);
+                window.addEventListener('bouclepro:echo-ready', attachEcho, { once: true });
                 return;
             }
 
-            this._attachEcho();
-        },
-
-        _attachEcho() {
-            // Meme canal, meme nom, que celui deja ouvert par le binding
-            // `getListeners()` de `LoopChat.php` (TASK-1839) : Echo met en
-            // cache ses canaux par nom (`PusherConnector.channels`), donc cet
-            // appel ne souscrit JAMAIS une seconde fois — il recupere la MEME
-            // instance pour y attacher une ecoute d'etat, jamais une
-            // deuxieme ecoute du message lui-meme (qui reste entierement
-            // portee par `getListeners()` -> `pollChat()`, inchangee).
-            this._channel = window.Echo.private(`loop.${loopId}`);
-
-            this._channel.subscribed(() => this._onEvent('channel-subscribed'));
-            this._channel.error(() => this._onEvent('channel-error'));
-
-            // Course possible : le canal a pu reussir son abonnement AVANT
-            // que ces deux lignes ne s'executent (le binding de
-            // `LoopChat.php` tourne independamment de ce module).
-            // `.subscribed()` ne rejoue pas un evenement deja passe —
-            // `subscription.subscribed` (pusher-js, booleen public,
-            // `node_modules/pusher-js/dist/web/pusher.js`) dit lui l'etat
-            // PRESENT, sans dependre de l'ordre d'attachement.
-            if (this._channel.subscription?.subscribed) {
-                this._onEvent('channel-subscribed');
-            }
-
-            // Niveau TRANSPORT (pas seulement ce canal) : une perte de
-            // connexion Reverb doit ramener a 3s immediatement, quelle que
-            // soit la raison. `onConnectionChange()` est l'API publique de
-            // `PusherConnector` (meme classe pour 'reverb' et 'pusher'),
-            // deja normalisee a 'connected' | 'connecting' | 'failed' |
-            // 'disconnected'.
-            this._unbindConnection = window.Echo.connector.onConnectionChange((status) => {
-                if (status !== 'connected') {
-                    this._onEvent('connection-lost');
-                }
-            });
-
-            this._schedule(intervalForState(this._state));
-        },
-
-        _onEvent(event) {
-            const { state, syncNow } = reduceAdaptivePollingState(this._state, event);
-            this._state = state;
-            this._schedule(intervalForState(state));
-
-            if (syncNow) {
-                this.$wire.pollChat();
-            }
-        },
-
-        _schedule(ms) {
-            this._currentIntervalMs = ms;
-            this._stop();
-
-            if (document.hidden) {
-                return;
-            }
-
-            this._timer = setInterval(() => this.$wire.pollChat(), ms);
-        },
-
-        _stop() {
-            clearInterval(this._timer);
-            this._timer = null;
+            attachEcho();
         },
 
         destroy() {
-            this._stop();
-            this._unbindConnection?.();
-            document.removeEventListener('visibilitychange', this._visibilityHandler);
+            stop();
+            unbindConnection?.();
+            if (channel && messageHandler) {
+                channel.stopListening(MESSAGE_CREATED_EVENT, messageHandler);
+            }
+            document.removeEventListener('visibilitychange', visibilityHandler);
         },
     };
 }

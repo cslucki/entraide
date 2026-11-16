@@ -15,7 +15,16 @@ import {
     STATE_LOST,
     POLL_INTERVAL_DEFAULT_MS,
     POLL_INTERVAL_SAFETY_MS,
+    MESSAGE_CREATED_EVENT,
 } from '../../resources/js/chatloop-adaptive-polling.js';
+
+test('MESSAGE_CREATED_EVENT porte le point initial attendu par EventFormatter.format() (pusher-js)', () => {
+    // `node_modules/laravel-echo/dist/echo.js` : un nom commencant par "."
+    // ou "\\" est pris TEL QUEL (point retire) ; sans ce point, le nom
+    // serait prefixe par un namespace Echo par defaut et ne matcherait
+    // jamais `LoopMessageCreated::broadcastAs()` ('loop.message.created').
+    assert.equal(MESSAGE_CREATED_EVENT, '.loop.message.created');
+});
 
 test('intervalForState : seul SUBSCRIBED donne le palier de securite 20s', () => {
     assert.equal(intervalForState(STATE_CONNECTING), POLL_INTERVAL_DEFAULT_MS);
