@@ -79,6 +79,33 @@
  *     se DECLENCHER), et chaque fermeture re-verifie un drapeau `destroyed`
  *     avant d'agir — defense en profondeur si un autre appel async
  *     survenait malgre tout apres la destruction.
+ *
+ * REVUE MASTER (4e passe, avant fusion) — `destroy()` appelait `channel.
+ * stopListening()` (retire NOTRE handler de l'evenement) mais ne quittait
+ * JAMAIS le canal Echo lui-meme : le navigateur restait abonne a `private-
+ * loop.{id}` cote PROTOCOLE (Reverb continuait de router les diffusions de
+ * cette Boucle vers ce socket) tant que la page elle-meme ne se dechargeait
+ * pas. Dans l'architecture ACTUELLE (aucun lien de navigation vers/depuis
+ * une Boucle ne porte `wire:navigate` — verifie : seuls `ai-shell.blade.php`
+ * et `coeurs.blade.php` l'utilisent, aucun des deux sur le parcours
+ * ChatLoop), quitter une Boucle recharge la page entiere et detruit
+ * `window.Echo` avec elle — mais `destroy()` doit rester correct par
+ * construction, pas par accident de routage actuel (une future adoption de
+ * `wire:navigate` sur ce parcours referait fuir l'abonnement).
+ *
+ * Corrige avec l'API OFFICIELLE : `window.Echo.leave(loopId)` (jamais
+ * `leaveChannel()` directement avec le nom brut — `leaveChannel()` attend
+ * la cle DEJA PREFIXEE telle que stockee par Echo, `leave()` essaie les
+ * quatre prefixes possibles pour nous, `node_modules/laravel-echo/dist/
+ * echo.js`). `Echo.leave()` n'est PAS reference-compte : il detruit le
+ * canal pour N'IMPORTE QUEL consommateur, sans savoir s'il en existe
+ * d'autres. Aujourd'hui, verifie par recherche exhaustive, AUCUN autre
+ * point du code n'ouvre `Echo.private('loop....` — ce module est le SEUL
+ * consommateur. Par prudence pour l'avenir, le depart n'est tente QUE si
+ * le canal encore enregistre sous ce nom est TOUJOURS celui que CE
+ * composant a lui-meme ouvert (comparaison d'identite avant le depart) :
+ * si un autre consommateur a entre-temps repris ce nom de canal, on le
+ * laisse tranquille plutot que de lui couper le sol sous les pieds.
  */
 export const POLL_INTERVAL_DEFAULT_MS = 3000;
 export const POLL_INTERVAL_SAFETY_MS = 20000;
@@ -273,9 +300,25 @@ export function chatLoopAdaptivePolling(loopId) {
             destroyed = true;
             stop();
             unbindConnection?.();
+
             if (channel && messageHandler) {
                 channel.stopListening(MESSAGE_CREATED_EVENT, messageHandler);
             }
+
+            // Quitte REELLEMENT le canal (pas seulement notre propre ecoute
+            // du message) via l'API officielle — voir le docblock en tete de
+            // fichier. Ne le fait QUE si le canal encore enregistre sous ce
+            // nom est TOUJOURS celui que ce composant a lui-meme ouvert :
+            // si un autre consommateur l'a entre-temps repris, `Echo.leave()`
+            // le detruirait aussi pour lui (non reference-compte cote Echo).
+            if (window.Echo && channel) {
+                const stillOurs = window.Echo.connector?.channels?.[`private-loop.${loopId}`] === channel;
+
+                if (stillOurs) {
+                    window.Echo.leave(`loop.${loopId}`);
+                }
+            }
+
             document.removeEventListener('visibilitychange', visibilityHandler);
 
             if (echoReadyHandler) {

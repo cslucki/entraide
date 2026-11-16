@@ -47,6 +47,63 @@ function fakeWire() {
     return { calls, pollChat: () => calls.push(Date.now()) };
 }
 
+/**
+ * TASK-1841 (revue MASTER, 4e passe) — banc minimal d'un canal pusher-js/
+ * Echo, suffisant pour tester `init()`/`destroy()` sans navigateur : l'API
+ * publique utilisee par ce module (`.listen()`, `.stopListening()`,
+ * `.subscribed()`, `.error()`, `.subscription.subscribed`), plus `_emit`
+ * pour simuler un evenement reel depuis les tests.
+ */
+function fakeChannel(key) {
+    const listeners = {};
+    const bind = (event, cb) => { (listeners[event] ??= []).push(cb); };
+
+    return {
+        key,
+        subscription: { subscribed: true },
+        listen(event, cb) { bind(event, cb); return this; },
+        stopListening(event, cb) {
+            listeners[event] = (listeners[event] || []).filter((f) => f !== cb);
+            return this;
+        },
+        subscribed(cb) { bind('_subscribed', cb); return this; },
+        error(cb) { bind('_error', cb); return this; },
+        _emit(event, ...args) { (listeners[event] || []).forEach((cb) => cb(...args)); },
+        _listenerCount(event) { return (listeners[event] || []).length; },
+    };
+}
+
+/**
+ * Banc minimal de `window.Echo` : met en cache ses canaux par cle PREFIXEE
+ * (comme le vrai `PusherConnector`), et `leave(rawName)` reproduit fidelement
+ * le comportement NON reference-compte de la vraie API — il supprime
+ * QUELLE QUE SOIT l'entree presente a cette cle, sans savoir si ce module
+ * est le seul a la detenir (voir docblock du fichier source).
+ */
+function fakeEcho() {
+    const channels = {};
+    const leaveCalls = [];
+
+    return {
+        connector: {
+            channels,
+            onConnectionChange() { return () => {}; },
+        },
+        private(rawName) {
+            const key = `private-${rawName}`;
+            channels[key] ??= fakeChannel(key);
+            return channels[key];
+        },
+        leave(rawName) {
+            leaveCalls.push(rawName);
+            for (const prefix of ['', 'private-', 'private-encrypted-', 'presence-']) {
+                delete channels[`${prefix}${rawName}`];
+            }
+        },
+        leaveCalls,
+    };
+}
+
 test('MESSAGE_CREATED_EVENT porte le point initial attendu par EventFormatter.format() (pusher-js)', () => {
     // `node_modules/laravel-echo/dist/echo.js` : un nom commencant par "."
     // ou "\\" est pris TEL QUEL (point retire) ; sans ce point, le nom
@@ -196,4 +253,99 @@ test('destroy() avant reponse d Echo : aucun minuteur ne continue d appeler poll
     // aucun `setTimeout` dans ce module — seulement `setInterval`, arrete
     // de façon synchrone).
     assert.equal(wire.calls.length, callsAtInit, 'destroy() ne doit declencher aucun pollChat() supplementaire');
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// TASK-1841 (revue MASTER, 4e passe) — destroy() doit REELLEMENT quitter
+// le canal Echo (pas seulement retirer notre propre ecoute du message),
+// via l'API officielle, et sans jamais couper le sol sous les pieds d'un
+// EVENTUEL futur autre consommateur du meme canal.
+// ────────────────────────────────────────────────────────────────────────
+
+test('destroy() quitte le canal via l API officielle Echo.leave() quand ce composant en est toujours le proprietaire', () => {
+    const { window: win } = fakeBrowserGlobals();
+    const echo = fakeEcho();
+    win.Echo = echo;
+
+    const component = chatLoopAdaptivePolling('loop-leave-1');
+    component.$wire = fakeWire();
+    component.init();
+
+    assert.ok(echo.connector.channels['private-loop.loop-leave-1'], 'le canal doit exister apres init()');
+
+    component.destroy();
+
+    assert.deepEqual(echo.leaveCalls, ['loop.loop-leave-1'], 'destroy() doit appeler Echo.leave() avec le nom BRUT (non prefixe) du canal');
+    assert.equal(echo.connector.channels['private-loop.loop-leave-1'], undefined, 'le canal doit avoir disparu du cache Echo apres le depart');
+});
+
+test('destroy() ne quitte PAS le canal si un autre consommateur l a repris entre-temps (jamais couper le sol sous ses pieds)', () => {
+    const { window: win } = fakeBrowserGlobals();
+    const echo = fakeEcho();
+    win.Echo = echo;
+
+    const component = chatLoopAdaptivePolling('loop-leave-2');
+    component.$wire = fakeWire();
+    component.init();
+
+    // Un AUTRE consommateur hypothetique a repris ce nom de canal avant que
+    // ce composant ne soit detruit (remplace l entree du cache par une
+    // instance qu il ne possede plus).
+    const takenOverChannel = fakeChannel('private-loop.loop-leave-2');
+    echo.connector.channels['private-loop.loop-leave-2'] = takenOverChannel;
+
+    component.destroy();
+
+    assert.deepEqual(echo.leaveCalls, [], 'Echo.leave() ne doit JAMAIS etre appele quand le canal courant n est plus celui que ce composant a ouvert');
+    assert.equal(echo.connector.channels['private-loop.loop-leave-2'], takenOverChannel, 'le canal du nouveau consommateur doit rester intact');
+});
+
+test('apres destroy(), un evenement emis sur l ANCIEN canal ne declenche plus pollChat() (aucun ancien canal ne doit encore livrer)', () => {
+    const { window: win } = fakeBrowserGlobals();
+    const echo = fakeEcho();
+    win.Echo = echo;
+
+    const component = chatLoopAdaptivePolling('loop-leave-3');
+    const wire = fakeWire();
+    component.$wire = wire;
+    component.init();
+
+    const oldChannel = echo.connector.channels['private-loop.loop-leave-3'];
+    component.destroy();
+    const callsAtDestroy = wire.calls.length;
+
+    oldChannel._emit(MESSAGE_CREATED_EVENT);
+
+    assert.equal(wire.calls.length, callsAtDestroy, 'un message emis sur l ancien canal apres destroy() ne doit declencher aucun pollChat() supplementaire');
+});
+
+test('cycle complet avec un Echo simule : abonnement, perte de connexion, reconnexion — les reconnexions restent fonctionnelles apres le correctif destroy()', () => {
+    const { window: win } = fakeBrowserGlobals();
+    const echo = fakeEcho();
+    win.Echo = echo;
+
+    const component = chatLoopAdaptivePolling('loop-reco-1');
+    const wire = fakeWire();
+    component.$wire = wire;
+    component.init();
+
+    const channel = echo.connector.channels['private-loop.loop-reco-1'];
+
+    // Le canal est deja marque `subscribed: true` par le banc (comme un
+    // canal qui vient de reussir son abonnement) : `init()` doit l avoir
+    // detecte tout de suite (la "course" documentee dans le fichier
+    // source) et avoir synchronise immediatement.
+    assert.equal(wire.calls.length, 1, 'premier abonnement : une synchronisation immediate attendue');
+
+    // Perte de connexion : le canal signale une erreur de souscription.
+    channel._emit('_error', { type: 'AuthError' });
+
+    // Reconnexion : le canal reparle, pusher-js resouscrit — une nouvelle
+    // synchronisation immediate est due (meme reducteur que l abonnement
+    // initial).
+    channel._emit('_subscribed');
+
+    assert.equal(wire.calls.length, 2, 'la reconnexion doit redeclencher une synchronisation immediate');
+
+    component.destroy();
 });
