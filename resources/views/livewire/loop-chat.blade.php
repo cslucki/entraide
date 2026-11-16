@@ -1,7 +1,12 @@
 {{-- TASK-1772 (recette Cyril, 06/11) — `apercu-membre` est emis par la
      gouttiere d'avatar de chaque bulle. L'ecoute est posee ICI, une fois, et
      non sur chaque bulle : trente ecouteurs pour un seul panneau. --}}
-<div wire:poll.3s="pollChat" class="flex-1 flex flex-col min-h-0"
+{{-- TASK-1841 — `wire:poll.3s="pollChat"` est remplace par un minuteur
+     Alpine pilote par l'etat du canal Reverb de CETTE Boucle : 3s tant que
+     Reverb est desactive/indisponible (comportement inchange), 20s de
+     securite une fois le canal prive reellement abonne. `pollChat()` lui-
+     meme n'est pas touche — voir `chatloop-adaptive-polling.js`. --}}
+<div x-data="chatLoopAdaptivePolling('{{ $loop->id }}')" class="flex-1 flex flex-col min-h-0"
      x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)"
      x-on:apercu-membre.window="$wire.ouvrirApercuMembre($event.detail.userId)">
     <x-conversation.pinned-message-banner

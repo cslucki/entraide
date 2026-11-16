@@ -3,6 +3,7 @@ import { createEditor } from './blog-editor';
 import './markdown-wysiwyg-editor';
 import { extractEmbedUrl } from './tiptap/media-embed-node.js';
 import { annoncerLePanneau, brancherCarteSurSonPanneau } from './editor/panneaux.js';
+import { chatLoopAdaptivePolling } from './chatloop-adaptive-polling.js';
 import * as FilePond from 'filepond';
 import 'filepond/dist/filepond.min.css';
 import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
@@ -307,6 +308,19 @@ function registerAlpineStores() {
             return this.themes[this.current]?.label || 'Zen';
         },
     });
+}
+
+function registerChatLoopAdaptivePolling() {
+    if (!window.Alpine || window.__chatLoopAdaptivePollingRegistered) {
+        return;
+    }
+
+    window.__chatLoopAdaptivePollingRegistered = true;
+
+    // TASK-1841 — remplace `wire:poll.3s="pollChat"` dans
+    // `loop-chat.blade.php`. Voir `chatloop-adaptive-polling.js` pour la
+    // logique (testable sans navigateur).
+    Alpine.data('chatLoopAdaptivePolling', chatLoopAdaptivePolling);
 }
 
 function registerBlogSnapshotCard() {
@@ -8469,6 +8483,7 @@ document.addEventListener('alpine:init', () => {
 
 document.addEventListener('alpine:init', () => {
     registerAlpineStores();
+    registerChatLoopAdaptivePolling();
     registerBlogSnapshotCard();
     registerBlogEditor();
     registerBlogMethodSelectionCard();
@@ -8490,6 +8505,7 @@ document.addEventListener('alpine:init', () => {
 });
 
 registerAlpineStores();
+registerChatLoopAdaptivePolling();
 registerBlogSnapshotCard();
 registerBlogEditor();
 registerBlogMethodSelectionCard();
