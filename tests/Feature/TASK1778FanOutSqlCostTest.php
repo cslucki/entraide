@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendNotificationEmail;
+use App\Jobs\SendNotificationWebPush;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopNotificationPreference;
@@ -12,6 +14,7 @@ use App\Models\User;
 use App\Services\LoopMessageService;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationPreferenceResolver;
+use Illuminate\Broadcasting\BroadcastEvent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -110,7 +113,16 @@ class TASK1778FanOutSqlCostTest extends TestCase
             'Aucun travail ne doit etre planifie pour deux canaux deja coupes.'
         );
 
-        Queue::assertNothingPushed();
+        // TASK-1839 — `LoopMessageCreated` est passe a `ShouldBroadcast` et
+        // pousse desormais TOUJOURS un `BroadcastEvent` (diffusion temps
+        // reel Reverb), quel que soit l'etat des preferences de
+        // notification : une propriete du MESSAGE, pas du canal de
+        // notification que cette garde verrouille. `assertNothingPushed()`
+        // confondait les deux ; la garde reelle de T1778 est l'ABSENCE des
+        // jobs de LIVRAISON, verifiee nommement ci-dessous.
+        Queue::assertNotPushed(SendNotificationEmail::class);
+        Queue::assertNotPushed(SendNotificationWebPush::class);
+        Queue::assertPushed(BroadcastEvent::class);
     }
 
     /** Le canal GARDE doit, lui, etre planifie — sinon la garde precedente serait vraie pour la mauvaise raison. */
