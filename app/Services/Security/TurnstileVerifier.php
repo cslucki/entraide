@@ -58,6 +58,19 @@ class TurnstileVerifier
     }
 
     /**
+     * Le captcha est-il actif sur le LOGIN (`/login`, `/org/{slug}/login`) ?
+     *
+     * TASK-1837 — drapeau SEPARE de `enabled()`, pour les memes raisons
+     * (voir le docblock de classe) : il se desactive par une configuration
+     * d'environnement, jamais en silence, et il n'a aucune incidence sur
+     * l'inscription, ni l'inverse.
+     */
+    public function loginEnabled(): bool
+    {
+        return (bool) config('services.turnstile.login_enabled', false);
+    }
+
+    /**
      * La cle publique a poser dans le widget, ou `null`.
      *
      * Elle n'est pas secrete — Cloudflare la publie dans le HTML — mais une
