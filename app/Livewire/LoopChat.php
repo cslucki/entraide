@@ -572,47 +572,39 @@ class LoopChat extends Component
     }
 
     /**
-     * TASK-1839 — pilote Reverb : le canal prive de la Boucle (deja
-     * autorise par `routes/channels.php`, aucun changement ici) notifie ce
-     * composant AUSSITOT qu'un `LoopMessageCreated` est diffuse, au lieu
-     * d'attendre jusqu'a 3s le prochain `wire:poll.3s`. Reutilise
-     * `pollChat()` TEL QUEL comme cible : meme fenetre, meme empreinte,
-     * meme soupape (T1835/T1836) — aucune logique dupliquee, et le court-
-     * circuit habituel s'applique normalement si rien de pertinent n'a
-     * change pour CE composant.
+     * TASK-1839 / TASK-1841 (revue MASTER, 2e NO-GO) — ce composant n'a
+     * PLUS de `getListeners()`. Le declenchement temps reel de cette
+     * methode passe ENTIEREMENT par `resources/js/
+     * chatloop-adaptive-polling.js`, qui ecoute lui-meme `.loop.message.
+     * created` sur le canal prive de la Boucle (deja autorise par
+     * `routes/channels.php`, aucun changement ici) et appelle
+     * `$wire.pollChat()` directement.
      *
-     * `wire:poll.3s` reste actif en repli : connexion WebSocket perdue,
-     * cluster Reverb indisponible, ou `window.Echo` absent cote navigateur
-     * (garde plus haut dans le bundle Livewire) — le prochain cycle de
-     * polling rattrape tout message manque sans aucune dependance a Echo.
+     * Une premiere version declarait AUSSI une cle `"echo-private:loop.
+     * {id},.loop.message.created" => 'pollChat'` via `getListeners()`,
+     * pour que Livewire pose sa PROPRE liaison JS native (`effect` hook,
+     * `vendor/livewire/livewire/dist/livewire.js`) en plus de celle du
+     * module Alpine. Retiree : MASTER a demande une garantie — « un seul
+     * chemin d'ecoute effectif » — et une liaison en PLUS de celle du
+     * module Alpine n'aurait jamais pu etre garantie inoffensive. Elle
+     * s'est averee peu fiable en recette (abandon silencieux si
+     * `window.Echo` n'existe pas encore au moment ou Livewire traite son
+     * premier effet `listeners` — course quasi garantie, `echo.js`
+     * important Echo de facon asynchrone) ; mais rien ne garantissait
+     * l'INVERSE non plus — si Echo finissait par etre pret a temps un
+     * jour, dans un environnement plus rapide ou apres un cache chaud,
+     * les DEUX liaisons auraient pu reussir en meme temps et declencher
+     * DEUX requetes Livewire par message recu (cette methode est
+     * idempotente cote resultat affiche, mais pas cote NOMBRE de
+     * requetes HTTP). Supprimer cette cle elimine le risque par
+     * construction plutot que par observation.
      *
-     * TASK-1841 (diagnostic NO-GO MASTER) — cette cle reste declarative
-     * cote PHP, MAIS la liaison JS native de Livewire (`effect` hook,
-     * `vendor/livewire/livewire/dist/livewire.js`) s'est averee PEU FIABLE
-     * en recette reelle : elle ne tente de se poser qu'une fois, abandonne
-     * silencieusement si `window.Echo` n'existe pas encore a cet instant
-     * (import dynamique de `echo.js`, course quasi garantie au chargement),
-     * et ne se rattache jamais si Echo recree ensuite l'objet canal.
-     * `resources/js/chatloop-adaptive-polling.js` ne depend donc plus de
-     * cette cle pour declencher `pollChat()` en temps reel — il ecoute
-     * lui-meme `.loop.message.created` sur le canal, revalide a chaque
-     * cycle. Cette cle est conservee ici sans risque (doublon inoffensif,
-     * `pollChat()` etant idempotent) au cas ou la liaison Livewire native
-     * finit par se poser correctement dans un environnement donne.
-     */
-    protected function getListeners(): array
-    {
-        if (! config('loop_chat.realtime_enabled')) {
-            return [];
-        }
-
-        return [
-            "echo-private:loop.{$this->loop->id},.loop.message.created" => 'pollChat',
-        ];
-    }
-
-    /**
-     * TASK-1835 — action appelee par `wire:poll.3s`, a la place du defaut
+     * Le minuteur 3s de secours (`chatloop-adaptive-polling.js`) reste
+     * actif en repli si Reverb est indisponible — aucune dependance a
+     * Echo pour rattraper un message manque.
+     *
+     * TASK-1835 — action appelee par le minuteur (anciennement
+     * `wire:poll.3s`), a la place du defaut
      * implicite qui rendait integralement a CHAQUE cycle (mesure : 17-37
      * requetes SQL, 70-97 ms, jusqu'a ~627 Ko de HTML selon la fixture, pour
      * une conversation qui n'a le plus souvent RIEN change entre deux cycles

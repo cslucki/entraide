@@ -53,9 +53,32 @@
  * reactivite. Rien dans le gabarit Blade ne lit ces champs (aucun `x-text`/
  * `x-show` dessus) : ils n'avaient de toute facon aucune raison d'etre
  * reactifs. Le canal est resolu UNE SEULE FOIS a l'abonnement reussi, et
- * n'est plus jamais re-resolu a chaque cycle — `getListeners()` cote PHP
- * reste dans `LoopChat.php` par prudence (inoffensif meme s'il finit par se
- * poser) mais n'est plus le chemin emprunte par ce module.
+ * n'est plus jamais re-resolu a chaque cycle.
+ *
+ * REVUE MASTER (3e passe, avant fusion) — deux points securises en plus :
+ *
+ *  1. UN SEUL CHEMIN D'ECOUTE GARANTI. `LoopChat::getListeners()` (la cle
+ *     `"echo-private:loop.{id},.loop.message.created" => 'pollChat'`) a
+ *     ete SUPPRIMEE cote PHP plutot que laissee « par prudence » : la
+ *     garder a cote de l'ecoute directe de ce module n'aurait jamais pu
+ *     etre prouvee inoffensive dans tous les environnements (si la liaison
+ *     JS native de Livewire finissait par se poser — `window.Echo` pret a
+ *     temps —, CHAQUE message aurait declenche DEUX requetes Livewire, pas
+ *     visible dans un controle de doublons en base puisque `pollChat()` ne
+ *     cree jamais de ligne). Ce module est maintenant la SEULE source de
+ *     declenchement temps reel — garanti par construction, pas observe.
+ *  2. FUITE DE L'ECOUTEUR `bouclepro:echo-ready`. Si le composant est
+ *     detruit (morph Livewire, navigation) AVANT que `echo.js` ait fini son
+ *     import dynamique, l'ecouteur `{ once: true }` pose dans `init()`
+ *     restait vivant sur `window` : son callback (`attachEcho`, qui ferme
+ *     sur le `$wire` de l'instance DETRUITE) aurait pu s'executer plus
+ *     tard, plantant sur `window.Echo.private(...)` si Echo finissait par
+ *     ne jamais se charger, ou pire, posant un minuteur orphelin sur un
+ *     composant mort. `destroy()` retire desormais explicitement cet
+ *     ecouteur (il ne s'auto-retire tout seul que s'il a eu l'occasion de
+ *     se DECLENCHER), et chaque fermeture re-verifie un drapeau `destroyed`
+ *     avant d'agir — defense en profondeur si un autre appel async
+ *     survenait malgre tout apres la destruction.
  */
 export const POLL_INTERVAL_DEFAULT_MS = 3000;
 export const POLL_INTERVAL_SAFETY_MS = 20000;
@@ -109,6 +132,8 @@ export function chatLoopAdaptivePolling(loopId) {
     let channel = null;
     let messageHandler = null;
     let visibilityHandler = null;
+    let echoReadyHandler = null;
+    let destroyed = false;
 
     function stop() {
         clearInterval(timer);
@@ -128,6 +153,10 @@ export function chatLoopAdaptivePolling(loopId) {
             const $wire = this.$wire;
 
             const schedule = (ms) => {
+                if (destroyed) {
+                    return;
+                }
+
                 currentIntervalMs = ms;
                 stop();
 
@@ -139,6 +168,10 @@ export function chatLoopAdaptivePolling(loopId) {
             };
 
             const onEvent = (event) => {
+                if (destroyed) {
+                    return;
+                }
+
                 const result = reduceAdaptivePollingState(state, event);
                 state = result.state;
                 schedule(intervalForState(state));
@@ -152,6 +185,10 @@ export function chatLoopAdaptivePolling(loopId) {
             // courant au moment de l'appel — plus de re-resolution a
             // chaque cycle (c'etait la source du bug : voir docblock).
             const attachChannel = () => {
+                if (destroyed) {
+                    return;
+                }
+
                 channel = window.Echo.private(`loop.${loopId}`);
 
                 // Ecoute DIRECTE du message, portee par ce module —
@@ -177,6 +214,10 @@ export function chatLoopAdaptivePolling(loopId) {
             };
 
             const attachEcho = () => {
+                if (destroyed) {
+                    return;
+                }
+
                 attachChannel();
 
                 // Niveau TRANSPORT (pas seulement ce canal) : une perte de
@@ -195,7 +236,7 @@ export function chatLoopAdaptivePolling(loopId) {
             };
 
             visibilityHandler = () => {
-                if (document.hidden) {
+                if (destroyed || document.hidden) {
                     stop();
                     return;
                 }
@@ -210,8 +251,18 @@ export function chatLoopAdaptivePolling(loopId) {
                 // cas. Si le pilote est desactive, cet ecouteur ne se
                 // declenchera jamais : ce module reste alors a 3s pour
                 // toujours, sans aucun autre effet.
+                //
+                // L'ecouteur est memorise (`echoReadyHandler`) pour pouvoir
+                // etre explicitement retire dans `destroy()` : `{ once:
+                // true }` ne le retire QUE s'il a l'occasion de se
+                // DECLENCHER. Un composant detruit avant que `echo.js` ait
+                // fini son import (morph Livewire, navigation) le laissait
+                // sinon vivant sur `window` — son `attachEcho` aurait pu
+                // s'executer plus tard, en fermeture sur le `$wire` d'une
+                // instance deja morte.
                 schedule(POLL_INTERVAL_DEFAULT_MS);
-                window.addEventListener('bouclepro:echo-ready', attachEcho, { once: true });
+                echoReadyHandler = attachEcho;
+                window.addEventListener('bouclepro:echo-ready', echoReadyHandler, { once: true });
                 return;
             }
 
@@ -219,12 +270,18 @@ export function chatLoopAdaptivePolling(loopId) {
         },
 
         destroy() {
+            destroyed = true;
             stop();
             unbindConnection?.();
             if (channel && messageHandler) {
                 channel.stopListening(MESSAGE_CREATED_EVENT, messageHandler);
             }
             document.removeEventListener('visibilitychange', visibilityHandler);
+
+            if (echoReadyHandler) {
+                window.removeEventListener('bouclepro:echo-ready', echoReadyHandler);
+                echoReadyHandler = null;
+            }
         },
     };
 }
