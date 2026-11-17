@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Models\Organization;
 use App\Models\Reaction;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Notifications\NewMessageReceived;
 use App\Services\UrlPreviewService;
 use App\Support\Feed\FeedEventCatalogue;
@@ -472,7 +473,17 @@ class MessageThread extends Component
         ]);
 
         $user = auth()->user();
-        $transaction = $this->transaction();
+
+        // TASK-1844 — `fresh: true`, le MEME motif que `pollThread()`
+        // (T1836) : l'autorisation (appartenance) et le statut de la
+        // conversation sont revalides au moment EXACT ou l'on ecrit, jamais
+        // sur une copie qui aurait pu etre mise en cache plus tot dans la
+        // requete. `$transaction` etant une propriete PROTEGEE (non suivie
+        // par Livewire), elle ne survit deja pas entre deux requetes — mais
+        // rendre la revalidation EXPLICITE evite de faire reposer cette
+        // garantie sur un detail de visibilite qui pourrait changer sans que
+        // quiconque fasse le lien avec cette garde.
+        $transaction = $this->transaction(fresh: true);
 
         if (! in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
             return;
@@ -498,6 +509,13 @@ class MessageThread extends Component
 
         $piece = [];
 
+        // TASK-1844 — traitement de fichier et appel reseau INCHANGES, et
+        // toujours AVANT la transaction SQL ci-dessous (mandat MASTER :
+        // aucun des deux ne doit jamais s'y trouver). Un fichier depose ICI
+        // alors que la transaction echoue plus loin devient orphelin sur le
+        // disque — risque connu, non corrige dans cette TASK (documente au
+        // TASK file : le corriger exigerait soit une ecriture differee du
+        // fichier, soit un nettoyeur dedie, les deux hors perimetre minimal).
         if ($this->photo) {
             // Une image suit son chemin d'origine, INCHANGE : re-encodage WebP
             // et disque public. Tout autre type part sur le disque prive.
@@ -512,26 +530,50 @@ class MessageThread extends Component
         $url = UrlPreviewService::extractFirstUrl($this->newMessage);
         $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
 
-        $msg = Message::create([
-            'transaction_id' => $transaction->id,
-            'sender_id' => $user->id,
-            'reply_to_id' => $replyToId,
-            'body' => $this->newMessage,
-            'image_path' => $imagePath,
-            'file_path' => $piece['path'] ?? null,
-            'file_disk' => $piece['disk'] ?? null,
-            'file_name' => $piece['name'] ?? null,
-            'file_mime' => $piece['mime'] ?? null,
-            'file_size' => $piece['size'] ?? null,
-            'metadata' => $preview !== null ? ['url_preview' => $preview] : null,
-            'type' => 'user',
-            'organization_id' => $transaction->organization_id,
-        ]);
+        $newMessageBody = $this->newMessage;
+
+        /*
+         * TASK-1844 — SEULES les ecritures SQL liees a l'envoi vivent ici :
+         * creation du message, `touch()` de la conversation, marquage lu.
+         * Aucun fichier, aucune requete reseau, aucune notification — motif
+         * deja etabli par `LoopMessageService::sendUserMessage()` (T1839) et
+         * `NotificationEmitter::emit()` (T1843).
+         *
+         * La notification email est enregistree via `DB::afterCommit()`,
+         * PAS appelee directement : si cette transaction est un jour
+         * appelee depuis la transaction d'un appelant (aucun aujourd'hui,
+         * mais le mandat l'exige en prevision), elle ne doit partir
+         * qu'au commit REEL, jamais a la fin de ce bloc imbrique. Rien ne
+         * differe le NOMBRE d'envois — un seul, comme avant — seulement SON
+         * INSTANT.
+         */
+        $msg = DB::transaction(function () use ($transaction, $user, $replyToId, $imagePath, $piece, $preview, $newMessageBody) {
+            $msg = Message::create([
+                'transaction_id' => $transaction->id,
+                'sender_id' => $user->id,
+                'reply_to_id' => $replyToId,
+                'body' => $newMessageBody,
+                'image_path' => $imagePath,
+                'file_path' => $piece['path'] ?? null,
+                'file_disk' => $piece['disk'] ?? null,
+                'file_name' => $piece['name'] ?? null,
+                'file_mime' => $piece['mime'] ?? null,
+                'file_size' => $piece['size'] ?? null,
+                'metadata' => $preview !== null ? ['url_preview' => $preview] : null,
+                'type' => 'user',
+                'organization_id' => $transaction->organization_id,
+            ]);
+
+            $transaction->touch();
+            $this->markRead();
+
+            $this->notifierApresCommit($transaction, $user, $msg);
+
+            return $msg;
+        });
 
         $this->newMessage = '';
         $this->cancelReply();
-        $transaction->touch();
-        $this->markRead();
 
         /*
          * TASK-1704 correctif 4 — annoncer l'envoi au composeur.
@@ -561,22 +603,38 @@ class MessageThread extends Component
          * le declenche : vider la propriete cote serveur ne suffit donc pas.
          */
         $this->dispatch('message-sent');
+    }
 
-        $recipient = $transaction->buyer_id === $user->id
-            ? $transaction->seller
-            : $transaction->buyer;
+    /**
+     * TASK-1844 — enregistre l'envoi de l'email APRES le commit REEL,
+     * jamais depuis l'interieur de la transaction qui vient de creer le
+     * message. `DB::afterCommit()` gere seul l'imbrication eventuelle
+     * (savepoint vs commit racine) : rien de plus a faire ici pour honorer
+     * « transaction externe ».
+     *
+     * Le `rescue()` et son contexte de log sont REPRIS A L'IDENTIQUE de
+     * l'ancien emplacement (avant cette TASK) — aucune cle, aucun message
+     * ne change, seul l'INSTANT d'execution se deplace.
+     */
+    private function notifierApresCommit(Transaction $transaction, User $user, Message $msg): void
+    {
+        DB::afterCommit(function () use ($transaction, $user, $msg) {
+            $recipient = $transaction->buyer_id === $user->id
+                ? $transaction->seller
+                : $transaction->buyer;
 
-        rescue(
-            fn () => $recipient->notify(new NewMessageReceived($transaction, $msg)),
-            fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
-                'event' => 'message_created_notification',
-                'message_id' => $msg->id,
-                'organization_id' => $transaction->organization_id,
-                'notifiable_id' => $recipient->id,
-                'exception_class' => $e::class,
-            ]),
-            false,
-        );
+            rescue(
+                fn () => $recipient->notify(new NewMessageReceived($transaction, $msg)),
+                fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
+                    'event' => 'message_created_notification',
+                    'message_id' => $msg->id,
+                    'organization_id' => $transaction->organization_id,
+                    'notifiable_id' => $recipient->id,
+                    'exception_class' => $e::class,
+                ]),
+                false,
+            );
+        });
     }
 
     public function removePhoto(): void
