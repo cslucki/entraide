@@ -6,19 +6,53 @@
     toutes les 3 secondes strictement inchange ci-dessous (regles metier,
     Flux, evaluation hors de toute optimisation — mandat MASTER) et recoit
     SIMPLEMENT un declencheur immediat en plus, `messageThreadRealtimeNudge()`.
-    Les deux drapeaux OFF (defaut) : ces deux composants restent sans
-    aucun effet, le comportement avant cette TASK est preserve a l'identique.
+
+    REVUE MASTER (correctif avant fusion) — COHERENCE DES DRAPEAUX. Le
+    pilote SERVEUR (`config('conversation_realtime.enabled')`) est lu ICI,
+    cote PHP, pour decider QUEL balisage est meme rendu — pas seulement le
+    pilote client (`VITE_CONVERSATION_REALTIME_ENABLED`, lu par le module
+    JS lui-meme). Si le pilote serveur est FAUX, la conversation DIRECTE
+    GARDE le sondage natif qu'elle portait avant cette TASK —
+    MEME SI l'actif JS a ete construit avec le drapeau Vite actif (ex.
+    deploiement decale, drapeau serveur pas encore bascule) : aucun
+    `ConversationMessageCreated` ne sera de toute facon JAMAIS diffuse tant
+    que le pilote serveur reste eteint, et s'abonner quand meme au canal
+    aurait reduit la cadence a 20s pour rien, une degradation silencieuse.
+    Le module JS verifie en plus SON PROPRE drapeau client (voir son
+    docblock) : les deux controles sont independants et se renforcent,
+    aucun des deux ne suffit seul a couvrir les QUATRE combinaisons
+    possibles des deux drapeaux.
+
+    Les deux drapeaux OFF (defaut) : comportement avant cette TASK
+    preserve a l'identique.
 
     TASK-1816 — ce bloc ne compte pas comme une DEUXIEME directive de
     sondage : `TASK1816MontageUniqueMessageThreadTest` relit le fichier
     SOURCE (commentaires Blade compris), pas le rendu compile — d'ou
-    l'absence deliberee, ci-dessus, du jeton litteral que ce test recherche.
+    l'absence deliberee, ci-dessus, du jeton litteral que ce test recherche,
+    et pourquoi la directive elle-meme n'apparait QU'UNE FOIS dans le
+    gabarit ci-dessous (un seul `@if`, jamais un par branche) malgre les
+    PLUSIEURS cas qui doivent la porter.
 --}}
+@php
+    $conversationRealtimeServerEnabled = (bool) config('conversation_realtime.enabled');
+    $isDirectConversationForPolling = $transaction->isDirectConversation();
+    // Le sondage natif couvre TROIS des quatre cas : les deux ou le
+    // pilote serveur est eteint (direct ET entraide), PLUS l'entraide
+    // quand le pilote est allume (son comportement reste inchange dans
+    // les deux cas — mandat MASTER). Seul le QUATRIEME cas (direct, pilote
+    // allume) bascule entierement sur le minuteur JS.
+    $needsAdaptivePolling = $isDirectConversationForPolling && $conversationRealtimeServerEnabled;
+    $needsNativePoll = ! $needsAdaptivePolling;
+    $needsRealtimeNudge = ! $isDirectConversationForPolling && $conversationRealtimeServerEnabled;
+@endphp
 <div class="flex flex-col h-full"
-    @if($transaction->isDirectConversation())
-        x-data="messageThreadAdaptivePolling('{{ $transaction->id }}')"
-    @else
+    @if($needsNativePoll)
         wire:poll.3000ms="pollThread"
+    @endif
+    @if($needsAdaptivePolling)
+        x-data="messageThreadAdaptivePolling('{{ $transaction->id }}')"
+    @elseif($needsRealtimeNudge)
         x-data="messageThreadRealtimeNudge('{{ $transaction->id }}')"
     @endif
     x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)">

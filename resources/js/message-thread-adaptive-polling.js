@@ -53,6 +53,27 @@
  * Les deux partagent `attachConversationChannel()` : la seule difference
  * entre eux porte sur ce qu'ils font de l'evenement, jamais sur la
  * mecanique d'abonnement/nettoyage elle-meme.
+ *
+ * ## REVUE MASTER (correctif avant fusion) — regroupement des appels `$wire.pollThread()`
+ *
+ * Plusieurs sources peuvent declencher un `pollThread()` tres rapprochees :
+ * le minuteur periodique (3s/20s), un evenement Reverb (message recu), et
+ * l'entree en abonnement/reconnexion (`syncNow`). Sans protection, une
+ * rafale rapprochee ouvrait potentiellement PLUSIEURS requetes Livewire
+ * concurrentes pour le MEME composant. `createPollThreadResync()` applique
+ * exactement le motif deja valide par `notificationsBadgeRealtime()`
+ * (TASK-1843, revue MASTER « controle de synchronisation ») : AU PLUS UNE
+ * requete en vol a la fois ; un declenchement recu PENDANT une requete en
+ * cours ne fait que POSER UNE INTENTION (jamais un second fetch
+ * concurrent) ; des que la requete en vol se termine, UNE SEULE relecture
+ * supplementaire part si une intention a ete posee entre-temps (jamais une
+ * par evenement recu — coalescence) ; et `isDestroyed()` est revérifiee
+ * avant CHAQUE etape pour ne jamais agir sur un composant demonte. Les
+ * appels PERIODIQUES du minuteur restent inchanges (le minuteur continue
+ * de tiquer a 3s/20s pile) : c'est seulement le `pollThread()` qu'il
+ * declenche a chaque tic qui passe desormais par ce regroupement, au lieu
+ * d'ouvrir une requete inconditionnelle meme si une autre etait deja en
+ * vol.
  */
 
 export const POLL_INTERVAL_DEFAULT_MS = 3000;
@@ -136,6 +157,55 @@ function attachConversationChannel(win, transactionId, { onMessage, onConnection
 }
 
 /**
+ * Regroupe les appels a `$wire.pollThread()` — voir le docblock en tete de
+ * fichier. Partage par les deux composants Alpine de ce module : seule la
+ * SOURCE des declenchements differe entre eux (minuteur + evenements pour
+ * `messageThreadAdaptivePolling`, evenements seuls pour
+ * `messageThreadRealtimeNudge`), jamais cette mecanique de regroupement.
+ *
+ * @param {{pollThread: () => Promise<unknown>}} $wire
+ * @param {() => boolean} isDestroyed
+ * @returns {() => Promise<void>}
+ */
+function createPollThreadResync($wire, isDestroyed) {
+    let syncEnCours = false;
+    let resyncReclamee = false;
+
+    return async function resync() {
+        if (isDestroyed()) {
+            return;
+        }
+
+        if (syncEnCours) {
+            resyncReclamee = true;
+            return;
+        }
+
+        syncEnCours = true;
+
+        try {
+            do {
+                resyncReclamee = false;
+
+                try {
+                    await $wire.pollThread();
+                } catch {
+                    // Une relecture en echec ne doit jamais casser le
+                    // minuteur ni la liaison Echo : le prochain cycle ou le
+                    // prochain evenement recu retentera de lui-meme.
+                }
+
+                if (isDestroyed()) {
+                    return;
+                }
+            } while (resyncReclamee && !isDestroyed());
+        } finally {
+            syncEnCours = false;
+        }
+    };
+}
+
+/**
  * Conversations DIRECTES — minuteur adaptatif complet.
  *
  * `env` est INJECTABLE (second parametre optionnel) pour rester testable
@@ -173,6 +243,7 @@ export function messageThreadAdaptivePolling(transactionId, options = {}) {
             const $wire = this.$wire;
             const win = window;
             const enabled = conversationRealtimeEnabled(env);
+            const resync = createPollThreadResync($wire, () => destroyed);
 
             const schedule = (ms) => {
                 if (destroyed) {
@@ -186,7 +257,11 @@ export function messageThreadAdaptivePolling(transactionId, options = {}) {
                     return;
                 }
 
-                timer = setInterval(() => $wire.pollThread(), ms);
+                // Le minuteur continue de tiquer EXACTEMENT a ce rythme
+                // (3s/20s inchange) ; c'est `resync()` qui absorbe le cas
+                // ou une requete precedente (declenchee par un evenement,
+                // ou par le tic d'avant) est encore en vol.
+                timer = setInterval(() => resync(), ms);
             };
 
             const onEvent = (event) => {
@@ -199,7 +274,7 @@ export function messageThreadAdaptivePolling(transactionId, options = {}) {
                 schedule(intervalForState(state));
 
                 if (result.syncNow) {
-                    $wire.pollThread();
+                    resync();
                 }
             };
 
@@ -209,7 +284,7 @@ export function messageThreadAdaptivePolling(transactionId, options = {}) {
                 }
 
                 attached = attachConversationChannel(win, transactionId, {
-                    onMessage: () => $wire.pollThread(),
+                    onMessage: () => resync(),
                     onConnectionEvent: onEvent,
                 });
 
@@ -227,7 +302,7 @@ export function messageThreadAdaptivePolling(transactionId, options = {}) {
                     stop();
                     return;
                 }
-                $wire.pollThread();
+                resync();
                 schedule(currentIntervalMs ?? intervalForState(state));
             };
             document.addEventListener('visibilitychange', visibilityHandler);
@@ -289,6 +364,7 @@ export function messageThreadRealtimeNudge(transactionId, options = {}) {
             const $wire = this.$wire;
             const win = window;
             const enabled = conversationRealtimeEnabled(env);
+            const resync = createPollThreadResync($wire, () => destroyed);
 
             if (!enabled) {
                 // Drapeau OFF : rien a faire, `wire:poll.3000ms` suffit
@@ -302,7 +378,7 @@ export function messageThreadRealtimeNudge(transactionId, options = {}) {
                 }
 
                 attached = attachConversationChannel(win, transactionId, {
-                    onMessage: () => $wire.pollThread(),
+                    onMessage: () => resync(),
                     onConnectionEvent: () => {},
                 });
             };

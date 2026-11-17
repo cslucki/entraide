@@ -193,6 +193,87 @@ class TASK1846MessageThreadRealtimeTest extends TestCase
         $this->assertStringNotContainsString('messageThreadAdaptivePolling', $html);
     }
 
+    // ── 2bis. REVUE MASTER (correctif avant fusion) — coherence des drapeaux ─
+    //
+    // Le gabarit Blade lit le drapeau SERVEUR (`config('conversation_
+    // realtime.enabled')`), jamais le drapeau client (`VITE_CONVERSATION_
+    // REALTIME_ENABLED`, qu'il ne peut de toute facon pas lire — c'est une
+    // constante figee au BUILD Vite, invisible a PHP au runtime). Les
+    // QUATRE combinaisons (serveur x client) se ramenent donc a DEUX axes
+    // testes separement :
+    //
+    //   - cote Blade/PHP (ICI) : le rendu depend EXCLUSIVEMENT du drapeau
+    //     serveur — prouve par les deux tests ci-dessous (serveur OFF /
+    //     serveur ON), quel que soit un eventuel drapeau client par
+    //     ailleurs compile a `true` (un gabarit ne peut pas y etre
+    //     sensible, l'eliminant structurellement comme risque).
+    //   - cote JS (voir `message-thread-adaptive-polling.test.mjs`,
+    //     `conversationRealtimeEnabled` et les tests « drapeau OFF ») : le
+    //     module lui-meme reste a 3s par defaut si SON PROPRE drapeau
+    //     client est faux, meme si Blade a quand meme rendu le `x-data`
+    //     (donc meme si le serveur, lui, est actif) — couvrant la
+    //     combinaison serveur=ON/client=OFF.
+    //
+    // Ensemble, ces deux suites couvrent les quatre combinaisons : le
+    // sondage natif `wire:poll` ne peut JAMAIS manquer quand le pilote
+    // serveur est eteint (ce test), et le module JS ne peut JAMAIS reduire
+    // la cadence si son propre pilote client est eteint (suite JS).
+
+    public function test_drapeau_serveur_off_conversation_directe_garde_le_sondage_natif_meme_si_le_client_a_ete_compile_actif(): void
+    {
+        config()->set('conversation_realtime.enabled', false);
+
+        $direct = Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            'buyer_id' => $this->buyer->id,
+            'seller_id' => $this->seller->id,
+            'status' => 'accepted',
+            'points_proposed' => 0,
+        ]);
+
+        $html = Livewire::actingAs($this->buyer)
+            ->test(MessageThread::class, ['transaction' => $direct])
+            ->html();
+
+        $this->assertStringContainsString('wire:poll.3000ms="pollThread"', $html, 'pilote serveur eteint : la conversation DIRECTE doit garder le sondage natif a 3s, quel que soit le drapeau Vite du client compile');
+        $this->assertStringNotContainsString('messageThreadAdaptivePolling', $html);
+    }
+
+    public function test_drapeau_serveur_off_echange_entraide_garde_wire_poll_sans_le_declencheur_immediat(): void
+    {
+        config()->set('conversation_realtime.enabled', false);
+
+        $html = Livewire::actingAs($this->buyer)
+            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->html();
+
+        $this->assertStringContainsString('wire:poll.3000ms="pollThread"', $html, 'un echange d ENTRAIDE garde son sondage natif, pilote serveur eteint ou non');
+        $this->assertStringNotContainsString('messageThreadRealtimeNudge', $html, 'pas la peine de monter le declencheur immediat si le serveur ne diffusera de toute facon jamais rien');
+    }
+
+    public function test_drapeau_serveur_on_conversation_directe_porte_bien_le_composant_adaptatif(): void
+    {
+        // Contre-preuve explicite du test precedent, drapeau remis a ON
+        // (deja le cas par `setUp()`, repete ici pour la lisibilite de la
+        // paire de tests).
+        config()->set('conversation_realtime.enabled', true);
+
+        $direct = Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            'buyer_id' => $this->buyer->id,
+            'seller_id' => $this->seller->id,
+            'status' => 'accepted',
+            'points_proposed' => 0,
+        ]);
+
+        $html = Livewire::actingAs($this->buyer)
+            ->test(MessageThread::class, ['transaction' => $direct])
+            ->html();
+
+        $this->assertStringNotContainsString('wire:poll', $html);
+        $this->assertStringContainsString("messageThreadAdaptivePolling('{$direct->id}')", $html);
+    }
+
     // ── 3. Drapeau OFF : zero diffusion sur les trois mutations ─────────────
 
     public function test_drapeau_desactive_aucune_diffusion_sur_les_trois_mutations(): void

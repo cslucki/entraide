@@ -43,6 +43,43 @@ function fakeWire() {
     return { calls, pollThread: () => calls.push(Date.now()) };
 }
 
+/**
+ * REVUE MASTER (correctif avant fusion) — `$wire.pollThread()` controlable
+ * depuis le test : chaque appel reste EN VOL (promesse jamais resolue)
+ * jusqu'a `resolveOldest()`. Necessaire pour prouver le regroupement
+ * (`createPollThreadResync`) : une rafale d'evenements PENDANT qu'une
+ * requete est en vol ne doit jamais ouvrir de second fetch concurrent.
+ */
+function fakeWireDeferred() {
+    const calls = [];
+    const pending = [];
+
+    return {
+        calls,
+        pollThread() {
+            calls.push(calls.length);
+            return new Promise((resolve) => { pending.push(resolve); });
+        },
+        resolveOldest() {
+            const resolve = pending.shift();
+            resolve?.();
+        },
+        pendingCount() { return pending.length; },
+    };
+}
+
+/**
+ * Laisse les microtaches en attente (la reprise d'un `await` dans
+ * `resync()` apres `resolveOldest()`) s'executer avant l'assertion
+ * suivante. Plusieurs tours sont necessaires : un par `await` traverse
+ * dans la boucle `do...while` de `createPollThreadResync()`.
+ */
+async function flushMicrotasks(tours = 4) {
+    for (let i = 0; i < tours; i++) {
+        await Promise.resolve();
+    }
+}
+
 function fakeChannel(key) {
     const listeners = {};
     const bind = (event, cb) => { (listeners[event] ??= []).push(cb); };
@@ -172,7 +209,7 @@ test('drapeau ON, Echo pas encore pret : attend bouclepro:echo-ready avant de s 
     component.destroy();
 });
 
-test('cycle complet : abonnement immediat, passage a 20s, message recu declenche pollThread(), perte de connexion ramene a 3s', () => {
+test('cycle complet : abonnement immediat, passage a 20s, message recu declenche pollThread(), perte de connexion ramene a 3s', async () => {
     const { window: win } = fakeBrowserGlobals();
     const echo = fakeEcho();
     win.Echo = echo;
@@ -186,13 +223,22 @@ test('cycle complet : abonnement immediat, passage a 20s, message recu declenche
     // documentee par TASK-1841) : une synchronisation immediate est due.
     assert.equal(wire.calls.length, 1, 'premier abonnement : synchronisation immediate');
 
+    // REVUE MASTER (correctif avant fusion) — `createPollThreadResync()`
+    // introduit un `await` : un evenement recu DANS LE MEME TOUR que la
+    // synchronisation initiale (encore en vol, `fakeWire().pollThread()`
+    // resolu au microtick suivant) est desormais RECLAME plutot
+    // qu'immediatement refetched — exactement le comportement voulu
+    // (aucun fetch concurrent). Il faut laisser les microtaches s ecouler
+    // pour observer la relecture finale.
     const channel = echo.connector.channels['private-conversation.tx-cycle-1'];
     channel._emit(MESSAGE_CREATED_EVENT);
-    assert.equal(wire.calls.length, 2, 'un message recu doit declencher pollThread() immediatement');
+    await flushMicrotasks();
+    assert.equal(wire.calls.length, 2, 'un message recu doit declencher une relecture (immediate ou juste apres la requete en vol)');
 
     channel._emit('_error');
     channel._emit('_subscribed');
-    assert.equal(wire.calls.length, 3, 'une reconnexion doit redeclencher une synchronisation immediate');
+    await flushMicrotasks();
+    assert.equal(wire.calls.length, 3, 'une reconnexion doit redeclencher une synchronisation');
 
     component.destroy();
 });
@@ -319,4 +365,152 @@ test('nudge : destroy() ne quitte PAS le canal si un autre consommateur l a repr
 
     assert.deepEqual(echo.leaveCalls, []);
     assert.equal(echo.connector.channels['private-conversation.tx-nudge-taken'], takenOverChannel);
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// REVUE MASTER (correctif avant fusion) — regroupement de `pollThread()`,
+// promesses differees et rafales d'evenements.
+// ────────────────────────────────────────────────────────────────────────
+
+test('messageThreadAdaptivePolling : une rafale d evenements PENDANT une requete pollThread() en vol ne declenche jamais de fetch concurrent', async () => {
+    const { window: win } = fakeBrowserGlobals();
+    const echo = fakeEcho();
+    win.Echo = echo;
+
+    const component = messageThreadAdaptivePolling('tx-burst-1', { env: { VITE_CONVERSATION_REALTIME_ENABLED: 'true' } });
+    const wire = fakeWireDeferred();
+    component.$wire = wire;
+    component.init();
+
+    // Le premier abonnement (canal deja `subscribed` dans le banc) a
+    // declenche une synchronisation immediate : UN appel en vol.
+    assert.equal(wire.calls.length, 1);
+    assert.equal(wire.pendingCount(), 1);
+
+    const channel = echo.connector.channels['private-conversation.tx-burst-1'];
+
+    // Rafale de 5 messages PENDANT que cette requete est encore en vol.
+    for (let i = 0; i < 5; i++) {
+        channel._emit(MESSAGE_CREATED_EVENT);
+    }
+
+    assert.equal(wire.calls.length, 1, 'une rafale pendant une requete en vol ne doit jamais ouvrir de second fetch concurrent');
+    assert.equal(wire.pendingCount(), 1, 'toujours une seule requete en vol');
+
+    // La requete en vol se termine : une relecture FINALE doit partir, une
+    // seule — jamais une par evenement recu pendant son vol (coalescence,
+    // aucune perte de changement).
+    wire.resolveOldest();
+    await flushMicrotasks();
+
+    assert.equal(wire.calls.length, 2, 'exactement UNE relecture finale doit partir apres la requete en vol');
+
+    wire.resolveOldest();
+    await flushMicrotasks();
+
+    assert.equal(wire.calls.length, 2, 'aucune troisieme relecture : rien n etait reclame apres la seconde');
+
+    component.destroy();
+});
+
+test('messageThreadAdaptivePolling : aucune relecture supplementaire si destroy() survient PENDANT une requete en vol', async () => {
+    const { window: win } = fakeBrowserGlobals();
+    const echo = fakeEcho();
+    win.Echo = echo;
+
+    const component = messageThreadAdaptivePolling('tx-destroy-mid-1', { env: { VITE_CONVERSATION_REALTIME_ENABLED: 'true' } });
+    const wire = fakeWireDeferred();
+    component.$wire = wire;
+    component.init();
+
+    assert.equal(wire.calls.length, 1);
+
+    const channel = echo.connector.channels['private-conversation.tx-destroy-mid-1'];
+    channel._emit(MESSAGE_CREATED_EVENT); // reclame une relecture finale, encore en vol
+
+    component.destroy();
+
+    wire.resolveOldest();
+    await flushMicrotasks();
+
+    assert.equal(wire.calls.length, 1, 'aucune relecture supplementaire ne doit partir apres destroy(), meme si un evenement avait ete reclame juste avant');
+});
+
+test('messageThreadAdaptivePolling : le minuteur periodique continue de tiquer, mais n ouvre pas de fetch concurrent si une requete est deja en vol', async () => {
+    const { window: win } = fakeBrowserGlobals();
+    const echo = fakeEcho();
+    win.Echo = echo;
+
+    const component = messageThreadAdaptivePolling('tx-timer-1', { env: { VITE_CONVERSATION_REALTIME_ENABLED: 'true' } });
+    const wire = fakeWireDeferred();
+    component.$wire = wire;
+    component.init();
+
+    assert.equal(wire.calls.length, 1, 'synchronisation immediate a l abonnement, encore en vol');
+
+    // Un evenement recu alors que la synchronisation initiale est encore en
+    // vol : reclame, mais n ouvre pas de second fetch.
+    const channel = echo.connector.channels['private-conversation.tx-timer-1'];
+    channel._emit(MESSAGE_CREATED_EVENT);
+    assert.equal(wire.calls.length, 1);
+
+    // La requete initiale se termine : la relecture reclamee part.
+    wire.resolveOldest();
+    await flushMicrotasks();
+    assert.equal(wire.calls.length, 2);
+
+    component.destroy();
+});
+
+test('messageThreadRealtimeNudge : une rafale d evenements PENDANT une requete pollThread() en vol ne declenche jamais de fetch concurrent', async () => {
+    const { window: win } = fakeBrowserGlobals();
+    const echo = fakeEcho();
+    win.Echo = echo;
+
+    const component = messageThreadRealtimeNudge('tx-nudge-burst', { env: { VITE_CONVERSATION_REALTIME_ENABLED: 'true' } });
+    const wire = fakeWireDeferred();
+    component.$wire = wire;
+    component.init();
+
+    assert.equal(wire.calls.length, 0, 'l abonnement seul ne doit jamais appeler pollThread() pour ce composant');
+
+    const channel = echo.connector.channels['private-conversation.tx-nudge-burst'];
+
+    for (let i = 0; i < 5; i++) {
+        channel._emit(MESSAGE_CREATED_EVENT);
+    }
+
+    assert.equal(wire.calls.length, 1, 'une rafale doit ouvrir UNE SEULE requete en vol, jamais cinq');
+    assert.equal(wire.pendingCount(), 1);
+
+    wire.resolveOldest();
+    await flushMicrotasks();
+
+    assert.equal(wire.calls.length, 2, 'exactement une relecture finale doit partir apres la requete en vol — aucune perte de changement');
+
+    component.destroy();
+});
+
+test('messageThreadRealtimeNudge : aucune relecture supplementaire si destroy() survient PENDANT une requete en vol', async () => {
+    const { window: win } = fakeBrowserGlobals();
+    const echo = fakeEcho();
+    win.Echo = echo;
+
+    const component = messageThreadRealtimeNudge('tx-nudge-destroy-mid', { env: { VITE_CONVERSATION_REALTIME_ENABLED: 'true' } });
+    const wire = fakeWireDeferred();
+    component.$wire = wire;
+    component.init();
+
+    const channel = echo.connector.channels['private-conversation.tx-nudge-destroy-mid'];
+    channel._emit(MESSAGE_CREATED_EVENT);
+    channel._emit(MESSAGE_CREATED_EVENT);
+
+    assert.equal(wire.calls.length, 1);
+
+    component.destroy();
+
+    wire.resolveOldest();
+    await flushMicrotasks();
+
+    assert.equal(wire.calls.length, 1, 'aucune relecture supplementaire apres destroy(), meme avec un evenement reclame juste avant');
 });
