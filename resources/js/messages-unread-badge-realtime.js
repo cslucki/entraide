@@ -44,13 +44,12 @@ export const EVENT_MESSAGE_UNREAD_COUNT_CHANGED = '.message.unread-count-changed
 
 /**
  * Applique un compte a jour sur les points de montage du badge de
- * MESSAGES (rail desktop ; aucun equivalent mobile aujourd'hui — audit
- * TASK-1847 : `mobile-bottom-nav.blade.php` porte une entree « messages »
- * sans aucun badge existant a mettre a niveau, contrairement aux
- * notifications qui en ont un sur les deux surfaces). Meme convention
- * visuelle que `applyBadgeCount()` (TASK-1843) : valeur BRUTE dans
- * l'attribut de donnees, texte plafonne a « 9+ », aucun badge visible a
- * zero.
+ * MESSAGES — rail desktop ET barre mobile (TASK-1853 : la barre du bas
+ * n'avait aucun badge, contrairement aux notifications qui en ont deja un
+ * sur les deux surfaces depuis TASK-1843 ; ce correctif aligne les deux
+ * compteurs sur le MEME motif). Meme convention visuelle que
+ * `applyBadgeCount()` (TASK-1843) : valeur BRUTE dans l'attribut de
+ * donnees, texte plafonne a « 9+ », aucun badge visible a zero.
  *
  * @param {Array<{mount: Element|null, staticBadge: Element|null}>} cibles
  * @param {number} count
@@ -98,11 +97,22 @@ export function messagesUnreadBadgeRealtime({ userId, fetchUnreadCount, win = wi
     let syncEnCours = false;
     let resyncReclamee = false;
 
+    // TASK-1853 — deuxieme cible, meme motif que `notifications-badge-
+    // realtime.js` (TASK-1843) : un `staticBadge` par SURFACE, jamais le
+    // MEME nom d'attribut que celui du rail. Une recherche globale
+    // partagee entre les deux surfaces risquerait de masquer le mauvais
+    // badge (le premier element trouve dans le DOM, pas forcement celui de
+    // la bonne surface) — `data-mobile-bottom-nav-messages-unread` est donc
+    // un nom distinct de `data-nav-badge-messages`, jamais reutilise.
     function cibles() {
         return [
             {
                 mount: doc.querySelector('[data-realtime-badge-mount="messages-rail"]'),
                 staticBadge: doc.querySelector('[data-nav-badge-messages]'),
+            },
+            {
+                mount: doc.querySelector('[data-realtime-badge-mount="messages-mobile"]'),
+                staticBadge: doc.querySelector('[data-mobile-bottom-nav-messages-unread]'),
             },
         ];
     }

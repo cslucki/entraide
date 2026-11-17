@@ -34,15 +34,22 @@ function fakeBrowserGlobals() {
 
     const mountRail = fakeElement();
     const staticRail = fakeElement();
+    // TASK-1853 — deuxieme surface (barre mobile), meme motif que
+    // `notifications-badge-realtime.test.mjs` (TASK-1843) : un
+    // `staticBadge` sous un nom d'attribut DISTINCT de celui du rail.
+    const mountMobile = fakeElement();
+    const staticMobile = fakeElement();
 
     const elements = {
         '[data-realtime-badge-mount="messages-rail"]': mountRail,
         '[data-nav-badge-messages]': staticRail,
+        '[data-realtime-badge-mount="messages-mobile"]': mountMobile,
+        '[data-mobile-bottom-nav-messages-unread]': staticMobile,
     };
 
     doc.querySelector = (selector) => elements[selector] ?? null;
 
-    return { win, doc, mountRail, staticRail };
+    return { win, doc, mountRail, staticRail, mountMobile, staticMobile };
 }
 
 function fakeChannel(key) {
@@ -135,6 +142,58 @@ test('applyMessagesBadgeCount : un mount absent ne leve jamais', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────
+// TASK-1853 — badge mobile : mise a jour simultanee avec le rail, et
+// sequence complete du compteur.
+// ────────────────────────────────────────────────────────────────────────
+
+test('applyMessagesBadgeCount : rail et mobile recoivent le MEME compte au MEME appel, chacun sur son propre mount', () => {
+    const mountRail = fakeElement();
+    const staticRail = fakeElement();
+    const mountMobile = fakeElement();
+    const staticMobile = fakeElement();
+
+    applyMessagesBadgeCount([
+        { mount: mountRail, staticBadge: staticRail },
+        { mount: mountMobile, staticBadge: staticMobile },
+    ], 5);
+
+    assert.equal(mountRail.textContent, '5');
+    assert.equal(mountMobile.textContent, '5');
+    assert.equal(mountRail.style.display, '');
+    assert.equal(mountMobile.style.display, '');
+    // Chaque surface porte son PROPRE badge SSR, masque independamment —
+    // jamais un selecteur partage qui en oublierait un.
+    assert.equal(staticRail.style.display, 'none');
+    assert.equal(staticMobile.style.display, 'none');
+});
+
+test('applyMessagesBadgeCount : sequence complete 0 -> 1 -> 9+ -> 0, rail et mobile toujours d\'accord', () => {
+    const mountRail = fakeElement();
+    const mountMobile = fakeElement();
+    const cibles = [{ mount: mountRail, staticBadge: null }, { mount: mountMobile, staticBadge: null }];
+
+    applyMessagesBadgeCount(cibles, 0);
+    assert.equal(mountRail.style.display, 'none');
+    assert.equal(mountMobile.style.display, 'none');
+
+    applyMessagesBadgeCount(cibles, 1);
+    assert.equal(mountRail.textContent, '1');
+    assert.equal(mountMobile.textContent, '1');
+    assert.equal(mountRail.style.display, '');
+    assert.equal(mountMobile.style.display, '');
+
+    applyMessagesBadgeCount(cibles, 12);
+    assert.equal(mountRail.textContent, '9+');
+    assert.equal(mountMobile.textContent, '9+');
+
+    applyMessagesBadgeCount(cibles, 0);
+    assert.equal(mountRail.style.display, 'none');
+    assert.equal(mountMobile.style.display, 'none');
+    assert.equal(mountRail.textContent, '');
+    assert.equal(mountMobile.textContent, '');
+});
+
+// ────────────────────────────────────────────────────────────────────────
 // Cycle de vie : echo-ready, abonnement, resynchronisation
 // ────────────────────────────────────────────────────────────────────────
 
@@ -177,7 +236,7 @@ test('Echo deja pret : abonnement immediat, resynchronisation au premier "subscr
 });
 
 test('evenement message.unread-count-changed recu : UNE resynchronisation HTTP, jamais une lecture du payload', async () => {
-    const { win, doc, mountRail } = fakeBrowserGlobals();
+    const { win, doc, mountRail, mountMobile } = fakeBrowserGlobals();
     win.Echo = fakeEcho();
     let appels = 0;
 
@@ -197,6 +256,11 @@ test('evenement message.unread-count-changed recu : UNE resynchronisation HTTP, 
 
     assert.equal(appels, 1);
     assert.equal(mountRail.attributes['data-nav-badge-messages'], '7', 'le compteur WebSocket ne doit jamais devenir la source de verite — seule la relecture HTTP compte');
+    // TASK-1853 — UNE seule relecture HTTP (appels === 1 ci-dessus), mais
+    // les DEUX surfaces en recoivent le resultat : le rail et la barre
+    // mobile ne doivent jamais diverger.
+    assert.equal(mountMobile.attributes['data-nav-badge-messages'], '7', 'le badge mobile doit refleter le MEME compte que le rail, depuis la MEME relecture HTTP');
+    assert.equal(mountMobile.style.display, '', 'le badge mobile doit devenir visible comme le rail');
 
     badge.destroy();
 });
