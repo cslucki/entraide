@@ -20,6 +20,14 @@
  * (`fetchUnreadCount`), jamais une lecture du payload lui-meme — ce qui
  * rend aussi une resynchronisation apres coupure triviale (section 3.5 de
  * l'audit : l'etat COMPLET est relu, jamais un delta).
+ *
+ * TASK-1843 (revue MASTER, controle de synchronisation) — `resync()` ne
+ * laisse jamais deux requetes `fetchUnreadCount()` en vol simultanement :
+ * un evenement recu pendant une requete en cours se CONTENTE de reclamer
+ * une relecture finale, jamais un second fetch concurrent (voir son
+ * commentaire). Aucune reponse ne peut donc arriver dans le desordre, et
+ * `destroy()` empeche explicitement d'appliquer un resultat a un composant
+ * deja detruit.
  */
 
 export const EVENT_NOTIFICATION_COUNT_CHANGED = '.notification.count-changed';
@@ -77,6 +85,25 @@ export function notificationsBadgeRealtime({ userId, fetchUnreadCount, win = win
     let echoReadyHandler;
     let destroyed = false;
 
+    // TASK-1843 (revue MASTER, controle de synchronisation) — AU PLUS UNE
+    // requete `fetchUnreadCount()` en vol a la fois.
+    //
+    // Deux evenements rapproches (ou un evenement pendant une
+    // resynchronisation de reconnexion) ne declenchent JAMAIS deux fetch
+    // concurrents : le second appel ne fait que POSER UNE INTENTION
+    // (`resyncReclamee`) et revenir immediatement. C'est la boucle
+    // `do...while` qui, une fois la requete en cours terminee, relance
+    // UNE SEULE fois de plus si une intention a ete posee pendant son vol —
+    // jamais une par evenement recu entre-temps (coalescence).
+    //
+    // Puisqu'il n'existe jamais plus d'une requete HTTP en vol, il ne peut
+    // jamais y avoir deux REPONSES a departager dans le desordre : chaque
+    // requete part APRES que la precedente a fini d'etre attendue. La vraie
+    // garantie n'est donc pas un numero de sequence a comparer apres coup,
+    // mais l'absence meme de concurrence.
+    let syncEnCours = false;
+    let resyncReclamee = false;
+
     function cibles() {
         return [
             {
@@ -95,14 +122,40 @@ export function notificationsBadgeRealtime({ userId, fetchUnreadCount, win = win
             return;
         }
 
+        if (syncEnCours) {
+            resyncReclamee = true;
+            return;
+        }
+
+        syncEnCours = true;
+
         try {
-            const count = await fetchUnreadCount();
-            applyBadgeCount(cibles(), count);
-        } catch {
-            // TASK-1843 — une relecture HTTP en echec ne doit jamais casser
-            // la page : le badge garde sa derniere valeur connue (celle du
-            // rendu serveur ou de la derniere resynchronisation reussie), et
-            // le prochain evenement ou la prochaine reconnexion retentera.
+            do {
+                resyncReclamee = false;
+
+                try {
+                    const count = await fetchUnreadCount();
+
+                    // TASK-1843 — `destroy()` peut survenir PENDANT cette
+                    // attente (navigation, nettoyage). Le resultat d'une
+                    // requete deja partie ne doit jamais etre applique a un
+                    // composant qui n'est plus actif : ni DOM touche, ni
+                    // relance suivante.
+                    if (destroyed) {
+                        return;
+                    }
+
+                    applyBadgeCount(cibles(), count);
+                } catch {
+                    // TASK-1843 — une relecture HTTP en echec ne doit jamais
+                    // casser la page : le badge garde sa derniere valeur
+                    // connue (celle du rendu serveur ou de la derniere
+                    // resynchronisation reussie), et le prochain evenement ou
+                    // la prochaine reconnexion retentera.
+                }
+            } while (resyncReclamee && !destroyed);
+        } finally {
+            syncEnCours = false;
         }
     }
 

@@ -23,7 +23,13 @@ function fakeElement() {
     };
 }
 
-/** Meme banc que chatloop-adaptive-polling.test.mjs (TASK-1841). */
+/**
+ * Meme banc que chatloop-adaptive-polling.test.mjs (TASK-1841), complete
+ * d'un `document.querySelector` minimal : `cibles()` (module source) en a
+ * besoin pour atteindre `applyBadgeCount()` sans lever — sans quoi l'erreur
+ * serait avalee par le MEME `catch` que celui de `fetchUnreadCount()`, et
+ * aucune assertion sur l'etat du DOM ne prouverait rien.
+ */
 function fakeBrowserGlobals() {
     class FakeWindow extends EventTarget {}
     class FakeDocument extends EventTarget {}
@@ -32,7 +38,36 @@ function fakeBrowserGlobals() {
     const doc = new FakeDocument();
     win.Echo = undefined;
 
-    return { win, doc };
+    const mountRail = fakeElement();
+    const staticRail = fakeElement();
+    const mountMobile = fakeElement();
+    const staticMobile = fakeElement();
+
+    const elements = {
+        '[data-realtime-badge-mount="notifications-rail"]': mountRail,
+        '[data-nav-badge-notifications]': staticRail,
+        '[data-realtime-badge-mount="notifications-mobile"]': mountMobile,
+        '[data-mobile-topbar-notifications-unread]': staticMobile,
+    };
+
+    doc.querySelector = (selector) => elements[selector] ?? null;
+
+    return { win, doc, mountRail, staticRail, mountMobile, staticMobile };
+}
+
+/** Promesse dont la resolution est declenchee depuis l'exterieur, pour controler precisement l'ordre d'arrivee de plusieurs reponses HTTP simulees. */
+function deferred() {
+    let resolve;
+    let reject;
+    const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+    return { promise, resolve, reject };
+}
+
+/** `await` un nombre donne de microtasks, pour laisser les `.then()` deja planifies se derouler avant d'observer leur effet. */
+async function tick(n = 2) {
+    for (let i = 0; i < n; i++) {
+        await Promise.resolve();
+    }
 }
 
 function fakeChannel(key) {
@@ -330,4 +365,178 @@ test('cycle complet reconnexion : une coupure puis un nouvel abonnement resynchr
     assert.equal(appels, 2);
 
     badge.destroy();
+});
+
+// ── TASK-1843 (revue MASTER, controle de synchronisation) ──────────────────
+// Regroupement des resynchronisations concurrentes + protection post-destroy.
+
+test('deux evenements rapproches : UN SEUL fetch en vol, le second evenement reclame une relecture finale plutot qu un fetch concurrent', async () => {
+    const { win, doc } = fakeBrowserGlobals();
+    win.Echo = fakeEcho();
+
+    const reponses = [deferred(), deferred()];
+    let appels = 0;
+
+    const badge = notificationsBadgeRealtime({
+        userId: 'user-1',
+        fetchUnreadCount: async () => { const d = reponses[appels]; appels += 1; return d.promise; },
+        win,
+        doc,
+    });
+
+    const channel = win.Echo.connector.channels['private-user.user-1'];
+
+    channel._emit(EVENT_NOTIFICATION_COUNT_CHANGED);
+    await tick();
+    assert.equal(appels, 1, 'le premier evenement part immediatement');
+
+    // Un second evenement arrive PENDANT que le premier fetch est en vol.
+    channel._emit(EVENT_NOTIFICATION_COUNT_CHANGED);
+    await tick();
+    assert.equal(appels, 1, 'aucun second fetch concurrent : seulement une intention de relecture posee');
+
+    badge.destroy();
+});
+
+test('reponses HTTP inversees : la valeur du fetch le plus RECENT fait toujours foi, jamais une valeur perimee restee en vol', async () => {
+    const { win, doc, mountRail } = fakeBrowserGlobals();
+    win.Echo = fakeEcho();
+
+    const reponses = [deferred(), deferred()];
+    let appels = 0;
+
+    const badge = notificationsBadgeRealtime({
+        userId: 'user-1',
+        fetchUnreadCount: async () => { const d = reponses[appels]; appels += 1; return d.promise; },
+        win,
+        doc,
+    });
+
+    const channel = win.Echo.connector.channels['private-user.user-1'];
+
+    channel._emit(EVENT_NOTIFICATION_COUNT_CHANGED);
+    await tick();
+    channel._emit(EVENT_NOTIFICATION_COUNT_CHANGED);
+    await tick();
+    assert.equal(appels, 1, 'toujours un seul fetch en vol a ce stade');
+
+    // Le premier fetch (perime : un second evenement est deja survenu
+    // entre-temps) resout en PREMIER, avec une valeur STALE.
+    reponses[0].resolve(5);
+    await tick();
+
+    assert.equal(mountRail.textContent, '5', 'la valeur intermediaire s applique — ce n est pas elle qui doit survivre');
+    assert.equal(appels, 2, 'la relecture finale reclamee part des que la premiere requete se termine');
+
+    // Le second fetch (la relecture finale) resout ENSUITE, avec la valeur
+    // a jour — jamais ecrasee par une reponse arrivee plus tard mais
+    // partie plus tot.
+    reponses[1].resolve(9);
+    await tick();
+
+    assert.equal(mountRail.textContent, '9', 'la derniere requete PARTIE fait foi, jamais une valeur plus ancienne');
+
+    badge.destroy();
+});
+
+test('plusieurs evenements rapproches pendant UNE requete en vol : une seule relecture finale, jamais une par evenement', async () => {
+    const { win, doc } = fakeBrowserGlobals();
+    win.Echo = fakeEcho();
+
+    const reponses = [deferred(), deferred()];
+    let appels = 0;
+
+    const badge = notificationsBadgeRealtime({
+        userId: 'user-1',
+        fetchUnreadCount: async () => { const d = reponses[appels]; appels += 1; return d.promise; },
+        win,
+        doc,
+    });
+
+    const channel = win.Echo.connector.channels['private-user.user-1'];
+
+    channel._emit(EVENT_NOTIFICATION_COUNT_CHANGED);
+    await tick();
+    assert.equal(appels, 1);
+
+    // Quatre evenements de plus, tous recus PENDANT que le premier fetch
+    // est encore en vol.
+    channel._emit(EVENT_NOTIFICATION_COUNT_CHANGED);
+    channel._emit(EVENT_NOTIFICATION_COUNT_CHANGED);
+    channel._emit(EVENT_NOTIFICATION_COUNT_CHANGED);
+    channel._emit(EVENT_NOTIFICATION_COUNT_CHANGED);
+    await tick();
+    assert.equal(appels, 1, 'toujours un seul fetch en vol, quel que soit le nombre d evenements recus pendant son attente');
+
+    reponses[0].resolve(3);
+    await tick();
+    assert.equal(appels, 2, 'UNE seule relecture finale est declenchee — jamais quatre');
+
+    reponses[1].resolve(3);
+    await tick();
+    assert.equal(appels, 2, 'plus aucune relecture : la valeur finale etait deja a jour');
+
+    badge.destroy();
+});
+
+test('destroy() pendant une requete en vol : la reponse qui arrive ensuite n est jamais appliquee au DOM', async () => {
+    const { win, doc, mountRail } = fakeBrowserGlobals();
+    win.Echo = fakeEcho();
+
+    const reponse = deferred();
+
+    const badge = notificationsBadgeRealtime({
+        userId: 'user-1',
+        fetchUnreadCount: async () => reponse.promise,
+        win,
+        doc,
+    });
+
+    const channel = win.Echo.connector.channels['private-user.user-1'];
+
+    channel._emit(EVENT_NOTIFICATION_COUNT_CHANGED);
+    await tick();
+
+    const etatAvant = mountRail.textContent;
+
+    badge.destroy();
+
+    // La requete, deja partie AVANT destroy(), se termine APRES : son
+    // resultat ne doit jamais atteindre un composant qui n'est plus actif.
+    assert.doesNotThrow(() => reponse.resolve(42));
+    await tick();
+
+    assert.equal(mountRail.textContent, etatAvant, 'le DOM n a jamais ete touche par une reponse arrivee apres destroy()');
+});
+
+test('destroy() pendant une requete en vol, avec une relecture deja reclamee : aucune relance ne part apres destroy()', async () => {
+    const { win, doc } = fakeBrowserGlobals();
+    win.Echo = fakeEcho();
+
+    const reponse = deferred();
+    let appels = 0;
+
+    const badge = notificationsBadgeRealtime({
+        userId: 'user-1',
+        fetchUnreadCount: async () => { appels += 1; return reponse.promise; },
+        win,
+        doc,
+    });
+
+    const channel = win.Echo.connector.channels['private-user.user-1'];
+
+    channel._emit(EVENT_NOTIFICATION_COUNT_CHANGED);
+    await tick();
+    assert.equal(appels, 1);
+
+    // Un second evenement reclame une relecture finale AVANT la destruction.
+    channel._emit(EVENT_NOTIFICATION_COUNT_CHANGED);
+    await tick();
+
+    badge.destroy();
+
+    reponse.resolve(7);
+    await tick();
+
+    assert.equal(appels, 1, 'la relecture reclamee avant destroy() ne part jamais apres');
 });
