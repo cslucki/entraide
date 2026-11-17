@@ -13,6 +13,7 @@ use App\Services\UrlPreviewService;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Files\TypesDeFichiersAcceptes;
 use App\Support\Messaging\ConversationBroadcaster;
+use App\Support\Messaging\UnreadCountBroadcaster;
 use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -623,6 +624,10 @@ class MessageThread extends Component
             // commit reel au meme titre que la notification email ci-dessus.
             ConversationBroadcaster::diffuserApresCommit($msg);
 
+            // TASK-1847 — compteur GLOBAL de messages non lus du
+            // DESTINATAIRE (jamais l'expediteur, voir `UnreadCountBroadcaster`).
+            UnreadCountBroadcaster::diffuserApresCreationMessage($msg, $transactionVerrouillee);
+
             return $msg;
         });
 
@@ -952,10 +957,17 @@ class MessageThread extends Component
     public function markRead(): void
     {
         $userId = auth()->id();
-        Message::where('transaction_id', $this->transaction()->id)
+        $affected = Message::where('transaction_id', $this->transaction()->id)
             ->where(fn ($q) => $q->whereNull('sender_id')->orWhere('sender_id', '!=', $userId))
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
+
+        // TASK-1847 — un appel qui ne change AUCUNE ligne (conversation
+        // deja lue, cas le plus frequent : `render()` appelle `markRead()`
+        // a CHAQUE cycle) ne doit declencher aucun evenement.
+        if ($affected > 0) {
+            UnreadCountBroadcaster::diffuserApresLecture($userId);
+        }
     }
 
     /**

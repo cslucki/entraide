@@ -473,6 +473,10 @@ Route::middleware('auth')->group(function () {
     // Messages
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
     Route::get('/messages/with/{user}', [MessageController::class, 'showWithUser'])->name('messages.with');
+    // TASK-1847 — meme motif que `notifications.unread-count` (TASK-1843) :
+    // segment STATIQUE, DOIT etre declare avant `/messages/{transaction}`,
+    // sinon « unread-count » serait capture comme un identifiant d'echange.
+    Route::get('/messages/unread-count', [MessageController::class, 'unreadCount'])->middleware('throttle:60,1')->name('messages.unread-count');
     // TASK-1704 — la piece jointe d'une conversation. Elle DOIT etre declaree
     // avant `/messages/{transaction}`, sinon « pieces » serait capture comme
     // un identifiant d'echange.

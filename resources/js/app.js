@@ -6,6 +6,7 @@ import { annoncerLePanneau, brancherCarteSurSonPanneau } from './editor/panneaux
 import { chatLoopAdaptivePolling } from './chatloop-adaptive-polling.js';
 import { notificationsBadgeRealtime } from './notifications-badge-realtime.js';
 import { messageThreadAdaptivePolling, messageThreadRealtimeNudge } from './message-thread-adaptive-polling.js';
+import { messagesUnreadBadgeRealtime } from './messages-unread-badge-realtime.js';
 import * as FilePond from 'filepond';
 import 'filepond/dist/filepond.min.css';
 import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
@@ -389,6 +390,54 @@ function initNotificationsBadgeRealtime() {
     window.__notificationsBadgeRealtime = notificationsBadgeRealtime({
         userId,
         fetchUnreadCount: fetchUnreadNotificationsCount,
+    });
+}
+
+/**
+ * TASK-1847 — meme motif que `shouldEnableNotificationsBadgeRealtime()` :
+ * n'est PAS un composant Alpine, initialisation directe et idempotente.
+ * Drapeau PROPRE a ce module, independant des trois autres pilotes
+ * Reverb — voir `echo.js`.
+ */
+function shouldEnableMessagesUnreadBadgeRealtime() {
+    return (import.meta.env?.VITE_MESSAGES_UNREAD_REALTIME_ENABLED ?? '') === 'true';
+}
+
+async function fetchUnreadMessagesCount() {
+    const response = await fetch('/messages/unread-count', {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+    });
+
+    if (!response.ok) {
+        throw new Error(`TASK-1847 — reponse HTTP ${response.status} sur /messages/unread-count`);
+    }
+
+    const data = await response.json();
+
+    return Number(data.count) || 0;
+}
+
+function initMessagesUnreadBadgeRealtime() {
+    if (window.__messagesUnreadBadgeRealtimeInitialized) {
+        return;
+    }
+
+    if (!shouldEnableMessagesUnreadBadgeRealtime()) {
+        return;
+    }
+
+    const userId = document.querySelector('meta[name="user-id"]')?.content;
+
+    if (!userId) {
+        return;
+    }
+
+    window.__messagesUnreadBadgeRealtimeInitialized = true;
+
+    window.__messagesUnreadBadgeRealtime = messagesUnreadBadgeRealtime({
+        userId,
+        fetchUnreadCount: fetchUnreadMessagesCount,
     });
 }
 
@@ -8599,6 +8648,7 @@ registerBlogExplorerModal();
 registerBlogExplorerCard();
 
 initNotificationsBadgeRealtime();
+initMessagesUnreadBadgeRealtime();
 
 // -------------------------------------------------------------------------
 // Roadmap mini-kanban drag & drop (LoopRoadmapCard, Livewire) — reuses SortableJS.

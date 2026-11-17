@@ -6,6 +6,7 @@ use App\Models\Message;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Support\Messaging\ConversationBroadcaster;
+use App\Support\Messaging\UnreadCountBroadcaster;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -76,6 +77,11 @@ class ServiceRequestLifecycle
                 // une fois pour tout le lot (chaque `$concurrente` est une
                 // Transaction, donc un canal `conversation.{id}`, distincte).
                 ConversationBroadcaster::diffuserApresCommit($message);
+
+                // TASK-1847 — message systeme : les DEUX participants de
+                // CETTE transaction concurrente voient leur compteur
+                // global augmenter.
+                UnreadCountBroadcaster::diffuserApresCreationMessage($message, $concurrente);
             }
         });
     }

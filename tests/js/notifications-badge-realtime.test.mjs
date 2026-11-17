@@ -261,7 +261,7 @@ test('destroy() AVANT echo-ready : retire le listener, aucun abonnement ne se po
     assert.equal(Object.keys(win.Echo.connector.channels).length, 0);
 });
 
-test('destroy() quitte le canal via l\'API officielle Echo.leave(), jamais leaveChannel() avec une cle prefixee', () => {
+test('TASK-1847 — destroy() ne quitte JAMAIS le canal user.{userId} (un second consommateur independant peut le partager)', () => {
     const { win, doc } = fakeBrowserGlobals();
     win.Echo = fakeEcho();
 
@@ -274,11 +274,11 @@ test('destroy() quitte le canal via l\'API officielle Echo.leave(), jamais leave
 
     badge.destroy();
 
-    assert.deepEqual(win.Echo.leaveCalls, ['user.user-1']);
-    assert.equal(win.Echo.connector.channels['private-user.user-1'], undefined);
+    assert.deepEqual(win.Echo.leaveCalls, [], 'ce module ne doit plus jamais appeler Echo.leave() sur user.{userId} — voir TASK-1847, le canal est desormais partage avec messages-unread-badge-realtime.js');
+    assert.ok(win.Echo.connector.channels['private-user.user-1'], 'le canal doit rester vivant apres destroy() : un AUTRE consommateur (le badge de messages) peut encore en avoir besoin');
 });
 
-test('destroy() ne quitte PAS un canal qu\'un AUTRE consommateur a repris depuis (Echo.leave n\'est pas reference-compte)', () => {
+test('TASK-1847 — destroy() ne desabonne jamais un evenement pose par un AUTRE consommateur du meme canal partage', () => {
     const { win, doc } = fakeBrowserGlobals();
     win.Echo = fakeEcho();
 
@@ -289,13 +289,17 @@ test('destroy() ne quitte PAS un canal qu\'un AUTRE consommateur a repris depuis
         doc,
     });
 
-    // Un autre module reprend le MEME canal entre-temps (ex. rechargement
-    // partiel hypothetique) : la cle est reassignee a une AUTRE instance.
-    win.Echo.connector.channels['private-user.user-1'] = fakeChannel('private-user.user-1');
+    // Un second consommateur (le badge de messages non lus, simule ici)
+    // pose SA PROPRE ecoute sur LE MEME canal, un nom d'evenement different.
+    const channel = win.Echo.connector.channels['private-user.user-1'];
+    let autreEvenementRecu = 0;
+    channel.listen('.message.unread-count-changed', () => { autreEvenementRecu++; });
 
     badge.destroy();
 
-    assert.deepEqual(win.Echo.leaveCalls, [], 'ne doit jamais appeler leave() sur un canal qui ne lui appartient plus');
+    channel._emit('.message.unread-count-changed');
+
+    assert.equal(autreEvenementRecu, 1, 'detruire le badge de notifications ne doit jamais desabonner un AUTRE consommateur du meme canal partage');
 });
 
 test('destroy() stoppe l\'ecoute de l\'evenement : aucune resynchronisation apres destruction', async () => {

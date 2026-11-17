@@ -7,6 +7,8 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Entraide\CarteEntraide;
 use App\Support\Messaging\ConversationBroadcaster;
+use App\Support\Messaging\UnreadCountBroadcaster;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -205,6 +207,31 @@ class MessageController extends Controller
         // TASK-1845 — signal Reverb de resynchronisation, OFF par defaut.
         ConversationBroadcaster::diffuserApresCommit($message);
 
+        // TASK-1847 — message systeme (« Conversation directe demarree »)
+        // : les DEUX participants voient leur compteur global augmenter.
+        UnreadCountBroadcaster::diffuserApresCreationMessage($message, $transaction);
+
         return $this->versLaConversation($transaction);
+    }
+
+    /**
+     * TASK-1847 — source de verite HTTP du compteur GLOBAL de messages non
+     * lus, pour le badge temps reel (`messages-unread-badge-realtime.js`)
+     * ET comme repli en l'absence de Reverb.
+     *
+     * `$request->user()` — jamais un `user_id` lu depuis la requete : le
+     * compteur ne peut porter que sur l'IDENTITE authentifiee, exactement
+     * comme `NotificationCenterController::unreadCount()` (TASK-1843).
+     *
+     * Aucune resolution d'Organization ICI : `User::unreadMessagesCount()`
+     * n'en a AUCUNE (voir son docblock) — un membre present dans deux
+     * Organizations y voit un compte agrege, deliberement, et ce comportement
+     * METIER preexistant n'est PAS modifie par cette TASK.
+     */
+    public function unreadCount(Request $request): JsonResponse
+    {
+        return response()->json([
+            'count' => $request->user()->unreadMessagesCount(),
+        ]);
     }
 }
