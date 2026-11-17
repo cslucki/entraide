@@ -54,6 +54,12 @@
          class="flex items-center h-16 px-2 gap-1 overflow-x-auto overscroll-x-contain snap-x snap-proximity scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,transparent,black_1.25rem,black_calc(100%-1.25rem),transparent)]">
         @php
             $currentRoute = request()->route()?->getName() ?? '';
+            // TASK-1853 — meme expression que le rail de bureau
+            // (`app-side-nav.blade.php`), pour le meme compteur. Pas de
+            // valeur partagee depuis le layout (contrairement aux
+            // notifications, TASK-1813 correctif 03) : hors perimetre de ce
+            // correctif, signale au rapport plutot que corrige ici.
+            $unreadMessagesCount = auth()->check() ? auth()->user()->unreadMessagesCount() : 0;
             $currentOrganization = currentOrganization();
             $menuOrganization = (auth()->check() ? auth()->user()->organization : null) ?? $currentOrganization;
             $organizationRouteParam = request()->route('organization') ?: (auth()->check() ? $menuOrganization?->slug : null);
@@ -145,9 +151,41 @@
            data-bp-nav-active="{{ $isActive ? 'true' : 'false' }}"
            @if($isActive) aria-current="page" @endif
            class="group flex shrink-0 snap-start flex-col items-center justify-center gap-1 min-w-[4.5rem] h-14 rounded-xl px-2 transition-colors duration-150 {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-500/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/60' }}">
-            <svg class="block w-6 h-6 shrink-0 {{ $isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500' }}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="{{ $tab['icon'] }}" />
-            </svg>
+            @if($tab['key'] === 'messages')
+                {{-- TASK-1853 — meme idiome que le rail de bureau
+                     (`app-side-nav.blade.php`, TASK-1847) et le badge de
+                     notifications mobile (`mobile-topbar.blade.php`,
+                     TASK-1843) : un span `relative`, de la MEME taille que
+                     l'icone, pour ancrer le badge SANS toucher a la hauteur
+                     de l'onglet ni a sa zone tactile. Seul cet onglet gagne
+                     ce conteneur : les autres restent EXACTEMENT comme
+                     avant. --}}
+                <span class="relative inline-flex h-6 w-6 shrink-0">
+                    <svg class="block w-6 h-6 shrink-0 {{ $isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500' }}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="{{ $tab['icon'] }}" />
+                    </svg>
+                    @if($unreadMessagesCount > 0)
+                        <span data-mobile-bottom-nav-messages-unread="{{ $unreadMessagesCount }}"
+                              class="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold leading-none text-white ring-2 ring-white dark:ring-gray-900">
+                            {{ $unreadMessagesCount > 9 ? '9+' : $unreadMessagesCount }}
+                        </span>
+                    @endif
+                    {{-- Point de montage TOUJOURS present, cache par defaut
+                         — meme motif que `messages-rail` (TASK-1847) et
+                         `notifications-mobile` (TASK-1843). Le rendu serveur
+                         ci-dessus reste INCHANGE : `messages-unread-badge-
+                         realtime.js` (pilote Reverb) y ajoute un
+                         comportement, il ne retire rien. --}}
+                    <span data-realtime-badge-mount="messages-mobile"
+                          style="display:none"
+                          aria-hidden="true"
+                          class="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold leading-none text-white ring-2 ring-white dark:ring-gray-900"></span>
+                </span>
+            @else
+                <svg class="block w-6 h-6 shrink-0 {{ $isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500' }}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="{{ $tab['icon'] }}" />
+                </svg>
+            @endif
             <span class="text-[10px] leading-none whitespace-nowrap {{ $isActive ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'text-gray-500 dark:text-gray-400 font-medium' }}">{{ $tab['label'] }}</span>
             {{-- L'indicateur est TOUJOURS rendu, transparent quand l'onglet est
                  au repos. Ne le poser que sur l'actif ajoutait sa hauteur a un
