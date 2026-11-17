@@ -16,12 +16,12 @@ use Illuminate\Foundation\Events\Dispatchable;
  * Deux compteurs DISTINCTS, deux evenements distincts : celui-ci porte sur
  * `messages.read_at` (`User::unreadMessagesCount()`), l'autre sur
  * `member_notifications` (`User::unreadNotificationsCount()`). Un message
- * et une notification interne n'ont ni la meme source de verite, ni la
- * meme portee Organization (`unreadMessagesCount()` n'en a AUCUNE — un
- * membre present dans deux Organizations y voit un compte agrege, voir
- * `App\Models\User::unreadMessagesCount()`), ni le meme canal de lecture
- * HTTP. Les deux partagent neanmoins le MEME canal de diffusion,
- * `user.{userId}` (TASK-1843), deja durci et reutilise tel quel.
+ * et une notification interne n'ont ni la meme source de verite, ni le
+ * meme canal de lecture HTTP. Les deux SONT en revanche scopes a
+ * l'Organization COURANTE au moment de l'appel (voir le docblock de
+ * `User::unreadMessagesCount()`, corrige par TASK-1847 — l'ancienne
+ * affirmation « non scopee » etait fausse), et partagent le MEME canal de
+ * diffusion, `user.{userId}` (TASK-1843), deja durci et reutilise tel quel.
  *
  * ## Le payload est VIDE par construction (mandat MASTER)
  *

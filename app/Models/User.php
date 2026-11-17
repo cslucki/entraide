@@ -575,9 +575,28 @@ class User extends Authenticatable implements MustVerifyEmail
      *
      * ## Ce qui reste absent, et qu'il ne faut pas croire resolu
      *
-     * Ce compteur est evalue cote serveur au rendu de la page. Il n'y a ni
-     * sondage ni temps reel : un message qui arrive pendant qu'on lit un autre
-     * fil n'allume le badge qu'a la navigation suivante.
+     * TASK-1847 — ce n'est plus tout a fait vrai : un signal Reverb existe
+     * desormais (`App\Events\MessageUnreadCountChanged`, pilote
+     * `messages_unread_realtime`, FAUX par defaut). Sans lui, le compteur
+     * reste evalue au rendu de la page : un message qui arrive pendant
+     * qu'on lit un autre fil n'allume le badge qu'a la navigation suivante.
+     *
+     * ## Portee Organization — CORRIGE (TASK-1847), l'affirmation precedente etait FAUSSE
+     *
+     * Cette methode ne porte certes AUCUN parametre `organization_id` — mais
+     * elle n'est PAS pour autant « non scopee » : `whereHas('transaction',
+     * ...)` construit une sous-requete EXISTS sur `transactions`, et cette
+     * sous-requete porte, comme TOUTE requete sur ce modele,
+     * `BelongsToOrganizationScope`. Verifie EMPIRIQUEMENT (TASK-1847,
+     * probe dediee) avant de corriger ce commentaire plutot que de le
+     * supposer : un membre avec des transactions dans DEUX Organizations
+     * ne voit JAMAIS un compte agrege des deux — il voit le compte de
+     * l'Organization COURANTE (`currentOrganization()`) au moment de
+     * l'appel, et RIEN (fail-closed, TASK-1670) en l'absence de tout
+     * contexte tenant. L'appelant DOIT donc s'assurer que le bon contexte
+     * est lie avant d'appeler cette methode — voir `MessageController::
+     * unreadCount()` pour un exemple de ce que cela implique sur une route
+     * SANS prefixe `/org/{organization}/...`.
      */
     public function unreadMessagesCount(): int
     {
@@ -598,9 +617,18 @@ class User extends Authenticatable implements MustVerifyEmail
      * job) : aucun scope global ne rattraperait un appelant qui oublie le
      * tenant, et la requete partirait nue.
      *
-     * C'est ce qui distingue cette methode de `unreadMessagesCount()` juste
-     * au-dessus, qui ne porte aucun `organization_id` : un membre present dans
-     * deux Organizations y verrait un compteur agrege.
+     * `unreadMessagesCount()` juste au-dessus ne porte, elle, aucun parametre
+     * `organization_id` explicite — mais ce n'est PAS pour autant un
+     * compteur « agrege » a travers plusieurs Organizations. CORRIGE
+     * (TASK-1847, l'affirmation tenue ici jusque-la etait FAUSSE, verifiee
+     * empiriquement avant correction) : `whereHas('transaction', ...)`
+     * porte le MEME `BelongsToOrganizationScope` que toute autre requete
+     * sur `Transaction`, implicitement, via la sous-requete EXISTS qu'il
+     * construit. Elle retombe donc sur l'Organization COURANTE au moment
+     * de l'appel — jamais un agregat — et sur RIEN (fail-closed) en
+     * l'absence de tout contexte tenant. Voir son propre docblock pour le
+     * detail complet et les implications sur une route sans Organization
+     * dans l'URL.
      *
      * `forRecipient()` est la seule porte de lecture du modele — jamais un
      * `where('recipient_id')` nu.

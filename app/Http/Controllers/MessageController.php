@@ -223,15 +223,51 @@ class MessageController extends Controller
      * compteur ne peut porter que sur l'IDENTITE authentifiee, exactement
      * comme `NotificationCenterController::unreadCount()` (TASK-1843).
      *
-     * Aucune resolution d'Organization ICI : `User::unreadMessagesCount()`
-     * n'en a AUCUNE (voir son docblock) — un membre present dans deux
-     * Organizations y voit un compte agrege, deliberement, et ce comportement
-     * METIER preexistant n'est PAS modifie par cette TASK.
+     * ## REVUE MASTER (correctif avant fusion) — l'Organization DOIT etre
+     * resolue ICI, explicitement
+     *
+     * Premiere version de cette methode : aucune resolution d'Organization,
+     * sur la foi d'un commentaire du modele qui affirmait `unreadMessagesCount()`
+     * « non scopee, agregeant a travers les Organizations » — FAUX, corrige
+     * dans le MEME correctif (voir le docblock de `User::unreadMessagesCount()`,
+     * verifie EMPIRIQUEMENT). En realite, `whereHas('transaction', ...)`
+     * porte le MEME `BelongsToOrganizationScope` que toute autre requete sur
+     * `Transaction` : cette methode retombe donc sur l'Organization COURANTE
+     * au moment de l'appel.
+     *
+     * Et sur CETTE route precisement (`/messages/unread-count`, SANS prefixe
+     * `/org/{organization}/...`), `ResolveUrlOrganization` classe « messages »
+     * comme une route de fonctionnalite ORDINAIRE (`$defaultOrganizationRoutes`),
+     * PAS comme une route personnelle authentifiee (seul `dashboard` en
+     * beneficie) : elle liait donc l'Organization PAR DEFAUT DE LA PLATEFORME,
+     * jamais celle du membre — exactement le piège deja documente par
+     * `versLaConversation()` plus haut dans ce fichier. Mesure AVANT ce
+     * correctif : le rail SSR (`app-side-nav.blade.php`, sur une page
+     * `/org/{slug}/...`) et cet endpoint rendaient des comptes DIFFERENTS
+     * pour le MEME membre des que son Organization n'etait pas la
+     * par defaut.
+     *
+     * Correctif LOCAL, a cet endpoint seul : lier explicitement
+     * l'Organization du membre AVANT d'appeler `unreadMessagesCount()`,
+     * exactement l'expression deja utilisee par `app-side-nav.blade.php`.
+     * Ni `ResolveUrlOrganization` (d'autres routes « messages » pourraient
+     * dependre deliberement de son comportement actuel, hors audit de cette
+     * TASK) ni `unreadMessagesCount()` elle-meme (aucune regle de visibilite
+     * n'est modifiee, seul le CONTEXTE dans lequel elle s'execute l'est, pour
+     * CETTE route) ne sont touches.
      */
     public function unreadCount(Request $request): JsonResponse
     {
+        $user = $request->user();
+
+        $organization = $user->organization ?? currentOrganization();
+
+        if ($organization !== null) {
+            app()->instance('current_organization', $organization);
+        }
+
         return response()->json([
-            'count' => $request->user()->unreadMessagesCount(),
+            'count' => $user->unreadMessagesCount(),
         ]);
     }
 }

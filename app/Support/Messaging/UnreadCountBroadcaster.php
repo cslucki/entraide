@@ -33,8 +33,15 @@ use Illuminate\Support\Facades\Log;
  *
  * ## Lecture (`markRead()`) : qui voit son compteur diminuer ?
  *
- * Uniquement le LECTEUR lui-meme — `diffuserApresLecture()` ne prend donc
- * qu'un seul destinataire, jamais une liste.
+ * REVUE MASTER (correctif avant fusion) — pas TOUJOURS le seul lecteur.
+ * `messages.read_at` est un champ PARTAGE (aucun modele de lecture par
+ * utilisateur) : marquer un message SYSTEME comme lu le rend lu pour LES
+ * DEUX participants en une seule ecriture, puisqu'il comptait deja comme
+ * non lu pour les deux. `diffuserApresLecture()` accepte donc UN SEUL
+ * destinataire par appel (elle ne determine rien elle-meme), mais
+ * `MessageThread::markRead()` peut desormais l'appeler DEUX fois — le
+ * lecteur, PUIS l'autre participant si (et seulement si) un message
+ * systeme figurait parmi les lignes reellement marquees.
  *
  * ## `DB::afterCommit()` pose ICI, a la main — meme doctrine que
  * `ConversationBroadcaster` (TASK-1845) et `NotificationEmitter`

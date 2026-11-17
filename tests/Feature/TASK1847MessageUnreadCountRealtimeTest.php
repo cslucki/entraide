@@ -186,6 +186,74 @@ class TASK1847MessageUnreadCountRealtimeTest extends TestCase
         $this->assertSame(0, $this->seller->fresh()->unreadMessagesCount());
     }
 
+    /**
+     * REVUE MASTER (correctif avant fusion) — `messages.read_at` est un
+     * champ PARTAGE : un message SYSTEME compte comme non lu pour LES DEUX
+     * participants (TASK-1693), et le marquer lu (par N'IMPORTE LEQUEL des
+     * deux) le rend lu POUR LES DEUX en une seule ecriture. Mary (le
+     * lecteur ICI) et John (l'autre participant) doivent donc TOUS LES
+     * DEUX recevoir l'evenement, et TOUS LES DEUX voir leur compteur
+     * baisser en base — pas seulement Mary.
+     */
+    public function test_mary_lit_un_message_systeme_les_compteurs_et_evenements_de_mary_et_john_sont_tous_les_deux_actualises(): void
+    {
+        $mary = $this->buyer;
+        $john = $this->seller;
+
+        MessageSysteme::ecrire($this->transaction, 'echange_accepte');
+
+        $this->assertSame(1, $mary->fresh()->unreadMessagesCount());
+        $this->assertSame(1, $john->fresh()->unreadMessagesCount());
+
+        Event::fake([MessageUnreadCountChanged::class]);
+
+        Livewire::actingAs($mary)
+            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->call('markRead');
+
+        Event::assertDispatchedTimes(MessageUnreadCountChanged::class, 2);
+        Event::assertDispatched(
+            MessageUnreadCountChanged::class,
+            fn (MessageUnreadCountChanged $event): bool => $event->recipientId === $mary->id
+        );
+        Event::assertDispatched(
+            MessageUnreadCountChanged::class,
+            fn (MessageUnreadCountChanged $event): bool => $event->recipientId === $john->id
+        );
+
+        // Les DEUX compteurs ont REELLEMENT baisse en base — pas seulement
+        // celui de Mary, puisque `read_at` est partage par la ligne.
+        $this->assertSame(0, $mary->fresh()->unreadMessagesCount());
+        $this->assertSame(0, $john->fresh()->unreadMessagesCount());
+    }
+
+    /**
+     * Contre-preuve du test precedent : un message UTILISATEUR ordinaire
+     * (jamais partage de la meme facon — il n'est de toute facon JAMAIS
+     * compte comme non lu pour son propre expediteur) ne doit JAMAIS
+     * notifier que le lecteur, meme quand `markRead()` en marque plusieurs
+     * a la fois.
+     */
+    public function test_lecture_de_plusieurs_messages_utilisateur_ordinaires_ne_notifie_que_le_lecteur(): void
+    {
+        Message::factory()->forTransaction($this->transaction)->count(3)->create([
+            'sender_id' => $this->buyer->id,
+            'organization_id' => $this->organization->id,
+        ]);
+
+        Event::fake([MessageUnreadCountChanged::class]);
+
+        Livewire::actingAs($this->seller)
+            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->call('markRead');
+
+        Event::assertDispatchedTimes(MessageUnreadCountChanged::class, 1);
+        Event::assertDispatched(
+            MessageUnreadCountChanged::class,
+            fn (MessageUnreadCountChanged $event): bool => $event->recipientId === $this->seller->id
+        );
+    }
+
     public function test_markread_sans_rien_a_lire_ne_diffuse_jamais(): void
     {
         // Rien a lire : aucun message non lu n'existe pour $this->seller.
@@ -309,6 +377,48 @@ class TASK1847MessageUnreadCountRealtimeTest extends TestCase
             ->getJson('/messages/unread-count')
             ->assertOk()
             ->assertJson(['count' => 0]);
+    }
+
+    /**
+     * REVUE MASTER (correctif avant fusion) — regression directe du bug
+     * reel trouve : AVANT ce correctif, l'endpoint liait l'Organization PAR
+     * DEFAUT DE LA PLATEFORME (`ResolveUrlOrganization` classe « messages »
+     * comme route de fonctionnalite ordinaire, pas personnelle), jamais
+     * celle du membre — divergeant du rendu SSR du rail
+     * (`app-side-nav.blade.php`) des que son Organization n'etait pas la
+     * par defaut.
+     *
+     * `app()->forgetInstance('current_organization')` efface ICI la
+     * liaison manuelle posee par `setUp()` (necessaire aux AUTRES tests de
+     * ce fichier) pour que la requete HTTP suivante reparte a zero, EXACTEMENT
+     * comme une requete reelle independante — sans ce nettoyage, le
+     * conteneur de test masquerait la divergence (meme piege que la sonde
+     * qui a servi a la prouver).
+     */
+    public function test_endpoint_unread_count_correspond_au_rendu_ssr_meme_quand_l_organization_du_membre_n_est_pas_celle_par_defaut_de_la_plateforme(): void
+    {
+        // Une Organization DISTINCTE marquee par defaut DE LA PLATEFORME —
+        // celle que `resolveDefaultOrganization()` renverrait pour toute
+        // route de fonctionnalite ordinaire sans contexte explicite.
+        Organization::factory()->create(['is_default' => true, 'is_active' => true]);
+
+        Message::factory()->forTransaction($this->transaction)->create([
+            'sender_id' => $this->buyer->id,
+            'organization_id' => $this->organization->id,
+        ]);
+
+        // Rendu SSR du rail : l'Organization REELLE du membre, jamais celle
+        // par defaut de la plateforme.
+        app()->instance('current_organization', $this->organization);
+        $compteSSR = $this->seller->fresh()->unreadMessagesCount();
+        $this->assertSame(1, $compteSSR);
+
+        app()->forgetInstance('current_organization');
+
+        $this->actingAs($this->seller)
+            ->getJson('/messages/unread-count')
+            ->assertOk()
+            ->assertJson(['count' => $compteSSR]);
     }
 
     public function test_endpoint_unread_count_refuse_un_visiteur_non_authentifie(): void
