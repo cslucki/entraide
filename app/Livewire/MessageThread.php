@@ -483,13 +483,15 @@ class MessageThread extends Component
         // rendre la revalidation EXPLICITE evite de faire reposer cette
         // garantie sur un detail de visibilite qui pourrait changer sans que
         // quiconque fasse le lien avec cette garde.
+        //
+        // CE controle reste un premier filtre BON MARCHE — il evite de
+        // lancer un re-encodage d'image ou une requete reseau (l'apercu de
+        // lien) pour une conversation deja manifestement fermee. Il n'est
+        // PAS la revalidation qui protege l'ecriture elle-meme : voir le
+        // second controle, verrouille, juste avant `Message::create()`.
         $transaction = $this->transaction(fresh: true);
 
-        if (! in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
-            return;
-        }
-
-        if (in_array($transaction->status, ['completed', 'refused', 'cancelled'])) {
+        if (! $this->autorisationEtStatutValides($transaction, $user)) {
             return;
         }
 
@@ -533,23 +535,63 @@ class MessageThread extends Component
         $newMessageBody = $this->newMessage;
 
         /*
-         * TASK-1844 — SEULES les ecritures SQL liees a l'envoi vivent ici :
-         * creation du message, `touch()` de la conversation, marquage lu.
-         * Aucun fichier, aucune requete reseau, aucune notification — motif
-         * deja etabli par `LoopMessageService::sendUserMessage()` (T1839) et
+         * TASK-1844 (revue MASTER, controle de synchronisation #2) —
+         * SEULES les ecritures SQL liees a l'envoi vivent ici : creation du
+         * message, `touch()` de la conversation, marquage lu. Aucun
+         * fichier, aucune requete reseau, aucune notification — motif deja
+         * etabli par `LoopMessageService::sendUserMessage()` (T1839) et
          * `NotificationEmitter::emit()` (T1843).
          *
-         * La notification email est enregistree via `DB::afterCommit()`,
-         * PAS appelee directement : si cette transaction est un jour
-         * appelee depuis la transaction d'un appelant (aucun aujourd'hui,
-         * mais le mandat l'exige en prevision), elle ne doit partir
+         * ## Revalidation FINALE, verrouillee, juste avant l'ecriture
+         *
+         * Le controle fait plus haut date d'AVANT le traitement du fichier
+         * et l'appel reseau de l'apercu de lien — deux operations dont le
+         * mandat interdit explicitement qu'elles vivent dans cette
+         * transaction, et qui peuvent donc laisser passer plusieurs
+         * centaines de millisecondes pendant lesquelles la conversation a
+         * pu etre cloturee par un autre acteur. `lockForUpdate()` ferme
+         * cette fenetre residuelle : la ligne est relue sous verrou, PUIS
+         * revalidee — et le verrou n'est jamais tenu pendant un fichier ou
+         * un reseau, puisqu'il n'est pose qu'ICI, a l'interieur du bloc.
+         *
+         * Portee reelle du verrou, mesuree et pas supposee : un verrou de
+         * ligne PostgreSQL bloque toute AUTRE ecriture sur cette meme ligne
+         * (`UPDATE transactions SET status = ...`, quelle que soit la
+         * methode qui cloturerait la conversation), pas seulement les
+         * lecteurs qui demanderaient eux-memes `FOR UPDATE`. **Sous
+         * SQLite, `lockForUpdate()` se compile en AUCUNE clause**
+         * (`SQLiteGrammar::compileLock()` rend une chaine vide) : la
+         * protection contre une clôture VRAIMENT concurrente n'existe
+         * donc que sous PostgreSQL — SQLite reste couvert par la
+         * revalidation applicative seule (suffisante en pratique : SQLite
+         * ne sert jamais de vrais acces concurrents dans ce depot,
+         * uniquement les tests). Document plutot que suppose : aucun test
+         * ne doit pretendre prouver un verrou que SQLite n'applique pas.
+         *
+         * Si la revalidation refuse ICI, la transaction n'a RIEN ecrit : le
+         * `SELECT ... FOR UPDATE` seul se relache au commit, sans effet.
+         *
+         * ## La notification part apres le commit REEL
+         *
+         * `DB::afterCommit()`, jamais un appel direct : si cette transaction
+         * est un jour appelee depuis celle d'un appelant externe (aucun
+         * aujourd'hui, le mandat l'exige en prevision), elle ne doit partir
          * qu'au commit REEL, jamais a la fin de ce bloc imbrique. Rien ne
          * differe le NOMBRE d'envois — un seul, comme avant — seulement SON
          * INSTANT.
          */
         $msg = DB::transaction(function () use ($transaction, $user, $replyToId, $imagePath, $piece, $preview, $newMessageBody) {
+            $transactionVerrouillee = Transaction::where('organization_id', $this->organizationId)
+                ->whereKey($transaction->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! $this->autorisationEtStatutValides($transactionVerrouillee, $user)) {
+                return null;
+            }
+
             $msg = Message::create([
-                'transaction_id' => $transaction->id,
+                'transaction_id' => $transactionVerrouillee->id,
                 'sender_id' => $user->id,
                 'reply_to_id' => $replyToId,
                 'body' => $newMessageBody,
@@ -561,16 +603,27 @@ class MessageThread extends Component
                 'file_size' => $piece['size'] ?? null,
                 'metadata' => $preview !== null ? ['url_preview' => $preview] : null,
                 'type' => 'user',
-                'organization_id' => $transaction->organization_id,
+                'organization_id' => $transactionVerrouillee->organization_id,
             ]);
 
-            $transaction->touch();
+            $transactionVerrouillee->touch();
             $this->markRead();
 
-            $this->notifierApresCommit($transaction, $user, $msg);
+            $this->notifierApresCommit($transactionVerrouillee, $user, $msg);
 
             return $msg;
         });
+
+        // TASK-1844 — la revalidation FINALE (verrouillee) a pu refuser
+        // l'ecriture alors que le controle initial, lui, l'avait laisse
+        // passer (cloture survenue PENDANT le fichier/l'apercu de lien).
+        // Dans ce cas, rien n'a ete ecrit : le comportement attendu cote
+        // utilisateur est le MEME que pour le refus initial — aucun champ
+        // vide, aucun evenement annonce, comme si l'envoi n'avait jamais ete
+        // tente.
+        if ($msg === null) {
+            return;
+        }
 
         $this->newMessage = '';
         $this->cancelReply();
@@ -606,30 +659,74 @@ class MessageThread extends Component
     }
 
     /**
+     * TASK-1844 — le MEME predicat pour les DEUX revalidations de
+     * `sendMessage()` (initiale, et finale sous verrou) : appartenance au
+     * couple buyer/seller, puis statut encore ouvert. Factorise pour que
+     * les deux controles ne puissent pas un jour diverger en silence.
+     */
+    private function autorisationEtStatutValides(Transaction $transaction, User $user): bool
+    {
+        if (! in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
+            return false;
+        }
+
+        return ! in_array($transaction->status, ['completed', 'refused', 'cancelled']);
+    }
+
+    /**
      * TASK-1844 — enregistre l'envoi de l'email APRES le commit REEL,
      * jamais depuis l'interieur de la transaction qui vient de creer le
      * message. `DB::afterCommit()` gere seul l'imbrication eventuelle
      * (savepoint vs commit racine) : rien de plus a faire ici pour honorer
      * « transaction externe ».
      *
-     * Le `rescue()` et son contexte de log sont REPRIS A L'IDENTIQUE de
-     * l'ancien emplacement (avant cette TASK) — aucune cle, aucun message
-     * ne change, seul l'INSTANT d'execution se deplace.
+     * ## La RESOLUTION du destinataire est DANS `rescue()`, pas avant
+     * (revue MASTER, controle de synchronisation #2)
+     *
+     * Avant ce correctif, `$transaction->seller`/`->buyer` (chargement
+     * paresseux de la relation) s'executait AVANT le `rescue()` — hors de
+     * sa protection. Une panne a CET endroit precis (connexion perdue entre
+     * le commit et ce callback, ligne supprimee entre-temps...) aurait
+     * leve une exception NON rattrapee a l'interieur d'un callback
+     * `afterCommit` — exactement le defaut deja documente pour
+     * `LoopMessageCreated`/`NotificationEmitter` (TASK-1839/1843) :
+     * `executeCallbacks()` n'isole PAS les callbacks entre eux, et une
+     * exception ici aurait pu se faire passer pour un echec de l'envoi
+     * LUI-MEME aupres de l'appelant, alors que le message est deja commis.
+     *
+     * Desormais, resolution ET envoi sont DANS LE MEME `rescue()` : l'un
+     * ou l'autre peut echouer, le resultat est identique — journalise,
+     * jamais remonte.
+     *
+     * `$destinataireId` est calcule AVANT, a partir des seules colonnes
+     * scalaires (`buyer_id`/`seller_id`, deja chargees, jamais une requete)
+     * : le contexte de log reste complet MEME si la resolution de la
+     * relation est precisement ce qui a echoue.
+     *
+     * Le `rescue()` et son contexte de log restent, pour le reste,
+     * IDENTIQUES a l'ancien emplacement (avant cette TASK) — aucune cle,
+     * aucun message ne change, et le nombre d'envois (un seul) non plus.
      */
     private function notifierApresCommit(Transaction $transaction, User $user, Message $msg): void
     {
-        DB::afterCommit(function () use ($transaction, $user, $msg) {
-            $recipient = $transaction->buyer_id === $user->id
-                ? $transaction->seller
-                : $transaction->buyer;
+        $destinataireId = $transaction->buyer_id === $user->id
+            ? $transaction->seller_id
+            : $transaction->buyer_id;
 
+        DB::afterCommit(function () use ($transaction, $user, $msg, $destinataireId) {
             rescue(
-                fn () => $recipient->notify(new NewMessageReceived($transaction, $msg)),
+                function () use ($transaction, $user, $msg) {
+                    $recipient = $transaction->buyer_id === $user->id
+                        ? $transaction->seller
+                        : $transaction->buyer;
+
+                    $recipient->notify(new NewMessageReceived($transaction, $msg));
+                },
                 fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
                     'event' => 'message_created_notification',
                     'message_id' => $msg->id,
                     'organization_id' => $transaction->organization_id,
-                    'notifiable_id' => $recipient->id,
+                    'notifiable_id' => $destinataireId,
                     'exception_class' => $e::class,
                 ]),
                 false,

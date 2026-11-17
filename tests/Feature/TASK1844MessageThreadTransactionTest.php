@@ -8,14 +8,20 @@ use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Notifications\NewMessageReceived;
+use Illuminate\Contracts\Mail\Factory as MailFactory;
+use Illuminate\Contracts\Mail\Mailer as MailerContract;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use Mockery;
 use RuntimeException;
+use Symfony\Component\Mailer\Exception\TransportException;
 use Tests\TestCase;
 
 /**
@@ -74,9 +80,11 @@ class TASK1844MessageThreadTransactionTest extends TestCase
 
     protected function tearDown(): void
     {
-        // TASK-1460 — meme hygiene : un listener `creating()` pose par un
-        // test ne doit jamais atteindre les suivants.
+        // TASK-1460 — meme hygiene : un listener `creating()`/`updating()`
+        // pose par un test ne doit jamais atteindre les suivants.
         Message::flushEventListeners();
+        Transaction::flushEventListeners();
+        Mockery::close();
 
         parent::tearDown();
     }
@@ -144,6 +152,42 @@ class TASK1844MessageThreadTransactionTest extends TestCase
         Notification::assertNothingSent();
     }
 
+    /**
+     * TASK-1844 (revue MASTER, controle de synchronisation #2) — l'echec
+     * survient cette fois APRES `Message::create()` (l'insertion reussit),
+     * mais AVANT la fin de la transaction (`touch()` leve). Preuve que le
+     * rollback n'est pas conditionne a l'ETAPE qui echoue : la ligne
+     * `messages` deja inseree disparait elle aussi.
+     */
+    public function test_echec_apres_l_insertion_du_message_annule_toute_la_transaction(): void
+    {
+        Notification::fake();
+
+        // `touch()` ne declenche l'evenement `updating` QUE si le modele
+        // est reellement DIRTY : sans cet ecart, `updated_at` resterait
+        // identique a la seconde pres (meme piege deja documente en T1836 —
+        // Eloquent tronque les microsecondes avant l'ecriture), `isDirty()`
+        // rendrait faux, et `touch()` ne ferait RIEN a sauvegarder.
+        $this->travel(1)->seconds();
+
+        Transaction::updating(function (): void {
+            throw new RuntimeException('panne SQL simulee apres insertion — TASK-1844');
+        });
+
+        try {
+            Livewire::actingAs($this->buyer)
+                ->test(MessageThread::class, ['transaction' => $this->transaction])
+                ->set('newMessage', 'Insere puis jamais commis')
+                ->call('sendMessage');
+            $this->fail('la panne simulee sur touch() apres insertion aurait du se propager');
+        } catch (RuntimeException $e) {
+            $this->assertSame('panne SQL simulee apres insertion — TASK-1844', $e->getMessage());
+        }
+
+        $this->assertDatabaseMissing('messages', ['body' => 'Insere puis jamais commis']);
+        Notification::assertNothingSent();
+    }
+
     // ── 4. Transaction externe, commit differe ──────────────────────────────
 
     public function test_transaction_externe_differe_la_notification_jusqu_au_commit_reel(): void
@@ -196,6 +240,42 @@ class TASK1844MessageThreadTransactionTest extends TestCase
             ->call('sendMessage');
 
         $this->assertDatabaseMissing('messages', ['body' => 'Trop tard, deja cloturee']);
+        Notification::assertNothingSent();
+    }
+
+    /**
+     * TASK-1844 (revue MASTER, controle de synchronisation #2) — LE
+     * scenario explicitement vise par le second controle, verrouille : la
+     * cloture survient PENDANT l'appel reseau de l'apercu de lien, donc
+     * APRES le premier controle (bon marche, fait avant tout traitement
+     * de fichier/reseau) mais AVANT l'ecriture SQL elle-meme. Seule la
+     * revalidation FINALE (dans la transaction, sous verrou) peut
+     * l'attraper — le premier controle, lui, l'aurait laisse passer.
+     */
+    public function test_conversation_cloturee_pendant_l_apercu_de_lien_est_rattrapee_par_le_controle_final(): void
+    {
+        Notification::fake();
+
+        Http::fake([
+            '*valid-example.com*' => function () {
+                // Le "tiers" ferme la conversation PENDANT que notre requete
+                // d'apercu est en vol — jamais dans notre transaction SQL,
+                // qui n'existe pas encore a cet instant.
+                Transaction::whereKey($this->transaction->id)->update(['status' => 'completed']);
+
+                return Http::response(
+                    '<html><head><meta property="og:title" content="Titre"></head></html>',
+                    200
+                );
+            },
+        ]);
+
+        Livewire::actingAs($this->buyer)
+            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->set('newMessage', 'Avec un lien https://valid-example.com/article')
+            ->call('sendMessage');
+
+        $this->assertDatabaseMissing('messages', ['body' => 'Avec un lien https://valid-example.com/article']);
         Notification::assertNothingSent();
     }
 
@@ -327,5 +407,61 @@ class TASK1844MessageThreadTransactionTest extends TestCase
             Message::where('body', 'Nouveau message avant poll')->first()->read_at->toDateTimeString(),
             'un second markRead() ne doit jamais rouvrir ni redater une ligne deja lue'
         );
+    }
+
+    // ── 9. Robustesse post-commit de notifierApresCommit() ─────────────────
+
+    /**
+     * TASK-1844 (revue MASTER, controle de synchronisation #2) — reprend
+     * le motif Mockery deja etabli par `MessageThreadTest::
+     * test_message_persisted_even_when_notification_fails()`, mais verifie
+     * en plus explicitement que : (1) le message reste PERSISTE (le commit
+     * a bien eu lieu avant que la panne de notification ne survienne), et
+     * (2) `call('sendMessage')` se termine SANS LEVER — la panne, qu'elle
+     * survienne pendant la RESOLUTION du destinataire
+     * (`$transaction->seller`/`->buyer`, chargement paresseux) ou pendant
+     * l'ENVOI lui-meme, est desormais couverte par le MEME `rescue()` :
+     * les deux sont rattrapees de maniere identique, jamais remontees a
+     * l'appelant apres un commit reussi.
+     */
+    public function test_panne_de_notification_apres_commit_ne_remonte_jamais_et_garde_le_journal(): void
+    {
+        Log::spy();
+
+        $mailerMock = Mockery::mock(MailerContract::class);
+        $mailerMock->shouldReceive('send')
+            ->once()
+            ->andThrow(new TransportException('panne post-commit simulee — TASK-1844'));
+
+        $factoryMock = Mockery::mock(MailFactory::class);
+        $factoryMock->shouldReceive('mailer')->andReturn($mailerMock);
+        $this->app->instance('mail.manager', $factoryMock);
+
+        Livewire::actingAs($this->buyer)
+            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->set('newMessage', 'Message malgre une panne de notification post-commit')
+            ->call('sendMessage')
+            ->assertHasNoErrors();
+
+        // Le message est COMMIS — la panne de notification est bien APRES
+        // le commit reel, jamais avant, jamais a sa place.
+        $this->assertDatabaseHas('messages', [
+            'body' => 'Message malgre une panne de notification post-commit',
+            'sender_id' => $this->buyer->id,
+        ]);
+
+        Log::shouldHaveReceived('error')
+            ->once()
+            ->withArgs(function (string $message, array $context) {
+                return $message === 'Email notification failed after successful business action'
+                    && $context['event'] === 'message_created_notification'
+                    && isset($context['message_id'])
+                    && $context['organization_id'] === $this->organization->id
+                    // `notifiable_id` vient des colonnes SCALAIRES
+                    // (buyer_id/seller_id), jamais d'une relation chargee
+                    // : il reste correct MEME si la resolution echoue.
+                    && $context['notifiable_id'] === $this->seller->id
+                    && $context['exception_class'] === TransportException::class;
+            });
     }
 }
