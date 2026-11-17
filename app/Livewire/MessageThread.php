@@ -12,6 +12,7 @@ use App\Notifications\NewMessageReceived;
 use App\Services\UrlPreviewService;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Files\TypesDeFichiersAcceptes;
+use App\Support\Messaging\ConversationBroadcaster;
 use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -610,6 +611,10 @@ class MessageThread extends Component
             $this->markRead();
 
             $this->notifierApresCommit($transactionVerrouillee, $user, $msg);
+
+            // TASK-1845 — signal Reverb, OFF par defaut, differe apres le
+            // commit reel au meme titre que la notification email ci-dessus.
+            ConversationBroadcaster::diffuserApresCommit($msg);
 
             return $msg;
         });

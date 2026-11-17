@@ -6,6 +6,7 @@ use App\Models\Message;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Entraide\CarteEntraide;
+use App\Support\Messaging\ConversationBroadcaster;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -194,12 +195,15 @@ class MessageController extends Controller
             'status' => 'pending',
         ]);
 
-        Message::create([
+        $message = Message::create([
             'transaction_id' => $transaction->id,
             'body' => 'Conversation directe démarrée.',
             'type' => 'system',
             'organization_id' => $organization->id,
         ]);
+
+        // TASK-1845 — signal Reverb de resynchronisation, OFF par defaut.
+        ConversationBroadcaster::diffuserApresCommit($message);
 
         return $this->versLaConversation($transaction);
     }
