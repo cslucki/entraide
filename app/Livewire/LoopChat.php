@@ -572,7 +572,39 @@ class LoopChat extends Component
     }
 
     /**
-     * TASK-1835 — action appelee par `wire:poll.3s`, a la place du defaut
+     * TASK-1839 / TASK-1841 (revue MASTER, 2e NO-GO) — ce composant n'a
+     * PLUS de `getListeners()`. Le declenchement temps reel de cette
+     * methode passe ENTIEREMENT par `resources/js/
+     * chatloop-adaptive-polling.js`, qui ecoute lui-meme `.loop.message.
+     * created` sur le canal prive de la Boucle (deja autorise par
+     * `routes/channels.php`, aucun changement ici) et appelle
+     * `$wire.pollChat()` directement.
+     *
+     * Une premiere version declarait AUSSI une cle `"echo-private:loop.
+     * {id},.loop.message.created" => 'pollChat'` via `getListeners()`,
+     * pour que Livewire pose sa PROPRE liaison JS native (`effect` hook,
+     * `vendor/livewire/livewire/dist/livewire.js`) en plus de celle du
+     * module Alpine. Retiree : MASTER a demande une garantie — « un seul
+     * chemin d'ecoute effectif » — et une liaison en PLUS de celle du
+     * module Alpine n'aurait jamais pu etre garantie inoffensive. Elle
+     * s'est averee peu fiable en recette (abandon silencieux si
+     * `window.Echo` n'existe pas encore au moment ou Livewire traite son
+     * premier effet `listeners` — course quasi garantie, `echo.js`
+     * important Echo de facon asynchrone) ; mais rien ne garantissait
+     * l'INVERSE non plus — si Echo finissait par etre pret a temps un
+     * jour, dans un environnement plus rapide ou apres un cache chaud,
+     * les DEUX liaisons auraient pu reussir en meme temps et declencher
+     * DEUX requetes Livewire par message recu (cette methode est
+     * idempotente cote resultat affiche, mais pas cote NOMBRE de
+     * requetes HTTP). Supprimer cette cle elimine le risque par
+     * construction plutot que par observation.
+     *
+     * Le minuteur 3s de secours (`chatloop-adaptive-polling.js`) reste
+     * actif en repli si Reverb est indisponible — aucune dependance a
+     * Echo pour rattraper un message manque.
+     *
+     * TASK-1835 — action appelee par le minuteur (anciennement
+     * `wire:poll.3s`), a la place du defaut
      * implicite qui rendait integralement a CHAQUE cycle (mesure : 17-37
      * requetes SQL, 70-97 ms, jusqu'a ~627 Ko de HTML selon la fixture, pour
      * une conversation qui n'a le plus souvent RIEN change entre deux cycles

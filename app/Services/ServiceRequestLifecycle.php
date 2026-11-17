@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Message;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use App\Support\Messaging\ConversationBroadcaster;
+use App\Support\Messaging\UnreadCountBroadcaster;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -62,13 +64,24 @@ class ServiceRequestLifecycle
             foreach ($concurrentes as $concurrente) {
                 $concurrente->update(['status' => 'refused']);
 
-                Message::create([
+                $message = Message::create([
                     'transaction_id' => $concurrente->id,
                     'sender_id' => null,
                     'body' => __('requests.lifecycle.another_offer_accepted'),
                     'type' => 'system',
                     'organization_id' => $concurrente->organization_id,
                 ]);
+
+                // TASK-1845 — UNE conversation concurrente par tour de
+                // boucle : le signal part UNE fois par message cree, jamais
+                // une fois pour tout le lot (chaque `$concurrente` est une
+                // Transaction, donc un canal `conversation.{id}`, distincte).
+                ConversationBroadcaster::diffuserApresCommit($message);
+
+                // TASK-1847 — message systeme : les DEUX participants de
+                // CETTE transaction concurrente voient leur compteur
+                // global augmenter.
+                UnreadCountBroadcaster::diffuserApresCreationMessage($message, $concurrente);
             }
         });
     }

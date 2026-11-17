@@ -3,6 +3,10 @@ import { createEditor } from './blog-editor';
 import './markdown-wysiwyg-editor';
 import { extractEmbedUrl } from './tiptap/media-embed-node.js';
 import { annoncerLePanneau, brancherCarteSurSonPanneau } from './editor/panneaux.js';
+import { chatLoopAdaptivePolling } from './chatloop-adaptive-polling.js';
+import { notificationsBadgeRealtime } from './notifications-badge-realtime.js';
+import { messageThreadAdaptivePolling, messageThreadRealtimeNudge } from './message-thread-adaptive-polling.js';
+import { messagesUnreadBadgeRealtime } from './messages-unread-badge-realtime.js';
 import * as FilePond from 'filepond';
 import 'filepond/dist/filepond.min.css';
 import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
@@ -306,6 +310,134 @@ function registerAlpineStores() {
         label() {
             return this.themes[this.current]?.label || 'Zen';
         },
+    });
+}
+
+function registerChatLoopAdaptivePolling() {
+    if (!window.Alpine || window.__chatLoopAdaptivePollingRegistered) {
+        return;
+    }
+
+    window.__chatLoopAdaptivePollingRegistered = true;
+
+    // TASK-1841 — remplace `wire:poll.3s="pollChat"` dans
+    // `loop-chat.blade.php`. Voir `chatloop-adaptive-polling.js` pour la
+    // logique (testable sans navigateur).
+    Alpine.data('chatLoopAdaptivePolling', chatLoopAdaptivePolling);
+}
+
+/**
+ * TASK-1846 — meme idempotence que les `register*()` Alpine voisins.
+ * L'enregistrement est TOUJOURS fait (comme `chatLoopAdaptivePolling`) ;
+ * le drapeau `VITE_CONVERSATION_REALTIME_ENABLED` est verifie a
+ * l'INTERIEUR des deux composants eux-memes (voir `message-thread-
+ * adaptive-polling.js`), pas ici.
+ */
+function registerMessageThreadAdaptivePolling() {
+    if (!window.Alpine || window.__messageThreadAdaptivePollingRegistered) {
+        return;
+    }
+
+    window.__messageThreadAdaptivePollingRegistered = true;
+
+    Alpine.data('messageThreadAdaptivePolling', messageThreadAdaptivePolling);
+    Alpine.data('messageThreadRealtimeNudge', messageThreadRealtimeNudge);
+}
+
+/**
+ * TASK-1843 — n'est PAS un composant Alpine : le badge vit dans le rail/la
+ * barre mobile, rendus par le layout global, jamais via `x-data` (audit
+ * TASK-1842, section 3.2 : interdiction Livewire explicitement reportee
+ * sur TOUT cablage temps reel de cette surface). Initialisation directe,
+ * idempotente comme les `register*()` Alpine ci-dessus.
+ */
+function shouldEnableNotificationsBadgeRealtime() {
+    return (import.meta.env?.VITE_NOTIFICATIONS_REALTIME_ENABLED ?? '') === 'true';
+}
+
+async function fetchUnreadNotificationsCount() {
+    const response = await fetch('/notifications/unread-count', {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+    });
+
+    if (!response.ok) {
+        throw new Error(`TASK-1843 — reponse HTTP ${response.status} sur /notifications/unread-count`);
+    }
+
+    const data = await response.json();
+
+    return Number(data.count) || 0;
+}
+
+function initNotificationsBadgeRealtime() {
+    if (window.__notificationsBadgeRealtimeInitialized) {
+        return;
+    }
+
+    if (!shouldEnableNotificationsBadgeRealtime()) {
+        return;
+    }
+
+    const userId = document.querySelector('meta[name="user-id"]')?.content;
+
+    if (!userId) {
+        return;
+    }
+
+    window.__notificationsBadgeRealtimeInitialized = true;
+
+    window.__notificationsBadgeRealtime = notificationsBadgeRealtime({
+        userId,
+        fetchUnreadCount: fetchUnreadNotificationsCount,
+    });
+}
+
+/**
+ * TASK-1847 — meme motif que `shouldEnableNotificationsBadgeRealtime()` :
+ * n'est PAS un composant Alpine, initialisation directe et idempotente.
+ * Drapeau PROPRE a ce module, independant des trois autres pilotes
+ * Reverb — voir `echo.js`.
+ */
+function shouldEnableMessagesUnreadBadgeRealtime() {
+    return (import.meta.env?.VITE_MESSAGES_UNREAD_REALTIME_ENABLED ?? '') === 'true';
+}
+
+async function fetchUnreadMessagesCount() {
+    const response = await fetch('/messages/unread-count', {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+    });
+
+    if (!response.ok) {
+        throw new Error(`TASK-1847 — reponse HTTP ${response.status} sur /messages/unread-count`);
+    }
+
+    const data = await response.json();
+
+    return Number(data.count) || 0;
+}
+
+function initMessagesUnreadBadgeRealtime() {
+    if (window.__messagesUnreadBadgeRealtimeInitialized) {
+        return;
+    }
+
+    if (!shouldEnableMessagesUnreadBadgeRealtime()) {
+        return;
+    }
+
+    const userId = document.querySelector('meta[name="user-id"]')?.content;
+
+    if (!userId) {
+        return;
+    }
+
+    window.__messagesUnreadBadgeRealtimeInitialized = true;
+
+    window.__messagesUnreadBadgeRealtime = messagesUnreadBadgeRealtime({
+        userId,
+        fetchUnreadCount: fetchUnreadMessagesCount,
     });
 }
 
@@ -8469,6 +8601,8 @@ document.addEventListener('alpine:init', () => {
 
 document.addEventListener('alpine:init', () => {
     registerAlpineStores();
+    registerChatLoopAdaptivePolling();
+    registerMessageThreadAdaptivePolling();
     registerBlogSnapshotCard();
     registerBlogEditor();
     registerBlogMethodSelectionCard();
@@ -8490,6 +8624,8 @@ document.addEventListener('alpine:init', () => {
 });
 
 registerAlpineStores();
+registerChatLoopAdaptivePolling();
+registerMessageThreadAdaptivePolling();
 registerBlogSnapshotCard();
 registerBlogEditor();
 registerBlogMethodSelectionCard();
@@ -8510,6 +8646,9 @@ registerBlogInviteByEmail();
 registerBlogPlanCard();
 registerBlogExplorerModal();
 registerBlogExplorerCard();
+
+initNotificationsBadgeRealtime();
+initMessagesUnreadBadgeRealtime();
 
 // -------------------------------------------------------------------------
 // Roadmap mini-kanban drag & drop (LoopRoadmapCard, Livewire) — reuses SortableJS.

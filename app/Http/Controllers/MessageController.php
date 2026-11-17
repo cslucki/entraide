@@ -6,6 +6,9 @@ use App\Models\Message;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Entraide\CarteEntraide;
+use App\Support\Messaging\ConversationBroadcaster;
+use App\Support\Messaging\UnreadCountBroadcaster;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -194,13 +197,77 @@ class MessageController extends Controller
             'status' => 'pending',
         ]);
 
-        Message::create([
+        $message = Message::create([
             'transaction_id' => $transaction->id,
             'body' => 'Conversation directe démarrée.',
             'type' => 'system',
             'organization_id' => $organization->id,
         ]);
 
+        // TASK-1845 — signal Reverb de resynchronisation, OFF par defaut.
+        ConversationBroadcaster::diffuserApresCommit($message);
+
+        // TASK-1847 — message systeme (« Conversation directe demarree »)
+        // : les DEUX participants voient leur compteur global augmenter.
+        UnreadCountBroadcaster::diffuserApresCreationMessage($message, $transaction);
+
         return $this->versLaConversation($transaction);
+    }
+
+    /**
+     * TASK-1847 — source de verite HTTP du compteur GLOBAL de messages non
+     * lus, pour le badge temps reel (`messages-unread-badge-realtime.js`)
+     * ET comme repli en l'absence de Reverb.
+     *
+     * `$request->user()` — jamais un `user_id` lu depuis la requete : le
+     * compteur ne peut porter que sur l'IDENTITE authentifiee, exactement
+     * comme `NotificationCenterController::unreadCount()` (TASK-1843).
+     *
+     * ## REVUE MASTER (correctif avant fusion) — l'Organization DOIT etre
+     * resolue ICI, explicitement
+     *
+     * Premiere version de cette methode : aucune resolution d'Organization,
+     * sur la foi d'un commentaire du modele qui affirmait `unreadMessagesCount()`
+     * « non scopee, agregeant a travers les Organizations » — FAUX, corrige
+     * dans le MEME correctif (voir le docblock de `User::unreadMessagesCount()`,
+     * verifie EMPIRIQUEMENT). En realite, `whereHas('transaction', ...)`
+     * porte le MEME `BelongsToOrganizationScope` que toute autre requete sur
+     * `Transaction` : cette methode retombe donc sur l'Organization COURANTE
+     * au moment de l'appel.
+     *
+     * Et sur CETTE route precisement (`/messages/unread-count`, SANS prefixe
+     * `/org/{organization}/...`), `ResolveUrlOrganization` classe « messages »
+     * comme une route de fonctionnalite ORDINAIRE (`$defaultOrganizationRoutes`),
+     * PAS comme une route personnelle authentifiee (seul `dashboard` en
+     * beneficie) : elle liait donc l'Organization PAR DEFAUT DE LA PLATEFORME,
+     * jamais celle du membre — exactement le piège deja documente par
+     * `versLaConversation()` plus haut dans ce fichier. Mesure AVANT ce
+     * correctif : le rail SSR (`app-side-nav.blade.php`, sur une page
+     * `/org/{slug}/...`) et cet endpoint rendaient des comptes DIFFERENTS
+     * pour le MEME membre des que son Organization n'etait pas la
+     * par defaut.
+     *
+     * Correctif LOCAL, a cet endpoint seul : lier explicitement
+     * l'Organization du membre AVANT d'appeler `unreadMessagesCount()`,
+     * exactement l'expression deja utilisee par `app-side-nav.blade.php`.
+     * Ni `ResolveUrlOrganization` (d'autres routes « messages » pourraient
+     * dependre deliberement de son comportement actuel, hors audit de cette
+     * TASK) ni `unreadMessagesCount()` elle-meme (aucune regle de visibilite
+     * n'est modifiee, seul le CONTEXTE dans lequel elle s'execute l'est, pour
+     * CETTE route) ne sont touches.
+     */
+    public function unreadCount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $organization = $user->organization ?? currentOrganization();
+
+        if ($organization !== null) {
+            app()->instance('current_organization', $organization);
+        }
+
+        return response()->json([
+            'count' => $user->unreadMessagesCount(),
+        ]);
     }
 }

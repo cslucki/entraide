@@ -24,6 +24,12 @@ php artisan storage:link
 php artisan serve
 ```
 
+Optional: real-time features use [Laravel Reverb](https://reverb.laravel.com). Start it with:
+
+```bash
+php artisan reverb:start
+```
+
 ## Status
 
 Public repository — progressive cleanup phase.

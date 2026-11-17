@@ -16,8 +16,10 @@ use App\Models\User;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmitter;
 use App\Support\Notifications\NotificationPreferenceResolver;
+use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Ramsey\Uuid\Uuid;
 
 class LoopMessageService
@@ -39,34 +41,59 @@ class LoopMessageService
             }
         }
 
-        return DB::transaction(function () use ($loop, $sender, $body, $metadata, $replyToId, $imagePath, $mentions) {
-            // TASK-1772 — les mentions vivent dans `metadata`, aux cotes de
-            // `url_preview` et `requested_mode` (D4 : pas de migration en V1).
-            if ($mentions !== []) {
-                $metadata = ($metadata ?? []) + ['mentions' => array_values($mentions)];
-            }
+        $message = null;
 
-            $message = LoopMessage::create([
-                'loop_id' => $loop->id,
-                'sender_id' => $sender->id,
-                'reply_to_id' => $replyToId,
-                'body' => $body,
-                'image_path' => $imagePath,
-                'type' => 'user',
-                'metadata' => $metadata,
-                'organization_id' => $loop->organization_id,
+        try {
+            return DB::transaction(function () use ($loop, $sender, $body, $metadata, $replyToId, $imagePath, $mentions, &$message) {
+                // TASK-1772 — les mentions vivent dans `metadata`, aux cotes de
+                // `url_preview` et `requested_mode` (D4 : pas de migration en V1).
+                if ($mentions !== []) {
+                    $metadata = ($metadata ?? []) + ['mentions' => array_values($mentions)];
+                }
+
+                $message = LoopMessage::create([
+                    'loop_id' => $loop->id,
+                    'sender_id' => $sender->id,
+                    'reply_to_id' => $replyToId,
+                    'body' => $body,
+                    'image_path' => $imagePath,
+                    'type' => 'user',
+                    'metadata' => $metadata,
+                    'organization_id' => $loop->organization_id,
+                ]);
+
+                if ($mentions !== []) {
+                    $this->notifierLesMentions($loop, $sender, $message, $mentions);
+                }
+
+                event(new LoopMessageCreated($message));
+
+                $loop->touch();
+
+                return $message;
+            });
+        } catch (BroadcastException $e) {
+            // TASK-1839 — `BroadcastException` HERITE de `RuntimeException`.
+            // Sans ce catch PLUS SPECIFIQUE place AVANT tout `catch
+            // (\RuntimeException)` chez l'appelant (ex. `LoopChat::envoyer()`),
+            // une panne de diffusion WebSocket (Reverb injoignable) se faisait
+            // passer pour un refus metier — « Impossible d'envoyer le message »
+            // — alors que CE message, lui, est deja ecrit : `DB::transaction()`
+            // a COMMIT avant de rejouer son callback de diffusion differee
+            // (voir la doc de `LoopMessageCreated::$afterCommit`). Rejouer
+            // l'envoi sur la foi de ce message aurait cree un doublon.
+            //
+            // `$message` est capture par reference : la fermeture a fini de
+            // s'executer (et donc de l'assigner) AVANT que `DB::transaction()`
+            // n'entre dans la phase de callbacks ou cette exception nait.
+            Log::warning('TASK-1839 diffusion Reverb en echec, message deja enregistre.', [
+                'loop_id' => (string) $loop->id,
+                'message_id' => $message?->id,
+                'raison' => $e->getMessage(),
             ]);
 
-            if ($mentions !== []) {
-                $this->notifierLesMentions($loop, $sender, $message, $mentions);
-            }
-
-            event(new LoopMessageCreated($message));
-
-            $loop->touch();
-
             return $message;
-        });
+        }
     }
 
     /**

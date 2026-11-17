@@ -473,6 +473,10 @@ Route::middleware('auth')->group(function () {
     // Messages
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
     Route::get('/messages/with/{user}', [MessageController::class, 'showWithUser'])->name('messages.with');
+    // TASK-1847 — meme motif que `notifications.unread-count` (TASK-1843) :
+    // segment STATIQUE, DOIT etre declare avant `/messages/{transaction}`,
+    // sinon « unread-count » serait capture comme un identifiant d'echange.
+    Route::get('/messages/unread-count', [MessageController::class, 'unreadCount'])->middleware('throttle:60,1')->name('messages.unread-count');
     // TASK-1704 — la piece jointe d'une conversation. Elle DOIT etre declaree
     // avant `/messages/{transaction}`, sinon « pieces » serait capture comme
     // un identifiant d'echange.
@@ -502,6 +506,16 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
     Route::post('/notifications/{notification}/unread', [NotificationCenterController::class, 'markUnread'])->middleware('throttle:60,1')->name('notifications.unread');
     Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
+
+    // TASK-1843 — source de verite HTTP du badge temps reel. Appelee par
+    // `notifications-badge-realtime.js` a chaque evenement Reverb recu,
+    // JAMAIS lue depuis le payload WebSocket (qui ne porte aucun compte,
+    // voir `MemberNotificationCreated`). Chemin UNIQUE (pas de duplicate
+    // org-slug) : un `fetch()` JS cible un chemin absolu, pas une route
+    // nommee, et `NotificationCenterController::acteur()` resout deja
+    // l'Organization du MEMBRE avant celle par defaut de la plateforme,
+    // quel que soit le prefixe de la page qui l'appelle.
+    Route::get('/notifications/unread-count', [NotificationCenterController::class, 'unreadCount'])->middleware('throttle:60,1')->name('notifications.unread-count');
 
     // TASK-1739 — abonnements Web Push, un par APPAREIL.
     //
