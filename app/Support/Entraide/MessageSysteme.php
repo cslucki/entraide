@@ -4,6 +4,7 @@ namespace App\Support\Entraide;
 
 use App\Models\Message;
 use App\Models\Transaction;
+use App\Support\Messaging\ConversationBroadcaster;
 
 /**
  * TASK-1754 (§3.4, obstacle n°2) — les messages systeme cessent d'etre du
@@ -66,7 +67,7 @@ final class MessageSysteme
      */
     public static function ecrire(Transaction $transaction, string $clef, array $params = []): Message
     {
-        return Message::create([
+        $message = Message::create([
             'transaction_id' => $transaction->id,
             'sender_id' => null,
             'organization_id' => $transaction->organization_id,
@@ -74,6 +75,14 @@ final class MessageSysteme
             'type' => 'system',
             'metadata' => ['system_key' => $clef, 'params' => $params],
         ]);
+
+        // TASK-1845 — signal Reverb de resynchronisation, OFF par defaut.
+        // `diffuserApresCommit()` differe lui-meme apres le commit reel,
+        // quelle que soit la profondeur de transaction de l'appelant
+        // (`TransactionController` et son equivalent API).
+        ConversationBroadcaster::diffuserApresCommit($message);
+
+        return $message;
     }
 
     /**
