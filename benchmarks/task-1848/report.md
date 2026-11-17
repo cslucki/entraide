@@ -70,15 +70,33 @@ benchmark (Referer portant le slug de l'Organization de test).
 | A-HTTP20 (n=20) | 178 | 30s | **356,0 req/min** |
 | B-HTTP20 (n=20) | 128 | 30s | **256,0 req/min** (−28,1 %) |
 
-**Lecture** : la réduction (−28 à −31 %) correspond EXACTEMENT à ce
-qu'implique la répartition des rôles — seul 1/4 de la population (rôle
-« conversation directe ») bénéficie du passage 3s→20s (TASK-1846) ; les
-rôles Boucle et entraide gardent leur poll natif 3s par conception
-(TASK-1846/1847 ne touchent JAMAIS leur cadence), et le rôle « navigation
-badges seule » n'a de toute façon aucun `wire:poll` (page tableau de bord).
-Une population composée à 100 % de conversations directes retrouverait le
-facteur ~5,25x déjà mesuré par TASK-1840 — ce chiffre-ci est le gain RÉEL
-sur une population MIXTE, plus réaliste et plus modeste.
+**CORRECTIF (TASK-1850, après revue MASTER)** : la phrase ci-dessous,
+dans la version initiale de ce rapport, affirmait que le rôle « Boucle »
+gardait un poll natif 3s en configuration B — **c'est FAUX**, et c'est une
+erreur de CE rapport, pas du code. `chatloop-adaptive-polling.js`
+(TASK-1841) réduit bien 3s→20s pour ChatLoop une fois le canal
+`loop.{id}` réellement abonné — **vérifié à nouveau** par TASK-1850, sur
+un onglet réel observé 50s (fenêtre plus longue que B-S1/B-HTTP20) :
+2 requêtes rapprochées au chargement (pendant la connexion), puis
+exactement 20,0s / 20,0s entre les suivantes. Seul le rôle « échange
+d'entraide » garde réellement sa cadence native 3s (TASK-1846/1847 ne
+touchent jamais sa cadence, confirmé inchangé).
+
+**Lecture corrigée** : la réduction mesurée (−28 à −31 %) est donc en
+réalité portée par DEUX rôles sur quatre (conversation directe ET
+Boucle), pas un seul — et elle est probablement SOUS-ESTIMÉE par les
+fenêtres courtes de B-S1 (45s) et B-HTTP20 (30s) : avec un cycle de 20s,
+une fenêtre de 30-45s ne capture qu'une à deux périodes stables après la
+phase de connexion, sous charge concurrente (10-20 connexions/logins
+simultanés) qui retarde elle-même l'abonnement initial. Le chiffre mesuré
+reste une mesure RÉELLE et honnête du gain sur CETTE fenêtre précise, mais
+ne doit pas être lu comme le plafond du gain réel en régime stable — une
+fenêtre d'observation plus longue (comme le test dédié de TASK-1850, 50s,
+charge faible) montre le mécanisme fonctionner exactement comme conçu.
+Seul le rôle « navigation badges seule » n'a de toute façon aucun
+`wire:poll` (page tableau de bord). Une population composée à 100% de
+conversations directes OU de Boucles retrouverait un facteur proche du
+~5,25x déjà mesuré par TASK-1840.
 
 ## 3. MESURÉ — couche WebSocket (connexions, latence)
 
