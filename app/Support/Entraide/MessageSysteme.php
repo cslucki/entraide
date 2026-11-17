@@ -5,6 +5,7 @@ namespace App\Support\Entraide;
 use App\Models\Message;
 use App\Models\Transaction;
 use App\Support\Messaging\ConversationBroadcaster;
+use App\Support\Messaging\UnreadCountBroadcaster;
 
 /**
  * TASK-1754 (§3.4, obstacle n°2) — les messages systeme cessent d'etre du
@@ -81,6 +82,11 @@ final class MessageSysteme
         // quelle que soit la profondeur de transaction de l'appelant
         // (`TransactionController` et son equivalent API).
         ConversationBroadcaster::diffuserApresCommit($message);
+
+        // TASK-1847 — `sender_id` NULL : LES DEUX participants voient ce
+        // message systeme comme non lu (TASK-1693), donc leurs DEUX
+        // compteurs globaux sont notifies.
+        UnreadCountBroadcaster::diffuserApresCreationMessage($message, $transaction);
 
         return $message;
     }

@@ -13,6 +13,7 @@ use App\Services\UrlPreviewService;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Files\TypesDeFichiersAcceptes;
 use App\Support\Messaging\ConversationBroadcaster;
+use App\Support\Messaging\UnreadCountBroadcaster;
 use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -623,6 +624,10 @@ class MessageThread extends Component
             // commit reel au meme titre que la notification email ci-dessus.
             ConversationBroadcaster::diffuserApresCommit($msg);
 
+            // TASK-1847 — compteur GLOBAL de messages non lus du
+            // DESTINATAIRE (jamais l'expediteur, voir `UnreadCountBroadcaster`).
+            UnreadCountBroadcaster::diffuserApresCreationMessage($msg, $transactionVerrouillee);
+
             return $msg;
         });
 
@@ -949,13 +954,55 @@ class MessageThread extends Component
      * Depuis qu'ils y comptent (`User::unreadMessagesCount()`), un badge sans
      * ce correctif resterait allume DEFINITIVEMENT.
      */
+    /**
+     * TASK-1847 (correctif MASTER) — `messages.read_at` est un champ
+     * PARTAGE, pas un modele de lecture par utilisateur : marquer un
+     * message SYSTEME (`sender_id` NULL, compte comme non lu pour LES DEUX
+     * participants — TASK-1693) comme lu le rend lu POUR TOUT LE MONDE en
+     * une seule ecriture. Le compteur de l'AUTRE participant baisse donc
+     * AUSSI en base des que CE lecteur ouvre le fil — sans ce correctif,
+     * personne ne le lui signalait jamais en temps reel.
+     *
+     * L'horodatage `$maintenant`, pose UNE SEULE FOIS et reutilise pour
+     * l'ecriture ET la verification qui suit, identifie EXACTEMENT les
+     * lignes que CET appel vient de marquer — sans nouveau modele de
+     * lecture, sans nouvelle migration. La verification ne part QUE si
+     * `$affected > 0` : aucune requete supplementaire au rendu le plus
+     * frequent (conversation deja lue, TASK-1836).
+     */
     public function markRead(): void
     {
         $userId = auth()->id();
-        Message::where('transaction_id', $this->transaction()->id)
+        $transactionId = $this->transaction()->id;
+        $maintenant = now();
+
+        $affected = Message::where('transaction_id', $transactionId)
             ->where(fn ($q) => $q->whereNull('sender_id')->orWhere('sender_id', '!=', $userId))
             ->whereNull('read_at')
-            ->update(['read_at' => now()]);
+            ->update(['read_at' => $maintenant]);
+
+        // TASK-1847 — un appel qui ne change AUCUNE ligne (conversation
+        // deja lue, cas le plus frequent : `render()` appelle `markRead()`
+        // a CHAQUE cycle) ne doit declencher aucun evenement.
+        if ($affected === 0) {
+            return;
+        }
+
+        $destinataires = [$userId];
+
+        $aMarqueUnMessageSysteme = Message::where('transaction_id', $transactionId)
+            ->whereNull('sender_id')
+            ->where('read_at', $maintenant)
+            ->exists();
+
+        if ($aMarqueUnMessageSysteme) {
+            $transaction = $this->transaction();
+            $destinataires[] = $transaction->buyer_id === $userId ? $transaction->seller_id : $transaction->buyer_id;
+        }
+
+        foreach (array_unique($destinataires) as $destinataireId) {
+            UnreadCountBroadcaster::diffuserApresLecture($destinataireId);
+        }
     }
 
     /**

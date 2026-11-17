@@ -28,6 +28,17 @@
  * commentaire). Aucune reponse ne peut donc arriver dans le desordre, et
  * `destroy()` empeche explicitement d'appliquer un resultat a un composant
  * deja detruit.
+ *
+ * TASK-1847 — `user.{userId}` porte desormais un SECOND consommateur
+ * independant, `messages-unread-badge-realtime.js` (compteur de MESSAGES
+ * non lus, un modele de donnees et un evenement totalement distincts de
+ * `MemberNotification` — ne jamais confondre les deux compteurs). Les
+ * deux modules appellent `win.Echo.private('user.{userId}')` separement,
+ * et recoivent le MEME objet canal (`laravel-echo` le met en cache par
+ * nom) : chacun y pose son propre `.listen()` sur un NOM D'EVENEMENT
+ * different, ce qui cohabite sans conflit. `destroy()` ne doit en
+ * revanche JAMAIS appeler `Echo.leave('user.{userId}')` ici — voir le
+ * commentaire a l'endroit ou cet appel a ete retire.
  */
 
 export const EVENT_NOTIFICATION_COUNT_CHANGED = '.notification.count-changed';
@@ -202,13 +213,20 @@ export function notificationsBadgeRealtime({ userId, fetchUnreadCount, win = win
                 channel.stopListening(EVENT_NOTIFICATION_COUNT_CHANGED, eventHandler);
             }
 
-            if (win.Echo && channel) {
-                const stillOurs = win.Echo.connector?.channels?.[`private-user.${userId}`] === channel;
-
-                if (stillOurs) {
-                    win.Echo.leave(`user.${userId}`);
-                }
-            }
+            // TASK-1847 — PLUS de `Echo.leave('user.{userId}')` ici. Voir
+            // le docblock en tete de fichier (section ajoutee par
+            // TASK-1847) : ce canal a desormais un SECOND consommateur
+            // independant (`messages-unread-badge-realtime.js`), qui
+            // reutilise le MEME objet canal (`Echo.private()` le met en
+            // cache par nom). `Echo.leave()` n'est pas reference-compte :
+            // l'appeler ici detruirait le canal pour l'AUTRE module aussi,
+            // meme s'il est toujours actif. Ce module se contente donc de
+            // retirer SA PROPRE ecoute (`stopListening()` ci-dessus) et
+            // laisse le canal lui-meme vivre pour la duree de la page —
+            // sans risque, puisque `user.{userId}` est scope a l'identite
+            // du visiteur courant, pas a une ressource ponctuelle comme
+            // `conversation.{id}`/`loop.{id}` qu'il faudrait vraiment
+            // quitter en changeant de page.
         },
     };
 }

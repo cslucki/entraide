@@ -355,6 +355,20 @@
                                 {{ $item['badge'] > 9 ? '9+' : $item['badge'] }}
                             </span>
                         @endif
+                        @if(($item['key'] ?? null) === 'messages')
+                            {{-- TASK-1847 — point de montage TOUJOURS present, cache par
+                                 defaut : meme idiome que `data-realtime-badge-mount=
+                                 "notifications-rail"` (TASK-1843). `messages-unread-
+                                 badge-realtime.js` (pilote Reverb, OFF par defaut) l'utilise
+                                 pour mettre a jour le badge de MESSAGES non lus sans
+                                 recharger la page. Le rendu serveur ci-dessus reste
+                                 INCHANGE — ce `<span>` ne porte jamais `data-nav-badge-
+                                 messages` tant que le JS n'a pas agi. --}}
+                            <span data-realtime-badge-mount="messages-rail"
+                                  style="display:none"
+                                  aria-hidden="true"
+                                  class="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold leading-none text-white ring-2 ring-[var(--bp-surface)]"></span>
+                        @endif
                     </span>
                     <span class="mt-0.5 leading-none">{{ $item['label'] }}</span>
                     @if($active)

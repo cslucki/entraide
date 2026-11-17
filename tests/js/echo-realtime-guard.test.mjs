@@ -130,3 +130,38 @@ test('TASK-1846 — les trois drapeaux actifs simultanement : connexion autorise
         true,
     );
 });
+
+// TASK-1847 — quatrieme pilote independant (compteur global de messages
+// non lus), meme regle que TASK-1843/1846.
+
+test('TASK-1847 — drapeau messages non lus SEUL actif, les trois autres desactives : connexion autorisee', () => {
+    const env = { ...CONFIG_COMPLETE };
+    delete env.VITE_LOOP_CHAT_REALTIME_ENABLED;
+    env.VITE_MESSAGES_UNREAD_REALTIME_ENABLED = 'true';
+
+    assert.equal(shouldEnableRealtime(env), true);
+});
+
+test('TASK-1847 — les quatre drapeaux absents : jamais de connexion', () => {
+    assert.equal(shouldEnableRealtime({ ...CONFIG_COMPLETE, VITE_LOOP_CHAT_REALTIME_ENABLED: undefined }), false);
+});
+
+test('TASK-1847 — drapeau messages non lus actif mais clef Reverb absente : jamais de connexion', () => {
+    const env = { ...CONFIG_COMPLETE, VITE_MESSAGES_UNREAD_REALTIME_ENABLED: 'true' };
+    delete env.VITE_LOOP_CHAT_REALTIME_ENABLED;
+    delete env.VITE_REVERB_APP_KEY;
+
+    assert.equal(shouldEnableRealtime(env), false);
+});
+
+test('TASK-1847 — les quatre drapeaux actifs simultanement : connexion autorisee (une seule, partagee)', () => {
+    assert.equal(
+        shouldEnableRealtime({
+            ...CONFIG_COMPLETE,
+            VITE_NOTIFICATIONS_REALTIME_ENABLED: 'true',
+            VITE_CONVERSATION_REALTIME_ENABLED: 'true',
+            VITE_MESSAGES_UNREAD_REALTIME_ENABLED: 'true',
+        }),
+        true,
+    );
+});
