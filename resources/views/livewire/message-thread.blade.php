@@ -1,4 +1,27 @@
-<div class="flex flex-col h-full" wire:poll.3000ms="pollThread" x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)">
+{{--
+    TASK-1846 — le minuteur de la conversation DIRECTE n'est plus statique :
+    `messageThreadAdaptivePolling()` le remplace par un minuteur JS qui
+    reduit lui-meme la cadence une fois Reverb abonne (voir `message-
+    thread-adaptive-polling.js`). Un echange d'ENTRAIDE GARDE son sondage
+    toutes les 3 secondes strictement inchange ci-dessous (regles metier,
+    Flux, evaluation hors de toute optimisation — mandat MASTER) et recoit
+    SIMPLEMENT un declencheur immediat en plus, `messageThreadRealtimeNudge()`.
+    Les deux drapeaux OFF (defaut) : ces deux composants restent sans
+    aucun effet, le comportement avant cette TASK est preserve a l'identique.
+
+    TASK-1816 — ce bloc ne compte pas comme une DEUXIEME directive de
+    sondage : `TASK1816MontageUniqueMessageThreadTest` relit le fichier
+    SOURCE (commentaires Blade compris), pas le rendu compile — d'ou
+    l'absence deliberee, ci-dessus, du jeton litteral que ce test recherche.
+--}}
+<div class="flex flex-col h-full"
+    @if($transaction->isDirectConversation())
+        x-data="messageThreadAdaptivePolling('{{ $transaction->id }}')"
+    @else
+        wire:poll.3000ms="pollThread"
+        x-data="messageThreadRealtimeNudge('{{ $transaction->id }}')"
+    @endif
+    x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)">
     <!-- Status banner -->
     @php
         $isDirectConversation = $transaction->isDirectConversation();

@@ -5,6 +5,7 @@ import { extractEmbedUrl } from './tiptap/media-embed-node.js';
 import { annoncerLePanneau, brancherCarteSurSonPanneau } from './editor/panneaux.js';
 import { chatLoopAdaptivePolling } from './chatloop-adaptive-polling.js';
 import { notificationsBadgeRealtime } from './notifications-badge-realtime.js';
+import { messageThreadAdaptivePolling, messageThreadRealtimeNudge } from './message-thread-adaptive-polling.js';
 import * as FilePond from 'filepond';
 import 'filepond/dist/filepond.min.css';
 import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
@@ -322,6 +323,24 @@ function registerChatLoopAdaptivePolling() {
     // `loop-chat.blade.php`. Voir `chatloop-adaptive-polling.js` pour la
     // logique (testable sans navigateur).
     Alpine.data('chatLoopAdaptivePolling', chatLoopAdaptivePolling);
+}
+
+/**
+ * TASK-1846 — meme idempotence que les `register*()` Alpine voisins.
+ * L'enregistrement est TOUJOURS fait (comme `chatLoopAdaptivePolling`) ;
+ * le drapeau `VITE_CONVERSATION_REALTIME_ENABLED` est verifie a
+ * l'INTERIEUR des deux composants eux-memes (voir `message-thread-
+ * adaptive-polling.js`), pas ici.
+ */
+function registerMessageThreadAdaptivePolling() {
+    if (!window.Alpine || window.__messageThreadAdaptivePollingRegistered) {
+        return;
+    }
+
+    window.__messageThreadAdaptivePollingRegistered = true;
+
+    Alpine.data('messageThreadAdaptivePolling', messageThreadAdaptivePolling);
+    Alpine.data('messageThreadRealtimeNudge', messageThreadRealtimeNudge);
 }
 
 /**
@@ -8534,6 +8553,7 @@ document.addEventListener('alpine:init', () => {
 document.addEventListener('alpine:init', () => {
     registerAlpineStores();
     registerChatLoopAdaptivePolling();
+    registerMessageThreadAdaptivePolling();
     registerBlogSnapshotCard();
     registerBlogEditor();
     registerBlogMethodSelectionCard();
@@ -8556,6 +8576,7 @@ document.addEventListener('alpine:init', () => {
 
 registerAlpineStores();
 registerChatLoopAdaptivePolling();
+registerMessageThreadAdaptivePolling();
 registerBlogSnapshotCard();
 registerBlogEditor();
 registerBlogMethodSelectionCard();

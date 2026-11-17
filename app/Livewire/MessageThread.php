@@ -419,6 +419,13 @@ class MessageThread extends Component
             'edited_by' => auth()->id(),
         ])->save();
 
+        // TASK-1846 — une edition change `pollFingerprint` (qui hache
+        // `edited_at`) au meme titre qu'un nouveau message : sans ce signal,
+        // l'autre partie ne la verrait qu'a la prochaine soupape de securite
+        // (20s en conversation DIRECTE des que la diffusion est active),
+        // une degradation de fraicheur que le mandat interdit explicitement.
+        ConversationBroadcaster::diffuserApresCommit($message);
+
         $this->cancelEdit();
     }
 
@@ -774,6 +781,11 @@ class MessageThread extends Component
             ->update(['pinned_at' => null, 'pinned_by_id' => null]);
 
         $message->pin($user);
+
+        // TASK-1846 — meme motif que `saveEdit()` : `pinned_at` entre dans
+        // `pollFingerprint`, mais la FREQUENCE a laquelle il est relu cote
+        // client ne doit jamais degrader a cause d'un epinglage.
+        ConversationBroadcaster::diffuserApresCommit($message);
     }
 
     public function unpinMessage(): void
@@ -785,9 +797,21 @@ class MessageThread extends Component
             return;
         }
 
-        Message::where('transaction_id', $transaction->id)
+        // TASK-1846 — l'instance est lue AVANT la mise a jour (et non un
+        // `update()` en masse comme avant cette TASK) : il faut un `Message`
+        // concret a transmettre a `ConversationBroadcaster`, et ce chemin
+        // reste un no-op identique a avant si rien n'etait epingle.
+        $message = Message::where('transaction_id', $transaction->id)
             ->whereNotNull('pinned_at')
-            ->update(['pinned_at' => null, 'pinned_by_id' => null]);
+            ->first();
+
+        if (! $message) {
+            return;
+        }
+
+        $message->update(['pinned_at' => null, 'pinned_by_id' => null]);
+
+        ConversationBroadcaster::diffuserApresCommit($message);
     }
 
     public function toggleReaction(string $messageId, string $reactionType): void
@@ -831,6 +855,11 @@ class MessageThread extends Component
                 'reaction_type' => $reactionType,
             ]);
         }
+
+        // TASK-1846 — les trois branches ci-dessus changent toutes le
+        // hachage de reactions de `pollFingerprint` : un seul point d'appel,
+        // apres la decision, couvre ajout/suppression/changement de type.
+        ConversationBroadcaster::diffuserApresCommit($message);
     }
 
     private function storeImage($file): string
