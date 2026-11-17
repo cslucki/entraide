@@ -406,6 +406,15 @@
                     {{ $mobileUnreadNotifications > 9 ? '9+' : $mobileUnreadNotifications }}
                 </span>
                 @endif
+                {{-- TASK-1843 — meme point de montage que le rail (`app-side-nav`),
+                     voir son commentaire : rendu serveur ci-dessus INCHANGE, JS
+                     additif et OFF par defaut. `style="display:none"` plutot que
+                     l'attribut `hidden`, pour la meme raison de specificite CSS
+                     face a `flex`. --}}
+                <span data-realtime-badge-mount="notifications-mobile"
+                      style="display:none"
+                      aria-hidden="true"
+                      class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white dark:ring-gray-900"></span>
             </a>
 
             <x-dropdown align="right" width="w-72" contentClasses="py-2 bg-white dark:bg-gray-800">

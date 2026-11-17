@@ -9,9 +9,19 @@
  * environnement SANS Reverb configure — soit tout le monde sauf ce pilote
  * local — le navigateur tentait en boucle une connexion WebSocket vers un
  * hote et une clef `undefined`.
+ *
+ * TASK-1843 — `window.Echo` reste une connexion UNIQUE, partagee par
+ * TOUTES les surfaces temps reel du navigateur (audit TASK-1842, section
+ * 3.2 : un seul client Reverb, jamais un par fonctionnalite). Elle doit
+ * donc s'instancier des que L'UNE des surfaces l'exige — ici ChatLoop OU
+ * le badge de notifications — meme si chaque drapeau reste independant et
+ * FAUX par defaut.
  */
 export function shouldEnableRealtime(env) {
-    return env.VITE_LOOP_CHAT_REALTIME_ENABLED === 'true'
+    return (
+        env.VITE_LOOP_CHAT_REALTIME_ENABLED === 'true'
+        || env.VITE_NOTIFICATIONS_REALTIME_ENABLED === 'true'
+    )
         && Boolean(env.VITE_REVERB_APP_KEY)
         && Boolean(env.VITE_REVERB_HOST);
 }

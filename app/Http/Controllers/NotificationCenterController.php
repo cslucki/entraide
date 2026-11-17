@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Support\Entraide\TempsPartage;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationTargetResolver;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -724,6 +725,29 @@ class NotificationCenterController extends Controller
             ));
 
         return back();
+    }
+
+    /**
+     * TASK-1843 — source de verite HTTP du badge temps reel.
+     *
+     * `notifications-badge-realtime.js` l'appelle a chaque evenement Reverb
+     * recu (`MemberNotificationCreated`) et a chaque (re)abonnement reussi
+     * au canal — jamais a partir du payload WebSocket, qui ne porte aucun
+     * compte ni aucune donnee personnelle. Meme resolution Organization que
+     * le reste du controleur (`acteur()`) : un membre ne voit jamais que son
+     * propre compteur, dans SON Organization.
+     *
+     * Idempotent par construction : `unreadNotificationsCount()` relit
+     * `COUNT(*)` a chaque appel, jamais un delta — un appel repete ou un
+     * evenement rejoue rendent toujours la MEME valeur exacte.
+     */
+    public function unreadCount(Request $request): JsonResponse
+    {
+        [$user, $organization] = $this->acteur($request);
+
+        return response()->json([
+            'count' => $user->unreadNotificationsCount((string) $organization->id),
+        ]);
     }
 
     /**

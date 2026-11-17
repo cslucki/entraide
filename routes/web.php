@@ -503,6 +503,16 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/{notification}/unread', [NotificationCenterController::class, 'markUnread'])->middleware('throttle:60,1')->name('notifications.unread');
     Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
 
+    // TASK-1843 — source de verite HTTP du badge temps reel. Appelee par
+    // `notifications-badge-realtime.js` a chaque evenement Reverb recu,
+    // JAMAIS lue depuis le payload WebSocket (qui ne porte aucun compte,
+    // voir `MemberNotificationCreated`). Chemin UNIQUE (pas de duplicate
+    // org-slug) : un `fetch()` JS cible un chemin absolu, pas une route
+    // nommee, et `NotificationCenterController::acteur()` resout deja
+    // l'Organization du MEMBRE avant celle par defaut de la plateforme,
+    // quel que soit le prefixe de la page qui l'appelle.
+    Route::get('/notifications/unread-count', [NotificationCenterController::class, 'unreadCount'])->middleware('throttle:60,1')->name('notifications.unread-count');
+
     // TASK-1739 — abonnements Web Push, un par APPAREIL.
     //
     // Regime `auth` seul, comme Favoris, Points et les preferences de

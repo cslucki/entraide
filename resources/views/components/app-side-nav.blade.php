@@ -397,6 +397,23 @@
                                 {{ $unreadNotificationsCount > 9 ? '9+' : $unreadNotificationsCount }}
                             </span>
                         @endif
+                        {{-- TASK-1843 — point de montage TOUJOURS present, cache par
+                             defaut : `notifications-badge-realtime.js` (pilote Reverb,
+                             OFF par defaut) l'utilise pour mettre a jour le badge sans
+                             recharger la page. Le rendu serveur ci-dessus reste
+                             INCHANGE — ce `<span>` ne porte jamais
+                             `data-nav-badge-notifications` tant que le JS n'a pas agi,
+                             ce qui laisse intactes les assertions existantes
+                             (TASK-1373/1374/1411) sur l'absence de cet attribut a zero. --}}
+                        {{-- `style="display:none"` et non l'attribut `hidden` : ce
+                             `<span>` porte aussi `flex` (meme specificite CSS que la
+                             regle UA `[hidden]`), qui l'aurait sinon gagnee sur
+                             certains ordres de build Tailwind. Un style EN LIGNE n'a
+                             pas ce probleme. --}}
+                        <span data-realtime-badge-mount="notifications-rail"
+                              style="display:none"
+                              aria-hidden="true"
+                              class="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold leading-none text-white ring-2 ring-[var(--bp-surface)]"></span>
                     </span>
                     <span class="mt-0.5 leading-none">{{ __('navigation.notifications') }}</span>
                     @if($notificationsActive)
