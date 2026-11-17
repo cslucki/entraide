@@ -64,3 +64,34 @@ test('une chaine tronquee ("tru", "1") ne vaut pas "true" : jamais de connexion'
     // accident une comparaison trop permissive.
     assert.equal(shouldEnableRealtime({ ...CONFIG_COMPLETE, VITE_LOOP_CHAT_REALTIME_ENABLED: '1' }), false);
 });
+
+// TASK-1843 — `window.Echo` est une connexion PARTAGEE par ChatLoop ET le
+// badge de notifications : elle doit s'instancier des que L'UN des deux
+// drapeaux est actif, chacun restant independant et FAUX par defaut.
+
+test('TASK-1843 — drapeau notifications SEUL actif, ChatLoop desactive : connexion autorisee', () => {
+    const env = { ...CONFIG_COMPLETE };
+    delete env.VITE_LOOP_CHAT_REALTIME_ENABLED;
+    env.VITE_NOTIFICATIONS_REALTIME_ENABLED = 'true';
+
+    assert.equal(shouldEnableRealtime(env), true);
+});
+
+test('TASK-1843 — les deux drapeaux absents : jamais de connexion', () => {
+    assert.equal(shouldEnableRealtime({ ...CONFIG_COMPLETE, VITE_LOOP_CHAT_REALTIME_ENABLED: undefined }), false);
+});
+
+test('TASK-1843 — drapeau notifications actif mais clef Reverb absente : jamais de connexion', () => {
+    const env = { ...CONFIG_COMPLETE, VITE_NOTIFICATIONS_REALTIME_ENABLED: 'true' };
+    delete env.VITE_LOOP_CHAT_REALTIME_ENABLED;
+    delete env.VITE_REVERB_APP_KEY;
+
+    assert.equal(shouldEnableRealtime(env), false);
+});
+
+test('TASK-1843 — les deux drapeaux actifs simultanement : connexion autorisee (une seule, partagee)', () => {
+    assert.equal(
+        shouldEnableRealtime({ ...CONFIG_COMPLETE, VITE_NOTIFICATIONS_REALTIME_ENABLED: 'true' }),
+        true,
+    );
+});

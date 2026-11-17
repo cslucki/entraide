@@ -2,11 +2,14 @@
 
 namespace App\Support\Notifications;
 
+use App\Events\MemberNotificationCreated;
 use App\Models\MemberNotification;
 use App\Models\Organization;
 use App\Models\User;
+use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
@@ -133,6 +136,8 @@ final class NotificationEmitter
 
                 $this->planner()->plan($notification, $canauxAutorises);
 
+                $this->diffuserSiActive($notification);
+
                 return $notification;
             });
         } catch (UniqueConstraintViolationException) {
@@ -150,6 +155,64 @@ final class NotificationEmitter
             // l'identique, le refus repart tel quel.
             return $this->alreadyDelivered($attributes) ?? throw $refus;
         }
+    }
+
+    /**
+     * TASK-1843 — diffusion temps reel du badge, OFF par defaut
+     * (`config('notifications_realtime.enabled')`), independante du pilote
+     * ChatLoop (`config('loop_chat.realtime_enabled')`).
+     *
+     * ## Pourquoi `DB::afterCommit()` est pose ICI, a la main
+     *
+     * Cette methode est appelee depuis l'INTERIEUR du `DB::transaction()`
+     * de `emit()` ci-dessus — mais `emit()` elle-meme est tres souvent
+     * appelee DEPUIS la transaction d'un producteur (mentions, demandes
+     * d'aide, invitations...) : `DB::transaction()` imbrique n'ouvre alors
+     * qu'un POINT DE SAUVEGARDE, et le commit REEL n'arrive que beaucoup
+     * plus haut dans la pile d'appel, hors de portee de tout `catch` pose
+     * ICI.
+     *
+     * Plutot que de faire porter cette garantie par CHACUN des producteurs
+     * (10 fichiers, hors perimetre de cette TASK — section 3 du mandat),
+     * la diffusion est enregistree dans un callback `DB::afterCommit()`
+     * qui, lui, ne s'execute QUE lorsque la transaction la plus EXTERNE
+     * commit vraiment — peu importe sa profondeur d'imbrication. Le
+     * `try/catch` est a L'INTERIEUR de ce meme callback : si Reverb est en
+     * panne a ce moment-la, l'exception est avalee ICI, jamais rejouee au
+     * `foreach` d'`executeCallbacks()` qui l'execute — elle ne peut donc
+     * JAMAIS casser ni la transaction qui vient de reussir, ni un AUTRE
+     * callback `afterCommit` enregistre a cote (ex. l'envoi Email/Web Push
+     * de CETTE MEME notification, ou l'event `LoopMessageCreated` d'un
+     * message qui porterait une mention). C'est une garantie plus large
+     * que celle de TASK-1839 (qui exigeait un `catch` par site d'appel) —
+     * necessaire ici vu le nombre de producteurs.
+     *
+     * La creation de la `MemberNotification` est, elle, deja actee avant
+     * que ce callback ne parte : une panne Reverb ne peut donc annuler ni
+     * la notification elle-meme, ni sa planification Email/Web Push
+     * (`NotificationDeliveryPlanner::plan()`, appele juste avant, dans la
+     * MEME transaction).
+     */
+    private function diffuserSiActive(MemberNotification $notification): void
+    {
+        if (! config('notifications_realtime.enabled')) {
+            return;
+        }
+
+        DB::afterCommit(function () use ($notification) {
+            try {
+                broadcast(new MemberNotificationCreated($notification));
+            } catch (BroadcastException $e) {
+                Log::warning(
+                    'TASK-1843 diffusion Reverb en echec, notification interne deja enregistree.',
+                    [
+                        'notification_id' => $notification->id,
+                        'recipient_id' => $notification->recipient_id,
+                        'raison' => $e->getMessage(),
+                    ]
+                );
+            }
+        });
     }
 
     /**
