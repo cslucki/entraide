@@ -16,11 +16,16 @@
  * donc s'instancier des que L'UNE des surfaces l'exige — ici ChatLoop OU
  * le badge de notifications — meme si chaque drapeau reste independant et
  * FAUX par defaut.
+ *
+ * TASK-1846 — troisieme pilote independant (messages de conversation
+ * privee, `message-thread-adaptive-polling.js`). Meme regle : s'ajoute au
+ * OU, sans jamais devenir une condition requise pour les deux autres.
  */
 export function shouldEnableRealtime(env) {
     return (
         env.VITE_LOOP_CHAT_REALTIME_ENABLED === 'true'
         || env.VITE_NOTIFICATIONS_REALTIME_ENABLED === 'true'
+        || env.VITE_CONVERSATION_REALTIME_ENABLED === 'true'
     )
         && Boolean(env.VITE_REVERB_APP_KEY)
         && Boolean(env.VITE_REVERB_HOST);
