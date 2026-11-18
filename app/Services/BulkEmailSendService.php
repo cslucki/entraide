@@ -2,13 +2,17 @@
 
 namespace App\Services;
 
+use App\Jobs\SendBulkEmailToRecipient;
 use App\Models\BulkEmailSend;
 use App\Models\BulkEmailSendRecipient;
 use App\Models\EmailLog;
 use App\Models\EmailTemplate;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Throwable;
@@ -16,13 +20,21 @@ use Throwable;
 /**
  * TASK-1803 — l'outil « Envoi emails » du superadmin.
  *
- * Pas de vraie file d'attente dans cette application (`QUEUE_CONNECTION=sync`,
- * voir `.env`) : un envoi se fait donc en LOTS synchrones, l'admin cliquant
- * "lot suivant" entre chacun — meme principe de securite que
- * `AdminEmailTemplatesController::sendExecute`, plafonne a 50 destinataires
- * par requete. La cible (Organization x filtre membres) est resolue UNE
- * FOIS a la creation et figee en lignes `bulk_email_send_recipients` : voir
- * le docblock de la migration pour pourquoi (re-resoudre le meme filtre a
+ * ## TASK-1861 — reservation atomique, envoi deporte vers la Managed Queue
+ *
+ * `sendNextBatch()` ne telephone plus le SMTP lui-meme : il RESERVE, par
+ * lot plafonne a 50 (inchange), les destinataires encore `pending`, puis
+ * dispatche UN job par destinataire reserve (`SendBulkEmailToRecipient`,
+ * meme famille que `SendLoopInvitationEmail` TASK-1860). La reservation
+ * (`claimRecipient()`) reprend A L'IDENTIQUE l'idiome de
+ * `NotificationEmailDeliverer::prendre()` (TASK-1377) : une UNIQUE requete
+ * UPDATE conditionnee sur l'etat attendu, le nombre de lignes affectees
+ * tranchant qui possede la ligne — aucune fenetre de double envoi, meme
+ * sous deux declenchements concurrents sur le meme lot.
+ *
+ * La cible (Organization x filtre membres) reste resolue UNE FOIS a la
+ * creation et figee en lignes `bulk_email_send_recipients` : voir le
+ * docblock de la migration pour pourquoi (re-resoudre le meme filtre a
  * chaque lot decalerait silencieusement "le lot suivant" si un membre
  * s'inscrit, change d'Organization ou remplit sa bio entre deux clics).
  */
@@ -123,56 +135,217 @@ class BulkEmailSendService
     }
 
     /**
-     * @return array{sent: int, failed: int, remaining: int}
+     * Reserve jusqu'a `$batchSize` destinataires encore `pending` et
+     * dispatche un job par destinataire effectivement reserve.
+     *
+     * Ne dit JAMAIS combien ont ete envoyes : l'envoi est deporte, donc
+     * inconnu au moment ou cette methode rend la main. `queued` est le seul
+     * compte fiable a cet instant precis.
+     *
+     * @return array{queued: int, remaining: int}
      */
     public function sendNextBatch(BulkEmailSend $send, int $batchSize = 50): array
     {
-        $recipients = $send->recipients()
+        $candidateIds = $send->recipients()
             ->where('status', BulkEmailSendRecipient::STATUS_PENDING)
-            ->with('user')
             ->orderBy('created_at')
             ->limit($batchSize)
-            ->get();
+            ->pluck('id');
 
-        $sent = 0;
-        $failed = 0;
+        $queued = 0;
 
-        foreach ($recipients as $recipient) {
-            if ($recipient->user === null) {
-                // Le membre a ete supprime pendant l'envoi : la ligne reste comme
-                // trace, mais il n'y a plus personne a qui ecrire.
-                $recipient->update(['status' => BulkEmailSendRecipient::STATUS_FAILED]);
-                $failed++;
-
+        foreach ($candidateIds as $recipientId) {
+            if (! $this->claimRecipient($recipientId)) {
+                // Un autre declenchement concurrent a deja reserve cette
+                // ligne precise entre notre SELECT et cette tentative : on
+                // ne la retente pas, exactement ce que cette reservation
+                // existe pour empecher.
                 continue;
             }
 
-            $log = $this->sendOne($recipient->user, $send, $send->creator);
+            // `rescue()` rend `null` dans les DEUX branches ici (le
+            // dispatch comme la fermeture de rattrapage ne rendent rien) :
+            // son resultat ne peut donc pas distinguer succes et echec.
+            // Un drapeau capture par reference le peut.
+            $dispatched = true;
 
-            $recipient->update([
-                'status' => $log->status === EmailLog::STATUS_SENT
-                    ? BulkEmailSendRecipient::STATUS_SENT
-                    : BulkEmailSendRecipient::STATUS_FAILED,
-                'email_log_id' => $log->id,
-            ]);
+            rescue(
+                fn () => Bus::dispatch(new SendBulkEmailToRecipient((string) $recipientId)),
+                function (Throwable $e) use ($recipientId, &$dispatched): void {
+                    $dispatched = false;
 
-            if ($log->status === EmailLog::STATUS_SENT) {
-                $sent++;
-            } else {
-                $failed++;
+                    // La mise en file a echoue AVANT tout appel SMTP : on
+                    // SAIT avec certitude que rien n'a ete tente, donc il
+                    // est sur de revenir a `pending` pour un prochain lot —
+                    // contrairement a une panne APRES le transport, ceci
+                    // n'est jamais ambigu.
+                    BulkEmailSendRecipient::whereKey($recipientId)
+                        ->where('status', BulkEmailSendRecipient::STATUS_QUEUED)
+                        ->update(['status' => BulkEmailSendRecipient::STATUS_PENDING]);
+
+                    Log::error('Email notification failed after successful business action', [
+                        'event' => 'bulk_email_recipient_dispatch_failed',
+                        'bulk_email_send_recipient_id' => $recipientId,
+                        'exception_class' => $e::class,
+                    ]);
+                },
+                false,
+            );
+
+            if ($dispatched) {
+                $queued++;
             }
         }
 
-        $send->increment('sent_count', $sent);
-        $send->increment('failed_count', $failed);
-
         $remaining = $send->recipients()->where('status', BulkEmailSendRecipient::STATUS_PENDING)->count();
+
+        return ['queued' => $queued, 'remaining' => $remaining];
+    }
+
+    /**
+     * La transition `pending -> queued`, en UNE requete — meme idiome que
+     * `NotificationEmailDeliverer::prendre()` (TASK-1377). L'etat attendu
+     * est DANS la clause `WHERE` : c'est ce qui rend la reservation
+     * atomique. Le relire d'abord en PHP rouvrirait la fenetre.
+     */
+    public function claimRecipient(string $recipientId): bool
+    {
+        return BulkEmailSendRecipient::whereKey($recipientId)
+            ->where('status', BulkEmailSendRecipient::STATUS_PENDING)
+            ->update(['status' => BulkEmailSendRecipient::STATUS_QUEUED]) === 1;
+    }
+
+    /**
+     * Le travail d'UN destinataire DEJA reserve — appele par
+     * `SendBulkEmailToRecipient::handle()`. Tout est RELU au moment du
+     * travail : le destinataire, l'envoi parent et l'utilisateur sont une
+     * photo d'un etat passe au moment du dispatch.
+     */
+    public function processRecipient(string $recipientId): void
+    {
+        $recipient = BulkEmailSendRecipient::find($recipientId);
+
+        if ($recipient === null) {
+            Log::warning('BulkEmailSendService: destinataire introuvable au moment du traitement.', [
+                'bulk_email_send_recipient_id' => $recipientId,
+            ]);
+
+            return;
+        }
+
+        if ($recipient->status !== BulkEmailSendRecipient::STATUS_QUEUED) {
+            // Deja traite (ou jamais reserve par ce chemin) : ne JAMAIS
+            // retraiter une ligne qui n'est plus a ce worker precis.
+            Log::warning('BulkEmailSendService: destinataire non reserve au moment du traitement, ignore.', [
+                'bulk_email_send_recipient_id' => $recipientId,
+                'status' => $recipient->status,
+            ]);
+
+            return;
+        }
+
+        $send = BulkEmailSend::find($recipient->bulk_email_send_id);
+
+        if ($send === null) {
+            Log::warning('BulkEmailSendService: envoi introuvable au moment du traitement.', [
+                'bulk_email_send_recipient_id' => $recipientId,
+            ]);
+
+            return;
+        }
+
+        $this->withOrganizationContext($send->organization_id, function () use ($recipient, $send): void {
+            $user = User::find($recipient->user_id);
+
+            if ($user === null) {
+                // Le membre a ete supprime pendant l'envoi : la ligne reste
+                // comme trace, mais il n'y a plus personne a qui ecrire.
+                // Pre-transport, donc un `failed` propre — jamais ambigu.
+                $recipient->update(['status' => BulkEmailSendRecipient::STATUS_FAILED]);
+                $send->increment('failed_count');
+                $this->maybeComplete($send);
+
+                return;
+            }
+
+            $log = $this->sendOne($user, $send, $send->creator);
+
+            $recipient->update([
+                'status' => match ($log->status) {
+                    EmailLog::STATUS_SENT => BulkEmailSendRecipient::STATUS_SENT,
+                    EmailLog::STATUS_AMBIGUOUS => BulkEmailSendRecipient::STATUS_AMBIGUOUS,
+                    default => BulkEmailSendRecipient::STATUS_FAILED,
+                },
+                'email_log_id' => $log->id,
+            ]);
+
+            match ($log->status) {
+                EmailLog::STATUS_SENT => $send->increment('sent_count'),
+                // `ambiguous` n'est NI confirme envoye NI confirme echoue —
+                // ne grossit aucun des deux compteurs, voir le docblock de
+                // `BulkEmailSendRecipient`.
+                EmailLog::STATUS_AMBIGUOUS => null,
+                default => $send->increment('failed_count'),
+            };
+
+            $this->maybeComplete($send);
+        });
+    }
+
+    /**
+     * L'envoi passe `completed` quand plus AUCUNE ligne n'est `pending` ni
+     * `queued` — jamais seulement quand `pending` atteint zero : une ligne
+     * `queued` est un job en vol, pas un travail termine. Idempotent : deux
+     * jobs qui concluent au meme instant ne font que poser la MEME valeur
+     * deux fois, sans effet de bord supplementaire.
+     */
+    private function maybeComplete(BulkEmailSend $send): void
+    {
+        $remaining = $send->recipients()
+            ->whereIn('status', [BulkEmailSendRecipient::STATUS_PENDING, BulkEmailSendRecipient::STATUS_QUEUED])
+            ->count();
 
         if ($remaining === 0) {
             $send->update(['status' => BulkEmailSend::STATUS_COMPLETED]);
         }
+    }
 
-        return ['sent' => $sent, 'failed' => $failed, 'remaining' => $remaining];
+    /**
+     * Idiome repris du reste de la famille (TASK-1854/1855/1857/1858/1860),
+     * adapte a la seule particularite de ce modele : `organization_id` NULL
+     * est une valeur a part entiere (« toutes les Organizations »), pas une
+     * absence a combler — rien n'est donc lie quand il est NULL.
+     *
+     * @template TReturn
+     *
+     * @param  callable(): TReturn  $callback
+     * @return TReturn
+     */
+    private function withOrganizationContext(?string $organizationId, callable $callback): mixed
+    {
+        if ($organizationId === null) {
+            return $callback();
+        }
+
+        $hadPrevious = app()->bound('current_organization');
+        $previous = $hadPrevious ? app('current_organization') : null;
+        $organization = Organization::query()->whereKey($organizationId)->first();
+
+        if ($organization) {
+            app()->instance('current_organization', $organization);
+        } elseif ($hadPrevious) {
+            app()->forgetInstance('current_organization');
+        }
+
+        try {
+            return $callback();
+        } finally {
+            if ($hadPrevious) {
+                app()->instance('current_organization', $previous);
+            } else {
+                app()->forgetInstance('current_organization');
+            }
+        }
     }
 
     /**
@@ -261,7 +434,13 @@ class BulkEmailSendService
             $status = EmailLog::STATUS_SENT;
             $error = null;
         } catch (Throwable $e) {
-            $status = EmailLog::STATUS_FAILED;
+            // TASK-1861 — FRONTIERE H1 (meme discipline que
+            // `NotificationEmailDeliverer::envoyer()`) : a partir du moment
+            // ou `Mail::html()/raw()` a ete appele, SMTP a peut-etre deja
+            // accepte le message. `failed` inviterait a rejouer ce
+            // destinataire, donc a l'envoyer deux fois ; `ambiguous` dit
+            // l'ignorance et n'est jamais repris automatiquement.
+            $status = EmailLog::STATUS_AMBIGUOUS;
             $error = $e->getMessage();
         }
 

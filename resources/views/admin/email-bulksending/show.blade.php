@@ -1,5 +1,9 @@
 @php
-    $processed = $send->sent_count + $send->failed_count;
+    // TASK-1861 — `ambiguous` est une TENTATIVE (le transport a ete
+    // sollicite), ni confirmee envoyee ni confirmee echouee : sans elle
+    // ici, la barre ne pourrait jamais atteindre 100% des qu'une livraison
+    // reste incertaine.
+    $processed = $send->sent_count + $send->failed_count + $send->ambiguous_count;
     $percent = $send->total_recipients > 0 ? (int) round(($processed / $send->total_recipients) * 100) : 0;
 @endphp
 <x-admin-layout>
@@ -25,6 +29,9 @@
                         </h3>
                         <span class="text-xs text-gray-500 dark:text-gray-400">
                             {{ __('admin.bulk_email_sent_failed', ['sent' => $send->sent_count, 'failed' => $send->failed_count]) }}
+                            @if($send->ambiguous_count > 0)
+                                · {{ __('admin.bulk_email_ambiguous_note', ['count' => $send->ambiguous_count]) }}
+                            @endif
                         </span>
                     </div>
                     <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
