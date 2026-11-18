@@ -403,6 +403,22 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
+        // TASK-1856 — incident PROD 1.855 : `reviews.store` partageait le
+        // compteur BRUT `throttle:5,1` avec sept autres routes
+        // (`reports.*`, `bug-reports.store`, `loops.store`, `loops.join-
+        // requests.store`, `loops.ai`, `loops.knowledge.ask`,
+        // `dossiers.insights`) — la cle de `ThrottleRequests::
+        // resolveRequestSignature()` ne porte que l'identifiant de
+        // l'utilisateur, jamais le nom de la route. Un limiteur NOMME
+        // isole automatiquement son compteur : `ThrottleRequests::
+        // handleRequestUsingNamedLimiter()` hache `$limiterName.$limit->key`,
+        // le nom du limiteur fait donc PARTIE de la cle (verifie dans le
+        // vendor). Meme limite EXACTE qu'avant (5/60s par utilisateur) —
+        // seule l'isolation change.
+        RateLimiter::for('reviews', function (Request $request) {
+            return Limit::perMinute(5)->by($request->user()?->id ?: $request->ip());
+        });
+
         RateLimiter::for('api-auth', function (Request $request) {
             return Limit::perMinute(10)->by($request->ip());
         });
