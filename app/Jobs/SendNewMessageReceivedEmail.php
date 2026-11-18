@@ -52,6 +52,24 @@ use Illuminate\Support\Facades\Log;
  * seule charge utile. Un refus est journalise SANS email ni identifiant
  * de destinataire.
  *
+ * ## Arbitrage MASTER (revue PR #867) — coherence du MESSAGE lui-meme
+ *
+ * L'isolation ci-dessus protege le DESTINATAIRE, pas la lecture du
+ * MESSAGE : `Message` n'a aucun scope global tenant (contrairement a
+ * `Transaction`), donc `Message::find($this->messageId)` rendrait,
+ * SANS garde supplementaire, n'importe quel message portant cet
+ * identifiant — y compris un message d'une AUTRE transaction ou d'une
+ * AUTRE Organization si la charge utile etait un jour corrompue ou
+ * rejouee. `handle()` verifie donc, avant toute resolution du
+ * destinataire : `message.transaction_id` ET `message.organization_id`
+ * correspondent EXACTEMENT a la transaction relue, ET
+ * `message.sender_id` est lui-meme l'un des deux participants legitimes
+ * (buyer ou seller) — un expediteur qui n'est ni l'un ni l'autre ne peut
+ * provenir d'aucun parcours reel de cette conversation. Enfin, le
+ * destinataire ne peut jamais etre l'expediteur lui-meme (on ne notifie
+ * personne de son propre message). Chaque refus est journalise SANS
+ * contenu de message ni identifiant de destinataire.
+ *
  * ## Preferences et journalisation — PRESERVEES TELLES QUELLES
  *
  * `NewMessageReceived` ne porte aujourd'hui AUCUNE preference de
@@ -136,6 +154,32 @@ class SendNewMessageReceivedEmail implements ShouldQueue
                 return;
             }
 
+            // Arbitrage MASTER (revue PR #867) — `Message` n'a AUCUN scope
+            // global tenant (contrairement a `Transaction`, deja ecarte
+            // explicitement ci-dessus) : rien n'empeche, a la seule lecture
+            // par identifiant, qu'un message RETROUVE appartienne a une
+            // AUTRE transaction ou une AUTRE Organization que celles de la
+            // charge utile — l'isolation deja posee sur le DESTINATAIRE ne
+            // couvre pas cette lecture-la. Verifie ICI, avant toute
+            // resolution du destinataire : appartenance stricte a la
+            // transaction ET a l'Organization, puis l'expediteur doit
+            // lui-meme etre l'un des deux participants legitimes (buyer ou
+            // seller) — un message dont l'expediteur n'est NI l'un NI
+            // l'autre ne peut provenir d'aucun parcours reel de cette
+            // conversation.
+            $messageCoherent = (string) $message->transaction_id === $this->transactionId
+                && $message->organization_id === $transaction->organization_id
+                && in_array($message->sender_id, [$transaction->buyer_id, $transaction->seller_id], true);
+
+            if (! $messageCoherent) {
+                Log::warning('SendNewMessageReceivedEmail: message incoherent avec la transaction, email non envoye.', [
+                    'transaction_id' => $this->transactionId,
+                    'organization_id' => $transaction->organization_id,
+                ]);
+
+                return;
+            }
+
             $recipient = User::find($this->recipientId);
 
             if ($recipient === null) {
@@ -155,6 +199,18 @@ class SendNewMessageReceivedEmail implements ShouldQueue
 
             if (! $estDestinataireLegitime) {
                 Log::warning('SendNewMessageReceivedEmail: destinataire illegitime, email non envoye.', [
+                    'transaction_id' => $this->transactionId,
+                    'organization_id' => $transaction->organization_id,
+                ]);
+
+                return;
+            }
+
+            // Arbitrage MASTER (revue PR #867) — un destinataire identique
+            // a l'expediteur du message ne peut jamais etre legitime : on
+            // ne notifie personne de son PROPRE message.
+            if ($this->recipientId === $message->sender_id) {
+                Log::warning('SendNewMessageReceivedEmail: destinataire identique a l expediteur, email non envoye.', [
                     'transaction_id' => $this->transactionId,
                     'organization_id' => $transaction->organization_id,
                 ]);

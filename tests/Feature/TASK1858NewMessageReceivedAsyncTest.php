@@ -141,6 +141,96 @@ class TASK1858NewMessageReceivedAsyncTest extends TestCase
         $this->assertDatabaseHas('email_logs', ['to_email' => $this->seller->email]);
     }
 
+    // ── 3bis. Coherence du MESSAGE (arbitrage MASTER, revue PR #867) ───────
+
+    /**
+     * `Message` n'a aucun scope global tenant : `Message::find()` rendrait,
+     * sans garde, n'importe quel message portant cet identifiant — y
+     * compris un message d'une AUTRE transaction si la charge utile etait
+     * corrompue ou rejouee.
+     */
+    public function test_le_job_refuse_un_message_appartenant_a_une_autre_transaction(): void
+    {
+        $autreTransaction = Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            'buyer_id' => $this->buyer->id,
+            'seller_id' => $this->seller->id,
+            'status' => 'accepted',
+            'points_proposed' => 50,
+        ]);
+        $messageDAilleurs = Message::create([
+            'transaction_id' => $autreTransaction->id,
+            'sender_id' => $this->buyer->id,
+            'body' => 'Message sur une autre transaction',
+            'type' => 'user',
+            'organization_id' => $this->organization->id,
+        ]);
+
+        // La charge utile pointe vers $this->transaction, mais le message
+        // retrouve appartient a $autreTransaction.
+        $job = new SendNewMessageReceivedEmail((string) $this->transaction->id, (string) $messageDAilleurs->id, (string) $this->seller->id);
+        $job->handle();
+
+        $this->assertDatabaseMissing('email_logs', ['to_email' => $this->seller->email]);
+    }
+
+    public function test_le_job_refuse_un_message_appartenant_a_une_autre_organization(): void
+    {
+        $autreOrganization = Organization::factory()->create();
+
+        // Incoherence simulee directement en base : le message porte le
+        // BON transaction_id mais une Organization DIFFERENTE de celle de
+        // la transaction — exactement le cas qu'aucun scope global ne peut
+        // intercepter sur `Message`.
+        $messageIncoherent = Message::create([
+            'transaction_id' => $this->transaction->id,
+            'sender_id' => $this->buyer->id,
+            'body' => 'Message a l\'Organization incoherente',
+            'type' => 'user',
+            'organization_id' => $autreOrganization->id,
+        ]);
+
+        $job = new SendNewMessageReceivedEmail((string) $this->transaction->id, (string) $messageIncoherent->id, (string) $this->seller->id);
+        $job->handle();
+
+        $this->assertDatabaseMissing('email_logs', ['to_email' => $this->seller->email]);
+    }
+
+    public function test_le_job_refuse_un_message_dont_l_expediteur_est_illegitime(): void
+    {
+        $etranger = User::factory()->create(['organization_id' => $this->organization->id]);
+        $messageExpediteurIllegitime = Message::create([
+            'transaction_id' => $this->transaction->id,
+            'sender_id' => $etranger->id,
+            'body' => 'Message d\'un expediteur etranger a la conversation',
+            'type' => 'user',
+            'organization_id' => $this->organization->id,
+        ]);
+
+        $job = new SendNewMessageReceivedEmail((string) $this->transaction->id, (string) $messageExpediteurIllegitime->id, (string) $this->seller->id);
+        $job->handle();
+
+        $this->assertDatabaseMissing('email_logs', ['to_email' => $this->seller->email]);
+    }
+
+    public function test_le_job_refuse_un_destinataire_identique_a_l_expediteur(): void
+    {
+        $message = Message::create([
+            'transaction_id' => $this->transaction->id,
+            'sender_id' => $this->buyer->id,
+            'body' => 'Bonjour',
+            'type' => 'user',
+            'organization_id' => $this->organization->id,
+        ]);
+
+        // Le destinataire passe dans la charge utile est l'EXPEDITEUR
+        // lui-meme — ne doit jamais se notifier de son propre message.
+        $job = new SendNewMessageReceivedEmail((string) $this->transaction->id, (string) $message->id, (string) $this->buyer->id);
+        $job->handle();
+
+        $this->assertDatabaseMissing('email_logs', ['to_email' => $this->buyer->email]);
+    }
+
     // ── 4. Restauration du contexte tenant ──────────────────────────────────
 
     public function test_le_job_envoie_sans_aucun_contexte_de_requete_prealable(): void
