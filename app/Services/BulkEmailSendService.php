@@ -534,8 +534,17 @@ class BulkEmailSendService
         // JAMAIS laisser une exception remonter. Une panne de persistance
         // APRES un transport reussi ne doit surtout pas ressembler a un
         // echec PRE-transport pour l'appelant — `null` le dit sans ambiguite.
+        //
+        // Le bloc vit dans un POINT DE SAUVEGARDE (`DB::transaction()`),
+        // meme raison que `NotificationEmailDeliverer::tracer()` : sur
+        // PostgreSQL, une requete qui echoue ABANDONNE la transaction
+        // courante (25P02), et toute requete suivante echoue tant qu'un
+        // ROLLBACK n'a pas eu lieu — un simple `catch` PHP n'en fait pas
+        // un. Capture par la CI PostgreSQL elle-meme (PR #869, shard 3/6) :
+        // sans ce point de sauvegarde, jusqu'au `Schema::rename()` de
+        // restauration du test de sabotage echouait a son tour.
         try {
-            return EmailLog::create([
+            return DB::transaction(fn () => EmailLog::create([
                 'template_id' => $send->content_source === BulkEmailSend::CONTENT_SOURCE_TEMPLATE
                     ? $send->email_template_id
                     : null,
@@ -558,7 +567,7 @@ class BulkEmailSendService
                         ? $send->template?->slug
                         : null,
                 ],
-            ]);
+            ]));
         } catch (Throwable $e) {
             report($e);
 
