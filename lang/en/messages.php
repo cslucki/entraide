@@ -140,6 +140,9 @@ return [
     // single submission), replaces the two T1808 §5 micro-screens.
     'etoiles_titre' => 'How do you rate :prenom’s help?',
     'etoiles_valider' => 'Submit my review',
+    // TASK-1854 — shown while sending, replaces the label above while the
+    // button stays disabled (double-tap guard).
+    'etoiles_envoi_en_cours' => 'Sending…',
     // TASK-1809 (Cyril's fix, 12/11) — replaces the card once the review is
     // submitted; sharing in the Feed is now AUTOMATIC (no checkbox, no
     // separate link).

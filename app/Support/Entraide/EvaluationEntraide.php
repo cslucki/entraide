@@ -2,11 +2,12 @@
 
 namespace App\Support\Entraide;
 
+use App\Jobs\SendReviewReceivedEmail;
 use App\Models\Review;
 use App\Models\Transaction;
-use App\Services\Entraide\ReviewReceivedMailer;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Feed\FeedEventEmitter;
+use Illuminate\Support\Facades\Bus;
 
 /**
  * TASK-1806 (arbitrage du 11/11, parcours a TROIS etapes) — l'evaluation
@@ -82,10 +83,26 @@ final class EvaluationEntraide
         // `withTrashed()->exists()` plus haut rend cette ligne inatteignable
         // une seconde fois pour la meme entraide) — `ReviewModeration` ne
         // passe jamais par ici, donc une modification/un masquage SuperAdmin
-        // ne declenche jamais cet envoi. `rescue()` : un echec d'envoi ne
-        // doit jamais faire echouer le depot de l'avis lui-meme.
+        // ne declenche jamais ce depot.
+        //
+        // TASK-1854 — L'ENVOI REEL est deporte dans `SendReviewReceivedEmail`
+        // (Managed Queue Laravel Cloud deja active), pour ne plus bloquer ce
+        // thread sur une conversation SMTP (audit incident 429 du 17/11 :
+        // jusqu'a 11 281 ms observes). `ReviewReceivedMailer` est INCHANGEE,
+        // seul l'appelant change. `rescue()` : un echec de MISE EN FILE
+        // (serialisation, connexion indisponible) ne doit pas plus faire
+        // echouer le depot de l'avis qu'un echec SMTP ne le faisait avant.
+        //
+        // `Bus::dispatch()`, PAS `SendReviewReceivedEmail::dispatch()` —
+        // ce dernier (trait `Dispatchable`) renvoie un `PendingDispatch`
+        // dont le `__destruct()` fait le VRAI envoi a la file : retourne
+        // depuis la fermeture `rescue()` ci-dessous, sa destruction est
+        // DIFFEREE a la fin de CETTE instruction, hors du `try/catch` de
+        // `rescue()` — exactement le piege deja rencontre avec `broadcast()`
+        // (TASK-1850/1851). Mesure : sans ce detail, un echec de mise en
+        // file remontait en 500 au lieu d'etre absorbe ici.
         rescue(
-            fn () => app(ReviewReceivedMailer::class)->envoyer($avis),
+            fn () => Bus::dispatch(new SendReviewReceivedEmail((string) $avis->id)),
             fn (\Throwable $e) => report($e),
             false,
         );
