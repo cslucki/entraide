@@ -9,6 +9,7 @@ use App\Services\Entraide\EvaluationInviteMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -104,26 +105,47 @@ class SendEvaluationInviteEmail implements ShouldQueue
                 return;
             }
 
-            // Sequence IDENTIQUE a l'ancien appelant synchrone — voir le
-            // docblock de classe.
-            $aEnvoyer = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->whereKey($transaction->id)
-                ->whereNull('evaluation_invited_at')
-                ->exists();
+            // Arbitrage MASTER (PR #862, correctif CI) — `hasReviewFrom()`
+            // interroge `reviews`, une requete REELLE qui peut echouer (la
+            // CI Feature/PostgreSQL l'a prouve : un test TASK-1806 supprime
+            // delibrement cette table pour simuler une panne). Hors
+            // `DB::transaction()`, un echec PostgreSQL AVORTE tout le bloc
+            // de transaction ambiant (celui d'un test sous `RefreshDatabase`,
+            // ou une transaction englobante en PROD) pour TOUTES les
+            // requetes suivantes — meme motif, et meme remede par
+            // SAVEPOINT, que `TransactionController::complete()` applique
+            // deja autour de `EvaluationEntraide::enregistrer()`. Seules les
+            // DEUX lectures sont protegees : l'envoi SMTP lui-meme reste
+            // HORS transaction, pour ne jamais tenir la connexion ouverte
+            // pendant un appel reseau.
+            $aEnvoyer = DB::transaction(function () use ($transaction): bool {
+                // Sequence IDENTIQUE a l'ancien appelant synchrone — voir le
+                // docblock de classe.
+                $invitationEligible = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)
+                    ->whereKey($transaction->id)
+                    ->whereNull('evaluation_invited_at')
+                    ->exists();
+
+                if (! $invitationEligible) {
+                    return false;
+                }
+
+                // Arbitrage MASTER (PR #862) — meme regle que `evaluationEnAttente()`
+                // (`withTrashed()` : un avis modere ou supprime occupe deja
+                // l'unique emplacement de cette transaction). Rien a marquer
+                // puisqu'aucun envoi n'a lieu.
+                if ($transaction->hasReviewFrom($transaction->buyer_id)) {
+                    Log::info('SendEvaluationInviteEmail: un avis existe deja pour cette transaction, invitation non envoyee.', [
+                        'transaction_id' => $this->transactionId,
+                    ]);
+
+                    return false;
+                }
+
+                return true;
+            });
 
             if (! $aEnvoyer) {
-                return;
-            }
-
-            // Arbitrage MASTER (PR #862) — meme regle que `evaluationEnAttente()`
-            // (`withTrashed()` : un avis modere ou supprime occupe deja
-            // l'unique emplacement de cette transaction). Rien a marquer
-            // puisqu'aucun envoi n'a lieu.
-            if ($transaction->hasReviewFrom($transaction->buyer_id)) {
-                Log::info('SendEvaluationInviteEmail: un avis existe deja pour cette transaction, invitation non envoyee.', [
-                    'transaction_id' => $this->transactionId,
-                ]);
-
                 return;
             }
 
