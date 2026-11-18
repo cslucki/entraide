@@ -117,7 +117,15 @@ class EmailerServiceTest extends TestCase
         $this->assertNull($log->error_message);
     }
 
-    public function test_send_failure_creates_email_log_with_failed_status()
+    /**
+     * TASK-1863 (TASK B2) — FRONTIERE H1 : a partir du moment ou
+     * `Mail::html()` a ete appele, SMTP a peut-etre deja accepte le
+     * message. `failed` inviterait a rejouer, donc a envoyer deux fois ;
+     * `ambiguous` dit l'ignorance et n'est jamais repris automatiquement.
+     * Avant ce correctif, ce test prouvait `'failed'` — c'etait exactement
+     * le defaut corrige.
+     */
+    public function test_send_failure_after_transport_creates_email_log_with_ambiguous_status()
     {
         Mail::shouldReceive('html')->andThrow(new \Exception('SMTP error'));
 
@@ -129,7 +137,8 @@ class EmailerServiceTest extends TestCase
 
         $log = $this->service->sendFromTemplate($template, $user);
 
-        $this->assertEquals('failed', $log->status);
+        $this->assertEquals(\App\Models\EmailLog::STATUS_AMBIGUOUS, $log->status);
+        $this->assertNotEquals('failed', $log->status, 'ambiguous ne doit jamais etre confondu avec failed.');
         $this->assertEquals('SMTP error', $log->error_message);
     }
 }
