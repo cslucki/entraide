@@ -3,15 +3,20 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendTemplateEmailToUser;
 use App\Models\EmailTemplate;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\EmailerService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Throwable;
 
 class AdminEmailTemplatesController extends Controller
 {
@@ -264,6 +269,11 @@ class AdminEmailTemplatesController extends Controller
             'template' => $emailTemplate,
             'users' => $users,
             'service' => $service,
+            // TASK-1863 (TASK B2) — une NOUVELLE intention nait ICI, a
+            // chaque chargement du formulaire. Elle traverse le detour de
+            // confirmation sans en reprendre une nouvelle (voir
+            // `sendExecute()`/`sendConfirm()`).
+            'sendToken' => (string) Str::uuid(),
         ]);
     }
 
@@ -273,6 +283,7 @@ class AdminEmailTemplatesController extends Controller
             'user_ids' => 'required|array',
             'user_ids.*' => Rule::exists('users', 'id')->whereNull('banned_at'),
             'confirmed' => 'nullable|string',
+            'send_token' => ['nullable', 'string', 'max:64'],
         ]);
 
         $userIds = array_unique($validated['user_ids']);
@@ -287,32 +298,89 @@ class AdminEmailTemplatesController extends Controller
             return back()->withErrors(['user_ids' => __('admin.emailer_no_recipients')])->withInput();
         }
 
+        // TASK-1863 (TASK B2) — un jeton ABSENT (lien perime, appelant qui
+        // ignore le champ) n'empeche jamais la requete d'avancer : il en
+        // nait un ICI, scope a CETTE seule requete. Un jeton present doit
+        // survivre tel quel jusqu'a la mise en file.
+        $sendToken = $validated['send_token'] ?? (string) Str::uuid();
+
         if (! $request->has('confirmed') && count($users) > 1) {
             return redirect()->route('admin.email-templates.send.confirm', [
                 'emailTemplate' => $emailTemplate,
                 'user_ids' => $userIds,
+                'send_token' => $sendToken,
             ]);
         }
 
-        $service = app(EmailerService::class);
+        // TASK-1863 (TASK B2) — reservation ATOMIQUE de l'INTENTION, pas
+        // des destinataires. `Cache::add()` echoue si la cle existe deja :
+        // une seconde soumission du MEME jeton (double-clic, retry
+        // reseau) ne doit jamais redeclencher un envoi. `CACHE_STORE`
+        // database (confirme : table `cache` migree, idiome PRIMARY KEY)
+        // rend cette garantie valable entre plusieurs instances web, pas
+        // seulement dans ce process. Ceci est une protection a DUREE
+        // LIMITEE contre la double soumission, PAS une garantie de
+        // livraison exactement une fois (voir le docblock du job).
+        $cacheKey = 'admin-email-template-send:'.$sendToken;
+
+        if (! Cache::add($cacheKey, true, now()->addMinutes(10))) {
+            return redirect()->route('admin.email-templates.show', $emailTemplate)
+                ->with('error', __('admin.emailer_duplicate_submission'));
+        }
+
+        // TASK-1863 (TASK B2) — le contenu VALIDE par l'administrateur,
+        // capture AVANT toute mise en file : voir le docblock du job pour
+        // pourquoi c'est au dispatch, et non a l'ecran de confirmation,
+        // que cette photo doit etre prise.
+        $expectedContentHash = SendTemplateEmailToUser::contentHash($emailTemplate);
         $sender = $request->user();
 
-        $sent = 0;
-        $failed = 0;
+        $queued = 0;
+        $dispatchFailed = 0;
 
         foreach ($users as $user) {
-            $log = $service->sendFromTemplate($emailTemplate, $user, $sender);
-            if ($log->status === 'sent') {
-                $sent++;
+            // `rescue()` rend `null` dans les deux branches : son resultat
+            // ne peut pas distinguer succes et echec, d'ou le drapeau
+            // capture par reference (meme bug corrige en TASK-1861).
+            $dispatched = true;
+
+            rescue(
+                fn () => Bus::dispatch(new SendTemplateEmailToUser(
+                    (string) $emailTemplate->id,
+                    (string) $user->id,
+                    (string) $sender->id,
+                    $expectedContentHash,
+                )),
+                function (Throwable $e) use (&$dispatched, $emailTemplate, $user): void {
+                    $dispatched = false;
+
+                    // Un echec de mise en file pour CE destinataire ne
+                    // doit jamais retenter ni annuler les destinataires
+                    // DEJA acceptes par la file plus haut dans la boucle.
+                    Log::error('Email notification failed after successful business action', [
+                        'event' => 'admin_template_email_dispatch_failed',
+                        'template_id' => $emailTemplate->id,
+                        'user_id' => $user->id,
+                        'exception_class' => $e::class,
+                    ]);
+                },
+                false,
+            );
+
+            if ($dispatched) {
+                $queued++;
             } else {
-                $failed++;
+                $dispatchFailed++;
             }
         }
 
-        $total = $sent + $failed;
+        $total = $queued + $dispatchFailed;
 
+        // TASK-1863 (TASK B2) — l'envoi SMTP est deporte : au moment ou
+        // cette reponse part, on sait ce qui a ete MIS EN FILE, jamais ce
+        // qui a ete reellement livre.
         return redirect()->route('admin.email-templates.show', $emailTemplate)
-            ->with('success', __('admin.emailer_sent_count', ['sent' => $sent, 'failed' => $failed, 'total' => $total]));
+            ->with('success', __('admin.emailer_sent_count', ['queued' => $queued, 'failed' => $dispatchFailed, 'total' => $total]));
     }
 
     public function sendConfirm(Request $request, EmailTemplate $emailTemplate): View
@@ -334,6 +402,12 @@ class AdminEmailTemplatesController extends Controller
             'userIds' => $userIds,
             'service' => $service,
             'confirm' => true,
+            // TASK-1863 (TASK B2) — reprend le jeton deja ne au premier
+            // POST (ou a l'ouverture du formulaire), jamais un nouveau :
+            // c'est ce qui rend le jeton STABLE pendant tout le detour de
+            // confirmation. Le repli n'existe que pour une arrivee
+            // directe sur cet ecran sans jeton (lien forge/perime).
+            'sendToken' => (string) $request->query('send_token', (string) Str::uuid()),
         ]);
     }
 

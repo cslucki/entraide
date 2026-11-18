@@ -822,7 +822,8 @@ return [
     'emailer_deleted' => 'Template d\'email supprimé avec succès.',
     'emailer_max_50' => 'Maximum 50 destinataires par envoi.',
     'emailer_no_recipients' => 'Aucun destinataire valide.',
-    'emailer_sent_count' => ':sent envoyé(s), :failed échoué(s) (sur :total)',
+    'emailer_sent_count' => ':queued email(s) programmé(s), :failed échec(s) de mise en file (sur :total)',
+    'emailer_duplicate_submission' => 'Cette intention d\'envoi a déjà été traitée.',
 
     // TASK-1803 — outil « Envoi emails » (bulk sending)
     'emailer_bulksending' => 'Envoi emails',

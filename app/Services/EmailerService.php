@@ -6,6 +6,7 @@ use App\Models\CrmContact;
 use App\Models\EmailLog;
 use App\Models\EmailTemplate;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
 
@@ -153,7 +154,15 @@ class EmailerService
         }, $subject);
     }
 
-    public function sendFromTemplate(EmailTemplate $template, User $user, ?User $sender = null): EmailLog
+    /**
+     * TASK-1863 (TASK B2) — rend `null` quand le transport a ete SOLLICITE
+     * (reussi ou leve) mais que la PREUVE elle-meme (`EmailLog::create()`)
+     * n'a pas pu s'ecrire. Ne laisse JAMAIS une exception de persistance
+     * remonter apres le transport : l'appelant doit pouvoir conclure sans
+     * jamais risquer de rejouer un envoi peut-etre deja parti. Meme motif
+     * que `BulkEmailSendService::sendOne()` (TASK-1861).
+     */
+    public function sendFromTemplate(EmailTemplate $template, User $user, ?User $sender = null): ?EmailLog
     {
         $variables = $this->availableVariables($user);
         $html = $this->interpolate($template->content_html, $variables);
@@ -169,27 +178,52 @@ class EmailerService
                 }
             });
 
-            $status = 'sent';
+            $status = EmailLog::STATUS_SENT;
             $error = null;
         } catch (Throwable $e) {
-            $status = 'failed';
+            // TASK-1863 (TASK B2) — FRONTIERE H1 (meme discipline que
+            // `NotificationEmailDeliverer::envoyer()`, TASK-1377, et
+            // `BulkEmailSendService::sendOne()`, TASK-1861) : a partir du
+            // moment ou `Mail::html()` a ete appele, SMTP a peut-etre deja
+            // accepte le message. `failed` inviterait a rejouer ce
+            // destinataire, donc a l'envoyer deux fois ; `ambiguous` dit
+            // l'ignorance et n'est jamais repris automatiquement. Avant ce
+            // correctif, cette ligne concluait `'failed'` litteral — seul
+            // appelant de ce service a ne pas encore respecter cette
+            // frontiere.
+            $status = EmailLog::STATUS_AMBIGUOUS;
             $error = $e->getMessage();
         }
 
-        return EmailLog::create([
-            'template_id' => $template->id,
-            'user_id' => $user->id,
-            'organization_id' => $user->organization_id,
-            'to_email' => $user->email,
-            'subject' => $subject,
-            'status' => $status,
-            'error_message' => $error,
-            'data' => [
-                'source' => 'emailer',
-                'sender_id' => $sender?->id,
-                'template_slug' => $template->slug,
-            ],
-        ]);
+        // TASK-1863 (TASK B2) — a partir d'ICI, le transport a ete
+        // SOLLICITE : cette ecriture ne doit jamais laisser une exception
+        // remonter. Point de sauvegarde (`DB::transaction()`), meme motif
+        // que `NotificationEmailDeliverer::tracer()` : sur PostgreSQL, une
+        // requete qui echoue abandonne la transaction courante (25P02),
+        // et toute requete suivante echoue tant qu'un ROLLBACK n'a pas eu
+        // lieu — un simple `catch` PHP n'en declenche aucun. Lecon
+        // directe de TASK-1861 (meme defaut trouve par la CI PostgreSQL
+        // sur `BulkEmailSendService::sendOne()`), appliquee ici d'emblee.
+        try {
+            return DB::transaction(fn () => EmailLog::create([
+                'template_id' => $template->id,
+                'user_id' => $user->id,
+                'organization_id' => $user->organization_id,
+                'to_email' => $user->email,
+                'subject' => $subject,
+                'status' => $status,
+                'error_message' => $error,
+                'data' => [
+                    'source' => 'emailer',
+                    'sender_id' => $sender?->id,
+                    'template_slug' => $template->slug,
+                ],
+            ]));
+        } catch (Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 
     /**

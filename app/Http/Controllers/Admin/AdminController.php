@@ -900,7 +900,12 @@ class AdminController extends Controller
 
         $log = app(EmailerService::class)->sendFromTemplate($template, $user, $request->user());
 
-        return $log->status === 'sent'
+        // TASK-1863 — `sendFromTemplate()` rend desormais `null` si la
+        // preuve n'a pas pu s'ecrire APRES un transport sollicite (jamais
+        // une exception) : `$log?->status` retombe naturellement dans la
+        // branche "pas confirme envoye", exactement comme un statut
+        // `ambiguous`/`failed` le ferait deja.
+        return $log?->status === 'sent'
             ? back()->with('success', __('admin.users_send_email_sent', [
                 'template' => $template->name,
                 'name' => $user->email,

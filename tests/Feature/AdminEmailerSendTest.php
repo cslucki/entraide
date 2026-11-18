@@ -92,10 +92,22 @@ class AdminEmailerSendTest extends TestCase
                 'user_ids' => $users->pluck('id')->toArray(),
             ]);
 
-        $response->assertRedirect(route('admin.email-templates.send.confirm', [
-            'emailTemplate' => $template,
-            'user_ids' => $users->pluck('id')->toArray(),
-        ]));
+        $response->assertRedirect();
+
+        // TASK-1863 (TASK B2) — l'URL porte desormais un `send_token`
+        // genere, donc une egalite stricte sur l'URL complete ne tiendrait
+        // plus : on verifie la route et les `user_ids`, puis que le jeton
+        // existe sans en imposer la valeur (aleatoire par construction).
+        $location = $response->headers->get('Location');
+        $this->assertStringStartsWith(route('admin.email-templates.send.confirm', $template), $location);
+
+        parse_str((string) parse_url($location, PHP_URL_QUERY), $query);
+        $this->assertEqualsCanonicalizing(
+            $users->pluck('id')->map(fn ($id) => (string) $id)->all(),
+            array_map('strval', $query['user_ids'] ?? []),
+        );
+        $this->assertArrayHasKey('send_token', $query);
+        $this->assertNotEmpty($query['send_token']);
     }
 
     public function test_max_50_recipients_is_enforced()

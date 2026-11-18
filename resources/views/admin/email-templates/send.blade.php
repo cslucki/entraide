@@ -46,6 +46,10 @@
                         <input type="hidden" name="user_ids[]" value="{{ $uid }}">
                     @endforeach
                     <input type="hidden" name="confirmed" value="1">
+                    {{-- TASK-1863 : le MEME jeton que celui recu au detour
+                         de confirmation, pour qu'une soumission dupliquee
+                         de CET ecran ne puisse jamais redeclencher un envoi. --}}
+                    <input type="hidden" name="send_token" value="{{ $sendToken }}">
 
                     <div class="flex items-center justify-between">
                         <a href="{{ route('admin.email-templates.send', $template) }}"
@@ -62,6 +66,10 @@
             @else
                 <form method="POST" action="{{ route('admin.email-templates.send.execute', $template) }}">
                     @csrf
+                    {{-- TASK-1863 : nait a l'ouverture de CE formulaire — un
+                         nouveau chargement de l'ecran est une NOUVELLE
+                         intention, et recoit donc un nouveau jeton. --}}
+                    <input type="hidden" name="send_token" value="{{ $sendToken }}">
 
                     <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg">
                         <div class="p-6">
