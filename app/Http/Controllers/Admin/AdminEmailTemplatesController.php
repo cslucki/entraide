@@ -284,6 +284,10 @@ class AdminEmailTemplatesController extends Controller
             'user_ids.*' => Rule::exists('users', 'id')->whereNull('banned_at'),
             'confirmed' => 'nullable|string',
             'send_token' => ['nullable', 'string', 'max:64'],
+            // TASK-1863 correctif C — l'empreinte du contenu TEL QU'AFFICHE
+            // a l'ecran de confirmation (voir `sendConfirm()`), jamais
+            // recalculee a cet instant : c'est le point de comparaison.
+            'content_hash' => ['nullable', 'string', 'max:64'],
         ]);
 
         $userIds = array_unique($validated['user_ids']);
@@ -298,11 +302,18 @@ class AdminEmailTemplatesController extends Controller
             return back()->withErrors(['user_ids' => __('admin.emailer_no_recipients')])->withInput();
         }
 
-        // TASK-1863 (TASK B2) — un jeton ABSENT (lien perime, appelant qui
-        // ignore le champ) n'empeche jamais la requete d'avancer : il en
-        // nait un ICI, scope a CETTE seule requete. Un jeton present doit
-        // survivre tel quel jusqu'a la mise en file.
-        $sendToken = $validated['send_token'] ?? (string) Str::uuid();
+        // TASK-1863 correctif B — un jeton ABSENT ou VIDE n'est plus
+        // remplace a la volee : cela viderait la protection de son sens
+        // pour tout client qui omettrait le champ. Un formulaire perime ou
+        // incomplet est invite a RECOMMENCER, sans qu'aucun envoi ne
+        // parte. Un jeton present doit survivre tel quel jusqu'a la mise
+        // en file.
+        $sendToken = $validated['send_token'] ?? null;
+
+        if ($sendToken === null || $sendToken === '') {
+            return redirect()->route('admin.email-templates.send', $emailTemplate)
+                ->with('error', __('admin.emailer_missing_token'));
+        }
 
         if (! $request->has('confirmed') && count($users) > 1) {
             return redirect()->route('admin.email-templates.send.confirm', [
@@ -312,18 +323,42 @@ class AdminEmailTemplatesController extends Controller
             ]);
         }
 
+        // TASK-1863 correctif C — sur le parcours avec ecran de
+        // confirmation, le gabarit a pu etre edite par un AUTRE
+        // SuperAdmin entre le rendu de cet ecran et cette soumission
+        // finale : une fenetre que la garde du job (dispatch -> traitement
+        // differe) ne couvre pas, puisqu'elle capturerait ICI la version
+        // DEJA editee comme si l'administrateur l'avait validee. On
+        // compare donc l'empreinte confirmee a l'ecran a l'empreinte
+        // FRAICHE du gabarit ; une divergence interrompt l'envoi et
+        // renvoie vers une confirmation NEUVE plutot que d'envoyer une
+        // version jamais vue par l'administrateur.
+        $confirmedContentHash = $validated['content_hash'] ?? null;
+
+        if ($confirmedContentHash !== null
+            && $confirmedContentHash !== ''
+            && $confirmedContentHash !== SendTemplateEmailToUser::contentHash($emailTemplate)) {
+            return redirect()->route('admin.email-templates.send.confirm', [
+                'emailTemplate' => $emailTemplate,
+                'user_ids' => $userIds,
+                'send_token' => $sendToken,
+            ])->with('error', __('admin.emailer_template_changed_since_confirmation'));
+        }
+
         // TASK-1863 (TASK B2) — reservation ATOMIQUE de l'INTENTION, pas
         // des destinataires. `Cache::add()` echoue si la cle existe deja :
         // une seconde soumission du MEME jeton (double-clic, retry
-        // reseau) ne doit jamais redeclencher un envoi. `CACHE_STORE`
-        // database (confirme : table `cache` migree, idiome PRIMARY KEY)
-        // rend cette garantie valable entre plusieurs instances web, pas
-        // seulement dans ce process. Ceci est une protection a DUREE
-        // LIMITEE contre la double soumission, PAS une garantie de
-        // livraison exactement une fois (voir le docblock du job).
+        // reseau) ne doit jamais redeclencher un envoi.
+        //
+        // TASK-1863 correctif A — store `database` EXPLICITE : cette
+        // garantie metier ne doit jamais dependre de la valeur courante de
+        // `CACHE_STORE` (qui vaut `array`, en memoire de process, dans les
+        // environnements de test) mais bien de la table SQL `cache`
+        // reellement migree et partagee entre toutes les instances
+        // web/worker (idiome PRIMARY KEY sur `key`).
         $cacheKey = 'admin-email-template-send:'.$sendToken;
 
-        if (! Cache::add($cacheKey, true, now()->addMinutes(10))) {
+        if (! Cache::store('database')->add($cacheKey, true, now()->addMinutes(10))) {
             return redirect()->route('admin.email-templates.show', $emailTemplate)
                 ->with('error', __('admin.emailer_duplicate_submission'));
         }
@@ -331,7 +366,9 @@ class AdminEmailTemplatesController extends Controller
         // TASK-1863 (TASK B2) — le contenu VALIDE par l'administrateur,
         // capture AVANT toute mise en file : voir le docblock du job pour
         // pourquoi c'est au dispatch, et non a l'ecran de confirmation,
-        // que cette photo doit etre prise.
+        // que cette photo doit etre prise (elle protege la fenetre
+        // dispatch -> traitement differe, DISTINCTE de celle couverte par
+        // le correctif C ci-dessus).
         $expectedContentHash = SendTemplateEmailToUser::contentHash($emailTemplate);
         $sender = $request->user();
 
@@ -408,6 +445,11 @@ class AdminEmailTemplatesController extends Controller
             // confirmation. Le repli n'existe que pour une arrivee
             // directe sur cet ecran sans jeton (lien forge/perime).
             'sendToken' => (string) $request->query('send_token', (string) Str::uuid()),
+            // TASK-1863 correctif C — l'empreinte du contenu TEL QU'AFFICHE
+            // ICI, a cet instant : c'est elle, et pas une version
+            // recalculee plus tard, que `sendExecute()` comparera au
+            // moment de la soumission finale.
+            'contentHash' => SendTemplateEmailToUser::contentHash($emailTemplate),
         ]);
     }
 

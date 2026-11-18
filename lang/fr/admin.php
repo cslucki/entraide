@@ -824,6 +824,8 @@ return [
     'emailer_no_recipients' => 'Aucun destinataire valide.',
     'emailer_sent_count' => ':queued email(s) programmé(s), :failed échec(s) de mise en file (sur :total)',
     'emailer_duplicate_submission' => 'Cette intention d\'envoi a déjà été traitée.',
+    'emailer_missing_token' => 'Ce formulaire est périmé ou incomplet. Merci de recommencer l\'envoi.',
+    'emailer_template_changed_since_confirmation' => 'Le contenu du gabarit a changé depuis cette confirmation. Merci de reconfirmer l\'envoi.',
 
     // TASK-1803 — outil « Envoi emails » (bulk sending)
     'emailer_bulksending' => 'Envoi emails',

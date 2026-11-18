@@ -7,6 +7,7 @@ use App\Models\EmailTemplate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Tests\Support\CapturesMailHtml;
 use Tests\TestCase;
 
@@ -63,6 +64,9 @@ class AdminEmailerSendTest extends TestCase
             ->post(route('admin.email-templates.send.execute', $template), [
                 'user_ids' => [$user->id],
                 'confirmed' => '1',
+                // TASK-1863 correctif B — un formulaire REEL (sendForm())
+                // porte toujours ce champ ; sans lui, l'envoi est refuse.
+                'send_token' => (string) Str::uuid(),
             ]);
 
         $response->assertRedirect(route('admin.email-templates.show', $template));
@@ -86,18 +90,19 @@ class AdminEmailerSendTest extends TestCase
     {
         $template = EmailTemplate::factory()->create();
         $users = User::factory()->count(2)->create();
+        // TASK-1863 correctif B — le formulaire de selection initiale
+        // (sendForm()) porte toujours ce jeton ; une requete realiste le
+        // transmet donc des ce premier POST.
+        $token = (string) Str::uuid();
 
         $response = $this->actingAs($this->admin)
             ->post(route('admin.email-templates.send.execute', $template), [
                 'user_ids' => $users->pluck('id')->toArray(),
+                'send_token' => $token,
             ]);
 
         $response->assertRedirect();
 
-        // TASK-1863 (TASK B2) — l'URL porte desormais un `send_token`
-        // genere, donc une egalite stricte sur l'URL complete ne tiendrait
-        // plus : on verifie la route et les `user_ids`, puis que le jeton
-        // existe sans en imposer la valeur (aleatoire par construction).
         $location = $response->headers->get('Location');
         $this->assertStringStartsWith(route('admin.email-templates.send.confirm', $template), $location);
 
@@ -106,8 +111,10 @@ class AdminEmailerSendTest extends TestCase
             $users->pluck('id')->map(fn ($id) => (string) $id)->all(),
             array_map('strval', $query['user_ids'] ?? []),
         );
-        $this->assertArrayHasKey('send_token', $query);
-        $this->assertNotEmpty($query['send_token']);
+        // TASK-1863 correctif B — le jeton traverse ce detour INCHANGE :
+        // c'est ce qui le rend stable pendant tout le parcours de
+        // confirmation.
+        $this->assertSame($token, $query['send_token'] ?? null);
     }
 
     public function test_max_50_recipients_is_enforced()
@@ -135,6 +142,7 @@ class AdminEmailerSendTest extends TestCase
             ->post(route('admin.email-templates.send.execute', $template), [
                 'user_ids' => [$user->id, $user->id, $user->id],
                 'confirmed' => '1',
+                'send_token' => (string) Str::uuid(),
             ]);
 
         $response->assertRedirect(route('admin.email-templates.show', $template));
@@ -158,6 +166,7 @@ class AdminEmailerSendTest extends TestCase
             ->post(route('admin.email-templates.send.execute', $template), [
                 'user_ids' => $users->pluck('id')->toArray(),
                 'confirmed' => '1',
+                'send_token' => (string) Str::uuid(),
             ]);
 
         $this->assertEquals(3, EmailLog::where('template_id', $template->id)->count());
@@ -176,6 +185,7 @@ class AdminEmailerSendTest extends TestCase
             ->post(route('admin.email-templates.send.execute', $template), [
                 'user_ids' => [$user->id],
                 'confirmed' => '1',
+                'send_token' => (string) Str::uuid(),
             ]);
 
         $log = EmailLog::where('template_id', $template->id)->first();
@@ -200,6 +210,7 @@ class AdminEmailerSendTest extends TestCase
             ->post(route('admin.email-templates.send.execute', $template), [
                 'user_ids' => [$user->id],
                 'confirmed' => '1',
+                'send_token' => (string) Str::uuid(),
             ]);
 
         $this->assertSame(1, $this->capturedMailCount(), 'un envoi, intercepte avant tout transport');

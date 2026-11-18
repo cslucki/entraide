@@ -50,6 +50,12 @@
                          de confirmation, pour qu'une soumission dupliquee
                          de CET ecran ne puisse jamais redeclencher un envoi. --}}
                     <input type="hidden" name="send_token" value="{{ $sendToken }}">
+                    {{-- TASK-1863 correctif C : l'empreinte du contenu TEL
+                         QU'AFFICHE sur CET ecran de confirmation — si le
+                         gabarit change avant la soumission finale, cette
+                         valeur ne correspondra plus et l'envoi sera
+                         interrompu. --}}
+                    <input type="hidden" name="content_hash" value="{{ $contentHash }}">
 
                     <div class="flex items-center justify-between">
                         <a href="{{ route('admin.email-templates.send', $template) }}"

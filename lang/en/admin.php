@@ -821,6 +821,8 @@ return [
     'emailer_no_recipients' => 'No valid recipients.',
     'emailer_sent_count' => ':queued email(s) scheduled, :failed failed to queue (of :total)',
     'emailer_duplicate_submission' => 'This send intent has already been processed.',
+    'emailer_missing_token' => 'This form is stale or incomplete. Please restart the send.',
+    'emailer_template_changed_since_confirmation' => 'The template content has changed since this confirmation. Please reconfirm the send.',
 
     // TASK-1803 — bulk email sending tool
     'emailer_bulksending' => 'Bulk sending',

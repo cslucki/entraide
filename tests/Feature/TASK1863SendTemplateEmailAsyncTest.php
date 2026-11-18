@@ -41,6 +41,20 @@ use Tests\TestCase;
  * Le rendu, les gabarits, la deduplication des `user_ids` et le plafond
  * 50 restent couverts par `AdminEmailerSendTest`/`TASK1694AdminSendEmailToUserTest`
  * (34 tests revalides, zero regression), non dupliques ici.
+ *
+ * ## Correctifs MASTER avant fusion (PR #871)
+ *
+ * A. La reservation du jeton passe desormais EXPLICITEMENT par
+ *    `Cache::store('database')`, jamais par le store PAR DEFAUT
+ *    (`CACHE_STORE=array` en test) — la garantie inter-instances ne doit
+ *    jamais en dependre.
+ * B. Un POST final sans jeton (absent ou vide) n'est plus accepte avec un
+ *    jeton mine a la volee : il est rejete, sans aucun envoi, invite a
+ *    recommencer.
+ * C. L'empreinte du contenu CONFIRME A L'ECRAN (pas une empreinte
+ *    recalculee au dispatch) est verifiee par le CONTROLEUR avant tout
+ *    dispatch, distincte de la garde du job qui protege la fenetre
+ *    dispatch -> traitement differe.
  */
 class TASK1863SendTemplateEmailAsyncTest extends TestCase
 {
@@ -73,6 +87,7 @@ class TASK1863SendTemplateEmailAsyncTest extends TestCase
             ->post(route('admin.email-templates.send.execute', $template), [
                 'user_ids' => [$user->id],
                 'confirmed' => '1',
+                'send_token' => (string) Str::uuid(),
             ])
             ->assertRedirect();
 
@@ -91,6 +106,7 @@ class TASK1863SendTemplateEmailAsyncTest extends TestCase
             ->post(route('admin.email-templates.send.execute', $template), [
                 'user_ids' => $users->pluck('id')->toArray(),
                 'confirmed' => '1',
+                'send_token' => (string) Str::uuid(),
             ])
             ->assertRedirect();
 
@@ -99,16 +115,32 @@ class TASK1863SendTemplateEmailAsyncTest extends TestCase
 
     // ── 2. Protection anti-double-soumission ────────────────────────────────
 
-    public function test_la_reservation_du_jeton_est_atomique_sous_deux_tentatives(): void
+    /**
+     * TASK-1863 correctif A — `CACHE_STORE` vaut `array` dans
+     * l'environnement de test (`phpunit.xml`/`phpunit.pgsql.xml`) : si la
+     * reservation passait par le store PAR DEFAUT, ce test ne prouverait
+     * rien sur la garantie inter-instances. En passant EXPLICITEMENT par
+     * le store `database`, la reservation doit atterrir dans la VRAIE
+     * table SQL `cache` — partagee entre web/worker, independamment de ce
+     * que vaut `CACHE_STORE` — et y rester atomique sur SQLite ET
+     * PostgreSQL (meme test, deux moteurs selon la configuration CI).
+     */
+    public function test_la_reservation_du_jeton_utilise_le_store_database_explicite_et_reste_atomique(): void
     {
+        $this->assertSame('array', config('cache.default'),
+            'Precondition : si le store par defaut etait deja "database", ce test ne prouverait rien sur le correctif A.');
+
         $token = (string) Str::uuid();
         $key = 'admin-email-template-send:'.$token;
 
-        $premiere = Cache::add($key, true, now()->addMinutes(10));
-        $seconde = Cache::add($key, true, now()->addMinutes(10));
+        $premiere = Cache::store('database')->add($key, true, now()->addMinutes(10));
+        $seconde = Cache::store('database')->add($key, true, now()->addMinutes(10));
 
         $this->assertTrue($premiere, 'La premiere reservation doit reussir.');
         $this->assertFalse($seconde, 'Une seconde reservation du MEME jeton ne doit jamais reussir.');
+        // `assertDatabaseCount()` n'accepte pas de message en 3e argument
+        // (c'est le nom de connexion) : la preuve est l'assertion elle-meme.
+        $this->assertDatabaseCount('cache', 1);
     }
 
     public function test_une_seconde_soumission_du_meme_jeton_ne_cree_aucun_nouvel_envoi(): void
@@ -170,12 +202,16 @@ class TASK1863SendTemplateEmailAsyncTest extends TestCase
             'Deux intentions VOLONTAIRES distinctes doivent toutes deux envoyer.');
     }
 
-    public function test_sans_jeton_fourni_la_requete_avance_quand_meme(): void
+    /**
+     * TASK-1863 correctif B — un POST final SANS jeton n'est plus
+     * remplace par un jeton mine a la volee (ce qui viderait la
+     * protection de son sens pour tout client qui omettrait le champ) :
+     * un formulaire perime ou incomplet est invite a RECOMMENCER,
+     * explicitement, sans qu'aucun envoi ne parte.
+     */
+    public function test_un_post_sans_jeton_est_rejete_et_invite_a_recommencer_sans_envoi(): void
     {
-        // Compatibilite : un appelant qui ignore encore le champ (lien
-        // perime, appel direct) ne doit jamais etre bloque — un jeton nait
-        // alors pour CETTE seule requete.
-        Mail::fake();
+        Queue::fake();
         $template = EmailTemplate::factory()->create();
         $user = User::factory()->create();
 
@@ -184,10 +220,31 @@ class TASK1863SendTemplateEmailAsyncTest extends TestCase
                 'user_ids' => [$user->id],
                 'confirmed' => '1',
             ])
-            ->assertRedirect()
-            ->assertSessionHasNoErrors();
+            ->assertRedirect(route('admin.email-templates.send', $template))
+            ->assertSessionHas('error');
 
-        $this->assertSame(1, EmailLog::where('template_id', $template->id)->count());
+        Queue::assertNothingPushed();
+        $this->assertSame(0, EmailLog::where('template_id', $template->id)->count());
+    }
+
+    /** Meme garde pour un jeton explicitement VIDE, pas seulement absent. */
+    public function test_un_post_avec_un_jeton_vide_est_rejete_et_invite_a_recommencer_sans_envoi(): void
+    {
+        Queue::fake();
+        $template = EmailTemplate::factory()->create();
+        $user = User::factory()->create();
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.email-templates.send.execute', $template), [
+                'user_ids' => [$user->id],
+                'confirmed' => '1',
+                'send_token' => '',
+            ])
+            ->assertRedirect(route('admin.email-templates.send', $template))
+            ->assertSessionHas('error');
+
+        Queue::assertNothingPushed();
+        $this->assertSame(0, EmailLog::where('template_id', $template->id)->count());
     }
 
     // ── 3. Dispatch partiellement echoue ────────────────────────────────────
@@ -216,6 +273,7 @@ class TASK1863SendTemplateEmailAsyncTest extends TestCase
             ->post(route('admin.email-templates.send.execute', $template), [
                 'user_ids' => $users->pluck('id')->toArray(),
                 'confirmed' => '1',
+                'send_token' => (string) Str::uuid(),
             ])
             ->assertRedirect();
 
@@ -306,6 +364,84 @@ class TASK1863SendTemplateEmailAsyncTest extends TestCase
             ->handle(app(EmailerService::class));
 
         $this->assertDatabaseHas('email_logs', ['template_id' => $template->id, 'status' => 'sent']);
+    }
+
+    // ── 5bis. Integrite du contenu confirme a l'ecran (correctif C) ─────────
+
+    /**
+     * TASK-1863 correctif C — DISTINCT de la garde du job (section 5
+     * ci-dessus, qui protege la fenetre dispatch -> traitement differe) :
+     * ICI, le gabarit change ENTRE le rendu de l'ecran de confirmation et
+     * la soumission finale, dans la MEME requete HTTP synchrone. Sans ce
+     * correctif, `sendExecute()` recalculerait le hash `expectedContentHash`
+     * du job a partir du contenu DEJA EDITE, et le job l'approuverait
+     * puisqu'il compare deux lectures identiques (toutes deux apres
+     * edition) — la garde du job ne verrait jamais la divergence.
+     */
+    public function test_le_controleur_interrompt_l_envoi_si_le_gabarit_change_apres_la_confirmation(): void
+    {
+        Queue::fake();
+        $template = EmailTemplate::factory()->create([
+            'subject' => 'Original',
+            'content_html' => '<p>Original</p>',
+        ]);
+        $users = User::factory()->count(2)->create();
+        $token = (string) Str::uuid();
+
+        $confirmResponse = $this->actingAs($this->admin)->get(route('admin.email-templates.send.confirm', [
+            'emailTemplate' => $template,
+            'user_ids' => $users->pluck('id')->toArray(),
+            'send_token' => $token,
+        ]));
+        $confirmedHash = $confirmResponse->viewData('contentHash');
+        $this->assertNotEmpty($confirmedHash);
+
+        // Un AUTRE SuperAdmin edite le gabarit pendant que l'administrateur
+        // regarde encore l'ecran de confirmation.
+        $template->update(['content_html' => '<p>Edite pendant la confirmation</p>']);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.email-templates.send.execute', $template), [
+                'user_ids' => $users->pluck('id')->toArray(),
+                'confirmed' => '1',
+                'send_token' => $token,
+                'content_hash' => $confirmedHash,
+            ])
+            ->assertRedirect(route('admin.email-templates.send.confirm', [
+                'emailTemplate' => $template,
+                'user_ids' => $users->pluck('id')->toArray(),
+                'send_token' => $token,
+            ]))
+            ->assertSessionHas('error');
+
+        Queue::assertNothingPushed();
+        $this->assertSame(0, EmailLog::where('template_id', $template->id)->count());
+    }
+
+    public function test_le_controleur_envoie_normalement_quand_le_contenu_confirme_n_a_pas_change(): void
+    {
+        Queue::fake();
+        $template = EmailTemplate::factory()->create();
+        $users = User::factory()->count(2)->create();
+        $token = (string) Str::uuid();
+
+        $confirmResponse = $this->actingAs($this->admin)->get(route('admin.email-templates.send.confirm', [
+            'emailTemplate' => $template,
+            'user_ids' => $users->pluck('id')->toArray(),
+            'send_token' => $token,
+        ]));
+        $confirmedHash = $confirmResponse->viewData('contentHash');
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.email-templates.send.execute', $template), [
+                'user_ids' => $users->pluck('id')->toArray(),
+                'confirmed' => '1',
+                'send_token' => $token,
+                'content_hash' => $confirmedHash,
+            ])
+            ->assertRedirect(route('admin.email-templates.show', $template));
+
+        Queue::assertPushed(SendTemplateEmailToUser::class, 2);
     }
 
     // ── 6. Isolation tenant par destinataire ────────────────────────────────
