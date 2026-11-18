@@ -308,13 +308,21 @@ class TransactionController extends Controller
         // La demande est pourvue, et les propositions concurrentes closes.
         app(ServiceRequestLifecycle::class)->markHandled($transaction);
 
+        // TASK-1857 — deportee vers la Managed Queue `notifications`,
+        // meme job que `complete()` (TASK-1855) : `Bus::dispatch()`, PAS
+        // `SendTransactionStatusChangedEmail::dispatch()` (piege
+        // `PendingDispatch` deja corrige en TASK-1854/1855).
+        // `expectedStatus: 'accepted'` — ce statut est TRANSITOIRE, une
+        // cloture peut survenir avant l'execution du job (voir son
+        // docblock) ; sans cette garde, l'email dirait « accepte » pour
+        // un echange deja termine.
         rescue(
-            fn () => $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh())),
+            fn () => Bus::dispatch(new SendTransactionStatusChangedEmail((string) $transaction->id, (string) $transaction->buyer_id, 'accepted')),
             fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
                 'event' => 'transaction_approved',
                 'transaction_id' => $transaction->id,
                 'organization_id' => $transaction->organization_id,
-                'notifiable_id' => $transaction->buyer->id,
+                'notifiable_id' => $transaction->buyer_id,
                 'exception_class' => $e::class,
             ]),
             false,
@@ -336,13 +344,17 @@ class TransactionController extends Controller
 
         MessageSysteme::ecrire($transaction, 'echange_decline');
 
+        // TASK-1857 — meme motif que `approve()` ci-dessus :
+        // `expectedStatus: 'refused'` protege contre un statut perime si
+        // ce job s'executait apres un changement d'etat ulterieur (peu
+        // probable pour un refus, mais jamais presume).
         rescue(
-            fn () => $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh())),
+            fn () => Bus::dispatch(new SendTransactionStatusChangedEmail((string) $transaction->id, (string) $transaction->buyer_id, 'refused')),
             fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
                 'event' => 'transaction_refused',
                 'transaction_id' => $transaction->id,
                 'organization_id' => $transaction->organization_id,
-                'notifiable_id' => $transaction->buyer->id,
+                'notifiable_id' => $transaction->buyer_id,
                 'exception_class' => $e::class,
             ]),
             false,
