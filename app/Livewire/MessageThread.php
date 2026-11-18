@@ -2,19 +2,20 @@
 
 namespace App\Livewire;
 
+use App\Jobs\SendNewMessageReceivedEmail;
 use App\Models\FeedPost;
 use App\Models\Message;
 use App\Models\Organization;
 use App\Models\Reaction;
 use App\Models\Transaction;
 use App\Models\User;
-use App\Notifications\NewMessageReceived;
 use App\Services\UrlPreviewService;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Files\TypesDeFichiersAcceptes;
 use App\Support\Messaging\ConversationBroadcaster;
 use App\Support\Messaging\UnreadCountBroadcaster;
 use App\Support\ScopedReadCache;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -730,15 +731,15 @@ class MessageThread extends Component
             ? $transaction->seller_id
             : $transaction->buyer_id;
 
-        DB::afterCommit(function () use ($transaction, $user, $msg, $destinataireId) {
+        DB::afterCommit(function () use ($transaction, $msg, $destinataireId) {
+            // TASK-1858 — deportee vers la Managed Queue `notifications`,
+            // meme job-famille que TASK-1855/1857 (`SendNewMessageReceivedEmail`).
+            // `Bus::dispatch()`, PAS `SendNewMessageReceivedEmail::dispatch()`
+            // (piege `PendingDispatch` deja corrige en TASK-1854/1855/1857) :
+            // retourne depuis la fermeture `rescue()`, sa destruction serait
+            // differee hors du `try/catch`.
             rescue(
-                function () use ($transaction, $user, $msg) {
-                    $recipient = $transaction->buyer_id === $user->id
-                        ? $transaction->seller
-                        : $transaction->buyer;
-
-                    $recipient->notify(new NewMessageReceived($transaction, $msg));
-                },
+                fn () => Bus::dispatch(new SendNewMessageReceivedEmail((string) $transaction->id, (string) $msg->id, (string) $destinataireId)),
                 fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
                     'event' => 'message_created_notification',
                     'message_id' => $msg->id,
