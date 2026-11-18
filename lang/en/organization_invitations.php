@@ -62,7 +62,7 @@ return [
 
     // SuperAdmin surface
     'admin_sandbox_forbidden' => 'This organization is a demonstration world: no real invitation is sent to it.',
-    'admin_resent' => 'Invitation resent.',
+    'admin_resent' => 'Invitation resent, email queued for resending.',
     'admin_resend_impossible' => 'This invitation can no longer be resent.',
     'admin_revoked' => 'Invitation revoked.',
     'admin_revoke_impossible' => 'Only a pending invitation can be revoked.',

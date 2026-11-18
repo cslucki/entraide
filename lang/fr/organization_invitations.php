@@ -65,7 +65,7 @@ return [
 
     // Surface SuperAdmin
     'admin_sandbox_forbidden' => 'Cette organisation est un monde de démonstration : aucune invitation réelle n\'y est envoyée.',
-    'admin_resent' => 'Invitation relancée.',
+    'admin_resent' => 'Invitation relancée, email programmé pour renvoi.',
     'admin_resend_impossible' => 'Cette invitation ne peut plus être relancée.',
     'admin_revoked' => 'Invitation révoquée.',
     'admin_revoke_impossible' => 'Seule une invitation en attente peut être révoquée.',
