@@ -35,7 +35,7 @@ use Illuminate\Support\Facades\Log;
  * fait exactement ce travail de relecture pour les donnees de l'avis
  * lui-meme.
  *
- * ## Autorisation TENANT re-etablie ICI, explicitement
+ * ## Autorisation TENANT re-etablie ICI, explicitement — ET RESTAUREE
  *
  * `Review::transaction()` pointe vers `Transaction`, qui porte
  * `BelongsToOrganizationScope` (contrairement a `Review` elle-meme). Dans
@@ -46,6 +46,17 @@ use Illuminate\Support\Facades\Log;
  * meme, degrade en silence (URL de conversation vide). On relit
  * l'Organization par son identifiant SCALAIRE (deja charge sur l'avis,
  * jamais une relation), puis on la lie AVANT tout appel au mailer.
+ *
+ * `withOrganizationContext()` reprend A L'IDENTIQUE l'idiome deja en
+ * place (`AiTurnExecutor::dansLeTenant()`, `DossierFileIndexer::
+ * withOrganizationContext()`) : l'etat PRECEDENT est sauvegarde (lie ou
+ * non — un worker Managed Queue n'en a normalement aucun, mais un futur
+ * appelant imbrique pourrait en laisser un), puis restaure dans un
+ * `finally`, MEME si le mailer leve. Un job de file ne doit jamais
+ * laisser de tenant residuel dans le conteneur apres son execution — un
+ * worker de Managed Queue est `minReplicas: 0, maxReplicas: 1` (confirme
+ * TASK-1854) : la MEME instance peut enchainer plusieurs jobs, pour des
+ * Organizations differentes.
  *
  * ## Idempotence HERITEE, pas reinventee
  *
@@ -108,22 +119,49 @@ class SendReviewReceivedEmail implements ShouldQueue
             return;
         }
 
-        $organization = Organization::find($avis->organization_id);
+        $this->withOrganizationContext($avis->organization_id, function (?Organization $organization) use ($avis, $mailer): void {
+            if ($organization === null) {
+                Log::warning('SendReviewReceivedEmail: Organization introuvable, email non envoye.', [
+                    'review_id' => $this->reviewId,
+                    'organization_id' => $avis->organization_id,
+                ]);
 
-        if ($organization === null) {
-            Log::warning('SendReviewReceivedEmail: Organization introuvable, email non envoye.', [
-                'review_id' => $this->reviewId,
-                'organization_id' => $avis->organization_id,
-            ]);
+                return;
+            }
 
-            return;
+            $mailer->envoyer($avis);
+        });
+    }
+
+    /**
+     * Idiome repris A L'IDENTIQUE de `DossierFileIndexer::
+     * withOrganizationContext()` — voir le docblock de classe.
+     *
+     * @template TReturn
+     *
+     * @param  callable(?Organization): TReturn  $callback
+     * @return TReturn
+     */
+    private function withOrganizationContext(string $organizationId, callable $callback): mixed
+    {
+        $hadPrevious = app()->bound('current_organization');
+        $previous = $hadPrevious ? app('current_organization') : null;
+        $organization = Organization::query()->whereKey($organizationId)->first();
+
+        if ($organization) {
+            app()->instance('current_organization', $organization);
+        } elseif ($hadPrevious) {
+            app()->forgetInstance('current_organization');
         }
 
-        // Liaison tenant EXPLICITE — voir le docblock de classe. Sans
-        // elle, `$avis->transaction` (scope `BelongsToOrganizationScope`)
-        // echouerait en silence sous ce worker.
-        app()->instance('current_organization', $organization);
-
-        $mailer->envoyer($avis);
+        try {
+            return $callback($organization);
+        } finally {
+            if ($hadPrevious) {
+                app()->instance('current_organization', $previous);
+            } else {
+                app()->forgetInstance('current_organization');
+            }
+        }
     }
 }
