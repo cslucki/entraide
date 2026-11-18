@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Jobs\SendLoopInvitationEmail;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
@@ -10,11 +11,12 @@ use App\Models\User;
 use App\Services\LoopGovernanceService;
 use App\Services\LoopInvitationService;
 use App\Services\Loops\Exceptions\LoopInvitationRefusedException;
-use App\Services\Loops\LoopInvitationMailer;
 use App\Services\LoopService;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Livewire\Component;
 
@@ -339,7 +341,7 @@ class LoopMembersCard extends Component
 
     // ── Inviter par courriel ────────────────────────────────────────────────
 
-    public function sendInvitation(LoopInvitationService $invitations, LoopInvitationMailer $mailer): void
+    public function sendInvitation(LoopInvitationService $invitations): void
     {
         $this->authorize('update', $this->loop);
         $this->clearMessages();
@@ -364,7 +366,19 @@ class LoopMembersCard extends Component
             return;
         }
 
-        $mailer->send($invitation);
+        // TASK-1860 — l'invitation est deja ecrite et commise (invite() ferme
+        // sa propre transaction) : un echec de mise en file ne peut donc pas
+        // faire disparaitre l'invitation elle-meme.
+        rescue(
+            fn () => Bus::dispatch(new SendLoopInvitationEmail((string) $invitation->id)),
+            fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
+                'event' => 'loop_invitation_created',
+                'invitation_id' => $invitation->id,
+                'organization_id' => $invitation->organization_id,
+                'exception_class' => $e::class,
+            ]),
+            false,
+        );
 
         // L'invitation partie, la fenetre n'a plus de raison d'etre ouverte :
         // ce qui vient d'etre fait se lit sur la Card, pas dans un formulaire
