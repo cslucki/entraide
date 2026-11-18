@@ -466,7 +466,10 @@ Route::middleware('auth')->group(function () {
     // commentaire dans la meme requete. `skip`/`defer`/`comment`/
     // `comment.skip` (ecrans separes, « Plus tard », renoncement explicite)
     // sont retirees avec le parcours visible qui les appelait.
-    Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->name('reviews.store');
+    // TASK-1856 — limiteur NOMME dedie (`throttle:reviews`, AppServiceProvider),
+    // isole du compteur brut `5,1` partage par sept autres routes. Meme
+    // limite (5/60s par utilisateur).
+    Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:reviews')->name('reviews.store');
     // TASK-1809 (correctif Cyril) — partage dans le Flux desormais
     // AUTOMATIQUE a l'evaluation, route `share-in-feed` retiree.
 
@@ -1796,7 +1799,8 @@ Route::prefix('/org/{organization}')
             Route::patch('/transactions/{transaction}/confirm', [TransactionController::class, 'orgConfirm'])->name('transactions.confirm');
             Route::patch('/transactions/{transaction}/contest', [TransactionController::class, 'orgContest'])->name('transactions.contest');
 
-            Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.store');
+            // TASK-1856 — meme limiteur NOMME que la route globale ci-dessus.
+            Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:reviews')->middleware('consume.org')->name('reviews.store');
 
             Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
             // TASK-1693 bug AA — « Ecrire a cette personne », sur la surface de
