@@ -558,7 +558,22 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
     }
 
     /** Le bouton de cloture n'est JAMAIS desactive : confirmer sans avis est un choix. */
-    public function test_the_confirmation_button_is_never_disabled(): void
+    /**
+     * TASK-1855 — ce test ciblait a l'origine `data-entraide-cloturer-valider`,
+     * un marqueur qui n'existe plus dans le Blade actuel (seul
+     * `data-entraide-cloturer` existe) : `strpos()` renvoyait donc `false`,
+     * coerce a `0` par l'arithmetique qui suit, et `substr($html, -400, 500)`
+     * extrayait les 400 derniers caracteres de la page — une region sans
+     * rapport, jamais le bouton reel. Le test passait sans rien verifier.
+     *
+     * Corrige vers le vrai marqueur. La regle d'origine reste verifiee :
+     * le bouton n'est JAMAIS desactive par l'ABSENCE DE NOTE — confirmer
+     * sans avis est un choix. TASK-1855 lui ajoute une garde de CHARGEMENT
+     * (`:disabled="envoiEnCours"`, anti double-appui) orthogonale a cette
+     * regle : on verifie donc que la garde existe ET qu'elle ne reference
+     * jamais `note`.
+     */
+    public function test_the_confirmation_button_is_never_disabled_by_the_absence_of_a_note(): void
     {
         $transaction = $this->acceptedTransaction();
 
@@ -566,8 +581,11 @@ class TASK1806EntraideEvaluationUniqueTest extends TestCase
             ->test(MessageThread::class, ['transaction' => $transaction])
             ->html();
 
-        // TASK-1808 — le bouton de validation du panneau de cloture.
-        $bouton = substr($html, strpos($html, 'data-entraide-cloturer-valider') - 400, 500);
-        $this->assertStringNotContainsString(':disabled', $bouton);
+        $position = strpos($html, 'data-entraide-cloturer');
+        $this->assertNotFalse($position, 'Le marqueur data-entraide-cloturer est introuvable dans le rendu.');
+
+        $bouton = substr($html, $position - 400, 600);
+        $this->assertStringContainsString(':disabled="envoiEnCours"', $bouton);
+        $this->assertStringNotContainsString('note', $bouton);
     }
 }

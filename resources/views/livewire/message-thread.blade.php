@@ -390,6 +390,7 @@
                 $_confPrenom = $_confAidant?->first_name ?: ($_confAidant?->name ?: __('profile.deactivated_user'));
             @endphp
             <div class="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
+                 x-data="{ envoiEnCours: false }"
                  data-entraide-cloture-zone>
                 <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -404,15 +405,22 @@
                      valide en `nullable` et ne recevra donc rien a
                      enregistrer. Aucune note inventee, aucun renoncement
                      trace — l'evaluation n'a simplement pas encore ete
-                     proposee. --}}
+                     proposee.
+                     TASK-1855 — `@submit`/`:disabled` : meme garde anti
+                     double-appui que le formulaire d'etoiles (TASK-1854,
+                     voir plus bas). Un formulaire brut, pas de requete
+                     Livewire a debouncer : seule garde disponible ici. --}}
                 <form method="POST" action="{{ $_threadRoute('transactions.complete', 'organization.transactions.complete', ['transaction' => $transaction]) }}"
-                      class="flex-shrink-0">
+                      class="flex-shrink-0"
+                      @submit="envoiEnCours = true">
                     @csrf @method('PATCH')
                     <button type="submit"
-                            class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
+                            :disabled="envoiEnCours"
+                            class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
                             data-entraide-action="mark_done"
                             data-entraide-cloturer>
-                        {{ __('messages.cloturer_bouton') }}
+                        <span x-show="!envoiEnCours">{{ __('messages.cloturer_bouton') }}</span>
+                        <span x-show="envoiEnCours" x-cloak>{{ __('messages.cloture_en_cours') }}</span>
                     </button>
                 </form>
             </div>

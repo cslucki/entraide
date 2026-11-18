@@ -119,6 +119,8 @@ return [
     'confirmer_sans_note' => 'You can confirm without leaving a review.',
     // TASK-1808 §2/§3 — THE CLOSURE: one compact button, then a panel.
     'cloturer_bouton' => 'Mark the mutual aid as completed',
+    // TASK-1855 — double-submit guard, same idiom as `etoiles_envoi_en_cours`.
+    'cloture_en_cours' => 'Closing…',
     'cloturer_titre' => 'Confirm the end of the mutual aid',
     'cloturer_intro' => 'This closes the mutual aid and transfers :temps to :prenom. The conversation will become read-only.',
     'cloturer_intro_offert' => 'This closes the mutual aid. :prenom offered their help: no points are transferred.',
