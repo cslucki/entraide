@@ -54,7 +54,11 @@ use Tests\TestCase;
  * C. L'empreinte du contenu CONFIRME A L'ECRAN (pas une empreinte
  *    recalculee au dispatch) est verifiee par le CONTROLEUR avant tout
  *    dispatch, distincte de la garde du job qui protege la fenetre
- *    dispatch -> traitement differe.
+ *    dispatch -> traitement differe. Pour une soumission confirmee a
+ *    PLUSIEURS destinataires, cette empreinte est OBLIGATOIRE (deuxieme
+ *    passe MASTER) : l'omettre rejette la soumission au lieu de
+ *    contourner silencieusement la verification. Le parcours DIRECT a un
+ *    seul destinataire reste sans empreinte obligatoire.
  */
 class TASK1863SendTemplateEmailAsyncTest extends TestCase
 {
@@ -107,6 +111,9 @@ class TASK1863SendTemplateEmailAsyncTest extends TestCase
                 'user_ids' => $users->pluck('id')->toArray(),
                 'confirmed' => '1',
                 'send_token' => (string) Str::uuid(),
+                // TASK-1863 correctif MASTER — obligatoire pour une
+                // soumission confirmee a PLUSIEURS destinataires.
+                'content_hash' => SendTemplateEmailToUser::contentHash($template),
             ])
             ->assertRedirect();
 
@@ -274,6 +281,7 @@ class TASK1863SendTemplateEmailAsyncTest extends TestCase
                 'user_ids' => $users->pluck('id')->toArray(),
                 'confirmed' => '1',
                 'send_token' => (string) Str::uuid(),
+                'content_hash' => SendTemplateEmailToUser::contentHash($template),
             ])
             ->assertRedirect();
 
@@ -406,6 +414,38 @@ class TASK1863SendTemplateEmailAsyncTest extends TestCase
                 'confirmed' => '1',
                 'send_token' => $token,
                 'content_hash' => $confirmedHash,
+            ])
+            ->assertRedirect(route('admin.email-templates.send.confirm', [
+                'emailTemplate' => $template,
+                'user_ids' => $users->pluck('id')->toArray(),
+                'send_token' => $token,
+            ]))
+            ->assertSessionHas('error');
+
+        Queue::assertNothingPushed();
+        $this->assertSame(0, EmailLog::where('template_id', $template->id)->count());
+    }
+
+    /**
+     * TASK-1863 correctif MASTER (PR #871, deuxieme passe) — `content_hash`
+     * restait FACULTATIF : une soumission confirmee a PLUSIEURS
+     * destinataires pouvait contourner ENTIEREMENT la verification du
+     * contenu affiche en OMETTANT le champ plutot qu'en le falsifiant.
+     * Desormais rejete, sans aucun dispatch, invite a reconfirmer.
+     */
+    public function test_le_controleur_refuse_une_soumission_multi_destinataires_sans_empreinte_de_contenu(): void
+    {
+        Queue::fake();
+        $template = EmailTemplate::factory()->create();
+        $users = User::factory()->count(2)->create();
+        $token = (string) Str::uuid();
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.email-templates.send.execute', $template), [
+                'user_ids' => $users->pluck('id')->toArray(),
+                'confirmed' => '1',
+                'send_token' => $token,
+                // content_hash volontairement absent.
             ])
             ->assertRedirect(route('admin.email-templates.send.confirm', [
                 'emailTemplate' => $template,

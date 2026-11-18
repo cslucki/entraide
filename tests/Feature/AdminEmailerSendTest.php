@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendTemplateEmailToUser;
 use App\Models\EmailLog;
 use App\Models\EmailTemplate;
 use App\Models\User;
@@ -167,6 +168,9 @@ class AdminEmailerSendTest extends TestCase
                 'user_ids' => $users->pluck('id')->toArray(),
                 'confirmed' => '1',
                 'send_token' => (string) Str::uuid(),
+                // TASK-1863 correctif MASTER — obligatoire pour une
+                // soumission confirmee a PLUSIEURS destinataires.
+                'content_hash' => SendTemplateEmailToUser::contentHash($template),
             ]);
 
         $this->assertEquals(3, EmailLog::where('template_id', $template->id)->count());

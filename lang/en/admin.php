@@ -823,6 +823,7 @@ return [
     'emailer_duplicate_submission' => 'This send intent has already been processed.',
     'emailer_missing_token' => 'This form is stale or incomplete. Please restart the send.',
     'emailer_template_changed_since_confirmation' => 'The template content has changed since this confirmation. Please reconfirm the send.',
+    'emailer_missing_content_hash' => 'This send confirmation is incomplete. Please reconfirm.',
 
     // TASK-1803 — bulk email sending tool
     'emailer_bulksending' => 'Bulk sending',

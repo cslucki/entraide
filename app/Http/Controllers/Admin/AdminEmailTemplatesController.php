@@ -335,6 +335,23 @@ class AdminEmailTemplatesController extends Controller
         // version jamais vue par l'administrateur.
         $confirmedContentHash = $validated['content_hash'] ?? null;
 
+        // TASK-1863 correctif MASTER (PR #871, deuxieme passe) — avoir
+        // atteint CE point avec plusieurs destinataires suppose deja etre
+        // passe par `sendConfirm()` (voir la redirection ci-dessus) : pour
+        // CE cas, l'empreinte n'est plus facultative. Un champ absent ou
+        // vide laisserait une soumission multi-destinataires contourner
+        // entierement la verification du contenu affiche — en l'omettant,
+        // plutot qu'en le falsifiant. Le parcours DIRECT a un seul
+        // destinataire (jamais passe par un ecran de confirmation) reste,
+        // lui, sans empreinte obligatoire.
+        if (count($users) > 1 && ($confirmedContentHash === null || $confirmedContentHash === '')) {
+            return redirect()->route('admin.email-templates.send.confirm', [
+                'emailTemplate' => $emailTemplate,
+                'user_ids' => $userIds,
+                'send_token' => $sendToken,
+            ])->with('error', __('admin.emailer_missing_content_hash'));
+        }
+
         if ($confirmedContentHash !== null
             && $confirmedContentHash !== ''
             && $confirmedContentHash !== SendTemplateEmailToUser::contentHash($emailTemplate)) {
