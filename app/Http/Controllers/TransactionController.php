@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendEvaluationInviteEmail;
+use App\Jobs\SendTransactionStatusChangedEmail;
 use App\Models\Message;
 use App\Models\PointLedger;
 use App\Models\Scopes\BelongsToOrganizationScope;
@@ -9,7 +11,6 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Notifications\TransactionStatusChanged;
-use App\Services\Entraide\EvaluationInviteMailer;
 use App\Services\ServiceRequestLifecycle;
 use App\Support\Entraide\Atelier;
 use App\Support\Entraide\EvaluationEntraide;
@@ -21,6 +22,7 @@ use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmitter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -581,24 +583,32 @@ class TransactionController extends Controller
             false,
         );
 
+        // TASK-1855 — deportees vers la Managed Queue `notifications` deja
+        // active (meme motif que TASK-1854) : ces deux envois bloquaient le
+        // thread HTTP sur une conversation SMTP (audit TASK-1856). `Bus::
+        // dispatch()`, PAS `SendTransactionStatusChangedEmail::dispatch()`
+        // — ce dernier (trait `Dispatchable`) renverrait un `PendingDispatch`
+        // dont le `__destruct()` fait le vrai envoi a la file : retourne
+        // depuis la fermeture `rescue()`, sa destruction serait DIFFEREE
+        // hors du `try/catch` — piege deja rencontre et corrige en TASK-1854.
         rescue(
-            fn () => $fresh->buyer->notify(new TransactionStatusChanged($fresh)),
+            fn () => Bus::dispatch(new SendTransactionStatusChangedEmail((string) $fresh->id, (string) $fresh->buyer_id)),
             fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
                 'event' => 'entraide_confirmed_buyer_notification',
                 'transaction_id' => $fresh->id,
                 'organization_id' => $fresh->organization_id,
-                'notifiable_id' => $fresh->buyer->id,
+                'notifiable_id' => $fresh->buyer_id,
                 'exception_class' => $e::class,
             ]),
             false,
         );
         rescue(
-            fn () => $fresh->seller->notify(new TransactionStatusChanged($fresh)),
+            fn () => Bus::dispatch(new SendTransactionStatusChangedEmail((string) $fresh->id, (string) $fresh->seller_id)),
             fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
                 'event' => 'entraide_confirmed_seller_notification',
                 'transaction_id' => $fresh->id,
                 'organization_id' => $fresh->organization_id,
-                'notifiable_id' => $fresh->seller->id,
+                'notifiable_id' => $fresh->seller_id,
                 'exception_class' => $e::class,
             ]),
             false,
@@ -607,26 +617,16 @@ class TransactionController extends Controller
         // TASK-1809 §3 — l'email d'invitation a evaluer, desormais
         // IMMEDIAT (MASTER a retire la relance planifiee a dix minutes :
         // « BouclePro lutte contre l'infobesite », un seul email, jamais
-        // deux). Idempotent par une mise a jour conditionnelle ATOMIQUE
-        // (`whereNull`, 0 ou 1 ligne touchee) — meme garde que l'ancienne
-        // commande `entraide:invite-to-evaluate`, deplacee ici puisque le
-        // declencheur est desormais synchrone a la cloture et non plus un
-        // balayage planifie. Une discussion directe n'a rien a evaluer.
-        // `rescue()` : un echec d'envoi ne doit jamais faire echouer la
-        // cloture, deja validee et irreversible a ce stade.
+        // deux). Une discussion directe n'a rien a evaluer.
+        //
+        // TASK-1855 — la sequence check/envoi/marquage est INCHANGEE,
+        // seulement DEPORTEE dans `SendEvaluationInviteEmail` (voir son
+        // docblock : rien de resserre, rien d'assoupli). `rescue()` ici ne
+        // protege plus que la MISE EN FILE elle-meme — l'echec d'ENVOI est
+        // deja gere, journalise, DANS le job.
         if (! $fresh->isDirectConversation()) {
             rescue(
-                function () use ($fresh) {
-                    $aEnvoyer = Transaction::whereKey($fresh->id)->whereNull('evaluation_invited_at')->exists();
-
-                    if (! $aEnvoyer) {
-                        return;
-                    }
-
-                    if (app(EvaluationInviteMailer::class)->envoyer($fresh)) {
-                        Transaction::whereKey($fresh->id)->whereNull('evaluation_invited_at')->update(['evaluation_invited_at' => now()]);
-                    }
-                },
+                fn () => Bus::dispatch(new SendEvaluationInviteEmail((string) $fresh->id)),
                 fn (\Throwable $e) => Log::error('Evaluation invitation email failed after successful closure', [
                     'event' => 'entraide_evaluation_invite_not_sent',
                     'transaction_id' => $fresh->id,

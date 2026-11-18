@@ -148,6 +148,8 @@ return [
     'confirmer_sans_note' => 'Vous pouvez confirmer sans laisser d’avis.',
     // TASK-1808 §2/§3 — LA CLOTURE, en un bouton compact puis un panneau.
     'cloturer_bouton' => 'Marquer l’entraide comme terminée',
+    // TASK-1855 — garde anti double-appui, meme idiome que `etoiles_envoi_en_cours`.
+    'cloture_en_cours' => 'Clôture en cours…',
     'cloturer_titre' => 'Confirmer la fin de l’entraide',
     'cloturer_intro' => 'Cela clôture l’entraide et transfère :temps à :prenom. La conversation passera en lecture seule.',
     'cloturer_intro_offert' => 'Cela clôture l’entraide. :prenom a offert son aide : aucun point n’est transféré.',
