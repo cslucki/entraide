@@ -60,6 +60,20 @@ use Illuminate\Support\Facades\Log;
  * propre (contrairement a `ReviewReceivedMailer`), donc la rejouer
  * aveuglement risquerait un second envoi sur une panne simplement
  * transitoire du transport.
+ *
+ * ## Arbitrage MASTER (PR #862, revue) — isolation explicite du destinataire
+ *
+ * La charge utile n'est qu'un `recipientId` scalaire : un worker qui
+ * l'executerait bien plus tard, sur une transaction entre-temps modifiee
+ * (ou un identifiant corrompu/rejoue), ne doit jamais notifier n'importe
+ * qui. Apres relecture de la transaction et liaison du tenant, `handle()`
+ * verifie donc EXPLICITEMENT, avant tout envoi : le destinataire
+ * appartient a l'Organization de la transaction, ET son identifiant est
+ * exactement `buyer_id` ou `seller_id` — les deux SEULS destinataires
+ * legitimes de cette notification. Un refus est journalise SANS email ni
+ * identifiant de destinataire (seulement l'identifiant de transaction et
+ * d'Organization) : un refus repete serait le signe d'un identifiant
+ * corrompu ou rejoue, pas une information a exposer en clair.
  */
 class SendTransactionStatusChangedEmail implements ShouldQueue
 {
@@ -114,6 +128,21 @@ class SendTransactionStatusChangedEmail implements ShouldQueue
                 Log::warning('SendTransactionStatusChangedEmail: destinataire introuvable, email non envoye.', [
                     'transaction_id' => $this->transactionId,
                     'recipient_id' => $this->recipientId,
+                ]);
+
+                return;
+            }
+
+            // Arbitrage MASTER (PR #862) — isolation explicite : seuls
+            // l'acheteur et le vendeur DE CETTE transaction, DANS la MEME
+            // Organization, sont des destinataires legitimes.
+            $estDestinataireLegitime = in_array($this->recipientId, [$transaction->buyer_id, $transaction->seller_id], true)
+                && $recipient->organization_id === $transaction->organization_id;
+
+            if (! $estDestinataireLegitime) {
+                Log::warning('SendTransactionStatusChangedEmail: destinataire illegitime, email non envoye.', [
+                    'transaction_id' => $this->transactionId,
+                    'organization_id' => $transaction->organization_id,
                 ]);
 
                 return;

@@ -23,13 +23,19 @@ use Illuminate\Support\Facades\Log;
  * `true` seulement si le transport a ACCEPTE le message — jamais sur un
  * simple rendu). Rien de resserre, rien d'assoupli.
  *
- * **Signale, non corrige (hors arbitrage de cette TASK)** : `EvaluationInviteMailer::
- * envoyer()` n'a JAMAIS verifie qu'un avis existe deja avant d'inviter a
- * en deposer un — deja vrai AVANT ce correctif. Un avis depose (via
- * `reviews.store`) entre la cloture et l'execution de ce job n'empeche
- * donc pas l'invitation de partir. Fenetre temporelle inchangee par ce
- * correctif (le job part a la cloture, exactement comme avant).
+ * ## Arbitrage MASTER (PR #862, revue) — ne jamais inviter si un avis existe deja
  *
+ * `EvaluationInviteMailer::envoyer()` n'a jamais verifie qu'un avis existe
+ * deja avant d'inviter a en deposer un — vrai AVANT ce correctif, et le
+ * demeure (ce mailer n'est pas touche). La garde vit donc ICI, dans le
+ * job, via `Transaction::hasReviewFrom($buyer_id)` — la MEME regle
+ * metier deja utilisee par `evaluationEnAttente()`/`evaluationDeposeeOuIgnoree()` :
+ * `withTrashed()` compte aussi un avis MODERE (masque) ou SUPPRIME, qui
+ * occupe toujours son unique emplacement (`unique(transaction_id)`) —
+ * un avis supprime par moderation n'est pas « jamais depose ». Sur ce
+ * cas, `evaluation_invited_at` reste NULL (aucun envoi == aucun succes
+ * SMTP a marquer, meme regle que partout ailleurs dans ce job) : rien ne
+ * relance plus tard, ce job ne s'execute qu'une fois, a la cloture.
  * **Signale, non corrige** : cette sequence n'est PAS atomique au sens
  * strict — un check `exists()` suivi d'un `envoyer()` puis d'un `update()`
  * laisse une fenetre theorique si DEUX jobs s'executaient en vraie
@@ -106,6 +112,18 @@ class SendEvaluationInviteEmail implements ShouldQueue
                 ->exists();
 
             if (! $aEnvoyer) {
+                return;
+            }
+
+            // Arbitrage MASTER (PR #862) — meme regle que `evaluationEnAttente()`
+            // (`withTrashed()` : un avis modere ou supprime occupe deja
+            // l'unique emplacement de cette transaction). Rien a marquer
+            // puisqu'aucun envoi n'a lieu.
+            if ($transaction->hasReviewFrom($transaction->buyer_id)) {
+                Log::info('SendEvaluationInviteEmail: un avis existe deja pour cette transaction, invitation non envoyee.', [
+                    'transaction_id' => $this->transactionId,
+                ]);
+
                 return;
             }
 

@@ -2,16 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\TransactionController;
 use App\Jobs\SendEvaluationInviteEmail;
 use App\Jobs\SendTransactionStatusChangedEmail;
 use App\Models\EmailLog;
+use App\Models\Message;
 use App\Models\Organization;
+use App\Models\Review;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Entraide\EvaluationInviteMailer;
 use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Illuminate\Contracts\Queue\Factory as QueueFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Mockery;
@@ -323,5 +327,129 @@ class TASK1855TransactionClosureNotificationsAsyncTest extends TestCase
         $this->assertStringContainsString('envoiEnCours', $zone);
         $this->assertStringContainsString(':disabled="envoiEnCours"', $zone);
         $this->assertStringContainsString('@submit="envoiEnCours = true"', $zone);
+    }
+
+    // ── 11. Arbitrage MASTER (PR #862) — jamais inviter si un avis existe ──
+
+    public function test_une_invitation_n_est_jamais_envoyee_si_un_avis_existe_deja(): void
+    {
+        $entraide = $this->entraideAcceptee();
+
+        Review::factory()->forTransaction($entraide)->create([
+            'reviewer_id' => $this->aide->id,
+            'reviewed_id' => $this->aidant->id,
+            'organization_id' => $this->organization->id,
+        ]);
+
+        (new SendEvaluationInviteEmail((string) $entraide->id))->handle(app(EvaluationInviteMailer::class));
+
+        $this->assertSame(0, $this->invitesPour($this->aide->email)->count());
+        $this->assertNull($entraide->fresh()->evaluation_invited_at,
+            'Aucun envoi == aucun succes SMTP a marquer, meme regle que partout ailleurs dans ce job.');
+    }
+
+    /**
+     * `Transaction::hasReviewFrom()` interroge `withTrashed()` — un avis
+     * SUPPRIME par moderation occupe toujours son unique emplacement et ne
+     * doit pas laisser croire que « personne n'a encore evalue ».
+     */
+    public function test_une_invitation_n_est_jamais_envoyee_si_l_avis_a_ete_supprime_par_moderation(): void
+    {
+        $entraide = $this->entraideAcceptee();
+
+        $avis = Review::factory()->forTransaction($entraide)->create([
+            'reviewer_id' => $this->aide->id,
+            'reviewed_id' => $this->aidant->id,
+            'organization_id' => $this->organization->id,
+        ]);
+        $avis->delete();
+
+        (new SendEvaluationInviteEmail((string) $entraide->id))->handle(app(EvaluationInviteMailer::class));
+
+        $this->assertSame(0, $this->invitesPour($this->aide->email)->count());
+    }
+
+    // ── 12. Arbitrage MASTER (PR #862) — isolation du destinataire ─────────
+
+    public function test_le_job_de_statut_refuse_un_destinataire_etranger_a_l_echange(): void
+    {
+        $entraide = $this->entraideAcceptee();
+        $etranger = User::factory()->create(['organization_id' => $this->organization->id]);
+
+        (new SendTransactionStatusChangedEmail((string) $entraide->id, (string) $etranger->id))->handle();
+
+        $this->assertDatabaseMissing('email_logs', ['to_email' => $etranger->email]);
+    }
+
+    /**
+     * `User::organization_id` est IMMUABLE par conception (TASK-1726) : un
+     * compte ne peut jamais changer d'Organization. L'incoherence testee
+     * ici vient donc de la TRANSACTION (ex. correction de donnees), pas
+     * d'un compte reaffecte — mais la garde verifie les DEUX conditions
+     * independamment, et doit refuser meme quand seule celle-ci casse.
+     */
+    public function test_le_job_de_statut_refuse_le_buyer_si_la_transaction_n_appartient_plus_a_son_organization(): void
+    {
+        $entraide = $this->entraideAcceptee();
+        $autreOrganization = Organization::factory()->create();
+
+        \Illuminate\Support\Facades\DB::table('transactions')
+            ->where('id', $entraide->id)
+            ->update(['organization_id' => $autreOrganization->id]);
+
+        (new SendTransactionStatusChangedEmail((string) $entraide->id, (string) $this->aide->id))->handle();
+
+        $this->assertDatabaseMissing('email_logs', ['to_email' => $this->aide->email]);
+    }
+
+    // ── 13. Arbitrage MASTER (PR #862) — clotures concurrentes ─────────────
+
+    /**
+     * Simulation deterministe de deux requetes `complete()` qui
+     * franchiraient TOUTES LES DEUX `authorize()` avant que l'une ou
+     * l'autre ne commette : chaque "requete" tient son PROPRE modele,
+     * resolu pendant que le statut est encore `accepted` — exactement le
+     * scenario decrit par MASTER (un seul processus de test, mais deux
+     * instances Eloquent independantes, comme le seraient deux requetes
+     * HTTP reelles dont le route-model-binding a eu lieu avant l'une et
+     * l'autre des deux validations de policy).
+     *
+     * Avant ce correctif, la seconde "requete" relisait un statut GLOBAL
+     * deja `completed` (ecrit par la premiere) et croyait, a tort, l'avoir
+     * elle-meme cloture : elle ecrivait un second message systeme et
+     * poussait un second lot de notifications/invitation.
+     */
+    public function test_une_cloture_concurrente_ne_duplique_aucun_effet_secondaire(): void
+    {
+        Queue::fake();
+
+        $entraide = $this->entraideAcceptee();
+
+        $transactionRequete1 = Transaction::find($entraide->id);
+        $transactionRequete2 = Transaction::find($entraide->id);
+
+        $this->actingAs($this->aide);
+        $controller = app(TransactionController::class);
+
+        $controller->complete(Request::create('/', 'PATCH'), $transactionRequete1);
+
+        $this->assertSame('completed', $entraide->fresh()->status,
+            'Precondition non prise : la premiere requete doit reellement avoir cloture.');
+
+        $messagesAvant = Message::where('transaction_id', $entraide->id)->count();
+
+        // Requete 2 : son modele est reste `accepted` EN MEMOIRE — `authorize()`
+        // y passe donc, exactement comme dans une vraie course. Le verrou,
+        // lui, voit la verite : `completed`.
+        $controller->complete(Request::create('/', 'PATCH'), $transactionRequete2);
+
+        $this->assertSame(
+            $messagesAvant,
+            Message::where('transaction_id', $entraide->id)->count(),
+            'La seconde requete concurrente ne doit ecrire aucun second message systeme.'
+        );
+
+        Queue::assertPushed(SendTransactionStatusChangedEmail::class, 2);
+        Queue::assertPushed(SendEvaluationInviteEmail::class, 1);
     }
 }

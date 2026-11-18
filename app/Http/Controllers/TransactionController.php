@@ -465,11 +465,25 @@ class TransactionController extends Controller
             'comment' => 'nullable|string|max:1000',
         ]);
 
-        DB::transaction(function () use ($transaction) {
+        // Arbitrage MASTER (PR #862, revue) — deux requetes `complete()`
+        // peuvent toutes deux franchir `authorize()` AVANT que l'une ou
+        // l'autre ne commette (chacune tient son PROPRE modele, resolu
+        // pendant que le statut etait encore `accepted`). Le verrou
+        // serialise ensuite leur acces reel : la premiere transforme,
+        // la seconde — bloquee jusqu'au commit de la premiere — relit un
+        // statut deja `completed` et ne doit RIEN faire. L'ancien code
+        // relisait `$transaction->fresh()->status` APRES la transaction
+        // pour le savoir : ce statut est un etat GLOBAL, deja `completed`
+        // par la premiere requete au moment ou la seconde le lit — les
+        // DEUX requetes le trouvent donc `completed` et la seconde
+        // croyait, a tort, avoir elle-meme cloture. `$transitionEffectuee`
+        // porte desormais ce fait PAR REQUETE, directement depuis le
+        // verrou qui l'a constate.
+        $transitionEffectuee = DB::transaction(function () use ($transaction): bool {
             $tx = Transaction::where('id', $transaction->id)->lockForUpdate()->first();
 
             if (! in_array($tx->status, ['accepted', 'buyer_done'], true)) {
-                return;
+                return false;
             }
 
             $points = (int) $tx->points_agreed;
@@ -509,11 +523,13 @@ class TransactionController extends Controller
             ]);
 
             app(ServiceRequestLifecycle::class)->close($tx);
+
+            return true;
         });
 
         $fresh = $transaction->fresh();
 
-        if ($fresh->status !== 'completed') {
+        if (! $transitionEffectuee) {
             return $this->redirectToMessage($transaction)
                 ->with('error', __('entraide.flash.deja_traite'));
         }
