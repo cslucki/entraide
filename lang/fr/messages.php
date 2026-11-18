@@ -169,6 +169,9 @@ return [
     // une seule soumission), remplace les deux micro-ecrans de T1808 §5.
     'etoiles_titre' => 'Comment évaluez-vous l’aide de :prenom ?',
     'etoiles_valider' => 'Valider mon évaluation',
+    // TASK-1854 — affiché pendant l'envoi, remplace le libellé ci-dessus
+    // tant que le bouton est désactivé (garde anti double-appui).
+    'etoiles_envoi_en_cours' => 'Envoi en cours…',
     // TASK-1809 (correctif Cyril, 12/11) — l'ecran qui remplace la carte une
     // fois l'avis depose ; le partage dans le Flux est desormais AUTOMATIQUE
     // (plus de case a cocher ni de lien distinct).

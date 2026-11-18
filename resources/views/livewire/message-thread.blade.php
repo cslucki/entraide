@@ -538,14 +538,26 @@
                 @if($_estLAide)
                     @if($transaction->etoilesEnAttente())
                         <div class="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-700"
-                             x-data="{ note: 0, survol: 0 }"
+                             x-data="{ note: 0, survol: 0, envoiEnCours: false }"
                              data-entraide-evaluation>
                             <p class="text-sm font-medium text-indigo-700 dark:text-indigo-200">
                                 {{ __('messages.etoiles_titre', ['prenom' => $_bentoPrenomAidant]) }}
                             </p>
 
+                            {{-- TASK-1854 — formulaire HTML brut, sans Livewire : aucun
+                                 `wire:loading` ne peut porter cette garde. L'envoi SMTP
+                                 synchrone etant desormais deporte en file (voir
+                                 `EvaluationEntraide::enregistrer()`), la reponse arrive
+                                 plus vite qu'avant — mais sans RIEN a l'ecran pendant
+                                 l'aller-retour, un appui repete reste possible (audit
+                                 incident 429 du 17/11 : plusieurs re-soumissions
+                                 rapprochees sur ce MEME formulaire ont declenche
+                                 `throttle:5,1`). `@submit` bascule l'etat AVANT que le
+                                 navigateur ne quitte la page : un second clic pendant le
+                                 trajet reseau trouve donc un bouton deja desactive. --}}
                             <form method="POST" action="{{ $_threadRoute('reviews.store', 'organization.reviews.store', ['transaction' => $transaction]) }}"
-                                  class="mt-2">
+                                  class="mt-2"
+                                  @submit="envoiEnCours = true">
                                 @csrf
                                 <textarea name="comment" rows="2" maxlength="1000"
                                     placeholder="{{ __('messages.review_placeholder') }}"
@@ -570,11 +582,17 @@
 
                                     {{-- Le bouton n'apparait qu'une fois une note
                                          choisie : la note est obligatoire pour
-                                         soumettre, le commentaire reste facultatif. --}}
+                                         soumettre, le commentaire reste facultatif.
+                                         TASK-1854 — `:disabled` et le texte qui
+                                         change sont la SEULE garde anti double-appui
+                                         disponible sur ce formulaire brut (voir
+                                         commentaire du `<form>` juste au-dessus). --}}
                                     <button type="submit" x-show="note > 0" x-cloak
-                                        class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
+                                        :disabled="envoiEnCours"
+                                        class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
                                         data-entraide-etoiles-valider>
-                                        {{ __('messages.etoiles_valider') }}
+                                        <span x-show="!envoiEnCours">{{ __('messages.etoiles_valider') }}</span>
+                                        <span x-show="envoiEnCours" x-cloak>{{ __('messages.etoiles_envoi_en_cours') }}</span>
                                     </button>
                                 </div>
                             </form>
