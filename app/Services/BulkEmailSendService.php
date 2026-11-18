@@ -216,6 +216,22 @@ class BulkEmailSendService
     }
 
     /**
+     * TASK-1861 (revue MASTER, correctif avant fusion) — la transition
+     * `queued -> processing`, EN UNE requete, meme idiome que
+     * `claimRecipient()`. Une simple lecture de `$recipient->status` ne
+     * suffit PAS : deux workers qui liraient tous deux `queued` avant que
+     * l'un d'eux n'ecrive franchiraient tous deux la garde et enverraient
+     * deux fois. Seul le nombre de lignes affectees par CETTE requete
+     * tranche qui possede desormais la ligne.
+     */
+    public function claimForProcessing(string $recipientId): bool
+    {
+        return BulkEmailSendRecipient::whereKey($recipientId)
+            ->where('status', BulkEmailSendRecipient::STATUS_QUEUED)
+            ->update(['status' => BulkEmailSendRecipient::STATUS_PROCESSING]) === 1;
+    }
+
+    /**
      * Le travail d'UN destinataire DEJA reserve — appele par
      * `SendBulkEmailToRecipient::handle()`. Tout est RELU au moment du
      * travail : le destinataire, l'envoi parent et l'utilisateur sont une
@@ -233,9 +249,12 @@ class BulkEmailSendService
             return;
         }
 
-        if ($recipient->status !== BulkEmailSendRecipient::STATUS_QUEUED) {
-            // Deja traite (ou jamais reserve par ce chemin) : ne JAMAIS
-            // retraiter une ligne qui n'est plus a ce worker precis.
+        // TASK-1861 (revue MASTER) — prise de travail ATOMIQUE. Remplace la
+        // simple lecture `$recipient->status !== QUEUED` : celle-ci laissait
+        // une fenetre ou deux executions du MEME job (redelivraison
+        // "at-least-once", deux workers) pouvaient toutes deux la franchir
+        // avant qu'aucune n'ecrive, et donc envoyer deux fois.
+        if (! $this->claimForProcessing($recipientId)) {
             Log::warning('BulkEmailSendService: destinataire non reserve au moment du traitement, ignore.', [
                 'bulk_email_send_recipient_id' => $recipientId,
                 'status' => $recipient->status,
@@ -270,14 +289,56 @@ class BulkEmailSendService
 
             $log = $this->sendOne($user, $send, $send->creator);
 
-            $recipient->update([
-                'status' => match ($log->status) {
-                    EmailLog::STATUS_SENT => BulkEmailSendRecipient::STATUS_SENT,
-                    EmailLog::STATUS_AMBIGUOUS => BulkEmailSendRecipient::STATUS_AMBIGUOUS,
-                    default => BulkEmailSendRecipient::STATUS_FAILED,
-                },
-                'email_log_id' => $log->id,
-            ]);
+            if ($log === null) {
+                // TASK-1861 (revue MASTER) — le transport a ete SOLLICITE
+                // (reussi ou leve, `sendOne()` l'a deja absorbe), mais la
+                // PREUVE elle-meme (`EmailLog::create()`) n'a pas pu
+                // s'ecrire. FRONTIERE H1 : a partir de la sollicitation du
+                // transport, plus rien ne peut conclure `failed`. On tente
+                // `ambiguous` ; si MEME cette ecriture echoue, la ligne
+                // reste `processing` — observable, jamais silencieusement
+                // perdue, et jamais rejouee automatiquement.
+                try {
+                    DB::transaction(fn () => $recipient->update(['status' => BulkEmailSendRecipient::STATUS_AMBIGUOUS]));
+                } catch (Throwable $e) {
+                    report($e);
+                    Log::error('BulkEmailSendService: aucune preuve ecrite apres une tentative SMTP, destinataire reste `processing` — reconciliation manuelle necessaire.', [
+                        'bulk_email_send_recipient_id' => $recipient->id,
+                    ]);
+
+                    return;
+                }
+
+                Log::warning('BulkEmailSendService: journal introuvable apres une tentative de transport (echec de persistance), destinataire marque ambigu — reconciliation manuelle necessaire.', [
+                    'bulk_email_send_recipient_id' => $recipient->id,
+                ]);
+
+                $this->maybeComplete($send);
+
+                return;
+            }
+
+            try {
+                DB::transaction(fn () => $recipient->update([
+                    'status' => match ($log->status) {
+                        EmailLog::STATUS_SENT => BulkEmailSendRecipient::STATUS_SENT,
+                        EmailLog::STATUS_AMBIGUOUS => BulkEmailSendRecipient::STATUS_AMBIGUOUS,
+                        default => BulkEmailSendRecipient::STATUS_FAILED,
+                    },
+                    'email_log_id' => $log->id,
+                ]));
+            } catch (Throwable $e) {
+                report($e);
+                // Le journal EXISTE (voir `email_log_id` ci-dessous) : la
+                // reconciliation manuelle part de la, meme si cette
+                // ecriture-ci a echoue.
+                Log::error('BulkEmailSendService: le destinataire n a pas pu etre mis a jour apres une tentative SMTP, reste `processing` — reconciliation manuelle necessaire.', [
+                    'bulk_email_send_recipient_id' => $recipient->id,
+                    'email_log_id' => $log->id,
+                ]);
+
+                return;
+            }
 
             match ($log->status) {
                 EmailLog::STATUS_SENT => $send->increment('sent_count'),
@@ -293,16 +354,21 @@ class BulkEmailSendService
     }
 
     /**
-     * L'envoi passe `completed` quand plus AUCUNE ligne n'est `pending` ni
-     * `queued` — jamais seulement quand `pending` atteint zero : une ligne
-     * `queued` est un job en vol, pas un travail termine. Idempotent : deux
-     * jobs qui concluent au meme instant ne font que poser la MEME valeur
-     * deux fois, sans effet de bord supplementaire.
+     * L'envoi passe `completed` quand plus AUCUNE ligne n'est `pending`,
+     * `queued` NI `processing` — jamais seulement quand `pending` atteint
+     * zero : une ligne `queued`/`processing` est un job en vol ou en cours
+     * d'execution, pas un travail termine. Idempotent : deux jobs qui
+     * concluent au meme instant ne font que poser la MEME valeur deux fois,
+     * sans effet de bord supplementaire.
      */
     private function maybeComplete(BulkEmailSend $send): void
     {
         $remaining = $send->recipients()
-            ->whereIn('status', [BulkEmailSendRecipient::STATUS_PENDING, BulkEmailSendRecipient::STATUS_QUEUED])
+            ->whereIn('status', [
+                BulkEmailSendRecipient::STATUS_PENDING,
+                BulkEmailSendRecipient::STATUS_QUEUED,
+                BulkEmailSendRecipient::STATUS_PROCESSING,
+            ])
             ->count();
 
         if ($remaining === 0) {
@@ -314,7 +380,15 @@ class BulkEmailSendService
      * Idiome repris du reste de la famille (TASK-1854/1855/1857/1858/1860),
      * adapte a la seule particularite de ce modele : `organization_id` NULL
      * est une valeur a part entiere (« toutes les Organizations »), pas une
-     * absence a combler — rien n'est donc lie quand il est NULL.
+     * absence a combler.
+     *
+     * TASK-1861 (revue MASTER, correctif avant fusion) — NULL lie
+     * desormais EXPLICITEMENT « aucun tenant », au lieu de ne rien faire.
+     * Un worker de Managed Queue persiste entre deux jobs : ne RIEN faire
+     * pour un envoi « toutes les Organizations » aurait laisse en place le
+     * tenant eventuellement encore lie par le JOB PRECEDENT traite par le
+     * MEME worker — une fuite de contexte entre jobs, pas une absence de
+     * contexte. `forgetInstance()` ferme cette fenetre.
      *
      * @template TReturn
      *
@@ -323,17 +397,20 @@ class BulkEmailSendService
      */
     private function withOrganizationContext(?string $organizationId, callable $callback): mixed
     {
-        if ($organizationId === null) {
-            return $callback();
-        }
-
         $hadPrevious = app()->bound('current_organization');
         $previous = $hadPrevious ? app('current_organization') : null;
-        $organization = Organization::query()->whereKey($organizationId)->first();
+
+        $organization = $organizationId !== null
+            ? Organization::query()->whereKey($organizationId)->first()
+            : null;
 
         if ($organization) {
             app()->instance('current_organization', $organization);
-        } elseif ($hadPrevious) {
+        } else {
+            // `organization_id` NULL, OU l'Organization visee a disparu :
+            // aucun tenant n'est lie pour CE destinataire — jamais celui,
+            // eventuellement perime, d'un job precedent traite par le MEME
+            // worker persistant.
             app()->forgetInstance('current_organization');
         }
 
@@ -401,7 +478,15 @@ class BulkEmailSendService
         return ['subject' => $subject, 'body' => $body, 'isHtml' => $isHtml];
     }
 
-    private function sendOne(User $user, BulkEmailSend $send, ?User $sender): EmailLog
+    /**
+     * TASK-1861 (revue MASTER, correctif avant fusion) — rend `null` quand
+     * le transport a ete SOLLICITE (reussi ou leve) mais que la PREUVE
+     * elle-meme (`EmailLog::create()`) n'a pas pu s'ecrire. Ne laisse
+     * JAMAIS une exception de persistance remonter apres le transport :
+     * l'appelant (`processRecipient()`) doit pouvoir conclure sans jamais
+     * risquer de rejouer un envoi peut-etre deja parti.
+     */
+    private function sendOne(User $user, BulkEmailSend $send, ?User $sender): ?EmailLog
     {
         $variables = $this->emailer->availableVariables($user);
 
@@ -444,29 +529,40 @@ class BulkEmailSendService
             $error = $e->getMessage();
         }
 
-        return EmailLog::create([
-            'template_id' => $send->content_source === BulkEmailSend::CONTENT_SOURCE_TEMPLATE
-                ? $send->email_template_id
-                : null,
-            'user_id' => $user->id,
-            'organization_id' => $user->organization_id,
-            'to_email' => $user->email,
-            'subject' => $subject,
-            'status' => $status,
-            'error_message' => $error,
-            'body_html' => $body,
-            'body_hash' => hash('sha256', $body),
-            'data' => [
-                'source' => 'bulk-email',
-                'sender_id' => $sender?->id,
-                'bulk_email_send_id' => $send->id,
-                'content_format' => $send->content_source === BulkEmailSend::CONTENT_SOURCE_TEMPLATE
-                    ? 'template'
-                    : $send->content_format,
-                'template_slug' => $send->content_source === BulkEmailSend::CONTENT_SOURCE_TEMPLATE
-                    ? $send->template?->slug
+        // TASK-1861 (revue MASTER) — a partir d'ICI, le transport a ete
+        // SOLLICITE (reussi ou leve ci-dessus) : cette ecriture ne doit
+        // JAMAIS laisser une exception remonter. Une panne de persistance
+        // APRES un transport reussi ne doit surtout pas ressembler a un
+        // echec PRE-transport pour l'appelant — `null` le dit sans ambiguite.
+        try {
+            return EmailLog::create([
+                'template_id' => $send->content_source === BulkEmailSend::CONTENT_SOURCE_TEMPLATE
+                    ? $send->email_template_id
                     : null,
-            ],
-        ]);
+                'user_id' => $user->id,
+                'organization_id' => $user->organization_id,
+                'to_email' => $user->email,
+                'subject' => $subject,
+                'status' => $status,
+                'error_message' => $error,
+                'body_html' => $body,
+                'body_hash' => hash('sha256', $body),
+                'data' => [
+                    'source' => 'bulk-email',
+                    'sender_id' => $sender?->id,
+                    'bulk_email_send_id' => $send->id,
+                    'content_format' => $send->content_source === BulkEmailSend::CONTENT_SOURCE_TEMPLATE
+                        ? 'template'
+                        : $send->content_format,
+                    'template_slug' => $send->content_source === BulkEmailSend::CONTENT_SOURCE_TEMPLATE
+                        ? $send->template?->slug
+                        : null,
+                ],
+            ]);
+        } catch (Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 }

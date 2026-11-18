@@ -13,6 +13,7 @@ use Illuminate\Contracts\Queue\Factory as QueueFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Mockery;
 use RuntimeException;
 use Tests\TestCase;
@@ -310,5 +311,188 @@ class TASK1861BulkEmailAsyncSafetyTest extends TestCase
 
         $this->assertSame(BulkEmailSendRecipient::STATUS_QUEUED, $r1->fresh()->status);
         $this->assertSame(BulkEmailSendRecipient::STATUS_QUEUED, $r2->fresh()->status);
+    }
+
+    // ── 9. Correctif MASTER avant fusion — prise de travail ATOMIQUE du job ──
+
+    /**
+     * Deux workers (ou deux redelivraisons "at-least-once" d'une Managed
+     * Queue) qui ramassent le MEME destinataire `queued` : une simple
+     * lecture de `status` ne suffit pas, seule la transition `queued ->
+     * processing` conditionnee sur l'etat attendu tranche qui envoie.
+     */
+    public function test_deux_workers_concurrents_sur_le_meme_destinataire_un_seul_obtient_le_droit_d_envoyer(): void
+    {
+        $send = $this->send();
+        $recipient = $this->recipient($send);
+        app(BulkEmailSendService::class)->claimRecipient((string) $recipient->id);
+
+        $service = app(BulkEmailSendService::class);
+        $premier = $service->claimForProcessing((string) $recipient->id);
+        $second = $service->claimForProcessing((string) $recipient->id);
+
+        $this->assertTrue($premier, 'Le premier worker doit obtenir le droit de traiter.');
+        $this->assertFalse($second, 'Un second worker ne doit JAMAIS obtenir le meme droit sur la MEME ligne.');
+        $this->assertSame(BulkEmailSendRecipient::STATUS_PROCESSING, $recipient->fresh()->status);
+    }
+
+    /**
+     * Une redelivraison du job PENDANT qu'un traitement est deja en cours
+     * (ligne `processing`, pas encore resolue) ne doit jamais declencher un
+     * second envoi — distinct du cas "deja `sent`" deja couvert plus haut.
+     */
+    public function test_une_redelivrance_pendant_un_traitement_en_cours_n_envoie_jamais_un_second_courriel(): void
+    {
+        Mail::shouldReceive('raw')->once()->andReturn(null);
+
+        $send = $this->send();
+        $recipient = $this->recipient($send);
+        app(BulkEmailSendService::class)->claimRecipient((string) $recipient->id);
+
+        // Simule un traitement DEJA en cours (worker lent, pas encore conclu).
+        $recipient->update(['status' => BulkEmailSendRecipient::STATUS_PROCESSING]);
+
+        // La redelivraison du MEME job arrive PENDANT ce traitement : elle
+        // ne doit rien pouvoir reserver, et donc n'appeler Mail:: a aucun
+        // moment (l'attente `->once()` ci-dessus porte sur l'appel qui
+        // suivra, pas sur celui-ci).
+        app(BulkEmailSendService::class)->processRecipient((string) $recipient->id);
+        $this->assertSame(BulkEmailSendRecipient::STATUS_PROCESSING, $recipient->fresh()->status, 'La redelivraison ne doit pas toucher une ligne deja en cours.');
+        $this->assertSame(0, EmailLog::count());
+
+        // Le worker "legitime" conclut ensuite normalement : UN SEUL appel
+        // Mail:: au total sur ce test, prouve par le `->once()` ci-dessus.
+        $recipient->update(['status' => BulkEmailSendRecipient::STATUS_QUEUED]);
+        app(BulkEmailSendService::class)->processRecipient((string) $recipient->id);
+        $this->assertSame(BulkEmailSendRecipient::STATUS_SENT, $recipient->fresh()->status);
+        $this->assertSame(1, EmailLog::count());
+    }
+
+    // ── 10. Frontiere SMTP / journalisation ─────────────────────────────────
+
+    /**
+     * `EmailLog::create()` echoue APRES un transport REUSSI : jamais
+     * `failed`, jamais silencieusement perdu. La table est masquee le temps
+     * de l'appel — sabotage de la PERSISTANCE, pas du code de production,
+     * meme trick que `TASK1377NotificationEmailAsyncTest`.
+     */
+    public function test_un_echec_de_journalisation_apres_un_transport_reussi_laisse_une_trace_exploitable(): void
+    {
+        Mail::shouldReceive('raw')->once()->andReturn(null);
+
+        $send = $this->send();
+        $recipient = $this->recipient($send);
+        app(BulkEmailSendService::class)->claimRecipient((string) $recipient->id);
+
+        Schema::rename('email_logs', 'email_logs_masquee_par_le_test');
+
+        try {
+            app(BulkEmailSendService::class)->processRecipient((string) $recipient->id);
+        } finally {
+            Schema::rename('email_logs_masquee_par_le_test', 'email_logs');
+        }
+
+        $this->assertSame(BulkEmailSendRecipient::STATUS_AMBIGUOUS, $recipient->fresh()->status, 'Jamais failed apres un transport reussi, meme si la preuve n a pas pu s ecrire.');
+        $this->assertNotSame(BulkEmailSendRecipient::STATUS_FAILED, $recipient->fresh()->status);
+        $this->assertNull($recipient->fresh()->email_log_id, 'Aucun journal n a pu etre cree : rien a referencer.');
+
+        // Aucune preuve n'a pu s'ecrire — l'incident etait dans CETTE
+        // ecriture — et c'est attendu : on ne fabrique pas une preuve a
+        // partir d'un sabotage de la preuve elle-meme. La table est
+        // restauree, la requete porte donc bien sur l'etat reel.
+        $this->assertSame(0, EmailLog::query()->count());
+
+        // Ambigu ne grossit AUCUN des deux compteurs : on ignore, on
+        // n'affirme pas.
+        $send->refresh();
+        $this->assertSame(0, $send->sent_count);
+        $this->assertSame(0, $send->failed_count);
+    }
+
+    // ── 11. Isolation multi-Organizations ────────────────────────────────────
+
+    /**
+     * Une campagne `organization_id = null` (« toutes les Organizations »)
+     * traite des destinataires de plusieurs Organizations DIFFERENTES : le
+     * contexte tenant doit rester COHERENT avec chaque destinataire pendant
+     * son propre traitement, et le tenant ambiant anterieur au dispatch
+     * doit etre restaure a l'identique ensuite — sans fuite d'un
+     * destinataire vers l'autre.
+     */
+    public function test_une_campagne_multi_organizations_isole_le_tenant_par_destinataire_et_le_restaure(): void
+    {
+        Mail::shouldReceive('raw')->twice()->andReturn(null);
+
+        $autreOrganization = Organization::factory()->create();
+        $autreMembre = User::factory()->create([
+            'organization_id' => $autreOrganization->id,
+            'email_verified_at' => now(),
+        ]);
+
+        // `organization_id = null` : cible TOUTES les Organizations.
+        $send = $this->send(['organization_id' => null]);
+        $r1 = $this->recipient($send); // membre de $this->organization
+        $r2 = $this->recipient($send, $autreMembre); // membre d'une AUTRE Organization
+
+        // Un tenant ambiant PREALABLE, etranger aux deux Organizations
+        // ci-dessus — simule un worker de Managed Queue qui aurait traite
+        // un AUTRE job juste avant, et dont le contexte doit etre restaure
+        // a l'identique, jamais laisse en place pour celui-ci.
+        $tenantPrealable = Organization::factory()->create();
+        app()->instance('current_organization', $tenantPrealable);
+
+        $service = app(BulkEmailSendService::class);
+        $service->claimRecipient((string) $r1->id);
+        $service->processRecipient((string) $r1->id);
+
+        $service->claimRecipient((string) $r2->id);
+        $service->processRecipient((string) $r2->id);
+
+        $this->assertSame(BulkEmailSendRecipient::STATUS_SENT, $r1->fresh()->status);
+        $this->assertSame(BulkEmailSendRecipient::STATUS_SENT, $r2->fresh()->status);
+        $this->assertSame(2, EmailLog::count());
+
+        // Le tenant PREALABLE est restaure a l'identique apres CHAQUE
+        // traitement — ni celui de $r1, ni celui de $r2, ne doit avoir
+        // fui en dehors de son propre `processRecipient()`.
+        $this->assertTrue(app()->bound('current_organization'));
+        $this->assertSame($tenantPrealable->id, app('current_organization')->id,
+            'Le tenant ambiant anterieur doit etre restaure EXACTEMENT, jamais celui d un des destinataires traites.');
+    }
+
+    // ── 12. Statuts et compteurs apres interruption ─────────────────────────
+
+    /**
+     * Un destinataire bloque en `processing` (worker tombe APRES la prise
+     * de travail mais AVANT tout envoi) ne doit ni etre repris
+     * automatiquement, ni faire passer l'envoi `completed`, ni grossir un
+     * compteur quelconque — il reste observable, point.
+     */
+    public function test_statuts_et_compteurs_restent_coherents_apres_une_interruption_en_cours_de_traitement(): void
+    {
+        $send = $this->send();
+        $bloque = $this->recipient($send);
+        $autre = $this->recipient($send);
+
+        $service = app(BulkEmailSendService::class);
+        $service->claimRecipient((string) $bloque->id);
+        $service->claimForProcessing((string) $bloque->id); // worker tombe ICI, avant tout envoi SMTP
+
+        // L'AUTRE destinataire est traite normalement, en entier.
+        Mail::shouldReceive('raw')->once()->andReturn(null);
+        $service->claimRecipient((string) $autre->id);
+        $service->processRecipient((string) $autre->id);
+
+        $send->refresh();
+        $this->assertSame(BulkEmailSendRecipient::STATUS_PROCESSING, $bloque->fresh()->status, 'Reste observable, jamais silencieusement perdu.');
+        $this->assertSame(1, $send->sent_count);
+        $this->assertSame(0, $send->failed_count);
+        $this->assertSame(BulkEmailSend::STATUS_SENDING, $send->status, 'Ne doit JAMAIS passer `completed` tant qu une ligne reste `processing`.');
+
+        // Un nouveau lot ne doit RIEN re-selectionner pour la ligne
+        // bloquee : seul `pending` est jamais re-choisi.
+        $tally = $service->sendNextBatch($send, 50);
+        $this->assertSame(0, $tally['queued']);
+        $this->assertSame(BulkEmailSendRecipient::STATUS_PROCESSING, $bloque->fresh()->status);
     }
 }

@@ -30,6 +30,21 @@ use InvalidArgumentException;
  * marquer `sent` affirmerait une livraison peut-etre inexistante. `ambiguous`
  * dit l'ignorance, et n'est JAMAIS repris automatiquement — seul `pending`
  * est jamais re-selectionne par `claimRecipient()`.
+ *
+ * ## TASK-1861 (revue MASTER, correctif avant fusion) — `processing`
+ *
+ * `queued` protege contre deux DECLENCHEMENTS HTTP concurrents (deux
+ * reservations du MEME `pending`) ; `processing` protege contre deux
+ * EXECUTIONS DU JOB concurrentes pour le MEME destinataire DEJA reserve
+ * (redelivraison "at-least-once" d'une Managed Queue, deux workers qui
+ * ramassent le meme message). Meme idiome, une couche plus bas : une
+ * seule requete UPDATE fait la transition `queued -> processing`, avec
+ * l'etat attendu dans son `WHERE` (voir
+ * `BulkEmailSendService::claimForProcessing()`). Si l'ecriture du
+ * resultat final echoue APRES une tentative de transport, la ligne
+ * reste `processing` — observable, jamais silencieusement perdue, et
+ * jamais rejouee automatiquement : un humain la reprend via
+ * reconciliation manuelle (croiser `email_logs` si un journal existe).
  */
 class BulkEmailSendRecipient extends Model
 {
@@ -39,6 +54,8 @@ class BulkEmailSendRecipient extends Model
     public const STATUS_PENDING = 'pending';
 
     public const STATUS_QUEUED = 'queued';
+
+    public const STATUS_PROCESSING = 'processing';
 
     public const STATUS_SENT = 'sent';
 
@@ -50,6 +67,7 @@ class BulkEmailSendRecipient extends Model
     public const STATUSES = [
         self::STATUS_PENDING,
         self::STATUS_QUEUED,
+        self::STATUS_PROCESSING,
         self::STATUS_SENT,
         self::STATUS_FAILED,
         self::STATUS_AMBIGUOUS,
