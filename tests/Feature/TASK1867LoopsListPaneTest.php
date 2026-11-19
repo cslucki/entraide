@@ -133,6 +133,36 @@ class TASK1867LoopsListPaneTest extends TestCase
         $this->assertStringContainsString('data-loops-preview-drawer="drawer"', $html);
     }
 
+    /**
+     * Revue MASTER — catalogue vide en liste : la racine appelle
+     * `loopsListPane()`, son script doit donc etre servi, une seule fois.
+     */
+    public function test_an_empty_catalogue_in_list_view_still_ships_the_pane_component_once(): void
+    {
+        $moi = $this->user();
+
+        $html = $this->actingAs($moi)->get(route('loops.index', ['view' => 'list']))->assertOk()->getContent();
+
+        $this->assertStringContainsString(e(__('loops.empty')), $html);
+        $this->assertStringContainsString('loopsListPane({', $html);
+        $this->assertSame(1, substr_count($html, 'window.loopsListPane ='));
+        $this->assertSame(1, substr_count($html, 'window.loopsPreviewLoader ='));
+        $this->assertSame(1, substr_count($html, 'window.loopsPreviewDrawer ='));
+        $this->assertStringNotContainsString('<aside data-loops-list-pane', $html);
+    }
+
+    public function test_a_filled_list_ships_each_component_script_once(): void
+    {
+        $moi = $this->user();
+        $this->service->createLoop($moi, 'Ma Boucle');
+        $this->service->createLoop($this->user(), 'Boucle voisine');
+
+        $html = $this->actingAs($moi)->get(route('loops.index', ['view' => 'list']))->assertOk()->getContent();
+
+        $this->assertSame(1, substr_count($html, 'window.loopsListPane ='));
+        $this->assertSame(1, substr_count($html, 'window.loopsPreviewLoader ='));
+    }
+
     private function message(Loop $loop, User $sender, string $body, $when): LoopMessage
     {
         $message = new LoopMessage([

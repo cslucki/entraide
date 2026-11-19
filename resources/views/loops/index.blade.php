@@ -415,6 +415,10 @@
         {{-- TASK-1867 — en liste, la meme feuille sert d'apercu sous 1024 px
              (au-dela, le volet de detail). En grille : le tiroir de T1866. --}}
         @include('loops.partials.preview-drawer', ['sheetOnly' => $isListView])
+        @if($isListView)
+            {{-- La racine appelle `loopsListPane()` meme catalogue vide. --}}
+            @include('loops.partials.list-pane-script')
+        @endif
     </div>
 
 </x-page>
