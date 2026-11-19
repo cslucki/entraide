@@ -101,4 +101,67 @@ class TASK1868BulkInvitationFixesTest extends TestCase
         $this->assertTrue(Hash::check('un-mot-de-passe-solide-42', $user->password));
         $this->assertNull(User::where('email', 'autre-adresse@example.test')->first());
     }
+
+    // ── 3. Duree de validite : 48h -> 7 jours ─────────────────────────────
+
+    public function test_a_freshly_created_invitation_is_valid_for_seven_days_not_forty_eight_hours(): void
+    {
+        $org = $this->org();
+
+        $invitation = app(\App\Services\OrganizationInvitationService::class)->invite(
+            $org,
+            User::factory()->create(['organization_id' => $org->id]),
+            'nouvelle.validite@example.test',
+            'Jean',
+            'Dupont',
+        )['invitation'];
+
+        $this->assertSame(168, OrganizationInvitation::VALIDITY_HOURS);
+        $this->assertTrue($invitation->expires_at->between(
+            now()->addHours(167),
+            now()->addHours(169),
+        ));
+    }
+
+    public function test_resending_an_invitation_extends_its_validity_to_a_fresh_seven_days(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'expires_at' => now()->addHours(2),
+        ]);
+
+        app(\App\Services\OrganizationInvitationService::class)->invite(
+            $org,
+            User::factory()->create(['organization_id' => $org->id]),
+            $invitation->recipient_email,
+            $invitation->recipient_first_name,
+            $invitation->recipient_name,
+        );
+
+        $fresh = $invitation->fresh();
+        $this->assertTrue($fresh->expires_at->between(
+            now()->addHours(167),
+            now()->addHours(169),
+        ));
+    }
+
+    /** An invitation issued before this TASK keeps its own expiry unless resent. */
+    public function test_an_already_issued_invitation_keeps_its_original_expiry_until_resent(): void
+    {
+        $org = $this->org();
+        $originalExpiry = now()->addHours(30); // ancienne fenetre 48h, deja entamee
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'expires_at' => $originalExpiry,
+        ]);
+
+        // Comparaison a la seconde pres : `expires_at` est ecrit en base sans
+        // les microsecondes (meme troncature que les autres timestamps
+        // Eloquent de ce projet).
+        $this->assertSame(
+            $originalExpiry->copy()->startOfSecond()->toDateTimeString(),
+            $invitation->fresh()->expires_at->toDateTimeString(),
+        );
+    }
 }

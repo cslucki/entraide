@@ -229,11 +229,12 @@ class OrganizationInvitationService
 
             if ($pending) {
                 // Refresh the human-facing fields and PUSH the expiry back
-                // out to a fresh 48h window (Cyril, 30/09) — "Relancer"
-                // must extend the deadline, not just resend the same link
-                // with its original clock still running. The token itself
-                // is kept: the link already in the recipient's mailbox
-                // stays valid, it just lives longer.
+                // out to a fresh VALIDITY_HOURS window (Cyril, 30/09 ; 7
+                // jours depuis TASK-1868) — "Relancer" must extend the
+                // deadline, not just resend the same link with its original
+                // clock still running. The token itself is kept: the link
+                // already in the recipient's mailbox stays valid, it just
+                // lives longer.
                 $pending->update(array_merge(
                     array_filter([
                         'recipient_first_name' => $firstName,
@@ -247,7 +248,7 @@ class OrganizationInvitationService
                     // formulaire repasse ce que l'admin vient de saisir.
                     // Dans les deux cas la valeur ecrite est un choix
                     // explicite, pas un oubli.
-                    ['locale' => $locale, 'host_override' => $hostOverride, 'expires_at' => now()->addHours(48)],
+                    ['locale' => $locale, 'host_override' => $hostOverride, 'expires_at' => now()->addHours(OrganizationInvitation::VALIDITY_HOURS)],
                 ));
 
                 return ['case' => self::CASE_RESENT, 'invitation' => $pending->fresh(), 'user' => null];

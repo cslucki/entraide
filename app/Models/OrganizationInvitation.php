@@ -38,6 +38,15 @@ class OrganizationInvitation extends Model
     public const DEFAULT_LOCALE = 'fr';
 
     /**
+     * TASK-1868 — 48h -> 7 jours (Cyril). Seule entree a lire ou modifier
+     * pour cette duree : `booted()` (creation) et
+     * `OrganizationInvitationService::invite()` (relance) la lisent tous les
+     * deux d'ici, pour ne jamais diverger. Les invitations deja emises
+     * gardent leur `expires_at` actuel tant qu'elles ne sont pas relancees.
+     */
+    public const VALIDITY_HOURS = 24 * 7;
+
+    /**
      * Les seuls environnements ou un « Host de test » existe.
      *
      * La liste vit ICI et pas dans un controleur : le formulaire s'en sert
@@ -165,11 +174,12 @@ class OrganizationInvitation extends Model
             }
 
             if (is_null($invitation->expires_at)) {
-                // 48h, deliberately shorter than loop_invitations' 30 days:
-                // this link creates a real account directly on click, so a
+                // VALIDITY_HOURS (7 jours depuis TASK-1868, 48h avant),
+                // deliberately shorter than loop_invitations' 30 days: this
+                // link creates a real account directly on click, so a
                 // narrower window limits how long an unclaimed access stays
                 // valid (Cyril, 30/09).
-                $invitation->expires_at = now()->addHours(48);
+                $invitation->expires_at = now()->addHours(self::VALIDITY_HOURS);
             }
         });
     }

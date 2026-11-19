@@ -46,7 +46,8 @@ use Illuminate\Support\Facades\Log;
  * ## Relances explicites — comportement INCHANGE
  *
  * `OrganizationInvitationService::invite()` reutilise l'invitation
- * `pending` existante (meme jeton, fenetre d'expiration repoussee de 48h)
+ * `pending` existante (meme jeton, fenetre d'expiration repoussee de
+ * `OrganizationInvitation::VALIDITY_HOURS`, 7 jours depuis TASK-1868)
  * et les DEUX appelants redeclenchent l'envoi a CHAQUE appel, y compris
  * sur reutilisation (`CASE_RESENT`) — un renvoi volontaire avec le MEME
  * lien, exactement comme pour `LoopInvitation` (TASK-1860). Ce job
