@@ -330,8 +330,11 @@ class TASK1079GovernanceUiTest extends TestCase
         // redirecting to the only Loop.
         Loop::factory()->create(['organization_id' => $this->org->id, 'status' => 'active']);
 
+        // TASK-1866 — la grille montre des tuiles denses ; accroche, proprietaires
+        // et action d'adhesion vivent dans le tiroir, servi par `loops.preview`.
+        // Le contrat est inchange, il se verifie la ou il s'affiche.
         $this->actingAs($this->owner)
-            ->get(route('loops.index'))
+            ->get(route('loops.preview', $this->loop))
             ->assertOk()
             ->assertSee($this->owner->publicDisplayName())
             ->assertSee($second->user->publicDisplayName());
@@ -344,7 +347,10 @@ class TASK1079GovernanceUiTest extends TestCase
         }
         Loop::factory()->create(['organization_id' => $this->org->id, 'status' => 'active']);
 
-        $response = $this->actingAs($this->owner)->get(route('loops.index'))->assertOk();
+        // TASK-1866 — la grille montre des tuiles denses ; accroche, proprietaires
+        // et action d'adhesion vivent dans le tiroir, servi par `loops.preview`.
+        // Le contrat est inchange, il se verifie la ou il s'affiche.
+        $response = $this->actingAs($this->owner)->get(route('loops.preview', $this->loop))->assertOk();
 
         // No owner is presented as the main one.
         $this->assertStringNotContainsString('propriétaire principal', mb_strtolower($response->getContent()));

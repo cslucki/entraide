@@ -230,7 +230,9 @@ class LoopActivityTrackingTest extends TestCase
      * ## Ce qui a ete mesure
      *
      * Le SEUL em-dash de la carte de catalogue
-     * (`loops/partials/catalog-card.blade.php:65`) vit dans l'`aria-label` du
+     * (`loops/partials/catalog-card.blade.php:65`, carte supprimee par
+     * TASK-1866 ; aujourd'hui la tuile `catalog-tile.blade.php`, meme crayon
+     * sous `@can('update')`) vit dans l'`aria-label` du
      * bouton « Modifier », rendu sous `@can('update', $item)`. Ce test agit en
      * MEMBRE simple : le bouton n'est pas rendu, et **aucun em-dash n'existe
      * sur la page**. L'assertion passait donc par COINCIDENCE, grace a un
@@ -242,7 +244,8 @@ class LoopActivityTrackingTest extends TestCase
      * Le catalogue n'affiche NI horodatage NI tiret pour l'activite. Depuis le
      * catalogue premium (T1075/T1076), le seul signal est une pastille
      * « Actif recemment », conditionnee a `last_message_at` de moins de 7 jours
-     * (`catalog-card.blade.php:25,121`). `VisibleLoops::query()` calcule bien
+     * (`catalog-card.blade.php:25,121` a l'epoque ; depuis TASK-1866, meme
+     * regle dans `catalog-tile.blade.php`). `VisibleLoops::query()` calcule bien
      * cette valeur (`withMax('messages as last_message_at', 'created_at')`).
      *
      * Mesure du contrat reel, Boucle sans message contre Boucle avec message :
