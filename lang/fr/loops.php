@@ -1674,4 +1674,9 @@ return [
     'articles_badge' => 'Article de boucle',
     'articles_empty' => 'Aucun article de boucle pour le moment.',
     'articles_empty_filtered' => 'Aucun article pour cette boucle.',
+    // TASK-1864 — bascule Grille / Liste du catalogue, et ligne de la liste.
+    'view_switch_label' => 'Affichage',
+    'view_grid' => 'Grille',
+    'view_list' => 'Liste',
+    'catalog_row_no_message' => 'Aucun message pour l\'instant.',
 ];

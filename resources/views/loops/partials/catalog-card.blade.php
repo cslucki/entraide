@@ -8,7 +8,6 @@
     // Multi-owner (CP5ter): several owners have equal standing, so the card
     // names them rather than picking one as if it were the owner.
     $ownerUser = $item->owner?->user;
-    $searchable = mb_strtolower($item->name.' '.($item->tagline ?? '').' '.($item->description ?? ''));
 
     // Never print the same sentence twice when tagline and description match.
     $cardTagline = filled($item->tagline) ? $item->tagline : null;
@@ -25,14 +24,12 @@
     $isRecentlyActive = $lastActivityAt && $lastActivityAt->gt(now()->subDays(7));
 
     $isHighlighted = ($highlightedLoopId ?? null) === $item->id;
-    $domainIds = $item->categories->pluck('id')->all();
     $itemType = app(\App\Support\Loops\LoopTypeRegistry::class)->resolve($item->type);
 @endphp
 <article
     data-type="{{ $itemType }}"
-    x-show="(q === '' || {{ \Illuminate\Support\Js::from($searchable) }}.includes(q.toLowerCase()))
-            && (domain === '' || {{ \Illuminate\Support\Js::from($domainIds) }}.includes(domain))
-            && (type === '' || type === {{ \Illuminate\Support\Js::from($itemType) }})"
+    {{-- TASK-1864 — condition partagee avec la ligne de la liste. --}}
+    x-show="{{ \App\Support\Loops\CatalogFilter::xShow($item) }}"
     @class([
         'group flex flex-col overflow-hidden rounded-2xl border bg-white transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-gray-800',
         'border-gray-200 hover:border-indigo-300 dark:border-gray-700 dark:hover:border-indigo-600' => ! $isHighlighted,
@@ -158,39 +155,7 @@
                 @endif
             </div>
 
-            @if($item->is_member)
-                <a href="{{ $loopShowHref($item) }}"
-                   class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                    {{ __('loops.cta_open_workspace') }}
-                </a>
-            @elseif($item->isOpenAccess())
-                <form method="POST" action="{{ $loopJoinAction($item) }}">
-                    @csrf
-                    <button type="submit"
-                            class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
-                        {{ __('loops.cta_join') }}
-                    </button>
-                </form>
-            @elseif($item->isRequestAccess())
-                @if($item->has_pending_request)
-                    <span class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-                        {{ __('loops.cta_pending') }}
-                    </span>
-                @else
-                    <a href="{{ $loopShowHref($item) }}"
-                       class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/20">
-                        {{ __('loops.cta_request') }}
-                    </a>
-                @endif
-            @else
-                <a href="{{ $loopShowHref($item) }}"
-                   class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-500 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-700">
-                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/>
-                    </svg>
-                    {{ __('loops.cta_discover') }}
-                </a>
-            @endif
+            @include('loops.partials.catalog-cta', ['item' => $item, 'ctaWidth' => 'w-full'])
         </div>
     </div>
 </article>

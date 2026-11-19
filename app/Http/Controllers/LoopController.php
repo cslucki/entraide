@@ -341,10 +341,31 @@ class LoopController extends Controller
         $filterDomains = $loops->pluck('categories')->flatten()->unique('id')
             ->sortBy(fn ($c) => $c->displayName('loops'))->values();
 
+        // TASK-1864 — deux presentations du MEME catalogue : `grid` (cartes,
+        // par defaut) et `list`. Toute autre valeur retombe sur `grid` : le
+        // parametre choisit un gabarit, jamais un perimetre — la liste des
+        // Boucles et leurs droits ne dependent pas de lui.
+        $catalogView = request()->query('view') === 'list' ? 'list' : 'grid';
+
+        if ($catalogView === 'list') {
+            // Le dernier message humain, et SEULEMENT pour les Boucles dont
+            // cette personne est membre : un non-membre ne lit jamais un
+            // apercu de conversation (« privee » = contenu reserve aux
+            // membres, TASK-1075). Une requete pour toutes ces Boucles, bornee
+            // a UN message par Boucle (`limit(1)` -> fenetre par Boucle) —
+            // jamais la conversation entiere tronquee apres coup.
+            $loops->where('is_member', true)->load([
+                'recentHumanMessages' => fn ($query) => $query
+                    ->where('organization_id', $organizationId)
+                    ->limit(1)
+                    ->with('sender'),
+            ]);
+        }
+
         // `organization` part avec le reste : les onglets de type se nomment
         // **dans la portee**, et un type cree par cette Organization doit y
         // avoir son onglet — `all()` sans portee ne le connait pas.
-        return view('loops.index', compact('loops', 'filterDomains', 'archivedLoops', 'organization'))
+        return view('loops.index', compact('loops', 'filterDomains', 'archivedLoops', 'organization', 'catalogView'))
             ->with('canCreate', $canCreate);
     }
 
@@ -384,8 +405,7 @@ class LoopController extends Controller
             $messagesParBoucle = LoopMessage::query()
                 ->whereIn('loop_id', $loopsMembre->pluck('id'))
                 ->where('organization_id', $organizationId)
-                ->whereNotNull('sender_id')
-                ->notDeleted()
+                ->humanVisible()
                 ->with('sender')
                 ->latest('created_at')
                 ->get()

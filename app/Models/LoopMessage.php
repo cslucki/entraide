@@ -119,6 +119,16 @@ class LoopMessage extends Model
         return $query->whereNull('deleted_at');
     }
 
+    /**
+     * TASK-1864 — un message qu'on peut montrer en apercu : un humain derriere
+     * (`sender_id` non nul, donc ni IA ni compte efface) et non supprime.
+     * Regle de « Derniers messages » (TASK-1801), nommee une seule fois.
+     */
+    public function scopeHumanVisible($query)
+    {
+        return $query->whereNotNull('sender_id')->notDeleted();
+    }
+
     public function isDeleted(): bool
     {
         return $this->deleted_at !== null;

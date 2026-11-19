@@ -343,6 +343,25 @@ class Loop extends Model
         return $this->hasMany(LoopMessage::class);
     }
 
+    /**
+     * TASK-1864 — les messages HUMAINS visibles, du plus recent au plus ancien.
+     *
+     * Meme semantique que « Derniers messages » (`humanVisible()`). Destinee a
+     * un chargement anticipe BORNE par Boucle (`->limit(n)` dans la contrainte
+     * de `load()`, que Laravel traduit en fenetre `ROW_NUMBER()` par Boucle) :
+     * jamais toute la conversation pour n'en garder que la fin.
+     *
+     * Pas de `latestOfMany()` : il ajoute un `MAX()` sur la cle primaire, et la
+     * cle est un UUID — `max(uuid)` n'existe pas sous PostgreSQL.
+     */
+    public function recentHumanMessages(): HasMany
+    {
+        return $this->hasMany(LoopMessage::class)
+            ->humanVisible()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
+    }
+
     public function roadmapItems(): HasMany
     {
         return $this->hasMany(LoopRoadmapItem::class);
