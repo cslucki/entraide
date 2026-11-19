@@ -9,7 +9,8 @@
     Etat purement LOCAL (decision MASTER) : ni parametre d'URL, ni ancre, ni
     `pushState`, ni stockage. La tuile garde son vrai lien vers la Boucle.
 
-    Robustesse du chargement :
+    Robustesse du chargement (TASK-1867 : deleguee a `loopsPreviewLoader`,
+    partage avec la liste G — voir preview-loader-script) :
     - une seule requete vivante : la precedente est annulee (AbortController),
       et un numero de sequence ecarte toute reponse arrivee apres coup ;
     - succes HTTP exige, puis IDENTITE du fragment : seule la section
@@ -84,138 +85,123 @@
     </div>
 </div>
 
+@include('loops.partials.preview-loader-script')
+
+@once
 @push('scripts')
 <script>
     // TASK-1866 — etat du tiroir, etale dans la racine `x-data` du catalogue
     // (`{ q, domain, type, mine, ...loopsPreviewDrawer() }`) : les tuiles et
     // le tiroir partagent ainsi la meme portee que les filtres.
-    window.loopsPreviewDrawer = () => ({
-        preview: { open: false, state: 'idle', html: '', title: '', fallbackHref: '' },
-        loopPreviewTrigger: null,
-        loopPreviewController: null,
-        loopPreviewSeq: 0,
-        loopPreviewOverflow: '',
+    //
+    // TASK-1867 — le CHARGEMENT est delegue a `loopsPreviewLoader`
+    // (preview-loader-script), partage avec la liste G. Ce composant ne garde
+    // que le dialogue. `redirectOnNotFound` : la grille suit le lien de la
+    // Boucle sur 404 (T1866) ; la liste propose le lien sans rediriger.
+    window.loopsPreviewDrawer = ({ redirectOnNotFound = true } = {}) => {
+        const loader = window.loopsPreviewLoader();
 
-        openLoopPreview(event) {
-            // Clic modifie, molette ou clic deja traite : le lien fait son travail.
-            if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-                return;
-            }
+        return {
+            preview: { open: false, state: 'idle', html: '', title: '', fallbackHref: '' },
+            loopPreviewTrigger: null,
+            loopPreviewOverflow: '',
 
-            const link = event.currentTarget;
-            const url = link.dataset.loopPreviewUrl;
-            const loopId = link.closest('[data-loops-catalog-tile]')?.dataset.loopsCatalogTile;
-            if (! url || ! loopId) {
-                return;
-            }
-
-            event.preventDefault();
-
-            if (! this.preview.open) {
-                this.loopPreviewOverflow = document.documentElement.style.overflow;
-                document.documentElement.style.overflow = 'hidden';
-            }
-
-            this.loopPreviewTrigger = link;
-            this.preview.title = link.dataset.loopName || '';
-            this.preview.fallbackHref = link.href;
-            this.preview.html = '';
-            this.preview.state = 'loading';
-            this.preview.open = true;
-            this.$nextTick(() => this.$refs.loopPreviewClose?.focus());
-
-            this.loadLoopPreview(url, loopId, link.href);
-        },
-
-        async loadLoopPreview(url, loopId, fallbackHref) {
-            this.loopPreviewController?.abort();
-            const controller = new AbortController();
-            this.loopPreviewController = controller;
-            const seq = ++this.loopPreviewSeq;
-            const stale = () => seq !== this.loopPreviewSeq || ! this.preview.open;
-
-            try {
-                const response = await fetch(url, {
-                    headers: { Accept: 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
-                    credentials: 'same-origin',
-                    cache: 'no-store',
-                    signal: controller.signal,
-                });
-                if (stale()) {
+            openLoopPreview(event) {
+                // Clic modifie, molette ou clic deja traite : le lien fait son travail.
+                if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
                     return;
                 }
-                if (response.status === 404) {
+
+                const link = event.currentTarget;
+                const url = link.dataset.loopPreviewUrl;
+                const loopId = link.dataset.loopId;
+                if (! url || ! loopId) {
+                    return;
+                }
+
+                event.preventDefault();
+
+                if (! this.preview.open) {
+                    this.loopPreviewOverflow = document.documentElement.style.overflow;
+                    document.documentElement.style.overflow = 'hidden';
+                }
+
+                this.loopPreviewTrigger = link;
+                this.preview.title = link.dataset.loopName || '';
+                this.preview.fallbackHref = link.href;
+                this.preview.html = '';
+                this.preview.state = 'loading';
+                this.preview.open = true;
+                this.$nextTick(() => this.$refs.loopPreviewClose?.focus());
+
+                this.loadLoopPreview(url, loopId, link.href);
+            },
+
+            async loadLoopPreview(url, loopId, fallbackHref) {
+                const result = await loader.load(url, loopId);
+                if (result.status === 'stale' || ! this.preview.open) {
+                    return;
+                }
+                if (result.status === 'not-found' && redirectOnNotFound) {
                     window.location.assign(fallbackHref);
 
                     return;
                 }
-                if (! response.ok) {
-                    throw new Error('loop-preview-http-' + response.status);
-                }
+                if (result.status !== 'ready') {
+                    this.preview.state = 'error';
 
-                const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-                if (stale()) {
                     return;
                 }
-                const section = doc.querySelector('[data-loop-preview="' + CSS.escape(loopId) + '"]');
-                if (! section) {
-                    throw new Error('loop-preview-identity');
-                }
 
-                this.preview.html = section.outerHTML;
+                this.preview.html = result.html;
                 this.preview.state = 'ready';
-            } catch (error) {
-                if (error?.name === 'AbortError' || stale()) {
+            },
+
+            closeLoopPreview() {
+                if (! this.preview.open) {
                     return;
                 }
-                this.preview.state = 'error';
-            }
-        },
 
-        closeLoopPreview() {
-            if (! this.preview.open) {
-                return;
-            }
+                loader.abort();
+                this.preview.open = false;
+                this.preview.state = 'idle';
+                this.preview.html = '';
+                document.documentElement.style.overflow = this.loopPreviewOverflow;
 
-            this.loopPreviewController?.abort();
-            this.loopPreviewSeq++;
-            this.preview.open = false;
-            this.preview.state = 'idle';
-            this.preview.html = '';
-            document.documentElement.style.overflow = this.loopPreviewOverflow;
+                const trigger = this.loopPreviewTrigger;
+                this.loopPreviewTrigger = null;
+                if (trigger && trigger.isConnected) {
+                    this.$nextTick(() => trigger.focus());
+                }
+            },
 
-            const trigger = this.loopPreviewTrigger;
-            this.loopPreviewTrigger = null;
-            if (trigger && trigger.isConnected) {
-                this.$nextTick(() => trigger.focus());
-            }
-        },
+            trapLoopPreviewFocus(event) {
+                const panel = this.$refs.loopPreviewPanel;
+                const focusable = [...panel.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+                    .filter((el) => el.getClientRects().length > 0);
+                if (focusable.length === 0) {
+                    event.preventDefault();
 
-        trapLoopPreviewFocus(event) {
-            const panel = this.$refs.loopPreviewPanel;
-            const focusable = [...panel.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
-                .filter((el) => el.getClientRects().length > 0);
-            if (focusable.length === 0) {
-                event.preventDefault();
+                    return;
+                }
 
-                return;
-            }
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                const active = document.activeElement;
 
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            const active = document.activeElement;
-
-            if (! panel.contains(active)) {
-                event.preventDefault();
-                first.focus();
-            } else if (event.shiftKey && active === first) {
-                event.preventDefault();
-                last.focus();
-            } else if (! event.shiftKey && active === last) {
-                event.preventDefault();
-                first.focus();
-            }
-        },
-    });
+                if (! panel.contains(active)) {
+                    event.preventDefault();
+                    first.focus();
+                } else if (event.shiftKey && active === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (! event.shiftKey && active === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            },
+        };
+    };
 </script>
 @endpush
+@endonce

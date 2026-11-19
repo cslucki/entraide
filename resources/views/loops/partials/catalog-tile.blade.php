@@ -29,6 +29,7 @@
 >
     <a href="{{ $loopShowHref($item) }}"
        data-loops-tile-link
+       data-loop-id="{{ $item->id }}"
        data-loop-preview-url="{{ $loopPreviewHref($item) }}"
        data-loop-name="{{ $item->name }}"
        @click="openLoopPreview($event)"
