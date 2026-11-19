@@ -108,7 +108,7 @@ class TASK1864LoopsCatalogListViewTest extends TestCase
         $this->assertStringContainsString('data-loops-catalog-row="'.$loopVide->id.'"', $html);
 
         $this->assertStringContainsString('Dernier message humain', $html);
-        $this->assertStringContainsString($autre->publicDisplayName(), $html);
+        $this->assertStringContainsString(e($autre->publicDisplayName()), $html);
         $this->assertStringNotContainsString('Ancien message humain', $html);
         $this->assertStringNotContainsString('Reponse IA recente', $html);
         $this->assertStringNotContainsString('Message supprime recent', $html);
