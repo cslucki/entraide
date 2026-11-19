@@ -553,7 +553,14 @@ class OrganizationInvitationService
                 // Prenom ; `User::getFullNameAttribute()` les recompose en
                 // "Prenom Nom". Y mettre `recipientFullName()` dupliquait le
                 // prenom dans le Nom affiche ("Jean" + "Jean Dupont").
-                'name' => $invitation->recipient_name,
+                //
+                // `recipient_name` est NULLABLE en base (comme
+                // `recipient_first_name`), alors que `users.name` est
+                // NOT NULL — revue MASTER post-merge : un repli sur l'email
+                // deja valide de l'invitation (jamais sur `recipientFullName()`,
+                // qui redonnerait la meme duplication) evite l'echec de
+                // creation sans jamais melanger prenom et nom.
+                'name' => $invitation->recipient_name ?: $invitation->recipient_email,
                 'first_name' => $invitation->recipient_first_name,
                 'email' => $invitation->recipient_email,
                 // Random, hashed, and never transmitted anywhere — the

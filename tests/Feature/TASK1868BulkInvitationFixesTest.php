@@ -57,6 +57,31 @@ class TASK1868BulkInvitationFixesTest extends TestCase
         $this->assertSame('Jean Dupont', $user->publicDisplayName());
     }
 
+    /**
+     * Revue MASTER post-merge : `recipient_name` est NULLABLE en base alors
+     * que `users.name` est NOT NULL. Le repli sur l'email ne doit jamais
+     * redonner la duplication du prenom corrigee ci-dessus.
+     */
+    public function test_accepting_an_invitation_without_a_last_name_falls_back_to_the_email_without_duplicating_the_first_name(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'recipient_email' => 'sans.nom@example.test',
+            'recipient_first_name' => 'Jean',
+            'recipient_name' => null,
+        ]);
+
+        $this->post(route('organization-invitations.accept', $invitation->token))
+            ->assertRedirect();
+
+        $user = User::where('email', 'sans.nom@example.test')->firstOrFail();
+
+        $this->assertSame('Jean', $user->first_name);
+        $this->assertSame('sans.nom@example.test', $user->name);
+        $this->assertSame('Jean sans.nom@example.test', $user->full_name);
+    }
+
     // ── 2. Premiere definition du mot de passe ────────────────────────────
 
     public function test_the_password_step_shows_the_account_email_readonly_for_autocomplete(): void
