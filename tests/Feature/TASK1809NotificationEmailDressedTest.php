@@ -134,8 +134,10 @@ class TASK1809NotificationEmailDressedTest extends TestCase
 
         $corps = $this->corpsEnvoye();
 
-        $this->assertStringContainsString($this->loop->name, $corps);
-        $this->assertStringContainsString($this->expediteur->fullName, $corps);
+        // Le corps est du HTML : un nom Faker a apostrophe (« O'Kon ») y est
+        // echappe (`O&#039;Kon`). Comparer la valeur echappee, jamais la brute.
+        $this->assertStringContainsString(e($this->loop->name), $corps);
+        $this->assertStringContainsString(e($this->expediteur->fullName), $corps);
     }
 
     /**
