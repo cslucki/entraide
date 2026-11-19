@@ -38,7 +38,7 @@
     data-loops-catalog-row="{{ $item->id }}"
     x-show="{{ \App\Support\Loops\CatalogFilter::xShow($item) }}"
     @class([
-        'group relative flex items-center gap-4 rounded-xl px-3 py-3 transition hover:bg-gray-50 dark:hover:bg-gray-700/40',
+        'group relative flex items-center gap-4 rounded-xl px-3 py-3 transition hover:bg-gray-50 lg:flex-wrap dark:hover:bg-gray-700/40',
         'ring-2 ring-indigo-400/50' => $isHighlighted,
     ])
     :class="loopPane.id === @js($item->id) && 'bg-indigo-50 dark:bg-indigo-900/30'"
@@ -48,8 +48,10 @@
     </div>
 
     <div class="min-w-0 flex-1">
-        <div class="flex min-w-0 items-center gap-2">
-            <h3 class="min-w-0 truncate font-semibold text-gray-900 dark:text-gray-100">
+        {{-- TASK-1867 — `flex-wrap` : dans la colonne etroite de la liste G, le
+             badge passe sous le nom au lieu de le reduire a rien. --}}
+        <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+            <h3 class="min-w-0 max-w-full truncate font-semibold text-gray-900 dark:text-gray-100">
                 <a href="{{ $loopShowHref($item) }}"
                    data-loops-row-link
                    data-loop-id="{{ $item->id }}"
@@ -111,7 +113,9 @@
         </div>
     </div>
 
-    <div class="flex shrink-0 items-center gap-2">
+    {{-- TASK-1867 — a partir de 1024 px (colonne etroite de la liste G),
+         l'action d'adhesion d'un non-membre prend sa propre ligne. --}}
+    <div @class(['flex shrink-0 items-center gap-2', 'lg:basis-full lg:justify-end' => ! $item->is_member])>
         @can('update', $item)
             <a href="{{ $loopEditHref($item) }}"
                class="relative z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:hover:bg-gray-700 dark:hover:text-indigo-300"

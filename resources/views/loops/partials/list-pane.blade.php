@@ -98,8 +98,14 @@
             loopPane: { ...emptyPane },
 
             init() {
+                // La visibilite se mesure APRES les `x-show` des lignes. Ce
+                // watcher, pose a l'init, passe AVANT leurs effets, qui ne
+                // masquent eux-memes qu'a la frame suivante (mesure en recette :
+                // `$nextTick` et une seule frame voient encore la ligne). D'ou
+                // deux frames.
+                const afterRowsUpdate = (callback) => requestAnimationFrame(() => requestAnimationFrame(callback));
                 ['q', 'domain', 'type', 'mine'].forEach((key) => {
-                    this.$watch(key, () => this.$nextTick(() => this.dropHiddenLoopSelection()));
+                    this.$watch(key, () => afterRowsUpdate(() => this.dropHiddenLoopSelection()));
                 });
 
                 // Passage au-dela de 1024 px feuille ouverte : la feuille n'y
