@@ -23,12 +23,17 @@
     Boucle, focus pose sur « Fermer », piege de focus (Tab / Maj+Tab), Echap,
     voile et bouton ferment, focus rendu a la tuile si elle existe encore,
     defilement de la page bloque puis restaure, `motion-reduce` partout.
+
+    TASK-1867 — `$sheetOnly` (liste G) : la MEME feuille, mais feuille du bas a
+    toute largeur sous 1024 px et absente au-dela (le volet de detail prend le
+    relais). Sans ce parametre, le rendu de la grille est inchange.
 --}}
+@php($sheetOnly = $sheetOnly ?? false)
 <div x-show="preview.open" x-cloak
      x-transition:leave="transition duration-200 motion-reduce:duration-0"
-     data-loops-preview-drawer
+     data-loops-preview-drawer="{{ $sheetOnly ? 'sheet' : 'drawer' }}"
      @keydown.escape.window="closeLoopPreview()"
-     class="fixed inset-0 z-[70]">
+     @class(['fixed inset-0 z-[70]', 'lg:hidden' => $sheetOnly])>
     <div aria-hidden="true" @click="closeLoopPreview()"
          x-show="preview.open"
          x-transition:enter="transition-opacity duration-200 motion-reduce:transition-none motion-reduce:duration-0"
@@ -43,19 +48,29 @@
          @keydown.tab="trapLoopPreviewFocus($event)"
          x-show="preview.open"
          x-transition:enter="transition-transform duration-300 ease-out motion-reduce:transition-none motion-reduce:duration-0"
+         @if($sheetOnly)
+         x-transition:enter-start="translate-y-full"
+         x-transition:leave="transition-transform duration-200 ease-in motion-reduce:transition-none motion-reduce:duration-0"
+         x-transition:leave-end="translate-y-full"
+         class="absolute inset-x-0 bottom-0 mx-auto flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl supports-[height:100dvh]:max-h-[85dvh] dark:bg-gray-800"
+         @else
          x-transition:enter-start="translate-y-full sm:translate-x-full sm:translate-y-0"
          x-transition:leave="transition-transform duration-200 ease-in motion-reduce:transition-none motion-reduce:duration-0"
          x-transition:leave-end="translate-y-full sm:translate-x-full sm:translate-y-0"
-         class="absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl supports-[height:100dvh]:max-h-[85dvh] dark:bg-gray-800 sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[28rem] sm:rounded-none sm:border-l sm:border-gray-200 sm:supports-[height:100dvh]:max-h-none dark:sm:border-gray-700">
+         class="absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl supports-[height:100dvh]:max-h-[85dvh] dark:bg-gray-800 sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[28rem] sm:rounded-none sm:border-l sm:border-gray-200 sm:supports-[height:100dvh]:max-h-none dark:sm:border-gray-700"
+         @endif>
         {{-- Poignee de la feuille du bas : decor, le bouton « Fermer » reste le geste. --}}
-        <div class="flex shrink-0 justify-center bg-white py-2 dark:bg-gray-800 sm:hidden" aria-hidden="true">
+        <div @class(['flex shrink-0 justify-center bg-white py-2 dark:bg-gray-800', 'sm:hidden' => ! $sheetOnly]) aria-hidden="true">
             <span class="h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600"></span>
         </div>
 
         <button type="button" x-ref="loopPreviewClose" @click="closeLoopPreview()"
                 data-loops-preview-close
                 aria-label="{{ __('ui.close') }}" title="{{ __('ui.close') }}"
-                class="absolute right-3 top-7 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:top-3">
+                @class([
+                    'absolute right-3 top-7 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75 focus:outline-none focus-visible:ring-2 focus-visible:ring-white',
+                    'sm:top-3' => ! $sheetOnly,
+                ])>
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
             </svg>

@@ -79,8 +79,8 @@
     //
     // - SELECTION INITIALE : sur ecran large seulement, la premiere ligne
     //   visible, une seule requete, sans toucher au focus ;
-    // - CLIC normal sur une ligne = selection ; clic modifie, molette ou sans
-    //   JS = le vrai lien vers la Boucle ;
+    // - CLIC normal sur une ligne = selection (>= 1024 px) ou feuille mobile
+    //   (en dessous) ; clic modifie, molette ou sans JS = le vrai lien ;
     // - FLECHES haut/bas depuis le lien d'une ligne : ligne visible suivante ou
     //   precedente (les champs de recherche, filtres et boutons d'action ne
     //   portent pas ce gestionnaire) ;
@@ -102,6 +102,14 @@
                     this.$watch(key, () => this.$nextTick(() => this.dropHiddenLoopSelection()));
                 });
 
+                // Passage au-dela de 1024 px feuille ouverte : la feuille n'y
+                // existe plus (lg:hidden), on la ferme pour rendre le scroll.
+                window.matchMedia('(min-width: 1024px)').addEventListener('change', (media) => {
+                    if (media.matches && this.preview?.open) {
+                        this.closeLoopPreview();
+                    }
+                });
+
                 this.$nextTick(() => {
                     if (! isDesktop()) {
                         return;
@@ -121,7 +129,11 @@
                 if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
                     return;
                 }
+                // Sous 1024 px : la feuille mobile du tiroir (loopsPreviewDrawer,
+                // etale dans la meme racine), jamais la navigation directe.
                 if (! isDesktop()) {
+                    this.openLoopPreview(event);
+
                     return;
                 }
 

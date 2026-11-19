@@ -129,7 +129,7 @@
          (`loopsListPane`). --}}
     @php
         $catalogRootComponents = $isListView
-            ? ', ...loopsListPane({ announceTemplate: '.\Illuminate\Support\Js::from(__('loops.list_pane_announce', ['name' => '__NAME__'])).' })'
+            ? ', ...loopsPreviewDrawer({ redirectOnNotFound: false }), ...loopsListPane({ announceTemplate: '.\Illuminate\Support\Js::from(__('loops.list_pane_announce', ['name' => '__NAME__'])).' })'
             : ', ...loopsPreviewDrawer()';
     @endphp
     <div x-data="{ q: '', domain: '', type: '', mine: false{{ $catalogRootComponents }} }">
@@ -412,9 +412,9 @@
             </details>
         @endif
 
-        @unless($isListView)
-            @include('loops.partials.preview-drawer')
-        @endunless
+        {{-- TASK-1867 — en liste, la meme feuille sert d'apercu sous 1024 px
+             (au-dela, le volet de detail). En grille : le tiroir de T1866. --}}
+        @include('loops.partials.preview-drawer', ['sheetOnly' => $isListView])
     </div>
 
 </x-page>

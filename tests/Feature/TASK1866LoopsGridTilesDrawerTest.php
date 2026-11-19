@@ -54,7 +54,7 @@ class TASK1866LoopsGridTilesDrawerTest extends TestCase
         $this->assertStringContainsString('href="'.e(route('loops.show', $mienne)).'"', $short);
         $this->assertStringContainsString('data-loop-preview-url="'.e(route('loops.preview', $mienne)).'"', $short);
         $this->assertStringContainsString('data-loop-preview-url="'.e(route('loops.preview', $autre)).'"', $short);
-        $this->assertStringContainsString('data-loops-preview-drawer', $short);
+        $this->assertStringContainsString('data-loops-preview-drawer="drawer"', $short);
         $this->assertStringContainsString('role="dialog"', $short);
         $this->assertStringContainsString('aria-modal="true"', $short);
 
@@ -98,7 +98,11 @@ class TASK1866LoopsGridTilesDrawerTest extends TestCase
         $this->assertStringNotContainsString('data-loop-preview-member', $html);
     }
 
-    public function test_the_list_view_is_unchanged_and_has_no_tile_nor_drawer(): void
+    /**
+     * TASK-1867 — la liste G reprend la FEUILLE mobile de ce tiroir (arbitrage
+     * MASTER : sous 1024 px, apercu en feuille), jamais sa variante laterale.
+     */
+    public function test_the_list_view_has_no_tile_and_only_the_mobile_sheet(): void
     {
         $moi = $this->user();
         $mienne = $this->service->createLoop($moi, 'Ma Boucle');
@@ -110,8 +114,8 @@ class TASK1866LoopsGridTilesDrawerTest extends TestCase
         $this->assertSame(2, substr_count($html, 'data-loops-catalog-row='));
         $this->assertStringContainsString('Dernier message de la liste', $html);
         $this->assertStringNotContainsString('data-loops-catalog-tile=', $html);
-        $this->assertStringNotContainsString('data-loops-preview-drawer', $html);
-        $this->assertStringNotContainsString('loopsPreviewDrawer', $html);
+        $this->assertStringContainsString('data-loops-preview-drawer="sheet"', $html);
+        $this->assertStringNotContainsString('data-loops-preview-drawer="drawer"', $html);
     }
 
     public function test_filters_tabs_switch_and_existing_actions_stay_in_the_grid(): void
