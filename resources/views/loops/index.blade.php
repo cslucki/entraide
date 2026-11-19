@@ -38,6 +38,19 @@
 
             return route('loops.edit', $loop);
         };
+        // TASK-1866 — l'apercu (T1865) que le tiroir de la grille charge a la
+        // demande. Identifiant et non slug : la route courte refuse un slug.
+        $loopPreviewHref = function ($loop) use ($organizationRouteParam) {
+            if ($organizationRouteParam && request()->routeIs('organization.*')) {
+                return route('organization.loops.preview', ['organization' => $organizationRouteParam, 'loop' => $loop->getKey()]);
+            }
+
+            return route('loops.preview', $loop);
+        };
+        // TASK-1864/1866 — `grid` (defaut, tuiles + tiroir) ou `list`,
+        // normalise par le controleur ; seul le gabarit change, jamais le
+        // perimetre.
+        $isListView = ($catalogView ?? 'grid') === 'list';
         // Set by LoopController::update() so the freshly edited card is easy to spot.
         $highlightedLoopId = request()->query('updated');
         $mine = $loops->where('is_member', true)->values();
@@ -109,7 +122,10 @@
     {{-- `mine` : TASK-1788 correctif 06. Un troisieme choix du meme selecteur,
          pas une seconde dimension — « Mes boucles », « Toutes » et un type
          s'excluent, et une seule rangee se lit d'un coup d'oeil. --}}
-    <div x-data="{ q: '', domain: '', type: '', mine: false }">
+    {{-- TASK-1866 — en grille, la meme racine porte le tiroir d'apercu
+         (`loopsPreviewDrawer`, plus bas) : les tuiles l'ouvrent, les filtres
+         restent ceux d'avant. --}}
+    <div x-data="{ q: '', domain: '', type: '', mine: false{{ $isListView ? '' : ', ...loopsPreviewDrawer()' }} }">
         {{-- TASK-1788 correctif 06 — « Vos espaces de collaboration » est RETIREE,
              sur demande de Cyril : elle n'apprend rien que le titre de la page
              ne dise deja, et elle coute une ligne en haut d'ecran.
@@ -235,9 +251,6 @@
 
             @php
                 $catalogDomains = $filterDomains ?? collect();
-                // TASK-1864 — `grid` (defaut) ou `list`, normalise par le
-                // controleur ; seul le gabarit change, jamais le perimetre.
-                $isListView = ($catalogView ?? 'grid') === 'list';
             @endphp
             {{-- TASK-1864 — la rangee existe des qu'il y a des Boucles : la
                  bascule Grille/Liste y vit meme quand recherche et domaines
@@ -303,11 +316,11 @@
                     class="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.my_loops_title') }}</h2>
                 <div @class([
                         'mb-8',
-                        'grid gap-4 sm:grid-cols-2 lg:grid-cols-3' => ! $isListView,
+                        'grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' => ! $isListView,
                         'flex flex-col gap-1 rounded-2xl border border-gray-200 bg-white p-1.5 dark:border-gray-700 dark:bg-gray-800' => $isListView,
                     ])>
                     @foreach($mine as $item)
-                        @include($isListView ? 'loops.partials.catalog-row' : 'loops.partials.catalog-card', ['item' => $item])
+                        @include($isListView ? 'loops.partials.catalog-row' : 'loops.partials.catalog-tile', ['item' => $item])
                     @endforeach
                 </div>
             @endif
@@ -340,11 +353,11 @@
                     <h2 x-show="type === '' || ({{ \Illuminate\Support\Js::from($discoverByType) }}[type] ?? 0) > 0"
                         class="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.discover_title') }}</h2>
                     <div @class([
-                            'grid gap-4 sm:grid-cols-2 lg:grid-cols-3' => ! $isListView,
+                            'grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' => ! $isListView,
                             'flex flex-col gap-1 rounded-2xl border border-gray-200 bg-white p-1.5 dark:border-gray-700 dark:bg-gray-800' => $isListView,
                         ])>
                         @foreach($discover as $item)
-                            @include($isListView ? 'loops.partials.catalog-row' : 'loops.partials.catalog-card', ['item' => $item])
+                            @include($isListView ? 'loops.partials.catalog-row' : 'loops.partials.catalog-tile', ['item' => $item])
                         @endforeach
                     </div>
                 </div>
@@ -379,6 +392,10 @@
                 </ul>
             </details>
         @endif
+
+        @unless($isListView)
+            @include('loops.partials.preview-drawer')
+        @endunless
     </div>
 
 </x-page>

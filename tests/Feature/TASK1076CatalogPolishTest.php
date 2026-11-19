@@ -95,7 +95,8 @@ class TASK1076CatalogPolishTest extends TestCase
         $html = $this->actingAs($user)->get(route('loops.index'))->assertOk()->getContent();
 
         // One identical inline aspect-ratio box per card — image or placeholder.
-        $this->assertSame(2, substr_count($html, 'aspect-ratio: 5 / 2'));
+        // TASK-1866 — la tuile de la grille est carree.
+        $this->assertSame(2, substr_count($html, 'aspect-ratio: 1 / 1'));
     }
 
     public function test_placeholder_variant_is_deterministic_for_a_given_loop(): void
@@ -277,8 +278,11 @@ class TASK1076CatalogPolishTest extends TestCase
 
         $viewer = User::factory()->create(['organization_id' => $org->id]);
 
+        // TASK-1866 — la grille montre des tuiles denses ; accroche, proprietaires
+        // et action d'adhesion vivent dans le tiroir, servi par `loops.preview`.
+        // Le contrat est inchange, il se verifie la ou il s'affiche.
         $this->actingAs($viewer)
-            ->get(route('loops.index'))
+            ->get(route('loops.preview', $loop))
             ->assertOk()
             ->assertSee('Cours IA générative')
             ->assertSee('Pour les curieux et les pros')
@@ -298,7 +302,10 @@ class TASK1076CatalogPolishTest extends TestCase
         $this->withCurrentOrganization($org);
         $viewer = User::factory()->create(['organization_id' => $org->id]);
 
-        $html = $this->actingAs($viewer)->get(route('loops.index'))->assertOk()->getContent();
+        // TASK-1866 — la grille montre des tuiles denses ; accroche, proprietaires
+        // et action d'adhesion vivent dans le tiroir, servi par `loops.preview`.
+        // Le contrat est inchange, il se verifie la ou il s'affiche.
+        $html = $this->actingAs($viewer)->get(route('loops.preview', $loop))->assertOk()->getContent();
 
         $this->assertSame(1, substr_count($html, 'Une seule et meme phrase'));
     }
@@ -306,13 +313,16 @@ class TASK1076CatalogPolishTest extends TestCase
     public function test_card_falls_back_gracefully_without_tagline_or_description(): void
     {
         $org = $this->org();
-        Loop::factory()->create(['organization_id' => $org->id, 'tagline' => null, 'description' => null]);
+        $loop = Loop::factory()->create(['organization_id' => $org->id, 'tagline' => null, 'description' => null]);
         $this->padCatalog($org);
         $this->withCurrentOrganization($org);
         $viewer = User::factory()->create(['organization_id' => $org->id]);
 
+        // TASK-1866 — la grille montre des tuiles denses ; accroche, proprietaires
+        // et action d'adhesion vivent dans le tiroir, servi par `loops.preview`.
+        // Le contrat est inchange, il se verifie la ou il s'affiche.
         $this->actingAs($viewer)
-            ->get(route('loops.index'))
+            ->get(route('loops.preview', $loop))
             ->assertOk()
             ->assertSee(__('loops.card_no_pitch'));
     }

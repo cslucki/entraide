@@ -1684,4 +1684,7 @@ return [
     'preview_members_more' => 'Et :count autre membre.|Et :count autres membres.',
     'preview_members_more_link' => 'Les voir dans la Boucle',
     'preview_locked' => 'Les messages et la liste des membres sont réservés aux membres de cette Boucle.',
+    // TASK-1866 — tiroir d'apercu de la grille.
+    'preview_loading' => 'Chargement de l’aperçu…',
+    'preview_error' => 'L’aperçu de cette Boucle n’a pas pu être chargé. Vous pouvez l’ouvrir directement.',
 ];

@@ -1633,4 +1633,7 @@ return [
     'preview_members_more' => 'And :count other member.|And :count other members.',
     'preview_members_more_link' => 'See them in the Loop',
     'preview_locked' => 'Messages and the member list are reserved for members of this Loop.',
+    // TASK-1866 — tiroir d'apercu de la grille.
+    'preview_loading' => 'Loading the preview…',
+    'preview_error' => 'This Loop\'s preview could not be loaded. You can open it directly.',
 ];
