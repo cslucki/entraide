@@ -548,7 +548,11 @@ class OrganizationInvitationService
             }
 
             $user = User::create([
-                'name' => $invitation->recipientFullName(),
+                // TASK-1868 — `name` est le Nom (famille), `first_name` le
+                // Prenom ; `User::getFullNameAttribute()` les recompose en
+                // "Prenom Nom". Y mettre `recipientFullName()` dupliquait le
+                // prenom dans le Nom affiche ("Jean" + "Jean Dupont").
+                'name' => $invitation->recipient_name,
                 'first_name' => $invitation->recipient_first_name,
                 'email' => $invitation->recipient_email,
                 // Random, hashed, and never transmitted anywhere — the
