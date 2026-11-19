@@ -6,7 +6,8 @@
     Trois volets « quand la largeur reelle le permet » : le volet est un
     conteneur CSS (`container-type: inline-size`) ; une regle `@container`
     NATIVE, limitee a ce volet, place les membres a cote des messages quand il
-    est assez large. Aucun plugin, aucun changement du layout global, et le
+    est assez large — et SEULEMENT en etat `reader` avec la liste des membres :
+    l'etat `discover` (non-membre) garde toute la largeur. Aucun plugin, aucun changement du layout global, et le
     tiroir de la grille n'est pas concerne (il n'est pas dans ce conteneur).
     Le fragment n'expose pour cela que des attributs structurels.
 
@@ -17,20 +18,20 @@
     [data-loops-list-pane] { container-type: inline-size; container-name: loops-list-pane; }
     [data-loops-list-pane] [data-loop-preview-cover] > :first-child { aspect-ratio: auto !important; height: 9rem; }
     @container loops-list-pane (min-width: 40rem) {
-        [data-loops-list-pane] [data-loop-preview-body] {
+        [data-loops-list-pane] [data-loop-preview-state="reader"]:has([data-loop-preview-members]) [data-loop-preview-body] {
             display: grid;
             grid-template-columns: minmax(0, 1fr) 14rem;
             column-gap: 2rem;
             align-items: start;
         }
-        [data-loops-list-pane] [data-loop-preview-body] > * { grid-column: 1; }
-        [data-loops-list-pane] [data-loop-preview-body] > [data-loop-preview-members] {
+        [data-loops-list-pane] [data-loop-preview-state="reader"] [data-loop-preview-body] > * { grid-column: 1; }
+        [data-loops-list-pane] [data-loop-preview-state="reader"] [data-loop-preview-body] > [data-loop-preview-members] {
             grid-column: 2;
             grid-row: 1 / span 6;
             border-left: 1px solid rgb(229 231 235);
             padding-left: 1.5rem;
         }
-        .dark [data-loops-list-pane] [data-loop-preview-body] > [data-loop-preview-members] { border-left-color: rgb(55 65 81); }
+        .dark [data-loops-list-pane] [data-loop-preview-state="reader"] [data-loop-preview-body] > [data-loop-preview-members] { border-left-color: rgb(55 65 81); }
     }
 </style>
 <aside data-loops-list-pane

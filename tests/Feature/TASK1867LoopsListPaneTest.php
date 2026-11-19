@@ -163,6 +163,29 @@ class TASK1867LoopsListPaneTest extends TestCase
         $this->assertSame(1, substr_count($html, 'window.loopsPreviewLoader ='));
     }
 
+    /**
+     * Revue MASTER — trois volets SEULEMENT en etat `reader` avec membres :
+     * la regle `@container` ne vise jamais l'etat `discover`.
+     */
+    public function test_the_three_panes_rule_only_targets_the_reader_state(): void
+    {
+        $moi = $this->user();
+        $this->service->createLoop($moi, 'Ma Boucle');
+        $this->service->createLoop($this->user(), 'Boucle voisine');
+
+        $html = $this->actingAs($moi)->get(route('loops.index', ['view' => 'list']))->assertOk()->getContent();
+
+        preg_match('/@container loops-list-pane[^{]*\{(.*?)\n    \}/s', $html, $rule);
+        $this->assertNotEmpty($rule);
+        preg_match_all('/^\s*([^{}\n]+)\{/m', $rule[1], $selectors);
+        $this->assertNotEmpty($selectors[1]);
+        foreach ($selectors[1] as $selector) {
+            $this->assertStringContainsString('[data-loop-preview-state="reader"]', $selector);
+        }
+        $this->assertStringContainsString(':has([data-loop-preview-members])', $rule[1]);
+        $this->assertStringNotContainsString('discover', $rule[1]);
+    }
+
     private function message(Loop $loop, User $sender, string $body, $when): LoopMessage
     {
         $message = new LoopMessage([
