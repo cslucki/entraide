@@ -1679,4 +1679,9 @@ return [
     'view_grid' => 'Grille',
     'view_list' => 'Liste',
     'catalog_row_no_message' => 'Aucun message pour l\'instant.',
+    // TASK-1865 — apercu d'une Boucle (tiroir de la grille, volets de la liste).
+    'preview_members_title' => 'Membres',
+    'preview_members_more' => 'Et :count autre membre.|Et :count autres membres.',
+    'preview_members_more_link' => 'Les voir dans la Boucle',
+    'preview_locked' => 'Les messages et la liste des membres sont réservés aux membres de cette Boucle.',
 ];

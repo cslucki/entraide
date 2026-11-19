@@ -370,6 +370,81 @@ class LoopController extends Controller
     }
 
     /**
+     * TASK-1865 — l'APERCU d'une Boucle : un fragment HTML (sans layout), charge
+     * a la demande par le tiroir de la grille et les volets de la liste.
+     *
+     * Aucune regle n'est ecrite ici, toutes sont deleguees :
+     * - tenant : appartenance (`assertUserBelongsToOrganization`) ET Boucle de
+     *   cette Organization, verifiee ICI — le binding `{loop}` ne filtre pas
+     *   par tenant sur la route nue (AppServiceProvider). Pas de bypass
+     *   SuperAdmin : inspecter un tenant n'est pas y lire un apercu ;
+     * - perimetre : `VisibleLoops`, restreint a CETTE Boucle — donc active
+     *   seulement, et avec les annotations d'acces du catalogue ;
+     * - contenu reserve : `LoopPolicy::viewWorkspace`, seule autorite. Sans
+     *   elle, ni message ni membre nominatif n'est meme CHARGE.
+     */
+    public function preview(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): View
+    {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        if ($loop->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $user = auth()->user();
+
+        $item = app(VisibleLoops::class)
+            ->query((string) $organization->id, $user)
+            ->whereKey($loop->getKey())
+            ->first();
+
+        // Archivee, inactive ou hors catalogue : rien a montrer, et rien a dire
+        // de son existence.
+        abort_if($item === null, 404);
+
+        // Le perimetre des membres a MONTRER (TASK-1802) : adhesion active,
+        // tenant explicite, titulaire encore dans l'Organization de la Boucle.
+        // Le compteur affiche emploie exactement le meme, dans les deux etats.
+        $membersQuery = fn () => LoopMember::query()
+            ->where('loop_id', $item->id)
+            ->where('organization_id', $organization->id)
+            ->where('status', 'active')
+            ->currentlyInLoopOrganization();
+
+        $memberCount = $membersQuery()->count();
+
+        $canRead = $user->can('viewWorkspace', $item);
+        $messages = collect();
+        $members = collect();
+
+        if ($canRead) {
+            $messages = $item->recentHumanMessages()
+                ->where('organization_id', $organization->id)
+                ->limit(5)
+                ->with('sender')
+                ->get();
+
+            $members = $membersQuery()
+                ->with('user')
+                ->orderByRaw("case when role = 'owner' then 0 else 1 end")
+                ->orderBy('joined_at')
+                ->orderBy('id')
+                ->limit(12)
+                ->get();
+        }
+
+        return view('loops.partials.preview', [
+            'item' => $item,
+            'canRead' => $canRead,
+            'messages' => $messages,
+            'members' => $members,
+            'memberCount' => $memberCount,
+        ]);
+    }
+
+    /**
      * TASK-1801 correctif 05 — « Derniers messages », en PAGE (pas en popup :
      * demande de Cyril apres une premiere version en modale).
      *
