@@ -125,7 +125,14 @@
     {{-- TASK-1866 — en grille, la meme racine porte le tiroir d'apercu
          (`loopsPreviewDrawer`, plus bas) : les tuiles l'ouvrent, les filtres
          restent ceux d'avant. --}}
-    <div x-data="{ q: '', domain: '', type: '', mine: false{{ $isListView ? '' : ', ...loopsPreviewDrawer()' }} }">
+    {{-- TASK-1867 — en liste, la racine porte le volet de detail G
+         (`loopsListPane`). --}}
+    @php
+        $catalogRootComponents = $isListView
+            ? ', ...loopsListPane({ announceTemplate: '.\Illuminate\Support\Js::from(__('loops.list_pane_announce', ['name' => '__NAME__'])).' })'
+            : ', ...loopsPreviewDrawer()';
+    @endphp
+    <div x-data="{ q: '', domain: '', type: '', mine: false{{ $catalogRootComponents }} }">
         {{-- TASK-1788 correctif 06 — « Vos espaces de collaboration » est RETIREE,
              sur demande de Cyril : elle n'apprend rien que le titre de la page
              ne dise deja, et elle coute une ligne en haut d'ecran.
@@ -311,6 +318,13 @@
                     </div>
                 </div>
 
+            {{-- TASK-1867 — liste G : a partir de 1024 px, la liste a gauche et le
+                 volet de detail a droite. Les sections ci-dessous sont
+                 inchangees ; seul ce conteneur les place. --}}
+            @if($isListView)
+                <div class="lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]" data-loops-list-layout>
+                <div class="min-w-0">
+            @endif
             @if($mine->isNotEmpty())
                 <h2 x-show="mine || type === '' || ({{ \Illuminate\Support\Js::from($mineByType) }}[type] ?? 0) > 0"
                     class="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.my_loops_title') }}</h2>
@@ -360,6 +374,11 @@
                             @include($isListView ? 'loops.partials.catalog-row' : 'loops.partials.catalog-tile', ['item' => $item])
                         @endforeach
                     </div>
+                </div>
+            @endif
+            @if($isListView)
+                </div>
+                @include('loops.partials.list-pane')
                 </div>
             @endif
         @endif

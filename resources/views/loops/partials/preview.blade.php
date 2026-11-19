@@ -18,6 +18,11 @@
     L'espace d'une Boucle n'a pas d'ancre de section membres (les Cards s'y
     ouvrent par etat Alpine) : le lien « voir les autres » mene a la Boucle,
     sans promettre d'ouvrir la liste.
+
+    TASK-1867 — quatre attributs STRUCTURELS, sans effet visuel ici :
+    `data-loop-preview-cover`, `-body`, `-messages`, `-members`. Ils servent
+    UNIQUEMENT au placement CSS du volet de la liste G (`list-pane`, regle
+    `@container`) : le contenu reste celui de ce seul gabarit.
 --}}
 @php
     $organizationRouteParam = request()->route('organization');
@@ -57,14 +62,14 @@
 <section data-loop-preview="{{ $item->id }}"
          data-loop-preview-state="{{ $canRead ? 'reader' : 'discover' }}"
          class="flex flex-col text-gray-900 dark:text-gray-100">
-    <div class="relative">
+    <div class="relative" data-loop-preview-cover>
         <x-loops.cover :loop="$item" ratio="16 / 7" rounded="rounded-none" />
         <div class="absolute inset-0 flex items-end bg-gradient-to-t from-black/75 via-black/10 to-transparent p-5">
             <h2 class="text-xl font-bold leading-tight text-white drop-shadow-sm">{{ $item->name }}</h2>
         </div>
     </div>
 
-    <div class="flex flex-col gap-5 p-5">
+    <div class="flex flex-col gap-5 p-5" data-loop-preview-body>
         <div class="flex flex-col gap-2">
             @if($tagline)
                 <p class="font-medium text-gray-800 dark:text-gray-200">{{ $tagline }}</p>
@@ -99,7 +104,7 @@
         </div>
 
         @if($canRead)
-            <div>
+            <div data-loop-preview-messages>
                 <h3 class="mb-2 text-sm font-semibold text-gray-500 dark:text-gray-400">{{ __('loops.latest_messages_title') }}</h3>
                 @if($messages->isEmpty())
                     <p class="text-sm italic text-gray-400 dark:text-gray-500">{{ __('loops.catalog_row_no_message') }}</p>
@@ -138,7 +143,7 @@
                 @endif
             </div>
 
-            <div>
+            <div data-loop-preview-members>
                 <h3 class="mb-2 text-sm font-semibold text-gray-500 dark:text-gray-400">{{ __('loops.preview_members_title') }}</h3>
                 <ul class="flex flex-col gap-2">
                     @foreach($members as $member)

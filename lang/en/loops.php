@@ -1636,4 +1636,8 @@ return [
     // TASK-1866 — tiroir d'apercu de la grille.
     'preview_loading' => 'Loading the preview…',
     'preview_error' => 'This Loop\'s preview could not be loaded. You can open it directly.',
+    // TASK-1867 — volet de detail de la liste G.
+    'list_pane_label' => 'Loop preview',
+    'list_pane_empty' => 'Select a Loop',
+    'list_pane_announce' => 'Preview: :name',
 ];
