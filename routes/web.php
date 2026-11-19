@@ -652,6 +652,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/loops/articles', [LoopArticlesController::class, 'index'])->name('loops.articles');
         Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
         Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+        // TASK-1865 — apercu d'une Boucle (fragment HTML) pour le tiroir de la
+        // grille et les volets de la liste. `no_store` : il porte l'etat
+        // d'adhesion, comme le catalogue (TASK-1277).
+        Route::get('/loops/{loop}/apercu', [LoopController::class, 'preview'])->middleware('cache.headers:no_store')->name('loops.preview');
         // L'agenda de l'Organization : il agrege ce qui a ete organise dans les
         // Boucles. Declare avant /loops/{loop} n'est pas necessaire — le segment
         // differe — mais reste groupe avec elles.
@@ -1890,6 +1894,8 @@ Route::prefix('/org/{organization}')
                 Route::get('/loops/articles', [LoopArticlesController::class, 'index'])->name('loops.articles');
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+                // TASK-1865 — voir la route courte `loops.preview`.
+                Route::get('/loops/{loop}/apercu', [LoopController::class, 'preview'])->middleware('cache.headers:no_store')->name('loops.preview');
                 // L'agenda de l'Organization. Voir la note sur la route courte :
                 // depuis TASK-1656 il porte le geste de REPONSE a une invitation.
                 Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
