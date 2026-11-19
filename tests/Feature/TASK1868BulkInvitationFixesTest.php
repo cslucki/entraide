@@ -56,4 +56,49 @@ class TASK1868BulkInvitationFixesTest extends TestCase
         $this->assertSame('Jean Dupont', $user->full_name);
         $this->assertSame('Jean Dupont', $user->publicDisplayName());
     }
+
+    // ── 2. Premiere definition du mot de passe ────────────────────────────
+
+    public function test_the_password_step_shows_the_account_email_readonly_for_autocomplete(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'recipient_email' => 'autocomplete@example.test',
+        ]);
+        $this->post(route('organization-invitations.accept', $invitation->token));
+
+        $response = $this->get(route('invitation.password.create'));
+
+        $response->assertOk();
+        $response->assertSee('autocomplete@example.test', false);
+        $response->assertSee('autocomplete="username"', false);
+        $response->assertSee('readonly', false);
+    }
+
+    /**
+     * The field is rendered for the browser's password manager only — the
+     * controller must keep pulling identity from the session, never from
+     * whatever a request happens to carry in `email`.
+     */
+    public function test_a_tampered_email_field_on_the_password_step_changes_nothing(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'recipient_email' => 'vraie-adresse@example.test',
+        ]);
+        $this->post(route('organization-invitations.accept', $invitation->token));
+
+        $this->post(route('invitation.password.store'), [
+            'email' => 'autre-adresse@example.test',
+            'password' => 'un-mot-de-passe-solide-42',
+            'password_confirmation' => 'un-mot-de-passe-solide-42',
+        ])->assertRedirect();
+
+        $user = User::where('email', 'vraie-adresse@example.test')->firstOrFail();
+        $this->assertFalse($user->must_set_password);
+        $this->assertTrue(Hash::check('un-mot-de-passe-solide-42', $user->password));
+        $this->assertNull(User::where('email', 'autre-adresse@example.test')->first());
+    }
 }

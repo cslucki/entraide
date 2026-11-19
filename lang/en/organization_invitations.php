@@ -32,6 +32,7 @@ return [
     // Second step: choose a password
     'password_title' => 'Choose your password',
     'password_intro' => 'Your access is ready. Set a password so you can sign back in later.',
+    'password_email_label' => 'Email address',
     'password_label' => 'Password',
     'password_confirm_label' => 'Confirm password',
     'password_cta' => 'Save and continue',
