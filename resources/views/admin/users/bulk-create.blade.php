@@ -27,11 +27,14 @@
             @if (session('bulkCreateResult'))
                 @php $result = session('bulkCreateResult'); @endphp
                 <div class="rounded-lg bg-white dark:bg-gray-800 shadow sm:rounded-lg p-6 space-y-2 text-sm">
+                    {{-- TASK-1862 : l'envoi SMTP est deporte, donc "programmée"
+                         et non "envoyée" — au moment ou cet ecran s'affiche,
+                         on sait seulement que l'email a ete MIS EN FILE. --}}
                     @if ($result['created'] > 0)
-                        <p class="text-green-700 dark:text-green-400">{{ $result['created'] }} invitation(s) envoyée(s).</p>
+                        <p class="text-green-700 dark:text-green-400">{{ $result['created'] }} invitation(s) créée(s), email programmé pour envoi.</p>
                     @endif
                     @if ($result['resent'] > 0)
-                        <p class="text-indigo-700 dark:text-indigo-400">{{ $result['resent'] }} invitation(s) relancée(s) (en attente déjà existante).</p>
+                        <p class="text-indigo-700 dark:text-indigo-400">{{ $result['resent'] }} invitation(s) relancée(s) (en attente déjà existante), email programmé pour renvoi.</p>
                     @endif
                     @foreach ($result['alreadyMember'] as $email)
                         <p class="text-amber-700 dark:text-amber-400">{{ $email }} — cette personne possède déjà un compte dans cette organisation.</p>

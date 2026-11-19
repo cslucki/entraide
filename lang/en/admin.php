@@ -819,7 +819,11 @@ return [
     'emailer_deleted' => 'Email template deleted successfully.',
     'emailer_max_50' => 'Maximum 50 recipients per send.',
     'emailer_no_recipients' => 'No valid recipients.',
-    'emailer_sent_count' => ':sent sent, :failed failed (of :total)',
+    'emailer_sent_count' => ':queued email(s) scheduled, :failed failed to queue (of :total)',
+    'emailer_duplicate_submission' => 'This send intent has already been processed.',
+    'emailer_missing_token' => 'This form is stale or incomplete. Please restart the send.',
+    'emailer_template_changed_since_confirmation' => 'The template content has changed since this confirmation. Please reconfirm the send.',
+    'emailer_missing_content_hash' => 'This send confirmation is incomplete. Please reconfirm.',
 
     // TASK-1803 — bulk email sending tool
     'emailer_bulksending' => 'Bulk sending',
@@ -848,8 +852,9 @@ return [
     'bulk_email_confirm_send' => 'Confirm and start sending (:count)',
     'bulk_email_back_cta' => 'Back',
     'bulk_email_next_batch' => 'Send next batch (:count)',
-    'bulk_email_batch_result' => 'Batch sent: :sent succeeded, :failed failed, :remaining remaining.',
+    'bulk_email_batch_result' => ':queued email(s) scheduled for sending, :remaining remaining to process.',
     'bulk_email_sent_failed' => ':sent sent, :failed failed',
+    'bulk_email_ambiguous_note' => ':count uncertain attempt(s)',
     'bulk_email_completed' => 'Sending completed.',
     'bulk_email_view_logs_cta' => 'View send history',
     'bulk_email_in_progress_title' => 'Sends in progress',

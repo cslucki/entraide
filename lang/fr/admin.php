@@ -822,7 +822,11 @@ return [
     'emailer_deleted' => 'Template d\'email supprimé avec succès.',
     'emailer_max_50' => 'Maximum 50 destinataires par envoi.',
     'emailer_no_recipients' => 'Aucun destinataire valide.',
-    'emailer_sent_count' => ':sent envoyé(s), :failed échoué(s) (sur :total)',
+    'emailer_sent_count' => ':queued email(s) programmé(s), :failed échec(s) de mise en file (sur :total)',
+    'emailer_duplicate_submission' => 'Cette intention d\'envoi a déjà été traitée.',
+    'emailer_missing_token' => 'Ce formulaire est périmé ou incomplet. Merci de recommencer l\'envoi.',
+    'emailer_template_changed_since_confirmation' => 'Le contenu du gabarit a changé depuis cette confirmation. Merci de reconfirmer l\'envoi.',
+    'emailer_missing_content_hash' => 'La confirmation de cet envoi est incomplète. Merci de reconfirmer.',
 
     // TASK-1803 — outil « Envoi emails » (bulk sending)
     'emailer_bulksending' => 'Envoi emails',
@@ -851,8 +855,9 @@ return [
     'bulk_email_confirm_send' => "Confirmer et démarrer l'envoi (:count)",
     'bulk_email_back_cta' => 'Retour',
     'bulk_email_next_batch' => 'Envoyer le lot suivant (:count)',
-    'bulk_email_batch_result' => 'Lot envoyé : :sent réussi(s), :failed échoué(s), :remaining restant(s).',
+    'bulk_email_batch_result' => ':queued email(s) programmé(s) pour envoi, :remaining restant(s) à traiter.',
     'bulk_email_sent_failed' => ':sent envoyé(s), :failed échoué(s)',
+    'bulk_email_ambiguous_note' => ':count tentative(s) incertaine(s)',
     'bulk_email_completed' => 'Envoi terminé.',
     'bulk_email_view_logs_cta' => "Voir l'historique des envois",
     'bulk_email_in_progress_title' => 'Envois en cours',

@@ -108,6 +108,11 @@ class AdminEmailBulkSendingController extends Controller
 
         $bulkEmailSend->loadCount([
             'recipients as pending_count' => fn ($q) => $q->where('status', 'pending'),
+            // TASK-1861 — ni confirme envoye ni confirme echoue : la barre
+            // de progression doit pouvoir les montrer, sinon elle ne
+            // pourrait jamais atteindre 100% des lors qu'une tentative
+            // reste ambigue.
+            'recipients as ambiguous_count' => fn ($q) => $q->where('status', 'ambiguous'),
         ]);
 
         return view('admin.email-bulksending.show', ['send' => $bulkEmailSend]);
@@ -119,10 +124,12 @@ class AdminEmailBulkSendingController extends Controller
 
         $tally = $this->service->sendNextBatch($bulkEmailSend, 50);
 
+        // TASK-1861 — l'envoi SMTP est deporte : au moment ou cette reponse
+        // part, on sait ce qui a ete MIS EN FILE, jamais ce qui a ete
+        // reellement livre. Dire "envoye" ici serait faux.
         return redirect()->route('admin.email-bulksending.show', $bulkEmailSend)
             ->with('success', __('admin.bulk_email_batch_result', [
-                'sent' => $tally['sent'],
-                'failed' => $tally['failed'],
+                'queued' => $tally['queued'],
                 'remaining' => $tally['remaining'],
             ]));
     }

@@ -14,22 +14,24 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * TASK-1855 — livrer `TransactionStatusChanged` hors du thread HTTP, pour
- * l'unique declencheur `TransactionController::complete()` (cloture d'une
- * entraide).
+ * le declencheur `TransactionController::complete()` (cloture d'une
+ * entraide). TASK-1857 — meme job, reutilise SANS modification de son
+ * mecanisme d'envoi pour `approve()` et `refuse()` (audit TASK-1856 avait
+ * deja identifie la trace SMTP lente du 15:18:22 UTC comme provenant
+ * d'`approve()`, synchrone).
  *
- * ## Perimetre VOLONTAIREMENT etroit
+ * ## Perimetre
  *
  * `TransactionStatusChanged` est PARTAGEE par `approve()`, `refuse()`,
  * `complete()` et `confirm()` (audit TASK-1856, verifie ligne a ligne
  * dans `TransactionController.php`). Mettre `ShouldQueue` sur la classe
  * de notification elle-meme aurait change les QUATRE declencheurs d'un
- * seul coup — exactement la « modification globale » que le mandat
- * interdit. Ce job ne deporte donc QUE les deux appels de `complete()`
- * (acheteur, vendeur) ; `approve()`/`refuse()`/`confirm()` restent
- * INCHANGES, synchrones, hors de ce correctif. Si l'un d'eux est migre un
- * jour, ce job est deja assez generique (transactionId + recipientId)
- * pour etre reutilise SANS modification — mais cette migration n'est PAS
- * demandee ici.
+ * seul coup — exactement la « modification globale » que les deux
+ * mandats ont exclue. Ce job deporte desormais `approve()`, `refuse()`
+ * ET `complete()` (un par destinataire a chaque fois) ; `confirm()` reste
+ * INCHANGE, synchrone, hors de ce correctif — chemin herite que plus
+ * aucun code ne produit (zero ligne mesuree sur le jumeau au 11/11,
+ * aucune anomalie demontree a son sujet, TASK-1857 audit).
  *
  * ## La charge utile est un IDENTIFIANT par destinataire, rien d'autre
  *
@@ -74,6 +76,24 @@ use Illuminate\Support\Facades\Log;
  * identifiant de destinataire (seulement l'identifiant de transaction et
  * d'Organization) : un refus repete serait le signe d'un identifiant
  * corrompu ou rejoue, pas une information a exposer en clair.
+ *
+ * ## Arbitrage MASTER (TASK-1857) — `expectedStatus`, contre le statut perime
+ *
+ * `approve()`/`refuse()` posent un statut TRANSITOIRE (`accepted`,
+ * `refused`) — contrairement a `complete()`, dont le statut (`completed`)
+ * est terminal et ne peut plus changer derriere lui. Un job mis en file
+ * depuis `approve()` pourrait donc s'executer APRES que la transaction
+ * ait deja ete clôturee (`complete()`), et enverrait alors un email
+ * « votre proposition a ete acceptee » pour un echange deja termine —
+ * trompeur, sans avoir jamais ete faux au moment ou il a ete ecrit.
+ *
+ * `$expectedStatus`, facultatif (`null` par defaut — comportement
+ * INCHANGE pour `complete()`, qui ne le passe jamais : compatibilite
+ * ascendante totale avec TASK-1855) : quand il est fourni, `handle()` le
+ * compare au statut COURANT, relu au moment de l'execution, APRES la
+ * verification du destinataire. Une divergence n'envoie rien et
+ * journalise un code stable, sans email ni donnee personnelle — meme
+ * doctrine que l'isolation du destinataire ci-dessus.
  */
 class SendTransactionStatusChangedEmail implements ShouldQueue
 {
@@ -88,6 +108,7 @@ class SendTransactionStatusChangedEmail implements ShouldQueue
     public function __construct(
         public readonly string $transactionId,
         public readonly string $recipientId,
+        public readonly ?string $expectedStatus = null,
     ) {
         $this->onQueue(self::DEDICATED_QUEUE);
         $this->afterCommit();
@@ -141,6 +162,21 @@ class SendTransactionStatusChangedEmail implements ShouldQueue
 
             if (! $estDestinataireLegitime) {
                 Log::warning('SendTransactionStatusChangedEmail: destinataire illegitime, email non envoye.', [
+                    'transaction_id' => $this->transactionId,
+                    'organization_id' => $transaction->organization_id,
+                ]);
+
+                return;
+            }
+
+            // Arbitrage MASTER (TASK-1857) — statut perime : un job mis en
+            // file depuis un statut TRANSITOIRE (`approve()`/`refuse()`)
+            // peut s'executer apres que la transaction ait change d'etat
+            // (ex. deja cloturee). `$expectedStatus` est `null` pour
+            // `complete()` (statut terminal, aucune divergence possible) —
+            // cette garde ne change donc RIEN a son comportement existant.
+            if ($this->expectedStatus !== null && $transaction->status !== $this->expectedStatus) {
+                Log::warning('SendTransactionStatusChangedEmail: statut perime, email non envoye.', [
                     'transaction_id' => $this->transactionId,
                     'organization_id' => $transaction->organization_id,
                 ]);

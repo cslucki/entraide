@@ -3,16 +3,19 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendOrganizationInvitationEmail;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\OrganizationInvitation;
-use App\Services\OrganizationInvitationMailer;
 use App\Services\OrganizationInvitationService;
 use App\Support\Tenancy\RegistrationGuard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Throwable;
 
 /**
  * "Création de comptes en masse" — TASK-1659, SuperAdmin-only (MASTER,
@@ -24,7 +27,6 @@ class AdminUserBulkCreationController extends Controller
 {
     public function __construct(
         private OrganizationInvitationService $invitations,
-        private OrganizationInvitationMailer $mailer,
     ) {}
 
     public function index(Request $request): View
@@ -193,10 +195,10 @@ class AdminUserBulkCreationController extends Controller
             );
 
             if ($outcome['case'] === OrganizationInvitationService::CASE_CREATED) {
-                $this->mailer->send($outcome['invitation']);
+                $this->dispatchInvitationEmail($outcome['invitation']);
                 $created++;
             } elseif ($outcome['case'] === OrganizationInvitationService::CASE_RESENT) {
-                $this->mailer->send($outcome['invitation']);
+                $this->dispatchInvitationEmail($outcome['invitation']);
                 $resent++;
             } elseif ($outcome['case'] === OrganizationInvitationService::CASE_ALREADY_MEMBER) {
                 $alreadyMember[] = $person['email'];
@@ -231,12 +233,31 @@ class AdminUserBulkCreationController extends Controller
         );
 
         if (in_array($outcome['case'], [OrganizationInvitationService::CASE_CREATED, OrganizationInvitationService::CASE_RESENT], true)) {
-            $this->mailer->send($outcome['invitation']);
+            $this->dispatchInvitationEmail($outcome['invitation']);
 
             return back()->with('success', __('organization_invitations.admin_resent'));
         }
 
         return back()->with('error', __('organization_invitations.admin_resend_impossible'));
+    }
+
+    /**
+     * TASK-1862 — l'invitation est deja ecrite et commise (`invite()` ferme
+     * sa propre transaction) : un echec de mise en file ne peut donc pas
+     * faire disparaitre l'invitation elle-meme.
+     */
+    private function dispatchInvitationEmail(OrganizationInvitation $invitation): void
+    {
+        rescue(
+            fn () => Bus::dispatch(new SendOrganizationInvitationEmail((string) $invitation->id)),
+            fn (Throwable $e) => Log::error('Email notification failed after successful business action', [
+                'event' => 'organization_invitation_created_or_resent',
+                'invitation_id' => $invitation->id,
+                'organization_id' => $invitation->organization_id,
+                'exception_class' => $e::class,
+            ]),
+            false,
+        );
     }
 
     public function revoke(Request $request, OrganizationInvitation $invitation): RedirectResponse

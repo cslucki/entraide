@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendLoopInvitationEmail;
 use App\Services\Loops\Exceptions\LoopInvitationRefusedException;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\Organization;
 use App\Services\LoopInvitationService;
-use App\Services\Loops\LoopInvitationMailer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
@@ -28,7 +30,6 @@ class LoopInvitationController extends Controller
 {
     public function __construct(
         private LoopInvitationService $invitations,
-        private LoopInvitationMailer $mailer,
     ) {}
 
     /** Send an invitation from the Loop's own screens. */
@@ -59,7 +60,19 @@ class LoopInvitationController extends Controller
             return back()->with('error', $refus->getMessage());
         }
 
-        $this->mailer->send($invitation);
+        // TASK-1860 — l'invitation est deja ecrite et commise (invite() ferme
+        // sa propre transaction) : un echec de mise en file ne peut donc pas
+        // faire disparaitre l'invitation elle-meme.
+        rescue(
+            fn () => Bus::dispatch(new SendLoopInvitationEmail((string) $invitation->id)),
+            fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
+                'event' => 'loop_invitation_created',
+                'invitation_id' => $invitation->id,
+                'organization_id' => $invitation->organization_id,
+                'exception_class' => $e::class,
+            ]),
+            false,
+        );
 
         return back()->with('success', __('loops.invitation_sent', ['email' => $invitation->recipient_email]));
     }
