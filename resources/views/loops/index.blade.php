@@ -233,9 +233,16 @@
 
             <style>.no-scrollbar::-webkit-scrollbar { display: none; }</style>
 
-            @php $catalogDomains = $filterDomains ?? collect(); @endphp
-            @if($loops->count() > 6 || $catalogDomains->isNotEmpty())
-                <div class="mb-6 flex flex-wrap items-center gap-3">
+            @php
+                $catalogDomains = $filterDomains ?? collect();
+                // TASK-1864 — `grid` (defaut) ou `list`, normalise par le
+                // controleur ; seul le gabarit change, jamais le perimetre.
+                $isListView = ($catalogView ?? 'grid') === 'list';
+            @endphp
+            {{-- TASK-1864 — la rangee existe des qu'il y a des Boucles : la
+                 bascule Grille/Liste y vit meme quand recherche et domaines
+                 n'ont pas lieu d'etre (6 Boucles ou moins, aucun domaine). --}}
+            <div class="mb-6 flex flex-wrap items-center gap-3">
                     @if($loops->count() > 6)
                         <div class="relative w-full max-w-sm">
                             <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -258,15 +265,49 @@
                             @endforeach
                         </select>
                     @endif
+
+                    {{-- TASK-1864 — meme patron que l'annuaire (`members/index`) :
+                         de vrais liens qui posent `?view=`, pas un etat Alpine —
+                         l'adresse se partage et le retour arriere la conserve.
+                         `grid` est la valeur par defaut : son lien RETIRE le
+                         parametre plutot que d'ecrire `view=grid`. --}}
+                    <div class="ml-auto inline-flex overflow-hidden rounded-xl border border-gray-300 bg-white text-sm dark:border-gray-600 dark:bg-gray-800"
+                         role="group" aria-label="{{ __('loops.view_switch_label') }}" data-loops-view-switch>
+                        <a href="{{ request()->fullUrlWithQuery(['view' => null]) }}"
+                           data-loops-view-switch-option="grid"
+                           @if(! $isListView) aria-current="true" @endif
+                           @class([
+                               'inline-flex items-center gap-1.5 px-3 py-2 font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500',
+                               'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' => ! $isListView,
+                               'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200' => $isListView,
+                           ])>
+                            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.25"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.25"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.25"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.25"/></svg>
+                            {{ __('loops.view_grid') }}
+                        </a>
+                        <a href="{{ request()->fullUrlWithQuery(['view' => 'list']) }}"
+                           data-loops-view-switch-option="list"
+                           @if($isListView) aria-current="true" @endif
+                           @class([
+                               'inline-flex items-center gap-1.5 border-l border-gray-300 px-3 py-2 font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 dark:border-gray-600',
+                               'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' => $isListView,
+                               'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200' => ! $isListView,
+                           ])>
+                            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2" width="13" height="2.5" rx="1"/><rect x="1.5" y="6.75" width="13" height="2.5" rx="1"/><rect x="1.5" y="11.5" width="13" height="2.5" rx="1"/></svg>
+                            {{ __('loops.view_list') }}
+                        </a>
+                    </div>
                 </div>
-            @endif
 
             @if($mine->isNotEmpty())
                 <h2 x-show="mine || type === '' || ({{ \Illuminate\Support\Js::from($mineByType) }}[type] ?? 0) > 0"
                     class="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.my_loops_title') }}</h2>
-                <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div @class([
+                        'mb-8',
+                        'grid gap-4 sm:grid-cols-2 lg:grid-cols-3' => ! $isListView,
+                        'flex flex-col gap-1 rounded-2xl border border-gray-200 bg-white p-1.5 dark:border-gray-700 dark:bg-gray-800' => $isListView,
+                    ])>
                     @foreach($mine as $item)
-                        @include('loops.partials.catalog-card', ['item' => $item])
+                        @include($isListView ? 'loops.partials.catalog-row' : 'loops.partials.catalog-card', ['item' => $item])
                     @endforeach
                 </div>
             @endif
@@ -298,9 +339,12 @@
                 <div x-show="! mine" data-loops-discover>
                     <h2 x-show="type === '' || ({{ \Illuminate\Support\Js::from($discoverByType) }}[type] ?? 0) > 0"
                         class="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.discover_title') }}</h2>
-                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div @class([
+                            'grid gap-4 sm:grid-cols-2 lg:grid-cols-3' => ! $isListView,
+                            'flex flex-col gap-1 rounded-2xl border border-gray-200 bg-white p-1.5 dark:border-gray-700 dark:bg-gray-800' => $isListView,
+                        ])>
                         @foreach($discover as $item)
-                            @include('loops.partials.catalog-card', ['item' => $item])
+                            @include($isListView ? 'loops.partials.catalog-row' : 'loops.partials.catalog-card', ['item' => $item])
                         @endforeach
                     </div>
                 </div>

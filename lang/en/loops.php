@@ -1623,4 +1623,9 @@ return [
     'articles_badge' => 'Loop article',
     'articles_empty' => 'No loop article yet.',
     'articles_empty_filtered' => 'No article for this loop.',
+    // TASK-1864 — bascule Grille / Liste du catalogue, et ligne de la liste.
+    'view_switch_label' => 'Display',
+    'view_grid' => 'Grid',
+    'view_list' => 'List',
+    'catalog_row_no_message' => 'No messages yet.',
 ];
