@@ -1687,4 +1687,8 @@ return [
     // TASK-1866 — tiroir d'apercu de la grille.
     'preview_loading' => 'Chargement de l’aperçu…',
     'preview_error' => 'L’aperçu de cette Boucle n’a pas pu être chargé. Vous pouvez l’ouvrir directement.',
+    // TASK-1867 — volet de detail de la liste G.
+    'list_pane_label' => 'Aperçu de la Boucle',
+    'list_pane_empty' => 'Sélectionnez une Boucle',
+    'list_pane_announce' => 'Aperçu : :name',
 ];

@@ -9,7 +9,8 @@
     Etat purement LOCAL (decision MASTER) : ni parametre d'URL, ni ancre, ni
     `pushState`, ni stockage. La tuile garde son vrai lien vers la Boucle.
 
-    Robustesse du chargement :
+    Robustesse du chargement (TASK-1867 : deleguee a `loopsPreviewLoader`,
+    partage avec la liste G — voir preview-loader-script) :
     - une seule requete vivante : la precedente est annulee (AbortController),
       et un numero de sequence ecarte toute reponse arrivee apres coup ;
     - succes HTTP exige, puis IDENTITE du fragment : seule la section
@@ -22,12 +23,17 @@
     Boucle, focus pose sur « Fermer », piege de focus (Tab / Maj+Tab), Echap,
     voile et bouton ferment, focus rendu a la tuile si elle existe encore,
     defilement de la page bloque puis restaure, `motion-reduce` partout.
+
+    TASK-1867 — `$sheetOnly` (liste G) : la MEME feuille, mais feuille du bas a
+    toute largeur sous 1024 px et absente au-dela (le volet de detail prend le
+    relais). Sans ce parametre, le rendu de la grille est inchange.
 --}}
+@php($sheetOnly = $sheetOnly ?? false)
 <div x-show="preview.open" x-cloak
      x-transition:leave="transition duration-200 motion-reduce:duration-0"
-     data-loops-preview-drawer
+     data-loops-preview-drawer="{{ $sheetOnly ? 'sheet' : 'drawer' }}"
      @keydown.escape.window="closeLoopPreview()"
-     class="fixed inset-0 z-[70]">
+     @class(['fixed inset-0 z-[70]', 'lg:hidden' => $sheetOnly])>
     <div aria-hidden="true" @click="closeLoopPreview()"
          x-show="preview.open"
          x-transition:enter="transition-opacity duration-200 motion-reduce:transition-none motion-reduce:duration-0"
@@ -42,19 +48,29 @@
          @keydown.tab="trapLoopPreviewFocus($event)"
          x-show="preview.open"
          x-transition:enter="transition-transform duration-300 ease-out motion-reduce:transition-none motion-reduce:duration-0"
+         @if($sheetOnly)
+         x-transition:enter-start="translate-y-full"
+         x-transition:leave="transition-transform duration-200 ease-in motion-reduce:transition-none motion-reduce:duration-0"
+         x-transition:leave-end="translate-y-full"
+         class="absolute inset-x-0 bottom-0 mx-auto flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl supports-[height:100dvh]:max-h-[85dvh] dark:bg-gray-800"
+         @else
          x-transition:enter-start="translate-y-full sm:translate-x-full sm:translate-y-0"
          x-transition:leave="transition-transform duration-200 ease-in motion-reduce:transition-none motion-reduce:duration-0"
          x-transition:leave-end="translate-y-full sm:translate-x-full sm:translate-y-0"
-         class="absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl supports-[height:100dvh]:max-h-[85dvh] dark:bg-gray-800 sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[28rem] sm:rounded-none sm:border-l sm:border-gray-200 sm:supports-[height:100dvh]:max-h-none dark:sm:border-gray-700">
+         class="absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl supports-[height:100dvh]:max-h-[85dvh] dark:bg-gray-800 sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[28rem] sm:rounded-none sm:border-l sm:border-gray-200 sm:supports-[height:100dvh]:max-h-none dark:sm:border-gray-700"
+         @endif>
         {{-- Poignee de la feuille du bas : decor, le bouton « Fermer » reste le geste. --}}
-        <div class="flex shrink-0 justify-center bg-white py-2 dark:bg-gray-800 sm:hidden" aria-hidden="true">
+        <div @class(['flex shrink-0 justify-center bg-white py-2 dark:bg-gray-800', 'sm:hidden' => ! $sheetOnly]) aria-hidden="true">
             <span class="h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600"></span>
         </div>
 
         <button type="button" x-ref="loopPreviewClose" @click="closeLoopPreview()"
                 data-loops-preview-close
                 aria-label="{{ __('ui.close') }}" title="{{ __('ui.close') }}"
-                class="absolute right-3 top-7 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:top-3">
+                @class([
+                    'absolute right-3 top-7 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75 focus:outline-none focus-visible:ring-2 focus-visible:ring-white',
+                    'sm:top-3' => ! $sheetOnly,
+                ])>
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
             </svg>
@@ -84,138 +100,123 @@
     </div>
 </div>
 
+@include('loops.partials.preview-loader-script')
+
+@once
 @push('scripts')
 <script>
     // TASK-1866 — etat du tiroir, etale dans la racine `x-data` du catalogue
     // (`{ q, domain, type, mine, ...loopsPreviewDrawer() }`) : les tuiles et
     // le tiroir partagent ainsi la meme portee que les filtres.
-    window.loopsPreviewDrawer = () => ({
-        preview: { open: false, state: 'idle', html: '', title: '', fallbackHref: '' },
-        loopPreviewTrigger: null,
-        loopPreviewController: null,
-        loopPreviewSeq: 0,
-        loopPreviewOverflow: '',
+    //
+    // TASK-1867 — le CHARGEMENT est delegue a `loopsPreviewLoader`
+    // (preview-loader-script), partage avec la liste G. Ce composant ne garde
+    // que le dialogue. `redirectOnNotFound` : la grille suit le lien de la
+    // Boucle sur 404 (T1866) ; la liste propose le lien sans rediriger.
+    window.loopsPreviewDrawer = ({ redirectOnNotFound = true } = {}) => {
+        const loader = window.loopsPreviewLoader();
 
-        openLoopPreview(event) {
-            // Clic modifie, molette ou clic deja traite : le lien fait son travail.
-            if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-                return;
-            }
+        return {
+            preview: { open: false, state: 'idle', html: '', title: '', fallbackHref: '' },
+            loopPreviewTrigger: null,
+            loopPreviewOverflow: '',
 
-            const link = event.currentTarget;
-            const url = link.dataset.loopPreviewUrl;
-            const loopId = link.closest('[data-loops-catalog-tile]')?.dataset.loopsCatalogTile;
-            if (! url || ! loopId) {
-                return;
-            }
-
-            event.preventDefault();
-
-            if (! this.preview.open) {
-                this.loopPreviewOverflow = document.documentElement.style.overflow;
-                document.documentElement.style.overflow = 'hidden';
-            }
-
-            this.loopPreviewTrigger = link;
-            this.preview.title = link.dataset.loopName || '';
-            this.preview.fallbackHref = link.href;
-            this.preview.html = '';
-            this.preview.state = 'loading';
-            this.preview.open = true;
-            this.$nextTick(() => this.$refs.loopPreviewClose?.focus());
-
-            this.loadLoopPreview(url, loopId, link.href);
-        },
-
-        async loadLoopPreview(url, loopId, fallbackHref) {
-            this.loopPreviewController?.abort();
-            const controller = new AbortController();
-            this.loopPreviewController = controller;
-            const seq = ++this.loopPreviewSeq;
-            const stale = () => seq !== this.loopPreviewSeq || ! this.preview.open;
-
-            try {
-                const response = await fetch(url, {
-                    headers: { Accept: 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
-                    credentials: 'same-origin',
-                    cache: 'no-store',
-                    signal: controller.signal,
-                });
-                if (stale()) {
+            openLoopPreview(event) {
+                // Clic modifie, molette ou clic deja traite : le lien fait son travail.
+                if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
                     return;
                 }
-                if (response.status === 404) {
+
+                const link = event.currentTarget;
+                const url = link.dataset.loopPreviewUrl;
+                const loopId = link.dataset.loopId;
+                if (! url || ! loopId) {
+                    return;
+                }
+
+                event.preventDefault();
+
+                if (! this.preview.open) {
+                    this.loopPreviewOverflow = document.documentElement.style.overflow;
+                    document.documentElement.style.overflow = 'hidden';
+                }
+
+                this.loopPreviewTrigger = link;
+                this.preview.title = link.dataset.loopName || '';
+                this.preview.fallbackHref = link.href;
+                this.preview.html = '';
+                this.preview.state = 'loading';
+                this.preview.open = true;
+                this.$nextTick(() => this.$refs.loopPreviewClose?.focus());
+
+                this.loadLoopPreview(url, loopId, link.href);
+            },
+
+            async loadLoopPreview(url, loopId, fallbackHref) {
+                const result = await loader.load(url, loopId);
+                if (result.status === 'stale' || ! this.preview.open) {
+                    return;
+                }
+                if (result.status === 'not-found' && redirectOnNotFound) {
                     window.location.assign(fallbackHref);
 
                     return;
                 }
-                if (! response.ok) {
-                    throw new Error('loop-preview-http-' + response.status);
-                }
+                if (result.status !== 'ready') {
+                    this.preview.state = 'error';
 
-                const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-                if (stale()) {
                     return;
                 }
-                const section = doc.querySelector('[data-loop-preview="' + CSS.escape(loopId) + '"]');
-                if (! section) {
-                    throw new Error('loop-preview-identity');
-                }
 
-                this.preview.html = section.outerHTML;
+                this.preview.html = result.html;
                 this.preview.state = 'ready';
-            } catch (error) {
-                if (error?.name === 'AbortError' || stale()) {
+            },
+
+            closeLoopPreview() {
+                if (! this.preview.open) {
                     return;
                 }
-                this.preview.state = 'error';
-            }
-        },
 
-        closeLoopPreview() {
-            if (! this.preview.open) {
-                return;
-            }
+                loader.abort();
+                this.preview.open = false;
+                this.preview.state = 'idle';
+                this.preview.html = '';
+                document.documentElement.style.overflow = this.loopPreviewOverflow;
 
-            this.loopPreviewController?.abort();
-            this.loopPreviewSeq++;
-            this.preview.open = false;
-            this.preview.state = 'idle';
-            this.preview.html = '';
-            document.documentElement.style.overflow = this.loopPreviewOverflow;
+                const trigger = this.loopPreviewTrigger;
+                this.loopPreviewTrigger = null;
+                if (trigger && trigger.isConnected) {
+                    this.$nextTick(() => trigger.focus());
+                }
+            },
 
-            const trigger = this.loopPreviewTrigger;
-            this.loopPreviewTrigger = null;
-            if (trigger && trigger.isConnected) {
-                this.$nextTick(() => trigger.focus());
-            }
-        },
+            trapLoopPreviewFocus(event) {
+                const panel = this.$refs.loopPreviewPanel;
+                const focusable = [...panel.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+                    .filter((el) => el.getClientRects().length > 0);
+                if (focusable.length === 0) {
+                    event.preventDefault();
 
-        trapLoopPreviewFocus(event) {
-            const panel = this.$refs.loopPreviewPanel;
-            const focusable = [...panel.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
-                .filter((el) => el.getClientRects().length > 0);
-            if (focusable.length === 0) {
-                event.preventDefault();
+                    return;
+                }
 
-                return;
-            }
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                const active = document.activeElement;
 
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            const active = document.activeElement;
-
-            if (! panel.contains(active)) {
-                event.preventDefault();
-                first.focus();
-            } else if (event.shiftKey && active === first) {
-                event.preventDefault();
-                last.focus();
-            } else if (! event.shiftKey && active === last) {
-                event.preventDefault();
-                first.focus();
-            }
-        },
-    });
+                if (! panel.contains(active)) {
+                    event.preventDefault();
+                    first.focus();
+                } else if (event.shiftKey && active === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (! event.shiftKey && active === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            },
+        };
+    };
 </script>
 @endpush
+@endonce
