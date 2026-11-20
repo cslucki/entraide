@@ -208,4 +208,5 @@ return [
 
     // TASK-1871 — la synthese d'erreurs en tete du formulaire.
     'error_summary_title' => 'Votre profil n\'a pas été enregistré : corrigez les points suivants.',
+    'field_required' => '(obligatoire)',
 ];

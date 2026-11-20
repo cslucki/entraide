@@ -25,7 +25,7 @@
          de validation, `$request->validate()` leve une `ValidationException`
          et Laravel renvoie vers `url()->previous()` — la page scopee d'ou
          l'on venait. C'est deja le cas aujourd'hui. --}}
-    <form method="post" action="{{ organizationScopedUrl('profile.update', 'organization.profile.update') }}" class="space-y-6" enctype="multipart/form-data">
+    <form method="post" action="{{ organizationScopedUrl('profile.update', 'organization.profile.update') }}" class="space-y-6" enctype="multipart/form-data" data-live-validation>
         @csrf
         @method('put')
 
@@ -226,7 +226,7 @@
                 </div>
 
                 <div>
-                    <x-input-label for="name" :value="__('profile.name')" />
+                    <x-input-label for="name" :required="true" :value="__('profile.name')" />
                     <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name', $user->name)" required autofocus autocomplete="family-name" />
                     <x-input-error class="mt-2" field="name" :messages="$errors->get('name')" />
                 </div>
@@ -234,7 +234,7 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <x-input-label for="email" :value="__('profile.email')" />
+                    <x-input-label for="email" :required="true" :value="__('profile.email')" />
                     <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
                     <x-input-error class="mt-2" field="email" :messages="$errors->get('email')" />
 
@@ -258,8 +258,8 @@
                 </div>
 
                 <div>
-                    <x-input-label for="phone" :value="__('profile.phone')" />
-                    <x-text-input id="phone" name="phone" type="text" class="mt-1 block w-full" :value="old('phone', $user->phone)" required placeholder="{{ __('profile.phone_placeholder') }}" autocomplete="tel" />
+                    <x-input-label for="phone" :required="true" :value="__('profile.phone')" />
+                    <x-text-input id="phone" name="phone" type="tel" inputmode="tel" class="mt-1 block w-full" :value="old('phone', $user->phone)" required placeholder="{{ __('profile.phone_placeholder') }}" autocomplete="tel" />
                     <p class="mt-1 text-xs text-gray-500">{{ __('profile.phone_help') }}</p>
                     <x-input-error class="mt-2" field="phone" :messages="$errors->get('phone')" />
                 </div>
@@ -345,8 +345,8 @@
             <div>
                 {{-- Demande de Cyril : le libelle EST la phrase d'aide, pas
                      « Slogan » — « Ce qui vous définit en une phrase. » --}}
-                <x-input-label for="slogan" :value="__('profile.slogan_help')" />
-                <x-text-input id="slogan" name="slogan" type="text" class="mt-1 block w-full"
+                <x-input-label for="slogan" :required="true" :value="__('profile.slogan_help')" />
+                <x-text-input id="slogan" name="slogan" type="text" required class="mt-1 block w-full"
                                :value="old('slogan', $user->slogan)" maxlength="120" required />
                 <x-input-error class="mt-2" field="slogan" :messages="$errors->get('slogan')" />
             </div>
@@ -649,4 +649,8 @@
         </div>
         </div>
     </form>
+
+    {{-- TASK-1871 — le retour au fil de la saisie. Pose EN PIED : le script
+         ne s'execute qu'une fois le formulaire present dans le document. --}}
+    <x-form-live-validation />
 </section>

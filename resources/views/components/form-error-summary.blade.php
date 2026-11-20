@@ -37,18 +37,18 @@
 @endphp
 
 @if($_lignes !== [])
-{{-- `role="alert"` le fait annoncer des l'arrivee sur la page ; `tabindex`
-     le rend focusable, et `autofocus` l'amene sous les yeux SANS une ligne de
-     JavaScript — le navigateur fait lui-meme defiler jusqu'a l'element
-     autofocus. C'est ce qui remplace le defilement manuel que Cyril
-     decrivait.
+{{-- `role="alert"` le fait annoncer des l'arrivee sur la page, et `tabindex`
+     le rend focusable pour qu'on puisse y revenir.
 
-     Un `autofocus` existe deja plus bas dans le formulaire du profil, sur le
-     champ « nom ». Le premier dans l'ordre du document l'emporte : ce bloc
-     quand il existe, le champ quand tout va bien. --}}
+     Il n'emporte PLUS le focus automatiquement. Demande de Cyril, 20/11 :
+     « quand on s'est trompé ou on a omis une information sur un champ, on
+     soit directement redirigé vers lui et qu'on voie le message d'erreur ».
+     Amener l'oeil sur un resume en haut, puis le laisser chercher le champ,
+     c'etait resoudre la moitie du probleme. Le focus va donc au CHAMP (voir
+     le script en pied de ce fichier), et ce bloc reste la pour la vue
+     d'ensemble et pour les lecteurs d'ecran. --}}
 <div role="alert"
      tabindex="-1"
-     autofocus
      data-form-error-summary
      {{ $attributes->merge(['class' => 'rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-700/60 dark:bg-red-900/25 dark:text-red-200']) }}>
     <p class="font-semibold">{{ $title }}</p>
@@ -67,4 +67,29 @@
         @endforeach
     </ul>
 </div>
+
+{{-- TASK-1871 — aller DIRECTEMENT au premier champ en faute.
+
+     Le marqueur est celui que `x-text-input` pose deja tout seul :
+     `aria-invalid="true"`. On ne re-derive donc aucune condition ici, et il
+     n'y a aucune liste a tenir a jour — le champ se declare lui-meme.
+
+     `scrollIntoView` avant `focus` : le focus seul saute parfois a ras du
+     bord de l'ecran, et le libelle du champ se retrouve hors vue. Centrer
+     d'abord, donner le focus ensuite.
+
+     `preventScroll` evite que le focus refasse son propre saut par-dessus
+     celui qu'on vient de regler.
+
+     Sans JavaScript, rien de tout cela ne manque vraiment : la synthese
+     ci-dessus est en tete de page, et ses liens menent aux memes champs. --}}
+<script>
+    (function () {
+        var premier = document.querySelector('[aria-invalid="true"]');
+        if (! premier) { return; }
+
+        premier.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        premier.focus({ preventScroll: true });
+    })();
+</script>
 @endif

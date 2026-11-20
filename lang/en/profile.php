@@ -208,4 +208,5 @@ return [
 
     // TASK-1871 — the error summary at the top of the form.
     'error_summary_title' => 'Your profile was not saved: please fix the points below.',
+    'field_required' => '(required)',
 ];
