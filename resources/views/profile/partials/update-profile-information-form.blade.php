@@ -297,7 +297,7 @@
 
                 <div>
                     <x-input-label for="country_code" :value="__('profile.country')" />
-                    <select id="country_code" name="country_code" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" autocomplete="country">
+                    <select id="country_code" name="country_code" class="mt-1 w-full rounded-lg border border-s-[3px] border-s-transparent border-[color:color-mix(in_srgb,var(--bp-muted)_55%,var(--bp-surface))] bg-[color:var(--bp-surface)] px-3 py-2 text-[color:var(--bp-text)] shadow-sm transition-colors duration-150 focus:outline-none focus:border-[color:var(--bp-primary)] focus:border-s-[color:var(--bp-primary)] focus:ring-2 focus:ring-[color:var(--bp-primary)]" autocomplete="country">
                         <option value="">{{ __('profile.country_placeholder') }}</option>
                         @foreach ($countries as $country)
                             <option value="{{ $country->code }}" @selected(old('country_code', $user->country_code) === $country->code)>
@@ -564,7 +564,7 @@
 
                 <div class="md:w-1/2">
                     <x-input-label for="preferred_locale" :value="__('profile.preferred_locale')" />
-                    <select id="preferred_locale" name="preferred_locale" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
+                    <select id="preferred_locale" name="preferred_locale" class="mt-1 w-full rounded-lg border border-s-[3px] border-s-transparent border-[color:color-mix(in_srgb,var(--bp-muted)_55%,var(--bp-surface))] bg-[color:var(--bp-surface)] px-3 py-2 text-[color:var(--bp-text)] shadow-sm transition-colors duration-150 focus:outline-none focus:border-[color:var(--bp-primary)] focus:border-s-[color:var(--bp-primary)] focus:ring-2 focus:ring-[color:var(--bp-primary)]">
                         <option value="">{{ __('profile.preferred_locale_placeholder') }}</option>
                         <option value="fr" @selected(old('preferred_locale', $user->preferred_locale) === 'fr')>{{ __('profile.locale_fr') }}</option>
                         <option value="en" @selected(old('preferred_locale', $user->preferred_locale) === 'en')>{{ __('profile.locale_en') }}</option>
