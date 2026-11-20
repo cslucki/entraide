@@ -593,13 +593,13 @@
             <div>
                 <x-input-label for="address_line1" :value="__('profile.address_line1')" />
                 <x-text-input :premium="true" id="address_line1" name="address_line1" type="text" class="mt-1 block w-full" :value="old('address_line1', $user->address_line1)" autocomplete="address-line1" />
-                <x-input-error class="mt-2" :messages="$errors->get('address_line1')" />
+                <x-input-error class="mt-2" field="address_line1" :messages="$errors->get('address_line1')" />
             </div>
 
             <div>
                 <x-input-label for="address_line2" :value="__('profile.address_line2')" />
                 <x-text-input :premium="true" id="address_line2" name="address_line2" type="text" class="mt-1 block w-full" :value="old('address_line2', $user->address_line2)" autocomplete="address-line2" />
-                <x-input-error class="mt-2" :messages="$errors->get('address_line2')" />
+                <x-input-error class="mt-2" field="address_line2" :messages="$errors->get('address_line2')" />
             </div>
 
             <div>
@@ -648,9 +648,10 @@
         </div>
         </div>
         </div>
-    </form>
-
-    {{-- TASK-1871 — le retour au fil de la saisie. Pose EN PIED : le script
-         ne s'execute qu'une fois le formulaire present dans le document. --}}
+        {{-- TASK-1871 — le retour au fil de la saisie, DANS le formulaire et
+         juste avant sa fermeture : les champs sont deja la, et le script se
+         rattache a SON formulaire par `closest()`, sans repli possible vers
+         un autre formulaire de la page. --}}
     <x-form-live-validation />
+    </form>
 </section>

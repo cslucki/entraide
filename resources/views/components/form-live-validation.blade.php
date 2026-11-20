@@ -32,15 +32,21 @@
      bulles, et le serveur refuse de toute facon. --}}
 <script>
     (function () {
-        /* TASK-1871, correctif MASTER — se limiter AU formulaire porteur.
-           `document.querySelector` aurait pris le premier formulaire marque
-           de la page, pas forcement celui dans lequel ce bloc est rendu. Le
+        /* TASK-1871, correctif MASTER — SON formulaire, et aucun autre.
+           ===============================================================
+           Ce bloc est rendu A L'INTERIEUR du formulaire, juste avant sa
+           fermeture : les champs sont donc tous la, et `closest()` remonte
+           au formulaire PORTEUR.
+
+           Aucun repli vers `document.querySelector` : il aurait pris le
+           premier formulaire marque de la page, pas forcement celui-ci. Le
            jour ou deux formulaires coexistent, le second aurait arme les
-           ecouteurs du premier. `currentScript` leve l'ambiguite.
-           Ce bloc est rendu en PIED : les champs sont deja la. */
+           ecouteurs du premier — et ce genre de confusion ne se voit pas,
+           elle se subit. Si le rattachement echoue, on ne fait rien : le
+           navigateur garde ses propres bulles et le serveur refuse de toute
+           facon. */
         var script = document.currentScript;
-        var form = (script && script.closest('[data-live-validation]'))
-            || document.querySelector('[data-live-validation]');
+        var form = script && script.closest('[data-live-validation]');
         if (! form) { return; }
 
         // A partir d'ici le JavaScript prend la main : on peut retirer la
