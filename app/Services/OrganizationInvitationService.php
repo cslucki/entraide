@@ -229,11 +229,12 @@ class OrganizationInvitationService
 
             if ($pending) {
                 // Refresh the human-facing fields and PUSH the expiry back
-                // out to a fresh 48h window (Cyril, 30/09) — "Relancer"
-                // must extend the deadline, not just resend the same link
-                // with its original clock still running. The token itself
-                // is kept: the link already in the recipient's mailbox
-                // stays valid, it just lives longer.
+                // out to a fresh VALIDITY_HOURS window (Cyril, 30/09 ; 7
+                // jours depuis TASK-1868) — "Relancer" must extend the
+                // deadline, not just resend the same link with its original
+                // clock still running. The token itself is kept: the link
+                // already in the recipient's mailbox stays valid, it just
+                // lives longer.
                 $pending->update(array_merge(
                     array_filter([
                         'recipient_first_name' => $firstName,
@@ -247,7 +248,7 @@ class OrganizationInvitationService
                     // formulaire repasse ce que l'admin vient de saisir.
                     // Dans les deux cas la valeur ecrite est un choix
                     // explicite, pas un oubli.
-                    ['locale' => $locale, 'host_override' => $hostOverride, 'expires_at' => now()->addHours(48)],
+                    ['locale' => $locale, 'host_override' => $hostOverride, 'expires_at' => now()->addHours(OrganizationInvitation::VALIDITY_HOURS)],
                 ));
 
                 return ['case' => self::CASE_RESENT, 'invitation' => $pending->fresh(), 'user' => null];
@@ -548,7 +549,18 @@ class OrganizationInvitationService
             }
 
             $user = User::create([
-                'name' => $invitation->recipientFullName(),
+                // TASK-1868 — `name` est le Nom (famille), `first_name` le
+                // Prenom ; `User::getFullNameAttribute()` les recompose en
+                // "Prenom Nom". Y mettre `recipientFullName()` dupliquait le
+                // prenom dans le Nom affiche ("Jean" + "Jean Dupont").
+                //
+                // `recipient_name` est NULLABLE en base (comme
+                // `recipient_first_name`), alors que `users.name` est
+                // NOT NULL — revue MASTER post-merge : un repli sur l'email
+                // deja valide de l'invitation (jamais sur `recipientFullName()`,
+                // qui redonnerait la meme duplication) evite l'echec de
+                // creation sans jamais melanger prenom et nom.
+                'name' => $invitation->recipient_name ?: $invitation->recipient_email,
                 'first_name' => $invitation->recipient_first_name,
                 'email' => $invitation->recipient_email,
                 // Random, hashed, and never transmitted anywhere — the
