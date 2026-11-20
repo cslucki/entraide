@@ -59,6 +59,24 @@
             var bloc = blocMessage(champ);
             if (! bloc) { return; }
 
+            /* TASK-1871, correctif MASTER — UN REFUS DU SERVEUR NE S'EFFACE
+               PAS D'ICI.
+               =========================================================
+               `checkValidity()` ne connait que les contraintes HTML. Un slug
+               deja pris par quelqu'un d'autre lui parait parfaitement
+               valide : seul le serveur sait qu'il ne l'est pas.
+
+               Sans cette garde, la branche ci-dessous effacait le message
+               SERVEUR des que la FORME du champ redevenait correcte. La
+               personne voyait l'erreur disparaitre, croyait avoir corrige,
+               et ne reapprenait le refus qu'au prochain envoi. C'est le
+               defaut releve par MASTER a la revue, et il etait reel.
+
+               Tant que le serveur n'a pas reexamine le champ, son verdict
+               reste donc affiche. Il ne sera leve que par la prochaine
+               soumission — par lui, pas par nous. */
+            if (champ.hasAttribute('data-server-invalid')) { return; }
+
             if (champ.checkValidity()) {
                 champ.removeAttribute('aria-invalid');
                 if (bloc.hasAttribute('data-live-error')) { bloc.remove(); }
@@ -102,7 +120,11 @@
             var premier = null;
             form.querySelectorAll('input, select, textarea').forEach(function (champ) {
                 signaler(champ);
-                if (! premier && ! champ.checkValidity()) { premier = champ; }
+                // Un champ refuse par le serveur compte comme fautif, meme si
+                // sa forme est irreprochable : c'est tout l'objet de la garde
+                // ci-dessus.
+                var fautif = champ.hasAttribute('data-server-invalid') || ! champ.checkValidity();
+                if (! premier && fautif) { premier = champ; }
             });
 
             if (premier) {

@@ -213,4 +213,54 @@ class TASK1871ProfilScopeEtErreursVisiblesTest extends TestCase
             $this->assertStringNotContainsString('/org/ailleurs/', (string) $reponse->headers->get('Location'));
         }
     }
+
+    /* ---------- 5. LES DEUX CORRECTIFS DEMANDES PAR MASTER ---------- */
+
+    public function test_le_style_enrichi_ne_deborde_pas_sur_les_autres_formulaires(): void
+    {
+        $profil = $this->actingAs($this->membre)
+            ->get('/org/ofsh/profile/edit')
+            ->assertOk()
+            ->getContent();
+
+        // Le formulaire de profil demande le style enrichi...
+        $this->assertStringContainsString('border-s-[3px]', $profil);
+
+        // ...et la page Securite, qui monte les MEMES composants partages,
+        // garde strictement l'habillage d'origine. C'est la demande de
+        // MASTER : isoler l'evolution visuelle au seul profil.
+        $sousAutreEcran = $this->actingAs($this->membre)
+            ->get(route('profile.security'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('border-s-[3px]', $sousAutreEcran);
+        $this->assertStringContainsString('border-gray-300', $sousAutreEcran);
+    }
+
+    public function test_un_champ_refuse_par_le_serveur_porte_le_marqueur_qui_protege_son_message(): void
+    {
+        $this->actingAs($this->membre)
+            ->from('/org/ofsh/profile/edit')
+            ->put(route('organization.profile.update', ['organization' => 'ofsh']), [
+                'name' => 'Camille Durand',
+                'email' => $this->membre->email,
+                'phone' => '0600000000',
+                'slogan' => 'Une phrase courte',
+                'city' => 'Nantes',
+                'country_code' => 'FR',
+                'slug' => 'UN SLUG INVALIDE !!',
+            ]);
+
+        $html = $this->actingAs($this->membre)
+            ->get('/org/ofsh/profile/edit')
+            ->assertOk()
+            ->getContent();
+
+        // `data-server-invalid` est ce qui empeche la validation au fil de la
+        // saisie d'effacer un refus que seul le serveur pouvait prononcer —
+        // un slug deja pris, par exemple, que `checkValidity()` trouverait
+        // parfaitement valide. Defaut releve par MASTER a la revue.
+        $this->assertStringContainsString('data-server-invalid', $html);
+    }
 }

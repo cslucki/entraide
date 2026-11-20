@@ -7,14 +7,19 @@
     // contraire — sur une vingtaine de champs de profil, quatre seulement
     // sont requis. Marquer les quatre est plus econome, et surtout plus
     // honnete : rien n'indiquait jusqu'ici lesquels bloquaient l'envoi.
+    //
+    // Ajout OPT-IN : les ecrans qui ne passent pas cette prop rendent
+    // exactement ce qu'ils rendaient avant, habillage compris. L'habillage
+    // d'origine est conserve tel quel, a la demande de MASTER — l'evolution
+    // visuelle de T1871 reste au formulaire de profil.
     'required' => false,
 ])
 
-<label {{ $attributes->merge(['class' => 'block text-sm font-medium text-[color:var(--bp-text)]']) }}>
+<label {{ $attributes->merge(['class' => 'block font-medium text-sm text-gray-700 dark:text-gray-300']) }}>
     {{ $value ?? $slot }}
     @if($required)
         {{-- Le mot plutot que l'asterisque : un `*` se devine, il ne se lit
              pas, et il n'est annonce par aucun lecteur d'ecran. --}}
-        <span class="ms-1 text-xs font-normal text-[color:var(--bp-muted)]">{{ __('profile.field_required') }}</span>
+        <span class="ms-1 text-xs font-normal text-gray-500 dark:text-gray-400">{{ __('profile.field_required') }}</span>
     @endif
 </label>

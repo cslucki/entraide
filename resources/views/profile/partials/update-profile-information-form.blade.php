@@ -210,7 +210,7 @@
             @if (structureIsShown($organization))
             <div data-profile-structure-field>
                 <x-input-label for="structure" :value="__('profile.structure')" />
-                <x-text-input id="structure" name="structure" type="text" class="mt-1 block w-full"
+                <x-text-input :premium="true" id="structure" name="structure" type="text" class="mt-1 block w-full"
                               :value="old('structure', $user->structure)"
                               maxlength="255" autocomplete="organization" />
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.structure_help') }}</p>
@@ -221,13 +221,13 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <x-input-label for="first_name" :value="__('profile.first_name')" />
-                    <x-text-input id="first_name" name="first_name" type="text" class="mt-1 block w-full" :value="old('first_name', $user->first_name)" autocomplete="given-name" />
+                    <x-text-input :premium="true" id="first_name" name="first_name" type="text" class="mt-1 block w-full" :value="old('first_name', $user->first_name)" autocomplete="given-name" />
                     <x-input-error class="mt-2" field="first_name" :messages="$errors->get('first_name')" />
                 </div>
 
                 <div>
                     <x-input-label for="name" :required="true" :value="__('profile.name')" />
-                    <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name', $user->name)" required autofocus autocomplete="family-name" />
+                    <x-text-input :premium="true" id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name', $user->name)" required autofocus autocomplete="family-name" />
                     <x-input-error class="mt-2" field="name" :messages="$errors->get('name')" />
                 </div>
             </div>
@@ -235,7 +235,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <x-input-label for="email" :required="true" :value="__('profile.email')" />
-                    <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
+                    <x-text-input :premium="true" id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
                     <x-input-error class="mt-2" field="email" :messages="$errors->get('email')" />
 
                     @if ($user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && ! $user->hasVerifiedEmail())
@@ -259,7 +259,7 @@
 
                 <div>
                     <x-input-label for="phone" :required="true" :value="__('profile.phone')" />
-                    <x-text-input id="phone" name="phone" type="tel" inputmode="tel" class="mt-1 block w-full" :value="old('phone', $user->phone)" required placeholder="{{ __('profile.phone_placeholder') }}" autocomplete="tel" />
+                    <x-text-input :premium="true" id="phone" name="phone" type="tel" inputmode="tel" class="mt-1 block w-full" :value="old('phone', $user->phone)" required placeholder="{{ __('profile.phone_placeholder') }}" autocomplete="tel" />
                     <p class="mt-1 text-xs text-gray-500">{{ __('profile.phone_help') }}</p>
                     <x-input-error class="mt-2" field="phone" :messages="$errors->get('phone')" />
                 </div>
@@ -291,7 +291,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <x-input-label for="city" :value="__('profile.city')" />
-                    <x-text-input id="city" name="city" type="text" class="mt-1 block w-full" :value="old('city', $user->city)" autocomplete="address-level2" />
+                    <x-text-input :premium="true" id="city" name="city" type="text" class="mt-1 block w-full" :value="old('city', $user->city)" autocomplete="address-level2" />
                     <x-input-error class="mt-2" field="city" :messages="$errors->get('city')" />
                 </div>
 
@@ -316,7 +316,7 @@
             @if ($organization?->membership_enabled)
             <div class="md:w-1/2" data-profile-membership-field>
                 <x-input-label for="membership_value" :value="app()->getLocale() === 'en' ? ($organization->membership_label_en ?: __('profile.membership')) : ($organization->membership_label_fr ?: __('profile.membership'))" />
-                <x-text-input id="membership_value" name="membership_value" type="text" class="mt-1 block w-full" :value="old('membership_value', $user->membership_value)" />
+                <x-text-input :premium="true" id="membership_value" name="membership_value" type="text" class="mt-1 block w-full" :value="old('membership_value', $user->membership_value)" />
                 <x-input-error class="mt-2" field="membership_value" :messages="$errors->get('membership_value')" />
             </div>
             @endif
@@ -346,7 +346,7 @@
                 {{-- Demande de Cyril : le libelle EST la phrase d'aide, pas
                      « Slogan » — « Ce qui vous définit en une phrase. » --}}
                 <x-input-label for="slogan" :required="true" :value="__('profile.slogan_help')" />
-                <x-text-input id="slogan" name="slogan" type="text" required class="mt-1 block w-full"
+                <x-text-input :premium="true" id="slogan" name="slogan" type="text" required class="mt-1 block w-full"
                                :value="old('slogan', $user->slogan)" maxlength="120" required />
                 <x-input-error class="mt-2" field="slogan" :messages="$errors->get('slogan')" />
             </div>
@@ -382,7 +382,7 @@
                 <x-input-label for="website" :value="__('profile.website')" />
                 <div class="mt-1 flex rounded-md shadow-sm">
                     <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 text-sm">🌐</span>
-                    <x-text-input id="website" name="website" type="url" class="rounded-l-none block w-full"
+                    <x-text-input :premium="true" id="website" name="website" type="url" class="rounded-l-none block w-full"
                         :value="old('website', $user->website)"
                         placeholder="https://monsite.fr" />
                 </div>
@@ -393,7 +393,7 @@
                 <x-input-label for="linkedin_url" :value="__('profile.linkedin')" />
                 <div class="mt-1 flex rounded-md shadow-sm">
                     <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 text-sm">in</span>
-                    <x-text-input id="linkedin_url" name="linkedin_url" type="url" class="rounded-l-none block w-full"
+                    <x-text-input :premium="true" id="linkedin_url" name="linkedin_url" type="url" class="rounded-l-none block w-full"
                         :value="old('linkedin_url', $user->linkedin_url)"
                         placeholder="https://linkedin.com/in/votre-profil" />
                 </div>
@@ -513,7 +513,7 @@
                 </div>
                 <div class="mt-1 flex items-center gap-1">
                     <span class="shrink-0 text-sm text-gray-400">{{ __('profile.slug_prefix') }}</span>
-                    <x-text-input id="slug" name="slug" type="text" class="block w-full"
+                    <x-text-input :premium="true" id="slug" name="slug" type="text" class="block w-full"
                                   :value="old('slug', $user->slug)"
                                   maxlength="60" autocomplete="off" />
                 </div>
@@ -592,19 +592,19 @@
 
             <div>
                 <x-input-label for="address_line1" :value="__('profile.address_line1')" />
-                <x-text-input id="address_line1" name="address_line1" type="text" class="mt-1 block w-full" :value="old('address_line1', $user->address_line1)" autocomplete="address-line1" />
+                <x-text-input :premium="true" id="address_line1" name="address_line1" type="text" class="mt-1 block w-full" :value="old('address_line1', $user->address_line1)" autocomplete="address-line1" />
                 <x-input-error class="mt-2" :messages="$errors->get('address_line1')" />
             </div>
 
             <div>
                 <x-input-label for="address_line2" :value="__('profile.address_line2')" />
-                <x-text-input id="address_line2" name="address_line2" type="text" class="mt-1 block w-full" :value="old('address_line2', $user->address_line2)" autocomplete="address-line2" />
+                <x-text-input :premium="true" id="address_line2" name="address_line2" type="text" class="mt-1 block w-full" :value="old('address_line2', $user->address_line2)" autocomplete="address-line2" />
                 <x-input-error class="mt-2" :messages="$errors->get('address_line2')" />
             </div>
 
             <div>
                 <x-input-label for="postal_code" :value="__('profile.postal_code')" />
-                <x-text-input id="postal_code" name="postal_code" type="text" class="mt-1 block w-full" :value="old('postal_code', $user->postal_code)" autocomplete="postal-code" />
+                <x-text-input :premium="true" id="postal_code" name="postal_code" type="text" class="mt-1 block w-full" :value="old('postal_code', $user->postal_code)" autocomplete="postal-code" />
                 <x-input-error class="mt-2" field="postal_code" :messages="$errors->get('postal_code')" />
             </div>
         </div>
