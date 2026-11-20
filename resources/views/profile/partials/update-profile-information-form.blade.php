@@ -10,9 +10,58 @@
         @csrf
     </form>
 
-    <form method="post" action="{{ route('profile.update') }}" class="space-y-6" enctype="multipart/form-data">
+    {{-- TASK-1871 — le formulaire poste la ou on l'a ouvert.
+
+         L'action partait sur la route NUE. Le meme helper que la redirection
+         forcee la resout : scopee quand on est reellement dans `/org/{slug}`,
+         nue partout ailleurs — donc les routes globales ne bougent pas.
+
+         Ce que cette ligne ne change PAS, volontairement : la methode PUT, le
+         jeton CSRF, les regles de validation, et l'autorite de l'Organization
+         du compte, qui reste la seule qui compte (T1689). Le slug dans l'URL
+         n'a jamais decide de rien ici.
+
+         A ne pas confondre avec un bug de perte de contexte : en cas d'echec
+         de validation, `$request->validate()` leve une `ValidationException`
+         et Laravel renvoie vers `url()->previous()` — la page scopee d'ou
+         l'on venait. C'est deja le cas aujourd'hui. --}}
+    <form method="post" action="{{ organizationScopedUrl('profile.update', 'organization.profile.update') }}" class="space-y-6" enctype="multipart/form-data">
         @csrf
         @method('put')
+
+        {{-- TASK-1871 — ce qui ne va pas, EN HAUT.
+
+             Constat de Cyril : « le formulaire part et se réaffiche, mais on
+             est obligé de scroller pour voir où se trouve le message
+             d'erreur ». Les messages par champ existaient deja et ne bougent
+             pas ; ce qui manquait, c'etait la vue d'ensemble. Ce formulaire
+             fait plus de six cents lignes, et « Adresse de votre profil » —
+             le champ que Cyril citait — vit tout en bas.
+
+             Les ancres ci-dessous sont une LISTE BLANCHE, pas une derivation :
+             chaque entree a ete verifiee contre un `id` reellement pose dans
+             ce fichier. `bio` et `profile_links.*` n'y figurent pas et
+             n'auront donc pas de lien — l'editeur de `bio` ne pose pas d'`id`,
+             et les clefs de `profile_links` portent un indice de ligne absent
+             du DOM. Un lien mort serait pire que pas de lien. --}}
+        <x-form-error-summary
+            :title="__('profile.error_summary_title')"
+            :anchors="[
+                'first_name' => 'first_name',
+                'name' => 'name',
+                'email' => 'email',
+                'phone' => 'phone',
+                'city' => 'city',
+                'country_code' => 'country_code',
+                'slogan' => 'slogan',
+                'website' => 'website',
+                'linkedin_url' => 'linkedin_url',
+                'slug' => 'slug',
+                'avatar' => 'avatar',
+                'show_email' => 'show_email',
+                'show_phone' => 'show_phone',
+            ]"
+        />
 
 
         {{-- TASK-1762 point 16 — DEUX blocs distincts, demande de Cyril.
@@ -117,7 +166,7 @@
                     x-ref="champ" @change="choisir($event.target.files)"
                     class="sr-only">
             </div>
-            <x-input-error class="mt-2" :messages="$errors->get('avatar')" />
+            <x-input-error class="mt-2" field="avatar" :messages="$errors->get('avatar')" />
 
             {{-- TASK-1788 correctif 02 — SUPPRIMER sa photo.
 
@@ -165,7 +214,7 @@
                               :value="old('structure', $user->structure)"
                               maxlength="255" autocomplete="organization" />
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.structure_help') }}</p>
-                <x-input-error class="mt-2" :messages="$errors->get('structure')" />
+                <x-input-error class="mt-2" field="structure" :messages="$errors->get('structure')" />
             </div>
             @endif
 
@@ -173,13 +222,13 @@
                 <div>
                     <x-input-label for="first_name" :value="__('profile.first_name')" />
                     <x-text-input id="first_name" name="first_name" type="text" class="mt-1 block w-full" :value="old('first_name', $user->first_name)" autocomplete="given-name" />
-                    <x-input-error class="mt-2" :messages="$errors->get('first_name')" />
+                    <x-input-error class="mt-2" field="first_name" :messages="$errors->get('first_name')" />
                 </div>
 
                 <div>
                     <x-input-label for="name" :value="__('profile.name')" />
                     <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name', $user->name)" required autofocus autocomplete="family-name" />
-                    <x-input-error class="mt-2" :messages="$errors->get('name')" />
+                    <x-input-error class="mt-2" field="name" :messages="$errors->get('name')" />
                 </div>
             </div>
 
@@ -187,7 +236,7 @@
                 <div>
                     <x-input-label for="email" :value="__('profile.email')" />
                     <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
-                    <x-input-error class="mt-2" :messages="$errors->get('email')" />
+                    <x-input-error class="mt-2" field="email" :messages="$errors->get('email')" />
 
                     @if ($user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && ! $user->hasVerifiedEmail())
                         <div>
@@ -212,7 +261,7 @@
                     <x-input-label for="phone" :value="__('profile.phone')" />
                     <x-text-input id="phone" name="phone" type="text" class="mt-1 block w-full" :value="old('phone', $user->phone)" required placeholder="{{ __('profile.phone_placeholder') }}" autocomplete="tel" />
                     <p class="mt-1 text-xs text-gray-500">{{ __('profile.phone_help') }}</p>
-                    <x-input-error class="mt-2" :messages="$errors->get('phone')" />
+                    <x-input-error class="mt-2" field="phone" :messages="$errors->get('phone')" />
                 </div>
             </div>
 
@@ -243,7 +292,7 @@
                 <div>
                     <x-input-label for="city" :value="__('profile.city')" />
                     <x-text-input id="city" name="city" type="text" class="mt-1 block w-full" :value="old('city', $user->city)" autocomplete="address-level2" />
-                    <x-input-error class="mt-2" :messages="$errors->get('city')" />
+                    <x-input-error class="mt-2" field="city" :messages="$errors->get('city')" />
                 </div>
 
                 <div>
@@ -256,7 +305,7 @@
                             </option>
                         @endforeach
                     </select>
-                    <x-input-error class="mt-2" :messages="$errors->get('country_code')" />
+                    <x-input-error class="mt-2" field="country_code" :messages="$errors->get('country_code')" />
                 </div>
             </div>
 
@@ -268,7 +317,7 @@
             <div class="md:w-1/2" data-profile-membership-field>
                 <x-input-label for="membership_value" :value="app()->getLocale() === 'en' ? ($organization->membership_label_en ?: __('profile.membership')) : ($organization->membership_label_fr ?: __('profile.membership'))" />
                 <x-text-input id="membership_value" name="membership_value" type="text" class="mt-1 block w-full" :value="old('membership_value', $user->membership_value)" />
-                <x-input-error class="mt-2" :messages="$errors->get('membership_value')" />
+                <x-input-error class="mt-2" field="membership_value" :messages="$errors->get('membership_value')" />
             </div>
             @endif
 
@@ -299,7 +348,7 @@
                 <x-input-label for="slogan" :value="__('profile.slogan_help')" />
                 <x-text-input id="slogan" name="slogan" type="text" class="mt-1 block w-full"
                                :value="old('slogan', $user->slogan)" maxlength="120" required />
-                <x-input-error class="mt-2" :messages="$errors->get('slogan')" />
+                <x-input-error class="mt-2" field="slogan" :messages="$errors->get('slogan')" />
             </div>
 
             {{-- TASK-1762 point 16 — la presentation passe en editeur riche.
@@ -325,7 +374,7 @@
                                                rows="8" tall fullscreen
                                                :invalid="$errors->has('bio')" />
                 </div>
-                <x-input-error class="mt-2" :messages="$errors->get('bio')" />
+                <x-input-error class="mt-2" field="bio" :messages="$errors->get('bio')" />
             </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -337,7 +386,7 @@
                         :value="old('website', $user->website)"
                         placeholder="https://monsite.fr" />
                 </div>
-                <x-input-error class="mt-2" :messages="$errors->get('website')" />
+                <x-input-error class="mt-2" field="website" :messages="$errors->get('website')" />
             </div>
 
             <div>
@@ -348,7 +397,7 @@
                         :value="old('linkedin_url', $user->linkedin_url)"
                         placeholder="https://linkedin.com/in/votre-profil" />
                 </div>
-                <x-input-error class="mt-2" :messages="$errors->get('linkedin_url')" />
+                <x-input-error class="mt-2" field="linkedin_url" :messages="$errors->get('linkedin_url')" />
             </div>
         </div>
 
@@ -414,7 +463,7 @@
                 {{ __('profile.links_add') }}
             </button>
 
-            <x-input-error class="mt-2" :messages="$errors->get('profile_links')" />
+            <x-input-error class="mt-2" field="profile_links" :messages="$errors->get('profile_links')" />
             @foreach($errors->get('profile_links.*.url') as $messages)
                 <x-input-error class="mt-2" :messages="$messages" />
             @endforeach
@@ -468,7 +517,7 @@
                                   :value="old('slug', $user->slug)"
                                   maxlength="60" autocomplete="off" />
                 </div>
-                <x-input-error class="mt-2" :messages="$errors->get('slug')" />
+                <x-input-error class="mt-2" field="slug" :messages="$errors->get('slug')" />
                 {{-- TASK-1762 point 4 — une seule phrase, avec de VRAIES adresses.
 
                      Les trois phrases precedentes recitaient la regle de forme
@@ -520,7 +569,7 @@
                         <option value="fr" @selected(old('preferred_locale', $user->preferred_locale) === 'fr')>{{ __('profile.locale_fr') }}</option>
                         <option value="en" @selected(old('preferred_locale', $user->preferred_locale) === 'en')>{{ __('profile.locale_en') }}</option>
                     </select>
-                    <x-input-error class="mt-2" :messages="$errors->get('preferred_locale')" />
+                    <x-input-error class="mt-2" field="preferred_locale" :messages="$errors->get('preferred_locale')" />
                 </div>
             </div>
             @endif
@@ -556,7 +605,7 @@
             <div>
                 <x-input-label for="postal_code" :value="__('profile.postal_code')" />
                 <x-text-input id="postal_code" name="postal_code" type="text" class="mt-1 block w-full" :value="old('postal_code', $user->postal_code)" autocomplete="postal-code" />
-                <x-input-error class="mt-2" :messages="$errors->get('postal_code')" />
+                <x-input-error class="mt-2" field="postal_code" :messages="$errors->get('postal_code')" />
             </div>
         </div>
         @endif

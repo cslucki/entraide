@@ -205,4 +205,7 @@ return [
     // TASK-1734 — la carte « Securite des comptes » du profil.
     'account_access_title' => 'Sécurité des comptes',
     'account_access_intro' => 'Pour passer d\'une organisation à l\'autre, utilisez « Mes organisations » dans le menu de votre avatar. Les parcours avancés — lier deux comptes d\'adresses différentes, passer sur un compte non proposé, retirer un accès — vivent ici.',
+
+    // TASK-1871 — la synthese d'erreurs en tete du formulaire.
+    'error_summary_title' => 'Votre profil n\'a pas été enregistré : corrigez les points suivants.',
 ];
