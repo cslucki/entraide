@@ -230,7 +230,34 @@
     </div>
 
     <!-- Messages -->
-    @php $canPin = in_array(auth()->id(), [$transaction->buyer_id, $transaction->seller_id]); @endphp
+    @php
+        $canPin = in_array(auth()->id(), [$transaction->buyer_id, $transaction->seller_id]);
+
+        /* TASK-1869 — « Repondre a » et « Epingler » sont des gestes de
+           CONVERSATION : ils appartiennent au ChatLoop et a la messagerie
+           privee, pas a une transaction d'entraide, dont le fil sert a mener
+           un echange de services jusqu'a sa cloture.
+
+           Ce fil sert les deux usages ; seule cette vue les distinguait
+           jusqu'ici pour le sondage et les panneaux metier, jamais pour les
+           gestes de bulle. D'ou les deux drapeaux ci-dessous, lus par les deux
+           variantes de bulle (envoyee / recue).
+
+           La bulle partagee PUBLIE ce qu'elle sait faire : `show-reply-button`
+           et `show-pin-button` alimentent a la fois le pied de bulle, la barre
+           de selection du haut et l'appui long. Les poser a `false` ici retire
+           le geste des trois surfaces a la fois, sans toucher au composant
+           partage — donc sans aucun effet sur le ChatLoop.
+
+           Ce qui reste, et qui ne bouge pas : copier, reactions, modifier,
+           supprimer, pieces jointes et toutes les actions metier de l'entraide.
+
+           L'affichage n'est pas la permission : `MessageThread::replyTo()` et
+           `pinMessage()` refusent la meme chose cote serveur. */
+        $estEntraide = ! $transaction->isDirectConversation();
+        $peutRepondre = ! $estEntraide;
+        $peutEpingler = $canPin && ! $estEntraide;
+    @endphp
 
     <x-conversation.message-list>
         <x-slot:messages>
@@ -299,8 +326,10 @@
                              faire ; seul ce fil ne le lui disait pas. --}}
                         :is-edited="$message->edited_at !== null"
                         :message-id="$message->id"
-                        :show-reply-button="true"
-                        :show-pin-button="$canPin"
+                        {{-- TASK-1869 — faux sur une transaction d'entraide,
+                             inchange sur une conversation directe. --}}
+                        :show-reply-button="$peutRepondre"
+                        :show-pin-button="$peutEpingler"
                         :is-pinned="$isPinned"
                         :show-reactions="$canPin"
                         :reaction-counts="$reactionData[$message->id] ?? []"
@@ -321,8 +350,10 @@
                         :avatar="$senderDisplayable ? $message->sender?->avatar_url : null"
                         :is-edited="$message->edited_at !== null"
                         :message-id="$message->id"
-                        :show-reply-button="true"
-                        :show-pin-button="$canPin"
+                        {{-- TASK-1869 — faux sur une transaction d'entraide,
+                             inchange sur une conversation directe. --}}
+                        :show-reply-button="$peutRepondre"
+                        :show-pin-button="$peutEpingler"
                         :is-pinned="$isPinned"
                         :show-reactions="$canPin"
                         :reaction-counts="$reactionData[$message->id] ?? []"
