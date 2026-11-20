@@ -257,6 +257,18 @@
         $estEntraide = ! $transaction->isDirectConversation();
         $peutRepondre = ! $estEntraide;
         $peutEpingler = $canPin && ! $estEntraide;
+
+        /* TASK-1870 — l'APPUI LONG, pour la messagerie privee seule.
+
+           Ce fil sert les deux usages, et la demande de Cyril du 20/11 ne
+           vise que « la messagerie et le ChatLoop ». Dans une transaction
+           d'entraide, le simple appui continue donc de selectionner comme
+           avant : la barre y sert encore a copier, modifier et supprimer,
+           meme si T1869 lui a retire Repondre et Epingler.
+
+           Reutiliser `$estEntraide` plutot que de reinterroger la
+           transaction : une seule lecture du type de fil dans cette vue. */
+        $gesteAppuiLong = ! $estEntraide;
     @endphp
 
     <x-conversation.message-list>
@@ -330,6 +342,9 @@
                              inchange sur une conversation directe. --}}
                         :show-reply-button="$peutRepondre"
                         :show-pin-button="$peutEpingler"
+                        {{-- TASK-1870 — appui long en messagerie privee ;
+                             l'entraide garde le simple appui. --}}
+                        :long-press-selection="$gesteAppuiLong"
                         :is-pinned="$isPinned"
                         :show-reactions="$canPin"
                         :reaction-counts="$reactionData[$message->id] ?? []"
@@ -354,6 +369,9 @@
                              inchange sur une conversation directe. --}}
                         :show-reply-button="$peutRepondre"
                         :show-pin-button="$peutEpingler"
+                        {{-- TASK-1870 — appui long en messagerie privee ;
+                             l'entraide garde le simple appui. --}}
+                        :long-press-selection="$gesteAppuiLong"
                         :is-pinned="$isPinned"
                         :show-reactions="$canPin"
                         :reaction-counts="$reactionData[$message->id] ?? []"
