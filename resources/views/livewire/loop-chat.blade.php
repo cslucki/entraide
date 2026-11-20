@@ -586,6 +586,10 @@
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
+                            {{-- TASK-1870 — sur telephone, la selection passe
+                                 par un APPUI LONG ici ; le simple appui ne
+                                 sert plus qu'a changer de bulle. --}}
+                            long-press-selection="true"
                             show-copy-button="true"
                             :show-delete-button="$canDeleteMessages"
                             :is-pinned="$pinnedMessage?->id === $msg->id"
@@ -763,6 +767,10 @@
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
+                            {{-- TASK-1870 — sur telephone, la selection passe
+                                 par un APPUI LONG ici ; le simple appui ne
+                                 sert plus qu'a changer de bulle. --}}
+                            long-press-selection="true"
                             :show-edit-button="$canEdit"
                             show-copy-button="true"
                             :show-delete-button="$canDeleteMessages"
