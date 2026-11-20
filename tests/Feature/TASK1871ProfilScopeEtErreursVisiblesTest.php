@@ -236,6 +236,14 @@ class TASK1871ProfilScopeEtErreursVisiblesTest extends TestCase
 
         $this->assertStringNotContainsString('border-s-[3px]', $sousAutreEcran);
         $this->assertStringContainsString('border-gray-300', $sousAutreEcran);
+
+        // Correctif MASTER : l'isolement porte aussi sur les ATTRIBUTS, pas
+        // seulement sur les classes. Ailleurs, `x-input-error` ne recoit pas
+        // `field`, donc aucun bloc ne porte d'`id` : un `aria-describedby`
+        // y viserait un identifiant INEXISTANT, et un renvoi casse est pire
+        // que pas de renvoi du tout.
+        $this->assertStringNotContainsString('aria-describedby', $sousAutreEcran);
+        $this->assertStringNotContainsString('data-server-invalid', $sousAutreEcran);
     }
 
     public function test_un_champ_refuse_par_le_serveur_porte_le_marqueur_qui_protege_son_message(): void

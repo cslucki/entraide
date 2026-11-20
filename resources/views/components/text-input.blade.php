@@ -65,6 +65,26 @@
             : 'border-s-[3px] border-s-transparent focus:border-s-[color:var(--bp-primary)]');
 @endphp
 
+{{-- TASK-1871, correctif MASTER — `aria-describedby` ne pointe QUE vers un
+     identifiant qui existe.
+
+     Premiere version : ces attributs etaient poses des qu'un champ portait
+     une erreur, `premium` ou non. Or seuls les champs du profil passent
+     `field` a leur `x-input-error`, donc seuls eux ont un bloc d'erreur
+     porteur d'un `id`. Ailleurs — page Securite, fermeture de compte,
+     edition de Dossier — `aria-describedby` visait un identifiant
+     INEXISTANT : un lecteur d'ecran suivait un renvoi vers le vide. Un
+     attribut d'accessibilite casse est pire que son absence, puisqu'il
+     promet une description qu'il ne tient pas.
+
+     `aria-invalid` reste pose partout : il n'a besoin d'aucune cible, il dit
+     simplement la verite sur le champ.
+
+     `data-server-invalid` suit la meme condition : il ne sert qu'au script
+     de validation au fil de la saisie, qui ne tourne que sur le profil. --}}
 <input @disabled($disabled)
-    @if($_enFaute) aria-invalid="true" aria-describedby="{{ $_nom }}-error" data-server-invalid @endif
+    @if($_enFaute)
+        aria-invalid="true"
+        @if($premium) aria-describedby="{{ $_nom }}-error" data-server-invalid @endif
+    @endif
     {{ $attributes->merge(['class' => $premium ? $_classesPremium : $_classesOrigine]) }}>

@@ -32,7 +32,15 @@
      bulles, et le serveur refuse de toute facon. --}}
 <script>
     (function () {
-        var form = document.querySelector('[data-live-validation]');
+        /* TASK-1871, correctif MASTER — se limiter AU formulaire porteur.
+           `document.querySelector` aurait pris le premier formulaire marque
+           de la page, pas forcement celui dans lequel ce bloc est rendu. Le
+           jour ou deux formulaires coexistent, le second aurait arme les
+           ecouteurs du premier. `currentScript` leve l'ambiguite.
+           Ce bloc est rendu en PIED : les champs sont deja la. */
+        var script = document.currentScript;
+        var form = (script && script.closest('[data-live-validation]'))
+            || document.querySelector('[data-live-validation]');
         if (! form) { return; }
 
         // A partir d'ici le JavaScript prend la main : on peut retirer la

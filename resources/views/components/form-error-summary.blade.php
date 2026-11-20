@@ -83,13 +83,37 @@
 
      Sans JavaScript, rien de tout cela ne manque vraiment : la synthese
      ci-dessus est en tete de page, et ses liens menent aux memes champs. --}}
+{{-- TASK-1871, correctif MASTER — ATTENDRE QUE LES CHAMPS EXISTENT.
+
+     Ce bloc est rendu en TETE du formulaire, donc ce script s'executait
+     pendant l'analyse du document, a un instant ou les champs situes plus
+     bas n'etaient pas encore dans le DOM. `querySelector` ne trouvait alors
+     rien et la fonction sortait — sans erreur, sans rien signaler. Le focus
+     paraissait marcher ou non selon la vitesse de rendu, ce qui est la pire
+     categorie de defaut : celle qui ne se reproduit pas a volonte.
+
+     Deux changements : on attend `DOMContentLoaded` quand le document est
+     encore en cours de lecture, et on cherche DANS le formulaire porteur
+     seulement — `currentScript` est capture tout de suite, car il ne vaut
+     plus rien une fois le script differe. --}}
 <script>
     (function () {
-        var premier = document.querySelector('[aria-invalid="true"]');
-        if (! premier) { return; }
+        var script = document.currentScript;
 
-        premier.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        premier.focus({ preventScroll: true });
+        function amenerAuPremierChampFautif() {
+            var portee = (script && script.closest('form')) || document;
+            var premier = portee.querySelector('[aria-invalid="true"]');
+            if (! premier) { return; }
+
+            premier.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            premier.focus({ preventScroll: true });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', amenerAuPremierChampFautif);
+        } else {
+            amenerAuPremierChampFautif();
+        }
     })();
 </script>
 @endif
