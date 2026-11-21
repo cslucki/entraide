@@ -23,6 +23,7 @@ use App\Services\Loops\LoopPresetConfigurator;
 use App\Services\LoopService;
 use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Loops\CouvertureDeBoucle;
 use App\Support\Loops\HelpRequestHandoff;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
@@ -42,7 +43,7 @@ use Illuminate\View\View;
 
 class LoopController extends Controller
 {
-    use \App\Support\Loops\CouvertureDeBoucle;
+    use CouvertureDeBoucle;
 
     /**
      * Combien d'outils la barre de ChatLoop montre directement.
@@ -483,18 +484,65 @@ class LoopController extends Controller
                 ->humanVisible()
                 ->with('sender')
                 ->latest('created_at')
+                // TASK-1872 correctif 08 — DEPARTAGE DETERMINISTE.
+                //
+                // Deux messages de la meme seconde laissaient l'ordre au
+                // hasard du plan d'execution : la selection des trois pouvait
+                // changer d'un rafraichissement a l'autre, et l'inversion
+                // d'affichage ci-dessous aurait rendu ce hasard VISIBLE. Les
+                // identifiants sont des UUIDv7 (`HasUuids` rend `Str::uuid7()`
+                // dans cette version) : ils sont ordonnables dans le temps, et
+                // departagent donc sans inventer de critere etranger.
+                ->orderByDesc('id')
                 ->get()
                 ->groupBy('loop_id');
 
             $loopsAvecMessages = $loopsMembre
                 ->filter(fn ($loop) => $messagesParBoucle->has($loop->id))
-                ->map(fn ($loop) => [
-                    'loop' => $loop,
-                    'messages' => $messagesParBoucle->get($loop->id)->take(3),
-                ])
-                // La Boucle la plus RECEMMENT active d'abord — son propre
-                // message le plus recent, puisque `messages` est deja triee.
-                ->sortByDesc(fn (array $entree) => $entree['messages']->first()->created_at)
+                ->map(function ($loop) use ($messagesParBoucle) {
+                    // Les TROIS PLUS RECENTS : la selection se fait sur la
+                    // collection decroissante, et elle ne change pas.
+                    $troisPlusRecents = $messagesParBoucle->get($loop->id)->take(3);
+
+                    return [
+                        'loop' => $loop,
+                        /* TASK-1872 correctif 08 — la cle de tri des Boucles est
+                           CALCULEE ICI, avant toute inversion.
+                           ==========================================
+                           Demande de Cyril : « les messages au sein d'une
+                           boucle sont classes par ordre decroissant de date,
+                           il faudrait faire l'inverse. » Le classement des
+                           BOUCLES, lui, ne change pas : la plus recemment
+                           active reste en tete.
+
+                           Le code lisait cette activite sur `messages->first()`
+                           « puisque la collection est deja triee ». Inverser
+                           l'affichage aurait fait de `first()` le message le
+                           plus ANCIEN du groupe : les Boucles se seraient
+                           reordonnees en silence, sans que rien ne le
+                           signale. On fige donc la valeur pendant qu'elle est
+                           encore juste, au lieu de la rededuire apres coup. */
+                        'activite' => $troisPlusRecents->first()->created_at,
+                        /* Le message le PLUS RECENT, nomme.
+                           --------------------------------
+                           Le clic sur la couverture y mene — « emmene-moi la
+                           ou la conversation en est ». La vue le lisait sur
+                           `messages->first()`, ce qui etait juste tant que la
+                           collection etait decroissante ; apres inversion,
+                           elle aurait mene au plus ANCIEN des trois, sans
+                           erreur et sans rien signaler. Nommer la destination
+                           rend la vue INDEPENDANTE du sens d'affichage. */
+                        'dernier' => $troisPlusRecents->first(),
+                        // Du plus ANCIEN au plus recent : on lit un extrait de
+                        // conversation, et une conversation se lit dans le sens
+                        // ou elle s'est tenue.
+                        'messages' => $troisPlusRecents->reverse()->values(),
+                    ];
+                })
+                // La Boucle la plus RECEMMENT active d'abord — sur la valeur
+                // FIGEE plus haut, jamais relue sur `messages`, qui est
+                // desormais croissante.
+                ->sortByDesc(fn (array $entree) => $entree['activite'])
                 ->values();
         }
 
