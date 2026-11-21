@@ -39,9 +39,19 @@ class ImageOptimizationBatch extends Model
     /** Un lot « actif » occupe la console : il ne peut y en avoir qu'un. */
     public const ACTIVE_STATUSES = [self::STATUS_PENDING, self::STATUS_RUNNING, self::STATUS_PAUSED];
 
+    /** TASK-1873 : un job par image sur la queue `images`. */
+    public const MODE_QUEUE = 'queue';
+
+    /** TASK-1875 : une image par requete HTTP, pilotee par le navigateur du SuperAdmin. */
+    public const MODE_MANUAL = 'manual';
+
     protected $fillable = [
-        'organization_id', 'surface', 'requested', 'total', 'status', 'force',
+        'organization_id', 'surface', 'requested', 'total', 'status', 'mode', 'force',
         'started_at', 'paused_at', 'finished_at',
+    ];
+
+    protected $attributes = [
+        'mode' => self::MODE_QUEUE,
     ];
 
     protected function casts(): array
@@ -79,5 +89,10 @@ class ImageOptimizationBatch extends Model
     public function isPaused(): bool
     {
         return $this->status === self::STATUS_PAUSED;
+    }
+
+    public function isManual(): bool
+    {
+        return $this->mode === self::MODE_MANUAL;
     }
 }
