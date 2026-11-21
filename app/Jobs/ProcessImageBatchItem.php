@@ -53,7 +53,9 @@ class ProcessImageBatchItem implements ShouldQueue
     {
         $item = ImageOptimizationBatchItem::query()->with('batch')->find($this->itemId);
 
-        if ($item === null || $item->batch === null || $item->batch->isPaused()) {
+        // TASK-1875 : une image d'un lot MANUEL ne se traite que dans une
+        // requete du SuperAdmin, jamais par un worker.
+        if ($item === null || $item->batch === null || $item->batch->isPaused() || $item->batch->isManual()) {
             return;
         }
 
