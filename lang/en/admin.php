@@ -2507,6 +2507,8 @@ return [
         'progress_remaining' => 'Remaining',
         'progress_skipped' => 'Skipped',
         'progress_missing' => 'Missing originals',
+        'queue_not_configured' => 'Background image processing is not configured.',
+        'queue_not_configured_detail' => 'Batches can be neither launched nor resumed, and new uploads keep their original. Image connection: ":connection" (driver ":driver").',
         'worker_alive' => 'Background processing: running',
         'worker_down' => 'Background processing: unavailable',
         'worker_seen' => 'Last sign of life: :when',

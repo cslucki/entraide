@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Log;
  *
  * La base fait foi : la progression se COMPTE sur les lignes du lot, jamais
  * dans un cache. Rien n'est converti ici : `launch()` et `resume()` mettent en
- * file un job par image en attente, et rendent la main aussitot.
+ * file un job par image en attente, et rendent la main aussitot — et ils
+ * REFUSENT de le faire sur une connexion non asynchrone (`ImageQueue`).
  *
  * ## Garde-fous
  *
@@ -37,6 +38,7 @@ final class ImageOptimizationBatches
 
     public function __construct(
         private readonly ImageOptimizationInventory $inventory,
+        private readonly ImageQueue $queue,
     ) {}
 
     public function active(): ?ImageOptimizationBatch
@@ -46,9 +48,14 @@ final class ImageOptimizationBatches
 
     /**
      * @throws ActiveBatchExists
+     * @throws ImageQueueNotConfigured connexion des images non asynchrone : le
+     *                                 lot s'executerait dans la requete (PROD
+     *                                 `QUEUE_CONNECTION=sync`, mesure 21/11).
      */
     public function launch(?string $surface, ?string $organizationId, int $limit, bool $force = false): ?ImageOptimizationBatch
     {
+        $this->queue->ensureAsync();
+
         $lock = Cache::lock('image-optimization:launch', 30);
 
         if (! $lock->get()) {
@@ -110,8 +117,11 @@ final class ImageOptimizationBatches
             ->update(['status' => ImageOptimizationBatch::STATUS_PAUSED, 'paused_at' => now()]);
     }
 
+    /** @throws ImageQueueNotConfigured */
     public function resume(ImageOptimizationBatch $batch): void
     {
+        $this->queue->ensureAsync();
+
         $updated = ImageOptimizationBatch::query()
             ->whereKey($batch->id)
             ->where('status', ImageOptimizationBatch::STATUS_PAUSED)
@@ -134,6 +144,8 @@ final class ImageOptimizationBatches
      */
     public function retryFailed(ImageOptimizationBatch $batch): int
     {
+        $this->queue->ensureAsync();
+
         if ($this->active() !== null && $this->active()->id !== $batch->id) {
             throw new ActiveBatchExists($this->active());
         }

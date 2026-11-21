@@ -2559,6 +2559,8 @@ return [
         'progress_remaining' => 'Restantes',
         'progress_skipped' => 'Ignorées',
         'progress_missing' => 'Originaux absents',
+        'queue_not_configured' => 'Le traitement en arrière-plan des images n\'est pas configuré.',
+        'queue_not_configured_detail' => 'Les lots ne peuvent être ni lancés ni repris, et les nouveaux uploads gardent leur original. Connexion des images : « :connection » (pilote « :driver »).',
         'worker_alive' => 'Traitement en arrière-plan : opérationnel',
         'worker_down' => 'Traitement en arrière-plan : indisponible',
         'worker_seen' => 'Dernier signe de vie : :when',

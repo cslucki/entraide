@@ -12,6 +12,7 @@ use App\Support\Images\ActiveBatchExists;
 use App\Support\Images\ImageOptimizationBatches;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
@@ -32,6 +33,9 @@ class TASK1873BatchTest extends TestCase
         parent::setUp();
         Storage::fake('public');
         Queue::fake();
+        // TASK-1873 — les lots et les uploads exigent une connexion de queue
+        // ASYNCHRONE (garde `ImageQueue`) ; `Queue::fake()` intercepte.
+        config(['image_variants.queue_connection' => 'database']);
         $this->org = Organization::factory()->create();
     }
 
@@ -142,6 +146,29 @@ class TASK1873BatchTest extends TestCase
         $this->assertSame(5, $batch->items()->where('status', 'succeeded')->count());
         $this->assertSame(0, $batch->items()->where('attempts', '>', 1)->count(), 'aucune image traitee deux fois');
         $this->assertSame(1, ImageOptimizationBatch::count(), 'la reprise continue le MEME lot');
+    }
+
+    public function test_a_locked_image_goes_back_to_pending_and_is_requeued_with_a_delay(): void
+    {
+        $this->covers(1);
+        $batch = $this->batches()->launch('loop_cover', null, 1);
+        $item = $batch->items()->firstOrFail();
+        Queue::fake();
+
+        // Un upload traite la meme image a l'instant.
+        $lock = Cache::lock('image-variants:'.sha1('public|'.$item->source_path), 60);
+        $this->assertTrue($lock->get());
+
+        app()->call([new ProcessImageBatchItem($item->id), 'handle']);
+
+        // Avant correctif : `$item->update()` n'ecrivait rien, l'image restait
+        // `processing` et le job relance ne pouvait plus la reserver.
+        $this->assertSame('pending', $item->fresh()->status);
+        Queue::assertPushed(ProcessImageBatchItem::class, fn (ProcessImageBatchItem $job) => $job->itemId === $item->id && $job->delay !== null);
+
+        $lock->release();
+        $this->work();
+        $this->assertSame('succeeded', $item->fresh()->status);
     }
 
     public function test_a_batch_paused_before_its_first_image_still_reports_a_duration(): void

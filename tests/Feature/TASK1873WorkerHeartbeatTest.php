@@ -21,6 +21,7 @@ class TASK1873WorkerHeartbeatTest extends TestCase
     {
         parent::setUp();
         ImageWorkerHeartbeat::resetThrottle();
+        config(['image_variants.queue_connection' => 'database']);
     }
 
     public function test_a_worker_loop_on_the_images_queue_records_a_sign_of_life(): void
@@ -44,6 +45,23 @@ class TASK1873WorkerHeartbeatTest extends TestCase
     {
         event(new Looping('database', 'default'));
         event(new Looping('database', 'dossier-files-indexing'));
+
+        $this->assertNull(app(ImageWorkerHeartbeat::class)->lastSeen());
+    }
+
+    public function test_a_sync_worker_with_images_in_its_list_never_counts(): void
+    {
+        // Le cas PROD du 21/11 : `queue:work` planifie sur `sync`.
+        config(['image_variants.queue_connection' => null, 'queue.default' => 'sync']);
+
+        event(new Looping('sync', 'dossier-files-indexing,images'));
+
+        $this->assertNull(app(ImageWorkerHeartbeat::class)->lastSeen());
+    }
+
+    public function test_a_worker_on_another_connection_never_counts(): void
+    {
+        event(new Looping('redis', 'images'));
 
         $this->assertNull(app(ImageWorkerHeartbeat::class)->lastSeen());
     }

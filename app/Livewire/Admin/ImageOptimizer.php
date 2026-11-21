@@ -7,6 +7,8 @@ use App\Models\Organization;
 use App\Support\Images\ActiveBatchExists;
 use App\Support\Images\ImageOptimizationBatches;
 use App\Support\Images\ImageOptimizationInventory;
+use App\Support\Images\ImageQueue;
+use App\Support\Images\ImageQueueNotConfigured;
 use App\Support\Images\ImageSource;
 use App\Support\Images\ImageWorkerHeartbeat;
 use Illuminate\Contracts\View\View;
@@ -93,6 +95,11 @@ class ImageOptimizer extends Component
             $this->addError('launch', __('admin.image_optimizer.already_running'));
 
             return;
+        } catch (ImageQueueNotConfigured) {
+            // Garde metier : la couche Livewire ne fait que la relayer.
+            $this->addError('launch', __('admin.image_optimizer.queue_not_configured'));
+
+            return;
         }
 
         $this->confirmed = false;
@@ -137,6 +144,9 @@ class ImageOptimizer extends Component
             'current' => $current,
             'history' => $history,
             'workerAlive' => app(ImageWorkerHeartbeat::class)->isAlive(),
+            'queueReady' => app(ImageQueue::class)->isAsync(),
+            'queueConnection' => app(ImageQueue::class)->connection(),
+            'queueDriver' => app(ImageQueue::class)->driver(),
             'workerSeen' => app(ImageWorkerHeartbeat::class)->lastSeen(),
         ]);
     }

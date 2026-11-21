@@ -17,6 +17,6 @@ class RecordImageWorkerHeartbeat
 
     public function handle(Looping $event): void
     {
-        $this->heartbeat->recordFor($event->queue);
+        $this->heartbeat->recordFor($event->connectionName, $event->queue);
     }
 }

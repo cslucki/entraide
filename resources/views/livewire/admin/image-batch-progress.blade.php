@@ -30,11 +30,11 @@
                     {{ __('admin.image_optimizer.pause') }}
                 </button>
             @elseif($batch->status === 'paused')
-                <button type="button" wire:click="resume" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                <button type="button" wire:click="resume" @disabled(! $queueReady) class="disabled:cursor-not-allowed disabled:opacity-50 "rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
                     {{ __('admin.image_optimizer.resume') }}
                 </button>
             @elseif($progress['failed'] > 0)
-                <button type="button" wire:click="retryFailed" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                <button type="button" wire:click="retryFailed" @disabled(! $queueReady) class="disabled:cursor-not-allowed disabled:opacity-50 "rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
                     {{ __('admin.image_optimizer.retry_failed') }}
                 </button>
             @endif

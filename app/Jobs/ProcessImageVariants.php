@@ -3,11 +3,13 @@
 namespace App\Jobs;
 
 use App\Support\Images\ImageProcessOutcome;
+use App\Support\Images\ImageQueue;
 use App\Support\Images\ImageSource;
 use App\Support\Images\ImageVariantService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
 
 /**
  * TASK-1873 — deriver les variantes d'UNE image source.
@@ -17,8 +19,12 @@ use Illuminate\Foundation\Queue\Queueable;
  * `default` porte des jobs historiques en quarantaine et n'est consommee par
  * aucun worker (voir `routes/console.php` et `TASK1511SchedulerIndexingTest`).
  * `GenerateServiceThumbnail`, qui y partait, n'a donc vraisemblablement
- * jamais tourne en PROD. `images` rejoint l'allowlist du worker planifie, EN
- * DERNIER : l'indexation passe avant.
+ * jamais tourne en PROD. `images` figure dans l'allowlist du worker planifie,
+ * EN DERNIER — mais ce worker n'utilise que la connexion par defaut, `sync`
+ * en PROD (mesure 21/11/2026) : il n'y consomme RIEN. La PROD exige une
+ * connexion asynchrone dediee (`IMAGE_VARIANTS_QUEUE_CONNECTION`) et un
+ * worker `images` (prerequis de release, TASK-1874) ; sans eux, la garde
+ * `ImageQueue` refuse lots et derivations a l'upload.
  *
  * ## Apres commit
  *
@@ -86,6 +92,20 @@ class ProcessImageVariants implements ShouldBeUnique, ShouldQueue
             return;
         }
 
+        // Connexion non asynchrone (PROD `QUEUE_CONNECTION=sync` sans
+        // connexion dediee) : deriver ICI alourdirait la requete d'upload.
+        // L'original reste servi ; le rattrapage se fera une fois la queue
+        // configuree. Signale, jamais silencieux.
+        if (! app(ImageQueue::class)->isAsync()) {
+            Log::warning('[TASK-1873] queue images non asynchrone : variantes non produites a l upload', [
+                'surface' => $surface,
+                'path' => $path,
+                'connection' => app(ImageQueue::class)->connection(),
+            ]);
+
+            return;
+        }
+
         // `force` : un upload peut REECRIRE un chemin deja connu (nom
         // horodate a la seconde, par exemple) ; ses anciennes variantes
         // seraient sinon tenues pour a jour.
@@ -104,7 +124,9 @@ class ProcessImageVariants implements ShouldBeUnique, ShouldQueue
         // `ProcessImageBatchItem`, dont la pause est portee par le lot en base.
         $outcome = $service->process(new ImageSource($this->surface, $this->path, $this->organizationId, $this->disk), $this->force);
 
-        if ($outcome->status === ImageProcessOutcome::LOCKED) {
+        // Sous `sync`, une remise en file s'executerait aussitot, dans le
+        // meme processus : pas de relance, le prochain lot reprendra.
+        if ($outcome->status === ImageProcessOutcome::LOCKED && app(ImageQueue::class)->isAsync()) {
             $this->release(60);
         }
     }

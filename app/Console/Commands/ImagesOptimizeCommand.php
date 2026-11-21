@@ -9,6 +9,7 @@ use App\Support\Images\ImageOptimizationBatches;
 use App\Support\Images\ImageOptimizationInventory;
 use App\Support\Images\ImageOptimizationRunner;
 use App\Support\Images\ImageProcessOutcome;
+use App\Support\Images\ImageQueueNotConfigured;
 use App\Support\Images\ImageSource;
 use Illuminate\Console\Command;
 use Illuminate\Support\Number;
@@ -56,7 +57,13 @@ class ImagesOptimizeCommand extends Command
                 return self::FAILURE;
             }
 
-            $this->option('pause') ? $batches->pause($active) : $batches->resume($active);
+            try {
+                $this->option('pause') ? $batches->pause($active) : $batches->resume($active);
+            } catch (ImageQueueNotConfigured $e) {
+                $this->error($e->getMessage());
+
+                return self::FAILURE;
+            }
             $this->info(sprintf('Lot %s : %s.', $active->id, $active->fresh()->status));
 
             return self::SUCCESS;
@@ -102,6 +109,11 @@ class ImagesOptimizeCommand extends Command
                 $batch = $batches->launch($surface, $organizationId, $limit, $force);
             } catch (ActiveBatchExists $e) {
                 $this->warn('Un lot est deja actif ('.$e->batch?->id.') : terminez-le, ou reprenez-le avec --resume.');
+
+                return self::FAILURE;
+            } catch (ImageQueueNotConfigured $e) {
+                $this->error($e->getMessage());
+                $this->line('  Traitement manuel possible ici, hors requete web : --execute sans --queue.');
 
                 return self::FAILURE;
             }

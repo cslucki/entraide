@@ -32,10 +32,11 @@ class TASK1873UploadBranchingTest extends TestCase
         parent::setUp();
         Storage::fake('public');
 
-        // Le `.env` LOCAL route les jobs d'images vers `database` (worker
-        // dedie) : sans cette ligne, le test de bout en bout dependrait du
-        // poste qui le lance. Ici, la connexion par defaut du banc (`sync`).
-        config(['image_variants.queue_connection' => null]);
+        // Connexion EXPLICITE (et non celle du `.env` du poste) : les uploads
+        // ne sont mis en file que sur une connexion asynchrone (garde
+        // `ImageQueue`). Les tests interceptent par `Queue::fake()` et
+        // executent eux-memes le job quand ils en ont besoin.
+        config(['image_variants.queue_connection' => 'database']);
     }
 
     private function withCurrentOrganization(Organization $organization): void
@@ -176,7 +177,8 @@ class TASK1873UploadBranchingTest extends TestCase
 
     public function test_end_to_end_a_loop_cover_is_served_as_webp_and_its_variants_follow_its_replacement(): void
     {
-        // Queue `sync` (phpunit.xml) : le job tourne apres la requete.
+        // Le worker est simule : le job mis en file est execute ici.
+        Queue::fake();
         $org = Organization::factory()->create(['loops_enabled' => true, 'members_can_create_loops' => true]);
         $user = User::factory()->create(['organization_id' => $org->id]);
         $this->withCurrentOrganization($org);
@@ -187,6 +189,10 @@ class TASK1873UploadBranchingTest extends TestCase
             'access_mode' => 'open',
             'cover_image' => UploadedFile::fake()->image('cover.jpg', 1800, 1000),
         ])->assertRedirect();
+
+        foreach (Queue::pushed(ProcessImageVariants::class) as $job) {
+            app()->call([$job, 'handle']);
+        }
 
         $loop = Loop::where('name', 'Boucle couverte')->firstOrFail();
         $original = $loop->cover_image_path;

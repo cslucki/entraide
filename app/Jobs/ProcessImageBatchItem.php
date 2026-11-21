@@ -8,6 +8,7 @@ use App\Models\ImageVariant;
 use App\Support\Images\ImageOptimizationBatches;
 use App\Support\Images\ImagePresets;
 use App\Support\Images\ImageProcessOutcome;
+use App\Support\Images\ImageQueue;
 use App\Support\Images\ImageSource;
 use App\Support\Images\ImageVariantService;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -89,8 +90,20 @@ class ProcessImageBatchItem implements ShouldQueue
 
         if ($outcome->status === ImageProcessOutcome::LOCKED) {
             // Un upload traite la meme image a l'instant : on rend la place.
-            $item->update(['status' => ImageOptimizationBatchItem::STATUS_PENDING]);
-            static::dispatch($item->id)->delay(now()->addSeconds(15));
+            // Requete DIRECTE : `$item` a ete charge AVANT la reservation
+            // (elle-meme une requete), son statut vaut encore `pending` en
+            // memoire ; `$item->update()` ne verrait aucun changement et
+            // n'ecrirait rien — l'image resterait `processing`.
+            ImageOptimizationBatchItem::query()
+                ->whereKey($item->id)
+                ->update(['status' => ImageOptimizationBatchItem::STATUS_PENDING]);
+
+            // Sous `sync`, le delai est ignore et le job repartirait aussitot,
+            // dans le meme processus : boucle. L'image reste en attente, la
+            // reprise du lot la remettra en file.
+            if (app(ImageQueue::class)->isAsync()) {
+                static::dispatch($item->id)->delay(now()->addSeconds(15));
+            }
 
             return;
         }

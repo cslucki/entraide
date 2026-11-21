@@ -6,6 +6,8 @@ use App\Models\ImageOptimizationBatch;
 use App\Models\ImageOptimizationBatchItem;
 use App\Support\Images\ActiveBatchExists;
 use App\Support\Images\ImageOptimizationBatches;
+use App\Support\Images\ImageQueue;
+use App\Support\Images\ImageQueueNotConfigured;
 use App\Support\Images\ImageWorkerHeartbeat;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Locked;
@@ -45,7 +47,11 @@ class ImageBatchProgress extends Component
 
     public function resume(ImageOptimizationBatches $batches): void
     {
-        $batches->resume($this->batch());
+        try {
+            $batches->resume($this->batch());
+        } catch (ImageQueueNotConfigured) {
+            $this->addError('retry', __('admin.image_optimizer.queue_not_configured'));
+        }
     }
 
     public function retryFailed(ImageOptimizationBatches $batches): void
@@ -55,6 +61,8 @@ class ImageBatchProgress extends Component
             $this->wasActive = true;
         } catch (ActiveBatchExists) {
             $this->addError('retry', __('admin.image_optimizer.already_running'));
+        } catch (ImageQueueNotConfigured) {
+            $this->addError('retry', __('admin.image_optimizer.queue_not_configured'));
         }
     }
 
@@ -74,6 +82,7 @@ class ImageBatchProgress extends Component
             // Une pause laisse finir l'image en cours : on suit jusque-la.
             'polling' => $batch->isActive() && (! $batch->isPaused() || $progress['processing'] > 0),
             'workerAlive' => app(ImageWorkerHeartbeat::class)->isAlive(),
+            'queueReady' => app(ImageQueue::class)->isAsync(),
             'problems' => $batch->items()
                 ->whereIn('status', [ImageOptimizationBatchItem::STATUS_FAILED, ImageOptimizationBatchItem::STATUS_MISSING])
                 ->orderBy('status')

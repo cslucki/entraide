@@ -26,6 +26,16 @@
         </span>
     </div>
 
+    {{-- Garde : connexion de queue des images non asynchrone (PROD
+         `QUEUE_CONNECTION=sync` sans connexion dediee). Aucun lot ne peut
+         partir ; la simulation reste possible (lecture seule). --}}
+    @unless($queueReady)
+        <div class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200" data-marqueur="queue-non-configuree">
+            <p class="font-semibold">{{ __('admin.image_optimizer.queue_not_configured') }}</p>
+            <p class="mt-1 text-xs">{{ __('admin.image_optimizer.queue_not_configured_detail', ['connection' => $queueConnection, 'driver' => $queueDriver ?? '?']) }}</p>
+        </div>
+    @endunless
+
     {{-- Synthese : quatre chiffres au plus. --}}
     <section class="mb-2 grid grid-cols-2 gap-3 lg:grid-cols-4" data-marqueur="synthese">
         @foreach([
@@ -128,7 +138,7 @@
                     class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
                 {{ __('admin.image_optimizer.simulate') }}
             </button>
-            <button type="button" wire:click="optimize" wire:loading.attr="disabled" data-marqueur="optimiser"
+            <button type="button" wire:click="optimize" wire:loading.attr="disabled" data-marqueur="optimiser" @disabled(! $queueReady)
                     class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
                 {{ __('admin.image_optimizer.optimize') }}
             </button>

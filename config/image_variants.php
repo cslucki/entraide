@@ -53,10 +53,13 @@ return [
     'in_request_max_pixels' => (int) env('IMAGE_VARIANTS_IN_REQUEST_MAX_PIXELS', 12_000_000),
 
     /*
-     * Connexion de queue des jobs d'images. Vide = connexion par defaut
-     * (PROD : inchange). En local, `database` fait tourner les images seules
-     * en asynchrone, sur un worker dedie (`ai/scripts/images-queue-worker.sh`),
-     * sans basculer les autres queues locales.
+     * Connexion de queue des jobs d'images. Vide = connexion par defaut —
+     * `sync` en PROD (mesure 21/11/2026) : la garde `ImageQueue` refuse alors
+     * les lots et ne derive rien a l'upload (original servi, avertissement
+     * journalise). En PROD, `database` + un worker dedie a `images` sont des
+     * PREREQUIS de release (TASK-1874), non configures par cette TASK. En
+     * local, `database` + `ai/scripts/images-queue-worker.sh`, sans basculer
+     * les autres queues locales.
      */
     'queue_connection' => env('IMAGE_VARIANTS_QUEUE_CONNECTION') ?: null,
 

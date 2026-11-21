@@ -33,6 +33,9 @@ class TASK1873OptimizeCommandTest extends TestCase
     {
         parent::setUp();
         Storage::fake('public');
+        // TASK-1873 — les lots et les uploads exigent une connexion de queue
+        // ASYNCHRONE (garde `ImageQueue`) ; `Queue::fake()` intercepte.
+        config(['image_variants.queue_connection' => 'database']);
 
         $this->orgA = Organization::factory()->create(['slug' => 'org-a-1873']);
         $this->orgB = Organization::factory()->create(['slug' => 'org-b-1873']);

@@ -54,7 +54,9 @@ Schedule::command('queue:work', [
         // l'indexation.
         .','.LoopConversationKnowledgeDispatcher::DEDICATED_QUEUE
         // TASK-1873 : la derivation des images, EN DERNIER — l'indexation
-        // passe avant. Un job par image, borne a 120 s et a 25 Mpx.
+        // passe avant. Un job par image, borne a 75 s et a 25 Mpx. Utile
+        // seulement si la connexion par defaut est asynchrone : en PROD
+        // (`sync`, 21/11/2026) les images exigent un worker dedie (T1874).
         .','.ProcessImageVariants::QUEUE,
     // Sans valeur, et sans cle : `'--stop-when-empty' => true` rendrait
     // `--stop-when-empty='1'`, que Symfony REFUSE (« does not accept a

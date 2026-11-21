@@ -36,6 +36,9 @@ class TASK1873AdminConsoleTest extends TestCase
         parent::setUp();
         Storage::fake('public');
         Queue::fake();
+        // TASK-1873 — les lots et les uploads exigent une connexion de queue
+        // ASYNCHRONE (garde `ImageQueue`) ; `Queue::fake()` intercepte.
+        config(['image_variants.queue_connection' => 'database']);
 
         $this->orgA = Organization::factory()->create(['name' => 'Org A 1873']);
         $this->orgB = Organization::factory()->create(['name' => 'Org B 1873']);

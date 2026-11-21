@@ -13,10 +13,12 @@ use Illuminate\Support\Facades\Cache;
  * evenement natif de `queue:work`), au plus une ecriture toutes les 15 s par
  * processus. La console lit son age.
  *
- * Seuil 90 s : en PROD, le worker planifie tourne quelques secondes chaque
- * minute puis s'arrete quand ses files sont vides — un signe de vie age de
- * moins d'une minute et demie veut donc dire « pris en charge ». En local, le
- * worker du service systemd boucle en continu : le signe est frais.
+ * Seuil 90 s : tolere un worker qui ne tourne que par intervalles (worker
+ * planifie, recycle) ; un worker continu — service systemd local, ou worker
+ * dedie a provisionner en PROD (TASK-1874) — rafraichit le signe toutes les
+ * 15 s. Un worker sur une AUTRE connexion que celle des images, ou sur une
+ * connexion non asynchrone, ne compte jamais : le `queue:work` planifie
+ * tourne sur `sync` en PROD (21/11/2026) avec `images` dans sa liste.
  *
  * Le cache (base en local comme en PROD) suffit ici : c'est un indicateur
  * d'exploitation, pas une donnee de lot — la progression, elle, vit en base.
@@ -32,11 +34,18 @@ final class ImageWorkerHeartbeat
     private static ?int $lastWrite = null;
 
     /**
+     * @param  string|null  $connection  connexion du worker
      * @param  string|null  $queues  liste du worker (`--queue=a,b,images`)
      */
-    public function recordFor(?string $queues): void
+    public function recordFor(?string $connection, ?string $queues): void
     {
-        if (! $this->servesImages($queues)) {
+        // La FILE ne suffit pas : un `queue:work` sur une connexion `sync`
+        // (worker planifie en PROD, 21/11/2026) boucle sans rien consommer.
+        // Seul compte un worker sur la connexion RESOLUE des images, et
+        // seulement si elle est asynchrone.
+        $images = app(ImageQueue::class);
+
+        if ($connection !== $images->connection() || ! $images->isAsync() || ! $this->servesImages($queues)) {
             return;
         }
 
