@@ -4,6 +4,9 @@ import { loginAsMember } from './helpers/auth.js';
 /**
  * TASK-1744 — les quatre reglages Push sont VISIBLES sur l'ecran.
  *
+ * TASK-1877 — le bloc « cet appareil » a quitte `/notifications/preferences`
+ * pour `/notifications/appareil` : les gardes qui le visent y vont.
+ *
  * Pourquoi un spec navigateur alors que la suite PHP mesure deja le rendu :
  * `assertSee()` lit le HTML, pas l'ECRAN. Un `display: none` herite, un
  * conteneur a hauteur nulle ou une case rendue hors du cadre passeraient
@@ -83,7 +86,7 @@ test.describe('TASK-1744 — reglages Web Push', () => {
      */
     test('aucun bouton factice ne reste visible', async ({ page }) => {
         await loginAsMember(page);
-        await page.goto('/notifications/preferences');
+        await page.goto('/notifications/appareil');
         await page.waitForLoadState('networkidle');
 
         for (const bouton of ['data-push-enable', 'data-push-disable']) {
@@ -114,7 +117,7 @@ test.describe('TASK-1744 — reglages Web Push', () => {
         });
 
         await loginAsMember(page);
-        await page.goto('/notifications/preferences');
+        await page.goto('/notifications/appareil');
         await page.waitForLoadState('networkidle');
 
         await expect(page.locator('[data-push-enable]')).toBeVisible();
@@ -132,7 +135,7 @@ test.describe('TASK-1744 — reglages Web Push', () => {
      */
     test('l aide precede le diagnostic et mene aux reglages', async ({ page }) => {
         await loginAsMember(page);
-        await page.goto('/notifications/preferences');
+        await page.goto('/notifications/appareil');
         await page.waitForLoadState('networkidle');
 
         const y = async (selecteur) =>
@@ -147,7 +150,9 @@ test.describe('TASK-1744 — reglages Web Push', () => {
         await expect(page.locator('[data-push-diag-panel]')).not.toHaveAttribute('open', /.*/);
 
         // Et la cible du lien existe vraiment — un lien mort vaut moins que
-        // pas de lien du tout.
+        // pas de lien du tout. TASK-1877 : le bloc a sa propre page, la
+        // cible vit sur celle des reglages.
+        await page.goto('/notifications/preferences');
         await expect(page.locator('#reglages-par-evenement')).toHaveCount(1);
     });
 

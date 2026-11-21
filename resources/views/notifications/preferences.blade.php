@@ -113,31 +113,19 @@
             @endif
         </div>
 
-        {{-- TASK-1739 — « Notifications sur cet appareil ».
-
-             Placé AVANT les préférences par événement, et c'est voulu : sans
-             autorisation sur l'appareil, aucun réglage par événement ne peut
-             produire de notification Push. L'ordre de l'écran suit l'ordre
-             des conditions.
-
-             Hors du formulaire des préférences : un abonnement est un état
-             d'appareil, activer EST le geste, il n'y a rien à « enregistrer ».
-        --}}
-        @php
-            // TASK-1744 — combien d'événements cette personne a-t-elle
-            // réellement ouverts au Push ? Le panneau d'appareil en a besoin
-            // pour dire la vérité plutôt qu'une promesse : un appareil
-            // enregistré sans aucune case cochée ne reçoit RIEN, et c'est ce
-            // silence-là qui a fait échouer la première recette.
-            //
-            // Compté ici et non dans le contrôleur : `$etat` est déjà
-            // l'autorité de cet écran, et le partiel n'est inclus que d'ici.
-            $pushActifs = collect($etat)
-                ->filter(fn (array $canaux) => ($canaux[\App\Support\Notifications\NotificationCatalogue::CHANNEL_WEB_PUSH]['enabled'] ?? false) === true)
-                ->count();
-        @endphp
-
-        @include('notifications.partials.push-device', ['pushActifs' => $pushActifs])
+        {{-- TASK-1877 — « Notifications sur cet appareil » vit desormais sur
+             sa propre page (T1739 l'avait pose ici). Il reste un BOUTON, a la
+             meme place : sans autorisation sur l'appareil, aucun reglage
+             « Sur mes appareils » ci-dessous ne produit de notification, et
+             l'ordre de l'ecran continue de suivre l'ordre des conditions. --}}
+        <div class="mb-8">
+            <a href="{{ route($routeDevice, $routeParams) }}"
+               data-push-device-link
+               class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-5 text-sm font-semibold text-[var(--bp-text)] transition hover:bg-[var(--bp-hover)]">
+                {{ __('push.device_settings_button') }}
+                <span aria-hidden="true">→</span>
+            </a>
+        </div>
 
         @if(session('notification_preferences_saved'))
             <div data-preferences-saved
@@ -237,10 +225,4 @@
             @endif
         </form>
     </x-page-container>
-
-    {{-- TASK-1739 — chargé sur CETTE page seulement : `pushManager` et la
-         demande de permission n'ont rien à peser ailleurs. --}}
-    @push('scripts')
-        @vite('resources/js/push-device.js')
-    @endpush
 </x-app-layout>

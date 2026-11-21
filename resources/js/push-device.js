@@ -32,9 +32,12 @@ import {
     clePubliqueDe,
     comparerCleVapid,
     confirmer as confirmerAuServeur,
+    empreinteEndpoint,
+    estRevoque,
     etatServeur as interrogerServeur,
     jeton,
     libelleAppareil,
+    oublierAbonnementRevoque,
     supporte as pushSupporte,
     supporteNavigateur,
     retirerEtDesabonner,
@@ -55,6 +58,10 @@ if (bloc) {
     const elAide = bloc.querySelector('[data-push-help-box]');
     const btnActiver = bloc.querySelector('[data-push-enable]');
     const btnDesactiver = bloc.querySelector('[data-push-disable]');
+    // TASK-1877 — le test Web Push REEL de cet appareil (page dediee).
+    const btnTest = bloc.querySelector('[data-push-test]');
+    const elTestResultat = bloc.querySelector('[data-push-test-resultat]');
+    const urlTest = bloc.dataset.pushTestUrl || '';
 
     // TASK-1745 — la mecanique vit desormais dans `push-abonnement.js`,
     // partagee avec la proposition du premier lancement. Ce n'est pas un
@@ -121,6 +128,10 @@ if (bloc) {
         // aussi la declaration d'auteur, et on la leve de meme.
         montrer(btnActiver, etat === 'off');
         montrer(btnDesactiver, etat === 'on');
+        // TASK-1877 — sans abonnement actif, il n'y a rien a tester ; et un
+        // ancien verdict ne survit pas a un changement d'etat.
+        montrer(btnTest, etat === 'on' && urlTest !== '');
+        if (etat !== 'on') montrer(elTestResultat, false);
 
         // Le nombre d'appareils n'a de sens que si le serveur en a parlé.
         if (typeof nombre === 'number') {
@@ -252,6 +263,18 @@ if (bloc) {
             return;
         }
 
+        // TASK-1877 — un abonnement RÉVOQUÉ par le fournisseur ne se
+        // reconfirme JAMAIS : la reconfirmation ci-dessous le ferait revivre
+        // côté serveur (arbitrage MASTER, R1). On tente de l'oublier ; si le
+        // navigateur refuse, l'état d'erreur reste affiché, jamais « activé ».
+        if (await estRevoque(abonnement)) {
+            const oublie = await oublierAbonnementRevoque(abonnement);
+            const etat = await etatServeur(null);
+            peindre('off', etat?.device_count, oublie ? textes.textTestRevoked : textes.textTestRevokedCleanupFailed);
+
+            return;
+        }
+
         // Un abonnement créé avec une clé qui n'a plus cours n'est PAS un
         // abonnement valide. On s'abstient surtout de le reconfirmer : le
         // reconfirmer rafraîchirait son `last_seen_at` et le ferait passer,
@@ -312,6 +335,16 @@ if (bloc) {
                 existant = null;
             }
 
+            // TASK-1877 — un abonnement révoqué ne se réutilise pas : on
+            // l'oublie d'abord, et l'échec de cet oubli est un échec.
+            if (existant !== null && (await estRevoque(existant))) {
+                if (!(await oublierAbonnementRevoque(existant))) {
+                    peindre('off', undefined, textes.textTestRevokedCleanupFailed);
+                    return;
+                }
+                existant = null;
+            }
+
             const abonnement =
                 existant ??
                 (await inscription.pushManager.subscribe({
@@ -351,11 +384,72 @@ if (bloc) {
     });
 
     /* =====================================================================
-     * TASK-1740 — DIAGNOSTIC, temporaire et local seulement.
+     * TASK-1877 — test Web Push RÉEL, vers CET appareil seulement.
      *
-     * Le panneau n'est rendu qu'en local : s'il est absent, tout ce qui suit
-     * ne s'exécute pas. La garde est donc côté serveur, et il n'y a rien à
-     * désactiver ici.
+     * Le navigateur envoie SON endpoint ; le serveur ne s'en sert que pour
+     * désigner une ligne qui appartient déjà au compte connecté. Le verdict
+     * ne dit jamais « reçue » : un fournisseur qui accepte n'a rien affiché,
+     * c'est la personne qui regarde son écran (arbitrage MASTER, R2).
+     * ===================================================================== */
+    const direTest = (texte, ok) => {
+        elTestResultat.textContent = texte;
+        elTestResultat.className = `mt-3 text-sm font-medium ${ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`;
+        montrer(elTestResultat, true);
+    };
+
+    btnTest?.addEventListener('click', async () => {
+        btnTest.disabled = true;
+        try {
+            const abonnement = await abonnementCourant();
+
+            if (abonnement === null) {
+                await rafraichir();
+                return;
+            }
+
+            const reponse = await fetch(urlTest, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': jeton(), Accept: 'application/json' },
+                body: JSON.stringify({ endpoint: abonnement.endpoint }),
+            });
+
+            if (reponse.status === 429) {
+                direTest(textes.textTestThrottled, false);
+                return;
+            }
+
+            const corps = await reponse.json().catch(() => ({}));
+            // Les détails bruts (code HTTP, motif) n'arrivent du serveur
+            // qu'en local, et ne s'affichent qu'en local.
+            const detail = debogage && Array.isArray(corps.detail) && corps.detail.length > 0
+                ? ` [${corps.detail.join(' · ')}]`
+                : '';
+
+            if (corps.resultat === 'envoye') {
+                direTest(textes.textTestSent + detail, true);
+            } else if (corps.resultat === 'revoque') {
+                // R1 — le serveur a déjà retiré sa ligne. Oublier aussi
+                // l'abonnement côté navigateur AVANT de repeindre, sinon la
+                // réconciliation le reconfirmerait aussitôt.
+                const oublie = await oublierAbonnementRevoque(abonnement);
+                const etat = await etatServeur(null);
+                peindre('off', etat?.device_count, oublie ? textes.textTestRevoked : textes.textTestRevokedCleanupFailed);
+            } else if (corps.resultat === 'inconnu') {
+                direTest(textes.textTestUnknown, false);
+            } else {
+                direTest(textes.textTestFailed + detail, false);
+            }
+        } catch (e) {
+            direTest(avecCause(textes.textTestFailed, e), false);
+        } finally {
+            btnTest.disabled = false;
+        }
+    });
+
+    /* =====================================================================
+     * TASK-1740 — DIAGNOSTIC. TASK-1877 — publié pour chaque membre (option
+     * B de MASTER), replié, traduit. Les textes viennent du serveur ; les
+     * détails bruts d'erreur ne s'affichent qu'en local (`debogage`).
      * ===================================================================== */
     const panneau = bloc.querySelector('[data-push-diag-panel]');
 
@@ -366,6 +460,11 @@ if (bloc) {
         });
 
         const elResultat = panneau.querySelector('[data-push-diag-resultat]');
+        const t = panneau.querySelector('[data-push-diag-texts]').dataset;
+        // `%s` remplacé dans l'ordre, comme le serveur l'a écrit.
+        const remplir = (gabarit, ...valeurs) => valeurs.reduce((texte, v) => texte.replace('%s', v), gabarit);
+        // Un détail brut n'est ajouté qu'en local.
+        const brut = (texte, detail) => (debogage && detail ? `${texte} [${detail}]` : texte);
 
         const dire = (texte, ok) => {
             elResultat.textContent = texte;
@@ -374,24 +473,17 @@ if (bloc) {
         };
 
         /** L'empreinte que le SERVEUR calcule : SHA-256 de l'endpoint, 8 car. */
-        const empreinteDe = async (endpoint) => {
-            const octets = new TextEncoder().encode(endpoint);
-            const condensat = await crypto.subtle.digest('SHA-256', octets);
-            return [...new Uint8Array(condensat)]
-                .map((o) => o.toString(16).padStart(2, '0'))
-                .join('')
-                .slice(0, 8);
-        };
+        const empreinteDe = async (endpoint) => (await empreinteEndpoint(endpoint)).slice(0, 8);
 
         const diagnostiquer = async () => {
-            cases.permission.textContent = 'Notification' in window ? Notification.permission : 'API absente';
+            cases.permission.textContent = 'Notification' in window ? Notification.permission : t.apiAbsent;
             cases.origine.textContent = location.origin;
             // Sans contexte sûr, ni Service Worker ni Push n'existent. Un
             // tunnel en HTTPS le fournit ; une IP en clair, non.
-            cases.securise.textContent = window.isSecureContext ? 'oui' : 'NON';
+            cases.securise.textContent = window.isSecureContext ? t.yes : t.no;
 
             if (!('serviceWorker' in navigator)) {
-                cases.scope.textContent = cases.version.textContent = 'API absente';
+                cases.scope.textContent = cases.version.textContent = t.apiAbsent;
                 return;
             }
 
@@ -405,15 +497,15 @@ if (bloc) {
 
             const reponse = await interrogerServiceWorker({ type: 'bouclepro:version' });
 
-            cases.scope.textContent = reponse?.scope ?? '(pas de réponse)';
+            cases.scope.textContent = reponse?.scope ?? t.noAnswer;
             cases.version.textContent = reponse
-                ? `${reponse.version}${reponse.push ? ' · push pris en charge' : ''}`
-                : 'ANCIEN — ne répond pas au canal de diagnostic';
+                ? `${reponse.version}${reponse.push ? ` · ${t.pushSupported}` : ''}`
+                : t.swOld;
 
             const abonnement = await abonnementCourant();
 
             if (abonnement === null) {
-                cases.abonnement.textContent = 'aucun';
+                cases.abonnement.textContent = t.none;
                 cases.empreinte.textContent = '—';
                 cases.base.textContent = '—';
                 return;
@@ -427,7 +519,7 @@ if (bloc) {
             // CETTE personne ? Une permission accordée et un abonnement
             // présent ne valent rien si la base pointe un autre appareil.
             const etat = await etatServeur(abonnement.endpoint);
-            cases.base.textContent = etat === null ? '(serveur muet)' : etat.subscribed ? 'OUI' : 'NON';
+            cases.base.textContent = etat === null ? t.serverSilent : etat.subscribed ? t.yes : t.no;
 
             /* Le dernier maillon jamais mesuré.
              *
@@ -447,14 +539,14 @@ if (bloc) {
             const cleAbonnement = clePubliqueDe(abonnement);
 
             if (cleAbonnement === null) {
-                cases.cle.textContent = '(non exposée par ce navigateur)';
+                cases.cle.textContent = t.keyHidden;
 
                 return;
             }
 
             cases.cle.textContent = cleAbonnement === vapid
-                ? `concorde (${cleAbonnement.slice(0, 8)}…)`
-                : `DIVERGE — abonnement ${cleAbonnement.slice(0, 8)}… ≠ serveur ${vapid.slice(0, 8)}…`;
+                ? remplir(t.keyMatch, cleAbonnement.slice(0, 8))
+                : remplir(t.keyDiverge, cleAbonnement.slice(0, 8), vapid.slice(0, 8));
         };
 
         /**
@@ -470,20 +562,20 @@ if (bloc) {
                 const permission = await Notification.requestPermission();
 
                 if (permission !== 'granted') {
-                    dire(`Permission refusée (${permission}) — rien ne peut s'afficher.`, false);
+                    dire(brut(t.permissionRefused, permission), false);
                     return;
                 }
 
                 const inscription = await navigator.serviceWorker.ready;
-                await inscription.showNotification('Affichage local', {
-                    body: 'Si vous voyez ceci, l’appareil sait afficher une notification.',
+                await inscription.showNotification(t.localTitle, {
+                    body: t.localBody,
                     icon: '/brand/icon-192.png',
                     tag: 'bouclepro-diag-local',
                     renotify: true,
                 });
-                dire('Demandé. Visible ? → l’affichage système fonctionne.', true);
+                dire(t.localDone, true);
             } catch (e) {
-                dire(`Échec de l’affichage local : ${e.message}`, false);
+                dire(brut(t.localFailed, e?.message), false);
             } finally {
                 diagnostiquer();
             }
@@ -498,26 +590,26 @@ if (bloc) {
          */
         panneau.querySelector('[data-push-diag-simuler]').addEventListener('click', async () => {
             if (Notification.permission !== 'granted') {
-                dire('Permission non accordée : commencez par « Tester l’affichage local ».', false);
+                dire(t.simulateNeedsPermission, false);
                 return;
             }
 
             const reponse = await interrogerServiceWorker({
                 type: 'bouclepro:simuler-push',
                 charge: {
-                    title: 'Charge simulée',
-                    body: 'Traitée par le Service Worker actif, sans réseau.',
+                    title: t.simulateTitle,
+                    body: t.simulateBody,
                     url: '/notifications',
                     tag: 'bouclepro-diag-sw',
                 },
             }, 4000);
 
             if (reponse === null) {
-                dire('Le Service Worker actif ne connaît pas ce canal : exemplaire ANCIEN.', false);
+                dire(t.simulateOld, false);
             } else if (reponse.ok) {
-                dire('Le Service Worker actif a affiché la charge. Chemin de réception intact.', true);
+                dire(t.simulateDone, true);
             } else {
-                dire(`Le Service Worker a refusé : ${reponse.erreur}`, false);
+                dire(brut(t.simulateRefused, reponse.erreur), false);
             }
         });
 
