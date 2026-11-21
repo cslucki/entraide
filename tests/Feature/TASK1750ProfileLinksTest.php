@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Support\ProfileLinks;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -60,9 +61,14 @@ class TASK1750ProfileLinksTest extends TestCase
      *
      * @param  array<string, mixed>  $extra
      */
-    private function enregistrer(array $extra = []): \Illuminate\Testing\TestResponse
+    private function enregistrer(array $extra = []): TestResponse
     {
         return $this->actingAs($this->membre)->put(route('profile.update'), array_merge([
+            // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+            'first_name' => 'Camille',
+            'city' => 'Lyon',
+            'country_code' => 'FR',
+            'bio' => 'Une presentation de profil, courte mais reelle.',
             'name' => $this->membre->name,
             'email' => $this->membre->email,
             'phone' => '+33600000000',
@@ -107,7 +113,7 @@ class TASK1750ProfileLinksTest extends TestCase
      * premieres passeraient : `url` seul les accepte.
      */
     #[DataProvider('lesUrlRefusees')]
-    public function test_une_url_de_schema_interdit_est_REFUSEE(string $url): void
+    public function test_une_url_de_schema_interdit_est_refusee(string $url): void
     {
         $this->enregistrer(['profile_links' => [['type' => 'blog', 'url' => $url]]])
             ->assertSessionHasErrors('profile_links.0.url');
@@ -117,7 +123,7 @@ class TASK1750ProfileLinksTest extends TestCase
     }
 
     /** La reciproque : une URL legitime passe, sinon la garde ci-dessus ne dirait rien. */
-    public function test_une_url_http_ou_https_est_ACCEPTEE(): void
+    public function test_une_url_http_ou_https_est_acceptee(): void
     {
         $this->enregistrer(['profile_links' => [
             ['type' => 'instagram', 'url' => 'https://instagram.com/moi'],

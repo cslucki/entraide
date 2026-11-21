@@ -71,6 +71,29 @@ class UserSlugService
     public const MOTIF = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/';
 
     /**
+     * TASK-1872 correctif 02 — le MEME motif, pour l'attribut `pattern` d'un
+     * champ de formulaire.
+     *
+     * L'attribut HTML n'accepte ni delimiteurs ni ancres : il est
+     * implicitement ancre des deux cotes. On retire donc `/`, `^` et `$`, et
+     * c'est tout — les groupes `(?:...)` sont valides en expression reguliere
+     * JavaScript.
+     *
+     * Cette derivation vit ICI, a cote de la constante, et non dans la vue :
+     * c'est ce qui garantit qu'un changement de `MOTIF` suive partout. Ecrire
+     * le motif en clair dans le formulaire aurait cree une seconde verite, et
+     * la premiere retouche de la regle les aurait fait diverger en silence.
+     *
+     * Ce que le navigateur ne peut PAS verifier reste au serveur, seule
+     * autorite : la disponibilite, les mots reserves, le refus d'une forme
+     * d'UUID.
+     */
+    public static function motifHtml(): string
+    {
+        return trim(self::MOTIF, '/^$');
+    }
+
+    /**
      * Le slug derive d'un nom — `prenom-nom`, l'ordre dont on parle.
      *
      * Rend `null` quand aucun slug utilisable ne peut en sortir : un compte

@@ -163,6 +163,10 @@ class TASK1762IconesLiensProfilTest extends TestCase
 
         $this->actingAs($this->titulaire)
             ->put(route('profile.update'), [
+                // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+                'city' => 'Lyon',
+                'country_code' => 'FR',
+                'bio' => 'Une presentation de profil, courte mais reelle.',
                 'first_name' => $this->titulaire->first_name,
                 'name' => $this->titulaire->name,
                 'email' => $this->titulaire->email,

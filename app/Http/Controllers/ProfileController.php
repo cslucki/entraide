@@ -10,24 +10,25 @@ use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
-use App\Support\Entraide\BilanEntraide;
 use App\Rules\NomDePersonneAcceptable;
+use App\Rules\UniqueEmailInOrganization;
 use App\Services\UserSlugService;
+use App\Support\Entraide\BilanEntraide;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Feed\FeedEventEmitter;
 use App\Support\ProfileLinks;
+use App\Support\Tenancy\UserWriteLock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use App\Rules\UniqueEmailInOrganization;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Intervention\Image\Laravel\Facades\Image;
-use App\Support\Tenancy\UserWriteLock;
-use Illuminate\Support\Facades\DB;
 
 class ProfileController extends Controller
 {
@@ -301,7 +302,20 @@ class ProfileController extends Controller
         $organization = $this->profileOrganization($request);
 
         $rules = [
-            'first_name' => ['nullable', 'string', 'max:255', new NomDePersonneAcceptable],
+            // TASK-1872 correctif 01 — OBLIGATOIRE, et ce n'est pas un
+            // durcissement : c'est la fin d'une contradiction.
+            //
+            // `EnsureProfileComplete` refuse DEJA de publier un service ou une
+            // demande sans `first_name`, `city`, `country_code` ni `bio`.
+            // Cette regle-ci les acceptait vides. Le resultat etait le pire
+            // des deux mondes : on enregistrait un profil que le produit
+            // jugeait incomplet, puis on refusait l'action SANS dire quel
+            // champ manquait — l'ecran ne le marquait pas davantage.
+            //
+            // Demande de Cyril, 21/11 : « l'idee est de ne pas laisser des
+            // membres, sans presentation, faire certaines actions ». Les trois
+            // endroits disent donc desormais la meme chose.
+            'first_name' => ['required', 'string', 'max:255', new NomDePersonneAcceptable],
             // TASK-1712 — un nom de personne, pas un support publicitaire.
             //
             // `ProfileUpdateRequest` existe mais AUCUN controleur ne l'utilise :
@@ -336,9 +350,11 @@ class ProfileController extends Controller
             // TASK-1788 correctif 12 (demande Cyril) — 2000 releve a 3500 :
             // meme raisonnement, la video et les liens inseres depuis la
             // barre d'outils alourdissent encore le balisage compte ici.
-            'bio' => ['nullable', 'string', 'max:3500'],
-            'city' => ['nullable', 'string', 'max:255'],
-            'country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
+            // TASK-1872 correctif 01 — obligatoire, meme motif que
+            // `first_name` ci-dessus : `EnsureProfileComplete` l'exige deja.
+            'bio' => ['required', 'string', 'max:3500'],
+            'city' => ['required', 'string', 'max:255'],
+            'country_code' => ['required', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
             'website' => ['nullable', 'url', 'max:255'],
             'linkedin_url' => ['nullable', 'url', 'max:255'],
             // TASK-1750 — la liste de liens supplementaires.
@@ -657,7 +673,7 @@ class ProfileController extends Controller
      * prefixe par `time()` : le modifier aurait change l'adresse des avatars
      * sans que personne ne l'ait demande.
      */
-    private function stockerAvatar(\Illuminate\Http\UploadedFile $file): string
+    private function stockerAvatar(UploadedFile $file): string
     {
         $filename = time().'_'.$file->getClientOriginalName();
 

@@ -154,6 +154,11 @@ class TASK1712PersonNameValidationTest extends TestCase
         ]);
 
         $reponse = $this->actingAs($membre)->put('/profile', [
+            // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+            'first_name' => 'Camille',
+            'city' => 'Lyon',
+            'country_code' => 'FR',
+            'bio' => 'Une presentation de profil, courte mais reelle.',
             'name' => 'Gagnez 2 BTC sur graph.org/promo',
             'email' => $membre->email,
         ]);

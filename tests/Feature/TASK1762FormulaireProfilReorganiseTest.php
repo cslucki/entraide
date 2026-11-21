@@ -165,6 +165,9 @@ class TASK1762FormulaireProfilReorganiseTest extends TestCase
         $membre = $this->membre($org);
 
         $this->actingAs($membre)->put(route('profile.update'), [
+            // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+            'city' => 'Lyon',
+            'country_code' => 'FR',
             'first_name' => $membre->first_name, 'name' => $membre->name,
             'email' => $membre->email, 'phone' => $membre->phone,
             'slogan' => 'Mon slogan de test.',
@@ -174,6 +177,9 @@ class TASK1762FormulaireProfilReorganiseTest extends TestCase
         $this->assertSame(3500, mb_strlen($membre->fresh()->bio));
 
         $this->actingAs($membre)->put(route('profile.update'), [
+            // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+            'city' => 'Lyon',
+            'country_code' => 'FR',
             'first_name' => $membre->first_name, 'name' => $membre->name,
             'email' => $membre->email, 'phone' => $membre->phone,
             'slogan' => 'Mon slogan de test.',
@@ -216,6 +222,10 @@ class TASK1762FormulaireProfilReorganiseTest extends TestCase
         $membre->update(['preferred_locale' => null]);
 
         $this->actingAs($membre)->put(route('profile.update'), [
+            // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+            'city' => 'Lyon',
+            'country_code' => 'FR',
+            'bio' => 'Une presentation de profil, courte mais reelle.',
             'first_name' => $membre->first_name, 'name' => $membre->name,
             'email' => $membre->email, 'phone' => $membre->phone,
             'slogan' => 'Mon slogan de test.',

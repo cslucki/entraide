@@ -128,6 +128,9 @@ class TASK1871ProfilScopeEtErreursVisiblesTest extends TestCase
         $reponse = $this->actingAs($this->membre)
             ->from('/org/ofsh/profile/edit')
             ->put(route('organization.profile.update', ['organization' => 'ofsh']), [
+                // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+                'first_name' => 'Camille',
+                'bio' => 'Une presentation de profil, courte mais reelle.',
                 'name' => 'Camille Durand',
                 'email' => $this->membre->email,
                 'phone' => '0600000000',
@@ -172,6 +175,9 @@ class TASK1871ProfilScopeEtErreursVisiblesTest extends TestCase
         $this->actingAs($this->membre)
             ->from('/org/ofsh/profile/edit')
             ->put(route('organization.profile.update', ['organization' => 'ofsh']), [
+                // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+                'first_name' => 'Camille',
+                'bio' => 'Une presentation de profil, courte mais reelle.',
                 'name' => 'Camille Durand',
                 'email' => $this->membre->email,
                 'phone' => '0600000000',
@@ -251,6 +257,9 @@ class TASK1871ProfilScopeEtErreursVisiblesTest extends TestCase
         $this->actingAs($this->membre)
             ->from('/org/ofsh/profile/edit')
             ->put(route('organization.profile.update', ['organization' => 'ofsh']), [
+                // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+                'first_name' => 'Camille',
+                'bio' => 'Une presentation de profil, courte mais reelle.',
                 'name' => 'Camille Durand',
                 'email' => $this->membre->email,
                 'phone' => '0600000000',

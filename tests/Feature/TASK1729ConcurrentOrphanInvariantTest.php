@@ -571,6 +571,10 @@ class TASK1729ConcurrentOrphanInvariantTest extends TestCase
     private function profil(User $user, array $surcharges = []): array
     {
         return array_merge([
+            // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+            'city' => 'Lyon',
+            'country_code' => 'FR',
+            'bio' => 'Une presentation de profil, courte mais reelle.',
             'name' => $user->name,
             'first_name' => $user->first_name ?? 'Camille',
             'email' => $user->email,

@@ -47,6 +47,10 @@ class TASK1762ChampStructureTest extends TestCase
     private function formulaire(array $surcharge = []): array
     {
         return array_merge([
+            // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+            'city' => 'Lyon',
+            'country_code' => 'FR',
+            'bio' => 'Une presentation de profil, courte mais reelle.',
             'first_name' => $this->membre->first_name,
             'name' => $this->membre->name,
             'email' => $this->membre->email,

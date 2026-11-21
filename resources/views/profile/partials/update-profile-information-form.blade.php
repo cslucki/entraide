@@ -220,8 +220,11 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <x-input-label for="first_name" :value="__('profile.first_name')" />
-                    <x-text-input :premium="true" id="first_name" name="first_name" type="text" class="mt-1 block w-full" :value="old('first_name', $user->first_name)" autocomplete="given-name" />
+                    {{-- TASK-1872 correctif 01 — ce champ etait obligatoire
+                         SANS le dire. Voir le commentaire de
+                         `ProfileController::update()`. --}}
+                    <x-input-label for="first_name" :required="true" :value="__('profile.first_name')" />
+                    <x-text-input :premium="true" id="first_name" name="first_name" type="text" class="mt-1 block w-full" :value="old('first_name', $user->first_name)" required autocomplete="given-name" />
                     <x-input-error class="mt-2" field="first_name" :messages="$errors->get('first_name')" />
                 </div>
 
@@ -290,14 +293,21 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <x-input-label for="city" :value="__('profile.city')" />
-                    <x-text-input :premium="true" id="city" name="city" type="text" class="mt-1 block w-full" :value="old('city', $user->city)" autocomplete="address-level2" />
+                    {{-- TASK-1872 correctif 01 — le champ par lequel Cyril a
+                         vu le defaut : obligatoire pour publier, jamais
+                         signale, et accepte vide a l'enregistrement. --}}
+                    <x-input-label for="city" :required="true" :value="__('profile.city')" />
+                    <x-text-input :premium="true" id="city" name="city" type="text" class="mt-1 block w-full" :value="old('city', $user->city)" required autocomplete="address-level2" />
                     <x-input-error class="mt-2" field="city" :messages="$errors->get('city')" />
                 </div>
 
                 <div>
-                    <x-input-label for="country_code" :value="__('profile.country')" />
-                    <select id="country_code" name="country_code" class="mt-1 w-full rounded-lg border border-s-[3px] border-s-transparent border-[color:color-mix(in_srgb,var(--bp-muted)_55%,var(--bp-surface))] bg-[color:var(--bp-surface)] px-3 py-2 text-[color:var(--bp-text)] shadow-sm transition-colors duration-150 focus:outline-none focus:border-[color:var(--bp-primary)] focus:border-s-[color:var(--bp-primary)] focus:ring-2 focus:ring-[color:var(--bp-primary)]" autocomplete="country">
+                    {{-- TASK-1872 correctif 01 — `required` sur un `<select>`
+                         ne vaut que parce que sa PREMIERE option a une valeur
+                         VIDE (le libelle d'invite juste en dessous) : c'est
+                         elle qui rend l'etat « rien choisi » detectable. --}}
+                    <x-input-label for="country_code" :required="true" :value="__('profile.country')" />
+                    <select id="country_code" name="country_code" required class="mt-1 w-full rounded-lg border border-s-[3px] border-s-transparent border-[color:color-mix(in_srgb,var(--bp-muted)_55%,var(--bp-surface))] bg-[color:var(--bp-surface)] px-3 py-2 text-[color:var(--bp-text)] shadow-sm transition-colors duration-150 focus:outline-none focus:border-[color:var(--bp-primary)] focus:border-s-[color:var(--bp-primary)] focus:ring-2 focus:ring-[color:var(--bp-primary)]" autocomplete="country">
                         <option value="">{{ __('profile.country_placeholder') }}</option>
                         @foreach ($countries as $country)
                             <option value="{{ $country->code }}" @selected(old('country_code', $user->country_code) === $country->code)>
@@ -367,11 +377,25 @@
                  La limite passe de 500 a 2000 caracteres : le balisage est
                  compte dedans. --}}
             <div>
-                <x-input-label for="bio" :value="__('profile.bio')" />
+                {{-- TASK-1872 correctif 01 — `required` passe a l'EDITEUR, pas
+                     ecrit a la main : la prop existe deja et trois autres
+                     ecrans s'en servent (`services/create`, `requests/create`,
+                     `services/edit`). Elle le pose sur le `<textarea>` que
+                     TipTap masque.
+
+                     Un champ MASQUE et `required` est un piege connu : le
+                     navigateur refuse l'envoi sans pouvoir montrer le champ.
+                     Deux choses le neutralisent ici, et aucune n'est de trop.
+                     `novalidate`, pose par `x-form-live-validation`, retire la
+                     bulle native ; et le meme script sait desormais reporter
+                     le focus sur la zone d'edition quand le champ fautif n'est
+                     pas atteignable. Sans ce second point, « Enregistrer »
+                     n'aurait simplement rien fait. --}}
+                <x-input-label for="bio" :required="true" :value="__('profile.bio')" />
                 <div class="mt-1">
                     <x-markdown-wysiwyg-editor name="bio" :value="old('bio', $user->bio)"
                                                :placeholder="__('profile.bio_placeholder')"
-                                               rows="8" tall fullscreen
+                                               rows="8" tall fullscreen required
                                                :invalid="$errors->has('bio')" />
                 </div>
                 <x-input-error class="mt-2" field="bio" :messages="$errors->get('bio')" />
@@ -513,9 +537,42 @@
                 </div>
                 <div class="mt-1 flex items-center gap-1">
                     <span class="shrink-0 text-sm text-gray-400">{{ __('profile.slug_prefix') }}</span>
+                    {{-- TASK-1872 correctif 02 — la forme se dit AVANT l'envoi.
+                         =========================================================
+                         Demande de Cyril, 21/11 : l'alerte sur cette adresse
+                         doit paraitre avant la soumission, « c'est aussi
+                         valable s'il est mal renseigné (exemple : espace,
+                         caractères non autorisés) ».
+
+                         Le champ ne portait que `maxlength="60"`. Un espace,
+                         une majuscule, un accent, deux tirets de suite, deux
+                         caracteres seulement : tout cela ne se decouvrait
+                         qu'au retour du serveur.
+
+                         ⚠️ Les contraintes sont DERIVEES de
+                         `UserSlugService` — ses constantes et sa methode
+                         `motifHtml()` —, jamais recopiees. C'est le point qui
+                         compte : ecrire `3`, `60` et le motif ici aurait cree
+                         une seconde verite, et la premiere retouche de la
+                         regle les aurait fait diverger en silence.
+
+                         Ce que le navigateur ne peut PAS verifier reste au
+                         serveur, qui demeure la seule autorite : la
+                         disponibilite de l'adresse, les mots reserves, et le
+                         refus d'une forme d'UUID. Le message de forme vient
+                         d'ailleurs de la MEME clef que son refus
+                         (`profile.slug_invalid`) : une seule formulation.
+
+                         `nullable` cote serveur, donc PAS de `required` ici :
+                         laisser ce champ vide conserve l'adresse technique,
+                         et cela doit rester possible. --}}
                     <x-text-input :premium="true" id="slug" name="slug" type="text" class="block w-full"
                                   :value="old('slug', $user->slug)"
-                                  maxlength="60" autocomplete="off" />
+                                  :minlength="\App\Services\UserSlugService::MIN"
+                                  :maxlength="\App\Services\UserSlugService::MAX"
+                                  :pattern="\App\Services\UserSlugService::motifHtml()"
+                                  :data-message-forme="__('profile.slug_invalid')"
+                                  autocomplete="off" />
                 </div>
                 <x-input-error class="mt-2" field="slug" :messages="$errors->get('slug')" />
                 {{-- TASK-1762 point 4 — une seule phrase, avec de VRAIES adresses.

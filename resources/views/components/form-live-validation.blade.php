@@ -55,12 +55,21 @@
 
         function blocMessage(champ) {
             if (! champ.name) { return null; }
+
+            /* TASK-1872 correctif 03 — on PREND l'emplacement, on ne le choisit
+               plus.
+               ================================================================
+               `x-input-error` emet desormais un bloc vide et masque sous chaque
+               champ nomme, a la place voulue par la vue. C'est lui qu'on
+               remplit.
+
+               Le repli ci-dessous ne sert plus que les formulaires qui n'ont
+               pas cette ancre. Il garde son defaut connu — `afterend` tombe
+               dans la rangee quand le champ vit dans un conteneur `flex` — et
+               c'est exactement pour cela qu'il n'est plus le chemin normal. */
             var existant = document.getElementById(champ.name + '-error');
             if (existant) { return existant; }
 
-            // Aucun bloc serveur sous ce champ : on en pose un, au meme
-            // endroit et dans le meme style, pour que les deux origines de
-            // message soient indiscernables a l'oeil.
             var cree = document.createElement('ul');
             cree.id = champ.name + '-error';
             cree.className = 'mt-2 text-sm text-red-600 dark:text-red-400 space-y-1';
@@ -93,22 +102,131 @@
 
             if (champ.checkValidity()) {
                 champ.removeAttribute('aria-invalid');
-                if (bloc.hasAttribute('data-live-error')) { bloc.remove(); }
+
+                /* TASK-1872 correctif 03 — vider et MASQUER, plutot que
+                   detruire. L'emplacement appartient maintenant a la vue : le
+                   retirer obligerait a le reinventer au prochain message, donc
+                   a retomber dans le placement approximatif qu'on vient de
+                   corriger. Seul un bloc que CE script a cree est supprime. */
+                bloc.textContent = '';
+
+                if (bloc.hasAttribute('data-live-error')) {
+                    bloc.remove();
+                } else {
+                    bloc.hidden = true;
+                }
+
                 return;
             }
 
             champ.setAttribute('aria-invalid', 'true');
             champ.setAttribute('aria-describedby', champ.name + '-error');
-            // `validationMessage` est rendu par le navigateur dans la langue
-            // de l'utilisateur : rien a traduire, rien a maintenir.
+
+            /* TASK-1872 correctif 02 — « Veuillez respecter le format
+               demande » ne dit pas QUEL format.
+               ===================================================
+               `validationMessage` est excellent pour `required`, `minlength`
+               ou `type="email"` : le navigateur le rend dans la langue de la
+               personne, et il est precis. Pour `pattern`, en revanche, il se
+               reduit a une phrase generique qui n'enonce aucune regle.
+
+               Un champ peut donc fournir sa propre phrase. On la prefere
+               SEULEMENT quand c'est la forme qui est en cause
+               (`patternMismatch`) : partout ailleurs le navigateur reste
+               meilleur, et surtout deja traduit.
+
+               Cette phrase n'est pas une seconde redaction : le champ la
+               recoit depuis la MEME clef de langue que le refus du serveur
+               (`profile.slug_invalid`). Une seule formulation, deux moments.*/
+            var message = champ.validationMessage;
+
+            if (champ.validity && champ.validity.patternMismatch) {
+                message = champ.getAttribute('data-message-forme') || message;
+            }
+
             bloc.textContent = '';
             var ligne = document.createElement('li');
-            ligne.textContent = champ.validationMessage;
+            ligne.textContent = message;
             bloc.appendChild(ligne);
-            bloc.setAttribute('data-live-error', '');
+            // TASK-1872 correctif 03 — l'emplacement emis par la vue arrive
+            // masque : il faut le rendre visible pour qu'il porte le message.
+            bloc.hidden = false;
+        }
+
+        /* TASK-1872 correctif 01 — AMENER A L'ECRAN CE QUI EST ATTEIGNABLE.
+           ==================================================================
+           La presentation est devenue obligatoire, et son champ est un
+           `<textarea>` que TipTap MASQUE au montage
+           (`textarea.classList.add('hidden')`). Un champ masque ne recoit pas
+           le focus et ne se defile pas : sans cette resolution, « Enregistrer »
+           sur une presentation vide n'aurait RIEN fait du tout — ni message
+           visible, ni deplacement. Le pire des resultats : un bouton inerte.
+
+           On remonte donc au conteneur de l'editeur et on vise sa zone
+           d'edition, qui est, elle, bien visible et focusable. `offsetParent`
+           a `null` est le test le plus sur de « ce n'est pas rendu » : il
+           couvre `display:none` pose sur le champ comme sur n'importe lequel
+           de ses parents.
+
+           Repli final sur le champ lui-meme : au pire on ne bouge pas, ce qui
+           reste moins faux que de viser un element inexistant. */
+        function cibleAtteignable(champ) {
+            if (champ.offsetParent !== null) { return champ; }
+
+            var editeur = champ.closest('[data-tiptap-container]');
+
+            return (editeur && editeur.querySelector('.ProseMirror')) || editeur || champ;
         }
 
         form.querySelectorAll('input, select, textarea').forEach(function (champ) {
+            /* TASK-1872 correctif 02 — UN CHAMP MASQUE NE PERD JAMAIS LE
+               FOCUS, donc il ne se signale jamais.
+               ====================================================
+               Demande de Cyril, 21/11 : l'alerte sur « Présentation » doit
+               paraitre AVANT la soumission. Elle ne paraissait pas, et la
+               raison n'etait pas le script : le `<textarea>` de la
+               presentation est masque par TipTap. Un element masque ne recoit
+               pas le focus, donc n'emet pas de `blur` — l'ecouteur ci-dessous
+               ne pouvait tout simplement jamais partir. Le seul retour
+               possible restait la soumission.
+
+               La zone d'edition, elle, prend bien le focus. On ecoute donc
+               `focusout` sur le conteneur de l'editeur : quitter la zone de
+               redaction vaut quitter le champ. C'est le meme moment, sur le
+               seul element qui le connaisse.
+
+               Le `blur` reste pose sur le champ lui-meme : si TipTap ne monte
+               pas (JavaScript partiel, erreur de bundle), le `<textarea>`
+               demeure visible et c'est lui qui emettra. Les deux chemins
+               appellent `signaler()`, qui est idempotent.
+
+               ⚠️ Le rattachement ne teste PAS la visibilite : ce script
+               s'execute a l'analyse de la page, donc AVANT que TipTap ne
+               monte et ne masque le champ. A cet instant le `<textarea>` est
+               encore visible, et un test sur `offsetParent` aurait toujours
+               repondu « visible » — l'ecouteur n'aurait jamais ete pose. On
+               se fie donc a la seule chose qui soit vraie des l'analyse : le
+               champ est-il DANS un conteneur d'editeur ? */
+            var editeur = champ.closest('[data-tiptap-container]');
+
+            if (editeur) {
+                editeur.addEventListener('focusout', function (e) {
+                    /* On quitte l'editeur, ou on se deplace DEDANS ?
+                       -------------------------------------------
+                       `focusout` remonte : passer de la zone de texte a un
+                       bouton de la barre d'outils le declenche aussi. Signaler
+                       la ferait surgir une alerte « obligatoire » au moment
+                       precis ou l'on clique sur « gras » pour commencer a
+                       ecrire — l'inverse de ce qu'on cherche.
+                       `relatedTarget` porte l'element qui PREND le focus ;
+                       `null` (clic hors de toute cible focusable) compte comme
+                       une sortie. */
+                    if (e.relatedTarget && editeur.contains(e.relatedTarget)) { return; }
+
+                    signaler(champ);
+                });
+            }
+
             champ.addEventListener('blur', function () {
                 signaler(champ);
             });
@@ -116,6 +234,12 @@
             champ.addEventListener('input', function () {
                 // Seulement si le champ a DEJA ete signale : on corrige en
                 // direct, on ne sanctionne pas une saisie en cours.
+                //
+                // TASK-1872 correctif 02 — cela vaut aussi pour la
+                // presentation : TipTap repercute chaque frappe sur le champ
+                // masque par un `dispatchEvent(new Event('input'))`, donc le
+                // message disparait des que la saisie devient correcte, sans
+                // attendre de quitter l'editeur.
                 if (champ.getAttribute('aria-invalid') === 'true') {
                     signaler(champ);
                 }
@@ -142,8 +266,9 @@
             });
 
             if (premier) {
-                premier.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                premier.focus({ preventScroll: true });
+                var cible = cibleAtteignable(premier);
+                cible.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                cible.focus({ preventScroll: true });
             }
         });
     })();

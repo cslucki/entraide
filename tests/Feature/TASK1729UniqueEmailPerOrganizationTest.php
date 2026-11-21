@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\User;
 use App\Rules\UniqueEmailInOrganization;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -79,7 +81,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
 
     // ── 2. Ce que A4 OUVRE ──────────────────────────────────────────────────
 
-    public function test_deux_comptes_de_meme_email_dans_DEUX_Organizations_sont_acceptes(): void
+    public function test_deux_comptes_de_meme_email_dans_deu_x_organizations_sont_acceptes(): void
     {
         // LE test attendu depuis trois TASKs, et il n'a plus besoin d'aucun
         // artifice : ni adresse posee en memoire (T1727), ni index retire le
@@ -95,18 +97,18 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
 
     // ── 3. Ce que A4 continue d'interdire ───────────────────────────────────
 
-    public function test_deux_comptes_de_meme_email_dans_la_MEME_Organization_sont_refuses_par_la_base(): void
+    public function test_deux_comptes_de_meme_email_dans_la_mem_e_organization_sont_refuses_par_la_base(): void
     {
         // Par la BASE, pas par la validation : c'est la garantie, et elle tient
         // meme si une surface oublie la regle.
         $this->compte($this->orgA, 'collision@exemple.test');
 
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         $this->compte($this->orgA, 'collision@exemple.test');
     }
 
-    public function test_la_casse_ne_cree_pas_un_second_compte_dans_la_meme_Organization(): void
+    public function test_la_casse_ne_cree_pas_un_second_compte_dans_la_meme_organization(): void
     {
         // Arbitrage MASTER D3 : unicite LOGIQUE. `/admin/users` enregistrait
         // sans `lowercase`, et un composite sensible a la casse aurait laisse
@@ -114,12 +116,12 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
         // une seule boite.
         $this->compte($this->orgA, 'casse@exemple.test');
 
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         $this->compte($this->orgA, 'CASSE@Exemple.TEST');
     }
 
-    public function test_deux_ORPHELINS_de_meme_email_sont_refuses(): void
+    public function test_deux_orphelin_s_de_meme_email_sont_refuses(): void
     {
         // L'index partiel. Sans lui, le composite seul les accepterait : dans
         // un index unique, les NULL sont DISTINCTS — mesure sur les deux
@@ -127,7 +129,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
         // le login global refusant l'ambiguite par conception.
         $this->compte(null, 'orphelin@exemple.test');
 
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         $this->compte(null, 'orphelin@exemple.test');
     }
@@ -147,7 +149,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
      * n'exprime. Ce sont les QUATRE gardes applicatives qui la tiennent, et ce
      * test mesure la premiere — la regle de validation.
      */
-    public function test_un_membre_ne_peut_PAS_prendre_l_adresse_d_un_orphelin(): void
+    public function test_un_membre_ne_peut_pa_s_prendre_l_adresse_d_un_orphelin(): void
     {
         $orphelin = $this->compte(null, 'mixte@exemple.test');
 
@@ -180,7 +182,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
         $this->assertNull($orphelin->fresh()->organization_id);
     }
 
-    public function test_un_orphelin_ne_peut_PAS_prendre_l_adresse_d_un_membre_par_son_profil(): void
+    public function test_un_orphelin_ne_peut_pa_s_prendre_l_adresse_d_un_membre_par_son_profil(): void
     {
         // Le quatrieme chemin : la modification d'email. Un orphelin qui
         // prendrait l'adresse d'un membre se rendrait muet lui-meme.
@@ -199,7 +201,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
         $this->assertSame('f1-orphelin@exemple.test', $orphelin->fresh()->email);
     }
 
-    public function test_un_membre_ne_peut_PAS_prendre_par_son_profil_l_adresse_d_un_orphelin(): void
+    public function test_un_membre_ne_peut_pa_s_prendre_par_son_profil_l_adresse_d_un_orphelin(): void
     {
         $orphelin = $this->compte(null, 'f1-orph-profil@exemple.test');
         $membre = $this->compte($this->orgA, 'f1-membre-profil@exemple.test');
@@ -212,7 +214,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
         $this->assertSame('f1-orph-profil@exemple.test', $orphelin->fresh()->email);
     }
 
-    public function test_les_homonymes_INTER_ORGANIZATIONS_restent_acceptes_par_les_quatre_portes(): void
+    public function test_les_homonymes_inte_r_organization_s_restent_acceptes_par_les_quatre_portes(): void
     {
         // L'AUTRE SENS, sans lequel la correction F1 pourrait tout refuser et
         // rester verte sur les trois tests ci-dessus — en annulant A4 au
@@ -241,7 +243,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
             ->count());
     }
 
-    public function test_l_inscription_web_refuse_un_doublon_dans_la_MEME_organization(): void
+    public function test_l_inscription_web_refuse_un_doublon_dans_la_mem_e_organization(): void
     {
         $this->compte($this->orgA, 'deja@exemple.test');
 
@@ -321,7 +323,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
 
     // ── 5. D1 — la suppression d'Organization ───────────────────────────────
 
-    public function test_la_suppression_est_REFUSEE_si_elle_rend_un_compte_ambigu(): void
+    public function test_la_suppression_est_refuse_e_si_elle_rend_un_compte_ambigu(): void
     {
         // Arbitrage MASTER D1, et la garde est plus LARGE que l'index : elle
         // refuse aussi quand l'homonyme est encore RATTACHE ailleurs. Le tort
@@ -340,7 +342,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
         $this->assertSame($this->orgA->id, $membreA->fresh()->organization_id);
     }
 
-    public function test_le_refus_NOMME_les_adresses_en_cause(): void
+    public function test_le_refus_nomm_e_les_adresses_en_cause(): void
     {
         // Un refus fail-closed muet se contourne par depit : l'operateur doit
         // savoir SUR QUOI agir.
@@ -353,7 +355,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
         $this->assertStringContainsString('nommee@exemple.test', session('error'));
     }
 
-    public function test_une_suppression_SANS_conflit_fonctionne_toujours(): void
+    public function test_une_suppression_san_s_conflit_fonctionne_toujours(): void
     {
         // L'autre sens, sans lequel un refus inconditionnel resterait vert sur
         // les deux tests precedents tout en cassant une fonction de production.
@@ -368,7 +370,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
         $this->assertSame(0, Organization::query()->withTrashed()->whereKey($this->orgA->id)->count());
     }
 
-    public function test_le_conflit_de_CASSE_est_vu_lui_aussi(): void
+    public function test_le_conflit_de_cass_e_est_vu_lui_aussi(): void
     {
         $superAdmin = $this->superAdmin();
         $this->compte($this->orgA, 'Casse@Exemple.test');
@@ -381,7 +383,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
 
     // ── 5bis. Le cas SYMETRIQUE : la reparation des orphelins ───────────────
 
-    public function test_le_rattachement_en_masse_est_REFUSE_si_il_creerait_un_doublon(): void
+    public function test_le_rattachement_en_masse_est_refus_e_si_il_creerait_un_doublon(): void
     {
         // Defaut CREE par A4, mesure avant correctif : statut **500**, sans
         // message. L'arbitrage D1 exige « aucune erreur 500 » — il le disait de
@@ -403,7 +405,7 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
         $this->assertNull($orphelin->fresh()->organization_id, "l'orphelin n'a pas bouge");
     }
 
-    public function test_le_rattachement_en_masse_SANS_conflit_fonctionne_toujours(): void
+    public function test_le_rattachement_en_masse_san_s_conflit_fonctionne_toujours(): void
     {
         // L'autre sens, sans lequel un refus inconditionnel resterait vert.
         $superAdmin = $this->superAdmin();
@@ -454,14 +456,14 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
 
     // ── 7. T1727 et T1728 sur de VRAIS homonymes ────────────────────────────
 
-    public function test_la_reinitialisation_cible_le_bon_compte_parmi_des_homonymes_REELS(): void
+    public function test_la_reinitialisation_cible_le_bon_compte_parmi_des_homonymes_reels(): void
     {
         // T1727 mesurait ceci en posant l'adresse partagee EN MEMOIRE, faute de
         // pouvoir la poser en base. Elle peut desormais.
         $a = $this->compte($this->orgA, 'reset-a4@exemple.test');
         $b = $this->compte($this->orgB, 'reset-a4@exemple.test');
 
-        $tokenA = \Illuminate\Support\Facades\Password::broker()->createToken($a);
+        $tokenA = Password::broker()->createToken($a);
 
         $this->assertSame(1, DB::table('password_reset_tokens')->where('user_id', $a->id)->count());
         $this->assertSame(0, DB::table('password_reset_tokens')->where('user_id', $b->id)->count());
@@ -573,6 +575,10 @@ class TASK1729UniqueEmailPerOrganizationTest extends TestCase
     private function profil(User $user, array $surcharges = []): array
     {
         return array_merge([
+            // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+            'city' => 'Lyon',
+            'country_code' => 'FR',
+            'bio' => 'Une presentation de profil, courte mais reelle.',
             'name' => $user->name,
             'first_name' => $user->first_name ?? 'Camille',
             'email' => $user->email,

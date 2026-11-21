@@ -102,6 +102,9 @@ class TASK1788Correctif12ProfilBioEtPublicationTest extends TestCase
     private function enregistrerBio(string $bio): void
     {
         $this->actingAs($this->membre)->put(route('profile.update'), [
+            // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+            'city' => 'Lyon',
+            'country_code' => 'FR',
             'first_name' => $this->membre->first_name,
             'name' => $this->membre->name,
             'email' => $this->membre->email,
