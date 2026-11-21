@@ -25,6 +25,8 @@ use App\Models\Tag;
 use App\Models\Transaction;
 use App\Notifications\WelcomeNotification;
 use App\Models\User;
+use App\Jobs\ProcessImageVariants;
+use App\Support\Images\ImageVariantService;
 use App\Rules\UniqueEmailInOrganization;
 use App\Services\Admin\PlatformDashboardMetrics;
 use App\Services\Crm\CrmTimelineService;
@@ -520,9 +522,17 @@ class AdminController extends Controller
     {
         if ($user->avatar && ! ManifestAvatarBank::isPublishedAsset($user->avatar)) {
             Storage::disk('public')->delete($user->avatar);
+            app(ImageVariantService::class)->forget($user->avatar);
         }
 
-        return $fichier->store('avatars', 'public');
+        $path = $fichier->store('avatars', 'public');
+
+        // TASK-1873 — l'upload administrateur etait stocke BRUT, sans aucun
+        // redimensionnement : sa variante 192 px est desormais derivee hors
+        // requete, l'original reste le repli.
+        ProcessImageVariants::forUpload('user_avatar', $path ?: null, $user->organization_id);
+
+        return $path;
     }
 
     /**

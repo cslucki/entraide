@@ -6,6 +6,7 @@ use App\Models\Traits\HasOrganizationId;
 use App\Notifications\VerifyEmailWithTemplate;
 use App\Services\ReferralCodeGenerator;
 use App\Services\Users\Exceptions\UserOrganizationImmutableException;
+use App\Support\Images\ImageVariantResolver;
 use App\Support\ProfileLinks;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -17,7 +18,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
@@ -678,7 +678,9 @@ class User extends Authenticatable implements MustVerifyEmail
     public function getAvatarUrlAttribute(): string
     {
         if ($this->avatar) {
-            return Storage::disk('public')->url($this->avatar);
+            // TASK-1873 — la variante WebP 192 px quand elle est prete,
+            // sinon l'original, a l'identique.
+            return (string) app(ImageVariantResolver::class)->url($this->avatar, 'avatar');
         }
 
         return 'https://ui-avatars.com/api/?name='.urlencode($this->full_name).'&background=6366f1&color=fff';

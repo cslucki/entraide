@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\ColorHelper;
+use App\Support\Images\ImageVariantResolver;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -169,7 +170,8 @@ class Organization extends Model
     public function getLogoUrlAttribute(): ?string
     {
         if ($this->logo_path) {
-            return Storage::disk('public')->url($this->logo_path);
+            // TASK-1873 — variante WebP 256 px quand elle est prete.
+            return app(ImageVariantResolver::class)->url($this->logo_path, 'logo');
         }
 
         return null;

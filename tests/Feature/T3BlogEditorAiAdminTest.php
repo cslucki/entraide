@@ -146,8 +146,12 @@ class T3BlogEditorAiAdminTest extends TestCase
         $response->assertOk()
             ->assertJsonStructure(['url']);
 
+        // TASK-1873 — l'URL inscrite dans l'article est celle de la variante
+        // WebP ; l'original reste conserve a son emplacement historique.
         $url = $response->json('url');
-        $this->assertStringContainsString('/storage/blog/images/', $url);
+        $this->assertStringContainsString('/storage/image-variants/content-v1/', $url);
+        $this->assertStringEndsWith('.webp', $url);
+        $this->assertCount(1, Storage::disk('public')->allFiles('blog/images'));
     }
 
     public function test_upload_image_rejects_invalid_file(): void

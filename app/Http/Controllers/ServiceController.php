@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\GenerateServiceThumbnail;
+use App\Jobs\ProcessImageVariants;
+use App\Support\Images\ImageVariantService;
 use App\Models\Category;
 use App\Models\Organization;
 use App\Models\Service;
@@ -389,7 +390,10 @@ class ServiceController extends Controller
                     'organization_id' => $service->organization_id,
                 ]);
 
-                GenerateServiceThumbnail::dispatch($serviceImage);
+                // TASK-1873 — vignette 400 px et pleine taille 1200 px en WebP.
+                // Remplace `GenerateServiceThumbnail`, qui partait sur la queue
+                // `default` (en quarantaine, jamais consommee en PROD).
+                ProcessImageVariants::forUpload('service_image', $serviceImage->path, $service->organization_id);
             }
         }
 
@@ -526,6 +530,7 @@ class ServiceController extends Controller
             $imagesToDelete = ServiceImage::whereIn('id', $data['delete_images'])->where('service_id', $service->id)->get();
             foreach ($imagesToDelete as $img) {
                 Storage::disk('public')->delete($img->path);
+                app(ImageVariantService::class)->forget($img->path);
                 $img->delete();
             }
         }
@@ -549,7 +554,10 @@ class ServiceController extends Controller
                     'organization_id' => $service->organization_id,
                 ]);
 
-                GenerateServiceThumbnail::dispatch($serviceImage);
+                // TASK-1873 — vignette 400 px et pleine taille 1200 px en WebP.
+                // Remplace `GenerateServiceThumbnail`, qui partait sur la queue
+                // `default` (en quarantaine, jamais consommee en PROD).
+                ProcessImageVariants::forUpload('service_image', $serviceImage->path, $service->organization_id);
             }
         }
 
