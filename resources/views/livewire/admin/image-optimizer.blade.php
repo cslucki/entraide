@@ -47,13 +47,6 @@
         · {{ trans_choice('admin.image_optimizer.failed_count', $totals['failed'], ['count' => $totals['failed']]) }}
     </p>
 
-    {{-- Lot en cours ou tout juste termine. --}}
-    @if($current)
-        <div class="mb-6">
-            <livewire:admin.image-batch-progress :batch-id="$current->id" :key="'image-batch-'.$current->id" />
-        </div>
-    @endif
-
     {{-- Lancer un traitement. --}}
     <section class="mb-6 {{ $card }} p-4 sm:p-5" data-marqueur="lancer">
         <h2 class="mb-4 text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.image_optimizer.launch_title') }}</h2>
@@ -83,8 +76,10 @@
             <legend class="text-sm text-gray-700 dark:text-gray-300">{{ __('admin.image_optimizer.limit') }}</legend>
             <div class="mt-1 grid grid-cols-4 gap-2 sm:inline-grid sm:w-80">
                 @foreach($limits as $value)
+                    {{-- `relative` : le radio `sr-only` (absolu) reste DANS son
+                         libelle ; sans lui, le focus fait remonter la page. --}}
                     <label @class([
-                        'cursor-pointer rounded-lg border px-3 py-2 text-center text-sm font-semibold transition',
+                        'relative cursor-pointer rounded-lg border px-3 py-2 text-center text-sm font-semibold transition',
                         'border-indigo-600 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/40 dark:text-indigo-200' => $limit === $value,
                         'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700' => $limit !== $value,
                     ])>
@@ -139,6 +134,15 @@
             </button>
         </div>
     </section>
+
+    {{-- Lot en cours ou tout juste termine : SOUS le formulaire (retour Cyril
+         21/11), pour suivre sa progression juste apres avoir clique
+         « Optimiser », sans remonter la page. --}}
+    @if($current)
+        <div class="mb-6">
+            <livewire:admin.image-batch-progress :batch-id="$current->id" :key="'image-batch-'.$current->id" />
+        </div>
+    @endif
 
     {{-- Historique court. --}}
     <section class="mb-6 {{ $card }} p-4 sm:p-5" data-marqueur="historique">

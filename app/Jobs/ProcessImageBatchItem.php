@@ -72,7 +72,15 @@ class ProcessImageBatchItem implements ShouldQueue
         ImageOptimizationBatch::query()
             ->whereKey($item->batch_id)
             ->where('status', ImageOptimizationBatch::STATUS_PENDING)
-            ->update(['status' => ImageOptimizationBatch::STATUS_RUNNING, 'started_at' => now()]);
+            ->update(['status' => ImageOptimizationBatch::STATUS_RUNNING]);
+
+        // Debut du lot = premiere image reellement traitee, quel que soit le
+        // chemin (un lot mis en pause AVANT sa premiere image repart de
+        // `paused`, pas de `pending` : sans cette ligne, pas de duree).
+        ImageOptimizationBatch::query()
+            ->whereKey($item->batch_id)
+            ->whereNull('started_at')
+            ->update(['started_at' => now()]);
 
         $outcome = $service->process(
             new ImageSource($item->surface, $item->source_path, $item->organization_id, $item->disk),

@@ -144,6 +144,20 @@ class TASK1873BatchTest extends TestCase
         $this->assertSame(1, ImageOptimizationBatch::count(), 'la reprise continue le MEME lot');
     }
 
+    public function test_a_batch_paused_before_its_first_image_still_reports_a_duration(): void
+    {
+        $this->covers(2);
+        $batch = $this->batches()->launch('loop_cover', null, 2);
+        $this->batches()->pause($batch);
+
+        Queue::fake();
+        $this->batches()->resume($batch->fresh());
+        $this->work();
+
+        $this->assertNotNull($batch->fresh()->started_at);
+        $this->assertNotNull($this->batches()->progress($batch->fresh())['duration_seconds']);
+    }
+
     public function test_a_second_launch_is_refused_and_a_duplicated_job_does_nothing(): void
     {
         $this->covers(3);
