@@ -16,6 +16,12 @@
                class="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--bp-primary)] transition hover:underline">
                 {{ __('push.device_back') }}
             </a>
+            {{-- TASK-1878 — lien discret vers la console complete. --}}
+            <a href="{{ route($routeDiagnostic, $routeParams) }}"
+               data-pwa-diagnostic-link
+               class="mt-2 ml-4 inline-flex min-h-11 items-center text-sm text-[var(--bp-muted)] underline-offset-2 transition hover:underline">
+                {{ __('pwa.diagnostic.link_from_device') }}
+            </a>
         </div>
 
         @include('notifications.partials.push-device', [

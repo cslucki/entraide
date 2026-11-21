@@ -132,6 +132,7 @@ use App\Http\Controllers\OrganizationRequestController;
 use App\Http\Controllers\PointController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Controllers\PwaDiagnosticController;
 use App\Http\Controllers\PwaManifestController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RequestController;
@@ -515,6 +516,9 @@ Route::middleware('auth')->group(function () {
     // sort vers le fournisseur Push, et rien ne justifie davantage.
     Route::get('/notifications/appareil', [NotificationDeviceController::class, 'edit'])->name('notifications.device.edit');
     Route::post('/notifications/appareil/test', [NotificationDeviceController::class, 'test'])->middleware('throttle:3,1')->name('notifications.device.test');
+    // TASK-1878 — console de diagnostic PWA (lecture seule, aucune ecriture).
+    Route::get('/diagnostic-pwa', [PwaDiagnosticController::class, 'show'])->name('pwa.diagnostic');
+    Route::get('/diagnostic-pwa/verification-partage', [PwaDiagnosticController::class, 'verificationPartage'])->middleware('throttle:20,1')->name('pwa.diagnostic.partage');
     Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
     Route::post('/notifications/{notification}/unread', [NotificationCenterController::class, 'markUnread'])->middleware('throttle:60,1')->name('notifications.unread');
     Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
@@ -1862,6 +1866,8 @@ Route::prefix('/org/{organization}')
             // TASK-1877 — meme page « cet appareil », forme Organization.
             Route::get('/notifications/appareil', [NotificationDeviceController::class, 'edit'])->name('notifications.device.edit');
             Route::post('/notifications/appareil/test', [NotificationDeviceController::class, 'test'])->middleware('throttle:3,1')->name('notifications.device.test');
+            Route::get('/diagnostic-pwa', [PwaDiagnosticController::class, 'show'])->name('pwa.diagnostic');
+            Route::get('/diagnostic-pwa/verification-partage', [PwaDiagnosticController::class, 'verificationPartage'])->middleware('throttle:20,1')->name('pwa.diagnostic.partage');
             Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
             Route::post('/notifications/{notification}/unread', [NotificationCenterController::class, 'markUnread'])->middleware('throttle:60,1')->name('notifications.unread');
             Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
