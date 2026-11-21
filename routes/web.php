@@ -31,6 +31,7 @@ use App\Http\Controllers\Admin\AdminFeedController;
 use App\Http\Controllers\Admin\AdminGuestShellController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
+use App\Http\Controllers\Admin\AdminImageManualStepController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminLoopPermissionController;
 use App\Http\Controllers\Admin\AdminLoopPluginController;
@@ -107,8 +108,8 @@ use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\InvitationPasswordController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LocaleController;
-use App\Http\Controllers\LoopCatchUpController;
 use App\Http\Controllers\LoopArticlesController;
+use App\Http\Controllers\LoopCatchUpController;
 use App\Http\Controllers\LoopController;
 use App\Http\Controllers\LoopDossierArticleController;
 use App\Http\Controllers\LoopEventAgendaController;
@@ -147,11 +148,11 @@ use App\Http\Controllers\WorkshopInterestController;
 use App\Http\Controllers\WorkshopPageController;
 use App\Http\Controllers\WorkshopRegistrationController;
 use App\Http\Middleware\OrgAdminMiddleware;
+use App\Livewire\Admin\ImageOptimizer;
 use App\Livewire\Admin\RssArticleFiche;
 use App\Livewire\Admin\RssEditorialHistory;
 use App\Livewire\Admin\RssSourceArticles;
 use App\Livewire\Admin\RssSources;
-use App\Livewire\Admin\ImageOptimizer;
 use App\Livewire\BoundedMemberAgent;
 use App\Livewire\CreateFeedPost;
 use App\Livewire\EditFeedPost;
@@ -1336,6 +1337,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // garde `boot()` dans le composant. « Optimiser » enregistre un lot et le
     // MET EN FILE : aucune conversion dans la requete.
     Route::get('/images', ImageOptimizer::class)->name('images');
+
+    // TASK-1875 — lot MANUEL : UNE image par requete, enchainees par le
+    // navigateur du SuperAdmin (PROD sans worker). CSRF du groupe `web`,
+    // `auth` + `admin` du groupe, debit borne a une requete par seconde.
+    Route::post('/images/manual/{batch}/step', AdminImageManualStepController::class)
+        ->middleware('throttle:60,1')
+        ->name('images.manual.step');
 
     // TASK-1790 — le parcours individuel : source -> articles -> fiche.
     //
