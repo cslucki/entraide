@@ -250,7 +250,7 @@ class DossierController extends Controller
             // La cle est VALIDEE contre une liste blanche : `$request` nomme
             // une colonne, il ne la choisit pas. Sans cela, `?ftri=` deviendrait
             // une injection dans un `sortBy()`.
-            $triage = function ($fichiers) use ($request, $userId) {
+            $triage = function ($fichiers) use ($request) {
                 $cles = [
                     'nom' => fn (DossierFile $f) => mb_strtolower($f->nomLisible()),
                     'type' => fn (DossierFile $f) => $f->typeLisible(),
@@ -381,6 +381,19 @@ class DossierController extends Controller
         // l'ecran cachait.
         $canManageArticles = $user->can('attachArticle', $dossier);
 
+        // TASK-1872 correctif 04 — ECRIRE n'est pas GERER.
+        //
+        // `canManageArticles` gouverne quatre choses qui n'ont rien a voir
+        // avec l'ecriture : rattacher et detacher un Article, voir les
+        // brouillons non publies des AUTRES, et les deplacer entre Dossiers.
+        // L'entree « Nouvel article » du FAB en dependait, donc un membre
+        // autorise a ecrire ne la voyait pas.
+        //
+        // Elle ne bouge pas d'un pouce : c'est une seconde capacite, plus
+        // etroite, qui est calculee ici. Meme decoupage que T1684 entre
+        // deposer et gerer un fichier.
+        $canCreateArticle = $user->can('createArticle', $dossier);
+
         $dossier->load([
             'owner:id,first_name,avatar,name,banned_at,organization_id',
             'dossierBlogPosts.blogPost.user:id,first_name,avatar,name,email,organization_id,banned_at',
@@ -409,11 +422,11 @@ class DossierController extends Controller
                 'owner:id,first_name,avatar,name,banned_at,organization_id',
                 'dossierMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
                 // TASK-1697 (1) — `slug` est CHARGE : le lien « Voir la Boucle »
-            // le prefere a l'uuid, et sans la colonne il retombait en silence
-            // sur `getKey()`. Une URL en uuid fonctionne, mais ce n'est pas
-            // celle que le reste du produit publie — `?espace=boucles` et le
-            // fil d'Ariane visent le slug.
-            'loop:id,name,organization_id,status,slug',
+                // le prefere a l'uuid, et sans la colonne il retombait en silence
+                // sur `getKey()`. Une URL en uuid fonctionne, mais ce n'est pas
+                // celle que le reste du produit publie — `?espace=boucles` et le
+                // fil d'Ariane visent le slug.
+                'loop:id,name,organization_id,status,slug',
                 'loop.activeMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
             ]);
         }
@@ -647,6 +660,7 @@ class DossierController extends Controller
             'seriesEligibleArticles' => $seriesEligibleArticles,
             'userRole' => $userRole,
             'canManageArticles' => $canManageArticles,
+            'canCreateArticle' => $canCreateArticle,
             // La policy refuse manageMembers sur un Dossier racine : les acces
             // s'administrent depuis la Boucle, et l'ecran n'offre donc aucune
             // gestion parallele. Pour un Dossier personnel : le proprietaire.

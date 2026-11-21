@@ -108,8 +108,26 @@ class LoopArticleCard extends Component
         $canView = $this->canView();
         $utilisateur = auth()->user();
 
-        $canCompose = $canView && $this->canCompose();
         $dossier = $canView ? $this->service()->dossierFor($this->loop) : null;
+
+        /* TASK-1872 correctif 04 — la Card ne propose que ce que le serveur
+           acceptera.
+           ====================================================
+           Trois conditions, et chacune evite un bouton menteur :
+           la capacite `writing.compose` ; une Boucle VIVANTE, puisque
+           `DossierPolicy::createArticle()` refuse l'archivee avant tout le
+           reste ; et, quand le Dossier racine existe deja, la policy
+           elle-meme — la meme porte, interrogee de la meme facon que par le
+           controleur.
+
+           Quand il n'existe PAS encore, il n'y a rien a soumettre a la
+           policy : c'est `ensureRootDossier()` qui le creera au premier
+           envoi. On s'en tient alors aux deux premieres conditions, et le
+           serveur reste l'arbitre. */
+        $canCompose = $canView
+            && $this->canCompose()
+            && ! $this->loop->isArchived()
+            && ($dossier === null || ($utilisateur !== null && $utilisateur->can('createArticle', $dossier)));
 
         $brouillons = $canView && $utilisateur
             ? $this->service()->myDrafts($this->loop, $utilisateur)
@@ -132,6 +150,22 @@ class LoopArticleCard extends Component
                 fn (BlogPost $a) => [$a->id => $this->lien('blog.show', ['post' => $a->slug])],
             ),
             'dossierUrl' => $dossier ? $this->lien('dossiers.show', ['dossier' => $dossier]) : null,
+            /* TASK-1872 correctif 04 — « + Ecrire un Article » MENAIT au
+               Dossier.
+               =================================================
+               Constat de Cyril, 21/11 : « le bouton pointe vers Dossiers,
+               alors qu'il devrait afficher le formulaire de saisie de
+               l'article ». Il pointait en effet sur `dossierUrl` — un detour
+               par un ecran entier pour un geste qui tient en un titre, et une
+               porte fermee au bout pour un membre.
+
+               La Card ne refait toujours pas l'editeur : elle poste vers LA
+               MEME route que la Card Dossiers
+               (`organization.loops.dossier.articles.store`), laquelle cree le
+               brouillon deja lie au Dossier racine et a la Boucle, puis ouvre
+               l'editeur Blog existant. Un seul parcours d'ecriture, deux
+               portes d'entree. */
+            'writeUrl' => $this->lien('loops.dossier.articles.store', ['loop' => $this->loop]),
             'series' => $canView ? $this->service()->series($this->loop) : collect(),
             'pendingCoAuthors' => $canView ? $this->service()->pendingCoAuthors($this->loop) : collect(),
         ]);

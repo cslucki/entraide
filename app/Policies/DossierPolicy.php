@@ -392,6 +392,102 @@ class DossierPolicy
         return app(LoopPermissionResolver::class)->can($user, $loop, 'dossiers.upload_file');
     }
 
+    /**
+     * TASK-1872 correctif 04 — ECRIRE un Article, geste distinct de GERER les
+     * Articles du Dossier.
+     *
+     * ## Le defaut, tel que Cyril l'a vu
+     *
+     * Dans une Boucle, en tant que MEMBRE : le bouton « + Ecrire un Article »
+     * de la Card Articles menait au Dossier au lieu d'ouvrir un formulaire, et
+     * le FAB « + Nouveau » du module Dossiers n'offrait pas l'entree.
+     *
+     * ## Pourquoi une ability neuve plutot qu'une ligne dans la matrice
+     *
+     * Parce que `attachArticle` — la porte qui gardait ces deux surfaces — lit
+     * `dossiers.create_article`, et que `detachArticle` lui delegue. Accorder
+     * cette capacite au socle du membre aurait donc ouvert, SANS que personne
+     * ne le demande : detacher l'Article d'un autre, voir les brouillons non
+     * publies des autres, obtenir des liens d'edition vers leurs textes, et
+     * deplacer des Articles entre Dossiers. Mesure faite avant d'ecrire, sur
+     * `DossierArticleController` et `dossiers/show.blade.php`.
+     *
+     * C'est exactement le noeud que TASK-1684 a tranche pour le DEPOT de
+     * fichier : une ability ETROITE, lue aux seuls endroits concernes, qui
+     * laisse `manageFiles` intacte. `uploadFiles` juste au-dessus en est le
+     * gabarit, et celle-ci le suit ligne a ligne.
+     *
+     * ## Ce que cette porte ne contourne pas
+     *
+     * Elle ne rend jamais `true` sur le seul fait d'etre membre : elle LIT la
+     * capacite `writing.compose` du modele de permissions. Cette capacite est
+     * deja dans le socle `member`, reste configurable par Boucle
+     * (`locked => false`), et porte `requires_card => core.article` — une
+     * Boucle sans atelier d'ecriture la refuse, sans qu'un `if` soit ajoute
+     * nulle part.
+     *
+     * Choix de Cyril, 21/11, parmi trois options chiffrees : celle-ci ne
+     * touche NI la matrice, NI `attachArticle`, NI `detachArticle`, NI
+     * `manageFiles`. Qui pouvait ecrire peut toujours ecrire ; le membre
+     * gagne l'ecriture, et rien d'autre.
+     */
+    public function createArticle(User $user, Dossier $dossier): bool
+    {
+        // Hors Boucle, rien ne change : la porte historique, telle quelle.
+        // `isLoopDossier()` se lit sur CETTE ligne, pas sur sa racine — un
+        // sous-dossier n'herite pas de l'ouverture.
+        if (! $dossier->isLoopDossier()) {
+            return $this->attachArticle($user, $dossier);
+        }
+
+        $loop = $dossier->loop;
+
+        if ($loop === null || $user->isDeactivated()) {
+            return false;
+        }
+
+        if ($user->organization_id !== $loop->organization_id) {
+            return false;
+        }
+
+        /* ⚠️ L'ARCHIVAGE EST VERIFIE AVANT TOUT LE RESTE, proprietaire
+           compris.
+           ----------------------------------------------------------------
+           Ce refus ne vient pas de nulle part : c'est celui que
+           `LoopDossierArticleController` obtenait par `authorize('update')`,
+           lequel delegue a `LoopPolicy::update()`. Ce controleur consulte
+           desormais cette ability a sa place — la placer APRES le
+           raccourci `attachArticle` aurait donc silencieusement rouvert
+           l'ecriture dans une Boucle archivee a qui l'administre. */
+        if ($loop->isArchived()) {
+            return false;
+        }
+
+        $organization = $loop->organization;
+
+        if (! $organization || ! $organization->loops_enabled) {
+            return false;
+        }
+
+        // Qui administre deja le Dossier n'est pas concerne par ce qui suit :
+        // il passait, il passe.
+        if ($this->attachArticle($user, $dossier)) {
+            return true;
+        }
+
+        $estMembreActif = LoopMember::query()
+            ->where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $estMembreActif) {
+            return false;
+        }
+
+        return app(LoopPermissionResolver::class)->can($user, $loop, 'writing.compose');
+    }
+
     public function viewFiles(User $user, Dossier $dossier): bool
     {
         return $this->view($user, $dossier);

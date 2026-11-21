@@ -67,7 +67,16 @@
              membre verrait une poignee vers une porte que le serveur lui
              ferme. La note markdown, elle, EST un depot (un `File` cree au vol
              passe par `StoreDossierFileRequest`) : elle reste visible. --}}
-        @if($canManageArticles)
+        {{-- TASK-1872 correctif 04 — `canCreateArticle`, pas
+             `canManageArticles`.
+             Constat de Cyril, 21/11 : « depuis le module Dossiers, on n'a pas
+             l'item pour ecrire un article dans le FAB + Nouveau ». L'entree
+             existait, mais sous la garde de RATTACHER — laquelle commande
+             aussi detacher, voir les brouillons des autres et deplacer. Un
+             membre autorise a ecrire ne la voyait donc pas.
+             « Rattacher un Article » juste au-dessus garde `canManageArticles`
+             sans changement : ce geste-la reste a qui mene la Boucle. --}}
+        @if($canCreateArticle)
         <button @click="showImportMenu = false; openArticleModal()" type="button" data-fab-new-article class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
             <svg class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             {{ __('dossiers.fab_new_article') }}

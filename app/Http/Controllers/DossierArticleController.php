@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ArticleSeries;
 use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
+use App\Models\Category;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\Loop;
@@ -15,7 +16,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class DossierArticleController extends Controller
@@ -90,7 +90,20 @@ class DossierArticleController extends Controller
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
-        $this->authorize('update', $dossier);
+
+        /* TASK-1872 correctif 04 — `createArticle` et non `update`.
+           ========================================================
+           `update` delegue, pour un Dossier de Boucle, a
+           `LoopPolicy::update()` : le role `owner`, strictement. Le FAB
+           montre desormais « Nouvel article » au membre autorise a ecrire —
+           sans cette ligne, le serveur l'aurait refuse juste apres, et le
+           bouton aurait menti.
+
+           HORS Boucle, rien ne change : `createArticle` y rend
+           `attachArticle`, dont la branche non-Boucle est `isOwner() ||
+           isEditor()` — exactement ce que rendait `update`. Verifie avant
+           la substitution, les deux ensembles sont identiques. */
+        $this->authorize('createArticle', $dossier);
 
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
@@ -100,7 +113,7 @@ class DossierArticleController extends Controller
         return DB::transaction(function () use ($request, $dossier, $organization, $data, $indexing) {
             if (filled($data['category_id'] ?? null)) {
                 $categoryId = $data['category_id'];
-                if (! \App\Models\Category::where('id', $categoryId)->where('organization_id', $organization->id)->exists()) {
+                if (! Category::where('id', $categoryId)->where('organization_id', $organization->id)->exists()) {
                     throw ValidationException::withMessages([
                         'category_id' => __('dossiers.category_not_found'),
                     ]);

@@ -140,7 +140,22 @@ class TASK1111LoopArticleTest extends TestCase
         $this->assertTrue(Schema::hasTable('blog_post_invitations'));
     }
 
-    public function test_the_card_carries_no_editor_and_no_form(): void
+    /**
+     * La Card ne refait pas l'editeur — la doctrine, pas son approximation.
+     *
+     * ⚠️ TASK-1872 correctif 04 : ce test interdisait tout `<form>` dans la
+     * vue. C'etait un PROXY commode pour « pas de second editeur », et il
+     * etait trop large — la Card Dossiers, soumise a la meme doctrine, porte
+     * depuis toujours un formulaire d'un seul champ qui poste vers le parcours
+     * existant. Le proxy ne tenait que parce que cette Card-ci n'en avait pas.
+     *
+     * Le bouton « + Ecrire un Article » menait a l'ecran du Dossier au lieu
+     * d'ouvrir la saisie (constat de Cyril, 21/11). Il porte desormais le meme
+     * formulaire titre, vers la MEME route. La doctrine est intacte : aucune
+     * ecriture dans le composant, aucun editeur riche dans la vue, aucun
+     * second stockage. Ce test le verifie maintenant directement.
+     */
+    public function test_the_card_carries_no_editor_and_no_second_write_path(): void
     {
         // L'editeur a ses audiences, ses snapshots et ses policies. Le
         // dupliquer les ferait diverger.
@@ -149,8 +164,30 @@ class TASK1111LoopArticleTest extends TestCase
 
         $this->assertStringNotContainsString('BlogPost::create', $composant);
         $this->assertStringNotContainsString('->update(', $composant);
-        $this->assertStringNotContainsString('<form', $vue);
         $this->assertStringNotContainsString('wire:model', $vue);
+
+        // Aucun editeur riche : c'est cela, « ne pas refaire l'editeur ».
+        foreach (['markdown-wysiwyg-editor', 'tiptap', 'ProseMirror', 'name="content"'] as $editeur) {
+            $this->assertStringNotContainsString($editeur, $vue, $editeur);
+        }
+
+        // Et le seul champ que la Card envoie est un TITRE : le brouillon est
+        // cree par le controleur existant, qui le lie au Dossier et a la
+        // Boucle puis ouvre l'editeur Blog.
+        preg_match_all('/<input[^>]*name="([a-z_]+)"/', $vue, $champs);
+        $this->assertSame(['title'], array_values(array_unique($champs[1])),
+            'La Card envoie autre chose qu\'un titre : elle commence a refaire l\'editeur.');
+    }
+
+    /** Le formulaire poste vers le parcours EXISTANT, jamais vers une route neuve. */
+    public function test_the_card_posts_to_the_existing_loop_article_route(): void
+    {
+        $vue = file_get_contents(resource_path('views/livewire/loop-article-card.blade.php'));
+        $composant = file_get_contents(app_path('Livewire/LoopArticleCard.php'));
+
+        $this->assertStringContainsString('action="{{ $writeUrl }}"', $vue);
+        $this->assertStringContainsString('loops.dossier.articles.store', $composant,
+            'La Card ne vise plus la route que la Card Dossiers utilise deja.');
     }
 
     public function test_the_service_only_reads(): void

@@ -151,13 +151,43 @@
         </section>
     @endif
 
-    {{-- Vers le parcours qui existe. La Card ne refait pas l'éditeur : il a ses
-         audiences, ses snapshots et ses policies. --}}
-    @if ($canCompose && $dossierUrl)
-        <a href="{{ $dossierUrl }}"
-           class="mt-auto block rounded-xl border border-dashed border-gray-300 px-4 py-2.5 text-center text-sm font-semibold text-gray-600 hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300">
-            + {{ __('loops.cards.article.write') }}
-        </a>
+    {{-- TASK-1872 correctif 04 — le geste se fait ICI, il ne renvoie plus
+         ailleurs.
+         ====================================================================
+         Ce bloc etait un lien vers `$dossierUrl` : « + Écrire un Article »
+         ouvrait l'écran du Dossier. Un détour complet pour un geste qui tient
+         en un titre — et, pour un membre, une porte fermée au bout.
+
+         La Card ne refait toujours pas l'éditeur, et c'est le point : le
+         formulaire poste vers LA MÊME route que la Card Dossiers, qui crée le
+         brouillon déjà lié au Dossier racine et à la Boucle, puis ouvre
+         l'éditeur Blog existant. Un seul parcours d'écriture, deux portes.
+
+         Le titre d'abord : c'est la grammaire de tous les parcours de création
+         du Blog, et elle évite les brouillons sans nom. Même forme que la Card
+         Dossiers, volontairement — deux surfaces qui font le même geste
+         doivent se ressembler. --}}
+    @if ($canCompose)
+        <div class="mt-auto" x-data="{ writing: false }">
+            <button type="button" x-show="! writing" @click="writing = true"
+                    data-article-card-write
+                    class="block w-full rounded-xl border border-dashed border-gray-300 px-4 py-2.5 text-center text-sm font-semibold text-gray-600 hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300">
+                + {{ __('loops.cards.article.write') }}
+            </button>
+
+            <form x-show="writing" x-cloak method="POST" action="{{ $writeUrl }}"
+                  class="flex flex-wrap gap-2" data-article-card-write-form>
+                @csrf
+                <input type="text" name="title" required maxlength="255"
+                       x-ref="titre" @click="$refs.titre.focus()"
+                       placeholder="{{ __('loops.cards.dossiers.article_title_placeholder') }}"
+                       class="min-w-0 flex-1 rounded-xl border-[var(--bp-border)] bg-[var(--bp-panel)] px-3 py-1.5 text-xs text-[var(--bp-text)]">
+                <button type="submit"
+                        class="inline-flex items-center rounded-xl bg-[var(--bp-primary)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90">
+                    {{ __('loops.cards.dossiers.article_start') }}
+                </button>
+            </form>
+        </div>
     @endif
 
 @endif
