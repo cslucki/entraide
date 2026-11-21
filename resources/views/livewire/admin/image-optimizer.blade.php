@@ -57,9 +57,10 @@
         · {{ trans_choice('admin.image_optimizer.failed_count', $totals['failed'], ['count' => $totals['failed']]) }}
     </p>
 
-    {{-- Lancer un traitement. --}}
+    {{-- Mode automatique (TASK-1873) : worker sur la queue `images`. --}}
     <section class="mb-6 {{ $card }} p-4 sm:p-5" data-marqueur="lancer">
-        <h2 class="mb-4 text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.image_optimizer.launch_title') }}</h2>
+        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.image_optimizer.auto_title') }}</h2>
+        <p class="mb-4 mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.auto_hint') }}</p>
 
         <div class="grid gap-4 sm:grid-cols-2">
             <label class="block text-sm text-gray-700 dark:text-gray-300">
@@ -145,12 +146,69 @@
         </div>
     </section>
 
-    {{-- Lot en cours ou tout juste termine : SOUS le formulaire (retour Cyril
-         21/11), pour suivre sa progression juste apres avoir clique
-         « Optimiser », sans remonter la page. --}}
+    {{-- Mode manuel (TASK-1875) : sans worker, une image par requete, pilote
+         par ce navigateur. Toutes surfaces de rattrapage, lots de 25 au plus. --}}
+    <section class="mb-6 {{ $card }} p-4 sm:p-5" data-marqueur="mode-manuel">
+        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.image_optimizer.manual_title') }}</h2>
+        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.manual_hint', ['max' => $manualMax]) }}</p>
+        <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">{{ __('admin.image_optimizer.surface') }} : <span class="font-semibold">{{ __('admin.image_optimizer.all_surfaces') }}</span> · {{ __('admin.image_optimizer.limit') }} : <span class="font-semibold">{{ $manualMax }}</span></p>
+
+        @if($manualSimulation !== null)
+            <div class="mt-4 rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-900/50" data-marqueur="simulation-manuelle">
+                <p class="text-gray-700 dark:text-gray-300">
+                    {{ trans_choice('admin.image_optimizer.simulation_result', $manualSimulation['count'], ['count' => $manualSimulation['count'], 'weight' => $size($manualSimulation['bytes'])]) }}
+                </p>
+                @if($manualSimulation['items'])
+                    <details class="mt-2">
+                        <summary class="cursor-pointer text-xs text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.simulation_list') }}</summary>
+                        <ul class="mt-2 space-y-1 text-xs">
+                            @foreach($manualSimulation['items'] as $item)
+                                <li class="flex justify-between gap-2">
+                                    <span class="min-w-0 break-all font-mono text-gray-500 dark:text-gray-400">{{ $label($item['surface']) }} · {{ $item['path'] }}</span>
+                                    <span class="shrink-0 font-mono {{ $item['bytes'] === null ? 'text-red-600' : 'text-gray-500' }}">{{ $item['bytes'] === null ? __('admin.image_optimizer.absent') : $size($item['bytes']) }}</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </details>
+                @endif
+            </div>
+
+            @if($manualSimulation['count'] > 0)
+                <label class="mt-4 flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input type="checkbox" wire:model="manualConfirmed" class="mt-0.5 rounded border-gray-300 text-indigo-600 dark:border-gray-600">
+                    <span>{{ __('admin.image_optimizer.manual_confirm', ['count' => $manualSimulation['count']]) }}</span>
+                </label>
+                @error('manualConfirmed')<p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+            @endif
+        @endif
+
+        @if($manualNotice)
+            <p class="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-200">{{ $manualNotice }}</p>
+        @endif
+        @error('manualLaunch')
+            <p class="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">{{ $message }}</p>
+        @enderror
+
+        <div class="mt-4 flex flex-col gap-2 sm:flex-row">
+            <button type="button" wire:click="simulateManual" wire:loading.attr="disabled" data-marqueur="simuler-manuel"
+                    class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                {{ __('admin.image_optimizer.simulate') }}
+            </button>
+            @if($manualSimulation !== null && $manualSimulation['count'] > 0)
+                <button type="button" wire:click="launchManual" wire:loading.attr="disabled" data-marqueur="optimiser-manuellement"
+                        class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                    {{ __('admin.image_optimizer.manual_optimize') }}
+                </button>
+            @endif
+        </div>
+    </section>
+
+    {{-- Lot en cours ou tout juste termine : SOUS les formulaires (retour
+         Cyril 21/11), pour suivre sa progression juste apres le lancement,
+         sans remonter la page. --}}
     @if($current)
         <div class="mb-6">
-            <livewire:admin.image-batch-progress :batch-id="$current->id" :key="'image-batch-'.$current->id" />
+            <livewire:admin.image-batch-progress :batch-id="$current->id" :autostart="$current->id === $autostartBatchId" :key="'image-batch-'.$current->id" />
         </div>
     @endif
 

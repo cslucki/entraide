@@ -12,9 +12,38 @@
     $saving = $progress['served_source_bytes'] > 0 ? (int) round(100 * (1 - $progress['served_bytes'] / $progress['served_source_bytes'])) : null;
     $duration = $progress['duration_seconds'] === null ? '—' : \Carbon\CarbonInterval::seconds($progress['duration_seconds'])->cascade()->forHumans(['short' => true]);
 @endphp
+{{-- TASK-1875 — lot MANUEL : ce navigateur enchaine les images, UNE par
+     requete POST (`stepUrl`), et rafraichit la carte apres chacune. Fermer
+     l'onglet arrete tout ; rouvrir la console ne relance rien sans clic. --}}
 <section @if($polling) wire:poll.2500ms @endif
+         @if($stepUrl)
+         x-data="{
+            url: @js($stepUrl),
+            running: false,
+            error: null,
+            init() { if (@js($autostart && $batch->isActive() && ! $batch->isPaused())) this.start() },
+            start() { if (this.running) return; this.running = true; this.error = null; this.loop() },
+            stop() { this.running = false },
+            async loop() {
+                const token = document.querySelector('meta[name=csrf-token]')?.content ?? '';
+                while (this.running) {
+                    let data = null;
+                    try {
+                        const res = await fetch(this.url, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+                        if (! res.ok) { this.error = res.status; break }
+                        data = await res.json();
+                    } catch (e) { this.error = 'network'; break }
+                    await this.$wire.$refresh();
+                    if (! data.continue) break;
+                    await new Promise((r) => setTimeout(r, ['busy', 'locked', 'limit'].includes(data.state) ? 3000 : 400));
+                }
+                this.running = false;
+                this.$wire.$refresh();
+            },
+         }"
+         @endif
          class="rounded-xl border border-indigo-200 bg-white p-4 shadow-sm dark:border-indigo-800 dark:bg-gray-800 sm:p-5"
-         data-marqueur="progression" data-batch-status="{{ $batch->status }}">
+         data-marqueur="progression" data-batch-status="{{ $batch->status }}" data-batch-mode="{{ $batch->mode }}">
     <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
             <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ $title }}</h2>
@@ -25,16 +54,29 @@
         </div>
 
         <div class="flex gap-2">
-            @if(in_array($batch->status, ['pending', 'running'], true))
+            @if($stepUrl)
+                {{-- Lot manuel : Pause arrete l'enchainement (l'image en cours
+                     se termine) ; Reprendre le relance depuis CE navigateur. --}}
+                @if($batch->isActive())
+                    <button type="button" x-show="running" x-cloak wire:click="pause" @click="stop()" data-marqueur="pause-manuelle"
+                            class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                        {{ __('admin.image_optimizer.pause') }}
+                    </button>
+                    <button type="button" x-show="! running" @click="$wire.resume().then(() => start())" data-marqueur="reprendre-manuel"
+                            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                        {{ __('admin.image_optimizer.resume') }}
+                    </button>
+                @endif
+            @elseif(in_array($batch->status, ['pending', 'running'], true))
                 <button type="button" wire:click="pause" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
                     {{ __('admin.image_optimizer.pause') }}
                 </button>
             @elseif($batch->status === 'paused')
-                <button type="button" wire:click="resume" @disabled(! $queueReady) class="disabled:cursor-not-allowed disabled:opacity-50 "rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                <button type="button" wire:click="resume" @disabled(! $queueReady) class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
                     {{ __('admin.image_optimizer.resume') }}
                 </button>
             @elseif($progress['failed'] > 0)
-                <button type="button" wire:click="retryFailed" @disabled(! $queueReady) class="disabled:cursor-not-allowed disabled:opacity-50 "rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                <button type="button" wire:click="retryFailed" @disabled(! $queueReady) class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
                     {{ __('admin.image_optimizer.retry_failed') }}
                 </button>
             @endif
@@ -51,13 +93,28 @@
              ]) style="width: {{ $progress['percent'] }}%"></div>
     </div>
 
-    <dl class="mt-3 grid grid-cols-3 gap-2 text-center text-sm">
-        <div><dt class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.progress_succeeded') }}</dt><dd class="font-semibold text-green-700 dark:text-green-400">{{ $progress['succeeded'] }}</dd></div>
-        <div><dt class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.progress_failed') }}</dt><dd class="font-semibold {{ $progress['failed'] > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300' }}">{{ $progress['failed'] }}</dd></div>
-        <div><dt class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.progress_remaining') }}</dt><dd class="font-semibold text-gray-700 dark:text-gray-300">{{ $remaining }}</dd></div>
+    <dl class="mt-3 grid grid-cols-4 gap-2 text-center text-sm" data-marqueur="compteurs">
+        <div><dt class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.progress_succeeded') }}</dt><dd class="font-semibold text-green-700 dark:text-green-400" data-compteur="traitees">{{ $progress['succeeded'] }}</dd></div>
+        <div><dt class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.progress_skipped') }}</dt><dd class="font-semibold text-gray-700 dark:text-gray-300" data-compteur="ignorees">{{ $progress['skipped'] + $progress['missing'] }}</dd></div>
+        <div><dt class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.progress_failed') }}</dt><dd class="font-semibold {{ $progress['failed'] > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300' }}" data-compteur="echecs">{{ $progress['failed'] }}</dd></div>
+        <div><dt class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.progress_remaining') }}</dt><dd class="font-semibold text-gray-700 dark:text-gray-300" data-compteur="restantes">{{ $remaining }}</dd></div>
     </dl>
 
-    @if($batch->isPaused() && $progress['processing'] > 0)
+    @if($stepUrl && $progress['served_source_bytes'] > 0)
+        <p class="mt-2 text-center text-xs text-gray-500 dark:text-gray-400" data-marqueur="volume-manuel">
+            {{ __('admin.image_optimizer.manual_volume', ['before' => $size($progress['served_source_bytes']), 'after' => $size($progress['served_bytes'])]) }}
+        </p>
+    @endif
+
+    @if($stepUrl)
+        @if($batch->isActive())
+            <p x-show="running" x-cloak class="mt-3 text-sm text-indigo-700 dark:text-indigo-300" data-marqueur="manuel-en-cours">{{ __('admin.image_optimizer.manual_driving') }}</p>
+            <p x-show="! running && ! error" class="mt-3 text-sm text-amber-700 dark:text-amber-300" data-marqueur="manuel-arrete">{{ __('admin.image_optimizer.manual_stopped') }}</p>
+        @endif
+        <p x-show="error" x-cloak class="mt-3 text-sm text-red-700 dark:text-red-300" data-marqueur="manuel-erreur">
+            {{ __('admin.image_optimizer.manual_error') }} <span class="font-mono" x-text="error"></span>
+        </p>
+    @elseif($batch->isPaused() && $progress['processing'] > 0)
         <p class="mt-3 text-sm text-amber-700 dark:text-amber-300">{{ __('admin.image_optimizer.pause_pending') }}</p>
     @elseif($batch->isActive() && ! $workerAlive)
         <p class="mt-3 text-sm font-medium text-red-700 dark:text-red-300" data-marqueur="worker-indisponible">{{ __('admin.image_optimizer.worker_down_batch') }}</p>
@@ -102,6 +159,7 @@
                             <span class="{{ $problem->status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-300' }}">{{ __('admin.image_optimizer.item_'.$problem->status) }}</span>
                             <span class="break-all font-mono text-gray-500 dark:text-gray-400">{{ $problem->source_path }}</span>
                             @if($problem->error && $problem->status === 'failed')<span class="block text-gray-400">{{ \Illuminate\Support\Str::limit($problem->error, 160) }}</span>@endif
+                            @if($problem->status === 'skipped')<span class="block text-gray-400">{{ __('admin.image_optimizer.reason_deferred', ['size' => \Illuminate\Support\Str::after($problem->error, 'deferred:')]) }}</span>@endif
                         </li>
                     @endforeach
                 </ul>
