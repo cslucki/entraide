@@ -77,7 +77,7 @@ return [
     ],
 
     // Plafond d'un lot lance depuis la console : jamais de traitement massif
-    // en un clic.
-    'console_max_batch' => 25,
+    // en un clic. 50 a la demande de Cyril (21/11).
+    'console_max_batch' => (int) env('IMAGE_VARIANTS_CONSOLE_MAX_BATCH', 50),
 
 ];

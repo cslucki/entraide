@@ -28,16 +28,20 @@ use Illuminate\View\View;
  *   - traiter une image DANS la requete : un lot est MIS EN FILE (queue
  *     `images`), via le meme `ImageOptimizationRunner` que la commande ;
  *   - lancer un lot sans confirmation explicite, ni au-dela du plafond
- *     `image_variants.console_max_batch` (25) ;
+ *     `image_variants.console_max_batch` (50 par defaut) ;
  *   - ecrire quoi que ce soit en GET : la simulation lit le registre et le
  *     poids des originaux, rien d'autre.
  *
  * En local, la queue est `sync` : un « lot » s'execute alors dans la requete
- * meme. Le plafond tombe a 5 pour que l'essai reste un essai.
+ * meme. La seule borne qui le genait est `max_execution_time` (30 s cote
+ * Apache, ~0,5 s par couverture mesuree) : elle est levee pour CE lancement
+ * seulement. La memoire, elle, ne depend pas de la taille du lot — elle est
+ * rendue entre deux images ; c'est la garde de pixels qui la protege.
  */
 class AdminImageController extends Controller
 {
-    private const SYNC_MAX_BATCH = 5;
+    /** Duree accordee a un lot execute dans la requete (queue `sync`, local). */
+    private const SYNC_TIME_LIMIT_SECONDS = 280;
 
     public function __construct(
         private readonly ImageOptimizationInventory $inventory,
@@ -110,6 +114,11 @@ class AdminImageController extends Controller
             return $back->with('error', __('admin.image_optimizer.refused_paused'));
         }
 
+        if ($this->isSync()) {
+            // Apache coupe la connexion a 300 s (`Timeout`) : on reste dessous.
+            set_time_limit(self::SYNC_TIME_LIMIT_SECONDS);
+        }
+
         $queued = $runner->queueBatch($data['surface'] ?? null, $data['organization_id'] ?? null, (int) $data['limit']);
 
         return $back->with('success', __('admin.image_optimizer.launched', ['count' => $queued]));
@@ -145,7 +154,7 @@ class AdminImageController extends Controller
     {
         $max = (int) config('image_variants.console_max_batch', 25);
 
-        return $this->isSync() ? min($max, self::SYNC_MAX_BATCH) : $max;
+        return max(1, $max);
     }
 
     private function isSync(): bool

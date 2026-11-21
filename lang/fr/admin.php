@@ -2526,7 +2526,7 @@ return [
         'queue_label' => 'File',
         'queue_pending' => ':count job(s) en attente sur la queue « images »',
         'queue_unknown' => 'nombre de jobs en attente non lisible avec ce pilote',
-        'queue_sync' => 'Queue synchrone (local) : un lot s\'exécute dans la requête, plafonné à :max images.',
+        'queue_sync' => 'Queue synchrone (local) : le lot s\'exécute pendant le chargement de la page (environ une demi-seconde par image).',
         'filters' => 'Filtres',
         'all_surfaces' => 'Tous les types',
         'all_organizations' => 'Toutes les Organizations',

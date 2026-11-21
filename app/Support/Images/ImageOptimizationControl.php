@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Cache;
  * `migrate --force` : la pause survit aux deploiements.
  *
  * Risque residuel ASSUME : un `cache:clear` manuel leve la pause. La
- * consequence est bornee — au plus le dernier lot mis en file (25 images au
+ * consequence est bornee — au plus le dernier lot mis en file (50 images au
  * maximum) reprend.
  *
  * ## Portee

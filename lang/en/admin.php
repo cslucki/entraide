@@ -2474,7 +2474,7 @@ return [
         'queue_label' => 'Queue',
         'queue_pending' => ':count job(s) waiting on the "images" queue',
         'queue_unknown' => 'pending job count not readable with this driver',
-        'queue_sync' => 'Synchronous queue (local): a batch runs inside the request, capped at :max images.',
+        'queue_sync' => 'Synchronous queue (local): the batch runs while the page loads (about half a second per image).',
         'filters' => 'Filters',
         'all_surfaces' => 'All types',
         'all_organizations' => 'All Organizations',

@@ -100,9 +100,8 @@ class TASK1873AdminConsoleTest extends TestCase
     {
         Queue::fake();
 
-        // Queue `sync` en test, comme en local : plafond ramene a 5.
         $this->actingAs($this->superAdmin)
-            ->post(route('admin.images.launch'), ['limit' => 6, 'confirm' => '1'])
+            ->post(route('admin.images.launch'), ['limit' => 51, 'confirm' => '1'])
             ->assertSessionHasErrors('limit');
 
         Queue::assertNothingPushed();
