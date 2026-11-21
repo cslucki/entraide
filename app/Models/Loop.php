@@ -124,6 +124,9 @@ class Loop extends Model
         'cover_image_path',
         'type',
         'status',
+        // TASK-1872 correctif 07 — delegation de la composition, Boucle par
+        // Boucle. `null` = herite du reglage de l'Organization.
+        'owner_may_compose',
         'archived_at',
         'archived_by',
         'visibility',
@@ -138,6 +141,9 @@ class Loop extends Model
         return [
             'type' => 'string',
             'status' => 'string',
+            // Nullable a dessein : `null` n'est pas `false`, il veut dire
+            // « rien decide pour cette Boucle, voir son Organization ».
+            'owner_may_compose' => 'boolean',
             'archived_at' => 'datetime',
             'visibility' => 'string',
             'access_mode' => 'string',
@@ -293,7 +299,6 @@ class Loop extends Model
 
         return route('loops.show', $this);
     }
-
 
     /**
      * Every active owner. A Loop may have several; they all have equal rights.

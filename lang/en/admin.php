@@ -172,7 +172,7 @@ return [
     // DISTINCT de l'interrupteur IA : on peut disposer de l'IA sans imposer
     // l'assistant flottant. Et distinct du « Shell Welcome », qui s'adresse
     // aux VISITEURS non connectes.
-    'ai_shell_section_title' => "“BouclePro AI” assistant",
+    'ai_shell_section_title' => '“BouclePro AI” assistant',
     'ai_shell_toggle_label' => 'Enable the “BouclePro AI” assistant for this organization',
     'ai_shell_toggle_desc' => 'When unchecked, the floating badge and its chat panel no longer appear — even if AI remains enabled for this organization. Other AI features (rewording, summaries, agents) are unaffected.',
     'ai_shell_toggle_saved' => '“BouclePro AI” assistant: setting saved for this organization.',
@@ -530,6 +530,9 @@ return [
     'user_data_point_ledger' => 'Point ledger entries',
     'subscriptions_toggle_label' => 'Offer subscriptions',
     'subscriptions_toggle_desc' => 'When enabled, a subscription presentation page is shown to visitors of this organization.',
+    // TASK-1872 correctif 07 — the broad setting; each Loop may override it.
+    'loop_owners_may_compose_label' => 'Allow Loop owners to change the tools',
+    'loop_owners_may_compose_desc' => 'Add, remove and feature the tools of their own Loop. Administrators always can. Each Loop may override this from its own page.',
     'members_can_create_loops_label' => 'Allow members to create Loops',
     'members_can_create_loops_desc' => 'When enabled, active members of the organization can create their own Loops. Has no effect when "Loops enabled" is off.',
     'user_data_member_ai_profile' => 'AI profile',
@@ -694,6 +697,12 @@ return [
     'org_admin_loop_visibility_public_hint' => 'The Loop is visible in the catalogue; joining still requires your approval.',
     'org_admin_loop_type_hint' => 'The type sets the initial Card composition. It can be changed later.',
     // TASK-1725 — cover image, on the edit screen.
+    // TASK-1872 correctif 07 — per-Loop delegation of tool composition.
+    'org_admin_loop_composition' => 'Tool customisation',
+    'org_admin_loop_composition_hint' => 'Who may add, remove and feature this Loop\'s tools. Administrators always can.',
+    'org_admin_loop_composition_inherit' => 'Follow the Organisation setting',
+    'org_admin_loop_composition_allow' => 'Also allow this Loop\'s owner',
+    'org_admin_loop_composition_deny' => 'Administrators only, for this Loop',
     'org_admin_loop_cover' => 'Cover image',
     'org_admin_loop_cover_hint' => 'PNG, JPG or WEBP, 2 MB maximum. It illustrates the Loop in the catalogue.',
     'org_admin_loop_cover_remove' => 'Remove the current cover',
@@ -1725,18 +1734,18 @@ return [
         'create_blank_note' => 'An empty scenario is INCOMPLETE by construction: a loadable manifest declares at least one person, one loop, one membership and one dossier. That is not a mistake, it is the starting point.',
         'editor_title' => 'JSON editor',
         // TASK-1654 — Voir en tant que persona.
-        'personas_title' => "View as persona",
-        'personas_intro' => "Temporarily enter the « :sandbox » sandbox as a fictional persona, to use BouclePro with their real permissions.",
-        'personas_warning_title' => "Your actions will be real",
+        'personas_title' => 'View as persona',
+        'personas_intro' => 'Temporarily enter the « :sandbox » sandbox as a fictional persona, to use BouclePro with their real permissions.',
+        'personas_warning_title' => 'Your actions will be real',
         'personas_warning_body' => "You are about to use BouclePro with this persona's real permissions. Any action will actually modify the sandbox and may be captured into a new version of the scenario.",
-        'personas_empty' => "No persona can be used in this sandbox.",
-        'personas_role_admin' => "Sandbox administrator",
-        'personas_role_member' => "Member",
-        'personas_enter' => "View as :name",
-        'persona_banner_title' => "Persona mode",
-        'persona_banner_body' => "You are acting as :persona in the :sandbox sandbox. Your actions really modify this simulation.",
-        'persona_banner_exit' => "Back to SuperAdmin",
-        'personas_link' => "View as persona",
+        'personas_empty' => 'No persona can be used in this sandbox.',
+        'personas_role_admin' => 'Sandbox administrator',
+        'personas_role_member' => 'Member',
+        'personas_enter' => 'View as :name',
+        'persona_banner_title' => 'Persona mode',
+        'persona_banner_body' => 'You are acting as :persona in the :sandbox sandbox. Your actions really modify this simulation.',
+        'persona_banner_exit' => 'Back to SuperAdmin',
+        'personas_link' => 'View as persona',
         'personas_link_hint' => "Use BouclePro as one of this sandbox's personas.",
         'editor_back' => 'Back to the scenario',
         'editor_save' => 'Save',
@@ -1961,7 +1970,7 @@ return [
             'transfer_target_cross_tenant' => 'The chosen member belongs to another organisation. Content never crosses that boundary.',
         ],
         'stale' => 'This account changed since your simulation. Run it again to see the current state before confirming.',
-        'done' => "Account of :name permanently deleted.",
+        'done' => 'Account of :name permanently deleted.',
         'done_transferred' => ':count item(s) transferred to :target.',
         'done_dossiers' => ':count folder(s) purged.',
         'done_deleted' => ':count personal record(s) deleted.',
@@ -2126,9 +2135,9 @@ return [
     'transactions_filtered_on_one' => 'List limited to exchange #:short.',
     'transactions_filtered_clear' => 'View all exchanges',
     'user_delete_block_link_transaction' => 'View exchange :rank (#:short)',
-    'user_delete_blocked_title' => "What still prevents deletion",
-    'user_delete_final_title' => "Permanent deletion",
-    'user_delete_final_hint' => "This cannot be undone. The account and its personal data are destroyed; collaborative content stays, without an author.",
+    'user_delete_blocked_title' => 'What still prevents deletion',
+    'user_delete_final_title' => 'Permanent deletion',
+    'user_delete_final_hint' => 'This cannot be undone. The account and its personal data are destroyed; collaborative content stays, without an author.',
     // TASK-1693 bug Z
     'user_slug' => 'Public profile address',
     'user_slug_help' => 'Lowercase letters, digits and hyphens. The previous address stays reserved to this person and keeps redirecting.',
@@ -2186,10 +2195,10 @@ return [
     // TASK-1745 — retrait d'un appareil depuis l'outil de recette. Le
     // libelle DIT ce que l'action ne fait pas : le serveur ne sait pas
     // desabonner un navigateur.
-    'push_test_device_forgotten' => "Device removed from the server. The browser keeps its subscription: turn it off from the device, otherwise it will re-register next time the settings screen is shown.",
-    'push_test_forget' => "Forget",
-    'push_test_forget_confirm' => "Remove this device from the server? It will re-register on its own next time the settings screen is shown, unless the browser was unsubscribed from the device.",
-    'push_test_forget_help' => "“Forget” removes the server row, not the browser subscription. To start over: “Turn off on this device” from the phone first, then “Forget” here if a row remains.",
+    'push_test_device_forgotten' => 'Device removed from the server. The browser keeps its subscription: turn it off from the device, otherwise it will re-register next time the settings screen is shown.',
+    'push_test_forget' => 'Forget',
+    'push_test_forget_confirm' => 'Remove this device from the server? It will re-register on its own next time the settings screen is shown, unless the browser was unsubscribed from the device.',
+    'push_test_forget_help' => '“Forget” removes the server row, not the browser subscription. To start over: “Turn off on this device” from the phone first, then “Forget” here if a row remains.',
 
     // TASK-1820 — "My Push devices". Restricted to the CONNECTED account:
     // never a general device management tool, never a user search. Neither
@@ -2226,7 +2235,7 @@ return [
     'push_devices_unsupported' => 'This browser cannot identify the current device (Web Push unavailable).',
     'push_devices_remove' => 'Remove this subscription',
     'push_devices_remove_confirm' => 'Remove this subscription from the server? The browser may automatically recreate it next time it launches, unless its own subscription was turned off from the device.',
-    'push_devices_remove_this_device_warning' => "This is the device you are currently using to open this page. Removing it will not turn off notifications on this phone: the browser will recreate this subscription next time it launches, with a new endpoint.",
+    'push_devices_remove_this_device_warning' => 'This is the device you are currently using to open this page. Removing it will not turn off notifications on this phone: the browser will recreate this subscription next time it launches, with a new endpoint.',
     'push_devices_removed' => 'Subscription removed from the server. The browser may automatically recreate it next time the app launches: to truly stop it, turn off notifications from this device.',
     'push_devices_already_removed' => 'This subscription had already been removed.',
 

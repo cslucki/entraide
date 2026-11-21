@@ -438,6 +438,34 @@
                     </label>
                 </div>
 
+                {{-- TASK-1872 correctif 07 — « Autoriser les proprietaires de
+                     Boucle a modifier les outils » (demande Cyril, 21/11).
+
+                     La colonne existe depuis T1090 et gouverne deja
+                     `LoopPresetConfigurator::canConfigure()`. Ce qui manquait
+                     n'etait ni une permission ni une regle : c'etait CETTE
+                     case. L'endpoint d'ecriture existait meme deja, sans
+                     qu'aucune vue ne poste dessus.
+
+                     Reglage LARGE, valable pour toutes les Boucles de
+                     l'Organization. Le reglage FIN vit sur chaque Boucle
+                     (`/admin/loops/{id}/edit`), et il PRIME sur celui-ci dans
+                     les deux sens — c'est ce qui permet d'ouvrir largement
+                     puis d'excepter un cas, ou l'inverse. --}}
+                <div>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="hidden" name="loop_composition_policy" value="locked">
+                        <input type="checkbox" name="loop_composition_policy" value="owner_allowed"
+                            data-marqueur="case-composition-proprietaire"
+                            {{ old('loop_composition_policy', $organization->loop_composition_policy) === 'owner_allowed' ? 'checked' : '' }}
+                            class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.loop_owners_may_compose_label') }}</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.loop_owners_may_compose_desc') }}</p>
+                        </div>
+                    </label>
+                </div>
+
                 {{-- TASK-1762 point 2 — « On peut renseigner sa structure ».
                      DECOCHEE par defaut, demande explicite de Cyril : « ce sera a
                      moi, via le superadmin de cocher la case ». Le champ est donc
