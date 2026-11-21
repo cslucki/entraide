@@ -99,6 +99,8 @@ return [
     'show_phone' => 'Afficher mon numéro de téléphone sur mon profil public et dans l’annuaire',
     'location' => 'Localisation (Ville, Département)',
     'location_placeholder' => 'Ex: Lyon, Rhône',
+    // TASK-1872 correctif 10 — la contrainte se dit AVANT d'etre rencontree.
+    'bio_min_hint' => 'Au moins :min caractères, pour que les autres membres sachent à qui ils s\'adressent.',
     'bio' => 'Présentation',
     'bio_help' => 'Décrivez qui vous êtes, vos expertises, votre parcours. Cette présentation apparaît sur votre profil public et rassure les membres avant de vous contacter.',
     'bio_placeholder' => 'Ex : Consultante RH indépendante depuis 2015, je m’occupe de recrutement, de formation et d’accompagnement managérial pour les PME...',

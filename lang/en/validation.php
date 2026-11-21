@@ -228,9 +228,17 @@ return [
     */
 
     'attributes' => [
+        // TASK-1872 correctif 01 — see the French file: these four fields
+        // become required, so their names now surface in error messages.
+        // Without these lines the message read "The country code field is
+        // required" — the column name, not the label the reader just saw.
+        'bio' => 'introduction',
         'budget_max' => 'maximum budget',
         'budget_min' => 'minimum budget',
+        'city' => 'city',
+        'country_code' => 'country',
         'description' => 'description',
+        'first_name' => 'first name',
         'phone' => 'phone number',
         'points_cost' => 'points cost',
         'title' => 'title',

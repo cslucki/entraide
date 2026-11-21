@@ -16,13 +16,15 @@ use App\Services\LoopGovernanceService;
 use App\Services\LoopManifestoService;
 use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopLifecycleService;
+use App\Services\Loops\LoopPluginActivation;
 use App\Services\Loops\LoopPresetConfigurator;
 use App\Services\Loops\PresetException;
 use App\Services\LoopService;
+use App\Support\Loops\CouvertureDeBoucle;
+use App\Support\Loops\DemandesDAdhesionEnAttente;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
-use App\Support\Loops\DemandesDAdhesionEnAttente;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
@@ -39,7 +41,7 @@ class AdminLoopController extends Controller
     // l'extraction paie : la regle de nommage du fichier, la suppression de
     // l'ancienne image et la garde `loop-covers/` ne sont ecrites qu'une fois
     // pour trois ecrans.
-    use \App\Support\Loops\CouvertureDeBoucle;
+    use CouvertureDeBoucle;
 
     public function __construct(
         private readonly LoopService $loopService,
@@ -235,7 +237,7 @@ class AdminLoopController extends Controller
         // elles. `describeFor()` rend un tableau VIDE si l'Organization de la
         // Boucle n'a pas la disponibilite : le plugin est alors absent de
         // l'ecran, il n'y figure pas eteint.
-        $activation = app(\App\Services\Loops\LoopPluginActivation::class);
+        $activation = app(LoopPluginActivation::class);
 
         return view('admin.loops.configure', [
             'loop' => $loop,
@@ -661,11 +663,23 @@ class AdminLoopController extends Controller
             // autre tenant que le sien, et verifier dans le sien repondrait a
             // une autre question. La regle est lue au modele, seule autorite.
             'slug' => Loop::slugRules((string) $loop->organization_id, $loop),
+            // TASK-1872 correctif 07 — deleguer la composition de CETTE
+            // Boucle. Trois etats, donc `nullable` : « herite »,
+            // « autorise », « refuse ». Voir `LoopPresetConfigurator`.
+            'owner_may_compose' => ['nullable', 'in:0,1'],
             // TASK-1725 (demande Cyril, 29/10) — « on ne peut pas
             // inserer/modifier/supprimer l'image de couverture dans le
             // superadmin ». Les regles viennent du trait, elles ne sont pas
             // reecrites : trois ecrans, une seule definition.
         ] + $this->reglesDeCouverture());
+
+        // TASK-1872 correctif 07 — la chaine vide du `<select>` veut dire
+        // « herite », et doit atterrir en `null`. Sans cette ligne elle
+        // deviendrait `false` au cast booleen, c'est-a-dire un REFUS explicite
+        // pose par un formulaire ou personne n'a rien choisi.
+        $data['owner_may_compose'] = ($data['owner_may_compose'] ?? '') === ''
+            ? null
+            : (bool) $data['owner_may_compose'];
 
         // Champ vide = adresse INCHANGEE. Une URL publique ne doit pas
         // disparaitre parce qu'on a corrige une description.

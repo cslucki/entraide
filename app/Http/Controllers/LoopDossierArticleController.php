@@ -38,11 +38,31 @@ class LoopDossierArticleController extends Controller
         $user = $request->user();
 
         abort_unless($user && $user->organization_id === $current->id, 404);
-        abort_unless(app(LoopPermissionResolver::class)->can($user, $loop, 'dossiers.create_article'), 403);
+
+        /* TASK-1872 correctif 04 — UNE SEULE AUTORITE POUR CE GESTE.
+           ==========================================================
+           Avant : une lecture directe du resolveur
+           (`dossiers.create_article`) PUIS `authorize('update')`. La seconde
+           delegue a `LoopPolicy::update()`, qui exige strictement le role
+           `owner` — un membre autorise a ecrire se serait donc fait refuser
+           la ou le produit vient de lui ouvrir la porte.
+           `DossierPolicy::createArticle()` porte desormais les deux : elle
+           refuse la Boucle archivee comme le faisait `update()`, et elle
+           laisse passer le membre actif qui tient `writing.compose`.
+
+           Le pre-controle d'appartenance reste AVANT la resolution du
+           Dossier : `ensureRootDossier()` ECRIT quand le Dossier racine
+           n'existe pas encore, et cela ne doit pas etre declenchable par
+           quelqu'un qui n'a rien a faire dans cette Boucle. */
+        abort_unless(
+            app(LoopPermissionResolver::class)->can($user, $loop, 'writing.compose')
+            || app(LoopPermissionResolver::class)->can($user, $loop, 'dossiers.create_article'),
+            403
+        );
 
         $dossier = app(LoopRootDocumentService::class)->ensureRootDossier($loop);
 
-        $this->authorize('update', $dossier);
+        $this->authorize('createArticle', $dossier);
 
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],

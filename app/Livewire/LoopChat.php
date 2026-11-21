@@ -760,7 +760,7 @@ class LoopChat extends Component
      */
     /**
      * @param  Collection<int, LoopMessage>  $fenetre  deja chargee par
-     *                                                  {@see loadedWindowMessages()} — jamais requetee une deuxieme fois ici.
+     *                                                 {@see loadedWindowMessages()} — jamais requetee une deuxieme fois ici.
      */
     private function computePollFingerprint(Collection $fenetre): string
     {
@@ -1018,6 +1018,25 @@ class LoopChat extends Component
      */
     private ?bool $organizationAiAvailable = null;
 
+    /**
+     * TASK-1872 correctif 06 — le prefixe de mention que CE composant a pose.
+     *
+     * Memorise tel quel pour repondre a une seule question : le texte du
+     * composeur est-il encore exactement ce que nous y avons ecrit, ou la
+     * personne a-t-elle commence a rediger ? De la reponse depend le droit de
+     * le remplacer ou de l'effacer. Comparer a un prefixe RECONSTRUIT aurait
+     * echoue des qu'un nom change entre deux rendus.
+     *
+     * `#[Locked]` : c'est un etat SERVEUR. Si le client pouvait le reecrire,
+     * il lui suffirait de le faire coincider avec le brouillon de quelqu'un
+     * pour nous faire effacer ce brouillon.
+     */
+    #[Locked]
+    public ?string $mentionAutoTexte = null;
+
+    #[Locked]
+    public ?string $mentionAutoId = null;
+
     public function replyTo(string $messageId): void
     {
         $message = LoopMessage::where('id', $messageId)
@@ -1039,6 +1058,87 @@ class LoopChat extends Component
         // TASK-1308 : le mode herite du parent est un DEFAUT visible dans le
         // composeur, jamais un verrou — voir setComposerMode().
         $this->composerMode = $this->defaultModeForParent($message);
+
+        $this->mentionnerLAuteurDuMessage($message);
+    }
+
+    /**
+     * TASK-1872 correctif 06 — PREVENIR CELUI A QUI L'ON REPOND, sans
+     * fabriquer une seconde notification.
+     *
+     * Demande de Cyril, 21/11 : « au lieu de creer un nouveau mecanisme de
+     * notification, on va faire une astuce : quand on repond, mettre l'alias
+     * de l'utilisateur automatiquement, exemple "@Cyril : je suis d'accord
+     * avec toi". Ce qui fait que cela creera une notification mais avec le
+     * mecanisme existant. »
+     *
+     * ## Le nom insere n'est pas decoratif, c'est une CLE
+     *
+     * `mentionsRecadrees()` n'accepte une mention que si le corps contient
+     * litteralement `'@'.$candidat['nom']`, ou `nom` vaut
+     * `publicDisplayName()`. Ecrire « @Cyril » quand la personne s'affiche
+     * « Cyril Lucki » poserait donc un texte sans effet : la notification que
+     * toute cette astuce cherche a declencher ne partirait pas. Le prefixe est
+     * construit depuis la MEME source que la garde.
+     *
+     * ## Les quatre refus, tous deja portes ailleurs
+     *
+     * `mentionablesReels()` exclut deja le compte desactive, le non-affichable
+     * dans l'Organization, le non-membre actif, et SOI-MEME — on ne se
+     * notifie pas de sa propre reponse. Un message de l'IA n'a pas d'auteur
+     * dans cette liste, et n'y entre donc jamais. On ne reecrit aucune de ces
+     * regles : on interroge la liste.
+     *
+     * ## Et on n'ecrase JAMAIS un brouillon
+     *
+     * L'insertion n'a lieu que si le composeur est vide, ou s'il contient
+     * encore exactement le prefixe que nous y avions mis — le cas de qui
+     * change de cible sans avoir rien ecrit. Dans ce cas la precedente est
+     * RETIREE : sans cela, repondre a A puis a B aurait notifie A, qui n'y
+     * etait pour rien.
+     */
+    private function mentionnerLAuteurDuMessage(LoopMessage $message): void
+    {
+        $auteur = (string) ($message->sender_id ?? '');
+
+        if ($auteur === '' || $message->type === 'ai') {
+            return;
+        }
+
+        $mentionnable = collect($this->mentionablesReels())->firstWhere('id', $auteur);
+
+        if ($mentionnable === null) {
+            return;
+        }
+
+        $corps = $this->body ?? '';
+
+        if (trim($corps) !== '' && $corps !== $this->mentionAutoTexte) {
+            return;
+        }
+
+        $ancien = $this->mentionAutoId;
+        $prefixe = '@'.$mentionnable['nom'].' : ';
+
+        $this->body = $prefixe;
+        $this->mentionAutoTexte = $prefixe;
+        $this->mentionAutoId = $mentionnable['id'];
+
+        $this->mentionsSelectionnees = array_values(array_unique(array_merge(
+            array_values(array_diff($this->mentionsSelectionnees, array_filter([$ancien]))),
+            [$mentionnable['id']],
+        )));
+
+        // `composer-filled` existe depuis T1622 pour exactement ce cas : une
+        // valeur ECRITE PAR LE SERVEUR ne declenche ni `input` ni
+        // `message-sent`, donc ni le redimensionnement, ni `hasText` — le
+        // bouton d'envoi paraitrait mort devant un texte pourtant visible.
+        $this->dispatch('composer-filled');
+
+        // Le composeur tient sa PROPRE liste d'identifiants et la reverse
+        // telle quelle a chaque mention choisie : sans cette synchronisation,
+        // la premiere mention ajoutee a la main effacerait la notre.
+        $this->dispatch('bp-mention-auto', id: $mentionnable['id'], ancien: $ancien);
     }
 
     public function cancelReply(): void
@@ -1046,6 +1146,21 @@ class LoopChat extends Component
         $this->replyToMessageId = null;
         $this->replyingTo = null;
         $this->composerMode = 'normal';
+
+        // TASK-1872 correctif 06 — annuler la reponse retire la mention que
+        // nous avions posee, mais SEULEMENT si elle est restee intacte :
+        // ce que la personne a ecrit lui appartient.
+        if ($this->mentionAutoTexte !== null && ($this->body ?? '') === $this->mentionAutoTexte) {
+            $this->body = '';
+            $this->dispatch('composer-filled');
+            $this->dispatch('bp-mention-auto', id: null, ancien: $this->mentionAutoId);
+            $this->mentionsSelectionnees = array_values(
+                array_diff($this->mentionsSelectionnees, array_filter([$this->mentionAutoId])),
+            );
+        }
+
+        $this->mentionAutoTexte = null;
+        $this->mentionAutoId = null;
     }
 
     /**

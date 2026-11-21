@@ -98,7 +98,7 @@ return [
          */
         'loop_plugins.configure' => [
             'module' => 'loops', 'label_fr' => 'Configurer les plugins', 'label_en' => 'Configure plugins',
-            'description' => "Activer un plugin dans la Boucle et régler son comportement.", 'locked' => false,
+            'description' => 'Activer un plugin dans la Boucle et régler son comportement.', 'locked' => false,
         ],
         'loops.archive' => [
             'module' => 'loops', 'label_fr' => 'Archiver la Boucle', 'label_en' => 'Archive the Loop',
@@ -634,16 +634,26 @@ return [
             'roadmap.view',
             'chatloop.view', 'chatloop.post',
             'polls.view', 'polls.create', 'polls.vote',
-            // TASK-1802 (demande Cyril, 10/11) — « il faut que ce soit les
-            // proprietaires ou animateurs de Boucle qui puissent poster un
-            // evenement, uniquement. » `events.create` quitte donc ce socle :
-            // un membre simple garde `events.view` (consulter l'agenda) et
-            // `events.respond` (dire s'il vient), mais ne propose plus de
-            // rencontre lui-meme. Decision deja anticipee par le libelle
-            // `events.role_refus` (« Vous devez avoir le role de
-            // proprietaire ou animateur... »), ecrit des TASK-1706 mais
-            // jusqu'ici jamais atteignable par ce socle.
-            'events.view', 'events.respond',
+            /* TASK-1872 correctif 05 (demande Cyril, 21/11) — « les membres de
+               la boucle doivent avoir l'autorisation de publier des
+               evenements ».
+               =================================================================
+               ⚠️ CETTE LIGNE DEFAIT UN GESTE DELIBERE, elle ne repare pas un
+               oubli. TASK-1802 (10/11) avait retire `events.create` de ce
+               socle sur la demande inverse : « il faut que ce soit les
+               proprietaires ou animateurs de Boucle qui puissent poster un
+               evenement, uniquement. » La demande du 21/11 est POSTERIEURE et
+               l'emporte ; le signaler ici evite qu'on rouvre le debat dans
+               six mois en croyant corriger une regression.
+
+               PORTEE EXACTE, et elle s'arrete la : proposer une rencontre
+               DANS la Boucle. `events.manage` reste ferme — un membre pilote
+               le sien (`LoopEventService::canManageEvent()` le permet a
+               l'auteur), jamais celui d'un autre. Et
+               `events.publish_organization` reste ferme aussi : faire remonter
+               une rencontre devant toute l'Organization est un autre acte, de
+               bien plus large portee, que Cyril n'a pas demande. */
+            'events.view', 'events.create', 'events.respond',
             'dossiers.view',
             // TASK-1684, arbitrage MASTER : **deposer un fichier devient un
             // geste de membre.** T1313 l'avait reserve a l'owner en jugeant que

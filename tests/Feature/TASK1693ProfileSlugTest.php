@@ -184,6 +184,11 @@ class TASK1693ProfileSlugTest extends TestCase
     {
         $this->actingAs($this->membre)
             ->put(route('profile.update'), [
+                // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+                'first_name' => 'Camille',
+                'city' => 'Lyon',
+                'country_code' => 'FR',
+                'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
                 'name' => $this->membre->name,
                 'email' => $this->membre->email,
                 'phone' => '+33600000000',
@@ -206,6 +211,11 @@ class TASK1693ProfileSlugTest extends TestCase
     {
         $this->actingAs($this->membre)
             ->put(route('profile.update'), [
+                // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+                'first_name' => 'Camille',
+                'city' => 'Lyon',
+                'country_code' => 'FR',
+                'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
                 'name' => $this->membre->name,
                 'email' => $this->membre->email,
                 'phone' => '+33600000000',
@@ -224,6 +234,11 @@ class TASK1693ProfileSlugTest extends TestCase
 
         $this->actingAs($paul)
             ->put(route('profile.update'), [
+                // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+                'first_name' => 'Camille',
+                'city' => 'Lyon',
+                'country_code' => 'FR',
+                'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
                 'name' => $paul->name,
                 'email' => $paul->email,
                 'phone' => '+33600000000',
@@ -243,6 +258,11 @@ class TASK1693ProfileSlugTest extends TestCase
 
         $this->actingAs($paul)
             ->put(route('profile.update'), [
+                // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+                'first_name' => 'Camille',
+                'city' => 'Lyon',
+                'country_code' => 'FR',
+                'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
                 'name' => $paul->name,
                 'email' => $paul->email,
                 'phone' => '+33600000000',
@@ -264,6 +284,11 @@ class TASK1693ProfileSlugTest extends TestCase
         foreach (['edit', 'ai-usage', 'availability'] as $reserve) {
             $this->actingAs($this->membre)
                 ->put(route('profile.update'), [
+                    // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+                    'first_name' => 'Camille',
+                    'city' => 'Lyon',
+                    'country_code' => 'FR',
+                    'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
                     'name' => $this->membre->name,
                     'email' => $this->membre->email,
                     'phone' => '+33600000000',
@@ -283,6 +308,11 @@ class TASK1693ProfileSlugTest extends TestCase
         foreach (['Marie Dupont', 'ab', 'marie--dupont', 'marie_dupont', '-marie'] as $mauvais) {
             $this->actingAs($this->membre)
                 ->put(route('profile.update'), [
+                    // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+                    'first_name' => 'Camille',
+                    'city' => 'Lyon',
+                    'country_code' => 'FR',
+                    'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
                     'name' => $this->membre->name,
                     'email' => $this->membre->email,
                     'phone' => '+33600000000',

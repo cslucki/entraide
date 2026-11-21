@@ -129,6 +129,13 @@
          poser sur le `<form>` couvre les DEUX saisies de fichier (galerie et
          appareil photo) sans ecouteur par input. --}}
     <form wire:submit="sendMessage" class="flex items-end {{ isset($leading) ? 'gap-2 md:gap-3' : 'gap-3' }}"
+        {{-- TASK-1872 correctif 06 — emis par `LoopChat` quand repondre pose
+             une mention. Borne aux appelants qui ont des mentionnables, donc
+             au seul ChatLoop : la Messagerie et le chat agent n'ont pas de
+             menu `@` et ne doivent pas gagner un ecouteur. --}}
+        @if($mentionables !== [])
+        x-on:bp-mention-auto.window="mentionAutoSynchroniser($event.detail)"
+        @endif
         {{-- TASK-1684 — `enterEnvoie` : Entree n'envoie que sur un clavier
              PHYSIQUE. Sur un clavier tactile il n'existe aucun Maj+Entree, donc
              intercepter Entree retirait purement et simplement le retour a la
@@ -195,6 +202,36 @@
                 this.mentionOuvert = true;
                 this.mentionFiltre = m[2];
                 this.mentionIndex = 0;
+            },
+
+            /* TASK-1872 correctif 06 — garder la liste d'identifiants en
+               phase avec la mention que le SERVEUR vient de poser.
+               ================================================================
+               Repondre a quelqu'un ecrit « @Son Nom : » dans le composeur, de
+               sorte que la notification parte par le mecanisme de mention qui
+               existe deja — aucune seconde plomberie de notification.
+
+               Le texte, c'est le serveur qui l'ecrit (`body` est le modele).
+               Mais la liste d'identifiants, elle, vit ICI : `mentionChoisir()`
+               la REVERSE telle quelle a chaque choix. Sans cette
+               synchronisation, la premiere mention ajoutee a la main
+               effacerait celle de la reponse — le texte resterait a l'ecran,
+               la notification ne partirait pas, et rien ne le dirait.
+
+               `ancien` retire la mention d'une cible precedente : repondre a
+               A puis a B sans rien ecrire ne doit pas notifier A, qui n'y
+               est pour rien. `id` nul = la reponse a ete annulee. */
+            mentionAutoSynchroniser(detail) {
+                const ancien = detail?.ancien ?? null;
+                const neuf = detail?.id ?? null;
+
+                if (ancien) {
+                    this.mentionsChoisies = this.mentionsChoisies.filter((x) => x !== ancien);
+                }
+
+                if (neuf && ! this.mentionsChoisies.includes(neuf)) {
+                    this.mentionsChoisies.push(neuf);
+                }
             },
 
             mentionChoisir(el, personne) {

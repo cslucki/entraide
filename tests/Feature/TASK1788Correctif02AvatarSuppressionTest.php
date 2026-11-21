@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Organization;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -48,9 +50,14 @@ class TASK1788Correctif02AvatarSuppressionTest extends TestCase
     }
 
     /** @param array<string, mixed> $extra */
-    private function enregistrer(array $extra = []): \Illuminate\Testing\TestResponse
+    private function enregistrer(array $extra = []): TestResponse
     {
         return $this->actingAs($this->membre)->put(route('profile.update'), array_merge([
+            // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+            'first_name' => 'Camille',
+            'city' => 'Lyon',
+            'country_code' => 'FR',
+            'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
             'name' => $this->membre->name,
             'email' => $this->membre->email,
             'phone' => '+33600000000',
@@ -154,14 +161,14 @@ class TASK1788Correctif02AvatarSuppressionTest extends TestCase
      */
     public function test_l_intention_de_suppression_est_retiree_avant_le_fill(): void
     {
-        \Illuminate\Database\Eloquent\Model::preventSilentlyDiscardingAttributes(true);
+        Model::preventSilentlyDiscardingAttributes(true);
 
         try {
             $this->enregistrer(['supprimer_avatar' => '1'])
                 ->assertSessionHasNoErrors()
                 ->assertRedirect();
         } finally {
-            \Illuminate\Database\Eloquent\Model::preventSilentlyDiscardingAttributes(false);
+            Model::preventSilentlyDiscardingAttributes(false);
         }
 
         $this->membre->refresh();

@@ -46,6 +46,10 @@ class TASK1762SloganObligatoireTest extends TestCase
     private function formulaire(User $u, array $surcharge = []): array
     {
         return array_merge([
+            // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+            'city' => 'Lyon',
+            'country_code' => 'FR',
+            'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
             'first_name' => $u->first_name,
             'name' => $u->name,
             'email' => $u->email,

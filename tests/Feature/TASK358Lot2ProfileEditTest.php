@@ -34,7 +34,7 @@ class TASK358Lot2ProfileEditTest extends TestCase
         $response = $this->actingAs($user)->put(route('profile.update'), $this->validPayload([
             'first_name' => 'Cyril',
             'name' => 'Durand',
-            'bio' => 'Bio updated for the structured profile.',
+            'bio' => 'Bio updated for the structured profile, written long enough to clear the hundred-character floor. Ecrite assez longuement pour franchir le plancher de cent caracteres impose par TASK-1872.',
             'city' => 'Paris',
             'country_code' => 'FR',
             'preferred_locale' => 'fr',
@@ -216,7 +216,8 @@ class TASK358Lot2ProfileEditTest extends TestCase
             // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE :
             // sans lui, `ProfileController::update()` refuse tout le reste.
             'slogan' => 'Je resous des problemes, pas des tickets.',
-            'bio' => 'A short profile biography.',
+            // TASK-1872 correctif 10 — au moins cent caracteres.
+            'bio' => 'A profile biography long enough to clear the hundred-character floor introduced by TASK-1872. Ecrite assez longuement pour franchir le plancher de cent caracteres impose par TASK-1872.',
             'city' => 'Paris',
             'country_code' => Country::query()->whereKey('FR')->exists() ? 'FR' : null,
             'preferred_locale' => 'fr',

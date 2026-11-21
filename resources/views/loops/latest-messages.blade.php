@@ -75,7 +75,13 @@
                             <div class="absolute inset-0 flex items-end bg-gradient-to-t from-black/70 via-black/10 to-transparent p-4">
                                 <h2 class="text-lg font-bold text-white drop-shadow-sm">{{ $boucle->name }}</h2>
                             </div>
-                            <a href="{{ $boucleMessageHref($boucle, $entree['messages']->first()) }}" class="absolute inset-0"
+                            {{-- TASK-1872 correctif 08 — `dernier`, et non
+                                 `messages->first()`. Depuis que les messages
+                                 s'affichent du plus ancien au plus recent,
+                                 `first()` designe le plus ANCIEN des trois :
+                                 ce lien aurait change de destination en
+                                 silence. Le controleur nomme la cible. --}}
+                            <a href="{{ $boucleMessageHref($boucle, $entree['dernier']) }}" class="absolute inset-0"
                                aria-label="{{ $boucle->name }}"></a>
                         </div>
 
@@ -94,7 +100,16 @@
                                         <div class="min-w-0 flex-1">
                                             <div class="flex flex-wrap items-baseline gap-x-2">
                                                 <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $message->sender->publicDisplayName() }}</span>
-                                                <span class="text-xs text-gray-400 dark:text-gray-500">{{ $message->created_at->isoFormat('D MMM, HH:mm') }}</span>
+                                                {{-- TASK-1872 correctif 08 — la date se lit enfin en sombre.
+                                                     Constat de Cyril : « on ne voit pas bien ». Mesure
+                                                     plutot qu'impression : `gray-500` sur le fond
+                                                     `gray-800` de cette carte donne **3.04:1**, sous le
+                                                     seuil AA de 4.5 exige pour du petit texte. `gray-400`
+                                                     monte a **5.78:1**.
+                                                     Pas `gray-300` (9.96) : c'est la couleur du CORPS du
+                                                     message juste en dessous, et la date lui passerait
+                                                     devant. On corrige la lisibilite, pas la hierarchie. --}}
+                                                <span class="text-xs text-gray-400 dark:text-gray-400" data-loops-latest-message-date>{{ $message->created_at->isoFormat('D MMM, HH:mm') }}</span>
                                             </div>
                                             <div class="mt-1 flex items-center gap-2">
                                                 @if($imageUrl)
@@ -104,7 +119,10 @@
                                                 @if(filled(trim((string) $message->body)))
                                                     <p class="min-w-0 break-words text-sm text-gray-600 dark:text-gray-300">{{ Str::limit(trim($message->body), 140) }}</p>
                                                 @elseif($imageUrl)
-                                                    <p class="min-w-0 text-sm italic text-gray-400 dark:text-gray-500">{{ __('loops.latest_messages_image_only') }}</p>
+                                                    {{-- Meme mesure, meme correction : « Photo » tient lieu
+                                                         de contenu quand il n'y a pas de texte, et un
+                                                         contenu illisible est un contenu absent. --}}
+                                                    <p class="min-w-0 text-sm italic text-gray-400 dark:text-gray-400">{{ __('loops.latest_messages_image_only') }}</p>
                                                 @endif
                                             </div>
                                         </div>
