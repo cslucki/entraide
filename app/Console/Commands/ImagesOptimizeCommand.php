@@ -2,8 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Models\ImageOptimizationBatch;
 use App\Models\Organization;
-use App\Support\Images\ImageOptimizationControl;
+use App\Support\Images\ActiveBatchExists;
+use App\Support\Images\ImageOptimizationBatches;
 use App\Support\Images\ImageOptimizationInventory;
 use App\Support\Images\ImageOptimizationRunner;
 use App\Support\Images\ImageProcessOutcome;
@@ -25,7 +27,7 @@ use Illuminate\Support\Str;
  *   php artisan images:optimize --surface=loop_cover --limit=5
  *   php artisan images:optimize --surface=loop_cover --limit=5 --execute
  *   php artisan images:optimize --execute --queue --limit=25
- *   php artisan images:optimize --pause | --resume
+ *   php artisan images:optimize --pause | --resume      (lot actif)
  */
 class ImagesOptimizeCommand extends Command
 {
@@ -35,26 +37,27 @@ class ImagesOptimizeCommand extends Command
         {--limit=20 : nombre maximum d\'images du lot (1 a 500)}
         {--max-time=300 : duree maximum du lot, en secondes (traitement sur place)}
         {--execute : traiter reellement (sinon : simulation, aucune ecriture)}
-        {--queue : avec --execute, mettre le lot en file `images` au lieu de le traiter ici}
+        {--queue : avec --execute, creer un LOT suivi (comme la console) mis en file `images`}
         {--force : retraiter aussi les images deja a jour ou abandonnees}
         {--status : afficher l\'etat par surface et quitter}
-        {--pause : suspendre le rattrapage (les uploads neufs restent traites)}
-        {--resume : lever la pause}';
+        {--pause : mettre en pause le lot actif (l\'image en cours se termine)}
+        {--resume : reprendre le lot en pause}';
 
     protected $description = 'Inventorie, simule ou rattrape (par lots bornes) les variantes WebP des images existantes';
 
-    public function handle(ImageOptimizationInventory $inventory, ImageOptimizationRunner $runner, ImageOptimizationControl $control): int
+    public function handle(ImageOptimizationInventory $inventory, ImageOptimizationRunner $runner, ImageOptimizationBatches $batches): int
     {
-        if ($this->option('pause')) {
-            $control->pause();
-            $this->warn('Rattrapage en PAUSE. Les images nouvellement televersees restent traitees.');
+        if ($this->option('pause') || $this->option('resume')) {
+            $active = $batches->active();
 
-            return self::SUCCESS;
-        }
+            if ($active === null) {
+                $this->warn('Aucun lot actif.');
 
-        if ($this->option('resume')) {
-            $control->resume();
-            $this->info('Pause levee. Relancer un lot : il reprend ou le precedent s\'est arrete.');
+                return self::FAILURE;
+            }
+
+            $this->option('pause') ? $batches->pause($active) : $batches->resume($active);
+            $this->info(sprintf('Lot %s : %s.', $active->id, $active->fresh()->status));
 
             return self::SUCCESS;
         }
@@ -82,7 +85,7 @@ class ImagesOptimizeCommand extends Command
         }
 
         if ($this->option('status')) {
-            $this->renderSummary($inventory->summary($organizationId), $control->paused());
+            $this->renderSummary($inventory->summary($organizationId), $batches->active());
 
             return self::SUCCESS;
         }
@@ -91,18 +94,21 @@ class ImagesOptimizeCommand extends Command
         $force = (bool) $this->option('force');
 
         if (! $this->option('execute')) {
-            return $this->simulate($inventory, $surface, $organizationId, $limit, $force, $control->paused());
-        }
-
-        if ($control->paused()) {
-            $this->warn('Rattrapage en PAUSE : rien n\'est lance. `--resume` pour reprendre.');
-
-            return self::FAILURE;
+            return $this->simulate($inventory, $surface, $organizationId, $limit, $force);
         }
 
         if ($this->option('queue')) {
-            $queued = $runner->queueBatch($surface, $organizationId, $limit, $force);
-            $this->info("{$queued} image(s) mise(s) en file sur la queue `images`.");
+            try {
+                $batch = $batches->launch($surface, $organizationId, $limit, $force);
+            } catch (ActiveBatchExists $e) {
+                $this->warn('Un lot est deja actif ('.$e->batch?->id.') : terminez-le, ou reprenez-le avec --resume.');
+
+                return self::FAILURE;
+            }
+
+            $this->info($batch === null
+                ? 'Rien a traiter pour ce filtre.'
+                : "Lot {$batch->id} : {$batch->total} image(s) mise(s) en file sur la queue `images`.");
 
             return self::SUCCESS;
         }
@@ -127,19 +133,15 @@ class ImagesOptimizeCommand extends Command
         );
 
         if ($stats['stopped_by'] !== null) {
-            $this->warn('Lot interrompu : '.($stats['stopped_by'] === 'pause' ? 'pause demandee' : 'duree maximum atteinte').'. Relancer pour reprendre.');
+            $this->warn('Lot interrompu : duree maximum atteinte. Relancer pour reprendre.');
         }
 
         return $stats['failed'] > 0 ? self::FAILURE : self::SUCCESS;
     }
 
-    private function simulate(ImageOptimizationInventory $inventory, ?string $surface, ?string $organizationId, int $limit, bool $force, bool $paused): int
+    private function simulate(ImageOptimizationInventory $inventory, ?string $surface, ?string $organizationId, int $limit, bool $force): int
     {
         $this->info('SIMULATION — aucune ecriture. Ajouter --execute pour traiter.');
-
-        if ($paused) {
-            $this->warn('Note : le rattrapage est en PAUSE ; un --execute serait refuse.');
-        }
 
         $sources = $inventory->pending($surface, $organizationId, $limit, $force);
 
@@ -164,9 +166,9 @@ class ImagesOptimizeCommand extends Command
     }
 
     /** @param array<string, array<string, int>> $summary */
-    private function renderSummary(array $summary, bool $paused): void
+    private function renderSummary(array $summary, ?ImageOptimizationBatch $active): void
     {
-        $this->line('Rattrapage : '.($paused ? 'EN PAUSE' : 'actif'));
+        $this->line('Lot actif : '.($active ? "{$active->id} ({$active->status})" : 'aucun'));
 
         $this->table(
             ['surface', 'en base', 'restantes', 'pretes', 'ecartees', 'echecs', 'manquantes', 'originaux (prets)', 'servi (prets)'],

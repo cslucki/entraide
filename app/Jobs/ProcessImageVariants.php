@@ -2,7 +2,6 @@
 
 namespace App\Jobs;
 
-use App\Support\Images\ImageOptimizationControl;
 use App\Support\Images\ImageProcessOutcome;
 use App\Support\Images\ImageSource;
 use App\Support\Images\ImageVariantService;
@@ -98,14 +97,11 @@ class ProcessImageVariants implements ShouldBeUnique, ShouldQueue
         return sha1($this->disk.'|'.$this->path);
     }
 
-    public function handle(ImageVariantService $service, ImageOptimizationControl $control): void
+    public function handle(ImageVariantService $service): void
     {
-        if ($this->backfill && $control->paused()) {
-            // Pause du rattrapage : on n'ecrit rien. La reprise relance un
-            // lot, et l'idempotence reprend exactement ici.
-            return;
-        }
-
+        // `backfill` est conserve dans la signature pour les jobs deja
+        // serialises ; les lots de rattrapage passent desormais par
+        // `ProcessImageBatchItem`, dont la pause est portee par le lot en base.
         $outcome = $service->process(new ImageSource($this->surface, $this->path, $this->organizationId, $this->disk), $this->force);
 
         if ($outcome->status === ImageProcessOutcome::LOCKED) {

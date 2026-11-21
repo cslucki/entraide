@@ -48,7 +48,6 @@ use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminRoadmapController;
 use App\Http\Controllers\Admin\AdminRootDestinationController;
 use App\Http\Controllers\Admin\AdminRssImportController;
-use App\Http\Controllers\Admin\AdminImageController;
 use App\Http\Controllers\Admin\AdminScenarioManagerController;
 use App\Http\Controllers\Admin\AdminScenarioPackController;
 use App\Http\Controllers\Admin\AdminScenarioPersonaController;
@@ -152,6 +151,7 @@ use App\Livewire\Admin\RssArticleFiche;
 use App\Livewire\Admin\RssEditorialHistory;
 use App\Livewire\Admin\RssSourceArticles;
 use App\Livewire\Admin\RssSources;
+use App\Livewire\Admin\ImageOptimizer;
 use App\Livewire\BoundedMemberAgent;
 use App\Livewire\CreateFeedPost;
 use App\Livewire\EditFeedPost;
@@ -1331,16 +1331,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         ->name('outils.import-rss.boucles');
 
     // TASK-1873 — console d'optimisation des images, `/admin/images`.
-    // SuperAdmin (groupe `admin` : `is_admin`, 403 sinon). La lecture ne fait
-    // qu'inventorier ; les trois POST portent le jeton CSRF. Le lancement
-    // MET EN FILE un lot borne et confirme — jamais de traitement dans la
-    // requete.
-    Route::get('/images', [AdminImageController::class, 'index'])->name('images');
-    Route::post('/images/lancer', [AdminImageController::class, 'launch'])
-        ->middleware('throttle:10,1')
-        ->name('images.launch');
-    Route::post('/images/pause', [AdminImageController::class, 'pause'])->name('images.pause');
-    Route::post('/images/reprise', [AdminImageController::class, 'resume'])->name('images.resume');
+    // Composant Livewire pleine page. SuperAdmin : groupe `admin` (`is_admin`,
+    // 403 sinon), `AdminMiddleware` persistant pour les requetes Livewire, et
+    // garde `boot()` dans le composant. « Optimiser » enregistre un lot et le
+    // MET EN FILE : aucune conversion dans la requete.
+    Route::get('/images', ImageOptimizer::class)->name('images');
 
     // TASK-1790 — le parcours individuel : source -> articles -> fiche.
     //

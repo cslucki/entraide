@@ -11,7 +11,6 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\User;
-use App\Support\Images\ImageOptimizationControl;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
@@ -221,17 +220,5 @@ class TASK1873UploadBranchingTest extends TestCase
         ProcessImageVariants::dispatchSync('user_avatar', 'avatars/123_photo.jpg', null);
 
         $this->assertStringEndsWith('.webp', User::find($user->id)->avatar_url);
-    }
-
-    public function test_a_paused_backfill_job_writes_nothing_but_an_upload_job_still_runs(): void
-    {
-        Storage::disk('public')->put('avatars/a.jpg', UploadedFile::fake()->image('a.jpg', 300, 300)->getContent());
-        app(ImageOptimizationControl::class)->pause();
-
-        ProcessImageVariants::dispatchSync('user_avatar', 'avatars/a.jpg', null, 'public', true);
-        $this->assertSame(0, ImageVariant::count());
-
-        ProcessImageVariants::dispatchSync('user_avatar', 'avatars/a.jpg', null);
-        $this->assertSame(1, ImageVariant::where('status', 'ready')->count());
     }
 }

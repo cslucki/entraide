@@ -2,49 +2,22 @@
 
 namespace App\Support\Images;
 
-use App\Jobs\ProcessImageVariants;
 use Illuminate\Support\Facades\Log;
 
 /**
- * TASK-1873 — lancer un LOT BORNE de rattrapage. Un seul chemin pour la
- * commande et pour la console : memes sources (inventaire), meme moteur
- * (service), memes bornes, meme pause.
+ * TASK-1873 — traiter SUR PLACE un lot borne, en ligne de commande seulement
+ * (`images:optimize --execute`). Pas de requete HTTP, pas de suivi en base :
+ * c'est l'outil de l'operateur au terminal.
  *
- *   `queueBatch()` met en file un job par source, sur la queue `images`
- *                  (console, ou `images:optimize --execute --queue`) : rien
- *                  n'est traite dans la requete HTTP ;
- *   `runBatch()`   traite sur place, une image apres l'autre (CLI seulement),
- *                  en s'arretant a la borne de temps, de nombre, ou a la pause.
+ * La console, et `--execute --queue`, passent par `ImageOptimizationBatches` :
+ * un lot SUIVI en base, mis en file, pausable.
  */
 final class ImageOptimizationRunner
 {
     public function __construct(
         private readonly ImageOptimizationInventory $inventory,
         private readonly ImageVariantService $service,
-        private readonly ImageOptimizationControl $control,
     ) {}
-
-    /**
-     * @return int nombre de sources mises en file (0 si la pause est active)
-     */
-    public function queueBatch(?string $surface, ?string $organizationId, int $limit, bool $force = false): int
-    {
-        if ($this->control->paused()) {
-            return 0;
-        }
-
-        $sources = $this->inventory->pending($surface, $organizationId, $limit, $force);
-
-        foreach ($sources as $source) {
-            ProcessImageVariants::dispatch($source->surface, $source->path, $source->organizationId, $source->disk, true, $force);
-        }
-
-        Log::info('[TASK-1873] lot de rattrapage mis en file', [
-            'surface' => $surface, 'organization_id' => $organizationId, 'queued' => $sources->count(), 'force' => $force,
-        ]);
-
-        return $sources->count();
-    }
 
     /**
      * @param  callable(ImageSource, ImageProcessOutcome): void|null  $onItem
@@ -56,11 +29,6 @@ final class ImageOptimizationRunner
         $deadline = microtime(true) + $maxSeconds;
 
         foreach ($this->inventory->pending($surface, $organizationId, $limit, $force) as $source) {
-            if ($this->control->paused()) {
-                $stats['stopped_by'] = 'pause';
-                break;
-            }
-
             if (microtime(true) >= $deadline) {
                 $stats['stopped_by'] = 'max_time';
                 break;

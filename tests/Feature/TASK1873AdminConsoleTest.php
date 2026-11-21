@@ -2,21 +2,24 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\ProcessImageVariants;
+use App\Jobs\ProcessImageBatchItem;
+use App\Livewire\Admin\ImageBatchProgress;
+use App\Livewire\Admin\ImageOptimizer;
+use App\Models\ImageOptimizationBatch;
 use App\Models\ImageVariant;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
-use App\Support\Images\ImageOptimizationControl;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
- * TASK-1873 — `/admin/images` : SuperAdmin seul, simulation sans ecriture,
- * lot borne, confirme et MIS EN FILE, pause respectee.
+ * TASK-1873 (phase 2) — `/admin/images` : SuperAdmin seul, lancement
+ * confirme et asynchrone, progression lue en base (rechargement compris).
  */
 class TASK1873AdminConsoleTest extends TestCase
 {
@@ -32,6 +35,7 @@ class TASK1873AdminConsoleTest extends TestCase
     {
         parent::setUp();
         Storage::fake('public');
+        Queue::fake();
 
         $this->orgA = Organization::factory()->create(['name' => 'Org A 1873']);
         $this->orgB = Organization::factory()->create(['name' => 'Org B 1873']);
@@ -50,93 +54,130 @@ class TASK1873AdminConsoleTest extends TestCase
 
         $member = User::factory()->create(['is_admin' => false, 'organization_id' => $this->orgA->id]);
         $this->actingAs($member)->get(route('admin.images'))->assertForbidden();
-        $this->actingAs($member)->post(route('admin.images.launch'), ['limit' => 1, 'confirm' => '1'])->assertForbidden();
-        $this->actingAs($member)->post(route('admin.images.pause'))->assertForbidden();
 
-        $this->assertFalse(app(ImageOptimizationControl::class)->paused());
+        $this->actingAs($this->superAdmin)->get(route('admin.images'))
+            ->assertOk()
+            ->assertSee('data-marqueur="synthese"', false)
+            ->assertSeeLivewire(ImageOptimizer::class);
     }
 
-    public function test_the_console_shows_the_volumes_and_a_simulation_that_writes_nothing(): void
+    public function test_the_components_refuse_a_non_admin_even_when_mounted_directly(): void
     {
-        $this->actingAs($this->superAdmin)
-            ->get(route('admin.images', ['simulate' => 1]))
-            ->assertOk()
-            ->assertSee(__('admin.image_optimizer.surface_loop_cover'))
-            ->assertSee('data-marqueur="simulation"', false)
+        $member = User::factory()->create(['is_admin' => false, 'organization_id' => $this->orgA->id]);
+        $this->actingAs($member);
+
+        Livewire::test(ImageOptimizer::class)->assertForbidden();
+    }
+
+    public function test_simulation_writes_nothing(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        Livewire::test(ImageOptimizer::class)
+            ->set('limit', 5)
+            ->call('simulate')
+            ->assertSet('simulation.count', 3)
             ->assertSee('loop-covers/a1/cover.jpg');
 
+        $this->assertSame(0, ImageOptimizationBatch::count());
         $this->assertSame(0, ImageVariant::count());
-        $this->assertSame([], Storage::disk('public')->allFiles('image-variants'));
+        Queue::assertNothingPushed();
     }
 
-    public function test_a_batch_requires_an_explicit_confirmation(): void
+    public function test_optimize_requires_confirmation_then_returns_at_once_with_a_queued_batch(): void
     {
-        Queue::fake();
+        $this->actingAs($this->superAdmin);
 
-        $this->actingAs($this->superAdmin)
-            ->post(route('admin.images.launch'), ['limit' => 2])
-            ->assertSessionHasErrors('confirm');
+        $component = Livewire::test(ImageOptimizer::class)
+            ->set('limit', 5)
+            ->call('optimize')
+            ->assertHasErrors('confirmed');
+        $this->assertSame(0, ImageOptimizationBatch::count());
+
+        $component->set('confirmed', true)->call('optimize')->assertHasNoErrors();
+
+        $batch = ImageOptimizationBatch::firstOrFail();
+        $this->assertSame(3, $batch->total);
+        Queue::assertPushed(ProcessImageBatchItem::class, 3);
+        $this->assertSame(0, ImageVariant::count(), 'aucune conversion dans la requete');
+        $component->assertSeeLivewire(ImageBatchProgress::class);
+    }
+
+    public function test_an_out_of_list_batch_size_is_refused(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        Livewire::test(ImageOptimizer::class)
+            ->set('limit', 7)
+            ->set('confirmed', true)
+            ->call('optimize')
+            ->assertHasErrors('limit');
 
         Queue::assertNothingPushed();
     }
 
-    public function test_a_confirmed_batch_is_queued_bounded_and_filtered_by_organization(): void
+    public function test_a_double_click_does_not_launch_a_second_batch(): void
     {
-        Queue::fake();
+        $this->actingAs($this->superAdmin);
 
-        $this->actingAs($this->superAdmin)
-            ->post(route('admin.images.launch'), ['limit' => 5, 'confirm' => '1', 'organization_id' => $this->orgB->id])
-            ->assertRedirect()
-            ->assertSessionHas('success');
+        $component = Livewire::test(ImageOptimizer::class)->set('limit', 5)->set('confirmed', true)->call('optimize');
+        $component->set('confirmed', true)->call('optimize')->assertHasErrors('launch');
 
-        Queue::assertPushed(ProcessImageVariants::class, 1);
-        Queue::assertPushed(ProcessImageVariants::class, fn (ProcessImageVariants $job) => $job->queue === 'images'
-            && $job->backfill === true
-            && $job->organizationId === $this->orgB->id);
-        $this->assertSame(0, ImageVariant::count(), 'rien n est traite dans la requete');
+        $this->assertSame(1, ImageOptimizationBatch::count());
+        Queue::assertPushed(ProcessImageBatchItem::class, 3);
     }
 
-    public function test_a_batch_above_the_ceiling_is_refused(): void
+    public function test_the_organization_filter_reaches_the_batch(): void
     {
-        Queue::fake();
+        $this->actingAs($this->superAdmin);
 
-        $this->actingAs($this->superAdmin)
-            ->post(route('admin.images.launch'), ['limit' => 51, 'confirm' => '1'])
-            ->assertSessionHasErrors('limit');
+        Livewire::test(ImageOptimizer::class)
+            ->set('organizationId', $this->orgB->id)
+            ->set('limit', 25)
+            ->set('confirmed', true)
+            ->call('optimize');
 
-        Queue::assertNothingPushed();
+        $batch = ImageOptimizationBatch::firstOrFail();
+        $this->assertSame($this->orgB->id, $batch->organization_id);
+        $this->assertSame(['loop-covers/b1/cover.jpg'], $batch->items()->pluck('source_path')->all());
     }
 
-    public function test_pause_blocks_a_batch_and_resume_lifts_it(): void
+    public function test_progress_survives_a_reload_and_polling_stops_when_done(): void
     {
-        Queue::fake();
+        $this->actingAs($this->superAdmin);
+        Livewire::test(ImageOptimizer::class)->set('limit', 5)->set('confirmed', true)->call('optimize');
+        $batch = ImageOptimizationBatch::firstOrFail();
 
-        $this->actingAs($this->superAdmin)->post(route('admin.images.pause'))->assertRedirect(route('admin.images'));
-        $this->assertTrue(app(ImageOptimizationControl::class)->paused());
+        // Le worker traite une image.
+        app()->call([Queue::pushed(ProcessImageBatchItem::class)->first(), 'handle']);
 
-        $this->actingAs($this->superAdmin)
-            ->post(route('admin.images.launch'), ['limit' => 2, 'confirm' => '1'])
-            ->assertSessionHas('error');
-        Queue::assertNothingPushed();
+        // « Rechargement » : un composant neuf lit la meme progression en base.
+        Livewire::test(ImageBatchProgress::class, ['batchId' => $batch->id])
+            ->assertSee('1 images sur 3')
+            ->assertSeeHtml('wire:poll.2500ms');
 
-        $this->actingAs($this->superAdmin)->post(route('admin.images.resume'));
-        $this->assertFalse(app(ImageOptimizationControl::class)->paused());
+        foreach (Queue::pushed(ProcessImageBatchItem::class)->slice(1) as $job) {
+            app()->call([$job, 'handle']);
+        }
+
+        Livewire::test(ImageBatchProgress::class, ['batchId' => $batch->id])
+            ->assertSee('3 images sur 3')
+            ->assertSee('data-marqueur="bilan"', false)
+            ->assertDontSeeHtml('wire:poll.2500ms');
     }
 
-    public function test_an_executed_batch_appears_in_the_follow_up_with_its_measured_weights(): void
+    public function test_pause_and_resume_from_the_progress_card(): void
     {
-        // Sans Queue::fake : `sync`, le lot s'execute (5 images au plus).
-        $this->actingAs($this->superAdmin)
-            ->post(route('admin.images.launch'), ['limit' => 1, 'confirm' => '1', 'organization_id' => $this->orgA->id])
-            ->assertSessionHas('success');
+        $this->actingAs($this->superAdmin);
+        Livewire::test(ImageOptimizer::class)->set('limit', 5)->set('confirmed', true)->call('optimize');
+        $batch = ImageOptimizationBatch::firstOrFail();
 
-        $this->assertSame(3, ImageVariant::where('status', 'ready')->count());
+        Livewire::test(ImageBatchProgress::class, ['batchId' => $batch->id])
+            ->call('pause')
+            ->assertSee(__('admin.image_optimizer.resume'));
+        $this->assertSame('paused', $batch->fresh()->status);
 
-        $this->actingAs($this->superAdmin)
-            ->get(route('admin.images'))
-            ->assertOk()
-            ->assertSee('data-marqueur="derniers-traitements"', false)
-            ->assertSee('loop-covers/a1/cover.jpg')
-            ->assertSee('Org A 1873');
+        Livewire::test(ImageBatchProgress::class, ['batchId' => $batch->id])->call('resume');
+        $this->assertSame('running', $batch->fresh()->status);
     }
 }

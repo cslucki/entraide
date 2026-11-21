@@ -26,15 +26,6 @@ use InvalidArgumentException;
  */
 final class ImageOptimizationInventory
 {
-    /** Preset dont le poids mesure le gain « servi » d'une surface. */
-    private const REFERENCE_PRESETS = [
-        'user_avatar' => 'avatar',
-        'organization_logo' => 'logo',
-        'loop_cover' => 'cover_md',
-        'blog_cover' => 'cover_md',
-        'service_image' => 'service_thumb',
-    ];
-
     private const CHUNK = 500;
 
     public function __construct(
@@ -103,7 +94,7 @@ final class ImageOptimizationInventory
 
         foreach ($this->surfaces() as $surface) {
             $line = ['total' => 0, 'pending' => 0, 'ready' => 0, 'skipped' => 0, 'failed' => 0, 'missing' => 0, 'source_bytes' => 0, 'variant_bytes' => 0];
-            $reference = self::REFERENCE_PRESETS[$surface] ?? null;
+            $reference = $this->presets->referencePreset($surface);
 
             $this->eachChunk($surface, $organizationId, function (Collection $sources) use (&$line, $reference): bool {
                 $rows = $this->registryRowsFor($sources);

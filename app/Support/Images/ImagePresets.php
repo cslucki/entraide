@@ -50,6 +50,22 @@ final class ImagePresets
         return $presets;
     }
 
+    /**
+     * Le preset dont le poids mesure le gain « servi » d'une surface : celui
+     * que l'affichage courant telecharge.
+     */
+    public function referencePreset(string $surface): ?string
+    {
+        return match ($surface) {
+            'user_avatar' => 'avatar',
+            'organization_logo' => 'logo',
+            'loop_cover', 'blog_cover' => 'cover_md',
+            'service_image' => 'service_thumb',
+            'blog_content' => 'content',
+            default => null,
+        };
+    }
+
     /** @return list<string> */
     public function surfaces(): array
     {

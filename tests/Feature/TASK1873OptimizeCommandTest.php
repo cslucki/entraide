@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\ProcessImageVariants;
+use App\Jobs\ProcessImageBatchItem;
 use App\Models\BlogPost;
+use App\Models\ImageOptimizationBatch;
 use App\Models\ImageVariant;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
-use App\Support\Images\ImageOptimizationControl;
 use App\Support\Images\ImageOptimizationInventory;
 use App\Support\ScenarioManifest\ManifestAvatarBank;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -90,27 +90,37 @@ class TASK1873OptimizeCommandTest extends TestCase
         $this->assertSame(['loop-covers/b1/cover.jpg'], ImageVariant::distinct()->pluck('source_path')->all());
     }
 
-    public function test_pause_refuses_a_batch_and_resume_lifts_it(): void
-    {
-        $this->artisan('images:optimize', ['--pause' => true])->assertSuccessful();
-        $this->assertTrue(app(ImageOptimizationControl::class)->paused());
-
-        $this->artisan('images:optimize', ['--execute' => true])->assertFailed();
-        $this->assertSame(0, ImageVariant::count());
-
-        $this->artisan('images:optimize', ['--resume' => true])->assertSuccessful();
-        $this->artisan('images:optimize', ['--execute' => true, '--limit' => 1])->assertSuccessful();
-        $this->assertSame(1, ImageVariant::distinct()->count('source_path'));
-    }
-
-    public function test_the_queue_mode_dispatches_backfill_jobs_on_the_images_queue(): void
+    public function test_the_queue_mode_creates_a_tracked_batch_and_converts_nothing_in_the_command(): void
     {
         Queue::fake();
 
-        $this->artisan('images:optimize', ['--execute' => true, '--queue' => true, '--limit' => 3])->assertSuccessful();
+        $this->artisan('images:optimize', ['--execute' => true, '--queue' => true, '--limit' => 3])
+            ->expectsOutputToContain('3 image(s) mise(s) en file')
+            ->assertSuccessful();
 
-        Queue::assertPushed(ProcessImageVariants::class, 3);
-        Queue::assertPushed(ProcessImageVariants::class, fn (ProcessImageVariants $job) => $job->queue === 'images' && $job->backfill === true);
+        $batch = ImageOptimizationBatch::firstOrFail();
+        $this->assertSame(3, $batch->total);
+        $this->assertSame(3, $batch->items()->count());
+        Queue::assertPushed(ProcessImageBatchItem::class, 3);
+        Queue::assertPushed(ProcessImageBatchItem::class, fn (ProcessImageBatchItem $job) => $job->queue === 'images');
+        $this->assertSame(0, ImageVariant::count());
+    }
+
+    public function test_pause_and_resume_act_on_the_active_batch(): void
+    {
+        Queue::fake();
+        $this->artisan('images:optimize', ['--pause' => true])->expectsOutputToContain('Aucun lot actif')->assertFailed();
+
+        $this->artisan('images:optimize', ['--execute' => true, '--queue' => true, '--limit' => 2])->assertSuccessful();
+        $this->artisan('images:optimize', ['--pause' => true])->assertSuccessful();
+        $this->assertSame('paused', ImageOptimizationBatch::firstOrFail()->status);
+
+        $this->artisan('images:optimize', ['--execute' => true, '--queue' => true])
+            ->expectsOutputToContain('Un lot est deja actif')
+            ->assertFailed();
+
+        $this->artisan('images:optimize', ['--resume' => true])->assertSuccessful();
+        $this->assertSame('running', ImageOptimizationBatch::firstOrFail()->status);
     }
 
     public function test_shared_bank_avatars_deleted_posts_and_external_urls_are_never_candidates(): void
