@@ -60,9 +60,18 @@
 
                     <ul class="space-y-3">
                         @foreach($mesBoucles as $boucle)
+                            {{-- TASK-1877 (demande Cyril) — carte PLIEE par defaut : la
+                                 page liste toutes les Boucles et tous les evenements,
+                                 depliee elle s'etalait sur plusieurs ecrans. `<details>`
+                                 natif, sans script ; les cases repliees restent dans le
+                                 formulaire et sont bien soumises. --}}
                             <li data-loop-preference="{{ $boucle['id'] }}"
-                                class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 shadow-sm">
-                                <p class="text-sm font-semibold text-[var(--bp-text)]">{{ $boucle['nom'] }}</p>
+                                class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-1 shadow-sm">
+                                <details data-preference-card class="group open:pb-2">
+                                <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-[var(--bp-text)] [&::-webkit-details-marker]:hidden">
+                                    <span>{{ $boucle['nom'] }}</span>
+                                    <svg aria-hidden="true" class="h-4 w-4 shrink-0 text-[var(--bp-muted)] transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                </summary>
 
                                 <ul class="mt-2 space-y-2">
                                     {{-- TASK-1775 (arbitrage Cyril, 07/11) — l'in-app
@@ -100,6 +109,7 @@
                                         </li>
                                     @endforeach
                                 </ul>
+                                </details>
                             </li>
                         @endforeach
                     </ul>
@@ -166,9 +176,14 @@
 
                     <ul class="mt-2 space-y-2">
                 @foreach($evenements as $cle => $canaux)
+                    {{-- TASK-1877 — meme carte pliee que « Mes Boucles ». --}}
                     <li data-preference-key="{{ $cle }}"
-                        class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 shadow-sm">
-                        <p class="text-sm font-semibold text-[var(--bp-text)]">{{ $libelleCle($cle) }}</p>
+                        class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-1 shadow-sm">
+                        <details data-preference-card class="group open:pb-2">
+                        <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-[var(--bp-text)] [&::-webkit-details-marker]:hidden">
+                            <span>{{ $libelleCle($cle) }}</span>
+                            <svg aria-hidden="true" class="h-4 w-4 shrink-0 text-[var(--bp-muted)] transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                        </summary>
 
                         <ul class="mt-2 space-y-2">
                             @foreach($canaux as $canal => $reglage)
@@ -205,6 +220,7 @@
                                 {{ __('notifications.preferences_mandatory_hint') }}
                             </p>
                         @endif
+                        </details>
                     </li>
                 @endforeach
                     </ul>

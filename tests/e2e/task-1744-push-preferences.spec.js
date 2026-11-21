@@ -37,6 +37,10 @@ test.describe('TASK-1744 — reglages Web Push', () => {
         for (const cle of cles) {
             const ligne = page.locator(`[data-preference-channel="${cle}:web_push"]`);
 
+            // TASK-1877 — les cartes sont PLIEES par defaut : la personne
+            // deplie l'evenement avant de regler, le banc fait de meme.
+            await page.locator(`[data-preference-key="${cle}"] summary`).click();
+
             await expect(ligne, `[${cle}] la ligne du canal doit exister`).toHaveCount(1);
             await expect(ligne, `[${cle}] et etre VISIBLE a l'ecran`).toBeVisible();
 

@@ -88,6 +88,27 @@ class TASK1877DevicePageTest extends TestCase
         Http::assertNothingSent();
     }
 
+    /**
+     * Demande de Cyril (21/11) — les cartes de la page des preferences sont
+     * PLIEES par defaut. Chaque carte de Boucle et d'evenement porte un
+     * `<details>` ferme ; les ancres `data-preference-*` restent en place.
+     */
+    public function test_les_cartes_des_preferences_sont_pliees_par_defaut(): void
+    {
+        $html = $this->actingAs($this->alice)->get(route('notifications.preferences.edit'))
+            ->assertOk()->getContent();
+
+        $cartes = substr_count($html, '<details data-preference-card');
+        $evenements = substr_count($html, '<li data-preference-key=');
+
+        $this->assertGreaterThan(0, $evenements, 'precondition : des cartes d evenement sont rendues');
+        $this->assertSame($evenements + substr_count($html, '<li data-loop-preference='), $cartes, 'chaque carte est pliable');
+        // L'ATTRIBUT `open`, et non la classe Tailwind `open:pb-2` que
+        // porte chaque carte : `\bopen\b` les confondait (le `:` est une
+        // frontiere de mot) et voyait une carte ouverte qui ne l'etait pas.
+        $this->assertSame(0, preg_match('/<details data-preference-card[^>]*\sopen(?=[\s>=])/', $html), 'aucune carte depliee par defaut');
+    }
+
     public function test_la_page_des_preferences_ne_porte_plus_le_bloc_mais_y_mene(): void
     {
         $html = $this->actingAs($this->alice)->get(route('notifications.preferences.edit'))
