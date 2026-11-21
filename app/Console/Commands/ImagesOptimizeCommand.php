@@ -112,7 +112,7 @@ class ImagesOptimizeCommand extends Command
 
         $stats = $runner->runBatch($surface, $organizationId, $limit, $maxSeconds, $force, function (ImageSource $source, ImageProcessOutcome $outcome) {
             $gain = $outcome->status === ImageProcessOutcome::PROCESSED && $outcome->sourceBytes
-                ? sprintf(' %s -> %s (%d variante(s))', Number::fileSize($outcome->sourceBytes), Number::fileSize($outcome->variantBytes), $outcome->generated)
+                ? sprintf(' %s -> %s (%d variante(s))', Number::fileSize($outcome->sourceBytes, precision: 1), Number::fileSize($outcome->variantBytes, precision: 1), $outcome->generated)
                 : '';
             $this->line(sprintf('  [%s] %s %s%s%s', $outcome->status, $source->surface, $source->path, $gain, $outcome->reason ? ' — '.$outcome->reason : ''));
         });
@@ -122,7 +122,7 @@ class ImagesOptimizeCommand extends Command
             ['traitees', 'a jour', 'ecartees', 'manquantes', 'echecs', 'verrouillees', 'originaux lus', 'variantes ecrites'],
             [[
                 $stats['processed'], $stats['up_to_date'], $stats['skipped'], $stats['missing'], $stats['failed'], $stats['locked'],
-                Number::fileSize($stats['source_bytes']), Number::fileSize($stats['variant_bytes']),
+                Number::fileSize($stats['source_bytes'], precision: 1), Number::fileSize($stats['variant_bytes'], precision: 1),
             ]],
         );
 
@@ -154,11 +154,11 @@ class ImagesOptimizeCommand extends Command
             $size = $inventory->sourceSize($source);
             $total += (int) $size;
 
-            return [$source->surface, $source->path, $size === null ? 'ABSENT' : Number::fileSize($size), $source->organizationId ?? '—'];
+            return [$source->surface, $source->path, $size === null ? 'ABSENT' : Number::fileSize($size, precision: 1), $source->organizationId ?? '—'];
         })->all();
 
         $this->table(['surface', 'original', 'poids', 'organization'], $rows);
-        $this->line(sprintf('%d image(s), %s d\'originaux a lire.', count($rows), Number::fileSize($total)));
+        $this->line(sprintf('%d image(s), %s d\'originaux a lire.', count($rows), Number::fileSize($total, precision: 1)));
 
         return self::SUCCESS;
     }
@@ -172,7 +172,7 @@ class ImagesOptimizeCommand extends Command
             ['surface', 'en base', 'restantes', 'pretes', 'ecartees', 'echecs', 'manquantes', 'originaux (prets)', 'servi (prets)'],
             collect($summary)->map(fn (array $line, string $surface) => [
                 $surface, $line['total'], $line['pending'], $line['ready'], $line['skipped'], $line['failed'], $line['missing'],
-                Number::fileSize($line['source_bytes']), Number::fileSize($line['variant_bytes']),
+                Number::fileSize($line['source_bytes'], precision: 1), Number::fileSize($line['variant_bytes'], precision: 1),
             ])->values()->all(),
         );
     }
