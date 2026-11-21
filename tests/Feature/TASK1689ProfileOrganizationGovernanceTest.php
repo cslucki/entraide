@@ -281,7 +281,8 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
             $this->chargeValide($membre, [
                 'first_name' => 'Cyril',
                 'name' => 'Durand',
-                'bio' => 'Nouvelle bio TASK-1689.',
+                // TASK-1872 correctif 10 — au moins cent caracteres.
+                'bio' => 'Nouvelle bio TASK-1689, ecrite assez longuement pour franchir le plancher de cent caracteres impose par TASK-1872.',
                 'city' => 'Lyon',
                 'postal_code' => '69001',
                 'preferred_locale' => 'en',
@@ -293,7 +294,7 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
 
         $this->assertSame('Cyril', $membre->first_name);
         $this->assertSame('Durand', $membre->name);
-        $this->assertSame('Nouvelle bio TASK-1689.', $membre->bio);
+        $this->assertSame('Nouvelle bio TASK-1689, ecrite assez longuement pour franchir le plancher de cent caracteres impose par TASK-1872.', $membre->bio);
         $this->assertSame('Lyon', $membre->city);
         $this->assertSame('69001', $membre->postal_code);
         $this->assertSame('en', $membre->preferred_locale);
@@ -351,7 +352,8 @@ class TASK1689ProfileOrganizationGovernanceTest extends TestCase
             'phone' => '0612345678',
             // TASK-1762 point 17 — le slogan est desormais OBLIGATOIRE.
             'slogan' => 'Je resous des problemes, pas des tickets.',
-            'bio' => 'Une biographie.',
+            // TASK-1872 correctif 10 — au moins cent caracteres.
+            'bio' => 'Une presentation ecrite assez longuement pour franchir le plancher de cent caracteres impose au profil.',
             'city' => 'Paris',
             'country_code' => Country::query()->whereKey('FR')->exists() ? 'FR' : null,
             'preferred_locale' => 'fr',

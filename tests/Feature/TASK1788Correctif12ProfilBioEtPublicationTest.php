@@ -101,6 +101,20 @@ class TASK1788Correctif12ProfilBioEtPublicationTest extends TestCase
 
     private function enregistrerBio(string $bio): void
     {
+        /* TASK-1872 correctif 10 — le plancher de cent caracteres est franchi
+           ICI, dans le socle, et par un SUFFIXE.
+           ====================================================================
+           Chaque test de ce fichier passe un extrait court — un lien YouTube,
+           une URL mal formee — et verifie ce que le rendu Markdown en fait.
+           Les allonger un par un aurait noye l'extrait qu'ils mesurent.
+
+           Le remplissage est ajoute APRES, jamais avant : les assertions
+           cherchent le lien en DEBUT de presentation, et un prefixe les
+           aurait toutes decalees. */
+        while (mb_strlen($bio) < 100) {
+            $bio .= "\n\nTexte de remplissage pour franchir le plancher de cent caracteres impose par TASK-1872.";
+        }
+
         $this->actingAs($this->membre)->put(route('profile.update'), [
             // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
             'city' => 'Lyon',
