@@ -145,6 +145,60 @@
                             <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>{{ __('profile.available') }}
                         </span>
                         @endif
+
+                        {{-- TASK-1872 correctif 09 — ECRIRE, SUR LA LIGNE DU NOM.
+
+                             Constat de Cyril : « sur desktop, le bouton pour
+                             ecrire en prive est beaucoup trop loin du nom de la
+                             personne. Sur smartphone c'est ok. »
+
+                             Mesure : sur desktop, le seul chemin est la carte de
+                             l'`<aside>`, rendue APRES la liste des articles de
+                             blog. Sur une fiche a cinq articles, elle tombe a
+                             plusieurs centaines de pixels du nom. Le bloc du haut
+                             de page, lui, est `md:hidden` — il ne sert que le
+                             telephone, ou tout va bien, d'ou l'asymetrie
+                             rapportee.
+
+                             ## Trois decisions, et chacune se justifie
+
+                             1. **Sur la ligne du nom**, pas dans le coin haut
+                                droite : ce coin appartient aux actions de la
+                                personne SUR SA PROPRE fiche (« Modifier mon
+                                profil »). Y poser l'action d'un VISITEUR aurait
+                                melange deux intentions au meme endroit. Et pas
+                                `ms-auto` non plus : pousse a droite d'une carte
+                                large, le bouton redevient loin — c'est le defaut
+                                qu'on corrige.
+
+                             2. **Le libelle n'est pas invente.** C'est
+                                `messages.member_preview_write`, deja le nom de
+                                cette action sur la carte membre. Une action garde
+                                son nom d'un ecran a l'autre : c'est le balisage
+                                qui fait qu'on apprend un produit. Inventer un
+                                troisieme mot aurait ajoute du vocabulaire, pas de
+                                la clarte.
+
+                             3. **L'icone seule en dessous de `lg`.** Le `<h1>`
+                                porte `truncate` : un libelle permanent de 160 px a
+                                cote de lui ferait couper le NOM sur un ecran
+                                moyen, ce qui est pire que tout sur une fiche de
+                                personne. `aria-label` et `title` portent la phrase
+                                entiere a toutes les largeurs — l'icone n'est
+                                jamais muette pour autant.
+
+                             `hidden sm:inline-flex` : le telephone garde son bloc
+                             existant, intact. Cyril l'a dit, on n'y touche pas. --}}
+                        @if(auth()->guest() || auth()->id() !== $user->id)
+                        <a href="{{ auth()->check() ? $ecrireUrl : route('login') }}"
+                           data-profile-write-inline
+                           aria-label="{{ __('messages.member_preview_write') }}"
+                           title="{{ __('messages.member_preview_write') }}"
+                           class="hidden sm:inline-flex shrink-0 items-center gap-1.5 self-center rounded-lg bg-indigo-600 px-2.5 py-1.5 text-sm font-semibold text-white transition hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800 lg:px-3">
+                            <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                            <span class="hidden lg:inline">{{ __('messages.member_preview_write') }}</span>
+                        </a>
+                        @endif
                     </div>
 
                     {{-- TASK-1762 point 6 — sous le prenom et le nom, a TOUTES les
